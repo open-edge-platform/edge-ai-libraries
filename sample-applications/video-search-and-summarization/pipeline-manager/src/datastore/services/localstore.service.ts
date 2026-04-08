@@ -48,8 +48,13 @@ export class LocalstoreService {
   }
 
   private createPath(filePath: string) {
-    if (!existsSync(filePath)) {
-      writeFileSync(filePath, '', { mode: 'w+' });
+    try {
+      writeFileSync(filePath, '', { flag: 'wx' });
+    } catch (error) {
+      const e = error as NodeJS.ErrnoException;
+      if (e.code !== 'EEXIST') {
+        throw error;
+      }
     }
   }
 

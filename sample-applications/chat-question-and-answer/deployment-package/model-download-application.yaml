@@ -6,12 +6,12 @@ schemaVersion: "0.1"
 $schema: "https://schema.intel.com/catalog.orchestrator/0.1/schema"
 
 name: model-download-app
-version: 1.1.0-rc1
+version: 1.1.0
 description: "Model Download Microservice"
 helmRegistry: "docker-hub"
 chartName: "intel/model-download-chart"
 
-chartVersion: "1.1.0-rc1"
+chartVersion: "1.1.0"
 defaultProfile: "default"
 
 profiles:

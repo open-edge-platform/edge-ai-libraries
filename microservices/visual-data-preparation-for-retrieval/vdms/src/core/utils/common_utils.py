@@ -11,7 +11,7 @@ import logging
 from typing import NamedTuple, Optional, Tuple
 from minio import Minio
 
-from src.common import DataPrepException, Strings, logger, settings
+from src.common import DataPrepException, Strings, logger, sanitize_for_log, settings
 from src.core.minio_client import MinioClient
 from src.core.object_detection.detector import YOLOXDetector
 from .config_utils import get_config
@@ -97,7 +97,11 @@ def create_detector_instance(config: Optional[dict] = None, enable_object_detect
         
         logger.info("Attempting to create detector instance...")
         logger.debug(f"Detector config passed: {config}")
-        logger.debug(f"API overrides: enable_object_detection={enable_object_detection}, detection_confidence={detection_confidence}")
+        logger.debug(
+            "API overrides: enable_object_detection=%s, detection_confidence=%s",
+            sanitize_for_log(enable_object_detection, max_length=64),
+            sanitize_for_log(detection_confidence, max_length=64),
+        )
         
         # Get effective config to check object detection settings
         effective_config = get_config()
@@ -106,20 +110,29 @@ def create_detector_instance(config: Optional[dict] = None, enable_object_detect
         # Override with API parameters if provided
         if enable_object_detection is not None:
             detection_config['enabled'] = enable_object_detection
-            logger.info(f"Overriding object detection enabled with API value: {enable_object_detection}")
+            logger.info(
+                "Overriding object detection enabled with API value: %s",
+                sanitize_for_log(enable_object_detection, max_length=64),
+            )
         
         if detection_confidence is not None:
             detection_config['confidence_threshold'] = detection_confidence
-            logger.info(f"Overriding detection confidence with API value: {detection_confidence}")
+            logger.info(
+                "Overriding detection confidence with API value: %s",
+                sanitize_for_log(detection_confidence, max_length=64),
+            )
         
         # Use the same device as processing components for consistency across all components
         sdk_device = settings.DEVICE
         detection_config['device'] = sdk_device
         logger.info(f"Using processing device for object detection: {sdk_device}")
         
-        logger.info(f"Object detection configuration: enabled={detection_config.get('enabled', False)}, "
-                   f"device={detection_config.get('device', 'CPU')}, "
-                   f"confidence_threshold={detection_config.get('confidence_threshold', 0.85)}")
+        logger.info(
+            "Object detection configuration: enabled=%s, device=%s, confidence_threshold=%s",
+            sanitize_for_log(detection_config.get('enabled', False), max_length=64),
+            sanitize_for_log(detection_config.get('device', 'CPU'), max_length=64),
+            sanitize_for_log(detection_config.get('confidence_threshold', 0.85), max_length=64),
+        )
         
         # Create custom config with overrides
         detector_config = {

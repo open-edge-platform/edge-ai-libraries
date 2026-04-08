@@ -31,8 +31,8 @@ export interface FrozenMetricsSummary {
  *   // To reset (e.g. when navigating away):
  *   clear();
  *
- *   // Pass to TestProgressIndicator when test is finished:
- *   <TestProgressIndicator
+ *   // Pass to MetricsDashboard when test is finished:
+ *   <MetricsDashboard
  *     historyOverride={frozenHistory.length > 0 ? frozenHistory : undefined}
  *     metricsOverride={frozenSummary ?? undefined}
  *   />

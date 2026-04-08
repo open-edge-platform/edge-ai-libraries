@@ -3,7 +3,7 @@
 <!--hide_directive
 <div class="component_card_widget">
   <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer-core">
-     GitHub project
+     GitHub
   </a>
   <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/chat-question-and-answer-core/README.md">
      Readme
@@ -11,7 +11,7 @@
 </div>
 hide_directive-->
 
-ChatQ&A sample application is a foundational Retrieval Augmented Generation (RAG) pipeline,
+The Chat Question & Answer (Chat Q&A) sample application is a foundational Retrieval Augmented Generation (RAG) pipeline,
 enabling users to ask questions and receive answers including on their own private data
 corpus. The sample application demonstrates how to build RAG pipelines.
 Compared to the
@@ -67,7 +67,7 @@ more information on the Ollama framework, visit its
 The Chat Question-and-Answer Core sample application consists of two main parts:
 
 1. **Data Ingestion [Knowledge Building]**: This part is responsible for adding
-   documents to the ChatQ&A instance. The data ingestion step allows ingestion of
+   documents to the Chat Q&A instance. The data ingestion step allows ingestion of
    common document formats like pdf and doc. The ingestion process cleans and formats
    the input document, creates embeddings of the documents using embedding microservice,
    and stores them in the preferred vector database. CPU version of
@@ -81,7 +81,7 @@ The Chat Question-and-Answer Core sample application consists of two main parts:
    relevant embeddings, returning a ranked list of documents based on semantic
    similarity. The LLM generates a context-aware response from the final set of documents.
 
-For more details, refer to the [Hardware and Software requirements](./get-started/system-requirements).
+For more details, refer to the [Hardware and Software requirements](./get-started/system-requirements.md).
 
 ## Benchmark Results
 

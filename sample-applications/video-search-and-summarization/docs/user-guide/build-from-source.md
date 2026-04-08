@@ -10,8 +10,8 @@ This section shows how to build the Video Search and Summary sample application 
 ## Prerequisites
 
 1. Follow the instructions given in the [Get Started](./get-started.md) section.
-2. Address all [prerequisites](./get-started.md#-prerequisites).
-3. Configure the required [environment variables](./get-started.md#️-setting-required-environment-variables).
+2. Address all [prerequisites](./get-started.md#prerequisites).
+3. Configure the required [environment variables](./get-started.md#set-required-environment-variables).
 4. If the setup is behind a proxy, ensure `http_proxy`, `https_proxy`, and `no_proxy` are properly set on the shell.
 
 ## Steps to Build from Source
@@ -53,7 +53,7 @@ This section shows how to build the Video Search and Summary sample application 
 
    **3.2 Building Images**
 
-   The build script provides options to build and push the images. Build script provides option to build only the application microservices or build together with all the dependent microservices. The dependent microservices are the following microservices: [Multimodal Embedding](../../../../microservices/multimodal-embedding-serving/), [Audio Analyzer](../../../../microservices/audio-analyzer/), [VDMS based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/), and [VLM microservice](../../../../microservices/vlm-openvino-serving/).
+   The build script provides options to build and push the images. Build script provides option to build only the application microservices or build together with all the dependent microservices. The following microservices are dependent: [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html), [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html), [VDMS based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/vdms), and [VLM microservice](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/vlm-openvino-serving).
 
    ```bash
 

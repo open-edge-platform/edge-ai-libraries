@@ -1,0 +1,57 @@
+name: Motion Detection
+definition: >
+  Motion detection pipeline that uses gvamotiondetect to identify regions of motion, then runs YOLOv8n object detection
+  restricted to those motion ROIs via gvadetect.
+tags:
+  - "Smart Cities"
+thumbnail: images/license-plate-recognition.png
+variants:
+  - name: CPU
+    pipeline_description: >-
+      filesrc location=/videos/input/traffic.mp4 !
+      decodebin3 !
+      gvamotiondetect motion-threshold=0.07 min-persistence=2 !
+      gvadetect 
+        device=CPU 
+        model=/models/output/public/yolov8n/INT8/yolov8n.xml 
+        pre-process-backend=opencv
+        inference-region=roi-list 
+        model-instance-id=detect-cpu !
+      gvametaconvert format=json !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      videoconvert !
+      fakesink name=default_output_sink sync=false async=false
+  - name: GPU
+    pipeline_description: >-
+      filesrc location=/videos/input/traffic.mp4 !
+      decodebin3 !
+      gvamotiondetect motion-threshold=0.07 min-persistence=2 !
+      gvadetect 
+        device=GPU
+        model=/models/output/public/yolov8n/INT8/yolov8n.xml
+        pre-process-backend=va-surface-sharing
+        inference-region=roi-list
+        model-instance-id=detect-gpu !
+      gvametaconvert format=json !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      fakesink name=default_output_sink sync=false async=false
+  - name: NPU
+    pipeline_description: >-
+      filesrc location=/videos/input/traffic.mp4 !
+      decodebin3 !
+      gvamotiondetect motion-threshold=0.07 min-persistence=2 !
+      gvadetect 
+        device=NPU 
+        model=/models/output/public/yolov8n/INT8/yolov8n.xml 
+        pre-process-backend=opencv
+        inference-region=roi-list
+        model-instance-id=detect-npu !
+      gvametaconvert format=json !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      fakesink name=default_output_sink sync=false async=false

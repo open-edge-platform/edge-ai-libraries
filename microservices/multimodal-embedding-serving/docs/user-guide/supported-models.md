@@ -7,7 +7,7 @@ The Multimodal Embedding Serving microservice supports multiple vision-language 
 ### CLIP (Contrastive Language-Image Pretraining)
 
 | Model ID | Architecture | Embedding Dimension |
-|----------|-------------|-------------------|
+|----------|--------------|---------------------|
 | `CLIP/clip-vit-b-32` | ViT-B-32 | 512 |
 | `CLIP/clip-vit-b-16` | ViT-B-16 | 512 |
 | `CLIP/clip-vit-l-14` | ViT-L-14 | 768 |
@@ -18,7 +18,7 @@ Standard OpenAI CLIP models for general-purpose vision-language understanding.
 ### CN-CLIP (Chinese CLIP)
 
 | Model ID | Architecture | Embedding Dimension |
-|----------|-------------|-------------------|
+|----------|--------------|---------------------|
 | `CN-CLIP/cn-clip-vit-b-16` | ViT-B-16 | 512 |
 | `CN-CLIP/cn-clip-vit-l-14` | ViT-L-14 | 768 |
 | `CN-CLIP/cn-clip-vit-h-14` | ViT-H-14 | 1024 |
@@ -28,7 +28,7 @@ Chinese-optimized CLIP models supporting both Chinese and English text.
 ### MobileCLIP
 
 | Model ID | Architecture | Embedding Dimension |
-|----------|-------------|-------------------|
+|----------|--------------|---------------------|
 | `MobileCLIP/mobileclip_s0` | MobileCLIP-S0 | 512 |
 | `MobileCLIP/mobileclip_s1` | MobileCLIP-S1 | 512 |
 | `MobileCLIP/mobileclip_s2` | MobileCLIP-S2 | 512 |
@@ -40,7 +40,7 @@ Lightweight CLIP models designed for mobile and edge deployment.
 ### SigLIP
 
 | Model ID | Architecture | Embedding Dimension |
-|----------|-------------|-------------------|
+|----------|--------------|---------------------|
 | `SigLIP/siglip2-vit-b-16` | ViT-B-16 | 768 |
 | `SigLIP/siglip2-vit-l-16` | ViT-L-16 | 1024 |
 | `SigLIP/siglip2-so400m-patch16-384` | ViT-So400M | 1152 |
@@ -50,7 +50,7 @@ CLIP models with sigmoid loss function.
 ### BLIP-2 (Semantic Search / Retrieval)
 
 | Model ID | Architecture | Embedding Dimension | HuggingFace Model | Handler |
-|----------|-------------|-------------------|-------------------|---------|
+|----------|--------------|---------------------|-------------------|---------|
 | `Blip2/blip2_transformers` | BLIP-2 + Q-Former | 256 | `Salesforce/blip2-itm-vit-g` | Transformers |
 
 The BLIP-2 handler uses `Blip2ForImageTextRetrieval` from HuggingFace Transformers with projection layers (768D→256D) to generate compact embeddings.
@@ -137,8 +137,6 @@ curl http://localhost:9777/model/capabilities
 
 ## Related Documentation
 
-- [Get Started](get-started.md): Step-by-step deployment instructions
-- [Quick Reference](quick-reference.md): Essential commands and configurations
-- [SDK Usage](sdk-usage.md): Python SDK integration guide
-- [Overview](Overview.md): Architecture and capabilities overview
-- [BLIP-2 Transformers Guide](blip2-transformers-embeddings.md): Detailed BLIP-2 implementation guide
+- [Overview](./index.md): Architecture and capabilities overview
+- [Get Started](./get-started.md): Step-by-step deployment instructions
+- [SDK Usage](./sdk-usage.md): Python SDK integration guide

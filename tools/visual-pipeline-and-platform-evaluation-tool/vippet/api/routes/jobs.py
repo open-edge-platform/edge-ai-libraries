@@ -1,8 +1,8 @@
 import logging
 import time
 
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Query
+from fastapi.responses import JSONResponse, StreamingResponse
 
 import api.api_schemas as schemas
 from graph import Graph
@@ -18,8 +18,12 @@ from internal_types import (
     InternalValidationJobSummary,
 )
 from managers.optimization_manager import OptimizationManager
+from managers.metadata_manager import MetadataManager
 from managers.tests_manager import TestsManager
 from managers.validation_manager import ValidationManager
+
+# Maximum number of records that can be requested in a single snapshot query
+METADATA_SNAPSHOT_LIMIT = 1000
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.jobs")
@@ -387,6 +391,177 @@ def stop_performance_test_job(job_id: str):
     ```
     """
     return stop_test_job_handler(job_id)
+
+
+@router.get(
+    "/tests/performance/{job_id}/metadata/{pipeline_id}/{file_index}",
+    operation_id="get_performance_job_metadata_snapshot",
+    summary="Get metadata snapshot for a specific pipeline stream",
+    response_class=JSONResponse,
+    responses={
+        200: {
+            "description": "List of metadata records for the specified pipeline stream",
+            "content": {
+                "application/json": {
+                    "schema": {"type": "array", "items": {"type": "object"}}
+                }
+            },
+        },
+        404: {
+            "description": "Job, pipeline, or file index not found",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+def get_performance_job_metadata_for_stream(
+    job_id: str,
+    pipeline_id: str,
+    file_index: int,
+    limit: int = Query(default=100, ge=1, le=METADATA_SNAPSHOT_LIMIT),
+):
+    """
+    **Return the most recent metadata records for a specific pipeline stream.**
+
+    ## Operation
+
+    Returns a snapshot of up to ``limit`` JSON records read directly from disk,
+    written by the ``gvametapublish`` element identified by *pipeline_id* and
+    the per-pipeline *file_index*.  Records remain available after the job
+    completes.
+
+    ## Path Parameters
+
+    - `job_id`: Identifier of the performance job
+    - `pipeline_id`: Pipeline identifier
+    - `file_index`: Zero-based index of the metadata file within that pipeline
+
+    ## Query Parameters
+
+    - `limit` *(optional, default 100, max 1000)*: Maximum number of records to return
+
+    ## Response Codes
+
+    | Code | Description |
+    |------|-------------|
+    | 200  | JSON array of metadata records (may be empty) |
+    | 404  | Job id, pipeline id, or file index is unknown |
+    """
+    if not MetadataManager().job_exists(job_id):
+        internal_status = TestsManager().get_job_status(job_id)
+        if internal_status is None:
+            return JSONResponse(
+                content=schemas.MessageResponse(
+                    message=f"Performance job {job_id} not found"
+                ).model_dump(),
+                status_code=404,
+            )
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"No metadata available for job {job_id}. "
+                "The pipeline may not include a gvametapublish element writing to a file."
+            ).model_dump(),
+            status_code=404,
+        )
+
+    global_index = MetadataManager().resolve_file_index(job_id, pipeline_id, file_index)
+    if global_index is None:
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Pipeline '{pipeline_id}' or file index {file_index} not found for job {job_id}."
+            ).model_dump(),
+            status_code=404,
+        )
+    records = MetadataManager().get_snapshot(
+        job_id, file_index=global_index, limit=limit
+    )
+    return JSONResponse(content=records)
+
+
+@router.get(
+    "/tests/performance/{job_id}/metadata/{pipeline_id}/{file_index}/stream",
+    operation_id="stream_performance_job_metadata",
+    summary="Stream metadata from a running performance test job via SSE",
+    responses={
+        200: {
+            "description": "SSE stream of metadata records",
+            "content": {"text/event-stream": {}},
+        },
+        404: {"description": "Job not found", "model": schemas.MessageResponse},
+    },
+)
+async def stream_performance_job_metadata(
+    job_id: str, pipeline_id: str, file_index: int
+):
+    """
+    **Stream live metadata records from gvametapublish via Server-Sent Events.**
+
+    ## Operation
+
+    Opens a persistent HTTP connection and pushes each new JSON record emitted
+    by the ``gvametapublish`` GStreamer element as an SSE ``data:`` event.
+    The stream terminates automatically when the pipeline finishes.
+    A ``": keepalive"`` comment is sent every 30 s to prevent proxy timeouts.
+
+    ## Path Parameters
+
+    - `job_id`: Identifier of the performance job to stream metadata from
+
+    ## Response Format
+
+    ``text/event-stream`` — each event is:
+    ```
+    data: {<json record>}\n\n
+    ```
+
+    ## Response Codes
+
+    | Code | Description |
+    |------|-------------|
+    | 200  | SSE stream opened |
+    | 404  | Job id is unknown or no metadata is available for this job |
+    """
+    if not MetadataManager().job_exists(job_id):
+        internal_status = TestsManager().get_job_status(job_id)
+        if internal_status is None:
+            return JSONResponse(
+                content=schemas.MessageResponse(
+                    message=f"Performance job {job_id} not found"
+                ).model_dump(),
+                status_code=404,
+            )
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"No metadata stream available for job {job_id}. "
+                "The pipeline may not include a gvametapublish element writing to a file."
+            ).model_dump(),
+            status_code=404,
+        )
+
+    global_index = MetadataManager().resolve_file_index(job_id, pipeline_id, file_index)
+    if global_index is None:
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Pipeline '{pipeline_id}' or file index {file_index} not found for job {job_id}."
+            ).model_dump(),
+            status_code=404,
+        )
+
+    async def _event_generator():
+        async for line in MetadataManager().stream_events(job_id, global_index):
+            # Keepalive comments are already formatted by MetadataManager
+            if line.startswith(":"):
+                yield line
+            else:
+                yield f"data: {line}\n\n"
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get(
@@ -1041,6 +1216,7 @@ def _performance_job_to_api_status(
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,
         live_stream_urls=job.live_stream_urls,
+        metadata_stream_urls=job.metadata_stream_urls,
     )
 
 

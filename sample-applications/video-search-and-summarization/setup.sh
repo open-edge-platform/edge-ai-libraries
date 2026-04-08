@@ -17,7 +17,7 @@ export RABBITMQ_CONFIG=${CONFIG_DIR}/rmq.conf
 # Function to stop Docker containers
 stop_containers() {
     echo -e "${YELLOW}Bringing down the Docker containers... ${NC}"
-    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml -f docker/compose.telemetry.yaml --profile ovms down
+    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.vllm.yaml -f docker/compose.search.yaml -f docker/compose.telemetry.yaml --profile ovms --profile vlm-ov --profile vllm down
     if [ $? -ne 0 ]; then
         echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
         return 1
@@ -136,6 +136,10 @@ fi
 export VLM_TELEMETRY_MAX_RECORDS=$VLM_TELEMETRY_MAX_RECORDS
 export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
+export ENABLE_VLLM=${ENABLE_VLLM:-false}
+export VLLM_HOST=vllm-cpu-service
+export VLLM_HOST_PORT=${VLLM_HOST_PORT:-8200}
+export VLLM_ENDPOINT=http://${VLLM_HOST}:8000/v1
 export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
@@ -636,6 +640,8 @@ export_model_for_ovms() {
 }
 
 if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
+    BACKEND_PROFILE="vlm-ov"
+
     # Turn on feature flags for summarization and turn off search
     export SUMMARY_FEATURE="FEATURE_ON"
     export SEARCH_FEATURE="FEATURE_OFF"
@@ -704,24 +710,42 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         fi
     fi
 
-    # Check if the object detection model directory exists or whether docker-compose config is requested
-    if [ ! -d "${OD_MODEL_OUTPUT_DIR}" ] && [ "$2" != "config" ]; then
-        echo -e  "[vdms-dataprep] ${YELLOW}Object detection model directory does not exist. Creating it...${NC}"
-        mkdir -p "${OD_MODEL_OUTPUT_DIR}"
-        convert_object_detection_models
-    else
-        echo -e  "[vdms-dataprep] ${YELLOW}Object detection model already exists. Skipping model setup...${NC}"
+    # Validate expected OpenVINO artifact; directory-only checks can miss partial/incomplete model state.
+    od_model_xml="${OD_MODEL_OUTPUT_DIR}/FP32/${OD_MODEL_NAME}.xml"
+    od_model_bin="${OD_MODEL_OUTPUT_DIR}/FP32/${OD_MODEL_NAME}.bin"
+    if [ "$2" != "config" ]; then
+        if [ ! -f "${od_model_xml}" ] || [ ! -f "${od_model_bin}" ]; then
+            echo -e  "[vdms-dataprep] ${YELLOW}Object detection model file not found at ${od_model_xml} or ${od_model_bin}. Running model conversion...${NC}"
+            mkdir -p "${OD_MODEL_OUTPUT_DIR}"
+            convert_object_detection_models
+        else
+            echo -e  "[vdms-dataprep] ${YELLOW}Object detection model file found at ${od_model_xml}. Skipping model setup...${NC}"
+        fi
+    fi
+
+    if [ "$ENABLE_VLLM" = true ]; then
+        echo -e "[vllm-cpu-service] ${BLUE}Using vLLM for both chunk captioning and final summary${NC}"
+        echo -e "[vllm-cpu-service] ${YELLOW}Disabling OVMS and vlm-openvino-serving because ENABLE_VLLM=true${NC}"
+        BACKEND_PROFILE="vllm"
+        export ENABLE_OVMS_LLM_SUMMARY=false
+        export ENABLE_OVMS_LLM_SUMMARY_GPU=false
+        export ENABLE_VLM_GPU=false
+        export USE_OVMS_CONFIG=CONFIG_OFF
+        export LLM_SUMMARIZATION_API=${VLLM_ENDPOINT}
+        export VLM_ENDPOINT=${VLLM_ENDPOINT}
+        export VLM_HOST=${VLLM_HOST}
+        APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.vllm.yaml"
     fi
 
     # Check if both LLM and VLM are configured for GPU. In which case, prioritize VLM for GPU and set OVMS to CPU
-    if [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ] && \ 
+    if [ "$ENABLE_VLLM" != true ] && [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ] && \
        [ "$ENABLE_VLM_GPU" = true ]; then
         echo -e "[ovms-service] ${BLUE}Both VLM and LLM are configured for GPU. Resetting OVMS to run on CPU${NC}"
-        export ENABLE_OVMS_LLM_SUMMARY_GPU="false"        
+        export ENABLE_OVMS_LLM_SUMMARY_GPU="false"
     fi
 
     # If OVMS is to be used for summarization, set up the environment variables and compose files accordingly
-    if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
+    if [ "$ENABLE_VLLM" != true ] && { [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; }; then
         echo -e "[ovms-service] ${BLUE}Using OVMS for generating final summary for the video${NC}"
         export USE_OVMS_CONFIG=CONFIG_ON
         export LLM_SUMMARIZATION_API=http://$OVMS_HOST/v3
@@ -780,35 +804,32 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
                 export_model_for_ovms
             fi
         fi
-
-        # If config is passed, set the command to only generate the config
-        #FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
-        #DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
-
-    else
+    elif [ "$ENABLE_VLLM" != true ]; then
         echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for generating final summary for the video${NC}"
         export USE_OVMS_CONFIG=CONFIG_OFF
         export LLM_SUMMARIZATION_API=http://$VLM_HOST:8000/v1
     fi
 
-    if [ "$ENABLE_VLM_GPU" = true ]; then
-        export VLM_DEVICE=GPU
-        export PM_VLM_CONCURRENT=1
-        export PM_LLM_CONCURRENT=1
-        export VLM_COMPRESSION_WEIGHT_FORMAT=int4
-        if [ "$PM_MULTI_FRAME_COUNT_DEFAULTED" = true ]; then
-            export PM_MULTI_FRAME_COUNT=6
+    if [ "$ENABLE_VLLM" != true ]; then
+        if [ "$ENABLE_VLM_GPU" = true ]; then
+            export VLM_DEVICE=GPU
+            export PM_VLM_CONCURRENT=1
+            export PM_LLM_CONCURRENT=1
+            export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+            if [ "$PM_MULTI_FRAME_COUNT_DEFAULTED" = true ]; then
+                export PM_MULTI_FRAME_COUNT=6
+            fi
+            export WORKERS=1
+            echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for summarization on GPU${NC}"
+        else
+            export VLM_DEVICE=CPU
+            echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for summarization on CPU${NC}"
         fi
-        export WORKERS=1        
-        echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for summarization on GPU${NC}"
-    else
-        export VLM_DEVICE=CPU
-        echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for summarization on CPU${NC}"
     fi
 
     # if config is passed, set the command to only generate the config
     FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
-    DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
+    DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE --profile $BACKEND_PROFILE $FINAL_ARG"
 
 elif [ "$1" = "--search" ]; then
     mkdir -p ${VS_WATCHER_DIR}

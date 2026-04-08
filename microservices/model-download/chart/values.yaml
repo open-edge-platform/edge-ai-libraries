@@ -29,6 +29,12 @@ modeldownload:
     GETI_SERVER_API_VERSION: "v1"
     GETI_SERVER_SSL_VERIFY: "False"
     ENABLED_PLUGINS: "all"   #Comma separated list of plugins to enable, or "all"
+    OVMS_RELEASE_TAG: "v2025.4.1"
+    #HLS pre-configured parameters
+    HLS_3D_POSE_CHECKPOINT_URL: "https://storage.openvinotoolkit.org/repositories/open_model_zoo/public/2022.1/human-pose-estimation-3d-0001/human-pose-estimation-3d.tar.gz"
+    HLS_ECG_BASE_URL: "https://raw.githubusercontent.com/Einse57/OpenVINO_sample/master/ai-ecg-master"
+    HLS_RPPG_MODEL_URL: "https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5"
+
   
   gpu:
     enabled: false

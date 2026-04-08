@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.0] - March 2026
+
+### Added
+- Added check to validate UDF availability before updating config. ([#1954])
+
+### Changed
+- Updated Kapacitor base image from v1.8.2 to v1.8.3. ([#1946])
+- Updated Python library dependency versions. ([#1901])
+- Updated Time Series Analytics image versioning and standardized tag format across Docker Compose and Helm configurations. ([#1727])
+- Updated Helm chart versioning scheme to include `-helm` suffix and aligned chart metadata/docs. ([#1814])
+- Removed Model Registry references from Time Series Analytics documentation/content. ([#1766])
+- Updated production-usage guidance for Ubuntu-based prebuilt images to direct users toward self-built production images. ([#1635])
+
+### Fixed
+- Fixed PTL GPU access issue by pinning specific Intel compute runtime and graphics compiler package versions. ([#1603])
+- Fixed functionality issues in `rest_api_utils.py` and `test_docker.py`. ([#1625])
+- Fixed unit test issues in Time Series Analytics. ([#1598])
+- Bumped `protobuf` from `6.31.1` to `6.33.5`. ([#1771])
+
+### Documentation
+- Updated release branch references and documentation links. ([#1993], [#1974], [#1955], [#1867])
+- Fixed release notes documentation for 2026.0. ([#1961], [#1909], [#1837])
+- Updated step to run simulator in virtual environment. ([#1829])
+- Added missing documentation reference links from release-2025.2 branch. ([#1582])
+- Reorganized AI Libraries component documentation. ([#1797])
+- Reorganized Time Series Analytics toctree/navigation. ([#1712])
+- Fixed Time Series Analytics toctree issues. ([#1634])
+- Added docs link blocks and index updates for markdown docs. ([#1624])
+
+---
+
+[#1993]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1993
+[#1974]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1974
+[#1961]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1961
+[#1955]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1955
+[#1954]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1954
+[#1946]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1946
+[#1909]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1909
+[#1901]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1901
+[#1867]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1867
+[#1837]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1837
+[#1829]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1829
+[#1814]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1814
+[#1797]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1797
+[#1771]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1771
+[#1766]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1766
+[#1727]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1727
+[#1712]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1712
+[#1635]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1635
+[#1634]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1634
+[#1625]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1625
+[#1624]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1624
+[#1603]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1603
+[#1598]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1598
+[#1582]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1582
+
 ## [2025.2] - December 2025
 
 ### Added

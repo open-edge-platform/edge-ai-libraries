@@ -34,7 +34,7 @@ import numpy as np
 from PIL import Image
 import decord
 
-from src.common import logger, settings
+from src.common import logger, sanitize_for_log, settings
 from src.core.embedding.sdk_client import SDKVDMSClient
 
 # Global SDK client instance (initialized once per worker process)
@@ -213,7 +213,10 @@ def get_global_detector(enable_object_detection: bool = True, detection_confiden
             if _global_detector is None:
                 logger.warning("Global object detector initialization failed")
             else:
-                logger.info(f"Global object detector initialized with confidence threshold: {detection_confidence}")
+                logger.info(
+                    "Global object detector initialized with confidence threshold: %s",
+                    sanitize_for_log(detection_confidence, max_length=32),
+                )
                 
         except Exception as e:
             logger.error(f"Failed to initialize global object detector: {e}")
@@ -419,7 +422,10 @@ class SimplePipelineManager:
             logger.warning("Object detector not available - disabling object detection")
             self.enable_object_detection = False
         else:
-            logger.info(f"Using global object detector with confidence threshold: {self.detection_confidence}")
+            logger.info(
+                "Using global object detector with confidence threshold: %s",
+                sanitize_for_log(self.detection_confidence, max_length=32),
+            )
         
     
     def _process_frame_with_detection(self, frame_numpy: np.ndarray, frame_metadata: Dict[str, Any]) -> List[Tuple[Image.Image, Dict[str, Any]]]:
@@ -582,10 +588,17 @@ class SimplePipelineManager:
     
     def process_frames_parallel(self, all_frames: List[np.ndarray], all_metadata: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Process frames in parallel for embedding generation with optional object detection and per-batch storage."""
-        logger.info(f"Processing {len(all_frames)} frames with {self.config['pipeline_count']} maximum parallel workers")
+        logger.info(
+            "Processing %s frames with %s maximum parallel workers",
+            sanitize_for_log(len(all_frames), max_length=32),
+            sanitize_for_log(self.config['pipeline_count'], max_length=32),
+        )
         
         if self.enable_object_detection:
-            logger.info(f"Object detection enabled with confidence threshold: {self.detection_confidence}")
+            logger.info(
+                "Object detection enabled with confidence threshold: %s",
+                sanitize_for_log(self.detection_confidence, max_length=32),
+            )
         
         try:
             # Create batches of frames for parallel processing
@@ -960,7 +973,10 @@ def generate_video_embedding_sdk(
         Dictionary containing processing results and timing information
     """
     total_start_time = time.time()
-    logger.info(f"Starting SDK video processing with frame_interval={frame_interval}")
+    logger.info(
+        "Starting SDK video processing with frame_interval=%s",
+        sanitize_for_log(frame_interval, max_length=32),
+    )
     
     try:
         # Get SDK client
@@ -1059,7 +1075,11 @@ def _process_video_from_memory_simple_pipeline(
             
             # Extract frames at specified interval
             frame_indices = list(range(0, total_frames, frame_interval))
-            logger.info(f"Extracting {len(frame_indices)} frames with interval {frame_interval}")
+            logger.info(
+                "Extracting %s frames with interval %s",
+                sanitize_for_log(len(frame_indices), max_length=32),
+                sanitize_for_log(frame_interval, max_length=32),
+            )
             
             frames = []
             frames_metadata = []
@@ -1143,9 +1163,18 @@ def _process_video_from_memory_simple_pipeline(
                     
                     # DEBUG: Print first frame metadata to verify video URLs are included
                     if frame_idx == 0:
-                        logger.info(f"DEBUG: First frame metadata sample: {frame_metadata}")
-                        logger.info(f"DEBUG: Source metadata_dict video_url: '{metadata_dict.get('video_url', 'NOT_FOUND')}'")
-                        logger.info(f"DEBUG: Source metadata_dict video_rel_url: '{metadata_dict.get('video_rel_url', 'NOT_FOUND')}'") 
+                        logger.info(
+                            "DEBUG: First frame metadata sample: %s",
+                            sanitize_for_log(frame_metadata, max_length=1024),
+                        )
+                        logger.info(
+                            "DEBUG: Source metadata_dict video_url: '%s'",
+                            sanitize_for_log(metadata_dict.get('video_url', 'NOT_FOUND'), max_length=512),
+                        )
+                        logger.info(
+                            "DEBUG: Source metadata_dict video_rel_url: '%s'",
+                            sanitize_for_log(metadata_dict.get('video_rel_url', 'NOT_FOUND'), max_length=512),
+                        )
                     
                 except Exception as e:
                     logger.error(f"Error extracting frame {frame_idx}: {e}")
@@ -1191,10 +1220,10 @@ def _process_video_from_memory_simple_pipeline(
         )
         
         logger.info(
-            "Embedding generation pipeline completed in %.3fs: %d embeddings across %d batches",
+            "Embedding generation pipeline completed in %.3fs: %s embeddings across %s batches",
             parallel_stage_time,
-            total_embeddings,
-            batches_processed,
+            sanitize_for_log(total_embeddings, max_length=32),
+            sanitize_for_log(batches_processed, max_length=32),
         )
         
         # Step 3: Return results (storage already completed per-batch)
