@@ -1,6 +1,6 @@
-# Running Tests for ChatQ&A-Core
+# Running Tests for Chat Q&A-Core
 
-This guide will help you run the tests for the ChatQ&A-Core project using the pytest framework.
+This guide will help you run the tests for the Chat Q&A Core project using the pytest framework.
 
 ---
 

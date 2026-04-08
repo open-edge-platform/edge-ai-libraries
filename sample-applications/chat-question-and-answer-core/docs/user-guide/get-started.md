@@ -1,6 +1,6 @@
 # Get Started
 
-The Chat Question & Answer (Chat Q&A) Sample Application is a Retrieval Augmented Generation (RAG) pipeline designed to be used in a single user non concurrent deployment primarily targeting  Intel® Core&trade; deployments.  The application is intended to help developers create personal intelligent chatbots that can answer questions based on their private data. This guide will help you set up, run, and modify the ChatQ&A Sample Application on Intel Edge AI systems.
+The Chat Question & Answer (Chat Q&A) sample application is a Retrieval Augmented Generation (RAG) pipeline designed to be used in a single user non concurrent deployment primarily targeting  Intel® Core&trade; deployments.  The application is intended to help developers create personal intelligent chatbots that can answer questions based on their private data. This guide will help you set up, run, and modify the ChatQ&A Sample Application on Intel Edge AI systems.
 
 By following this guide, you will learn how to:
 

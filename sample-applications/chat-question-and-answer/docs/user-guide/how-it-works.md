@@ -19,7 +19,7 @@ The Chat Q&A application is a combination of the core LangChain application logi
 ### Technical Architecture Diagram
 
 ![Technical Architecture Diagram](./_assets/TEAI_ChatQnA_Arch.png)
-**Figure 1**: Detailed Architecture of the Chat Q&A Sample Application
+**Figure 1**: Detailed Architecture of the Chat Q&A sample application
 
 ### Application Flow
 
