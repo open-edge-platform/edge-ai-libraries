@@ -30,6 +30,6 @@ lp-cores|lpe-cores)
     ;;
 esac
 echo "Using core pinning: ${taskset_cmds[@]}"
-"${taskset_cmds[@]}" python3 main.py
+exec "${taskset_cmds[@]}" python3 main.py
 
 
