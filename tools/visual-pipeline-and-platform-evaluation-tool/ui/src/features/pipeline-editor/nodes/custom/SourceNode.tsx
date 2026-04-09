@@ -1,6 +1,6 @@
 import { PipelineNodeCard, PIPELINE_NODE_ROLE_CLASSES } from "../shared";
 
-export const SourceNodeWidth = 330;
+export const SourceNodeWidth = 280;
 
 type SourceNodeProps = {
   data: {
@@ -15,7 +15,7 @@ const SourceNode = ({ data }: SourceNodeProps) => {
       title="Input"
       nodeType="source"
       roleClasses={PIPELINE_NODE_ROLE_CLASSES.source}
-      minWidthClass="min-w-[20.625rem]"
+      minWidthClass="min-w-[17.5rem]"
       handles="source"
       details={
         <div className="flex items-center gap-1 flex-wrap text-xs text-node-body-text">
@@ -24,7 +24,7 @@ const SourceNode = ({ data }: SourceNodeProps) => {
           {data.source && (
             <>
               {data.kind && <span className="text-node-separator">•</span>}
-              <span className="truncate max-w-[11.5625rem]" title={data.source}>
+              <span className="truncate max-w-[8.5rem]" title={data.source}>
                 {data.source}
               </span>
             </>

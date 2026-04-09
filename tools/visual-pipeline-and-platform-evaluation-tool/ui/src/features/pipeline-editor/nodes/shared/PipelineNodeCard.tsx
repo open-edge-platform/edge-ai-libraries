@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { ReactNode } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { getHandleLeftPosition } from "../../utils/graphLayout";
 import type { PipelineNodeRoleClasses } from "./pipelineNodeRoleClasses";
 
 export type PipelineNodeHandleMode = "both" | "target" | "source" | "none";
@@ -19,7 +18,7 @@ export type PipelineNodeCardProps = {
 const PipelineNodeCard = ({
   title,
   icon,
-  nodeType,
+  nodeType: _nodeType,
   roleClasses,
   details,
   minWidthClass = "min-w-[13.75rem]",
@@ -53,7 +52,6 @@ const PipelineNodeCard = ({
         type="target"
         position={Position.Top}
         className={`w-3 h-3 ${roleClasses.handle}`}
-        style={{ left: getHandleLeftPosition(nodeType) }}
       />
     )}
 
@@ -62,7 +60,6 @@ const PipelineNodeCard = ({
         type="source"
         position={Position.Bottom}
         className={`w-3 h-3 ${roleClasses.handle}`}
-        style={{ left: getHandleLeftPosition(nodeType) }}
       />
     )}
   </div>
