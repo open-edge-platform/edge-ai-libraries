@@ -52,6 +52,13 @@
   --electric-fuchsia: oklch(0.52 0.27 330); /* ~#C81E8F */
   --electric-teal: oklch(0.55 0.16 190); /* ~#0FA3A3 */
   --electric-emerald: oklch(0.58 0.18 150); /* ~#00A86B */
+  --electric-sky: oklch(0.65 0.19 228); /* ~#2B8FF0 sky blue */
+  --electric-indigo: oklch(0.48 0.25 280); /* ~#5B21B6 deep indigo */
+  --electric-periwinkle: oklch(0.62 0.18 272); /* ~#7070F4 periwinkle */
+  --electric-lavender: oklch(0.58 0.16 290); /* ~#9B6DD0 lavender */
+  --electric-cerulean: oklch(0.60 0.14 235); /* ~#5590D0 cerulean */
+  --electric-mauve: oklch(0.53 0.20 320); /* ~#B83BAD mauve */
+  --electric-orchid: oklch(0.55 0.22 310); /* ~#9F30D0 orchid */
 
   /* Chart palette (light) */
   --green-chart: oklch(0.795 0.108 128.285); /* #B1D272 */
