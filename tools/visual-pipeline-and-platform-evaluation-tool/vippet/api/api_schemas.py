@@ -1727,6 +1727,33 @@ class Video(BaseModel):
     duration: float
 
 
+class VideoExistsResponse(BaseModel):
+    """
+    **Response indicating whether a video file exists.**
+
+    ## Attributes
+    - `exists` - True if file exists in INPUT_VIDEO_DIR, False otherwise
+    - `filename` - The filename that was checked
+
+    ### Example
+    ```json
+    {
+      "exists": true,
+      "filename": "traffic_1080p_h264.mp4"
+    }
+    ```
+    """
+
+    exists: bool = Field(
+        ...,
+        description="True if the video file exists, False otherwise.",
+    )
+    filename: str = Field(
+        ...,
+        description="The filename that was checked.",
+    )
+
+
 class CameraDetails(BaseModel):
     """
     **Base class for camera-specific details.**

@@ -170,19 +170,21 @@ export const Videos = () => {
    */
   const processUploadsWithConcurrency = async (
     files: FileUploadState[],
-  ): Promise<void> => {
-    const queue = [...files];
-    const executing: Promise<void>[] = [];
+  ): Promise<{ succeeded: number; failed: number }> => {
+    const queue = files.map((fileState, index) => ({ fileState, index }));
+    const executing = new Set<Promise<void>>();
+    let succeeded = 0;
+    let failed = 0;
 
-    for (const fileState of queue) {
-      const promise = (async () => {
-        const index = uploadStates.findIndex((s) => s.file === fileState.file);
-
+    for (const { fileState, index } of queue) {
+      const uploadPromise = async () => {
         try {
           // Update status to uploading
           setUploadStates((prev) => {
             const newStates = [...prev];
-            newStates[index] = { ...newStates[index], status: "uploading" };
+            if (newStates[index]) {
+              newStates[index] = { ...newStates[index], status: "uploading" };
+            }
             return newStates;
           });
 
@@ -190,7 +192,9 @@ export const Videos = () => {
           await uploadFile(fileState.file, (progress) => {
             setUploadStates((prev) => {
               const newStates = [...prev];
-              newStates[index] = { ...newStates[index], progress };
+              if (newStates[index]) {
+                newStates[index] = { ...newStates[index], progress };
+              }
               return newStates;
             });
           });
@@ -198,41 +202,49 @@ export const Videos = () => {
           // Mark as completed
           setUploadStates((prev) => {
             const newStates = [...prev];
-            newStates[index] = {
-              ...newStates[index],
-              status: "completed",
-              progress: 100,
-            };
+            if (newStates[index]) {
+              newStates[index] = {
+                ...newStates[index],
+                status: "completed",
+                progress: 100,
+              };
+            }
             return newStates;
           });
+          succeeded++;
         } catch (error) {
           // Mark as failed
           setUploadStates((prev) => {
             const newStates = [...prev];
-            newStates[index] = {
-              ...newStates[index],
-              status: "failed",
-              error: error instanceof Error ? error.message : "Upload failed",
-            };
+            if (newStates[index]) {
+              newStates[index] = {
+                ...newStates[index],
+                status: "failed",
+                error: error instanceof Error ? error.message : "Upload failed",
+              };
+            }
             return newStates;
           });
+          failed++;
         }
-      })();
+      };
 
-      executing.push(promise);
+      const promise = uploadPromise().finally(() => {
+        executing.delete(promise);
+      });
 
-      // Limit concurrency
-      if (executing.length >= MAX_CONCURRENT_UPLOADS) {
+      executing.add(promise);
+
+      // Limit concurrency - wait if we have MAX_CONCURRENT_UPLOADS running
+      if (executing.size >= MAX_CONCURRENT_UPLOADS) {
         await Promise.race(executing);
-        executing.splice(
-          executing.findIndex((p) => p === promise),
-          1,
-        );
       }
     }
 
     // Wait for remaining uploads
     await Promise.all(executing);
+
+    return { succeeded, failed };
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -312,12 +324,11 @@ export const Videos = () => {
 
     try {
       // Process uploads with concurrency control
-      await processUploadsWithConcurrency(initialStates);
+      const { succeeded, failed } =
+        await processUploadsWithConcurrency(initialStates);
 
       // Check if all succeeded
-      const allSucceeded = uploadStates.every((s) => s.status === "completed");
-
-      if (allSucceeded) {
+      if (failed === 0 && succeeded === initialStates.length) {
         // Invalidate videos cache to refetch the updated list
         dispatch(api.util.invalidateTags(["videos"]));
 
@@ -354,7 +365,7 @@ export const Videos = () => {
 
         {/* Multi-file Upload Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="mb-8">
-          <div className="border rounded-lg p-6 bg-card">
+          <div className="border p-6 bg-card">
             <h2 className="text-xl font-semibold mb-4">Upload Videos</h2>
             <div className="space-y-4">
               {/* Drag and Drop Zone */}
@@ -365,7 +376,7 @@ export const Videos = () => {
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={`
-                  relative border-2 border-dashed rounded-lg p-8 
+                  relative border-2 border-dashed p-8
                   transition-all duration-200 cursor-pointer
                   flex flex-col items-center justify-center gap-3
                   ${
@@ -388,9 +399,6 @@ export const Videos = () => {
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
                     or click to browse your computer
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Supports multiple video files
                   </p>
                 </div>
                 <Input
@@ -418,7 +426,7 @@ export const Videos = () => {
 
                   {/* Overall Progress */}
                   {isUploading && (
-                    <div className="space-y-2 p-4 border rounded-lg bg-muted/50">
+                    <div className="space-y-2 p-4 border bg-muted/50">
                       <div className="flex justify-between text-sm">
                         <span className="font-medium">Overall Progress</span>
                         <span className="text-muted-foreground">
@@ -434,11 +442,11 @@ export const Videos = () => {
                     </div>
                   )}
 
-                  <div className="border rounded-lg divide-y max-h-60 overflow-y-auto">
+                  <div className="border divide-y max-h-60 overflow-y-auto">
                     {selectedFilesList.map((file, index) => {
                       const uploadState = uploadStates[index];
-                      const status = uploadState?.status || "pending";
-                      const progress = uploadState?.progress || 0;
+                      const status = uploadState?.status ?? "pending";
+                      const progress = uploadState?.progress ?? 0;
 
                       return (
                         <div
@@ -492,20 +500,22 @@ export const Videos = () => {
               )}
 
               <div className="flex gap-2">
-                <Button type="submit" disabled={fileCount === 0 || isUploading}>
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      Upload{" "}
-                      {fileCount > 0 &&
-                        `${fileCount} file${fileCount !== 1 ? "s" : ""}`}
-                    </>
-                  )}
-                </Button>
+                {fileCount > 0 && (
+                  <Button type="submit" disabled={isUploading}>
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        Upload{" "}
+                        {fileCount > 0 &&
+                          `${fileCount} file${fileCount !== 1 ? "s" : ""}`}
+                      </>
+                    )}
+                  </Button>
+                )}
                 {fileCount > 0 && !isUploading && (
                   <Button
                     type="button"

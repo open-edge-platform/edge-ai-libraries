@@ -2,7 +2,7 @@ import logging
 import os
 from typing import List
 
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
@@ -99,6 +99,59 @@ def get_videos():
             ).model_dump(),
             status_code=500,
         )
+
+
+@router.get(
+    "/check-video-input-exists",
+    operation_id="check_video_exists",
+    summary="Check if a video file already exists",
+    response_model=schemas.VideoExistsResponse,
+)
+def check_video_exists(filename: str = Query(..., description="Video filename to check")):
+    """
+    **Check if a video file with the given filename already exists in INPUT_VIDEO_DIR.**
+
+    ## Operation
+
+    1. Validates filename against INPUT_VIDEO_DIR
+    2. Returns whether the file exists
+
+    ## Parameters
+
+    - `filename` (query) - Name of the video file to check
+
+    ## Response Format
+
+    | Code | Description |
+    |------|-------------|
+    | 200  | Returns VideoExistsResponse with exists boolean |
+
+    ## Conditions
+
+    ### ✅ Success
+    - Always succeeds with boolean response
+
+    ## Example Response
+
+    ```json
+    {
+      "exists": true,
+      "filename": "traffic_1080p_h264.mp4"
+    }
+    ```
+    """
+    logger.debug(f"Checking existence of video file: {filename}")
+    
+    # Check if file exists in INPUT_VIDEO_DIR
+    file_path = os.path.join(INPUT_VIDEO_DIR, filename)
+    exists = os.path.isfile(file_path)
+    
+    logger.debug(f"Video '{filename}' exists: {exists}")
+    
+    return schemas.VideoExistsResponse(
+        exists=exists,
+        filename=filename,
+    )
 
 
 @router.post(
