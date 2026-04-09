@@ -209,24 +209,67 @@ class KapacitorClassifier():
         """Checks the given process is Zombie State & returns True or False
         """
         try:
-            out1 = subprocess.run(["ps", "-eaf"], stdout=subprocess.PIPE,
-                                  check=False)
-            out2 = subprocess.run(["grep", process_name], input=out1.stdout,
-                                  stdout=subprocess.PIPE, check=False)
-            out3 = subprocess.run(["grep", "-v", "grep"], input=out2.stdout,
-                                  stdout=subprocess.PIPE, check=False)
-            out4 = subprocess.run(["grep", "defunct"], input=out3.stdout,
-                                  stdout=subprocess.PIPE, check=False)
-            out = subprocess.run(["wc", "-l"], input=out4.stdout,
-                                 stdout=subprocess.PIPE, check=False)
-            out = out.stdout.decode('utf-8').rstrip("\n")
+            # Preferred path for slim images: parse /proc directly and avoid shell utilities.
+            proc_root = "/proc"
+            if os.path.isdir(proc_root):
+                for pid in os.listdir(proc_root):
+                    if not pid.isdigit():
+                        continue
 
-            if out == b'1':
-                return True
+                    stat_path = os.path.join(proc_root, pid, "stat")
+                    comm_path = os.path.join(proc_root, pid, "comm")
+                    cmdline_path = os.path.join(proc_root, pid, "cmdline")
+
+                    try:
+                        with open(stat_path, "r", encoding="utf-8") as file:
+                            stat_data = file.read().split()
+                        if len(stat_data) < 3:
+                            continue
+
+                        state = stat_data[2]
+                        if state != "Z":
+                            continue
+
+                        comm = ""
+                        if os.path.isfile(comm_path):
+                            with open(comm_path, "r", encoding="utf-8") as file:
+                                comm = file.read().strip()
+
+                        cmdline = ""
+                        if os.path.isfile(cmdline_path):
+                            with open(cmdline_path, "r", encoding="utf-8", errors="ignore") as file:
+                                cmdline = file.read().replace("\x00", " ").strip()
+
+                        if comm == process_name or process_name in cmdline:
+                            return True
+                    except (OSError, IOError, UnicodeDecodeError, ValueError):
+                        continue
+                return False
+
+            # Fallback when /proc is unavailable and ps exists.
+            ps_path = shutil.which("ps")
+            if ps_path:
+                out = subprocess.run(
+                    [ps_path, "-eo", "stat=,comm=,args="],
+                    stdout=subprocess.PIPE,
+                    check=False,
+                    text=True,
+                )
+                for line in out.stdout.splitlines():
+                    cols = line.strip().split(None, 2)
+                    if len(cols) < 2:
+                        continue
+                    stat = cols[0]
+                    comm = cols[1]
+                    args = cols[2] if len(cols) > 2 else ""
+                    if stat.startswith("Z") and (comm == process_name or process_name in args):
+                        return True
             return False
-        except subprocess.CalledProcessError as err:
+
+        except (subprocess.SubprocessError, OSError) as err:
             self.logger.info("Exception Occured in Starting Kapacitor " +
                              str(err))
+            return False
 
     def kapacitor_port_open(self, host_name):
         """Verify Kapacitor's port is ready for accepting connection

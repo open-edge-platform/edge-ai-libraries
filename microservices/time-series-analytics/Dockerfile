@@ -31,9 +31,6 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m venv /app/venv
-ENV PATH="/app/venv/bin:$PATH"
-
 WORKDIR /app
 
 # Install Kapacitor and other necessary packages
@@ -51,7 +48,7 @@ RUN apt-get update && \
 # Copy kapacitor Python UDF agent files from builder image
 COPY --from=builder /tmp/kapacitor/udf/agent/py /app/kapacitor_python
 
-COPY scripts/install_ubuntu_gpu_drivers.sh /tmp/install_gpu_drivers.sh
+COPY scripts/install_gpu_drivers.sh /tmp/install_gpu_drivers.sh
 RUN chmod +x /tmp/install_gpu_drivers.sh && \
 /tmp/install_gpu_drivers.sh && \
 apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
@@ -66,10 +63,10 @@ RUN groupadd --gid $TIMESERIES_UID $TIMESERIES_USER_NAME && \
 COPY ./requirements.txt .
 
 # Install Python dependencies efficiently and clean up cache to reduce image size
-RUN /app/venv/bin/pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Set environment variables in a single ENV instruction for better layer caching
-ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/:/app/venv/bin"
+ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
 
 # Adding classifier program
 # Copy Python source files in a single layer for better caching
@@ -113,8 +110,6 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         done; \
         apt-get remove --purge -y gcc libffi-dev python3-dev; \
     fi
-
-ENV PATH="/app/venv/bin:$PATH"
 
 WORKDIR /app
 # Remove git and clean up to reduce image size

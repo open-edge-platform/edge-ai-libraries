@@ -550,7 +550,7 @@ def _scan_zip(zf: zipfile.ZipFile) -> None:
     _ZIP_MAX_COMPRESSION_RATIO  = 100                  # flag zip-bomb if ratio > 100x
     _ZIP_ALLOWED_EXTENSIONS     = {
         ".py", ".tick", ".txt", ".cb",
-        ".pkl", ".joblib", ".xml", ".bin", ".onnx", ".pt", ".pth",
+        ".pkl", ".joblib", ".xml", ".bin", ".onnx", ".pt", ".pth", ".json",
     }
     entries = zf.infolist()
 
@@ -684,7 +684,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
     - If `SAMPLE_APP` env var is set → `/tmp/<SAMPLE_APP>/`
     - Otherwise → `/tmp/<zip_filename_without_extension>/`
 
-    **Allowed file extensions**: `.py`, `.tick`, `.txt`, `.cb`, `.pkl`,
+    **Allowed file extensions**: `.py`, `.tick`, `.txt`, `.cb`, `.pkl`, ".json",
     `.joblib`, `.xml`, `.bin`, `.onnx`, `.pt`, `.pth`
 
     responses:
