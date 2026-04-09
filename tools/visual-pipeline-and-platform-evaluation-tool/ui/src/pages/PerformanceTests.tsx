@@ -5,7 +5,7 @@ import {
   useRunPerformanceTestMutation,
   useStopPerformanceTestJobMutation,
 } from "@/api/api.generated";
-import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
@@ -695,7 +695,7 @@ export const PerformanceTests = () => {
                     </div>
                   )}
 
-                <TestProgressIndicator />
+                <MetricsDashboard />
               </div>
             )}
           </div>
@@ -706,7 +706,7 @@ export const PerformanceTests = () => {
             <p className="text-sm font-medium text-status-info-fg mb-2">
               Frozen Metrics Snapshot
             </p>
-            <TestProgressIndicator
+            <MetricsDashboard
               historyOverride={frozenHistory}
               metricsOverride={frozenSummary}
             />

@@ -6,7 +6,7 @@ import {
   useRunDensityTestMutation,
   useStopDensityTestJobMutation,
 } from "@/api/api.generated.ts";
-import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
@@ -484,7 +484,7 @@ export const DensityTests = () => {
                     Running density test...
                   </span>
                 </div>
-                <TestProgressIndicator />
+                <MetricsDashboard />
               </div>
             )}
           </div>
@@ -495,7 +495,7 @@ export const DensityTests = () => {
             <p className="text-sm font-medium text-status-info-fg mb-2">
               Frozen Metrics Snapshot
             </p>
-            <TestProgressIndicator
+            <MetricsDashboard
               historyOverride={frozenHistory}
               metricsOverride={frozenSummary}
             />

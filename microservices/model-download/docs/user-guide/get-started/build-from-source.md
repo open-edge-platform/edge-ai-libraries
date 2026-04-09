@@ -25,12 +25,12 @@ This section shows how to build the Model Download microservice from source.
 3. **Configure the environment variables**
 
     - Set the following environment variable:
-	
+
       ```bash
       export HUGGINGFACEHUB_API_TOKEN=<your huggingface token>
       ```
     - To use the Geti™ software, set the following environment variables:
-	
+
       ```bash
       export GETI_HOST=<GETI_HOST_ADDRESS>
       export GETI_TOKEN=<GETI_ACCESS_TOKEN>
@@ -41,21 +41,22 @@ This section shows how to build the Model Download microservice from source.
 
       ```bash
       source scripts/run_service.sh --build
-      ``` 
+      ```
       - When the image is complete as shown in the following figure,
-    ![alt text](./images/image.png)
-    
+    ![alt text](../_assets/image.png)
+
 		you can do the following if needed:
       - Force rebuild from scratch (no cache): `source scripts/run_service.sh --rebuild`
-	  
+
       - Display usage information: `source scripts/run_service.sh --help`
-      
-5. **Run the Docker container using the image**: 
+
+5. **Run the Docker container using the image**:
 
       ```bash
         source scripts/run_service.sh up --plugins all --model-path tmp/models
       ```
-> **Note:** Running the Docker container brings up the service and installs the dependencies for available plugins. See the [details of the available options](./get-started.md#options-available-with-the-script).
+
+> **Note:** Running the Docker container brings up the service and installs the dependencies for the available plugins. See the details of the available options at the end of point 4 of the [quick start with setup script](../get-started.md#4-launch-the-service-and-enable-the-plugins).
 
 6.  **Access the application**:
     - Open a browser and go to `http://<host-ip>:8200/api/v1/docs` to access the OpenAPI specification documentation for the application.

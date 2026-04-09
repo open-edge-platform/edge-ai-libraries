@@ -42,7 +42,7 @@ import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 import type { Pipeline } from "@/api/api.generated";
 import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
-import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
@@ -64,6 +64,7 @@ import {
 } from "@/features/pipeline-tests/pipelineVariantReference";
 import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
 import { cn } from "@/lib/utils";
+import { getFilenameFromPath } from "@/lib/fileUtils.ts";
 
 const nodeTypeToTag: Record<string, string> = {
   // Sources
@@ -291,13 +292,6 @@ const DemoMode = () => {
     () => filterOutTransportStreams(videos).map((video) => video.filename),
     [videos],
   );
-  const getFilenameFromPath = (value: unknown): string => {
-    const stringValue = String(value ?? "");
-    if (!stringValue) return "";
-    const normalized = stringValue.replace(/\\/g, "/");
-    const segments = normalized.split("/");
-    return segments.at(-1) ?? stringValue;
-  };
   const getNodeEditKey = (
     pipelineId: string,
     variantId: string,
@@ -2509,7 +2503,7 @@ const DemoMode = () => {
                           <div className="space-y-2">
                             {performanceJobStatus.state === "RUNNING" && (
                               <div>
-                                <TestProgressIndicator
+                                <MetricsDashboard
                                   key={performanceJobId || testStartTimestamp}
                                   forceDark={true}
                                   useDemoStyles={true}
@@ -2545,7 +2539,7 @@ const DemoMode = () => {
                           hasFrozenMetrics &&
                           frozenMetricsSummary && (
                             <div className="space-y-3">
-                              <TestProgressIndicator
+                              <MetricsDashboard
                                 key={
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
@@ -2628,7 +2622,7 @@ const DemoMode = () => {
                             </div>
 
                             {hasFrozenMetrics && frozenMetricsSummary && (
-                              <TestProgressIndicator
+                              <MetricsDashboard
                                 key={
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
@@ -2675,7 +2669,7 @@ const DemoMode = () => {
                                     Running density test...
                                   </span>
                                 </div>
-                                <TestProgressIndicator
+                                <MetricsDashboard
                                   key={densityJobId || testStartTimestamp}
                                   forceDark={true}
                                   useDemoStyles={true}
@@ -2711,7 +2705,7 @@ const DemoMode = () => {
                           hasFrozenMetrics &&
                           frozenMetricsSummary && (
                             <div className="space-y-3">
-                              <TestProgressIndicator
+                              <MetricsDashboard
                                 key={
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
@@ -2806,7 +2800,7 @@ const DemoMode = () => {
                               </div>
                             )}
                             {hasFrozenMetrics && frozenMetricsSummary && (
-                              <TestProgressIndicator
+                              <MetricsDashboard
                                 key={
                                   metricsFrozenForJobId || testStartTimestamp
                                 }

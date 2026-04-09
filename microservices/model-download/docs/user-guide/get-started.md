@@ -2,6 +2,8 @@
 
 The Model Download is a microservice that downloads models from multiple hubs as follows: Hugging Face, Ollama, Geti™ software, and Ultralytics. It supports conversion to OpenVINO™ model server format for Hugging Face models, and exposes a RESTful API for managing model downloads and conversions.
 
+> **Note:** Model Download replaces Model Registry, which will be deprecated soon. See [Migrate from Model Registry to Model Download](./get-started/migration.md) for the migration guidelines.
+
 ## Features
 
 - Downloads models from Hugging Face, Ollama, Geti software, and Ultralytics model hubs
@@ -17,11 +19,11 @@ The Model Download is a microservice that downloads models from multiple hubs as
 
 - (Optional) Hugging Face API token, required for gated Hugging Face models or conversion.
 - Sufficient disk space for model storage.
-- See [System Requirements](./system-requirements.md)
+- See [System Requirements](./get-started/system-requirements.md)
 
 ## Quick Start with Setup Script
 
-1. **Clone the repository**:
+### 1. Clone the repository
 
    ```bash
    # Clone the latest on the mainline
@@ -30,13 +32,13 @@ The Model Download is a microservice that downloads models from multiple hubs as
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
    ```
 
-2. **Navigate to the directory**:
+### 2. Navigate to the directory
 
    ```bash
    cd edge-ai-libraries/microservices/model-download
    ```
 
-3. **Configure the environment variables**:
+### 3. Configure the environment variables
 
    ```bash
    export REGISTRY="intel/"
@@ -56,7 +58,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
 
    > **Note:** For Geti™ software setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
 
-4. **Launch the service and enable the plugins**
+### 4. Launch the service and enable the plugins
 
    ```bash
    source scripts/run_service.sh up --plugins all --model-path <host path>
@@ -103,7 +105,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
    - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
    - Display usage information: `source scripts/run_service.sh --help`
 
-5. **Access the service**
+### 5. Access the service
 
    - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the
      Swagger documentation for the available APIs.
@@ -265,7 +267,7 @@ curl -X GET "http://<host-ip>:8200/api/v1/jobs/<job_id>"
 }
 ```
 
-- For details, see the [API spec](./api-docs/openapi.yaml)
+- For details, see the [API specifications](./api-docs/openapi.yaml)
 
 ## Configuration
 
@@ -297,10 +299,22 @@ Volumes:
 
 ## Run in Kubernetes Cluster
 
-See [Deploy with Helm Chart](./deploy-with-helm-chart.md) for details. Address the prerequisites mentioned on this page before deploying with Helm chart.
+See [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md) for details. Address the prerequisites mentioned on this page before deploying with Helm chart.
 
 ## Learn More
 
 For alternative ways to set up the sample application, see:
 
-- [How to Build from Source](./build-from-source.md)
+- [How to Build from Source](./get-started/build-from-source.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+Migrate from Model Registry <./get-started/migration.md>
+./get-started/system-requirements
+./get-started/build-from-source
+./get-started/deploy-with-helm-chart
+
+:::
+hide_directive-->
