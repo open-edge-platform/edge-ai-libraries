@@ -17,7 +17,7 @@
 
 - The upload button is temporarily disabled during chat response generation to prevent delays. File or link uploads trigger embedding generation, which runs on the same OVMS server as the LLM, potentially slowing response streaming if both run together.
 - Chat data is stored in localStorage for session continuity. After container restarts, old chats may reappear — clear your browser’s localStorage to start fresh.
-- Limited validation done on EMT-S due to EMT-S issues. It is not recommended to use Chat QnA modular on EMT-S until full validation is completed.
+- Limited validation done on EMT-S due to EMT-S issues. It is not recommended to use Chat Q&A modular on EMT-S until full validation is completed.
 - TGI on EMT 3.0 on Core&trade; configuration has a long startup time due to resource constraints. Alternative is to use TGI only on Xeon® based systems. (*Low priority as TGI and vLLM is deprecated effective 2025.2.0*)
 - DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases.
 
@@ -48,8 +48,8 @@
 **Version**: 1.2.1 \
 **Release Date**: WW27 2025
 
-- Image Optimization for Chat QnA Backend and Document Ingestion Microservices. Reducing image sizes, which will lead to faster processing times and reduced bandwidth usage.
-- Update to Run ChatQnA-UI and Nginx Container with Non-Root Access Privileges.
+- Image Optimization for the Chat Q&A Backend and Document Ingestion Microservices. Reducing image sizes, which will lead to faster processing times and reduced bandwidth usage.
+- Update to Run Chat Q&A UI and Nginx Container with Non-Root Access Privileges.
 - Security Vulnerabilities Fix for Dependency Packages.
 - Max Token Parameter Added to /stream_log API.
 - EMF deployment is supported.
@@ -80,6 +80,6 @@
 **Version**: 1.0.0 \
 **Release Date**: WW11 2025
 
-- Initial release of the Chat Q&A Sample Application.
+- Initial release of the Chat Q&A sample application.
 - Added support for vLLM, TGI, and OVMS inference methods.
 - Improved user interface for better user experience.

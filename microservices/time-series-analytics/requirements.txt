@@ -7,3 +7,4 @@ influxdb==5.3.2
 tomlkit==0.14.0
 protobuf==7.34.0
 dpctl==0.21.1
+python-multipart==0.0.22

@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 from minio import Minio
 from minio.error import S3Error
 
-from src.common import DataPrepException, Strings, logger
+from src.common import DataPrepException, Strings, logger, sanitize_for_log
 
 
 class MinioClient:
@@ -55,11 +55,20 @@ class MinioClient:
         """
         try:
             if not self.client.bucket_exists(bucket_name):
-                logger.warning(f"Bucket '{bucket_name}' does not exist, creating it...")
+                logger.warning(
+                    "Bucket '%s' does not exist, creating it...",
+                    sanitize_for_log(bucket_name, max_length=128),
+                )
                 self.client.make_bucket(bucket_name)
-                logger.info(f"Successfully created bucket '{bucket_name}'")
+                logger.info(
+                    "Successfully created bucket '%s'",
+                    sanitize_for_log(bucket_name, max_length=128),
+                )
             else:
-                logger.debug(f"Bucket '{bucket_name}' already exists")
+                logger.debug(
+                    "Bucket '%s' already exists",
+                    sanitize_for_log(bucket_name, max_length=128),
+                )
         except S3Error as ex:
             # If bucket name is invalid throw an error which goes as API error response
             if ex.code == "InvalidBucketName":
@@ -181,7 +190,11 @@ class MinioClient:
 
             return None
         except S3Error as ex:
-            logger.error(f"Error getting video in directory {video_id}: {ex}")
+            logger.error(
+                "Error getting video in directory %s: %s",
+                sanitize_for_log(video_id, max_length=128),
+                sanitize_for_log(ex, max_length=256),
+            )
             raise Exception(f"Error getting video in directory {video_id}: {ex}")
 
     def download_video_stream(self, bucket_name: str, object_name: str) -> Optional[io.BytesIO]:
@@ -207,7 +220,12 @@ class MinioClient:
             response.release_conn()
             return data
         except S3Error as ex:
-            logger.error(f"Error downloading video {object_name} from bucket {bucket_name}: {ex}")
+            logger.error(
+                "Error downloading video %s from bucket %s: %s",
+                sanitize_for_log(object_name, max_length=256),
+                sanitize_for_log(bucket_name, max_length=128),
+                sanitize_for_log(ex, max_length=256),
+            )
             raise Exception(f"Error downloading video: {ex}")
 
     def get_object_size(self, bucket_name: str, object_name: str) -> int:
@@ -275,7 +293,11 @@ class MinioClient:
             return result
 
         except S3Error as ex:
-            logger.error(f"Error listing videos in bucket {bucket_name}: {ex}")
+            logger.error(
+                "Error listing videos in bucket %s: %s",
+                sanitize_for_log(bucket_name, max_length=128),
+                sanitize_for_log(ex, max_length=256),
+            )
             raise Exception(f"Error listing videos in bucket {bucket_name}: {ex}")
 
     def validate_object_name(self, video_id: str, video_name: str) -> bool:
@@ -359,7 +381,10 @@ class MinioClient:
             }
         except S3Error as ex:
             logger.error(
-                f"Error getting metadata for {object_name} from bucket {bucket_name}: {ex}"
+                "Error getting metadata for %s from bucket %s: %s",
+                sanitize_for_log(object_name, max_length=256),
+                sanitize_for_log(bucket_name, max_length=128),
+                sanitize_for_log(ex, max_length=256),
             )
             raise Exception(f"Error getting object metadata: {ex}")
 
@@ -389,7 +414,11 @@ class MinioClient:
                 content_type="video/mp4",
             )
 
-            logger.info(f"Video uploaded successfully as {object_name} in bucket {bucket_name}")
+            logger.info(
+                "Video uploaded successfully as %s in bucket %s",
+                sanitize_for_log(object_name, max_length=256),
+                sanitize_for_log(bucket_name, max_length=128),
+            )
         except S3Error as ex:
             logger.error(f"Error uploading video to Minio: {ex}")
             raise Exception(f"Error uploading video to Minio: {ex}")

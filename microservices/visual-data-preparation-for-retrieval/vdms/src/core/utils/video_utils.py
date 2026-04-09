@@ -33,7 +33,7 @@ import torch
 from decord import VideoReader, cpu
 from torchvision.transforms import ToPILImage
 
-from src.common import DataPrepException, Strings, logger
+from src.common import DataPrepException, Strings, logger, sanitize_for_log
 from .common_utils import get_minio_client, FrameInfo
 from .config_utils import get_config
 from .file_utils import create_temp_directory
@@ -71,13 +71,19 @@ def get_video_from_minio(
             object_name = minio_client.get_video_in_directory(bucket_name, video_id)
 
         if not object_name:
-            logger.error(f"No video found in directory {video_id}")
+            logger.error(
+                "No video found in directory %s",
+                sanitize_for_log(video_id, max_length=128),
+            )
             raise DataPrepException(status_code=404, msg=Strings.video_id_not_found)
 
         # Get the video data
         data = minio_client.download_video_stream(bucket_name, object_name)
         if not data:
-            logger.error(f"Failed to download video {object_name}")
+            logger.error(
+                "Failed to download video %s",
+                sanitize_for_log(object_name, max_length=256),
+            )
             raise DataPrepException(status_code=404, msg=Strings.minio_file_not_found)
 
         # Extract just the filename part
@@ -152,7 +158,11 @@ def process_video_with_frame_extraction(
             detection_confidence = config.get("detection_confidence", 0.85)
         
         logger.info(f"Processing video with frame extraction: {video_path}")
-        logger.debug(f"Frame interval: {frame_interval}, Object detection: {enable_object_detection}")
+        logger.debug(
+            "Frame interval: %s, Object detection: %s",
+            sanitize_for_log(frame_interval, max_length=32),
+            sanitize_for_log(enable_object_detection, max_length=32),
+        )
         
         # Create temporary directory if not provided
         if temp_dir is None:
@@ -167,7 +177,11 @@ def process_video_with_frame_extraction(
         
         # Calculate frame indices (every Nth frame)
         frame_indices = list(range(0, total_frames, frame_interval))
-        logger.debug(f"Extracting {len(frame_indices)} frames with interval {frame_interval}")
+        logger.debug(
+            "Extracting %s frames with interval %s",
+            sanitize_for_log(len(frame_indices), max_length=32),
+            sanitize_for_log(frame_interval, max_length=32),
+        )
         
         frame_info_list = []
         

@@ -55,6 +55,12 @@ spec:
             - name: VLLM_LOGGING_LEVEL
               value: "{{ .Values.env.vllmLoggingLevel }}"
             {{- end }}
+            - name: http_proxy
+              value: {{ $global.proxy.http_proxy | default "" | quote }}
+            - name: https_proxy
+              value: {{ $global.proxy.https_proxy | default "" | quote }}
+            - name: no_proxy
+              value: "{{ $global.proxy.no_proxy }},minio-server,localhost,127.0.0.1,{{ include "vllm.fullname" . }},.svc.cluster.local"
           args:
             - "--dtype"
             - "{{ .Values.model.dtype }}"
@@ -72,6 +78,8 @@ spec:
             - "{{ .Values.model.maxNumBatchedTokens }}"
             - "--max-num-seqs"
             - "{{ .Values.model.maxNumSeqs }}"
+            - "--max_model_len"
+            - "{{ .Values.model.maxModelLen }}"
             {{- if .Values.model.enableLogRequests }}
             - "--enable-log-requests"
             {{- end }}

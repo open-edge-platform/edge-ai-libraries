@@ -13,7 +13,7 @@ from typing import Optional, Tuple
 from audio_analyzer.core.settings import settings
 from audio_analyzer.schemas.types import DeviceType, WhisperModel, TranscriptionBackend
 from audio_analyzer.utils.hardware_utils import is_intel_gpu_available
-from audio_analyzer.utils.logger import logger
+from audio_analyzer.utils.logger import logger, sanitize_for_log
 from audio_analyzer.utils.model_manager import ModelManager
 
 class TranscriptionService:
@@ -191,7 +191,12 @@ class TranscriptionService:
             Tuple containing the job ID and path to the transcription file
         """
         logger.info(f"Starting transcription for audio: {audio_path}")
-        logger.debug(f"Transcription parameters - language: {language}, include_timestamps: {include_timestamps}, video_duration: {video_duration}")
+        logger.debug(
+            "Transcription parameters - language_provided: %s, include_timestamps: %s, video_duration: %s",
+            language is not None,
+            sanitize_for_log(include_timestamps),
+            sanitize_for_log(video_duration),
+        )
         
         try:
             self._load_model()
@@ -271,7 +276,7 @@ class TranscriptionService:
             
             if lang_code:
                 params["language"] = lang_code
-                logger.debug(f"Set language to: {lang_code}")
+                logger.debug("Language override configured for whispercpp transcription")
             
             # Calculate optimal number of processors based on video duration and core count
             # Each processor will handle at least 1 minute (60 seconds) of audio

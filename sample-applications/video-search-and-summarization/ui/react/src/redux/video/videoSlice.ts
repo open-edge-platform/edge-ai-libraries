@@ -6,6 +6,7 @@ import { RootState } from '../store';
 import axios from 'axios';
 import { APP_URL, ASSETS_ENDPOINT } from '../../config';
 import { StateActionStatus } from '../summary/summary';
+import { resolveVideoUrl } from './videoUrl';
 
 const initialState: VideosState = {
   videos: [],
@@ -58,14 +59,7 @@ export const videosSelector = createSelector([selectVideoState], (videosState) =
   },
   getVideoUrl: (videoId: string) => {
     const video = videosState.videos.find((video) => video.videoId === videoId);
-
-    console.log(video);
-
-    if (video?.dataStore) {
-      return `${ASSETS_ENDPOINT}/${video.dataStore.bucket}/${video.url}`;
-    }
-
-    return null;
+    return resolveVideoUrl(video, ASSETS_ENDPOINT);
   },
 }));
 

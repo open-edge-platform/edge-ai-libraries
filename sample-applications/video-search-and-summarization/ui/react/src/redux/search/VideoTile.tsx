@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { ASSETS_ENDPOINT } from '../../config';
 import { useAppSelector } from '../store';
 import { SearchSelector } from './searchSlice';
+import { resolveVideoUrl } from '../video/videoUrl';
 
 export interface VideoTileProps {
   resultIndex: number; // Index in the selectedResults array
@@ -20,14 +21,7 @@ export const VideoTile: FC<VideoTileProps> = ({ resultIndex }) => {
 
   const { metadata, video } = searchResult || {};
 
-  const getVideoUrl = () => {
-    if (video?.dataStore) {
-      return `${ASSETS_ENDPOINT}/${video.dataStore.bucket}/${video.url}`;
-    }
-    return null;
-  };
-
-  const videoUrl = getVideoUrl();
+  const videoUrl = resolveVideoUrl(video, ASSETS_ENDPOINT);
 
   useEffect(() => {
     if (videoRef.current && metadata?.timestamp && typeof metadata.timestamp === 'number') {

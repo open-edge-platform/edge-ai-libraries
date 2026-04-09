@@ -13,6 +13,8 @@ from PIL import Image
 import numpy as np
 import json
 import os
+import tempfile
+from pathlib import Path
 from pydantic import ValidationError
 
 from .models.base import BaseEmbeddingModel
@@ -24,6 +26,8 @@ from .utils import (
     download_video,
     extract_video_frames,
     logger,
+    resolve_safe_local_path,
+    sanitize_for_log,
 )
 
 
@@ -91,7 +95,7 @@ class EmbeddingModel:
         if not self.handler.supports_image():
             raise RuntimeError("Image embeddings are not supported by the active model")
         try:
-            logger.debug(f"Getting image embedding from URL: {image_url}")
+            logger.debug("Getting image embedding from URL input")
             image_data = await download_image(image_url)
             # Convert numpy array to PIL Image if necessary
             if isinstance(image_data, np.ndarray):
@@ -179,7 +183,7 @@ class EmbeddingModel:
         if not self.handler.supports_video():
             raise RuntimeError("Video embeddings are not supported by the active model")
         try:
-            logger.debug(f"Getting video embedding from URL: {video_url}")
+            logger.debug("Getting video embedding from URL input")
             video_path = await download_video(video_url)
             clip_images = extract_video_frames(video_path, segment_config)
             delete_file(video_path)
@@ -227,11 +231,14 @@ class EmbeddingModel:
         if not self.handler.supports_video():
             raise RuntimeError("Video embeddings are not supported by the active model")
         try:
-            logger.debug(f"Getting video embedding from file: {video_path}")
+            logger.debug("Getting video embedding from local file input")
             import os
-            if not os.path.exists(video_path):
-                raise FileNotFoundError(f"Video file not found: {video_path}")
-            clip_images = extract_video_frames(video_path, segment_config)
+            safe_video_path = resolve_safe_local_path(video_path, Path(tempfile.gettempdir()))
+            if not os.path.exists(safe_video_path):
+                raise FileNotFoundError(
+                    f"Video file not found: {sanitize_for_log(safe_video_path)}"
+                )
+            clip_images = extract_video_frames(safe_video_path, segment_config)
             logger.info("Video embedding extracted successfully from file")
             return self.get_video_embeddings([clip_images])
         except Exception as e:
@@ -260,15 +267,20 @@ class EmbeddingModel:
         if not self.handler.supports_video():
             raise RuntimeError("Video embeddings are not supported by the active model")
         try:
-            logger.debug(f"Getting video embedding from frames manifest: {manifest_path}")
+            logger.debug("Getting video embedding from frames manifest input")
+            safe_manifest_path = resolve_safe_local_path(
+                manifest_path, Path(tempfile.gettempdir())
+            )
             
             # Validate manifest file exists
-            if not os.path.exists(manifest_path):
-                raise FileNotFoundError(f"Frames manifest file not found: {manifest_path}")
+            if not os.path.exists(safe_manifest_path):
+                raise FileNotFoundError(
+                    f"Frames manifest file not found: {sanitize_for_log(safe_manifest_path)}"
+                )
             
             # Load and validate manifest structure
             try:
-                with open(manifest_path, 'r') as f:
+                with open(safe_manifest_path, 'r') as f:
                     manifest_data = json.load(f)
             except json.JSONDecodeError as e:
                 raise ValueError(f"Invalid JSON in manifest file: {e}")
@@ -291,9 +303,19 @@ class EmbeddingModel:
             video_path = manifest_data.get("video_path")
             frames_list = manifest.frames if hasattr(manifest, 'frames') else manifest_data["frames"]
             
-            if video_path and os.path.exists(video_path):
+            safe_manifest_video_path = None
+            if video_path:
+                safe_manifest_video_path = resolve_safe_local_path(
+                    video_path, Path(tempfile.gettempdir())
+                )
+
+            if safe_manifest_video_path and os.path.exists(safe_manifest_video_path):
                 # VIDEO-BASED PROCESSING: Extract specific frames from video file
-                logger.info(f"Processing video-based manifest with {len(frames_list)} frames from: {video_path}")
+                logger.info(
+                    "Processing video-based manifest with %s frames from: %s",
+                    len(frames_list),
+                    sanitize_for_log(safe_manifest_video_path),
+                )
                 
                 # Extract the specific frames using video processing
                 from .utils import extract_video_frames
@@ -340,10 +362,14 @@ class EmbeddingModel:
                 }
                 
                 # Extract specified frames from video
-                extracted_frames = extract_video_frames(video_path, segment_config)
+                extracted_frames = extract_video_frames(
+                    safe_manifest_video_path, segment_config
+                )
                 
                 if not extracted_frames:
-                    raise ValueError(f"No frames could be extracted from video: {video_path}")
+                    raise ValueError(
+                        f"No frames could be extracted from video: {sanitize_for_log(safe_manifest_video_path)}"
+                    )
                 
                 # For optimized manifests, process both frames and detected crops efficiently
                 if "total_metadata_entries" in manifest_data and "frame_metadata_map" in manifest_data:
