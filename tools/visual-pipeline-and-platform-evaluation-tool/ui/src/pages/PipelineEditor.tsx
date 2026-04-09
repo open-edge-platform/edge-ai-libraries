@@ -458,7 +458,7 @@ export const PipelineEditor = () => {
           <div className="flex flex-wrap items-center gap-2 px-2">
             <Link
               to={source === "dashboard" ? "/" : "/pipelines"}
-              className="p-2 hover:bg-accent rounded transition-colors"
+              className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent-50 transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>

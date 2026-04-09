@@ -121,7 +121,7 @@ export const PipelineCards = ({
                     setOpenDropdownId(open ? pipeline.id : null)
                   }
                 >
-                  <DropdownMenuTrigger className="shrink-0 p-1 hover:bg-accent rounded w-6 h-6 flex items-center justify-center">
+                  <DropdownMenuTrigger className="shrink-0 size-8 hover:bg-accent dark:hover:bg-accent-50 rounded flex items-center justify-center">
                     <EllipsisVertical className="h-4 w-4" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">

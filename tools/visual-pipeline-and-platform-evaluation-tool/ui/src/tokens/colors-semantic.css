@@ -679,7 +679,7 @@
   --secondary-foreground: var(--near-white);
   --muted: var(--gray-27);
   --muted-foreground: var(--gray-79);
-  --accent: var(--background);
+  --accent: var(--white-15);
   --accent-foreground: var(--near-white);
   --destructive: var(--red-bright);
   --border: var(--white-10);
