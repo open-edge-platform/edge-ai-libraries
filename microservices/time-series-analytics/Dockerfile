@@ -34,14 +34,14 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Install Kapacitor and other necessary packages
-ARG KAPACITOR_DEBIAN_PACKAGE_VERSION
+ARG KAPACITOR_VERSION
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        wget intel-gpu-tools && \
+    wget intel-gpu-tools && \
     mkdir -p /etc/init.d && \
-    wget -O /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_DEBIAN_PACKAGE_VERSION}.deb" || exit 1 && \
-    dpkg -i /tmp/kapacitor.deb || true && \
-    apt-get install -y -f --no-install-recommends && \
+    wget -O /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_VERSION}-1_amd64.deb" || exit 1 && \
+    dpkg -i /tmp/kapacitor.deb || true && apt-get install -y --no-install-recommends -f && \
+    apt-get clean && \
     rm -f /tmp/kapacitor.deb && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
 
@@ -50,8 +50,8 @@ COPY --from=builder /tmp/kapacitor/udf/agent/py /app/kapacitor_python
 
 COPY scripts/install_gpu_drivers.sh /tmp/install_gpu_drivers.sh
 RUN chmod +x /tmp/install_gpu_drivers.sh && \
-/tmp/install_gpu_drivers.sh && \
-apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
+    /tmp/install_gpu_drivers.sh && \
+    apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
 
 ARG TIMESERIES_UID
 ARG TIMESERIES_USER_NAME
@@ -72,11 +72,7 @@ ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
 # Copy Python source files in a single layer for better caching
 COPY ./src/classifier_startup.py ./src/opcua_alerts.py ./src/main.py /app/
 
-# Copy configuration files and directories efficiently
-COPY ./config.json /app/
 COPY ./config/kapacitor*.conf /app/config/
-COPY ./tick_scripts /app/temperature_classifier/tick_scripts/
-COPY ./udfs /app/temperature_classifier/udfs/
 
 # Optionally download copyleft sources if requested
 ARG COPYLEFT_SOURCES=false
