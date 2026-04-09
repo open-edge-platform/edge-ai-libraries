@@ -1,4 +1,8 @@
-import { useGetVideosQuery, api } from "@/api/api.generated.ts";
+import {
+  useGetVideosQuery,
+  api,
+  useLazyCheckVideoInputExistsQuery,
+} from "@/api/api.generated.ts";
 import {
   Table,
   TableBody,
@@ -35,6 +39,7 @@ const MAX_CONCURRENT_UPLOADS = 3;
 export const Videos = () => {
   const { data: videos, isSuccess } = useGetVideosQuery();
   const dispatch = useAppDispatch();
+  const [checkVideoExists] = useLazyCheckVideoInputExistsQuery();
   const { register, handleSubmit, reset, watch, setValue } =
     useForm<UploadFormData>({
       defaultValues: {
@@ -62,6 +67,30 @@ export const Videos = () => {
     (s) => s.status === "completed",
   ).length;
   const failedCount = uploadStates.filter((s) => s.status === "failed").length;
+
+  /**
+   * Check if files already exist on the backend
+   * Returns array of files with their existence status
+   */
+  const checkFilesExistence = async (
+    files: File[],
+  ): Promise<Array<{ file: File; exists: boolean }>> => {
+    const checks = await Promise.all(
+      files.map(async (file) => {
+        try {
+          const result = await checkVideoExists({
+            filename: file.name,
+          }).unwrap();
+          return { file, exists: result.exists };
+        } catch (error) {
+          // If check fails, assume file doesn't exist
+          console.error(`Error checking file ${file.name}:`, error);
+          return { file, exists: false };
+        }
+      }),
+    );
+    return checks;
+  };
 
   /**
    * Upload a single file with progress tracking
@@ -264,7 +293,7 @@ export const Videos = () => {
     e.stopPropagation();
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
@@ -274,25 +303,84 @@ export const Videos = () => {
     );
 
     if (droppedFiles.length > 0) {
-      setSelectedFilesList(droppedFiles);
+      // Filter out duplicates by filename (files already in the list)
+      const existingFileNames = new Set(selectedFilesList.map((f) => f.name));
+      const newFiles = droppedFiles.filter(
+        (file) => !existingFileNames.has(file.name),
+      );
+
+      if (newFiles.length === 0) return;
+
+      // Check which files already exist on backend
+      const fileChecks = await checkFilesExistence(newFiles);
+
+      // Add all new files to the list
+      const allFiles = [...selectedFilesList, ...newFiles];
+      setSelectedFilesList(allFiles);
+
       // Create a new FileList-like object for react-hook-form
       const dataTransfer = new DataTransfer();
-      droppedFiles.forEach((file) => dataTransfer.items.add(file));
+      allFiles.forEach((file) => dataTransfer.items.add(file));
       setValue("files", dataTransfer.files);
+
+      // Initialize upload states for new files
+      const newUploadStates: FileUploadState[] = fileChecks.map(
+        ({ file, exists }) => ({
+          file,
+          status: exists ? "failed" : "pending",
+          progress: 0,
+          error: exists ? "File already exists on server" : undefined,
+        }),
+      );
+
+      setUploadStates((prev) => [...prev, ...newUploadStates]);
     }
   };
 
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInputChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      setSelectedFilesList(Array.from(files));
+      // Filter out duplicates by filename (files already in the list)
+      const existingFileNames = new Set(selectedFilesList.map((f) => f.name));
+      const newFiles = Array.from(files).filter(
+        (file) => !existingFileNames.has(file.name),
+      );
+
+      if (newFiles.length === 0) return;
+
+      // Check which files already exist on backend
+      const fileChecks = await checkFilesExistence(newFiles);
+
+      // Add all new files to the list
+      const allFiles = [...selectedFilesList, ...newFiles];
+      setSelectedFilesList(allFiles);
+
+      // Create a new FileList-like object for react-hook-form
+      const dataTransfer = new DataTransfer();
+      allFiles.forEach((file) => dataTransfer.items.add(file));
+      setValue("files", dataTransfer.files);
+
+      // Initialize upload states for new files
+      const newUploadStates: FileUploadState[] = fileChecks.map(
+        ({ file, exists }) => ({
+          file,
+          status: exists ? "failed" : "pending",
+          progress: 0,
+          error: exists ? "File already exists on server" : undefined,
+        }),
+      );
+
+      setUploadStates((prev) => [...prev, ...newUploadStates]);
     }
   };
 
   const removeFile = (index: number) => {
     const newFiles = selectedFilesList.filter((_, i) => i !== index);
+    const newUploadStates = uploadStates.filter((_, i) => i !== index);
     setSelectedFilesList(newFiles);
-    setUploadStates([]); // Clear upload states when files change
+    setUploadStates(newUploadStates);
 
     if (newFiles.length === 0) {
       setValue("files", null);
@@ -313,22 +401,25 @@ export const Videos = () => {
 
     setIsUploading(true);
 
-    // Initialize upload states for all files
-    const initialStates: FileUploadState[] = selectedFilesList.map((file) => ({
-      file,
-      status: "pending",
-      progress: 0,
-    }));
+    // Filter out files that already failed (exist on server)
+    // and only initialize upload states for files that need to be uploaded
+    const filesToUpload: FileUploadState[] = uploadStates
+      .filter((state) => state.status === "pending")
+      .map((state) => ({ ...state }));
 
-    setUploadStates(initialStates);
+    // If there are no files to upload (all failed checks), just stop
+    if (filesToUpload.length === 0) {
+      setIsUploading(false);
+      return;
+    }
 
     try {
       // Process uploads with concurrency control
       const { succeeded, failed } =
-        await processUploadsWithConcurrency(initialStates);
+        await processUploadsWithConcurrency(filesToUpload);
 
-      // Check if all succeeded
-      if (failed === 0 && succeeded === initialStates.length) {
+      // Check if all uploadable files succeeded
+      if (failed === 0 && succeeded === filesToUpload.length) {
         // Invalidate videos cache to refetch the updated list
         dispatch(api.util.invalidateTags(["videos"]));
 

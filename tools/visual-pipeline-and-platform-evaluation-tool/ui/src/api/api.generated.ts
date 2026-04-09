@@ -353,9 +353,9 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["videos"],
       }),
-      checkVideoExists: build.query<
-        CheckVideoExistsApiResponse,
-        CheckVideoExistsApiArg
+      checkVideoInputExists: build.query<
+        CheckVideoInputExistsApiResponse,
+        CheckVideoInputExistsApiArg
       >({
         query: (queryArg) => ({
           url: `/videos/check-video-input-exists`,
@@ -582,9 +582,9 @@ export type UploadVideoApiResponse =
 export type UploadVideoApiArg = {
   bodyUploadVideo: BodyUploadVideo;
 };
-export type CheckVideoExistsApiResponse =
+export type CheckVideoInputExistsApiResponse =
   /** status 200 Successful Response */ VideoExistsResponse;
-export type CheckVideoExistsApiArg = {
+export type CheckVideoInputExistsApiArg = {
   /** Video filename to check */
   filename: string;
 };
@@ -1050,8 +1050,8 @@ export const {
   useGetVideosQuery,
   useLazyGetVideosQuery,
   useUploadVideoMutation,
-  useCheckVideoExistsQuery,
-  useLazyCheckVideoExistsQuery,
+  useCheckVideoInputExistsQuery,
+  useLazyCheckVideoInputExistsQuery,
   useGetCamerasQuery,
   useLazyGetCamerasQuery,
   useGetCameraQuery,
