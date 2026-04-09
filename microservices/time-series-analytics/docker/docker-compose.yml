@@ -11,7 +11,6 @@ services:
       dockerfile: $PWD/../Dockerfile
       args:
         KAPACITOR_VERSION: 1.8.3
-        KAPACITOR_DEBIAN_PACKAGE_VERSION: 1.8.3-1_amd64
         TIMESERIES_UID: ${TIMESERIES_UID}
         TIMESERIES_USER_NAME: ${TIMESERIES_USER_NAME}
         PYTHON_VERSION: "3.13"
