@@ -2240,6 +2240,51 @@
         }
       }
     },
+    "/videos/check-video-input-exists": {
+      "get": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "Check if a video file already exists",
+        "description": "**Check if a video file with the given filename already exists in INPUT_VIDEO_DIR.**\n\n## Operation\n\n1. Validates filename against INPUT_VIDEO_DIR\n2. Returns whether the file exists\n\n## Parameters\n\n- `filename` (query) - Name of the video file to check\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | Returns VideoExistsResponse with exists boolean |\n\n## Conditions\n\n### \u2705 Success\n- Always succeeds with boolean response\n\n## Example Response\n\n```json\n{\n  \"exists\": true,\n  \"filename\": \"traffic_1080p_h264.mp4\"\n}\n```",
+        "operationId": "check_video_exists",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Video filename to check",
+              "title": "Filename"
+            },
+            "description": "Video filename to check"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoExistsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cameras": {
       "get": {
         "tags": [
@@ -4460,6 +4505,27 @@
         ],
         "title": "Video",
         "description": "**Metadata for a single input video file.**\n\n## Attributes\n- `filename` - Base name of the video file located under INPUT_VIDEO_DIR\n- `width` - Frame width in pixels\n- `height` - Frame height in pixels\n- `fps` - Frames per second for the stream\n- `frame_count` - Total number of frames in the file\n- `codec` - Normalized codec name (e.g., \"h264\" or \"h265\")\n- `duration` - Approximate duration in seconds\n\n### Example\n```json\n[\n  {\n    \"filename\": \"traffic_1080p_h264.mp4\",\n    \"width\": 1920,\n    \"height\": 1080,\n    \"fps\": 30.0,\n    \"frame_count\": 900,\n    \"codec\": \"h264\",\n    \"duration\": 30.0\n  }\n]\n```"
+      },
+      "VideoExistsResponse": {
+        "properties": {
+          "exists": {
+            "type": "boolean",
+            "title": "Exists",
+            "description": "True if the video file exists, False otherwise."
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "description": "The filename that was checked."
+          }
+        },
+        "type": "object",
+        "required": [
+          "exists",
+          "filename"
+        ],
+        "title": "VideoExistsResponse",
+        "description": "**Response indicating whether a video file exists.**\n\n## Attributes\n- `exists` - True if file exists in INPUT_VIDEO_DIR, False otherwise\n- `filename` - The filename that was checked\n\n### Example\n```json\n{\n  \"exists\": true,\n  \"filename\": \"traffic_1080p_h264.mp4\"\n}\n```"
       }
     }
   }

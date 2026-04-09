@@ -353,6 +353,18 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["videos"],
       }),
+      checkVideoExists: build.query<
+        CheckVideoExistsApiResponse,
+        CheckVideoExistsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/videos/check-video-input-exists`,
+          params: {
+            filename: queryArg.filename,
+          },
+        }),
+        providesTags: ["videos"],
+      }),
       getCameras: build.query<GetCamerasApiResponse, GetCamerasApiArg>({
         query: () => ({ url: `/cameras` }),
         providesTags: ["cameras"],
@@ -569,6 +581,12 @@ export type UploadVideoApiResponse =
   /** status 201 Successful Response */ Video;
 export type UploadVideoApiArg = {
   bodyUploadVideo: BodyUploadVideo;
+};
+export type CheckVideoExistsApiResponse =
+  /** status 200 Successful Response */ VideoExistsResponse;
+export type CheckVideoExistsApiArg = {
+  /** Video filename to check */
+  filename: string;
 };
 export type GetCamerasApiResponse =
   /** status 200 List of all cameras successfully retrieved. */ Camera[];
@@ -923,6 +941,12 @@ export type Video = {
 export type BodyUploadVideo = {
   file: string;
 };
+export type VideoExistsResponse = {
+  /** True if the video file exists, False otherwise. */
+  exists: boolean;
+  /** The filename that was checked. */
+  filename: string;
+};
 export type CameraType = "USB" | "NETWORK";
 export type V4L2BestCapture = {
   fourcc: string;
@@ -1026,6 +1050,8 @@ export const {
   useGetVideosQuery,
   useLazyGetVideosQuery,
   useUploadVideoMutation,
+  useCheckVideoExistsQuery,
+  useLazyCheckVideoExistsQuery,
   useGetCamerasQuery,
   useLazyGetCamerasQuery,
   useGetCameraQuery,

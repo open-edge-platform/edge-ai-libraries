@@ -103,11 +103,11 @@ def get_videos():
 
 @router.get(
     "/check-video-input-exists",
-    operation_id="check_video_exists",
+    operation_id="check_video_input_exists",
     summary="Check if a video file already exists",
     response_model=schemas.VideoExistsResponse,
 )
-def check_video_exists(filename: str = Query(..., description="Video filename to check")):
+def check_video_input_exists(filename: str = Query(..., description="Video filename to check")):
     """
     **Check if a video file with the given filename already exists in INPUT_VIDEO_DIR.**
 
