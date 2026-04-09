@@ -7,9 +7,22 @@
 
 taskset_cmds=()
 case "$CORE_PINNING" in
-e-cores|p-cores|lpe-cores)
+e-cores)
+    detected_core_list_name=e_cores
     . ./detect-cores.sh
-    declare -n core_list="${CORE_PINNING/-/_}"
+    declare -n core_list="${detected_core_list_name}"
+    [ ${#core_list[@]} -eq 0 ] || taskset_cmds=(taskset -c $(IFS=,; echo "${core_list[*]}"))
+    ;;
+p-cores)
+    detected_core_list_name=p_cores
+    . ./detect-cores.sh
+    declare -n core_list="${detected_core_list_name}"
+    [ ${#core_list[@]} -eq 0 ] || taskset_cmds=(taskset -c $(IFS=,; echo "${core_list[*]}"))
+    ;;
+lp-cores|lpe-cores)
+    detected_core_list_name=lpe_cores
+    . ./detect-cores.sh
+    declare -n core_list="${detected_core_list_name}"
     [ ${#core_list[@]} -eq 0 ] || taskset_cmds=(taskset -c $(IFS=,; echo "${core_list[*]}"))
     ;;
 *)
