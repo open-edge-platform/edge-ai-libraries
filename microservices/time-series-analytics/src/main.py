@@ -18,7 +18,7 @@ import time
 import json
 import subprocess
 import threading
-import zipfile
+import tarfile
 from typing import Optional
 import requests
 
@@ -46,7 +46,7 @@ app = FastAPI(root_path=REST_API_ROOT_PATH)
 KAPACITOR_URL = os.getenv('KAPACITOR_URL', 'http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
 MAX_SIZE = 5 * 1024  # 5 KB
-MAX_UPLOAD_SIZE = int(os.getenv('UDF_MAX_FILE_SIZE_MB', 100)) * 1024 * 1024  # 100 MB — max allowed zip upload
+MAX_UPLOAD_SIZE = int(os.getenv('UDF_MAX_FILE_SIZE_MB', 100)) * 1024 * 1024  # 100 MB — max allowed tar upload
 
 config = {}
 OPCUA_SEND_ALERT = None
@@ -523,6 +523,8 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
         config["udfs"] = config_data.udfs
         if config_data.alerts:
             config["alerts"] = config_data.alerts
+        else:
+            config.pop("alerts")
         logger.info("Received configuration data: %s", config)
     except json.JSONDecodeError as error:
         logger.error("Invalid JSON format in configuration data: %s", error)
@@ -537,92 +539,109 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
     return {"status": "success", "message": "Configuration updated successfully"}
 
 
-def _scan_zip(zf: zipfile.ZipFile) -> None:
-    """Scan a ZipFile for security issues before extraction.
+def _scan_tar(tf: tarfile.TarFile, archive_size_bytes: int) -> None:
+    """Scan a TarFile for security issues before extraction.
 
     Raises HTTPException(400) for any detected threat.
     """
-    # Security limits for uploaded UDF zip files
+    # Security limits for uploaded UDF tar files
     max_file_size = int(os.getenv("UDF_MAX_FILE_SIZE_MB", 100))  # Max size for a single UDF file in MB
-    _ZIP_MAX_UNCOMPRESSED_BYTES = max_file_size * 1024 * 1024   # 100 MB total
-    _ZIP_MAX_SINGLE_FILE_BYTES  = max_file_size * 1024 * 1024   # 100 MB per entry
-    _ZIP_MAX_FILE_COUNT         = 100
-    _ZIP_MAX_COMPRESSION_RATIO  = 100                  # flag zip-bomb if ratio > 100x
-    _ZIP_ALLOWED_EXTENSIONS     = {
+    _TAR_MAX_TOTAL_BYTES       = max_file_size * 1024 * 1024   # 100 MB total
+    _TAR_MAX_SINGLE_FILE_BYTES = max_file_size * 1024 * 1024   # 100 MB per entry
+    _TAR_MAX_FILE_COUNT        = 100
+    _TAR_MAX_EXPANSION_RATIO   = 100
+    _TAR_ENCRYPTED_EXTENSIONS  = {".enc", ".gpg", ".pgp", ".age", ".aes"}
+    _TAR_ALLOWED_EXTENSIONS    = {
         ".py", ".tick", ".txt", ".cb",
-        ".pkl", ".joblib", ".xml", ".bin", ".onnx", ".pt", ".pth",
+        ".pkl", ".joblib", ".xml", ".bin", ".onnx", ".pt", ".pth", ".json",
     }
-    entries = zf.infolist()
+    entries = tf.getmembers()
 
     # 1. Max file count
-    if len(entries) > _ZIP_MAX_FILE_COUNT:
+    if len(entries) > _TAR_MAX_FILE_COUNT:
         raise HTTPException(
             status_code=400,
-            detail=f"Zip archive contains too many files ({len(entries)}). Maximum allowed: {_ZIP_MAX_FILE_COUNT}."
+            detail=f"Tar archive contains too many files ({len(entries)}). Maximum allowed: {_TAR_MAX_FILE_COUNT}."
         )
 
-    total_uncompressed = 0
+    total_size = 0
     for info in entries:
-        name = info.filename
+        name = info.name
         parts = name.replace("\\", "/").split("/")
 
         # 2. Path traversal
         if os.path.isabs(name) or ".." in parts:
-            raise HTTPException(status_code=400, detail=f"Invalid path in zip entry: {name}")
+            raise HTTPException(status_code=400, detail=f"Invalid path in tar entry: {name}")
 
-        # 3. Symlink detection (Unix symlink bit is 0xA in the high nibble of external_attr)
-        unix_attrs = (info.external_attr >> 16) & 0xFFFF
-        is_symlink = (unix_attrs & 0xF000) == 0xA000
-        if is_symlink:
-            raise HTTPException(status_code=400, detail=f"Zip entry is a symlink, which is not allowed: {name}")
+        # 3. Symlink detection
+        if info.issym() or info.islnk():
+            raise HTTPException(status_code=400, detail=f"Tar entry is a link, which is not allowed: {name}")
 
-        # 4. Encryption detection (bit 0 of flag_bits indicates the entry is encrypted)
-        if info.flag_bits & 0x1:
+        # 4. Device / special file detection
+        if info.isdev() or info.isblk() or info.ischr() or info.isfifo():
             raise HTTPException(
                 status_code=400,
-                detail=f"Zip entry '{name}' is encrypted/password-protected. Encrypted archives are not allowed."
+                detail=f"Tar entry '{name}' is a special file type (device/fifo), which is not allowed."
             )
 
         # Skip directory entries for the remaining checks
-        if info.is_dir():
+        if info.isdir():
             continue
 
-        # 4. Allowed file extensions
+        # 5. Encrypted payload detection
         _, ext = os.path.splitext(name.lower())
-        if ext not in _ZIP_ALLOWED_EXTENSIONS:
+        if ext in _TAR_ENCRYPTED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Encrypted file '{name}' is not allowed in the UDF deployment package."
+            )
+
+        # 6. Allowed file extensions
+        _, ext = os.path.splitext(name.lower())
+        if ext not in _TAR_ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=400,
                 detail=f"File type '{ext}' is not allowed in the UDF deployment package: {name}"
             )
 
-        # 5. Single-file size limit
-        if info.file_size > _ZIP_MAX_SINGLE_FILE_BYTES:
+        # 7. Reject sparse files to prevent low-size/high-expansion tar-bomb payloads.
+        if getattr(info, "sparse", None):
             raise HTTPException(
                 status_code=400,
-                detail=f"File '{name}' exceeds the maximum allowed size of {_ZIP_MAX_SINGLE_FILE_BYTES // (1024*1024)} MB."
+                detail=f"Sparse file '{name}' is not allowed in the UDF deployment package."
             )
 
-        # 6. Zip-bomb detection via compression ratio
-        if info.compress_size > 0:
-            ratio = info.file_size / info.compress_size
-            if ratio > _ZIP_MAX_COMPRESSION_RATIO:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Suspicious compression ratio ({ratio:.0f}x) detected in '{name}'. Possible zip bomb."
-                )
+        # 8. Single-file size limit
+        if info.size > _TAR_MAX_SINGLE_FILE_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File '{name}' exceeds the maximum allowed size of {_TAR_MAX_SINGLE_FILE_BYTES // (1024*1024)} MB."
+            )
 
-        total_uncompressed += info.file_size
+        total_size += info.size
 
-    # 7. Total uncompressed size limit
-    if total_uncompressed > _ZIP_MAX_UNCOMPRESSED_BYTES:
+    # 9. Total size limit
+    if total_size > _TAR_MAX_TOTAL_BYTES:
         raise HTTPException(
             status_code=400,
-            detail=f"Total uncompressed size exceeds the maximum allowed limit of {_ZIP_MAX_UNCOMPRESSED_BYTES // (1024*1024)} MB."
+            detail=f"Total size exceeds the maximum allowed limit of {_TAR_MAX_TOTAL_BYTES // (1024*1024)} MB."
         )
 
-    # 8. Required folder structure validation
+    # 10. Tar-bomb style expansion-ratio detection
+    effective_archive_size = max(archive_size_bytes, 1)
+    expansion_ratio = total_size / effective_archive_size
+    if expansion_ratio > _TAR_MAX_EXPANSION_RATIO:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Suspicious archive expansion ratio ({expansion_ratio:.0f}x) detected. "
+                "Possible tar bomb."
+            )
+        )
+
+    # 11. Required folder structure validation
     # Collect normalized paths of file entries only (not directories)
-    file_names = [e.filename.replace("\\", "/") for e in entries if not e.is_dir()]
+    file_names = [e.name.replace("\\", "/") for e in entries if not e.isdir()]
 
     def _has_file_in_folder(file_list, folder_segment, extension=None):
         """Return True if any file has `folder_segment` as an exact path segment."""
@@ -638,26 +657,26 @@ def _scan_zip(zf: zipfile.ZipFile) -> None:
     if not _has_file_in_folder(file_names, "udfs", ".py"):
         raise HTTPException(
             status_code=400,
-            detail="Zip archive must contain a 'udfs/' folder with at least one .py file."
+            detail="Tar archive must contain a 'udfs/' folder with at least one .py file."
         )
 
     # tick_scripts/ must contain at least one .tick file
     if not _has_file_in_folder(file_names, "tick_scripts", ".tick"):
         raise HTTPException(
             status_code=400,
-            detail="Zip archive must contain a 'tick_scripts/' folder with at least one .tick file."
+            detail="Tar archive must contain a 'tick_scripts/' folder with at least one .tick file."
         )
 
     # models/ is optional — log a notice if absent
     if not _has_file_in_folder(file_names, "models"):
-        logger.info("Zip archive does not contain a 'models/' folder (optional, skipping).")
+        logger.info("Tar archive does not contain a 'models/' folder (optional, skipping).")
 
 
 @app.post("/udfs/package", responses={
-    400: {"description": "Invalid file — not a .zip, corrupt archive, failed security scan, or missing required folders",
-          "content": {"application/json": {"example": {"detail": "Zip archive must contain a 'udfs/' folder with at least one .py file."}}}},
+    400: {"description": "Invalid file — not a .tar, corrupt archive, failed security scan (path traversal, symlink, encrypted payload, tar-bomb expansion), or missing required folders",
+          "content": {"application/json": {"example": {"detail": "Tar archive must contain a 'udfs/' folder with at least one .py file."}}}},
     413: {"description": "Uploaded file exceeds the maximum allowed size",
-          "content": {"application/json": {"example": {"detail": "Uploaded file exceeds the maximum allowed size of 500 MB."}}}},
+          "content": {"application/json": {"example": {"detail": "Uploaded file exceeds the maximum allowed size of 100 MB."}}}},
     500: {"description": "Failed to extract the UDF deployment package on the server",
           "content": {"application/json": {"example": {"detail": "Failed to extract UDF deployment package."}}}},
 })
@@ -665,9 +684,9 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
     """
     Adds UDF deployment package.
 
-    **Request body**: multipart/form-data with a single field named `file` containing the zip archive.
+    **Request body**: multipart/form-data with a single field named `file` containing the tar archive.
 
-    The zip must have the following structure (no wrapping top-level directory):
+    The tar must have the following structure (no wrapping top-level directory):
 
     .. code-block:: text
 
@@ -682,9 +701,9 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
     **Extraction destination**:
 
     - If `SAMPLE_APP` env var is set → `/tmp/<SAMPLE_APP>/`
-    - Otherwise → `/tmp/<zip_filename_without_extension>/`
+    - Otherwise → `/tmp/<tar_filename_without_extension>/`
 
-    **Allowed file extensions**: `.py`, `.tick`, `.txt`, `.cb`, `.pkl`,
+    **Allowed file extensions**: `.py`, `.tick`, `.txt`, `.cb`, `.pkl`, `.json`,
     `.joblib`, `.xml`, `.bin`, `.onnx`, `.pt`, `.pth`
 
     responses:
@@ -700,11 +719,12 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
                                 example: "success"
                             message:
                                 type: string
-                                example: "UDF deployment package 'my_udf.zip' uploaded successfully."
+                                example: "UDF deployment package 'my_udf.tar' uploaded successfully."
         400:
             description: >
-                Invalid upload — file is not a .zip, archive is corrupt, failed security
-                scan (path traversal, symlink, encryption, zip-bomb, disallowed extension),
+                Invalid upload — file is not a .tar, archive is corrupt, failed security
+                scan (path traversal, symlink, encrypted payload, tar-bomb expansion,
+                disallowed extension),
                 or required folders/files are missing
             content:
                 application/json:
@@ -713,7 +733,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
                         properties:
                             detail:
                                 type: string
-                                example: "Zip archive must contain a 'udfs/' folder with at least one .py file."
+                                example: "Tar archive must contain a 'udfs/' folder with at least one .py file."
         413:
             description: Uploaded file exceeds the maximum allowed size
             content:
@@ -723,7 +743,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
                         properties:
                             detail:
                                 type: string
-                                example: "Uploaded file exceeds the maximum allowed size of 500 MB."
+                                example: "Uploaded file exceeds the maximum allowed size of 100 MB."
         500:
             description: Server failed to extract the UDF deployment package
             content:
@@ -735,8 +755,8 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
                                 type: string
                                 example: "Failed to extract UDF deployment package."
     """
-    if not file.filename.endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Uploaded file must be a .zip archive.")
+    if not file.filename.endswith(".tar"):
+        raise HTTPException(status_code=400, detail="Uploaded file must be a .tar archive.")
 
     # Read in chunks to enforce upload size limit before loading into memory
     chunks = []
@@ -759,13 +779,13 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
     contents = b"".join(chunks)
 
     try:
-        zf = zipfile.ZipFile(io.BytesIO(contents))
-    except zipfile.BadZipFile as exc:
-        raise HTTPException(status_code=400, detail="Uploaded file is not a valid zip archive.") from exc
+        tf = tarfile.open(fileobj=io.BytesIO(contents))
+    except tarfile.TarError as exc:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid tar archive.") from exc
 
-    with zf:
+    with tf:
         # Security scan before extraction
-        _scan_zip(zf)
+        _scan_tar(tf, archive_size_bytes=received)
 
         # Reserved names that must not be used as extraction directory names
         # to avoid colliding with service-critical paths under SECURE_TEMP_DIR.
@@ -798,12 +818,12 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
 
         base_dir = classifier_startup.SECURE_TEMP_DIR
 
-        zip_stem = _safe_dir_name(os.path.splitext(os.path.basename(file.filename))[0])
+        tar_stem = _safe_dir_name(os.path.splitext(os.path.basename(file.filename))[0])
         sample_app = os.environ.get("SAMPLE_APP")
         if sample_app:
             dest_dir = os.path.join(base_dir, _safe_dir_name(sample_app))
         else:
-            dest_dir = os.path.join(base_dir, zip_stem)
+            dest_dir = os.path.join(base_dir, tar_stem)
 
         # Extract into a staging directory first so a failed upload never
         # corrupts the live deployment.
@@ -813,7 +833,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
         os.makedirs(staging_dir)
 
         try:
-            zf.extractall(staging_dir)
+            tf.extractall(staging_dir, filter='data')
         except Exception as exc:
             logger.error("Failed to extract UDF deployment package: %s", exc)
             shutil.rmtree(staging_dir, ignore_errors=True)

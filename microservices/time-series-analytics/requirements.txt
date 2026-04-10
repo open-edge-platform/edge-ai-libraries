@@ -8,3 +8,6 @@ tomlkit==0.14.0
 protobuf==7.34.0
 dpctl==0.21.1
 python-multipart==0.0.22
+
+setuptools==82.0.1
+packaging==26.0

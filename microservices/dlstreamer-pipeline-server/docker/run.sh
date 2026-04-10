@@ -49,18 +49,26 @@ gpu_execution_prequisites
 
 ros2_prerequisites
 
-taskset_cmds=()
-case "$CORE_PINNING" in
-e-cores|p-cores|lp-cores)
-    . ./detect-cores.sh
-    declare -n core_list="${CORE_PINNING/-/_}"
-    [ ${#core_list[@]} -eq 0 ] || taskset_cmds=(taskset -c $(IFS=,; echo "${core_list[*]}"))
+taskset_cores=()
+[ -z "$CORE_PINNING" ] || . ./detect-cores.sh || true
+for coreset in ${CORE_PINNING//,/ }; do
+  case "$coreset" in
+  e-cores|p-cores|lpe-cores)
+    declare -n core_list="${coreset/-/_}"
+    taskset_cores+=(${core_list[@]})
     ;;
-*)
-    [ ${#CORE_PINNING[@]} -eq 0 ] || taskset_cmds=(taskset -c ${CORE_PINNING// /,})
+  *)
+    taskset_cores+=($coreset)
     ;;
-esac
-"${taskset_cmds[@]}" python3 -m src
+  esac
+done
+if [ ${#taskset_cores[@]} -gt 0 ]; then
+  coreset="${taskset_cores[@]}"
+  echo "Core pinned to $coreset" 1>&2
+  taskset -c ${coreset// /,} python3 -m src &
+else
+  python3 -m src &
+fi
 
 wait
 

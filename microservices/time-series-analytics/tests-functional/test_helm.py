@@ -87,8 +87,8 @@ def helm_setup():
     if not helm_install(RELEASE_NAME, HELM_DIR, NAMESPACE):
         pytest.fail("Helm installation failed.")
     time.sleep(30)  # Wait for the Helm release to be ready
-    print("Uploading zip file and updating config...")
-    utils.upload_zip_file(TS_HELM_PORT)
+    print("Uploading tar file and updating config...")
+    utils.upload_tar_file(TS_HELM_PORT)
     utils.update_config(TS_HELM_PORT)
     time.sleep(30)  # Wait for the service to be ready
     yield

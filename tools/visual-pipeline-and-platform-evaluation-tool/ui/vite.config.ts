@@ -28,6 +28,13 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: true,
         },
+        "/model-download": {
+          target: env.VITE_MODEL_DOWNLOAD_URL || "http://localhost:8000",
+          changeOrigin: true,
+          secure: false,
+          ws: false,
+          rewrite: (path: string) => path.replace(/^\/model-download/, "/api/v1"),
+        },
         "/api": {
           target: env.VITE_API_URL || "http://localhost:7860",
           changeOrigin: true,
