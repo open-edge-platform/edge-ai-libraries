@@ -63,10 +63,10 @@ Run the following commands to package and upload the `temperature_classifier` UD
 
 ```bash
 cd edge-ai-libraries/microservices/time-series-analytics/
-rm -f temperature_classifier.zip
-zip -r temperature_classifier.zip udfs/ tick_scripts/
+rm -f temperature_classifier.tar
+tar cf temperature_classifier.tar udfs/ tick_scripts/
 curl -X POST http://localhost:30002/udfs/package \
-  -F "file=@temperature_classifier.zip"
+  -F "file=@temperature_classifier.tar"
 ```
 
 ## Activate the UDF Deployment Package
