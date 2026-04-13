@@ -28,7 +28,7 @@ fi
 # Usage information
 show_usage() {
   echo -e "Usage: $0 [OPTION]"
-  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding, vlm-openvino-serving, audio-analyzer)"
+  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding, audio-analyzer)"
   echo -e "  --help, -h\t\t Show this help message"
   echo -e "  --push\t Push all built Docker images to the registry"
   echo -e "  <no option>\t Build sample application services (video-ingestion, pipeline-manager, search-ms, and UI)"
@@ -102,19 +102,6 @@ build_dependencies() {
     log_info "${YELLOW}compose.yml not found for multimodal embedding serving${NC}";
   fi
 
-  
-  # Build vlm-openvino-serving
-  cd "${uservices_dir}/vlm-openvino-serving/docker" || return 0
-  if [ -f "compose.yaml" ]; then
-    cd .. && docker_build -t ${REGISTRY}vlm-openvino-serving:${TAG} -f docker/Dockerfile . || {
-      log_info "${RED}Failed to build vlm-openvino-serving${NC}"; 
-      build_success=false; 
-    }
-  else
-    log_info "${YELLOW}compose.yaml not found for vlm-openvino-serving ${NC}";
-  fi
-
-
   # Build audio analyzer microservice
   cd "${uservices_dir}/audio-analyzer/docker" || return 1
   if [ -f "compose.yaml" ]; then
@@ -133,7 +120,7 @@ build_dependencies() {
     # Print built images
     log_info "${GREEN}Built images:${NC}"
     echo "Retrieving Docker images related to microservice dependencies..."
-    docker images | grep -E "${REGISTRY}.*(vdms|multimodal|vlm|audio).*${TAG}"
+    docker images | grep -E "${REGISTRY}.*(vdms|multimodal|audio).*${TAG}"
     
     return 0
   else

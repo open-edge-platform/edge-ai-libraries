@@ -42,6 +42,7 @@ describe('LlmService', () => {
   let mockFetch: jest.Mock;
   let mockClientCompletionCreate: jest.Mock;
   let mockClientModelsList: jest.Mock;
+  let mockSelectModel: jest.Mock;
 
   // Mock response data
   const mockModelConfigResponse = {
@@ -63,11 +64,12 @@ describe('LlmService', () => {
   const mockConfig = {
     'openai.url': 'http://localhost:3001',
     'openai.vlmCaptioning.concurrent': 5,
-  'openai.llmSummarization.concurrent': 3,
-  'openai.useOVMS': 'CONFIG_ON',
+    'openai.llmSummarization.concurrent': 3,
     'openai.llmSummarization.apiKey': 'mock-api-key',
     'openai.llmSummarization.apiBase': 'https://api.mock.com',
-    'openai.llmSummarization.modelsAPI': 'models',
+    'openai.llmSummarization.modelsAPI': 'v1/config',
+    'openai.llmSummarization.modelName': undefined,
+    'openai.llmSummarization.useVLLM': undefined,
     'openai.llmSummarization.device': 'CPU',
     'openai.llmSummarization.defaults.doSample': true,
     'openai.llmSummarization.defaults.seed': 42,
@@ -94,6 +96,9 @@ describe('LlmService', () => {
     // Mock client methods
     mockClientCompletionCreate = jest.fn();
     mockClientModelsList = jest.fn();
+    mockSelectModel = jest.fn(({ availableModels, configuredModelName }) => {
+      return configuredModelName ?? availableModels[0];
+    });
 
     // Set up mocks
     (OpenAI as unknown as jest.Mock).mockImplementation(() => ({
@@ -142,21 +147,24 @@ describe('LlmService', () => {
         {
           provide: OpenaiHelperService,
           useValue: {
-            initializeClient: jest.fn().mockImplementation((apiKey, baseURL) => ({
-              client: {
-                chat: {
-                  completions: {
-                    create: mockClientCompletionCreate,
+            initializeClient: jest
+              .fn()
+              .mockImplementation((apiKey, baseURL) => ({
+                client: {
+                  chat: {
+                    completions: {
+                      create: mockClientCompletionCreate,
+                    },
+                  },
+                  models: {
+                    list: mockClientModelsList,
                   },
                 },
-                models: {
-                  list: mockClientModelsList,
-                },
-              },
-              openAiConfig: {},
-              proxyAgent: new HttpsProxyAgent(mockConfig['proxy.url']),
-            })),
+                openAiConfig: { baseURL },
+                proxyAgent: new HttpsProxyAgent(mockConfig['proxy.url']),
+              })),
             getConfigUrl: jest.fn().mockReturnValue('http://localhost:8080/config'),
+            selectModel: mockSelectModel,
           },
         },
         {
@@ -186,6 +194,12 @@ describe('LlmService', () => {
       expect(service.serviceReady).toBeTruthy();
       expect(service.model).toBe('test-model');
       expect(mockFetch).toHaveBeenCalled();
+      expect(mockSelectModel).toHaveBeenCalledWith({
+        availableModels: ['test-model'],
+        configuredModelName: undefined,
+        configuredModelEnv: 'LLM_MODEL_NAME',
+        serviceLabel: 'LLM summarization',
+      });
     });
 
     it('should use proxy if configured', async () => {
@@ -208,6 +222,54 @@ describe('LlmService', () => {
 
       expect(mockClientModelsList).toHaveBeenCalled();
       expect(service.model).toBe('fallback-model');
+    });
+
+    it('should use configured model name when present', async () => {
+      jest.spyOn(configService, 'get').mockImplementation((key) => {
+        if (key === 'openai.llmSummarization.modelName') {
+          return 'configured-llm';
+        }
+        return mockConfig[key];
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            'configured-llm': {
+              model_version_status: [
+                {
+                  version: '1.0',
+                  state: 'AVAILABLE',
+                  status: {
+                    error_code: '',
+                    error_message: '',
+                  },
+                },
+              ],
+            },
+            'other-model': {
+              model_version_status: [
+                {
+                  version: '1.0',
+                  state: 'AVAILABLE',
+                  status: {
+                    error_code: '',
+                    error_message: '',
+                  },
+                },
+              ],
+            },
+          }),
+      });
+
+      mockSelectModel.mockImplementationOnce(({ configuredModelName }) => {
+        return configuredModelName;
+      });
+
+      await service['initialize']();
+
+      expect(service.model).toBe('configured-llm');
     });
 
     it('should throw if both initialization methods fail', async () => {
@@ -257,6 +319,49 @@ describe('LlmService', () => {
 
       const params = service['defaultParams']();
       expect(params).not.toHaveProperty('do_sample');
+    });
+
+    it('should use vLLM-safe defaults only for LLM summarization when configured', () => {
+      jest.spyOn(configService, 'get').mockImplementation((key) => {
+        if (key === 'openai.llmSummarization.useVLLM') {
+          return 'CONFIG_ON';
+        }
+        if (key === 'openai.llmSummarization.defaults.temperature') {
+          return 0;
+        }
+        return mockConfig[key];
+      });
+
+      const params = service['defaultParams']();
+      expect(params).toEqual({
+        temperature: 0.01,
+        top_p: 0.95,
+        presence_penalty: 0.5,
+        frequency_penalty: 0.5,
+        max_completion_tokens: 500,
+        max_tokens: 500,
+      });
+    });
+
+    it('should ignore VLM-specific vLLM settings for LLM summarization', () => {
+      jest.spyOn(configService, 'get').mockImplementation((key) => {
+        if (key === 'openai.vlmCaptioning.useVLLM') {
+          return 'CONFIG_ON';
+        }
+        return mockConfig[key];
+      });
+
+      const params = service['defaultParams']();
+      expect(params).toEqual({
+        do_sample: true,
+        seed: 42,
+        temperature: 0.7,
+        top_p: 0.95,
+        presence_penalty: 0.5,
+        frequency_penalty: 0.5,
+        max_completion_tokens: 500,
+        max_tokens: 500,
+      });
     });
   });
 
@@ -590,6 +695,9 @@ describe('LlmService', () => {
 
   describe('fetchModelsFromOpenai', () => {
     it('should throw error when no models are available', async () => {
+      mockSelectModel.mockImplementationOnce(() => {
+        throw new Error('No models available');
+      });
       mockClientModelsList.mockResolvedValueOnce({
         data: [],
       });
@@ -610,9 +718,9 @@ describe('LlmService', () => {
     it('should handle undefined client', async () => {
       service.client = undefined as any;
 
-      // Should not throw, method returns early when client is falsy
-      await service['fetchModelsFromOpenai']();
-      expect(mockClientModelsList).not.toHaveBeenCalled();
+      await expect(service['fetchModelsFromOpenai']()).rejects.toThrow(
+        'Client is not initialized',
+      );
     });
   });
 
