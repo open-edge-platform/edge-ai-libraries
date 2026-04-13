@@ -42,6 +42,9 @@ Before running the sizing tool, ensure the target application is deployed and ac
 **Chat Question and Answer Core:**
 - [Sample Application README](../../../main/sample-applications/chat-question-and-answer-core/README.md)
 
+**Live Video Captioning:**
+- [Sample Application README](https://github.com/open-edge-platform/edge-ai-suites/blob/main/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
+
 ## Installation
 
 ### Option 1: Local Installation
@@ -410,7 +413,7 @@ Before running a full profiling session:
 - **Chat Question and Answer Core**
   - [Sample Application](../../../main/sample-applications/chat-question-and-answer-core/README.md)
 - **Live Video Captioning**
-  - [Sample Application](https://github.com/open-edge-platform/edge-ai-suites/blob/main/metro-ai-suite/live-video-analysis/live-video-captioning/docs/user-guide/get-started.md)
+  - [Sample Application](https://github.com/open-edge-platform/edge-ai-suites/blob/main/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
 - [Performance Tools Documentation](https://github.com/intel-retail/performance-tools)
 - Customize input profiles in `profiles/profiles.yaml` for your use case
 - Enable resource metrics collection for detailed hardware analysis
