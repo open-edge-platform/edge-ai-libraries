@@ -139,9 +139,10 @@ def _kill_processes_by_name(process_name: str) -> int:
                 comm = file.read().strip()
 
             with open(cmdline_path, "rb") as file:
-                cmdline = file.read().replace(b"\x00", b" ").decode("utf-8", errors="ignore")
+                argv0 = file.read().split(b"\x00")[0].decode("utf-8", errors="ignore")
+            argv0_basename = os.path.basename(argv0)
 
-            if comm == process_name or process_name in cmdline:
+            if comm == process_name or argv0_basename == process_name:
                 os.kill(pid, signal.SIGKILL)
                 killed += 1
         except FileNotFoundError:
@@ -171,7 +172,7 @@ def stop_kapacitor_service():
             print("Stopping Kapacitor tasks:", task_id)
             logger.info("Stopping Kapacitor tasks: %s", task_id)
             subprocess.run(["kapacitor", "disable", task_id], check=False)
-            killed = _kill_processes_by_name("kapacitord")
+            _kill_processes_by_name("kapacitord")
     except subprocess.CalledProcessError as error:
         logger.error("Error stopping Kapacitor service: %s", error)
 
