@@ -409,6 +409,8 @@ Before running a full profiling session:
   - [Sample Application](../../../main/sample-applications/chat-question-and-answer/README.md)
 - **Chat Question and Answer Core**
   - [Sample Application](../../../main/sample-applications/chat-question-and-answer-core/README.md)
+- **Live Video Captioning**
+  - [Sample Application](https://github.com/open-edge-platform/edge-ai-suites/blob/main/metro-ai-suite/live-video-analysis/live-video-captioning/docs/user-guide/get-started.md)
 - [Performance Tools Documentation](https://github.com/intel-retail/performance-tools)
 - Customize input profiles in `profiles/profiles.yaml` for your use case
 - Enable resource metrics collection for detailed hardware analysis
