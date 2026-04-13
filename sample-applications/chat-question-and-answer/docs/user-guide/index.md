@@ -11,7 +11,7 @@
 </div>
 hide_directive-->
 
-Chat Q&A sample application is a foundational Retrieval-Augmented Generation (RAG) pipeline
+The Chat Question & Answer (Chat Q&A) sample application is a foundational Retrieval-Augmented Generation (RAG) pipeline
 that allows users to ask questions and receive answers, including those based on their own
 private data corpus. The sample application demonstrates how to build a RAG pipeline using
 Intel's Edge AI microservices catalog and deploy it optimally on Intel's Edge AI systems.

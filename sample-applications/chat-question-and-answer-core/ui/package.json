@@ -24,7 +24,7 @@
     "@carbon/react": "^1.89.0",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@reduxjs/toolkit": "^2.8.2",
-    "axios": "^1.13.5",
+    "axios": "^1.15.0",
     "date-fns": "^4.1.0",
     "i18next": "^25.3.6",
     "react": "^19.1.1",
@@ -58,7 +58,7 @@
     "sass": "^1.90.0",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.56.1",
-    "vite": "^7.3.1",
+    "vite": "^7.3.2",
     "vitest": "^4.0.18"
   }
 }
