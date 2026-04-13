@@ -142,32 +142,32 @@ def get_config_endpoint(port):
     except Exception as e:
         pytest.fail(f"Failed to get config data: {e}")
 
-# Upload the UDF deployment zip to the /udfs/package endpoint
-def upload_zip_file(port):
+# Upload the UDF deployment tar to the /udfs/package endpoint
+def upload_tar_file(port):
     """
-    Create and upload the temperature_classifier UDF deployment zip to the microservice.
+    Create and upload the temperature_classifier UDF deployment tar to the microservice.
     Equivalent to:
-        zip -r temperature_classifier.zip udfs/ tick_scripts/
-        curl -X POST http://localhost:<port>/udfs/package -F "file=@temperature_classifier.zip"
+        tar cf temperature_classifier.tar udfs/ tick_scripts/
+        curl -X POST http://localhost:<port>/udfs/package -F "file=@temperature_classifier.tar"
     """
-    zip_path = os.path.join(TS_DIR, "temperature_classifier.zip")
+    tar_path = os.path.join(TS_DIR, "temperature_classifier.tar")
     prev_dir = os.getcwd()
     try:
         os.chdir(TS_DIR)
-        run_command(["zip", "-r", zip_path, "udfs/", "tick_scripts/"])
+        run_command(["tar", "cf", tar_path, "udfs/", "tick_scripts/"])
     except RuntimeError as e:
-        pytest.fail(f"Failed to create zip file: {e}")
+        pytest.fail(f"Failed to create tar file: {e}")
     finally:
         os.chdir(prev_dir)
 
     url = f"http://localhost:{port}/udfs/package"
     try:
-        with open(zip_path, "rb") as zf:
-            response = requests.post(url, files={"file": ("temperature_classifier.zip", zf, "application/zip")}, timeout=30)
+        with open(tar_path, "rb") as tf:
+            response = requests.post(url, files={"file": ("temperature_classifier.tar", tf, "application/x-tar")}, timeout=30)
         assert response.status_code == 200
         assert response.json().get("status") == "success"
     except Exception as e:
-        pytest.fail(f"Failed to upload zip file: {e}")
+        pytest.fail(f"Failed to upload tar file: {e}")
 
 # Post config.json to the /config endpoint
 def update_config(port):
