@@ -5,6 +5,7 @@ This guide shows how to build and install the Multimodal Embedding Serving micro
 ## Overview
 
 Installing via wheel provides:
+
 - **Clean installation** - No source code clutter in your project
 - **Version control** - Lock to specific versions
 - **Production ready** - Proper packaging for deployment
@@ -23,6 +24,7 @@ poetry build
 ```
 
 This creates:
+
 - `dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl` (wheel file)
 - `dist/multimodal_embedding_serving-0.1.1.tar.gz` (source distribution)
 
@@ -39,12 +41,14 @@ pip install dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl
 #### Method B: Poetry Project (Recommended)
 
 1. Copy the wheel to your project:
+
 ```bash
 mkdir -p /path/to/your-project/wheels
 cp dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl /path/to/your-project/wheels/
 ```
 
 2. Add to your `pyproject.toml`:
+
 ```toml
 [tool.poetry.dependencies]
 python = "^3.8"
@@ -52,6 +56,7 @@ multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.
 ```
 
 3. Install:
+
 ```bash
 poetry install
 ```
@@ -59,11 +64,13 @@ poetry install
 #### Method C: pip requirements.txt
 
 Add to your `requirements.txt`:
+
 ```text
 multimodal_embedding_serving @ file:///path/to/wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl
 ```
 
 Then install:
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -122,7 +129,7 @@ class EmbeddingProcessor:
         handler = get_model_handler(model_name)
         handler.load_model()
         self.model = EmbeddingModel(handler)
-    
+
     def process_batch(self, texts):
         return self.model.embed_documents(texts)
 
@@ -161,6 +168,7 @@ similarity_matrix = cosine_similarity(embeddings)
 ### Pinning to Specific Version
 
 In `pyproject.toml`:
+
 ```toml
 [tool.poetry.dependencies]
 multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl"}
@@ -169,6 +177,7 @@ multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.
 ### Upgrading
 
 1. Build new version:
+
 ```bash
 cd multimodal-embedding-serving
 # Update version in pyproject.toml if needed
@@ -176,16 +185,19 @@ poetry build
 ```
 
 2. Copy new wheel to your project:
+
 ```bash
 cp dist/multimodal_embedding_serving-0.1.2-py3-none-any.whl /path/to/your-project/wheels/
 ```
 
 3. Update `pyproject.toml`:
+
 ```toml
 multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.2-py3-none-any.whl"}
 ```
 
 4. Reinstall:
+
 ```bash
 poetry install
 ```
@@ -195,6 +207,7 @@ poetry install
 ### Issue: Module not found after installation
 
 **Solution:** Verify installation:
+
 ```bash
 pip list | grep multimodal-embedding-serving
 # or
@@ -204,6 +217,7 @@ poetry show multimodal-embedding-serving
 ### Issue: Import errors
 
 **Solution:** Check Python path:
+
 ```python
 import sys
 print(sys.path)
@@ -215,6 +229,7 @@ print(multimodal_embedding_serving.__file__)
 ### Issue: Version conflicts
 
 **Solution:** Use virtual environment:
+
 ```bash
 # Create clean environment
 python -m venv venv
@@ -234,6 +249,6 @@ pip install multimodal_embedding_serving-0.1.1-py3-none-any.whl
 
 ## Related Documentation
 
-- [SDK Usage Guide](sdk-usage.md) - Complete SDK usage examples
-- [API Reference](api-reference.md) - Detailed API documentation
-- [Supported Models](supported-models.md) - Available embedding models
+- [SDK Usage Guide](./sdk-usage.md) - Complete SDK usage examples
+- [API Reference](./api-reference.md) - Detailed API documentation
+- [Supported Models](./supported-models.md) - Available embedding models

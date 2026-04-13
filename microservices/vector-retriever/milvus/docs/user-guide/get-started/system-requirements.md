@@ -15,7 +15,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 ## Minimum Requirements
 
-| **Component**      | **Minimum Requirement**   | **Recommended**         |
+| **Component**       | **Minimum Requirement**  | **Recommended**         |
 |---------------------|--------------------------|-------------------------|
 | **Processor**       | 13th Gen Intel® Core™ i7 | 13th Gen Intel® Core™ i7|
 | **Graphics**        | Intel® Arc™ A770         | Intel® Arc™ A770        |

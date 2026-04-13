@@ -254,7 +254,7 @@ paths:
             detail:
             type: string
           example:
-          detail: Device device_name not found. Available devices: [device1, device2]
+            detail: Device device_name not found. Available devices: [device1, device2]
       '500':
         description: Internal server error
         content:

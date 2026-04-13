@@ -36,7 +36,7 @@ jobs:
           docker images -q | xargs -r docker rmi -f
 
       - name: Checkout source code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up prerequisites for Docker image build
         working-directory: microservices/model-registry/docker
@@ -67,10 +67,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.10'
 
@@ -130,7 +130,7 @@ jobs:
         env:
           run_pytest_raw_output: ${{ steps.run_tests.outputs.run_pytest_raw_output }}
       - name: Upload Pytest Results Files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: pytest-results
           path: |
@@ -148,7 +148,7 @@ jobs:
           - ubuntu_version: ubuntu22
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         path: edge-ai-libraries-repo
 
@@ -162,7 +162,7 @@ jobs:
         cat reports/bandit-report.txt
         echo "Please find full report in bandit-report.txt" >> $GITHUB_STEP_SUMMARY
     - name: Upload Scan Reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: bandit-report
         path: reports/bandit-report.txt
@@ -184,7 +184,7 @@ jobs:
           - ubuntu_version: ubuntu22
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         path: edge-ai-libraries-repo
     - name: Run Virus Scan
@@ -195,7 +195,7 @@ jobs:
         docker run --rm -v "${{ github.workspace }}:/src" clamav/clamav clamscan -r  /src/edge-ai-libraries/microservices/model-registry/ > ./reports/clamav-report.txt || true
         echo "Please find full report in clamav-report.txt" >> $GITHUB_STEP_SUMMARY
     - name: Upload Scan Reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: virus-reports
         path: reports/clamav-report.txt

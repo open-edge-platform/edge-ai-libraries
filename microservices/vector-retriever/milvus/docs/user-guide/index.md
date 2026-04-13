@@ -3,7 +3,7 @@
 <!--hide_directive
 <div class="component_card_widget">
   <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/vector-retriever/milvus">
-     GitHub project
+     GitHub
   </a>
 </div>
 hide_directive-->

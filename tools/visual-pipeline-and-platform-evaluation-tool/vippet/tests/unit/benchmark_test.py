@@ -8,6 +8,7 @@ from benchmark import (
 from graph import Graph, Node, Edge
 from internal_types import (
     InternalExecutionConfig,
+    InternalMetadataMode,
     InternalOutputMode,
     InternalPipelineDensitySpec,
     InternalPipelineStreamSpec,
@@ -43,11 +44,13 @@ def create_internal_density_spec(
 def create_internal_execution_config(
     output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
     max_runtime: float = 0,
+    metadata_mode: InternalMetadataMode = InternalMetadataMode.DISABLED,
 ) -> InternalExecutionConfig:
     """Helper to create InternalExecutionConfig for testing."""
     return InternalExecutionConfig(
         output_mode=output_mode,
         max_runtime=max_runtime,
+        metadata_mode=metadata_mode,
     )
 
 
@@ -72,9 +75,9 @@ class TestBenchmark(unittest.TestCase):
 
     @patch("benchmark.PipelineManager")
     def test_run_successful_scaling(self, mock_pipeline_manager_cls):
-        # Return tuple with 3 elements: command, video_output_paths, live_stream_urls
+        # Return tuple with 4 elements: command, video_output_paths, live_stream_urls, metadata_file_paths
         mock_manager_instance = MagicMock()
-        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {}, {})
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         # Expected result uses InternalPipelineStreamSpec with variant path format
@@ -151,9 +154,9 @@ class TestBenchmark(unittest.TestCase):
 
     @patch("benchmark.PipelineManager")
     def test_zero_total_fps(self, mock_pipeline_manager_cls):
-        # Return tuple with 3 elements
+        # Return tuple with 4 elements
         mock_manager_instance = MagicMock()
-        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {}, {})
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         with patch.object(self.benchmark.runner, "run") as mock_runner:
@@ -238,6 +241,7 @@ class TestBenchmark(unittest.TestCase):
             "",
             {"/pipelines/pipeline-test1/variants/variant-1": ["/output/file.mp4"]},
             {},
+            {},
         )
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
@@ -265,7 +269,9 @@ class TestBenchmark(unittest.TestCase):
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
                 execution_config=create_internal_execution_config(
-                    output_mode=InternalOutputMode.FILE, max_runtime=0
+                    output_mode=InternalOutputMode.FILE,
+                    max_runtime=0,
+                    metadata_mode=InternalMetadataMode.DISABLED,
                 ),
                 job_id=self.job_id,
             )
@@ -276,7 +282,7 @@ class TestBenchmark(unittest.TestCase):
     def test_run_with_disabled_output_and_max_runtime(self, mock_pipeline_manager_cls):
         """Test benchmark run with disabled output and max_runtime > 0."""
         mock_manager_instance = MagicMock()
-        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {}, {})
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         with patch.object(self.benchmark.runner, "run") as mock_runner:
@@ -303,7 +309,9 @@ class TestBenchmark(unittest.TestCase):
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
                 execution_config=create_internal_execution_config(
-                    output_mode=InternalOutputMode.DISABLED, max_runtime=60
+                    output_mode=InternalOutputMode.DISABLED,
+                    max_runtime=60,
+                    metadata_mode=InternalMetadataMode.DISABLED,
                 ),
                 job_id=self.job_id,
             )
@@ -314,7 +322,7 @@ class TestBenchmark(unittest.TestCase):
     def test_run_with_inline_graph(self, mock_pipeline_manager_cls):
         """Test benchmark run with inline graph pipeline source."""
         mock_manager_instance = MagicMock()
-        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {}, {})
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         # Create specs with inline graph format (synthetic ID)
@@ -363,7 +371,7 @@ class TestBenchmark(unittest.TestCase):
     ):
         """Test that result pipeline IDs use the correct variant path format."""
         mock_manager_instance = MagicMock()
-        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {}, {})
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         with patch.object(self.benchmark.runner, "run") as mock_runner:
@@ -407,7 +415,7 @@ class TestBenchmark(unittest.TestCase):
     def test_mixed_variant_and_inline_specs(self, mock_pipeline_manager_cls):
         """Test benchmark with mixed variant reference and inline graph specs."""
         mock_manager_instance = MagicMock()
-        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {}, {})
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         # Mix of variant reference format and inline graph format

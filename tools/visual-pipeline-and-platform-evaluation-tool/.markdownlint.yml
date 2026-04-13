@@ -11,6 +11,7 @@ MD010:
 MD013:
   line_length: 120  # Max line length checking.
   code_blocks: false
+  tables: false
 MD024:
   # Duplication is allowed for headings with different parents
   siblings_only: true
@@ -26,3 +27,5 @@ MD033:
     - a  # allow anchors created by protoc-gen-doc and similar tools
     - img  # allow images - needed if you need to define a size
     - span  # allow span tags - needed if you need to highlight text in color
+MD060:
+  style: aligned
