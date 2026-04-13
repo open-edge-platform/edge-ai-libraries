@@ -204,3 +204,19 @@ def test_logging_configuration():
         importlib.reload(common)
         # Verify that the logging level was set correctly
         assert logging.getLogger().level == logging.DEBUG
+
+
+class TestAirgapModeSetting:
+    """Tests for the AIRGAP_MODE setting."""
+
+    def test_airgap_mode_defaults_false(self):
+        with mock.patch.dict(os.environ, {"VLM_MODEL_NAME": "m"}, clear=True):
+            s = Settings()
+            assert s.AIRGAP_MODE is False
+
+    def test_airgap_mode_enabled(self):
+        with mock.patch.dict(
+            os.environ, {"VLM_MODEL_NAME": "m", "AIRGAP_MODE": "true"}, clear=True
+        ):
+            s = Settings()
+            assert s.AIRGAP_MODE is True

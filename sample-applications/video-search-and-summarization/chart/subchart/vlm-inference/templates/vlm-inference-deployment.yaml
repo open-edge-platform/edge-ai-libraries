@@ -65,6 +65,8 @@ spec:
               value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}6{{ end }}"
             - name: VLM_HOST_PORT
               value: {{ .Values.vlminference.env.VLM_HOST_PORT | quote }}
+            - name: AIRGAP_MODE
+              value: {{ .Values.global.airgapMode | default false | quote }}
       {{- if .Values.global.gpu.vlminferenceEnabled }}
           resources:
             requests:

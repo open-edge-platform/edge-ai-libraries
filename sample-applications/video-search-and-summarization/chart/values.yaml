@@ -22,6 +22,10 @@ global:
   # llmName is Large Language Model Name used by OVMS service
   llmName: ""
 
+  # airgapMode enables offline/airgapped operation for the VLM microservice.
+  # When true, all HuggingFace Hub network calls are blocked and models must be pre-downloaded.
+  airgapMode: false
+
   gpu:
     vlminferenceEnabled: false
     multimodalembeddingmsEnabled: false

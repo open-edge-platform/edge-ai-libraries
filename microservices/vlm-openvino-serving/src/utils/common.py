@@ -72,6 +72,10 @@ class Settings(BaseSettings):
         default=100,
         json_schema_extra={"env": "VLM_TELEMETRY_MAX_RECORDS"},
     )
+    AIRGAP_MODE: bool = Field(
+        default=False,
+        json_schema_extra={"env": "AIRGAP_MODE"},
+    )
 
     @field_validator("VLM_LOG_LEVEL", mode="before")
     @classmethod

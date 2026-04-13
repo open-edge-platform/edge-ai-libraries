@@ -238,3 +238,20 @@ def test_decode_and_save_video_general_error(mocker):
         RuntimeError, match="Error decoding and saving video: Mocked general error"
     ):
         decode_and_save_video("data:video/mp4;base64,valid_data")
+
+
+class TestAirgapMode:
+    """Tests for AIRGAP_MODE behaviour in convert_model."""
+
+    @mock.patch("os.path.isdir", return_value=False)
+    def test_convert_model_airgap_no_model_dir_raises(self, mock_isdir):
+        """When AIRGAP_MODE is enabled and the model dir doesn't exist, raise RuntimeError."""
+        with mock.patch.object(utils_module.settings, "AIRGAP_MODE", True):
+            with pytest.raises(RuntimeError, match="AIRGAP_MODE is enabled"):
+                convert_model("test-model", "/tmp/nonexistent", "vlm", "int4")
+
+    @mock.patch("os.path.isdir", return_value=True)
+    def test_convert_model_airgap_model_exists_skips(self, mock_isdir):
+        """When AIRGAP_MODE is enabled and the model dir exists, skip conversion."""
+        with mock.patch.object(utils_module.settings, "AIRGAP_MODE", True):
+            convert_model("test-model", "/tmp/existing", "vlm", "int4")

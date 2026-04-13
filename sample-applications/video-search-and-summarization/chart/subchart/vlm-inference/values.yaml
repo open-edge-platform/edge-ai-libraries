@@ -11,6 +11,10 @@ global:
   # vlmName is the Vision-Language Model used by VLM Inference Microservice
   vlmName: ""
 
+  # airgapMode enables offline/airgapped operation for the VLM microservice.
+  # When true, all HuggingFace Hub network calls are blocked and models must be pre-downloaded.
+  airgapMode: false
+
   proxy:
     no_proxy: ""
     http_proxy: ""

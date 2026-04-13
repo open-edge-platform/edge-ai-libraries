@@ -22,4 +22,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
 - **Release Notes**
   - [Release Notes](docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.
 
+- **Airgapped / Offline Deployment**
+  - [Airgap Deployment Guide](docs/user-guide/airgap-deployment.md): Instructions for deploying the microservice in environments without internet access.
+
 

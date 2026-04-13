@@ -134,6 +134,7 @@ elif ! [[ "$VLM_TELEMETRY_MAX_RECORDS" =~ ^[0-9]+$ ]] || [ "$VLM_TELEMETRY_MAX_R
 fi
 
 export VLM_TELEMETRY_MAX_RECORDS=$VLM_TELEMETRY_MAX_RECORDS
+export AIRGAP_MODE=${AIRGAP_MODE:-false}
 export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
 export ENABLE_VLLM=${ENABLE_VLLM:-false}

@@ -74,6 +74,11 @@ from transformers import AutoProcessor, AutoTokenizer, TextIteratorStreamer
 # Suppress specific warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+# When running in airgapped mode, block all HuggingFace Hub network calls early.
+if settings.AIRGAP_MODE:
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
 
 manager = Manager()
 active_requests = manager.Value("i", 0)
@@ -490,6 +495,10 @@ def initialize_model():
         model_config = load_model_config(model_name.split("/")[-1].lower())
         ov_config = settings.get_ov_config_dict()
         logger.debug(f"Using OpenVINO configuration: {ov_config}")
+        # In airgap mode, always load processor from the local model directory.
+        processor_source = model_dir if settings.AIRGAP_MODE else model_name
+        local_only_kwargs = {"local_files_only": True} if settings.AIRGAP_MODE else {}
+
         if ModelNames.SMOLVLM in model_name.lower():
             pipe = OVModelForVisualCausalLM.from_pretrained(
                 model_dir,
@@ -499,7 +508,7 @@ def initialize_model():
                 ov_config=ov_config,
             )
             processor = AutoProcessor.from_pretrained(
-                model_name, trust_remote_code=True
+                processor_source, trust_remote_code=True, **local_only_kwargs
             )
         else:
             pipe = ov_genai.VLMPipeline(
@@ -510,7 +519,7 @@ def initialize_model():
 
             if ModelNames.PHI in model_name.lower():
                 processor = AutoProcessor.from_pretrained(
-                    model_name, trust_remote_code=True
+                    processor_source, trust_remote_code=True, **local_only_kwargs
                 )
             elif ModelNames.QWEN in model_name.lower():
                 if not model_config:
@@ -520,6 +529,7 @@ def initialize_model():
                     trust_remote_code=True,
                     min_pixels=int(eval(model_config.get("min_pixels"))),
                     max_pixels=int(eval(model_config.get("max_pixels"))),
+                    **local_only_kwargs,
                 )
             else:
                 processor = None  # No processor needed for this case
@@ -925,7 +935,8 @@ async def chat_completions(request: ChatRequest):
             logger.info(f"Using {ModelNames.QWEN} model for processing.")
             if processor.chat_template is None:
                 logger.debug("Initializing chat template from tokenizer.")
-                tok = AutoTokenizer.from_pretrained(model_dir)
+                tok_kwargs = {"local_files_only": True} if settings.AIRGAP_MODE else {}
+                tok = AutoTokenizer.from_pretrained(model_dir, **tok_kwargs)
                 processor.chat_template = tok.chat_template
 
             def _normalize_video_kwargs(video_kwargs: Optional[dict]):

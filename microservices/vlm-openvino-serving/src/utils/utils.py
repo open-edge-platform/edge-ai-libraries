@@ -167,6 +167,12 @@ def convert_model(
         if os.path.isdir(cache_dir):
             logger.info(f"Optimized {model_id} exist in {cache_dir}. Skip process...")
         else:
+            if settings.AIRGAP_MODE:
+                raise RuntimeError(
+                    f"AIRGAP_MODE is enabled but the converted model directory "
+                    f"'{cache_dir}' does not exist. Pre-convert the model on a "
+                    f"machine with internet access before deploying in airgap mode."
+                )
             logger.info(f"Converting {model_id} model to OpenVINO format...")
             hf_tokenizer = AutoTokenizer.from_pretrained(model_id)
             hf_tokenizer.save_pretrained(cache_dir)

@@ -29,6 +29,7 @@ services:
       VLM_ACCESS_LOG_FILE: ${VLM_ACCESS_LOG_FILE:-/dev/null}
       VLM_TELEMETRY_PATH: ${VLM_TELEMETRY_PATH:-/opt/vlm_telemetry.jsonl}
       VLM_TELEMETRY_MAX_RECORDS: ${VLM_TELEMETRY_MAX_RECORDS:-100}
+      AIRGAP_MODE: ${AIRGAP_MODE:-false}
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri
