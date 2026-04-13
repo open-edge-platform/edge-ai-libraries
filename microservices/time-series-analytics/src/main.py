@@ -16,6 +16,7 @@ import logging
 import shutil
 import time
 import json
+import signal
 import subprocess
 import threading
 import tarfile
@@ -112,6 +113,50 @@ def start_kapacitor_service(service_config):
     classifier_startup.classifier_startup(service_config)
 
 
+def _kill_processes_by_name(process_name: str) -> int:
+    """Kill processes by name without relying on pkill/killall binaries."""
+    killed = 0
+    my_pid = os.getpid()
+    proc_dir = "/proc"
+
+    if not os.path.isdir(proc_dir):
+        logger.warning("/proc is not available; cannot kill process '%s' by name", process_name)
+        return 0
+
+    for pid_dir in os.listdir(proc_dir):
+        if not pid_dir.isdigit():
+            continue
+
+        pid = int(pid_dir)
+        if pid == my_pid:
+            continue
+
+        comm_path = os.path.join(proc_dir, pid_dir, "comm")
+        cmdline_path = os.path.join(proc_dir, pid_dir, "cmdline")
+
+        try:
+            with open(comm_path, "r", encoding="utf-8", errors="ignore") as file:
+                comm = file.read().strip()
+
+            with open(cmdline_path, "rb") as file:
+                argv0 = file.read().split(b"\x00")[0].decode("utf-8", errors="ignore")
+            argv0_basename = os.path.basename(argv0)
+
+            if comm == process_name or argv0_basename == process_name:
+                os.kill(pid, signal.SIGKILL)
+                killed += 1
+        except FileNotFoundError:
+            continue
+        except ProcessLookupError:
+            continue
+        except PermissionError:
+            logger.warning("Permission denied while killing pid=%d for process '%s'", pid, process_name)
+        except Exception as error:
+            logger.warning("Failed to inspect/kill pid=%d for process '%s': %s", pid, process_name, error)
+
+    return killed
+
+
 def stop_kapacitor_service():
     """Stop the Kapacitor service and all running tasks."""
     response = Response()
@@ -127,7 +172,7 @@ def stop_kapacitor_service():
             print("Stopping Kapacitor tasks:", task_id)
             logger.info("Stopping Kapacitor tasks: %s", task_id)
             subprocess.run(["kapacitor", "disable", task_id], check=False)
-            subprocess.run(["pkill", "-9", "kapacitord"], check=False)
+            _kill_processes_by_name("kapacitord")
     except subprocess.CalledProcessError as error:
         logger.error("Error stopping Kapacitor service: %s", error)
 
