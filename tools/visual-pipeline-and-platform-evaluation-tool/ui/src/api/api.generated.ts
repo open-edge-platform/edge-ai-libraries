@@ -345,14 +345,6 @@ const injectedRtkApi = api
         query: () => ({ url: `/videos` }),
         providesTags: ["videos"],
       }),
-      uploadVideo: build.mutation<UploadVideoApiResponse, UploadVideoApiArg>({
-        query: (queryArg) => ({
-          url: `/videos`,
-          method: "POST",
-          body: queryArg.bodyUploadVideo,
-        }),
-        invalidatesTags: ["videos"],
-      }),
       checkVideoInputExists: build.query<
         CheckVideoInputExistsApiResponse,
         CheckVideoInputExistsApiArg
@@ -364,6 +356,14 @@ const injectedRtkApi = api
           },
         }),
         providesTags: ["videos"],
+      }),
+      uploadVideo: build.mutation<UploadVideoApiResponse, UploadVideoApiArg>({
+        query: (queryArg) => ({
+          url: `/videos/upload`,
+          method: "POST",
+          body: queryArg.bodyUploadVideo,
+        }),
+        invalidatesTags: ["videos"],
       }),
       getCameras: build.query<GetCamerasApiResponse, GetCamerasApiArg>({
         query: () => ({ url: `/cameras` }),
@@ -577,16 +577,16 @@ export type RunDensityTestApiArg = {
 export type GetVideosApiResponse =
   /** status 200 Successful Response */ Video[];
 export type GetVideosApiArg = void;
-export type UploadVideoApiResponse =
-  /** status 201 Successful Response */ Video;
-export type UploadVideoApiArg = {
-  bodyUploadVideo: BodyUploadVideo;
-};
 export type CheckVideoInputExistsApiResponse =
   /** status 200 Successful Response */ VideoExistsResponse;
 export type CheckVideoInputExistsApiArg = {
   /** Video filename to check */
   filename: string;
+};
+export type UploadVideoApiResponse =
+  /** status 201 Successful Response */ Video;
+export type UploadVideoApiArg = {
+  bodyUploadVideo: BodyUploadVideo;
 };
 export type GetCamerasApiResponse =
   /** status 200 List of all cameras successfully retrieved. */ Camera[];
@@ -938,14 +938,14 @@ export type Video = {
   codec: string;
   duration: number;
 };
-export type BodyUploadVideo = {
-  file: string;
-};
 export type VideoExistsResponse = {
   /** True if the video file exists, False otherwise. */
   exists: boolean;
   /** The filename that was checked. */
   filename: string;
+};
+export type BodyUploadVideo = {
+  file: string;
 };
 export type CameraType = "USB" | "NETWORK";
 export type V4L2BestCapture = {
@@ -1049,9 +1049,9 @@ export const {
   useRunDensityTestMutation,
   useGetVideosQuery,
   useLazyGetVideosQuery,
-  useUploadVideoMutation,
   useCheckVideoInputExistsQuery,
   useLazyCheckVideoInputExistsQuery,
+  useUploadVideoMutation,
   useGetCamerasQuery,
   useLazyGetCamerasQuery,
   useGetCameraQuery,

@@ -2198,46 +2198,6 @@
             }
           }
         }
-      },
-      "post": {
-        "tags": [
-          "videos"
-        ],
-        "summary": "Upload a new video file",
-        "description": "**Upload a new video file to the INPUT_VIDEO_DIR.**\n\n## Operation\n\n1. Validate file extension against supported formats\n2. Save file to INPUT_VIDEO_DIR in 8KB chunks\n3. Extract video metadata (resolution, fps, codec, etc.)\n4. Create TS conversion for looping support\n5. Return Video object with extracted metadata\n\n## Parameters\n\n- `file` (multipart/form-data) - Video file to upload\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 201  | Video uploaded successfully, returns Video object |\n| 400  | Invalid file (unsupported extension or codec, duplicate filename) |\n| 500  | Error during upload or processing |\n\n## Conditions\n\n### \u2705 Success\n- File has supported video extension (mp4, mkv, mov, avi, ts, 264, avc, h265, hevc)\n- File has supported codec (h264 or h265)\n- No file with same name exists in INPUT_VIDEO_DIR\n- Video metadata extraction successful\n\n### \u274c Failure\n- No file provided \u2192 400\n- File extension not supported \u2192 400\n- Filename already exists \u2192 400\n- Video codec not h264/h265 \u2192 400\n- Cannot extract metadata \u2192 500\n- Write error \u2192 500\n\n## Example Response\n\n```json\n{\n  \"filename\": \"uploaded_video.mp4\",\n  \"width\": 1920,\n  \"height\": 1080,\n  \"fps\": 30.0,\n  \"frame_count\": 1800,\n  \"codec\": \"h264\",\n  \"duration\": 60.0\n}\n```",
-        "operationId": "upload_video",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_upload_video"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Video"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/videos/check-video-input-exists": {
@@ -2268,6 +2228,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VideoExistsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/videos/upload": {
+      "post": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "Upload a new video file",
+        "description": "**Upload a new video file to the INPUT_VIDEO_DIR.**\n\n## Operation\n\n1. Validate file extension against supported formats\n2. Save file to INPUT_VIDEO_DIR in 8KB chunks\n3. Extract video metadata (resolution, fps, codec, etc.)\n4. Create TS conversion for looping support\n5. Return Video object with extracted metadata\n\n## Parameters\n\n- `file` (multipart/form-data) - Video file to upload\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 201  | Video uploaded successfully, returns Video object |\n| 400  | Invalid file (unsupported extension or codec, duplicate filename) |\n| 500  | Error during upload or processing |\n\n## Conditions\n\n### \u2705 Success\n- File has supported video extension (mp4, mkv, mov, avi, ts, 264, avc, h265, hevc)\n- File has supported codec (h264 or h265)\n- No file with same name exists in INPUT_VIDEO_DIR\n- Video metadata extraction successful\n\n### \u274c Failure\n- No file provided \u2192 400\n- File extension not supported \u2192 400\n- Filename already exists \u2192 400\n- Video codec not h264/h265 \u2192 400\n- Cannot extract metadata \u2192 500\n- Write error \u2192 500\n\n## Example Response\n\n```json\n{\n  \"filename\": \"uploaded_video.mp4\",\n  \"width\": 1920,\n  \"height\": 1080,\n  \"fps\": 30.0,\n  \"frame_count\": 1800,\n  \"codec\": \"h264\",\n  \"duration\": 60.0\n}\n```",
+        "operationId": "upload_video",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_video"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Video"
                 }
               }
             }
