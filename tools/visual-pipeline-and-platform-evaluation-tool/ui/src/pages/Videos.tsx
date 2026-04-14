@@ -18,11 +18,12 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { AlertCircle, CheckCircle2, Loader2, Upload, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress.tsx";
 import { useAppDispatch } from "@/store/hooks";
 import { toast } from "sonner";
+import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 
 type UploadFormData = {
   files: FileList | null;
@@ -45,6 +46,8 @@ export const Videos = () => {
   const { data: videos, isSuccess } = useGetVideosQuery();
   const dispatch = useAppDispatch();
   const [checkVideoExists] = useLazyCheckVideoInputExistsQuery();
+  const { registerJobGroup, unregisterJobGroup, updateJobs } =
+    useBackgroundJobs();
   const { register, handleSubmit, reset, watch, setValue } =
     useForm<UploadFormData>({
       defaultValues: {
@@ -58,6 +61,27 @@ export const Videos = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isPostUpload, setIsPostUpload] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Register this component as a job group
+  useEffect(() => {
+    registerJobGroup("videos", "Video Uploads", ["/videos"]);
+    return () => {
+      unregisterJobGroup("videos");
+    };
+  }, [registerJobGroup, unregisterJobGroup]);
+
+  // Update global upload progress whenever uploadStates changes
+  useEffect(() => {
+    const jobs = uploadStates
+      .filter((state) => state.error !== "File already exists on server")
+      .map((state, index) => ({
+        id: `video-${index}-${state.file.name}`,
+        name: state.file.name,
+        progress: state.progress,
+      }));
+
+    updateJobs("videos", jobs);
+  }, [uploadStates, updateJobs]);
 
   const selectedFiles = watch("files");
   const fileCount = selectedFiles?.length || selectedFilesList.length;
