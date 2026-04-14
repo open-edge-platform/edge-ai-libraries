@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 from typing import List
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Query
@@ -217,11 +218,12 @@ async def upload_video(file: UploadFile = File(...)):
     """
     logger.info(f"Received video upload request: {file.filename}")
 
-    # TESTING: Simulate error for frontend error handling
-    raise HTTPException(
-        status_code=400,
-        detail="Simulated error for testing frontend error handling"
-    )
+    # TESTING: Simulate error for frontend error handling (50% probability)
+    if random.random() < 0.5:
+        raise HTTPException(
+            status_code=400,
+            detail="Simulated error for testing frontend error handling"
+        )
 
     if not file.filename:
         logger.warning("Upload request without filename")
