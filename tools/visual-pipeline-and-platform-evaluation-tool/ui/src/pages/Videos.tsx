@@ -57,16 +57,26 @@ export const Videos = () => {
   const fileCount = selectedFiles?.length || selectedFilesList.length;
 
   // Calculate overall progress
+  // Calculate overall progress only for uploadable files (exclude files that already exist)
+  const uploadableStates = uploadStates.filter(
+    (s) => s.error !== "File already exists on server",
+  );
   const overallProgress =
-    uploadStates.length > 0
-      ? uploadStates.reduce((sum, state) => sum + state.progress, 0) /
-        uploadStates.length
+    uploadableStates.length > 0
+      ? uploadableStates.reduce((sum, state) => sum + state.progress, 0) /
+        uploadableStates.length
       : 0;
-
-  const completedCount = uploadStates.filter(
+  
+  // Count only files that will be uploaded (exclude files that already exist)
+  const uploadableFilesCount = uploadStates.filter(
+    (s) => s.status !== "failed" || s.error !== "File already exists on server",
+  ).length;
+  const uploadableCompleted = uploadStates.filter(
     (s) => s.status === "completed",
   ).length;
-  const failedCount = uploadStates.filter((s) => s.status === "failed").length;
+  const uploadableFailed = uploadStates.filter(
+    (s) => s.status === "failed" && s.error !== "File already exists on server",
+  ).length;
 
   /**
    * Check if files already exist on the backend
@@ -521,14 +531,17 @@ export const Videos = () => {
                       <div className="flex justify-between text-sm">
                         <span className="font-medium">Overall Progress</span>
                         <span className="text-muted-foreground">
-                          {completedCount}/{uploadStates.length} completed
-                          {failedCount > 0 && ` • ${failedCount} failed`}
+                          {uploadableCompleted}/{uploadableFilesCount} completed
+                          {uploadableFailed > 0 &&
+                            ` • ${uploadableFailed} failed`}
                         </span>
                       </div>
                       <Progress value={overallProgress} className="h-2" />
                       <div className="text-xs text-muted-foreground">
                         {Math.round(overallProgress)}% complete • Max{" "}
                         {MAX_CONCURRENT_UPLOADS} concurrent uploads
+                        {uploadStates.length - uploadableFilesCount > 0 &&
+                          ` • ${uploadStates.length - uploadableFilesCount} skipped (already exists)`}
                       </div>
                     </div>
                   )}
@@ -592,7 +605,10 @@ export const Videos = () => {
 
               <div className="flex gap-2">
                 {fileCount > 0 && (
-                  <Button type="submit" disabled={isUploading}>
+                  <Button
+                    type="submit"
+                    disabled={isUploading || uploadableFilesCount === 0}
+                  >
                     {isUploading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -601,10 +617,38 @@ export const Videos = () => {
                     ) : (
                       <>
                         Upload{" "}
-                        {fileCount > 0 &&
-                          `${fileCount} file${fileCount !== 1 ? "s" : ""}`}
+                        {uploadableFilesCount > 0 &&
+                          `${uploadableFilesCount} file${uploadableFilesCount !== 1 ? "s" : ""}`}
                       </>
                     )}
+                  </Button>
+                )}
+                {uploadableFailed > 0 && !isUploading && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      // Retry only files that failed for reasons other than "already exists"
+                      // Reset their status to pending
+                      setUploadStates((prev) =>
+                        prev.map((state) =>
+                          state.status === "failed" &&
+                          state.error !== "File already exists on server"
+                            ? {
+                                ...state,
+                                status: "pending",
+                                progress: 0,
+                                error: undefined,
+                              }
+                            : state,
+                        ),
+                      );
+
+                      // Trigger upload
+                      handleSubmit(onSubmit)();
+                    }}
+                  >
+                    Retry {uploadableFailed} failed
                   </Button>
                 )}
                 {fileCount > 0 && !isUploading && (

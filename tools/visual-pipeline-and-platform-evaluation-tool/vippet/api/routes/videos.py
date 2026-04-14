@@ -141,13 +141,13 @@ def check_video_input_exists(filename: str = Query(..., description="Video filen
     ```
     """
     logger.debug(f"Checking existence of video file: {filename}")
-    
+
     # Check if file exists in INPUT_VIDEO_DIR
     file_path = os.path.join(INPUT_VIDEO_DIR, filename)
     exists = os.path.isfile(file_path)
-    
+
     logger.debug(f"Video '{filename}' exists: {exists}")
-    
+
     return schemas.VideoExistsResponse(
         exists=exists,
         filename=filename,
@@ -216,6 +216,12 @@ async def upload_video(file: UploadFile = File(...)):
     ```
     """
     logger.info(f"Received video upload request: {file.filename}")
+
+    # TESTING: Simulate error for frontend error handling
+    raise HTTPException(
+        status_code=400,
+        detail="Simulated error for testing frontend error handling"
+    )
 
     if not file.filename:
         logger.warning("Upload request without filename")
