@@ -7,6 +7,29 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
+# Check prerequisites
+# Args: $1 = true if poetry check is needed (for --dependencies)
+check_prerequisites() {
+  local check_poetry=${1:-false}
+  
+  # Docker is always required
+  if ! command -v docker &> /dev/null; then
+    echo -e "${RED}Error: docker is not installed or not in PATH${NC}"
+    echo -e "Please install Docker: https://docs.docker.com/get-docker/"
+    exit 1
+  fi
+  
+  # Poetry is required for --dependencies (to build multimodal-embedding wheel)
+  if [ "$check_poetry" = true ]; then
+    if ! command -v poetry &> /dev/null; then
+      echo -e "${RED}Error: poetry is not installed or not in PATH${NC}"
+      echo -e "Poetry is required to build the multimodal-embedding wheel."
+      echo -e "Please install poetry: https://python-poetry.org/docs/#installation"
+      exit 1
+    fi
+  fi
+}
+
 export REGISTRY_URL=${REGISTRY_URL:-}
 export PROJECT_NAME=${PROJECT_NAME:-}
 export TAG=${TAG:-latest}
@@ -253,9 +276,12 @@ push_images() {
 if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
   show_usage
 elif [ "$1" == "--dependencies" ]; then
+  check_prerequisites true
   build_dependencies
 elif [ "$1" == "--push" ]; then
+  check_prerequisites false
   push_images
 else
+  check_prerequisites false
   build_sample_app
 fi

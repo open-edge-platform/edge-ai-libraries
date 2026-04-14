@@ -453,3 +453,47 @@ If not set while installing the chart, all services will claim a default amount 
 ## Related links
 
 - [How to Build from Source](./build-from-source.md)
+
+## Monitoring and Metrics
+
+### OVMS Prometheus Metrics
+
+When OVMS is enabled, the application exposes Prometheus-compatible metrics at the `/ovms/metrics` endpoint. These metrics provide valuable insights into inference performance and can be used for monitoring and auto-scaling.
+
+**Accessing metrics:**
+
+```bash
+# Port-forward to the nginx service (replace <release-name> with your helm release name, e.g., "vss")
+kubectl port-forward svc/<release-name>-nginx 8081:80 -n $my_namespace
+
+# Fetch metrics
+curl http://localhost:8081/ovms/metrics
+```
+
+**Available metrics:**
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `ovms_streams` | gauge | Number of OpenVINO execution streams |
+| `ovms_current_requests` | gauge | Requests currently being processed |
+| `ovms_requests_success` | counter | Total successful requests |
+| `ovms_requests_fail` | counter | Total failed requests |
+| `ovms_request_time_us` | histogram | Request processing time (microseconds) |
+| `ovms_inference_time_us` | histogram | Inference execution time (microseconds) |
+| `ovms_wait_for_infer_req_time_us` | histogram | Queue wait time (microseconds) |
+
+**Labels:** Metrics include labels for `api` (KServe, TensorFlowServing, V3), `interface` (REST, gRPC), `method`, `name` (model name), and `version`.
+
+**Prometheus integration:**
+
+Add the following scrape configuration to your Prometheus config:
+
+```yaml
+scrape_configs:
+  - job_name: 'vss-ovms'
+    static_configs:
+      - targets: ['<release-name>-nginx.<namespace>.svc.cluster.local:80']
+    metrics_path: '/ovms/metrics'
+```
+
+> **Note:** Metrics are only available when OVMS is enabled (`ovms.enabled=true`). When using vLLM backend, this endpoint is not available.

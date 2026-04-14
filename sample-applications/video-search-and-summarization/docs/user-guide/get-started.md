@@ -428,6 +428,16 @@ ENABLE_EMBEDDING_GPU=true source setup.sh --search config
 
 After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
 
+## Monitoring OVMS Metrics
+
+When running in summary mode with OVMS, Prometheus-compatible metrics are available at `http://<host-ip>:12345/ovms/metrics`. These metrics provide insights into inference performance:
+
+```bash
+curl http://localhost:12345/ovms/metrics
+```
+
+Key metrics include `ovms_requests_success`, `ovms_inference_time_us`, and `ovms_current_requests`. See [Deploy with Helm - Monitoring and Metrics](./deploy-with-helm.md#monitoring-and-metrics) for the full metrics list.
+
 ## CLI Usage
 
 Refer to [CLI Usage](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/cli/README.md) for details on using the application from a text user interface (terminal-based UI).
