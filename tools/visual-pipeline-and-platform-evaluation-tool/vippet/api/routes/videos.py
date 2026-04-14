@@ -156,7 +156,7 @@ def check_video_input_exists(filename: str = Query(..., description="Video filen
 
 
 @router.post(
-    "",
+    "/upload",
     operation_id="upload_video",
     summary="Upload a new video file",
     response_model=schemas.Video,
