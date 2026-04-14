@@ -1,6 +1,6 @@
 import {
-  useGetVideosQuery,
   api,
+  useGetVideosQuery,
   useLazyCheckVideoInputExistsQuery,
 } from "@/api/api.generated.ts";
 import {
@@ -18,10 +18,11 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
-import { useState, useRef } from "react";
-import { Upload, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { AlertCircle, CheckCircle2, Loader2, Upload, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress.tsx";
 import { useAppDispatch } from "@/store/hooks";
+import { toast } from "sonner";
 
 type UploadFormData = {
   files: FileList | null;
@@ -32,6 +33,10 @@ type FileUploadState = {
   status: "pending" | "uploading" | "completed" | "failed";
   progress: number;
   error?: string;
+};
+
+type FileUploadJob = FileUploadState & {
+  originalIndex: number;
 };
 
 const MAX_CONCURRENT_UPLOADS = 3;
@@ -51,6 +56,7 @@ export const Videos = () => {
   const [selectedFilesList, setSelectedFilesList] = useState<File[]>([]);
   const [uploadStates, setUploadStates] = useState<FileUploadState[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isPostUpload, setIsPostUpload] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedFiles = watch("files");
@@ -66,10 +72,10 @@ export const Videos = () => {
       ? uploadableStates.reduce((sum, state) => sum + state.progress, 0) /
         uploadableStates.length
       : 0;
-  
+
   // Count only files that will be uploaded (exclude files that already exist)
   const uploadableFilesCount = uploadStates.filter(
-    (s) => s.status !== "failed" || s.error !== "File already exists on server",
+    (s) => s.error !== "File already exists on server",
   ).length;
   const uploadableCompleted = uploadStates.filter(
     (s) => s.status === "completed",
@@ -84,8 +90,8 @@ export const Videos = () => {
    */
   const checkFilesExistence = async (
     files: File[],
-  ): Promise<Array<{ file: File; exists: boolean }>> => {
-    const checks = await Promise.all(
+  ): Promise<Array<{ file: File; exists: boolean }>> =>
+    await Promise.all(
       files.map(async (file) => {
         try {
           const result = await checkVideoExists({
@@ -99,8 +105,6 @@ export const Videos = () => {
         }
       }),
     );
-    return checks;
-  };
 
   /**
    * Upload a single file with progress tracking
@@ -184,7 +188,14 @@ export const Videos = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve();
         } else {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
+          try {
+            const response = JSON.parse(xhr.responseText);
+            const detail =
+              response.detail || `Upload failed with status ${xhr.status}`;
+            reject(new Error(detail));
+          } catch {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
         }
       });
 
@@ -208,31 +219,37 @@ export const Videos = () => {
    * Uses a queue system to ensure max 3 concurrent uploads
    */
   const processUploadsWithConcurrency = async (
-    files: FileUploadState[],
+    files: FileUploadJob[],
   ): Promise<{ succeeded: number; failed: number }> => {
-    const queue = files.map((fileState, index) => ({ fileState, index }));
     const executing = new Set<Promise<void>>();
     let succeeded = 0;
     let failed = 0;
 
-    for (const { fileState, index } of queue) {
+    for (const fileJob of files) {
       const uploadPromise = async () => {
+        const { originalIndex } = fileJob;
         try {
           // Update status to uploading
           setUploadStates((prev) => {
             const newStates = [...prev];
-            if (newStates[index]) {
-              newStates[index] = { ...newStates[index], status: "uploading" };
+            if (newStates[originalIndex]) {
+              newStates[originalIndex] = {
+                ...newStates[originalIndex],
+                status: "uploading",
+              };
             }
             return newStates;
           });
 
           // Upload with progress tracking
-          await uploadFile(fileState.file, (progress) => {
+          await uploadFile(fileJob.file, (progress) => {
             setUploadStates((prev) => {
               const newStates = [...prev];
-              if (newStates[index]) {
-                newStates[index] = { ...newStates[index], progress };
+              if (newStates[originalIndex]) {
+                newStates[originalIndex] = {
+                  ...newStates[originalIndex],
+                  progress,
+                };
               }
               return newStates;
             });
@@ -241,9 +258,9 @@ export const Videos = () => {
           // Mark as completed
           setUploadStates((prev) => {
             const newStates = [...prev];
-            if (newStates[index]) {
-              newStates[index] = {
-                ...newStates[index],
+            if (newStates[originalIndex]) {
+              newStates[originalIndex] = {
+                ...newStates[originalIndex],
                 status: "completed",
                 progress: 100,
               };
@@ -255,9 +272,9 @@ export const Videos = () => {
           // Mark as failed
           setUploadStates((prev) => {
             const newStates = [...prev];
-            if (newStates[index]) {
-              newStates[index] = {
-                ...newStates[index],
+            if (newStates[originalIndex]) {
+              newStates[originalIndex] = {
+                ...newStates[originalIndex],
                 status: "failed",
                 error: error instanceof Error ? error.message : "Upload failed",
               };
@@ -313,8 +330,14 @@ export const Videos = () => {
     );
 
     if (droppedFiles.length > 0) {
+      // Capture the post-upload state before resetting it
+      const shouldReplaceList = isPostUpload;
+
+      // If post-upload, replace the list; otherwise, add to existing list
+      const baseFiles = shouldReplaceList ? [] : selectedFilesList;
+
       // Filter out duplicates by filename (files already in the list)
-      const existingFileNames = new Set(selectedFilesList.map((f) => f.name));
+      const existingFileNames = new Set(baseFiles.map((f) => f.name));
       const newFiles = droppedFiles.filter(
         (file) => !existingFileNames.has(file.name),
       );
@@ -324,16 +347,21 @@ export const Videos = () => {
       // Check which files already exist on backend
       const fileChecks = await checkFilesExistence(newFiles);
 
-      // Add all new files to the list
-      const allFiles = [...selectedFilesList, ...newFiles];
+      // Add all new files to the list (or replace if post-upload)
+      const allFiles = [...baseFiles, ...newFiles];
       setSelectedFilesList(allFiles);
+
+      // Reset post-upload flag after first file selection
+      if (shouldReplaceList) {
+        setIsPostUpload(false);
+      }
 
       // Create a new FileList-like object for react-hook-form
       const dataTransfer = new DataTransfer();
       allFiles.forEach((file) => dataTransfer.items.add(file));
       setValue("files", dataTransfer.files);
 
-      // Initialize upload states for new files
+      // Initialize upload states for new files (or replace if post-upload)
       const newUploadStates: FileUploadState[] = fileChecks.map(
         ({ file, exists }) => ({
           file,
@@ -343,7 +371,11 @@ export const Videos = () => {
         }),
       );
 
-      setUploadStates((prev) => [...prev, ...newUploadStates]);
+      setUploadStates(
+        shouldReplaceList
+          ? newUploadStates
+          : [...uploadStates, ...newUploadStates],
+      );
     }
   };
 
@@ -352,8 +384,14 @@ export const Videos = () => {
   ) => {
     const files = e.target.files;
     if (files && files.length > 0) {
+      // Capture the post-upload state before resetting it
+      const shouldReplaceList = isPostUpload;
+
+      // If post-upload, replace the list; otherwise, add to existing list
+      const baseFiles = shouldReplaceList ? [] : selectedFilesList;
+
       // Filter out duplicates by filename (files already in the list)
-      const existingFileNames = new Set(selectedFilesList.map((f) => f.name));
+      const existingFileNames = new Set(baseFiles.map((f) => f.name));
       const newFiles = Array.from(files).filter(
         (file) => !existingFileNames.has(file.name),
       );
@@ -363,16 +401,21 @@ export const Videos = () => {
       // Check which files already exist on backend
       const fileChecks = await checkFilesExistence(newFiles);
 
-      // Add all new files to the list
-      const allFiles = [...selectedFilesList, ...newFiles];
+      // Add all new files to the list (or replace if post-upload)
+      const allFiles = [...baseFiles, ...newFiles];
       setSelectedFilesList(allFiles);
+
+      // Reset post-upload flag after first file selection
+      if (shouldReplaceList) {
+        setIsPostUpload(false);
+      }
 
       // Create a new FileList-like object for react-hook-form
       const dataTransfer = new DataTransfer();
       allFiles.forEach((file) => dataTransfer.items.add(file));
       setValue("files", dataTransfer.files);
 
-      // Initialize upload states for new files
+      // Initialize upload states for new files (or replace if post-upload)
       const newUploadStates: FileUploadState[] = fileChecks.map(
         ({ file, exists }) => ({
           file,
@@ -382,7 +425,11 @@ export const Videos = () => {
         }),
       );
 
-      setUploadStates((prev) => [...prev, ...newUploadStates]);
+      setUploadStates(
+        shouldReplaceList
+          ? newUploadStates
+          : [...uploadStates, ...newUploadStates],
+      );
     }
   };
 
@@ -413,9 +460,10 @@ export const Videos = () => {
 
     // Filter out files that already failed (exist on server)
     // and only initialize upload states for files that need to be uploaded
-    const filesToUpload: FileUploadState[] = uploadStates
-      .filter((state) => state.status === "pending")
-      .map((state) => ({ ...state }));
+    // Keep track of original indices to update the correct items in uploadStates
+    const filesToUpload: FileUploadJob[] = uploadStates
+      .map((state, originalIndex) => ({ ...state, originalIndex }))
+      .filter((state) => state.status === "pending");
 
     // If there are no files to upload (all failed checks), just stop
     if (filesToUpload.length === 0) {
@@ -433,6 +481,9 @@ export const Videos = () => {
         // Invalidate videos cache to refetch the updated list
         dispatch(api.util.invalidateTags(["videos"]));
 
+        // Show success toast
+        toast.success("Upload completed.");
+
         // Reset form after successful upload
         setTimeout(() => {
           setSelectedFilesList([]);
@@ -442,13 +493,16 @@ export const Videos = () => {
             fileInputRef.current.value = "";
           }
           setIsUploading(false);
+          setIsPostUpload(true);
         }, 2000); // Show success state for 2 seconds
       } else {
         setIsUploading(false);
+        setIsPostUpload(true);
       }
     } catch (error) {
       console.error("Upload error:", error);
       setIsUploading(false);
+      setIsPostUpload(true);
     }
   };
   const filteredVideos =
@@ -538,8 +592,7 @@ export const Videos = () => {
                       </div>
                       <Progress value={overallProgress} className="h-2" />
                       <div className="text-xs text-muted-foreground">
-                        {Math.round(overallProgress)}% complete • Max{" "}
-                        {MAX_CONCURRENT_UPLOADS} concurrent uploads
+                        {Math.round(overallProgress)}% complete
                         {uploadStates.length - uploadableFilesCount > 0 &&
                           ` • ${uploadStates.length - uploadableFilesCount} skipped (already exists)`}
                       </div>
@@ -604,51 +657,19 @@ export const Videos = () => {
               )}
 
               <div className="flex gap-2">
-                {fileCount > 0 && (
-                  <Button
-                    type="submit"
-                    disabled={isUploading || uploadableFilesCount === 0}
-                  >
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        Upload{" "}
-                        {uploadableFilesCount > 0 &&
-                          `${uploadableFilesCount} file${uploadableFilesCount !== 1 ? "s" : ""}`}
-                      </>
-                    )}
-                  </Button>
-                )}
-                {uploadableFailed > 0 && !isUploading && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => {
-                      // Retry only files that failed for reasons other than "already exists"
-                      // Reset their status to pending
-                      setUploadStates((prev) =>
-                        prev.map((state) =>
-                          state.status === "failed" &&
-                          state.error !== "File already exists on server"
-                            ? {
-                                ...state,
-                                status: "pending",
-                                progress: 0,
-                                error: undefined,
-                              }
-                            : state,
-                        ),
-                      );
-
-                      // Trigger upload
-                      handleSubmit(onSubmit)();
-                    }}
-                  >
-                    Retry {uploadableFailed} failed
+                {fileCount > 0 &&
+                  !isUploading &&
+                  uploadStates.some((s) => s.status === "pending") && (
+                    <Button type="submit" disabled={uploadableFilesCount === 0}>
+                      Upload{" "}
+                      {uploadableFilesCount > 0 &&
+                        `${uploadableFilesCount} file${uploadableFilesCount !== 1 ? "s" : ""}`}
+                    </Button>
+                  )}
+                {fileCount > 0 && isUploading && (
+                  <Button type="button" disabled>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Uploading...
                   </Button>
                 )}
                 {fileCount > 0 && !isUploading && (
@@ -658,6 +679,7 @@ export const Videos = () => {
                     onClick={() => {
                       setSelectedFilesList([]);
                       setUploadStates([]);
+                      setIsPostUpload(false);
                       reset();
                       if (fileInputRef.current) {
                         fileInputRef.current.value = "";

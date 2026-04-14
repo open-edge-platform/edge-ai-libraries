@@ -1,4 +1,4 @@
-import { Outlet } from "react-router";
+import { Outlet, useLocation, matchPath } from "react-router";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { usePipelinesLoader } from "@/hooks/usePipelines.ts";
 import { useModelsLoader } from "@/hooks/useModels.ts";
@@ -14,12 +14,20 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
+import { routeConfig, keepAliveRoutes } from "@/config/navigation.ts";
 
 const Layout = () => {
   usePipelinesLoader();
   useModelsLoader();
   useDevicesLoader();
   const { theme, setTheme } = useTheme();
+  const location = useLocation();
+
+  const isRouteActive = (path: string) => {
+    if (path === "" && location.pathname === "/") return true;
+    if (path === "") return false;
+    return matchPath({ path, end: false }, location.pathname);
+  };
 
   return (
     <div className="flex flex-col h-screen">
@@ -52,8 +60,34 @@ const Layout = () => {
               </Button>
             </div>
           </header>
-          <div className="flex h-full overflow-auto">
-            <Outlet />
+          <div className="flex h-full overflow-auto relative">
+            {routeConfig.map((route, index) => {
+              const routePath = route.path || "";
+              const isKeepAlive = keepAliveRoutes.some((keepAlivePath) =>
+                routePath.startsWith(keepAlivePath.replace(/^\//, "")),
+              );
+              const isActive = isRouteActive(routePath);
+
+              if (isKeepAlive && route.Component) {
+                const Component = route.Component;
+                return (
+                  <div
+                    key={`keepalive-${routePath}-${index}`}
+                    style={{
+                      display: isActive ? "block" : "none",
+                      width: "100%",
+                      height: "100%",
+                    }}
+                  >
+                    <Component />
+                  </div>
+                );
+              }
+              return null;
+            })}
+            {!keepAliveRoutes.some((path) =>
+              location.pathname.startsWith(path),
+            ) && <Outlet />}
           </div>
         </SidebarInset>
       </SidebarProvider>
