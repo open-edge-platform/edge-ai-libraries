@@ -1,8 +1,8 @@
-"""Convenience entrypoint for running the VSS MCP server."""
+"""Convenience entrypoint for running the MCP REST proxy server."""
 
-from vss_mcp.main import main, mcp
+from src.main import create_mcp, get_mcp, main
 
-__all__ = ["main", "mcp"]
+__all__ = ["create_mcp", "get_mcp", "main"]
 
 
 if __name__ == "__main__":

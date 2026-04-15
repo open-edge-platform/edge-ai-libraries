@@ -1,0 +1,149 @@
+{
+  "enabled": true,
+  "server_name": "vss_all_proxy_mcp",
+  "tool_prefix": "vss",
+  "resource_scheme": "vss",
+  "guidance_markdown": "## Direct VSS upload required\n\nVideo upload is intentionally not proxied through MCP.\n\nUse the direct VSS REST API `POST /videos` to upload video content, then use MCP tools for listing videos, creating search embeddings, running search queries, and starting summary workflows.",
+  "include": [
+    {
+      "path": "/health",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/app/config",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/app/features",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/audio/models",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/pipeline/frames",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/pipeline/evam",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/metrics/status",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/tags",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/tags/{tagId}",
+      "methods": [
+        "DELETE"
+      ]
+    },
+    {
+      "path": "/videos",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/videos/{videoId}",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/videos/search-embeddings/{videoId}",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/search",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "path": "/search/watched",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/search/query",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/search/{queryId}",
+      "methods": [
+        "GET",
+        "DELETE"
+      ]
+    },
+    {
+      "path": "/search/{queryId}/refetch",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/search/{queryId}/watch",
+      "methods": [
+        "PATCH"
+      ]
+    },
+    {
+      "path": "/summary",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "path": "/summary/ui",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/summary/{stateId}",
+      "methods": [
+        "GET",
+        "DELETE"
+      ]
+    },
+    {
+      "path": "/summary/{stateId}/raw",
+      "methods": [
+        "GET"
+      ]
+    }
+  ],
+  "exclude": [],
+  "resource_methods": [
+    "GET"
+  ]
+}

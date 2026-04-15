@@ -7,15 +7,18 @@ import json
 
 from mcp.types import CallToolResult, TextContent
 
-from .client import VSSResponse
-from .models import ResponseFormat, VSSOperationResult
+from .client import ProxyResponse
+from .models import ProxyOperationResult
 
 
-def _to_operation_result(response: VSSResponse) -> VSSOperationResult:
+def _to_operation_result(response: ProxyResponse) -> ProxyOperationResult:
     """Convert a normalized backend response into the tool result model."""
 
-    return VSSOperationResult(
+    return ProxyOperationResult(
+        operation=response.operation,
+        operation_id=response.operation_id,
         endpoint=response.endpoint,
+        url=response.url,
         method=response.method,
         status_code=response.status_code,
         ok=response.ok,
@@ -33,16 +36,21 @@ def _to_operation_result(response: VSSResponse) -> VSSOperationResult:
     )
 
 
-def _render_markdown(result: VSSOperationResult) -> str:
+def _render_markdown(result: ProxyOperationResult) -> str:
     """Render a readable Markdown summary for a tool response."""
 
     lines = [
-        f"# VSS {result.method} {result.endpoint}",
+        f"# {result.operation}",
         "",
+        f"- Method: `{result.method}`",
+        f"- Path: `{result.endpoint}`",
+        f"- URL: `{result.url}`",
         f"- Status: `{result.status_code}`",
         f"- Success: `{str(result.ok).lower()}`",
     ]
 
+    if result.operation_id:
+        lines.append(f"- operationId: `{result.operation_id}`")
     if result.content_type:
         lines.append(f"- Content-Type: `{result.content_type}`")
     lines.append(f"- Size: `{result.content_size_bytes}` bytes")
@@ -72,13 +80,13 @@ def _render_markdown(result: VSSOperationResult) -> str:
     return "\n".join(lines)
 
 
-def build_tool_result(response: VSSResponse, *, response_format: str) -> CallToolResult:
+def build_tool_result(response: ProxyResponse, *, response_format: str) -> CallToolResult:
     """Build an MCP CallToolResult with text and structured output."""
 
     result = _to_operation_result(response)
     structured_content = result.model_dump(mode="json")
 
-    if response_format == ResponseFormat.JSON:
+    if response_format == "json":
         text = json.dumps(structured_content, indent=2, sort_keys=True)
     else:
         text = _render_markdown(result)
@@ -90,14 +98,17 @@ def build_tool_result(response: VSSResponse, *, response_format: str) -> CallToo
     )
 
 
-def render_resource_payload(response: VSSResponse) -> str:
+def render_resource_payload(response: ProxyResponse) -> str:
     """Render a resource payload as JSON text suitable for model context."""
 
     if response.data is not None:
         return json.dumps(response.data, indent=2, sort_keys=True)
 
     payload = {
+        "operation": response.operation,
+        "operation_id": response.operation_id,
         "endpoint": response.endpoint,
+        "url": response.url,
         "method": response.method,
         "status_code": response.status_code,
         "content_type": response.content_type,

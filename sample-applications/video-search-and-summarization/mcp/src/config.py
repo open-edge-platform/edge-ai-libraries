@@ -1,33 +1,35 @@
-"""Configuration helpers for the VSS MCP server."""
+"""Configuration helpers for the spec-driven MCP REST proxy."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
 import os
+from pathlib import Path
 
 
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 60.0
 DEFAULT_MCP_HOST = "127.0.0.1"
 DEFAULT_MCP_PORT = 8000
 DEFAULT_MCP_PATH = "/mcp"
+DEFAULT_FILTER_CONFIG_PATH = "proxy-all.json"
 
 
 @dataclass(frozen=True, slots=True)
 class Settings:
-    """Runtime settings for the MCP server."""
+    """Runtime settings for the MCP proxy server."""
 
     app_name: str
     app_version: str
-    vss_base_url: str
+    spec_url: str
+    filter_config_path: str
+    target_base_url: str | None
     request_timeout_seconds: float
     log_level: str
     mcp_host: str
     mcp_port: int
     mcp_path: str
     stateless_http: bool
-    vss_api_token: str | None
-    vss_auth_scheme: str
 
 
 def _read_positive_float(name: str, default: float) -> float:
@@ -89,23 +91,67 @@ def _read_path(name: str, default: str) -> str:
     return value if value.startswith("/") else f"/{value}"
 
 
+def project_root() -> Path:
+    """Return the mcp project root regardless of current working directory."""
+
+    return Path(__file__).resolve().parents[1]
+
+
+def bundled_filter_config_path() -> Path:
+    """Return the bundled example filter config path."""
+
+    return project_root() / DEFAULT_FILTER_CONFIG_PATH
+
+
+def _resolve_path_input(value: str, *, default_path: Path | None = None) -> str | None:
+    """Resolve a configured path relative to cwd first, then project root."""
+
+    normalized = value.strip()
+    if not normalized:
+        return str(default_path) if default_path is not None else None
+
+    candidate = Path(normalized).expanduser()
+    if candidate.is_absolute():
+        return str(candidate.resolve())
+
+    cwd_candidate = (Path.cwd() / candidate).resolve()
+    if cwd_candidate.exists():
+        return str(cwd_candidate)
+
+    project_candidate = (project_root() / candidate).resolve()
+    return str(project_candidate)
+
+
+def _read_spec_url() -> str:
+    """Read the configured OpenAPI specification URL."""
+
+    spec_url = os.getenv("APP_PROXY_SPEC_URL", "").strip()
+    if spec_url:
+        return spec_url
+
+    raise ValueError(
+        "Set APP_PROXY_SPEC_URL so the server knows which OpenAPI/Swagger document to load."
+    )
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Return validated MCP server settings."""
+    """Return validated MCP proxy settings."""
 
-    vss_base_url = os.getenv("VSS_BASE_URL", "").strip()
-    if not vss_base_url:
-        raise ValueError(
-            "VSS_BASE_URL must be set to the base URL of the VSS backend, "
-            "for example http://localhost:8000."
-        )
+    target_base_url = os.getenv("TARGET_BASE_URL", "").strip() or None
 
     return Settings(
-        app_name="VSS MCP Proxy",
-        app_version="0.1.0",
-        vss_base_url=vss_base_url.rstrip("/"),
+        app_name="App Proxy MCP",
+        app_version="0.2.0",
+        spec_url=_read_spec_url(),
+        filter_config_path=_resolve_path_input(
+            os.getenv("APP_PROXY_FILTER_PATH", ""),
+            default_path=bundled_filter_config_path(),
+        )
+        or str(bundled_filter_config_path()),
+        target_base_url=target_base_url.rstrip("/") if target_base_url else None,
         request_timeout_seconds=_read_positive_float(
-            "VSS_REQUEST_TIMEOUT",
+            "APP_PROXY_REQUEST_TIMEOUT",
             DEFAULT_REQUEST_TIMEOUT_SECONDS,
         ),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -113,6 +159,4 @@ def get_settings() -> Settings:
         mcp_port=_read_port("MCP_PORT", DEFAULT_MCP_PORT),
         mcp_path=_read_path("MCP_PATH", DEFAULT_MCP_PATH),
         stateless_http=_read_bool("MCP_STATELESS_HTTP", True),
-        vss_api_token=os.getenv("VSS_API_TOKEN", "").strip() or None,
-        vss_auth_scheme=os.getenv("VSS_AUTH_SCHEME", "Bearer").strip() or "Bearer",
     )

@@ -1,20 +1,21 @@
 [project]
-name = "vss-mcp-server"
-version = "0.1.0"
-description = "MCP server for the Video Search and Summarization backend"
+name = "app-proxy-mcp"
+version = "0.2.0"
+description = "Spec-driven FastMCP proxy for filtered REST APIs"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
     "httpx==0.28.1",
     "mcp[cli]<2.0",
+    "PyYAML>=6.0.2,<7.0",
 ]
 
 [project.scripts]
-vss-mcp = "vss_mcp.main:main"
+app-proxy-mcp = "src.main:main"
 
 [build-system]
 requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vss_mcp"]
+packages = ["src"]

@@ -1,0 +1,67 @@
+{
+  "enabled": true,
+  "server_name": "vss_search_proxy_mcp",
+  "tool_prefix": "vss",
+  "resource_scheme": "vss",
+  "guidance_markdown": "## Direct VSS upload required\n\nVideo upload is intentionally not proxied through MCP.\n\nUse the direct VSS REST API `POST /videos` to upload video content, then use MCP tools for search-oriented operations such as listing videos, creating search embeddings, and running search queries.",
+  "include": [
+    {
+      "path": "/health",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/app/features",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/tags",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/tags/*",
+      "methods": [
+        "DELETE"
+      ]
+    },
+    {
+      "path": "/videos",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/videos/{videoId}",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "path": "/videos/search-embeddings/{videoId}",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/search/query",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "path": "/search/{queryId}",
+      "methods": [
+        "GET"
+      ]
+    }
+  ],
+  "exclude": [],
+  "resource_methods": [
+    "GET"
+  ]
+}

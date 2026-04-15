@@ -1,9 +1,9 @@
-# Lightweight production image for the VSS MCP server.
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
+    APP_PROXY_FILTER_PATH=/app/proxy-all.json \
     MCP_HOST=0.0.0.0 \
     MCP_PORT=8000
 
@@ -21,4 +21,4 @@ RUN uv sync --frozen --no-dev
 
 EXPOSE 8000
 
-CMD ["uv", "run", "vss-mcp"]
+CMD ["uv", "run", "app-proxy-mcp"]
