@@ -16,40 +16,40 @@ README.md           @xwu2intel
 # Libraries
 # ============================================================================
  
-/libraries/edge-control-libraries/                                                                         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
-/libraries/edge-control-libraries/README.md                                                                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/edge-control-libraries/fieldbus/ecat-enablekit/docs/                                            @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/edge-control-libraries/fieldbus/ecat-enablekit/README.md                                        @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/edge-control-libraries/fieldbus/ethercat-masterstack/docs/                                      @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/edge-control-libraries/fieldbus/ethercat-masterstack/README.md                                  @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/edge-control-libraries/fieldbus/ethercat-masterstack/ighethercat/README.md                      @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/edge-control-libraries/plcopen-motion-control/docs/                                             @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/edge-control-libraries/plcopen-motion-control/README.md                                         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/edge-control-libraries/plcopen-motion-control/plcopen-servo/README.md                           @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/edge-control-libraries/plcopen-motion-control/plcopen-motion/README.md                          @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/edge-control-libraries/rt-data-agent/libshm/README.md                                           @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/edge-control-libraries/rt-data-agent/stack/README.md                                            @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/                                                                         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
+/libraries/edge-control-libraries/README.md                                                                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/fieldbus/ecat-enablekit/docs/                                            @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/fieldbus/ecat-enablekit/README.md                                        @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/fieldbus/ethercat-masterstack/docs/                                      @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/fieldbus/ethercat-masterstack/README.md                                  @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/fieldbus/ethercat-masterstack/ighethercat/README.md                      @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/plcopen-motion-control/docs/                                             @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/plcopen-motion-control/README.md                                         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/plcopen-motion-control/plcopen-servo/README.md                           @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/plcopen-motion-control/plcopen-motion/README.md                          @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/rt-data-agent/libshm/README.md                                           @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/edge-control-libraries/rt-data-agent/stack/README.md                                            @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
 
-/libraries/robotics-ai-libraries/                                                                          @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
-/libraries/robotics-ai-libraries/flann/README.md                                                           @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/pcl/README.md                                                             @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/orb-extractor/README.md                                                   @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/README.md                                                                 @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/README.md                                          @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/amr/joint_state_publisher/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/amr/ydlidar_ros2/README.md                         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/run_hiwin_plc_acrn/README.md       @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/run_hiwin_plc/README.md            @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/hiwin_ros/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/hiwin_ros/hiwin_driver/README.md   @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/hiwin_moveit_py/README.md          @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/run_hiwin_moveit/README.md         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/jaka_moveit_py/README.md            @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/jaka_servo/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/jaka_bringup/README.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/run_jaka_moveit/README.md           @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/run_jaka_plc/README.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
-/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/utils/pykdl_utils/README.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/                                                                          @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
+/libraries/robotics-ai-libraries/flann/README.md                                                           @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/pcl/README.md                                                             @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/orb-extractor/README.md                                                   @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/README.md                                                                 @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/README.md                                          @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/amr/joint_state_publisher/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/amr/ydlidar_ros2/README.md                         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/run_hiwin_plc_acrn/README.md       @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/run_hiwin_plc/README.md            @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/hiwin_ros/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/hiwin_ros/hiwin_driver/README.md   @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/hiwin_moveit_py/README.md          @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/hiwin/run_hiwin_moveit/README.md         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/jaka_moveit_py/README.md            @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/jaka_servo/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/jaka_bringup/README.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/run_jaka_moveit/README.md           @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/run_jaka_plc/README.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/utils/pykdl_utils/README.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
 
 /libraries/video-chunking-utils/                       @Johere @zhangcong2019 @llin60 @xwu2intel
 /libraries/video-chunking-utils/docs/                  @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
@@ -118,11 +118,11 @@ README.md           @xwu2intel
 # the main folder lacks codeowners, needs resolution
 # /sample-applications/document-summarization
 
-/sample-applications/plcopen-benchmark/                       @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
-/sample-applications/plcopen-benchmark/README.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz  @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/plcopen-benchmark/                       @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
+/sample-applications/plcopen-benchmark/README.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel  @open-edge-platform/open-edge-platform-docs-write
 
-/sample-applications/plcopen-databus/                         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
-/sample-applications/plcopen-databus/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz  @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/plcopen-databus/                         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
+/sample-applications/plcopen-databus/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel  @open-edge-platform/open-edge-platform-docs-write
 
 /sample-applications/video-search-and-summarization/          @bharagha @yogeshmpandey @bhardwaj-nakul @krish918
 /sample-applications/video-search-and-summarization/docs/     @bharagha @yogeshmpandey @bhardwaj-nakul @krish918  @open-edge-platform/open-edge-platform-docs-write
