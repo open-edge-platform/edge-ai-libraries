@@ -28,6 +28,7 @@ BLIP-2's advanced vision-language capabilities through the Q-Former architecture
 
 import os
 from pathlib import Path
+import time
 from typing import List, Optional, Union, Dict, Any
 import torch
 import torch.nn.functional as F
@@ -262,15 +263,15 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         # This model includes vision_projection and text_projection (768D → 256D)
         # Note: Both pretrain and pretrain_vitL use the same HuggingFace model
         self.retrieval_model = "Salesforce/blip2-itm-vit-g"  # ITM = Image-Text Matching
-        self.infer_batch_size = model_config.get("infer_batch_size", 64)
-
+        infer_batch_size = model_config.get("infer_batch_size", 64)
+        self.preprocess_shape = (infer_batch_size, 3, 224, 224)
         # OpenVINO models
         self.ov_image_encoder = None
         self.ov_text_encoder = None
         self._embedding_dim: Optional[int] = None
         self._preprocess_workers = model_config.get("preprocess_workers", min(8, (os.cpu_count() or 4) * 2))
         self.async_infer = None
-        self.parallel_preprocessor = None
+        self.parallel_preprocessor: Optional[ParallelImagePreprocessor] = None
         
     def _get_transformers_model_name(self):
         """
@@ -349,7 +350,7 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
             ov_models_dir=self.ov_models_dir
         )
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
-            image_encoder_path, text_encoder_path, self.device, self.infer_batch_size
+            image_encoder_path, text_encoder_path, self.device, self.preprocess_shape
         )
         # Always load preprocessing and tokenizer for OpenVINO inference
         model, processor, _ = self._load_transformers_model()
@@ -360,10 +361,10 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
             max_workers=self._preprocess_workers
         )
         embedding_dim = int(self.ov_image_encoder.output().get_partial_shape()[-1].to_string())
-        logger.info(f"DIMENSION OF IMAGE ENCODER OUTPUT: {embedding_dim}")
+        logger.info(f"Encoder o/p dimension: {embedding_dim}")
         self.async_infer = AsyncBatchInference(
             compiled_model=self.ov_image_encoder,
-            batch_size=self.infer_batch_size,
+            preprocess_shape=self.preprocess_shape,
             embedding_dim=embedding_dim,
         )
 
@@ -429,7 +430,7 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         
         return text_features
     
-    def encode_image(self, images: Union[Image.Image, List[Image.Image], torch.Tensor]) -> torch.Tensor:
+    def encode_image(self, images: Union[Image.Image, List[Image.Image]], metrics_out: bool = False) -> Union[Dict[str, Any], torch.Tensor]:
         """
         Encode images using BLIP-2 image encoder with projection.
         
@@ -437,12 +438,30 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         """
         if isinstance(images, Image.Image):
             images = [images]
-        
+        total_images = len(images)
+
         if self.use_openvino and self.async_infer is not None:
             # Use OpenVINO image encoder with async inference
             # The converted model already includes Q-Former + projection + normalization
-            images = self.parallel_preprocessor.preprocess_images(images)
-            image_features = self.async_infer.infer(images)
+            logger.info(f"====AsyncInferQueue====")
+            preprocess_stream = self.parallel_preprocessor.preprocess_stream(images)
+            try:
+                infer_start = time.perf_counter()
+                embeddings = self.async_infer.infer_stream(batch_generator=preprocess_stream, total_images=total_images)
+                infer_end = time.perf_counter()
+            finally:
+                preprocess_stream.close()
+                del images
+
+            logger.info(f"Inference time for batch of {total_images} images: {infer_end - infer_start:.4f} seconds")
+
+            if metrics_out:
+                return {
+                    "embeddings": embeddings,
+                    "inference_time_s": infer_end - infer_start,
+                    "processed_images": total_images
+                }
+            image_features = torch.from_numpy(embeddings)
         else:
             # Use PyTorch model (already includes projection + normalization)
             if isinstance(images, torch.Tensor):

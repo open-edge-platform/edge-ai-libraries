@@ -522,7 +522,8 @@ class EmbeddingModel:
         encode_time = 0.0
         try:
             for i, frame_batch in enumerate(extract_batched_frames(video_path, frame_interval=frame_interval)):
-                frame_batch = [f for _ , f in frame_batch]
+                logger.info(f"Processing batch {i+1} of frames from video: {video_path} (interval: {frame_interval}) - "
+                            f"Batch size: {len(frame_batch)}")
                 encode_time_start = time.perf_counter()
                 batch_embeddings = self.handler.encode_image(frame_batch)
 
@@ -532,9 +533,9 @@ class EmbeddingModel:
                 # batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1, keepdim=True)
                 embeddings.append(batch_embeddings)
                 encode_time += (time.perf_counter() - encode_time_start)
-            total_Wall_time = time.perf_counter() - start
+            wall_time = time.perf_counter() - start
             logger.info(f"Extracted embeddings for sampled frames from video: {video_path} (interval: {frame_interval}) - "
-                        f"Total wall time: {total_Wall_time:.2f}s, Encoding time: {encode_time:.2f}s")
+                        f"Total wall time: {wall_time:.2f}s, Encoding time: {encode_time:.2f}s")
         except Exception as e:
             logger.error(f"Error extracting sampled frame embeddings from video: {e.with_traceback(e.__traceback__)}")
             raise RuntimeError(f"Failed to extract sampled frame embeddings from video: {e}")   

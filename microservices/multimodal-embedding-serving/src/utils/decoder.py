@@ -18,6 +18,7 @@ from dataclasses import field
 from enum import Enum
 from fractions import Fraction
 from multiprocessing import shared_memory
+from PIL import Image
 from typing import Any
 from typing import Dict
 from typing import Generator
@@ -40,10 +41,11 @@ logger = logging.getLogger(__name__)
 
 class SharedMemoryPool:
     def __init__(self, max_blocks, block_size):
-        self.free = queue.SimpleQueue()
         self.max_blocks = max_blocks
         self.block_size = block_size
+        self.free = queue.SimpleQueue()
         self.blocks = []
+        self.in_use = set()
 
         for _ in range(max_blocks):
             shm = shared_memory.SharedMemory(create=True, size=block_size)
@@ -51,15 +53,59 @@ class SharedMemoryPool:
             self.free.put(shm.name)
 
     def acquire(self):
-        return self.free.get()
+        name = self.free.get()
+        self.in_use.add(name)
+        return name
 
     def release(self, name):
-        self.free.put(name)
+        if name in self.in_use:
+            self.in_use.remove(name)
+            self.free.put(name)
+
+    def total_blocks(self):
+        return self.max_blocks
+
+    def used_blocks(self):
+        return len(self.in_use)
+
+    def free_blocks(self):
+        return self.max_blocks - len(self.in_use)
+
+    def is_full(self):
+        return self.used_blocks() == self.max_blocks
+
+    def is_empty(self):
+        return self.used_blocks() == 0
+
+    def stats(self):
+        return {
+            "total": self.total_blocks(),
+            "used": self.used_blocks(),
+            "free": self.free_blocks(),
+            "block_size": self.block_size,
+        }
 
     def close(self):
         for shm in self.blocks:
             shm.close()
-            shm.unlink()
+
+    def unlink(self):
+        try:
+            for shm in self.blocks:
+                shm.unlink()
+        except FileNotFoundError:
+            logger.info("Shared memory already unlinked")
+            pass
+
+    def shutdown(self):
+        self.close()
+        self.unlink()
+
+    def __del__(self):
+        try:
+            self.shutdown()
+        except Exception:
+            pass
 
 
 @dataclass(frozen=True)
@@ -234,7 +280,9 @@ def decode_stream_and_batch_generator(
     def flush_batch(batch, batch_id):
         frames_meta = list(
             thread_pool.map(
-                lambda item: convert_and_store_frame(stream_id, item[0], item[1], shm_pool),
+                lambda item: convert_and_store_frame(
+                    stream_id, item[0], item[1], shm_pool
+                ),
                 batch,
             )
         )
@@ -260,8 +308,14 @@ def decode_stream_and_batch_generator(
 
                 if shutdown_event and shutdown_event.is_set():
                     end_time = time.perf_counter()
-                    logger.info(f"Stream {stream_id} stopped by shutdown event during decoding")
-                    yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
+                    logger.info(
+                        f"Stream {stream_id} stopped by shutdown event during decoding"
+                    )
+                    yield (
+                        INTERRUPT,
+                        stream_id,
+                        (start_time, end_time, end_time - start_time),
+                    )
                     break
 
                 if packet.dts is None:
@@ -277,8 +331,14 @@ def decode_stream_and_batch_generator(
                 for frame in frames:
                     if shutdown_event and shutdown_event.is_set():
                         end_time = time.perf_counter()
-                        logger.info(f"Stream {stream_id} stopped by shutdown event during decoding")
-                        yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
+                        logger.info(
+                            f"Stream {stream_id} stopped by shutdown event during decoding"
+                        )
+                        yield (
+                            INTERRUPT,
+                            stream_id,
+                            (start_time, end_time, end_time - start_time),
+                        )
                         break
 
                     if global_frame_idx % stream_config.frame_interval != 0:
@@ -344,9 +404,15 @@ def decode_and_batch_generator(
         for frame_id, frame in enumerate(container.decode(video=0)):
 
             if shutdown_event and shutdown_event.is_set():
-                logger.info(f"Stream {stream_id} stopped by shutdown event during decoding")
+                logger.info(
+                    f"Stream {stream_id} stopped by shutdown event during decoding"
+                )
                 end_time = time.perf_counter()
-                yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
+                yield (
+                    INTERRUPT,
+                    stream_id,
+                    (start_time, end_time, end_time - start_time),
+                )
                 break
 
             if frame_id % stream_config.frame_interval != 0:
@@ -357,7 +423,10 @@ def decode_and_batch_generator(
             if len(batch) >= batch_size:
                 frames_meta = list(
                     _thread_pool.map(
-                        lambda f: convert_and_store_frame(stream_id, f[0], f[1], shm_pool), batch
+                        lambda f: convert_and_store_frame(
+                            stream_id, f[0], f[1], shm_pool
+                        ),
+                        batch,
                     )
                 )
                 logger.info(
@@ -378,10 +447,13 @@ def decode_and_batch_generator(
         if len(batch) > 0:
             frames_meta = list(
                 _thread_pool.map(
-                    lambda f: convert_and_store_frame(stream_id, f[0], f[1], shm_pool), batch
+                    lambda f: convert_and_store_frame(stream_id, f[0], f[1], shm_pool),
+                    batch,
                 )
             )
-            logger.info(f"[Decoder] Stream {stream_id} final batch with {len(frames_meta)} frames")
+            logger.info(
+                f"[Decoder] Stream {stream_id} final batch with {len(frames_meta)} frames"
+            )
             yield BatchFrameMetadata(
                 stream_id=stream_id, batch_id=batch_id, frames=frames_meta
             ).to_dict(), (
@@ -425,7 +497,11 @@ class VideoFrameExtractor:
         self.configs = configs
 
         if configs is None:
-            self.configs = [VideoFrameConfig()] * len(video_input) if isinstance(video_input, list) else [VideoFrameConfig()]
+            self.configs = (
+                [VideoFrameConfig()] * len(video_input)
+                if isinstance(video_input, list)
+                else [VideoFrameConfig()]
+            )
 
         self.shm_pool = shm_pool
 
@@ -459,10 +535,24 @@ class VideoFrameExtractor:
                             time_base=str(stream.time_base),
                             source_type=str(video_input.source_type),
                             total_frames=stream.frames,
-                            fps=float(stream.average_rate) if stream.average_rate else None,
-                            average_rate=str(stream.average_rate) if stream.average_rate else None,
-                            base_rate=str(stream.base_rate) if stream.base_rate else None,
-                            guessed_rate=str(stream.guessed_rate) if stream.guessed_rate else None,
+                            fps=(
+                                float(stream.average_rate)
+                                if stream.average_rate
+                                else None
+                            ),
+                            average_rate=(
+                                str(stream.average_rate)
+                                if stream.average_rate
+                                else None
+                            ),
+                            base_rate=(
+                                str(stream.base_rate) if stream.base_rate else None
+                            ),
+                            guessed_rate=(
+                                str(stream.guessed_rate)
+                                if stream.guessed_rate
+                                else None
+                            ),
                             width=stream.width,
                             height=stream.height,
                             pixel_format=stream.format.name if stream.format else None,
@@ -578,7 +668,9 @@ class VideoFrameExtractor:
 
                 except queue.Empty:
                     if self._shutdown.is_set():
-                        logger.info("[DECODER MAIN] Shutdown event set, stopping frame extraction")
+                        logger.info(
+                            "[DECODER MAIN] Shutdown event set, stopping frame extraction"
+                        )
                         break
                     continue
 
@@ -611,7 +703,9 @@ class VideoFrameExtractor:
 
         except Exception as e:
             self._shutdown.set()
-            logger.error(f"[DECODER MAIN] Error during frame extraction: {e}", exc_info=True)
+            logger.error(
+                f"[DECODER MAIN] Error during frame extraction: {e}", exc_info=True
+            )
             raise
 
         finally:
@@ -625,7 +719,7 @@ def extract_batched_frames(
     batch_size: int = 64,
     keyframes_only: bool = False,
     shm_pool: SharedMemoryPool | None = None,
-) -> Generator[List[Tuple[int, np.ndarray]], None, None]:
+) -> Generator[List[Image.Image], None, None]:
     """
     Convenience function to extract frames from multiple video sources using threading.
 
@@ -639,7 +733,7 @@ def extract_batched_frames(
         keyframes_only: Whether to extract only keyframes.
 
     Yields:
-        Batches of (video_index, np.ndarray) frames from all sources.
+        Batches of PIL.Image frames from all sources.
     """
     config = VideoFrameConfig(
         frame_interval=frame_interval,
@@ -648,8 +742,54 @@ def extract_batched_frames(
     )
     if shm_pool is None:
         # Create a default shared memory pool if not provided
-        shm_pool = SharedMemoryPool(max_blocks=batch_size * 4, block_size=1920 * 1080 * 3)  # Assuming max 1080p RGB frames
+        shm_pool = SharedMemoryPool(
+            max_blocks=batch_size * 2, block_size=1920 * 1080 * 3
+        )  # Assuming max 1080p RGB frames
 
     extractor = VideoFrameExtractor(video_inputs, config, shm_pool=shm_pool)
     print(f"extractor metadata: {extractor.metadata_list}")
-    yield from extractor.decode_frames()
+    try:
+        for batch in extractor.decode_frames():
+
+            if isinstance(batch, tuple) and (batch[0] is INTERRUPT or batch[0] is DONE):
+                logger.info(
+                    f"Received signal {batch[0]} for stream {batch[1]}, stopping extraction."
+                )
+                break
+
+            batch_dict, _ = batch
+
+            batch_frame_pil = []
+
+            frames_metadata = (
+                batch_dict["frames"]
+                if isinstance(batch_dict, dict) and "frames" in batch_dict
+                else []
+            )
+
+            for frame_meta in frames_metadata:
+                shm = shared_memory.SharedMemory(name=frame_meta["shm"])
+                arr = Image.fromarray(
+                    np.ndarray(
+                        eval(frame_meta["shape"]),
+                        dtype=frame_meta["dtype"],
+                        buffer=shm.buf,
+                    ),
+                    mode="RGB",
+                )
+                logger.info(
+                    f"(frame_meta['stream_id']: {frame_meta['stream_id']}, frame_meta['frame_id']: {frame_meta['frame_id']}, arr.size: {arr.size}, arr.mode: {arr.mode})"
+                )
+                batch_frame_pil.append(arr)
+
+            yield batch_frame_pil
+
+            batch_frame_pil.clear()
+
+            for frame_meta in frames_metadata:
+                logger.info(
+                    f"Releasing shared memory {frame_meta['shm']} for frame {frame_meta['frame_id']} of stream {frame_meta['stream_id']}"
+                )
+                shm_pool.release(frame_meta["shm"])
+    finally:
+        shm_pool.shutdown()

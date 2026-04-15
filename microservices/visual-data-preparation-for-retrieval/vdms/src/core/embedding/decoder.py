@@ -18,15 +18,18 @@ from dataclasses import field
 from enum import Enum
 from fractions import Fraction
 from multiprocessing import shared_memory
-from typing import Any
+from typing import Any, Optional
 from typing import Dict
 from typing import Generator
 from typing import List
 from typing import Tuple
 from typing import Union
+from PIL import Image
 
 import av
 import numpy as np
+
+from src.common import Tracer, now_us
 
 INTERRUPT = object()  # interrupt signal (unique, non-colliding)
 DONE = object()  # consumer → main completion signal
@@ -40,10 +43,11 @@ logger = logging.getLogger(__name__)
 
 class SharedMemoryPool:
     def __init__(self, max_blocks, block_size):
-        self.free = queue.SimpleQueue()
         self.max_blocks = max_blocks
         self.block_size = block_size
+        self.free = queue.SimpleQueue()
         self.blocks = []
+        self.in_use = set()
 
         for _ in range(max_blocks):
             shm = shared_memory.SharedMemory(create=True, size=block_size)
@@ -51,16 +55,59 @@ class SharedMemoryPool:
             self.free.put(shm.name)
 
     def acquire(self):
-        return self.free.get()
+        name = self.free.get()
+        self.in_use.add(name)
+        return name
 
     def release(self, name):
-        self.free.put(name)
+        if name in self.in_use:
+            self.in_use.remove(name)
+            self.free.put(name)
 
+    def total_blocks(self):
+        return self.max_blocks
+
+    def used_blocks(self):
+        return len(self.in_use)
+
+    def free_blocks(self):
+        return self.max_blocks - len(self.in_use)
+
+    def is_full(self):
+        return self.used_blocks() == self.max_blocks
+
+    def is_empty(self):
+        return self.used_blocks() == 0
+
+    def stats(self):
+        return {
+            "total": self.total_blocks(),
+            "used": self.used_blocks(),
+            "free": self.free_blocks(),
+            "block_size": self.block_size,
+        }
+                
     def close(self):
         for shm in self.blocks:
             shm.close()
-            shm.unlink()
 
+    def unlink(self):
+        try:
+            for shm in self.blocks:
+                shm.unlink()
+        except FileNotFoundError:
+            logger.info("Shared memory already unlinked")
+            pass
+
+    def shutdown(self):
+        self.close()
+        self.unlink()
+
+    def __del__(self):
+        try:
+            self.shutdown()
+        except Exception:
+            pass
 
 @dataclass(frozen=True)
 class VideoStreamMetadata:
@@ -110,6 +157,7 @@ class BatchFrameMetadata:
     stream_id: int = -1
     batch_id: int = -1
     batch_size: int = 0
+    enqueue_ts: int = 0
     frames: List[FrameMetadata] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -117,6 +165,7 @@ class BatchFrameMetadata:
             "stream_id": self.stream_id,
             "batch_id": self.batch_id,
             "batch_size": len(self.frames),
+            "enqueue_ts": self.enqueue_ts,
             "frames": [frame.to_dict() for frame in self.frames],
         }
 
@@ -225,9 +274,14 @@ def decode_stream_and_batch_generator(
     shm_pool: SharedMemoryPool,
     batch_size: int = 64,
     shutdown_event: threading.Event | None = None,
+    tracer: Optional[Tracer] = None,
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
 
     logger.info(f"Stream {stream_id} started decoding with config: {stream_config}")
+
+    if tracer is not None:
+        tid = threading.get_ident()
+        tracer.set_thread_name(tid=tid, name=f"decode_stream_sid_{stream_id}")
 
     def flush_batch(batch, batch_id):
         frames_meta = list(
@@ -245,8 +299,14 @@ def decode_stream_and_batch_generator(
     batch: list[tuple[int, av.VideoFrame]] = []
     batch_id = 0
     global_frame_idx = 0
-    start_time = time.perf_counter()
-    with container, ThreadPoolExecutor(max_workers=6) as thread_pool:
+    start_time = now_us()
+
+    tid = threading.get_ident()
+
+    if tracer is not None and tracer.should_trace():
+        tracer.set_thread_name(tid=tid, name=f"decode_stream_sid_{stream_id}")
+
+    with container, ThreadPoolExecutor(max_workers=6, thread_name_prefix=f"decode_stream_sid_{stream_id}") as thread_pool:
         stream = container.streams.video[0]
         stream.thread_type = "AUTO"
 
@@ -257,9 +317,9 @@ def decode_stream_and_batch_generator(
             for packet in container.demux(stream):
 
                 if shutdown_event and shutdown_event.is_set():
-                    end_time = time.perf_counter()
+                    end_time = now_us()
                     logger.debug(f"Stream {stream_id} stopped by shutdown event during decoding")
-                    yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
+                    yield (INTERRUPT, stream_id, (start_time, end_time, (end_time - start_time) / 1_000_000))
                     break
 
                 if packet.dts is None:
@@ -271,12 +331,14 @@ def decode_stream_and_batch_generator(
                     # RTSP transient decode failure — continue
                     continue
 
-                batch_start_time = time.perf_counter()
+                batch_start_time = now_us()
                 for frame in frames:
                     if shutdown_event and shutdown_event.is_set():
-                        end_time = time.perf_counter()
-                        logger.debug(f"Stream {stream_id} stopped by shutdown event during decoding")
-                        yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
+                        end_time = now_us()
+                        logger.debug(
+                            f"Stream {stream_id} stopped by shutdown event during decoding"
+                        )
+                        yield (INTERRUPT, stream_id, (start_time, end_time, (end_time - start_time) / 1_000_000))
                         break
 
                     if global_frame_idx % stream_config.frame_interval != 0:
@@ -287,29 +349,70 @@ def decode_stream_and_batch_generator(
                     global_frame_idx += 1
 
                     if len(batch) >= batch_size:
+
+                        if tracer is not None and tracer.should_trace():
+                            ts1 = now_us()
+
+                            flow_id = f"s{stream_id}_b{batch_id}"
+
+                            tracer.emit_complete(
+                                "decode",
+                                batch_start_time,
+                                ts1,
+                                tid,
+                                args={
+                                    "batch_id": batch_id,
+                                    "stream_id": stream_id,
+                                    "batch_size": len(batch),
+                                },
+                            )
+
+                            # start flow → leaving decode
+                            tracer.flow_start(flow_id, tid=tid, ts=ts1)
+
                         yield flush_batch(batch, batch_id), (
                             batch_start_time,
-                            time.perf_counter(),
-                            time.perf_counter() - batch_start_time,
+                            now_us(),
+                            (now_us() - batch_start_time) / 1_000_000,
                         )
-                        batch_start_time = time.perf_counter()
+                        batch_start_time = now_us()
                         batch.clear()
                         batch_id += 1
 
             # Final drain (only on shutdown or true EOS)
             if batch:
+                if tracer is not None and tracer.should_trace():
+                    ts1 = now_us()
+
+                    flow_id = f"s{stream_id}_b{batch_id}"
+
+                    tracer.emit_complete(
+                        "decode",
+                        batch_start_time,
+                        ts1,
+                        tid,
+                        args={
+                            "batch_id": batch_id,
+                            "stream_id": stream_id,
+                            "batch_size": len(batch),
+                        },
+                    )
+
+                    # start flow → leaving decode
+                    tracer.flow_start(flow_id, tid=tid, ts=ts1)
+
                 yield flush_batch(batch, batch_id), (
                     batch_start_time,
-                    time.perf_counter(),
-                    time.perf_counter() - batch_start_time,
+                    now_us(),
+                    (now_us() - batch_start_time) / 1_000_000,
                 )
-                batch_start_time = time.perf_counter()
+                batch_start_time = now_us()
                 batch.clear()
 
             yield (
                 DONE,
                 stream_id,
-                (start_time, end_time, end_time - start_time),
+                (start_time, end_time, (end_time - start_time) / 1_000_000),
             )
 
         finally:
@@ -326,25 +429,33 @@ def decode_and_batch_generator(
     shm_pool: SharedMemoryPool,
     batch_size: int = 64,
     shutdown_event: threading.Event = None,
+    tracer: Optional[Tracer] = None,
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
+
     batch = []
     batch_id = 0
     logger.info(f"Stream {stream_id} shutdown_event ID: {id(shutdown_event)}")
-    start_time = time.perf_counter()
-    with container, ThreadPoolExecutor(max_workers=6) as _thread_pool:
+    start_time = now_us()
+
+    tid = threading.get_ident()
+
+    if tracer is not None and tracer.should_trace():
+        tracer.set_thread_name(tid=tid, name=f"decode_sid_{stream_id}")
+
+    with container, ThreadPoolExecutor(max_workers=6, thread_name_prefix=f"decode_stream_sid_{stream_id}") as _thread_pool:
         stream = container.streams.video[0]
         stream.thread_type = "AUTO"
 
         if stream_config.keyframes_only:
             stream.skip_frame = "NONKEY"
 
-        batch_start_time = time.perf_counter()
+        batch_start_time = now_us()
         for frame_id, frame in enumerate(container.decode(video=0)):
 
             if shutdown_event and shutdown_event.is_set():
                 logger.debug(f"Stream {stream_id} stopped by shutdown event during decoding")
-                end_time = time.perf_counter()
-                yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
+                end_time = now_us()
+                yield (INTERRUPT, stream_id, (start_time, end_time, (end_time - start_time) / 1_000_000))
                 break
 
             if frame_id % stream_config.frame_interval != 0:
@@ -361,16 +472,36 @@ def decode_and_batch_generator(
                 logger.debug(
                     f"[Decoder] Stream {stream_id} batch {batch_id} with {len(frames_meta)} frames"
                 )
+
+                ts1 = now_us()
+                if tracer is not None and tracer.should_trace():
+
+                    flow_id = f"s{stream_id}_b{batch_id}"
+                    tracer.emit_complete(
+                        "decode",
+                        batch_start_time,
+                        ts1,
+                        tid,
+                        args={
+                            "batch_id": batch_id,
+                            "stream_id": stream_id,
+                            "batch_size": len(frames_meta),
+                        },
+                    )
+
+                    # start flow → leaving decode
+                    tracer.flow_start(flow_id, tid=tid, ts=ts1)
+
                 yield BatchFrameMetadata(
-                    stream_id=stream_id, batch_id=batch_id, frames=frames_meta
+                    stream_id=stream_id, batch_id=batch_id, frames=frames_meta, enqueue_ts=ts1
                 ).to_dict(), (
                     batch_start_time,
-                    time.perf_counter(),
-                    time.perf_counter() - batch_start_time,
+                    now_us(),
+                    (now_us() - batch_start_time) / 1_000_000,
                 )
 
                 batch = []
-                batch_start_time = time.perf_counter()
+                batch_start_time = now_us()
                 batch_id += 1
 
         if len(batch) > 0:
@@ -380,21 +511,42 @@ def decode_and_batch_generator(
                 )
             )
             logger.debug(f"[Decoder] Stream {stream_id} final batch with {len(frames_meta)} frames")
+
+            ts1 = now_us()
+            if tracer is not None and tracer.should_trace():
+
+                flow_id = f"s{stream_id}_b{batch_id}"
+
+                tracer.emit_complete(
+                    "decode",
+                    batch_start_time,
+                    ts1,
+                    tid,
+                    args={
+                        "batch_id": batch_id,
+                        "stream_id": stream_id,
+                        "batch_size": len(batch),
+                    },
+                )
+
+                # start flow → leaving decode
+                tracer.flow_start(flow_id, tid=tid, ts=ts1)
+
             yield BatchFrameMetadata(
-                stream_id=stream_id, batch_id=batch_id, frames=frames_meta
+                stream_id=stream_id, batch_id=batch_id, frames=frames_meta, enqueue_ts=ts1
             ).to_dict(), (
                 batch_start_time,
-                time.perf_counter(),
-                time.perf_counter() - batch_start_time,
+                now_us(),
+                (now_us() - batch_start_time) / 1_000_000,
             )
-            batch_start_time = time.perf_counter()
+            batch_start_time = now_us()
 
-        end_time = time.perf_counter()
+        end_time = now_us()
         logger.info(f"[Decoder] Stream {stream_id} ended")
         yield (
             DONE,
             stream_id,
-            (start_time, end_time, end_time - start_time),
+            (start_time, end_time, (end_time - start_time) / 1_000_000),
         )
 
 
@@ -419,22 +571,29 @@ class VideoFrameExtractor:
         configs: VideoFrameConfig | list[VideoFrameConfig] | None = None,
         shm_pool: SharedMemoryPool | None = None,
         shutdown_event: threading.Event | None = None,
+        tracer: Tracer | None = None,
     ):
         self.configs = configs
 
         if configs is None:
-            self.configs = [VideoFrameConfig()] * len(video_input) if isinstance(video_input, list) else [VideoFrameConfig()]
-        
+            self.configs = (
+                [VideoFrameConfig()] * len(video_input)
+                if isinstance(video_input, list)
+                else [VideoFrameConfig()]
+            )
+
         elif isinstance(configs, VideoFrameConfig):
-            self.configs = [configs] * len(video_input) if isinstance(video_input, list) else [configs]
+            self.configs = (
+                [configs] * len(video_input) if isinstance(video_input, list) else [configs]
+            )
 
         elif isinstance(configs, list):
-            if len(configs) != len(video_input):
+            if isinstance(video_input, list) and len(configs) != len(video_input):
                 raise ValueError("Length of configs list must match number of video inputs")
             self.configs = configs
 
         self.shm_pool = shm_pool
-
+        self.tracer = tracer
         # Use external shutdown_event if provided, else create internal one
         self._shutdown = shutdown_event
 
@@ -547,7 +706,6 @@ class VideoFrameExtractor:
         queue_size = 32
         for config in self.configs:
             queue_size += max(config.queue_size, queue_size)
-            
         result_queue: queue.Queue = queue.Queue(maxsize=queue_size)
         finished_set = set()
 
@@ -564,6 +722,7 @@ class VideoFrameExtractor:
                     shm_pool=self.shm_pool,
                     batch_size=self.configs[video_index].batch_size,
                     shutdown_event=self._shutdown,
+                    tracer=self.tracer,
                 )
             else:
                 stream_gen = decode_and_batch_generator(
@@ -573,6 +732,7 @@ class VideoFrameExtractor:
                     shm_pool=self.shm_pool,
                     batch_size=self.configs[video_index].batch_size,
                     shutdown_event=self._shutdown,
+                    tracer=self.tracer,
                 )
 
             t = threading.Thread(
@@ -634,7 +794,7 @@ def extract_batched_frames(
     batch_size: int = 64,
     keyframes_only: bool = False,
     shm_pool: SharedMemoryPool | None = None,
-) -> Generator[List[Tuple[int, np.ndarray]], None, None]:
+) -> Generator[List[Image.Image], None, None]:
     """
     Convenience function to extract frames from multiple video sources using threading.
 
@@ -648,7 +808,7 @@ def extract_batched_frames(
         keyframes_only: Whether to extract only keyframes.
 
     Yields:
-        Batches of (video_index, np.ndarray) frames from all sources.
+        Batches of PIL.Image frames from all sources.
     """
     config = VideoFrameConfig(
         frame_interval=frame_interval,
@@ -657,8 +817,54 @@ def extract_batched_frames(
     )
     if shm_pool is None:
         # Create a default shared memory pool if not provided
-        shm_pool = SharedMemoryPool(max_blocks=batch_size * 4, block_size=1920 * 1080 * 3)  # Assuming max 1080p RGB frames
+        shm_pool = SharedMemoryPool(
+            max_blocks=batch_size * 2, block_size=1920 * 1080 * 3
+        )  # Assuming max 1080p RGB frames
 
     extractor = VideoFrameExtractor(video_inputs, config, shm_pool=shm_pool)
-    logger.debug(f"[DECODER] Extractor metadata: {extractor.metadata_list}")
-    yield from extractor.decode_frames()
+    print(f"extractor metadata: {extractor.metadata_list}")
+    try:
+        for batch in extractor.decode_frames():
+
+            if isinstance(batch, tuple) and (batch[0] is INTERRUPT or batch[0] is DONE):
+                logger.info(
+                    f"Received signal {batch[0]} for stream {batch[1]}, stopping extraction."
+                )
+                break
+
+            batch_dict, _ = batch
+
+            batch_frame_pil = []
+
+            frames_metadata = (
+                batch_dict["frames"]
+                if isinstance(batch_dict, dict) and "frames" in batch_dict
+                else []
+            )
+
+            for frame_meta in frames_metadata:
+                shm = shared_memory.SharedMemory(name=frame_meta["shm"])
+                arr = Image.fromarray(
+                    np.ndarray(
+                        eval(frame_meta["shape"]),
+                        dtype=frame_meta["dtype"],
+                        buffer=shm.buf,
+                    ),
+                    mode="RGB",
+                )
+                logger.info(
+                    f"(frame_meta['stream_id']: {frame_meta['stream_id']}, frame_meta['frame_id']: {frame_meta['frame_id']}, arr.size: {arr.size}, arr.mode: {arr.mode})"
+                )
+                batch_frame_pil.append(arr)
+
+            yield batch_frame_pil
+
+            batch_frame_pil.clear()
+
+            for frame_meta in frames_metadata:
+                logger.info(
+                    f"Releasing shared memory {frame_meta['shm']} for frame {frame_meta['frame_id']} of stream {frame_meta['stream_id']}"
+                )
+                shm_pool.release(frame_meta["shm"])
+    finally:
+        shm_pool.shutdown()

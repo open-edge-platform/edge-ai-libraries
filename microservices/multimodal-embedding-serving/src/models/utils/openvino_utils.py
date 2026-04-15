@@ -20,6 +20,7 @@ import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
+import time
 
 import numpy as np
 import openvino as ov
@@ -274,6 +275,48 @@ class AsyncBatchInference:
         self.embedding_dim = embedding_dim
         self.async_queue = ov.AsyncInferQueue(compiled_model)
         self.preprocess_shape = preprocess_shape
+
+    def infer_stream(self, batch_generator, total_images):
+        final_output = np.empty((total_images, self.embedding_dim), dtype=np.float32)
+
+        submitted = 0
+        completed = 0
+
+        def callback(request, userdata):
+            nonlocal completed
+
+            start = userdata["start"]
+            count = userdata["count"]
+
+            out = request.output_tensors[0].data
+            final_output[start:start+count] = out[:count]
+
+            completed += count
+
+        self.async_queue.set_callback(callback)
+
+        for batch in batch_generator:
+
+            count = batch.shape[0]
+
+            if count < self.batch_size:
+                padded = np.zeros(self.preprocess_shape, dtype=np.float32)
+                padded[:count] = batch
+                batch = padded
+
+            while not self.async_queue.is_ready():
+                time.sleep(0.001)
+
+            self.async_queue.start_async(
+                {0: batch},
+                userdata={"start": submitted, "count": count}
+            )
+
+            submitted += count
+
+        self.async_queue.wait_all()
+
+        return final_output
 
     def infer(self, images: np.ndarray) -> np.ndarray:
         """

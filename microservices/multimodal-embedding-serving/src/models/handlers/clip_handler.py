@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -18,6 +18,7 @@ The implementation includes support for OpenVINO optimization to improve inferen
 performance on Intel hardware.
 """
 from pathlib import Path
+from PIL import Image
 from typing import List, Union, Dict, Any, Optional
 import time
 import numpy as np
@@ -80,9 +81,9 @@ class CLIPHandler(BaseEmbeddingModel):
         self._embedding_dim: Optional[int] = None
         infer_batch_size = model_config.get("infer_batch_size", 64)
         self.preprocess_shape = (infer_batch_size, 3, 224, 224)  # Default shape for CLIP image encoder input
-        self._preprocess_workers = model_config.get("preprocess_workers", min(8, (os.cpu_count() or 4) * 2))
+        self._preprocess_workers = model_config.get("preprocess_workers", min(16, (os.cpu_count() or 4) * 2))
         self.async_infer = None
-        self.parallel_preprocessor = None
+        self.parallel_preprocessor: Optional[ParallelImagePreprocessor] = None
         
     def load_model(self) -> None:
         """
@@ -161,10 +162,11 @@ class CLIPHandler(BaseEmbeddingModel):
         )
         self.parallel_preprocessor = ParallelImagePreprocessor(
             preprocess_fn=self.preprocess,
-            max_workers=self._preprocess_workers
+            max_workers=self._preprocess_workers,
+            preprocess_shape=self.preprocess_shape
         )
         embedding_dim = int(self.ov_image_encoder.output().get_partial_shape()[-1].to_string())
-        logger.info(f"DIMENSION OF IMAGE ENCODER OUTPUT: {embedding_dim}")
+        logger.info(f"Encoder o/p dimension: {embedding_dim}")
         self.async_infer = AsyncBatchInference(
             compiled_model=self.ov_image_encoder,
             embedding_dim=embedding_dim,
@@ -211,40 +213,44 @@ class CLIPHandler(BaseEmbeddingModel):
         text_features = F.normalize(text_features, dim=-1)
         return text_features
     
-    def encode_image(self, images: Union[np.ndarray, List[np.ndarray], torch.Tensor], metrics_out: bool = False) -> Union[Dict[str, Any], torch.Tensor]:
+    def encode_image(self, images: Union[Image.Image, List[Image.Image]], metrics_out: bool = False) -> Union[Dict[str, Any], torch.Tensor]:
         """
         Generate embeddings for a batch of images using CLIP image encoder with OpenVINO optimization.
         
         Args:
             images: Input images in one of the following formats:
-                - Single numpy array
-                - List of numpy arrays
+                - Single PIL.Image.Image
+                - List of PIL.Image.Image
                 - Preprocessed tensor with shape [batch_size, channels, height, width]
 
         Returns:
             Normalized image embeddings with shape [1, embedding_dim] for single image
             or [batch_size, embedding_dim] for multiple images
         """
-        if isinstance(images, np.ndarray):
+        if isinstance(images, Image.Image):
             images = [images]
+        total_images = len(images)
 
         logger.info(f"====AsyncInferQueue====")
-        pre_process_start = time.perf_counter()
-        images = self.parallel_preprocessor.preprocess_images(images)
-        preprocess_end = time.perf_counter()
-        infer_start = time.perf_counter()
-        embeddings = self.async_infer.infer(images)
-        infer_end = time.perf_counter()
-        logger.info(f"Inference time for batch of {len(images)} images: {infer_end - infer_start:.4f} seconds")
+        preprocess_stream = self.parallel_preprocessor.preprocess_stream(images)
+        try:
+            infer_start = time.perf_counter()
+            embeddings = self.async_infer.infer_stream(batch_generator=preprocess_stream, total_images=total_images)
+            infer_end = time.perf_counter()
+        finally:
+            preprocess_stream.close()
+            del images
+
+        logger.info(f"Inference time for batch of {total_images} images: {infer_end - infer_start:.4f} seconds")
+
         if metrics_out:
             return {
                 "embeddings": embeddings,
-                "preprocess_time_s": preprocess_end - pre_process_start,
                 "inference_time_s": infer_end - infer_start,
-                "total_time_s": infer_end - pre_process_start,
-                "processed_images": len(images)
+                "processed_images": total_images
             }
-        return embeddings
+        return torch.from_numpy(embeddings)
+
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:
         """Convert CLIP model to OpenVINO format using Optimum Intel for robust conversion."""
         ov_models_path = Path(ov_models_dir)
@@ -366,7 +372,7 @@ class CLIPHandler(BaseEmbeddingModel):
                 raise RuntimeError("OpenVINO async inference not initialized. Call load_model() first.")
 
             # Create random dummy image as numpy array with batch size 1
-            dummy_image = np.random.randint(0, 255, (1, 3, image_size, image_size), dtype=np.uint8)
+            dummy_image = Image.fromarray(np.random.randint(0, 255, (1, 3, image_size, image_size), dtype=np.uint8)[0].transpose(1, 2, 0))
             result = self.async_infer.infer(dummy_image)
             self._embedding_dim = int(result.shape[-1])
         else:

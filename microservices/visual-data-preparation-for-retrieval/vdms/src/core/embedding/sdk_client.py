@@ -58,7 +58,6 @@ class SDKVDMSClient:
     - Uses optimized batch sizes for VDMS operations
     - Aligns with standard persistence flows to maintain index continuity
     """
-
     @staticmethod
     def _to_list(embedding: Any) -> List[float]:
         """Convert an embedding tensor/array into a plain Python list."""
@@ -208,7 +207,6 @@ class SDKVDMSClient:
             if self.supports_image:
                 logger.debug("Probing dimensions via image pathway")
                 dummy_image = Image.new("RGB", (224, 224), color="white")
-                dummy_image = np.array(dummy_image).astype(np.uint8)
                 test_embedding = self.model_handler.encode_image([dummy_image])
                 logger.debug(
                     "Image probe type=%s length=%s",
@@ -532,11 +530,7 @@ class SDKVDMSClient:
             del embeddings, image_inputs
 
             if metrics_out:
-                return results, (
-                    infer_result.get("preprocess_time_s"),
-                    infer_result.get("inference_time_s"),
-                )
-
+                return results, infer_result.get("inference_time_s")
             return results
 
         except Exception as exc:

@@ -35,7 +35,7 @@ orjson = "^3.11.7"
 av = "^17.0.0"
 
 # Multimodal Embedding Service as wheel dependency
-multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-2.0.0rc1-py3-none-any.whl"}
+multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-2.0.3-py3-none-any.whl"}
 
 [tool.poetry.group.dev]
 optional = true
