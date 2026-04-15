@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: { { .Values.ovms.script.name } }
+  name: {{ .Values.ovms.script.name }}
   labels:
-    app: { { .Values.ovms.script.name } }
+    app: {{ .Values.ovms.script.name }}
 
 data:
   init-script.sh: |-

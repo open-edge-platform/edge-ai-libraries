@@ -26,7 +26,7 @@
 {{- $ovmsLlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsLlmDevice))) (default $ovmsChartEnv.LLM_WEIGHT_FORMAT $ovmsParentEnv.LLM_WEIGHT_FORMAT) -}}
 {{- /* --- 5. HARDWARE FLAGS: drive conditional sections throughout the deployment --- */ -}}
 {{- /* ovmsNeedsAccelerator -> resource requests/limits, securityContext (privileged) */ -}}
-{{- /* ovmsNeedsGpu -> GPU image tag, /dev/dri mount, GPU PVC | ovmsNeedsNpu -> /dev/accel mount */ -}}
+{{- /* ovmsNeedsGpu -> GPU image tag, /dev/dri mount | ovmsNeedsNpu -> /dev/accel mount */ -}}
 {{- $ovmsNeedsAccelerator := or (contains "GPU" $ovmsVlmDevice) (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsVlmDevice) (contains "NPU" $ovmsLlmDevice) -}}
 {{- $ovmsNeedsGpu := or (contains "GPU" $ovmsVlmDevice) (contains "GPU" $ovmsLlmDevice) -}}
 {{- $ovmsNeedsNpu := or (contains "NPU" $ovmsVlmDevice) (contains "NPU" $ovmsLlmDevice) -}}
@@ -214,7 +214,7 @@ spec:
       {{- end }}
       # --- 10. VOLUMES ---
       # /dev/dri (GPU) and /dev/accel (NPU) only when needed.
-      # Workspace: GPU -> dedicated GPU PVC, else -> global PVC / hostPath / emptyDir.
+      # Workspace: PVC / hostPath / emptyDir based on global settings.
       # scripts-volume: ConfigMap with init-script.sh (from ovms-configmap.yaml).
       volumes:
       {{- if $ovmsNeedsGpu }}
@@ -229,11 +229,6 @@ spec:
             path: /dev/accel
             type: Directory
       {{- end }}
-      {{- if $ovmsNeedsGpu }}
-        - name: workspace
-          persistentVolumeClaim:
-            claimName: {{ include "ovms.fullname" . }}-gpu-pvc
-      {{- else }}
         - name: workspace
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
@@ -245,7 +240,6 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
-      {{- end }}
         - name: scripts-volume
           configMap:
             name: {{ .Values.ovms.script.name }}

@@ -1,16 +1,8 @@
-{{- /* Device configuration from global.devices.ovms */ -}}
-{{- $ovmsVlmDevice := default "CPU" .Values.global.devices.ovms.vlm.device -}}
-{{- $ovmsLlmDevice := default "CPU" .Values.global.devices.ovms.llm.device -}}
-{{- $ovmsNeedsGpuRuntime := or (contains "GPU" $ovmsVlmDevice) (contains "GPU" $ovmsLlmDevice) -}}
 {{- if .Values.global.usePvc }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  {{- if $ovmsNeedsGpuRuntime }}
-  name: {{ include "ovms.fullname" . }}-gpu-pvc
-  {{- else }}
   name: {{ include "ovms.fullname" . }}-pvc
-  {{- end }}
   {{- if .Values.global.keepPvc }}
   annotations:
     helm.sh/resource-policy: keep   # Prevent Helm from deleting PVC on uninstall
