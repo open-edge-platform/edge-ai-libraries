@@ -18,14 +18,17 @@ import { FeaturesService } from '../../features/features.service';
 import {
   ApiBody,
   ApiConsumes,
+  ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiParam,
-  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { VideoDTOSwagger } from '../models/video.swagger';
 import { FEATURE_STATE } from '../../features/features.model';
 import { VideoValidatorService } from '../services/video-validator.service';
 
+@ApiTags('Video')
 @Controller('videos')
 export class VideoController {
   constructor(
@@ -38,6 +41,7 @@ export class VideoController {
   @ApiOperation({ summary: 'Upload a video file' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: VideoDTOSwagger })
+  @ApiCreatedResponse({ description: 'Video uploaded successfully' })
   @UseInterceptors(FileInterceptor('video'))
   async videoUpload(
     @UploadedFile() file: Express.Multer.File,
@@ -80,6 +84,7 @@ export class VideoController {
   @Get(':videoId')
   @ApiOperation({ summary: 'Get a video by ID' })
   @ApiParam({ name: 'videoId', type: String, description: 'ID of the video' })
+  @ApiOkResponse({ description: 'Video details' })
   async getVideo(
     @Param() params: { videoId: string },
   ): Promise<{ video: Video }> {
@@ -94,10 +99,7 @@ export class VideoController {
 
   @Get('')
   @ApiOperation({ summary: 'Get all videos' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns a list of videos',
-  })
+  @ApiOkResponse({ description: 'Returns a list of videos' })
   async getVideos(): Promise<{ videos: Video[] }> {
     const videos = await this.$video.getVideos();
     return { videos };
@@ -110,6 +112,7 @@ export class VideoController {
     type: String,
     description: 'ID of the video to create search embeddings for',
   })
+  @ApiCreatedResponse({ description: 'Search embeddings creation started' })
   async createSearchEmbeddings(@Param() params: { videoId: string }) {
     if (this.$feature.getFeatures().search === FEATURE_STATE.OFF) {
       throw new NotFoundException('Search feature is disabled');

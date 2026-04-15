@@ -15,16 +15,18 @@ import {
   SummaryPipelineDTO,
   SummaryPipelineDTOSwagger,
   SummaryPipelinRO,
+  SummaryPipelineROSwagger,
 } from '../models/summary-pipeline.model';
 import { VideoService } from 'src/video-upload/services/video.service';
 import { Video } from 'src/video-upload/models/video.model';
 import { AppConfigService } from 'src/video-upload/services/app-config.service';
 import { StateService } from 'src/state-manager/services/state.service';
 import { State } from 'src/state-manager/models/state.model';
-import { ApiBody, ApiOkResponse, ApiParam } from '@nestjs/swagger';
+import { ApiBody, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { UiService } from 'src/state-manager/services/ui.service';
 import { SummaryService } from '../services/summary.service';
 
+@ApiTags('Summary')
 @Controller('summary')
 export class SummaryController {
   constructor(
@@ -36,13 +38,15 @@ export class SummaryController {
   ) {}
 
   @Get('')
+  @ApiOperation({ summary: 'Get all summary states' })
   @ApiOkResponse({ description: 'Get all summary states raw' })
   getSummary(): State[] {
     return this.$state.fetchAll();
   }
 
   @Get('ui')
-  @ApiOkResponse({ description: 'Get a list of summary ids' })
+  @ApiOperation({ summary: 'Get summary list for UI' })
+  @ApiOkResponse({ description: 'Get a list of summary states in UI-friendly format' })
   getSummaryList() {
     const states = this.$state.fetchAll();
     const uiStates = states.map((curr) => this.$ui.getUiState(curr.stateId));
@@ -50,6 +54,7 @@ export class SummaryController {
   }
 
   @Get(':stateId')
+  @ApiOperation({ summary: 'Get summary state by ID' })
   @ApiParam({
     name: 'stateId',
     required: true,
@@ -61,6 +66,7 @@ export class SummaryController {
   }
 
   @Get(':stateId/raw')
+  @ApiOperation({ summary: 'Get raw summary state by ID' })
   @ApiParam({
     name: 'stateId',
     required: true,
@@ -72,7 +78,9 @@ export class SummaryController {
   }
 
   @Post('')
+  @ApiOperation({ summary: 'Start a video summary pipeline' })
   @ApiBody({ type: SummaryPipelineDTOSwagger })
+  @ApiCreatedResponse({ description: 'Summary pipeline started', type: SummaryPipelineROSwagger })
   async startSummaryPipeline(
     @Body() reqBody: SummaryPipelineDTO,
   ): Promise<SummaryPipelinRO> {
@@ -167,12 +175,13 @@ export class SummaryController {
   }
 
   @Delete(':stateId')
+  @ApiOperation({ summary: 'Delete a summary state' })
   @ApiParam({
     name: 'stateId',
     required: true,
     description: 'ID of the summary state to delete',
   })
-  @ApiOkResponse({ description: 'Delete a summary state by ID' })
+  @ApiOkResponse({ description: 'Summary state deleted' })
   async deleteSummaryById(@Param() params: { stateId: string }) {
     const { stateId } = params;
 

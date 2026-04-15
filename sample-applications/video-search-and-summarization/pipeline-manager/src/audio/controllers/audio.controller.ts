@@ -3,14 +3,16 @@
 import { Controller, Get } from '@nestjs/common';
 import { AudioService } from '../services/audio.service';
 import { lastValueFrom } from 'rxjs';
-import { ApiOkResponse } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AudioModelROSwagger } from '../models/audio.model';
 
+@ApiTags('Audio')
 @Controller('audio')
 export class AudioController {
   constructor(private $audio: AudioService) {}
 
   @Get('models')
+  @ApiOperation({ summary: 'Get available audio models' })
   @ApiOkResponse({
     description: 'Fetch available audio models',
     type: AudioModelROSwagger,
