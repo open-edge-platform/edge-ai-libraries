@@ -3,6 +3,7 @@ import {
   useGetVideosQuery,
   useLazyCheckVideoInputExistsQuery,
 } from "@/api/api.generated.ts";
+import { ENDPOINTS } from "@/api/apiEndpoints";
 import {
   Table,
   TableBody,
@@ -223,7 +224,6 @@ export const Videos = () => {
         }
       });
 
-      // Handle errors
       xhr.addEventListener("error", () => {
         reject(new Error("Network error during upload"));
       });
@@ -233,7 +233,7 @@ export const Videos = () => {
       });
 
       // Configure and send request to the correct API endpoint
-      xhr.open("POST", "/api/v1/videos");
+      xhr.open("POST", ENDPOINTS.UPLOAD_VIDEO);
       xhr.send(formData);
     });
   };
