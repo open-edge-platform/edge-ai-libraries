@@ -143,6 +143,12 @@ for proxy_var in http_proxy https_proxy no_proxy HTTP_PROXY HTTPS_PROXY NO_PROXY
   fi
 done
 
+# Enable BuildKit if available for efficient multi-stage builds.
+# Falls back to legacy builder if buildx is not installed - the Dockerfile stage
+# ordering ensures prod builds correctly with either builder.
+if docker buildx version &>/dev/null; then
+  export DOCKER_BUILDKIT=1
+fi
 set -x
 docker build "${BUILD_ARGS[@]}" --target prod -t "$IMAGE_NAME" -f "$DOCKERFILE" "$SCRIPT_DIR"
 set +x
