@@ -826,6 +826,8 @@ export type ExecutionConfig = {
   output_mode?: OutputMode;
   /** Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled). */
   max_runtime?: number;
+  /** Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints. */
+  metadata_mode?: "disabled" | "file";
 };
 export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */

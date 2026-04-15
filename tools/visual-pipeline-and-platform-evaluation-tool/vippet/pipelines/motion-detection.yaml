@@ -8,7 +8,7 @@ thumbnail: images/license-plate-recognition.png
 variants:
   - name: CPU
     pipeline_description: >-
-      filesrc location=/videos/input/traffic.mp4 !
+      filesrc location=/videos/input/bears.mp4 !
       decodebin3 !
       gvamotiondetect motion-threshold=0.07 min-persistence=2 !
       gvadetect 
@@ -25,7 +25,7 @@ variants:
       fakesink name=default_output_sink sync=false async=false
   - name: GPU
     pipeline_description: >-
-      filesrc location=/videos/input/traffic.mp4 !
+      filesrc location=/videos/input/bears.mp4 !
       decodebin3 !
       gvamotiondetect motion-threshold=0.07 min-persistence=2 !
       gvadetect 
@@ -41,7 +41,7 @@ variants:
       fakesink name=default_output_sink sync=false async=false
   - name: NPU
     pipeline_description: >-
-      filesrc location=/videos/input/traffic.mp4 !
+      filesrc location=/videos/input/bears.mp4 !
       decodebin3 !
       gvamotiondetect motion-threshold=0.07 min-persistence=2 !
       gvadetect 

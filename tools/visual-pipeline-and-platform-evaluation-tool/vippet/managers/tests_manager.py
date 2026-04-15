@@ -379,7 +379,7 @@ class TestsManager:
                 MetadataManager().register_job(job_id, metadata_file_paths)
                 metadata_stream_urls = {
                     pipeline_id: [
-                        f"/jobs/tests/performance/{job_id}/metadata/{slugify_text(pipeline_id)}/{i}/stream"
+                        f"/api/v1/jobs/tests/performance/{job_id}/metadata/{slugify_text(pipeline_id)}/{i}/stream"
                         for i in range(len(paths))
                     ]
                     for pipeline_id, paths in metadata_file_paths.items()

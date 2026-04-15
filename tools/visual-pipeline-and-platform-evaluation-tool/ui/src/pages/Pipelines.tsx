@@ -68,6 +68,10 @@ type UrlParams = {
   variant: string;
 };
 
+type PerformanceJobStatusWithMetadata = {
+  metadata_stream_urls?: Record<string, string[]> | null;
+};
+
 // Helper function to detect if nodes contain camera input
 const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
   return nodes.some((node) => {
@@ -79,6 +83,48 @@ const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
     return false;
   });
 };
+
+const normalizeSourceNodeData = (
+  node: ReactFlowNode,
+): { [key: string]: string } => {
+  const rawData = (node.data ?? {}) as Record<string, unknown>;
+  const normalizedData: Record<string, unknown> = { ...rawData };
+
+  if (node.type === "source") {
+    const normalizedKind = String(rawData.kind ?? "").toLowerCase();
+    if (normalizedKind === "camera" || normalizedKind === "file") {
+      normalizedData.kind = normalizedKind;
+    }
+
+    const sourceValue = String(rawData.source ?? rawData.location ?? "").trim();
+
+    if (sourceValue.length > 0) {
+      normalizedData.source = sourceValue;
+      normalizedData.location = sourceValue;
+    }
+  }
+
+  return normalizedData as { [key: string]: string };
+};
+
+const buildGraphData = (
+  nodes: ReactFlowNode[],
+  edges: ReactFlowEdge[],
+): {
+  nodes: Array<{ id: string; type: string; data: { [key: string]: string } }>;
+  edges: Array<{ id: string; source: string; target: string }>;
+} => ({
+  nodes: nodes.map((node) => ({
+    id: node.id,
+    type: node.type ?? "",
+    data: normalizeSourceNodeData(node),
+  })),
+  edges: edges.map((edge) => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+  })),
+});
 
 export const Pipelines = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
@@ -194,18 +240,7 @@ export const Pipelines = () => {
     if (!id || !variant) return;
 
     try {
-      const graphData = {
-        nodes: currentNodes.map((node) => ({
-          id: node.id,
-          type: node.type ?? "",
-          data: node.data as { [key: string]: string },
-        })),
-        edges: currentEdges.map((edge) => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-        })),
-      };
+      const graphData = buildGraphData(currentNodes, currentEdges);
 
       await updateVariant({
         pipelineId: id,
@@ -276,18 +311,7 @@ export const Pipelines = () => {
           ? "file"
           : "disabled";
 
-      const graphData = {
-        nodes: currentNodes.map((node) => ({
-          id: node.id,
-          type: node.type ?? "",
-          data: node.data as { [key: string]: string },
-        })),
-        edges: currentEdges.map((edge) => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-        })),
-      };
+      const graphData = buildGraphData(currentNodes, currentEdges);
 
       let payloadGraphData = graphData;
       if (isSimpleMode) {
@@ -297,6 +321,11 @@ export const Pipelines = () => {
           pipelineGraph: graphData,
         }).unwrap();
       }
+
+      // Check the ADVANCED graph for gvametapublish (simple mode hides these nodes)
+      const hasMetadata = payloadGraphData.nodes.some(
+        (n) => n.type === "gvametapublish",
+      );
 
       toast.success("Pipeline run started", {
         description: new Date().toISOString(),
@@ -316,6 +345,7 @@ export const Pipelines = () => {
           execution_config: {
             output_mode: outputMode,
             max_runtime: maxRuntimeSeconds,
+            metadata_mode: hasMetadata ? "file" : "disabled",
           },
         },
       });
@@ -415,6 +445,21 @@ export const Pipelines = () => {
       ? selectedNode
         ? "node"
         : "run"
+      : null;
+    // Backend returns Dict[str, list[str]] - convert to Dict[str, str] by taking first URL per pipeline
+    const backendMetadataUrls = (
+      jobStatus as (typeof jobStatus & PerformanceJobStatusWithMetadata) | null
+    )?.metadata_stream_urls;
+    const metadataStreamUrls = backendMetadataUrls
+      ? Object.entries(backendMetadataUrls).reduce(
+          (acc, [key, urls]) => {
+            const raw = Array.isArray(urls) && urls.length > 0 ? urls[0] : "";
+            // Ensure the URL includes the /api/v1 prefix for the Vite proxy
+            acc[key] = raw && !raw.startsWith("/api/") ? `/api/v1${raw}` : raw;
+            return acc;
+          },
+          {} as Record<string, string>,
+        )
       : null;
     const activePanelSize =
       detailsPanelType === "node"
@@ -821,6 +866,7 @@ export const Pipelines = () => {
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
                       }
+                      metadataStreamUrls={metadataStreamUrls ?? null}
                     />
                   </div>
                 </ResizablePanel>
