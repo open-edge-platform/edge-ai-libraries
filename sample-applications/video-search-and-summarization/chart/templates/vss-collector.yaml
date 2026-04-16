@@ -1,4 +1,4 @@
-{{- if .Values.vsscollector.enabled }}
+{{- if and .Values.vsscollector.enabled .Values.vdmsdataprep.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,7 +44,8 @@ spec:
               topologyKey: kubernetes.io/hostname
       {{- end }}
       {{- with .Values.vsscollector.nodeSelector }}
-                    app.kubernetes.io/app: {{ include "vdms-dataprep.fullname" .Subcharts.vdmsdataprep }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.vsscollector.tolerations }}
       tolerations:
