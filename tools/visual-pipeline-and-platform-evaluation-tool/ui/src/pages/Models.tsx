@@ -62,20 +62,21 @@ export const Models = () => {
     }, 100); // Update every 100ms for smooth progress
   };
 
-  if (models.length > 0) {
-    return (
-      <div className="container pl-16 mx-auto py-10">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Models</h1>
-            <p className="text-muted-foreground mt-2">
-              Ready-to-use models available in the platform
-            </p>
-          </div>
-          <Button onClick={startTestJob} disabled={isJobRunning}>
-            {isJobRunning ? "Job Running..." : "Start Test Job (1 min)"}
-          </Button>
+  return (
+    <div className="container pl-16 mx-auto py-10">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Models</h1>
+          <p className="text-muted-foreground mt-2">
+            Ready-to-use models available in the platform
+          </p>
         </div>
+        <Button onClick={startTestJob} disabled={isJobRunning}>
+          {isJobRunning ? "Job Running..." : "Start Test Job (1 min)"}
+        </Button>
+      </div>
+
+      {models.length > 0 ? (
         <Table>
           <TableCaption>A list of loaded models.</TableCaption>
           <TableHeader>
@@ -87,7 +88,7 @@ export const Models = () => {
           </TableHeader>
           <TableBody>
             {models.map((model) => (
-              <TableRow key={model.name}>
+              <TableRow key={`${model.name}-${model.precision}`}>
                 <TableCell className="font-medium">
                   {model.display_name}
                 </TableCell>
@@ -97,19 +98,11 @@ export const Models = () => {
             ))}
           </TableBody>
         </Table>
-      </div>
-    );
-  }
-  return (
-    <div className="h-full overflow-auto">
-      <div className="container mx-auto py-10">
-        <div className="flex items-center justify-between mb-6">
-          <p>Loading models</p>
-          <Button onClick={startTestJob} disabled={isJobRunning}>
-            {isJobRunning ? "Job Running..." : "Start Test Job (1 min)"}
-          </Button>
+      ) : (
+        <div className="text-center py-10 text-muted-foreground">
+          No models loaded yet.
         </div>
-      </div>
+      )}
     </div>
   );
 };
