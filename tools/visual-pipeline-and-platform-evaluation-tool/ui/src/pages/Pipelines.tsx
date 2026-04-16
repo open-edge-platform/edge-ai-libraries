@@ -68,10 +68,6 @@ type UrlParams = {
   variant: string;
 };
 
-type PerformanceJobStatusWithMetadata = {
-  metadata_stream_urls?: Record<string, string[]> | null;
-};
-
 // Helper function to detect if nodes contain camera input
 const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
   return nodes.some((node) => {
@@ -445,21 +441,6 @@ export const Pipelines = () => {
       ? selectedNode
         ? "node"
         : "run"
-      : null;
-    // Backend returns Dict[str, list[str]] - convert to Dict[str, str] by taking first URL per pipeline
-    const backendMetadataUrls = (
-      jobStatus as (typeof jobStatus & PerformanceJobStatusWithMetadata) | null
-    )?.metadata_stream_urls;
-    const metadataStreamUrls = backendMetadataUrls
-      ? Object.entries(backendMetadataUrls).reduce(
-          (acc, [key, urls]) => {
-            const raw = Array.isArray(urls) && urls.length > 0 ? urls[0] : "";
-            // Ensure the URL includes the /api/v1 prefix for the Vite proxy
-            acc[key] = raw && !raw.startsWith("/api/") ? `/api/v1${raw}` : raw;
-            return acc;
-          },
-          {} as Record<string, string>,
-        )
       : null;
     const activePanelSize =
       detailsPanelType === "node"
@@ -866,7 +847,6 @@ export const Pipelines = () => {
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
                       }
-                      metadataStreamUrls={metadataStreamUrls ?? null}
                     />
                   </div>
                 </ResizablePanel>

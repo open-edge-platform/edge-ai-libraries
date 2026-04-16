@@ -3,11 +3,41 @@ import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
 
 const MAX_JSON_LINES_PER_PIPELINE = 400;
+const METADATA_POLL_INTERVAL = 3000;
 
-type MetadataStreamMap = Record<string, string>;
 type ConnectionState = "connecting" | "open" | "error" | "closed";
+
+type PerformanceJobStatusWithMetadata = {
+  metadata_stream_urls?: Record<string, string[]> | null;
+};
+
+/** Label shown in the pipeline tab: "job-short … pipeline-short" */
+const buildStreamLabel = (jobId: string, pipelineId: string): string => {
+  const shortJob = jobId.slice(0, 8);
+  const shortPipeline = pipelineId.replace(/^__graph-/, "").slice(0, 8);
+  return `${shortJob} / ${shortPipeline}`;
+};
+
+const collectMetadataStreams = (
+  jobs: (Record<string, unknown> & PerformanceJobStatusWithMetadata)[],
+): Record<string, string> => {
+  const result: Record<string, string> = {};
+  for (const job of jobs) {
+    const jobId = job.id as string;
+    const urls = job.metadata_stream_urls;
+    if (!urls) continue;
+    for (const [pipelineId, streamUrls] of Object.entries(urls)) {
+      if (!Array.isArray(streamUrls) || streamUrls.length === 0) continue;
+      const raw = streamUrls[0];
+      const url = raw && !raw.startsWith("/api/") ? `/api/v1${raw}` : raw;
+      result[`${jobId}::${pipelineId}`] = url;
+    }
+  }
+  return result;
+};
 
 type PerformanceTestPanelProps = {
   isRunning: boolean;
@@ -15,7 +45,6 @@ type PerformanceTestPanelProps = {
   pipelineId?: string;
   livePreviewEnabled?: boolean;
   liveStreamUrl?: string | null;
-  metadataStreamUrls?: MetadataStreamMap | null;
 };
 
 const PerformanceTestPanel = ({
@@ -24,7 +53,6 @@ const PerformanceTestPanel = ({
   pipelineId,
   livePreviewEnabled = false,
   liveStreamUrl,
-  metadataStreamUrls = null,
 }: PerformanceTestPanelProps) => {
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
@@ -44,8 +72,23 @@ const PerformanceTestPanel = ({
   const [connectionErrors, setConnectionErrors] = useState<
     Record<string, string | null>
   >({});
+
+  // Poll all performance jobs to collect metadata stream URLs from ALL running jobs
+  const { data: allJobs } = useGetPerformanceStatusesQuery(undefined, {
+    pollingInterval: METADATA_POLL_INTERVAL,
+  });
+
+  const metadataStreamUrls = useMemo(() => {
+    if (!allJobs) return {};
+    const runningJobs = allJobs.filter((j) => j.state === "RUNNING");
+    return collectMetadataStreams(
+      runningJobs as (Record<string, unknown> &
+        PerformanceJobStatusWithMetadata)[],
+    );
+  }, [allJobs]);
+
   const metadataEntries = useMemo(
-    () => Object.entries(metadataStreamUrls ?? {}),
+    () => Object.entries(metadataStreamUrls),
     [metadataStreamUrls],
   );
 
@@ -181,10 +224,14 @@ const PerformanceTestPanel = ({
   const metadataTabValue = activeMetadataTab ?? metadataEntries[0]?.[0] ?? "";
 
   return (
-    <div className="w-full h-full bg-background p-4 space-y-4">
+    <div className="flex flex-col w-full h-full bg-background p-4 space-y-4">
       <h2 className="text-lg font-semibold">Test pipeline</h2>
 
-      <Tabs value={activeMainTab} onValueChange={setActiveMainTab}>
+      <Tabs
+        value={activeMainTab}
+        onValueChange={setActiveMainTab}
+        className="flex flex-col flex-1 min-h-0"
+      >
         <TabsList>
           <TabsTrigger value="run">Run</TabsTrigger>
           <TabsTrigger value="metadata" disabled={!hasMetadataStreams}>
@@ -195,7 +242,7 @@ const PerformanceTestPanel = ({
         <TabsContent
           value="run"
           forceMount
-          className="space-y-4 mt-4"
+          className="space-y-4 mt-2"
           hidden={activeMainTab !== "run"}
         >
           {livePreviewEnabled && (isRunning || !!liveStreamUrl) && (
@@ -240,37 +287,81 @@ const PerformanceTestPanel = ({
           )}
         </TabsContent>
 
-        <TabsContent value="metadata" className="mt-4">
+        <TabsContent
+          value="metadata"
+          className="mt-2 flex-1 flex flex-col min-h-0"
+        >
           {!hasMetadataStreams && (
             <p className="text-sm text-muted-foreground">
               Waiting for metadata stream URLs from the API...
             </p>
           )}
 
-          {hasMetadataStreams && (
+          {hasMetadataStreams &&
+            metadataEntries.length === 1 &&
+            (() => {
+              const [compositeKey, streamUrl] = metadataEntries[0];
+              const lines = metadataLines[compositeKey] ?? [];
+              const state = connectionStates[compositeKey] ?? "connecting";
+              const error = connectionErrors[compositeKey];
+              return (
+                <div className="flex flex-col flex-1 min-h-0 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                      SSE: {state}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground break-all">
+                    {streamUrl}
+                  </p>
+                  {error && <p className="text-xs text-destructive">{error}</p>}
+                  <div className="flex-1 min-h-[100px] max-h-[800px] overflow-auto rounded border bg-muted/20 p-3 font-mono text-xs leading-5">
+                    {lines.length === 0 ? (
+                      <p className="text-muted-foreground">
+                        Waiting for JSON lines...
+                      </p>
+                    ) : (
+                      lines.map((line, lineIndex) => (
+                        <div
+                          key={`${compositeKey}-${lineIndex}`}
+                          className="whitespace-pre-wrap break-words"
+                        >
+                          {line}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+          {hasMetadataStreams && metadataEntries.length > 1 && (
             <Tabs value={metadataTabValue} onValueChange={setActiveMetadataTab}>
               <TabsList className="w-full h-auto flex-wrap justify-start">
-                {metadataEntries.map(([pipelineKey], index) => (
-                  <TabsTrigger key={pipelineKey} value={pipelineKey}>
-                    Pipeline {index + 1}
-                  </TabsTrigger>
-                ))}
+                {metadataEntries.map(([compositeKey]) => {
+                  const [jobId, pipelineId] = compositeKey.split("::");
+                  return (
+                    <TabsTrigger key={compositeKey} value={compositeKey}>
+                      {buildStreamLabel(jobId, pipelineId)}
+                    </TabsTrigger>
+                  );
+                })}
               </TabsList>
 
-              {metadataEntries.map(([pipelineKey, streamUrl], index) => {
-                const lines = metadataLines[pipelineKey] ?? [];
-                const state = connectionStates[pipelineKey] ?? "connecting";
-                const error = connectionErrors[pipelineKey];
+              {metadataEntries.map(([compositeKey, streamUrl], index) => {
+                const lines = metadataLines[compositeKey] ?? [];
+                const state = connectionStates[compositeKey] ?? "connecting";
+                const error = connectionErrors[compositeKey];
 
                 return (
                   <TabsContent
-                    key={pipelineKey}
-                    value={pipelineKey}
+                    key={compositeKey}
+                    value={compositeKey}
                     className="space-y-3 mt-4"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <h3 className="text-sm font-medium text-muted-foreground">
-                        Pipeline {index + 1}
+                        Stream {index + 1}
                       </h3>
                       <span className="text-xs uppercase tracking-wide text-muted-foreground">
                         SSE: {state}
@@ -285,7 +376,7 @@ const PerformanceTestPanel = ({
                       <p className="text-xs text-destructive">{error}</p>
                     )}
 
-                    <div className="h-[360px] overflow-auto rounded border bg-muted/20 p-3 font-mono text-xs leading-5">
+                    <div className="flex-1 min-h-[100px] max-h-[800px] overflow-auto rounded border bg-muted/20 p-3 font-mono text-xs leading-5">
                       {lines.length === 0 ? (
                         <p className="text-muted-foreground">
                           Waiting for JSON lines...
@@ -293,7 +384,7 @@ const PerformanceTestPanel = ({
                       ) : (
                         lines.map((line, lineIndex) => (
                           <div
-                            key={`${pipelineKey}-${lineIndex}`}
+                            key={`${compositeKey}-${lineIndex}`}
                             className="whitespace-pre-wrap break-words"
                           >
                             {line}
