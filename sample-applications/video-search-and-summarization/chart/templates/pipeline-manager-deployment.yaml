@@ -200,7 +200,7 @@ spec:
             - name: DATAPREP_TELEMETRY_URL
               value: "http://{{ .Values.vdmsdataprep.name }}:{{ .Values.vdmsdataprep.service.port }}/v1/dataprep/telemetry?limit=1"
             {{- end }}
-            {{- if .Values.vsscollector.enabled }}
+            {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
             - name: TELEMETRY_SIGNAL_DIR
               value: "/app/.collector-signals"
             {{- end }}
@@ -216,7 +216,7 @@ spec:
             {{- end }}
             - name: USE_VLLM
               value: "{{ .Values.pipelinemanager.env.USE_VLLM }}"
-          {{- if .Values.vsscollector.enabled }}
+          {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
           volumeMounts:
             - name: collector-signals
               mountPath: /app/.collector-signals
@@ -230,7 +230,7 @@ spec:
       {{- end }}
       tolerations:
         {{- toYaml .Values.pipelinemanager.tolerations | nindent 8 }}
-      {{- if .Values.vsscollector.enabled }}
+      {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
       volumes:
         - name: collector-signals
           {{- if .Values.global.usePvc }}
