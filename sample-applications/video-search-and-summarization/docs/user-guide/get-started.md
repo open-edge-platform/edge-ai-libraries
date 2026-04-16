@@ -198,6 +198,37 @@ Before running the application, you need to set several environment variables:
 
    > **Note**: For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
 
+10. **Override OVMS Model Weight Compression Format (Video Summarization Mode)**:
+
+    When using OVMS for inference, the setup script auto-selects the model weight compression format based on the target device (`int8` for CPU, `int4` for GPU/NPU). You can override this auto-detection by setting these variables before running the setup script:
+
+    ```bash
+    # Override VLM model weight compression format (default: int8 for CPU, int4 for GPU/NPU)
+    export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+
+    # Override LLM model weight compression format (default: int8 for CPU, int4 for GPU/NPU)
+    export LLM_COMPRESSION_WEIGHT_FORMAT=int4
+    ```
+
+    > **Note**: Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
+
+11. **Configure Embedding Processing Mode (Video Search Mode)**:
+
+    Control how the embedding model is loaded and invoked during video search indexing:
+
+    ```bash
+    # Embedding processing mode: "sdk" (default) or "api"
+    #   - "sdk": Loads the embedding model directly within the vdms-dataprep container (optimized, lower memory overhead)
+    #   - "api": Routes embedding requests via HTTP to the multimodal-embedding-serving container
+    export EMBEDDING_PROCESSING_MODE=sdk
+
+    # Enable OpenVINO optimization for SDK-mode embedding (default: true)
+    # Automatically set to true when using GPU mode
+    export SDK_USE_OPENVINO=true
+    ```
+
+    > **Note**: SDK mode is recommended for most deployments as it avoids inter-container HTTP overhead. Set `EMBEDDING_PROCESSING_MODE=api` if you need the embedding model served as a standalone microservice.
+
 **🔐 Work with Gated Models**
 
 To run a **GATED MODEL** like Llama models, you will need to pass your [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). You will need to request for an access to a specific model by going to the respective model page on Hugging Face website.
