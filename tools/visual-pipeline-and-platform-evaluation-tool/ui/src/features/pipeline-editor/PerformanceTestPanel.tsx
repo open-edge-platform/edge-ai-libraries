@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
 
 const MAX_JSON_LINES_PER_PIPELINE = 400;
 const METADATA_POLL_INTERVAL = 3000;
@@ -19,6 +21,96 @@ const buildStreamLabel = (jobId: string, pipelineId: string): string => {
   const shortJob = jobId.slice(0, 8);
   const shortPipeline = pipelineId.replace(/^__graph-/, "").slice(0, 8);
   return `${shortJob} / ${shortPipeline}`;
+};
+
+const prettifyJson = (raw: string): string => {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
+};
+
+const MetadataJsonViewer = ({ lines }: { lines: string[] }) => {
+  const [currentIndex, setCurrentIndex] = useState(lines.length - 1);
+  const [followLatest, setFollowLatest] = useState(true);
+
+  useEffect(() => {
+    if (followLatest && lines.length > 0) {
+      setCurrentIndex(lines.length - 1);
+    }
+  }, [lines.length, followLatest]);
+
+  const goPrev = useCallback(() => {
+    setFollowLatest(false);
+    setCurrentIndex((i) => Math.max(0, i - 1));
+  }, []);
+
+  const goNext = useCallback(() => {
+    setCurrentIndex((i) => {
+      const next = Math.min(lines.length - 1, i + 1);
+      if (next === lines.length - 1) setFollowLatest(true);
+      return next;
+    });
+  }, [lines.length]);
+
+  const goLatest = useCallback(() => {
+    setFollowLatest(true);
+    setCurrentIndex(lines.length - 1);
+  }, [lines.length]);
+
+  if (lines.length === 0) {
+    return (
+      <div className="min-h-[100px] flex items-center justify-center rounded border bg-muted/20 p-3">
+        <p className="text-sm text-muted-foreground">Waiting for JSON entries...</p>
+      </div>
+    );
+  }
+
+  const safeIndex = Math.min(currentIndex, lines.length - 1);
+  const formatted = prettifyJson(lines[safeIndex]);
+
+  return (
+    <div className="flex flex-col space-y-2 min-w-0">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={goPrev}
+            disabled={safeIndex === 0}
+            aria-label="Previous entry"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={goNext}
+            disabled={safeIndex >= lines.length - 1}
+            aria-label="Next entry"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {safeIndex + 1} / {lines.length}
+        </span>
+        <Button
+          variant={followLatest ? "secondary" : "outline"}
+          size="sm"
+          onClick={goLatest}
+          className="text-xs gap-1 h-7"
+        >
+          <ChevronsRight className="h-3.5 w-3.5" />
+          Follow
+        </Button>
+      </div>
+      <pre className="min-h-[100px] max-h-[400px] overflow-auto rounded border bg-muted/20 p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all">
+        {formatted}
+      </pre>
+    </div>
+  );
 };
 
 const collectMetadataStreams = (
@@ -316,22 +408,7 @@ const PerformanceTestPanel = ({
                     {streamUrl}
                   </p>
                   {error && <p className="text-xs text-destructive">{error}</p>}
-                  <div className="min-h-[100px] max-h-[300px] overflow-y-auto overflow-x-hidden rounded border bg-muted/20 p-3 font-mono text-xs leading-5">
-                    {lines.length === 0 ? (
-                      <p className="text-muted-foreground">
-                        Waiting for JSON lines...
-                      </p>
-                    ) : (
-                      lines.map((line, lineIndex) => (
-                        <div
-                          key={`${compositeKey}-${lineIndex}`}
-                          className="whitespace-pre-wrap break-all"
-                        >
-                          {line}
-                        </div>
-                      ))
-                    )}
-                  </div>
+                  <MetadataJsonViewer lines={lines} />
                 </div>
               );
             })()}
@@ -377,22 +454,7 @@ const PerformanceTestPanel = ({
                       <p className="text-xs text-destructive">{error}</p>
                     )}
 
-                    <div className="min-h-[100px] max-h-[300px] overflow-y-auto overflow-x-hidden rounded border bg-muted/20 p-3 font-mono text-xs leading-5">
-                      {lines.length === 0 ? (
-                        <p className="text-muted-foreground">
-                          Waiting for JSON lines...
-                        </p>
-                      ) : (
-                        lines.map((line, lineIndex) => (
-                          <div
-                            key={`${compositeKey}-${lineIndex}`}
-                            className="whitespace-pre-wrap break-all"
-                          >
-                            {line}
-                          </div>
-                        ))
-                      )}
-                    </div>
+                    <MetadataJsonViewer lines={lines} />
                   </TabsContent>
                 );
               })}
