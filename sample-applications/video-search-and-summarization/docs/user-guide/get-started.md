@@ -163,25 +163,7 @@ Before running the application, you need to set several environment variables:
 
    > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
 
-7. **Set advanced VLM Configuration Options**:
-
-   The following environment variables provide additional control over VLM inference behavior and logging:
-
-   ```bash
-   # (Optional) OpenVINO configuration for VLM inference optimization
-   # Pass OpenVINO configuration parameters as a JSON string to fine-tune inference performance
-   # Default latency-optimized configuration (equivalent to not setting OV_CONFIG)
-   # export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY"}'
-
-   # Throughput-optimized configuration
-   export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
-   ```
-
-   > **IMPORTANT:** The `OV_CONFIG` variable is used to pass OpenVINO configuration parameters to the VLM service. It allows you to optimize inference performance based on your hardware and workload.
-   > For a complete list of OpenVINO configuration options, refer to the [OpenVINO Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
-   > **Note**: If OV_CONFIG is not set, the default configuration `{"PERFORMANCE_HINT": "LATENCY"}` will be used.
-
-8. **(Optional) Telemetry collection for Search**:
+7. **(Optional) Telemetry collection for Search**:
 
    The Video Search mode can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI.
 
@@ -193,7 +175,7 @@ Before running the application, you need to set several environment variables:
    export ENABLE_VSS_COLLECTOR=true
    ```
 
-9. **Tune Inference Concurrency (Video Summarization Mode)**:
+8. **Tune Inference Concurrency (Video Summarization Mode)**:
 
    Control how many concurrent inference requests the pipeline manager sends to OVMS or vLLM. These values affect throughput and resource utilization:
 
@@ -207,7 +189,7 @@ Before running the application, you need to set several environment variables:
 
    > **Note**: For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
 
-10. **Override OVMS Model Weight Compression Format (Video Summarization Mode)**:
+9. **Override OVMS Model Weight Compression Format (Video Summarization Mode)**:
 
     When using OVMS for inference, the setup script auto-selects the model weight compression format based on the target device (`int8` for CPU, `int4` for GPU/NPU). You can override this auto-detection by setting these variables before running the setup script:
 
@@ -221,7 +203,7 @@ Before running the application, you need to set several environment variables:
 
     > **Note**: Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
 
-11. **Configure Embedding Processing Mode (Video Search Mode)**:
+10. **Configure Embedding Processing Mode (Video Search Mode)**:
 
     Control how the embedding model is loaded and invoked during video search indexing:
 
