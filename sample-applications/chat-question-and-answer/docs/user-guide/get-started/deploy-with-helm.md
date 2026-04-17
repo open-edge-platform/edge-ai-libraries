@@ -1,6 +1,6 @@
 # Deploy with Helm
 
-This guide provides step-by-step instructions for deploying the ChatQ&A Sample Application using Helm.
+This guide provides step-by-step instructions for deploying the Chat Question & Answer (Chat Q&A) sample application using Helm.
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@ Before you begin, ensure that you have the following prerequisites:
 - Install `kubectl` on your system. Refer to [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
 - Helm installed on your system: [Installation Guide](https://helm.sh/docs/intro/install/).
 - Model Download microservice is deployed using Helm and is up and running (required for OVMS). Refer to the [Deploy with Helm Chart Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started/deploy-with-helm-chart.html) for deployment instructions.
-- Ensure the Model Download Helm chart is deployed and the `model-download` microservice is up and running before deploying Chat QnA. Refer to the [Model Download Get Started Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started.html).
+- Ensure the Model Download Helm chart is deployed and the `model-download` microservice is up and running before deploying Chat Q&A. Refer to the [Model Download Get Started Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started.html).
 
 ## Steps to deploy with Helm
 
@@ -213,9 +213,9 @@ helm uninstall <name> -n <your-namespace>
   ```
 
 **Note:**
-Chat QnA uses a shared PVC created and managed by the `model-download` microservice. Do not delete this PVC while either service is running, as it stores downloaded model data and is required by both.
+Chat Q&A uses a shared PVC created and managed by the `model-download` microservice. Do not delete this PVC while either service is running, as it stores downloaded model data and is required by both.
 
-Only delete the shared PVC when intentionally cleaning up model artifacts and after ensuring no workloads depend on it. Typically, uninstall Chat QnA first, then clean up `model-download` resources, and remove the PVC if needed.
+Only delete the shared PVC when intentionally cleaning up model artifacts and after ensuring no workloads depend on it. Typically, uninstall Chat Q&A first, then clean up `model-download` resources, and remove the PVC if needed.
 
 ## Related links
 

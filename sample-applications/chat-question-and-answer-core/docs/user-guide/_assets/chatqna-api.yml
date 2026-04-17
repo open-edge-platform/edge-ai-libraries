@@ -223,49 +223,49 @@ paths:
   /devices/{device}:
     get:
       tags:
-      - Device API
+        - Device API
       summary: Get device property
       description: Retrieve information about a specific device, including its properties. If the device is not found, an error is returned.
       parameters:
-      - name: device
-        in: path
-        required: true
-        description: The name of the device to retrieve information for.
-        schema:
-        type: string
+        - name: device
+          in: path
+          required: true
+          description: The name of the device to retrieve information for.
+          schema:
+            type: string
       responses:
-      '200':
-        description: Device properties retrieved successfully
-        content:
-        application/json:
-          schema:
-          type: object
-          additionalProperties: true
-          example:
-          property1: value1
-          property2: value2
-      '404':
-        description: Device not found
-        content:
-        application/json:
-          schema:
-          type: object
-          properties:
-            detail:
-            type: string
-          example:
-            detail: Device device_name not found. Available devices: [device1, device2]
-      '500':
-        description: Internal server error
-        content:
-        application/json:
-          schema:
-          type: object
-          properties:
-            detail:
-            type: string
-          example:
-          detail: An unexpected error occurred while retrieving the device properties.
+        '200':
+          description: Device properties retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                example:
+                  property1: value1
+                  property2: value2
+        '404':
+          description: Device not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                example:
+                  detail: 'Device device_name not found. Available devices: [device1, device2]'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                example:
+                  detail: An unexpected error occurred while retrieving the device properties.
           examples:
             curl:
               summary: Curl example
@@ -305,7 +305,7 @@ paths:
             text/event-stream:
               schema:
                 type: string
-                example: data: chunk\n\n
+                example: 'data: chunk\n\n'
         '500':
           description: Error message
           content:

@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=intel/dlstreamer:2026.0.0-ubuntu22
+ARG BASE_IMAGE=intel/dlstreamer:2026.0.0-ubuntu24
 FROM ${BASE_IMAGE} AS gstudfloader-builder
 
 USER root
@@ -320,7 +320,7 @@ RUN apt update && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
     
-RUN pip3 install --no-cache-dir --upgrade openvino==2025.2.0 openvino-telemetry==2025.2.0
+RUN pip3 install --no-cache-dir --upgrade openvino==2026.0.0 openvino-telemetry==2025.2.0
 
 RUN . /etc/os-release && \
     if [ "$VERSION_ID" = "22.04" ]; then \

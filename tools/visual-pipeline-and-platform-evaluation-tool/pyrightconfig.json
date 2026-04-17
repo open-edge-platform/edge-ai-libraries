@@ -16,6 +16,7 @@
     "**/node_modules",
     "**/__pycache__",
     ".git",
-    "shared/scripts"
-  ],
+    "shared/scripts",
+    "shared/model-download"
+  ]
 }

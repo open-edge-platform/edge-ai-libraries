@@ -1,6 +1,6 @@
 # How to deploy with Helm
 
-This guide provides step-by-step instructions for deploying the Chat Question-and-Answer Core Sample Application using Helm.
+This guide provides step-by-step instructions for deploying the Chat Question & Answer (Chat Q&A) Core Sample Application using Helm.
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ Before you begin, ensure that you have the following prerequisites:
 
 ## Steps to deploy with Helm
 
-You can deploy the ChatQ&A Core application using `Helm` in **two ways**: by pulling the Helm chart from Docker Hub or by building it from the source code. Follow the steps below based on your preferred method.
+You can deploy the Chat Q&A Core application using `Helm` in **two ways**: by pulling the Helm chart from Docker Hub or by building it from the source code. Follow the steps below based on your preferred method.
 
 **_Note: Steps 1–3 differ depending on whether you choose to pull the chart or build it from source._**
 
