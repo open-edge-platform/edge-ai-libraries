@@ -286,6 +286,14 @@ export const Summary: FC = () => {
     }
   };
 
+  const handleDownloadAudioSummary = () => {
+    if (!selectedSummary?.audioTranscriptSummary) return;
+    const videoName = sanitizeFilename(selectedSummary.title);
+    const dateStr = formatDateForFilename(new Date());
+    const filename = `audio_summary_${videoName}_${dateStr}.md`;
+    downloadTextFile(selectedSummary.audioTranscriptSummary, filename);
+  };
+
   const handleDownloadFinalSummary = () => {
     if (!selectedSummary) return;
     
@@ -531,6 +539,11 @@ export const Summary: FC = () => {
           passiveModal
         >
           <ModalBody>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+              <DownloadButton onClick={handleDownloadAudioSummary} data-tooltip={t('downloadAudioSummary', { defaultValue: 'Download Audio Summary' })}>
+                <Download />
+              </DownloadButton>
+            </div>
             <StyledMessage>
               <Markdown>{processMD(summaryData.audioTranscriptSummary ?? '')}</Markdown>
             </StyledMessage>
