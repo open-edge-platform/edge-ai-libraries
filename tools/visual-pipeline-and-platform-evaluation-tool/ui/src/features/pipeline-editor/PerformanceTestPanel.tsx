@@ -44,6 +44,7 @@ type PerformanceTestPanelProps = {
   completedVideoPath: string | null;
   pipelineId?: string;
   livePreviewEnabled?: boolean;
+  videoOutputEnabled?: boolean;
   liveStreamUrl?: string | null;
 };
 
@@ -52,6 +53,7 @@ const PerformanceTestPanel = ({
   completedVideoPath,
   pipelineId,
   livePreviewEnabled = false,
+  videoOutputEnabled = false,
   liveStreamUrl,
 }: PerformanceTestPanelProps) => {
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
@@ -59,7 +61,7 @@ const PerformanceTestPanel = ({
   const prevIsRunningRef = useRef(false);
   const metadataSourcesRef = useRef<Record<string, EventSource>>({});
   const metadataSourceUrlsRef = useRef<Record<string, string>>({});
-  const [activeMainTab, setActiveMainTab] = useState("run");
+  const [activeMainTab, setActiveMainTab] = useState("metadata");
   const [activeMetadataTab, setActiveMetadataTab] = useState<string | null>(
     null,
   );
@@ -223,73 +225,72 @@ const PerformanceTestPanel = ({
   const hasMetadataStreams = metadataEntries.length > 0;
   const metadataTabValue = activeMetadataTab ?? metadataEntries[0]?.[0] ?? "";
 
+  const hasMediaTab = livePreviewEnabled || videoOutputEnabled;
+  const mediaTabLabel = livePreviewEnabled ? "Live Preview" : "Output Video";
+  const hasLiveStream = livePreviewEnabled && (isRunning || !!liveStreamUrl);
+  const hasOutputVideo = !livePreviewEnabled && !!completedVideoPath;
+  const effectiveMainTab =
+    activeMainTab === "media" && !hasMediaTab ? "metadata" : activeMainTab;
+
   return (
-    <div className="flex flex-col w-full h-full bg-background p-4 space-y-4">
+    <div className="flex flex-col w-full h-full bg-background p-4 space-y-4 overflow-y-auto overflow-x-hidden min-w-0">
       <h2 className="text-lg font-semibold">Test pipeline</h2>
 
       <Tabs
-        value={activeMainTab}
+        value={effectiveMainTab}
         onValueChange={setActiveMainTab}
-        className="flex flex-col flex-1 min-h-0"
+        className="flex flex-col min-w-0"
       >
         <TabsList>
-          <TabsTrigger value="run">Run</TabsTrigger>
+          {hasMediaTab && (
+            <TabsTrigger value="media">{mediaTabLabel}</TabsTrigger>
+          )}
           <TabsTrigger value="metadata" disabled={!hasMetadataStreams}>
             Metadata JSON
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent
-          value="run"
-          forceMount
-          className="space-y-4 mt-2"
-          hidden={activeMainTab !== "run"}
-        >
-          {livePreviewEnabled && (isRunning || !!liveStreamUrl) && (
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                Live Preview
-              </h3>
-              {liveStreamUrl ? (
-                <WebRTCVideoPlayer
-                  pipelineId={pipelineId}
-                  streamUrl={liveStreamUrl}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Waiting for live stream to be published...
-                </p>
-              )}
-            </div>
-          )}
+        {hasMediaTab && (
+          <TabsContent value="media" className="space-y-4 mt-2">
+            {livePreviewEnabled && (
+              <div>
+                {hasLiveStream && liveStreamUrl ? (
+                  <WebRTCVideoPlayer
+                    pipelineId={pipelineId}
+                    streamUrl={liveStreamUrl}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Waiting for live stream to be published...
+                  </p>
+                )}
+              </div>
+            )}
 
-          {completedVideoPath && (
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                Output Video
-              </h3>
-              <video
-                controls
-                className="w-full h-auto border border-gray-300 rounded"
-                src={`/assets${completedVideoPath}`}
-              >
-                Your browser does not support the video tag.
-              </video>
-            </div>
-          )}
+            {!livePreviewEnabled && videoOutputEnabled && (
+              <div>
+                {hasOutputVideo && completedVideoPath ? (
+                  <video
+                    controls
+                    className="w-full h-auto border border-gray-300 rounded"
+                    src={`/assets${completedVideoPath}`}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Waiting for output video...
+                  </p>
+                )}
+              </div>
+            )}
 
-          {isRunning && <MetricsDashboard />}
-          {!isRunning && frozenSummary && (
-            <MetricsDashboard
-              historyOverride={frozenHistory}
-              metricsOverride={frozenSummary}
-            />
-          )}
-        </TabsContent>
+          </TabsContent>
+        )}
 
         <TabsContent
           value="metadata"
-          className="mt-2 flex-1 flex flex-col min-h-0"
+          className="space-y-4 mt-2 overflow-hidden min-w-0"
         >
           {!hasMetadataStreams && (
             <p className="text-sm text-muted-foreground">
@@ -305,7 +306,7 @@ const PerformanceTestPanel = ({
               const state = connectionStates[compositeKey] ?? "connecting";
               const error = connectionErrors[compositeKey];
               return (
-                <div className="flex flex-col flex-1 min-h-0 space-y-3">
+                <div className="flex flex-col space-y-3 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs uppercase tracking-wide text-muted-foreground">
                       SSE: {state}
@@ -315,7 +316,7 @@ const PerformanceTestPanel = ({
                     {streamUrl}
                   </p>
                   {error && <p className="text-xs text-destructive">{error}</p>}
-                  <div className="flex-1 min-h-[100px] max-h-[800px] overflow-auto rounded border bg-muted/20 p-3 font-mono text-xs leading-5">
+                  <div className="min-h-[100px] max-h-[300px] overflow-y-auto overflow-x-hidden rounded border bg-muted/20 p-3 font-mono text-xs leading-5">
                     {lines.length === 0 ? (
                       <p className="text-muted-foreground">
                         Waiting for JSON lines...
@@ -324,7 +325,7 @@ const PerformanceTestPanel = ({
                       lines.map((line, lineIndex) => (
                         <div
                           key={`${compositeKey}-${lineIndex}`}
-                          className="whitespace-pre-wrap break-words"
+                          className="whitespace-pre-wrap break-all"
                         >
                           {line}
                         </div>
@@ -376,7 +377,7 @@ const PerformanceTestPanel = ({
                       <p className="text-xs text-destructive">{error}</p>
                     )}
 
-                    <div className="flex-1 min-h-[100px] max-h-[800px] overflow-auto rounded border bg-muted/20 p-3 font-mono text-xs leading-5">
+                    <div className="min-h-[100px] max-h-[300px] overflow-y-auto overflow-x-hidden rounded border bg-muted/20 p-3 font-mono text-xs leading-5">
                       {lines.length === 0 ? (
                         <p className="text-muted-foreground">
                           Waiting for JSON lines...
@@ -385,7 +386,7 @@ const PerformanceTestPanel = ({
                         lines.map((line, lineIndex) => (
                           <div
                             key={`${compositeKey}-${lineIndex}`}
-                            className="whitespace-pre-wrap break-words"
+                            className="whitespace-pre-wrap break-all"
                           >
                             {line}
                           </div>
@@ -399,6 +400,14 @@ const PerformanceTestPanel = ({
           )}
         </TabsContent>
       </Tabs>
+
+      {isRunning && <MetricsDashboard />}
+      {!isRunning && frozenSummary && (
+        <MetricsDashboard
+          historyOverride={frozenHistory}
+          metricsOverride={frozenSummary}
+        />
+      )}
     </div>
   );
 };

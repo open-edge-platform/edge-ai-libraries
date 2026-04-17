@@ -828,7 +828,7 @@ export const Pipelines = () => {
 
                 <ResizablePanel
                   defaultSize={runPanelSizeRef.current}
-                  minSize={900}
+                  minSize={640}
                   onResize={(size) => {
                     if (typeof size === "number") {
                       runPanelSizeRef.current = size;
@@ -837,12 +837,13 @@ export const Pipelines = () => {
                 >
                   <div
                     ref={detailsPanelRef}
-                    className="w-full h-full bg-background overflow-auto relative"
+                    className="w-full h-full bg-background overflow-y-auto overflow-x-hidden relative [scrollbar-gutter:stable]"
                   >
                     <PerformanceTestPanel
                       isRunning={jobStatus?.state === "RUNNING"}
                       completedVideoPath={completedVideoPath}
                       livePreviewEnabled={livePreviewEnabled}
+                      videoOutputEnabled={videoOutputEnabled}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
