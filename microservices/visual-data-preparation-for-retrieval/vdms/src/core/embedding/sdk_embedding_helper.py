@@ -19,7 +19,7 @@ Performance Benefits:
 - Memory-only processing avoids disk I/O
 """
 
-from datetime import datetime
+import datetime
 import gc
 import json
 import multiprocessing
@@ -82,6 +82,8 @@ class FrameMetadata:
     video_url: str = ""
     video_rel_url: str = ""
     video_index: int = 0
+    created_at: Optional[datetime.datetime] = None
+
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -1178,7 +1180,7 @@ def _process_video_from_memory_simple_pipeline(
     shutdown_event = shutdown_event or threading.Event()
     logger.info("Processing video using simple parallel pipeline....")
     try:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         tracer = init_tracer(output_file=f"trace_{timestamp}.json", enabled=True)
         tracer.set_process_name("decode_detect_embed_store_pipeline")
 
@@ -1280,6 +1282,13 @@ def _process_video_from_memory_simple_pipeline(
         video_url = metadata_dict.get("video_url", "")
         video_rel_url = metadata_dict.get("video_rel_url", "")
 
+        # Ensure created_at exists for downstream time filtering
+        created_at_value = metadata_dict.get('created_at', None)
+        if isinstance(created_at_value, dict) and '_date' in created_at_value:
+            created_at_value = created_at_value.get('_date')
+        if created_at_value is None:
+            created_at_value = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
         all_stream_metadata[0].update(
             {
                 "_video_id": video_id,
@@ -1321,7 +1330,7 @@ def _process_video_from_memory_simple_pipeline(
                         video_id=video_id,
                         filename=filename,
                         bucket_name=bucket_name,
-                        extended_frame_id=f"{video_id}_stream{frame_metadata['frame_id']}",
+                        extended_frame_id=f"{video_id}_stream_{frame_metadata['frame_id']}",
                         frame_number=frame_metadata["frame_id"],
                         timestamp=(
                             frame_metadata["frame_id"] / float(stream_metadata["fps"])
@@ -1343,6 +1352,7 @@ def _process_video_from_memory_simple_pipeline(
                             if stream_metadata["video_duration_seconds"]
                             else None
                         ),
+                        created_at=created_at_value,
                     ).to_dict()
                     frame_metadata.update(fm)
                     return frame_metadata
@@ -2185,7 +2195,7 @@ def save_batch_results(completed_batches, all_stream_metadata):
             all_stream_metadata[int(k)] if k.isdigit() and int(k) < len(all_stream_metadata) else {}
         )
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
     logger.info(f"Saving batch results for {len(completed_batches)} batches")
     with open(f"batch_stat_results_{timestamp}.json", "w") as f:
