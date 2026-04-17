@@ -135,9 +135,9 @@ README.md           @xwu2intel
 # the main folder lacks codeowners, needs resolution
 # /tools/npu-monitor-tool/
 
-/tools/visual-pipeline-and-platform-evaluation-tool/           @p-zak @ktaube26 @KaliszWiktoria @dlemiech @pmalatyn @dmichalo @msmiatac @grey-eminence
-/tools/visual-pipeline-and-platform-evaluation-tool/docs/      @p-zak @ktaube26 @KaliszWiktoria @dlemiech @pmalatyn @dmichalo @msmiatac @grey-eminence   @open-edge-platform/open-edge-platform-docs-write
-/tools/visual-pipeline-and-platform-evaluation-tool/README.md  @p-zak @ktaube26 @KaliszWiktoria @dlemiech @pmalatyn @dmichalo @msmiatac @grey-eminence   @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/           @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence
+/tools/visual-pipeline-and-platform-evaluation-tool/docs/      @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence   @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/README.md  @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence   @open-edge-platform/open-edge-platform-docs-write
 
 # ============================================================================
 # Frameworks
