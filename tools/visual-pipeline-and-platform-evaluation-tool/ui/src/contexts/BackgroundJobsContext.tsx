@@ -84,17 +84,14 @@ export const BackgroundJobsProvider = ({
     (currentRoute: string): JobGroup[] => {
       return Array.from(jobGroups.values())
         .filter((group) => {
-          // If hideOnRoutes is not defined, show on all routes
           if (!group.hideOnRoutes || group.hideOnRoutes.length === 0) {
             return true;
           }
-          // Check if current route matches any of the hideOnRoutes patterns
           return !group.hideOnRoutes.some((route) =>
             currentRoute.startsWith(route),
           );
         })
         .filter((group) => {
-          // Only include groups that have active jobs (0 < progress < 100)
           return group.jobs.some(
             (job) => job.progress > 0 && job.progress < 100,
           );

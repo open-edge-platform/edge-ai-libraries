@@ -74,4 +74,4 @@ export const routeConfig: Array<RouteObject> = [
 
 // Routes that should stay mounted (keep-alive) when navigating away
 // Used for pages with long-running operations like file uploads
-export const keepAliveRoutes = ["/videos", "/models"];
+export const keepAliveRoutes = ["/videos"];

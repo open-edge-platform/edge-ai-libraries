@@ -190,10 +190,6 @@
   --coral-chart: oklch(0.62 0.18 20); /* #D55050 */
   --magenta-chart: oklch(0.76 0.121 267.338); /* #B2B9FF */
   --cobalt-chart: oklch(0.388 0.175 264.5); /* #0F1FA1 */
-  --yellow-chart: oklch(0.9 0.16 95); /* Bright Yellow */
-  --orange-chart: oklch(0.75 0.18 50); /* Bright Orange */
-  --blue-chart: oklch(0.7 0.2 240); /* Bright Blue */
-  --brown-chart: oklch(0.5 0.08 50); /* Brown */
   --blue-chart: oklch(0.377 0.152 258.338); /* #0054AE */
   --yellow-chart: oklch(0.861 0.173 89.872); /* #FFD100 */
   --orange-chart: oklch(0.743 0.165 49.357); /* #FF8F51 */
@@ -234,7 +230,7 @@
   --sidebar-ring: oklch(0.556 0 0);
   --blue-steel-shade-1: oklch(0.527 0.065 231); /* #41728A */
   --blue-teal-shade-1: oklch(0.285 0.04 210); /* #183544 */
-  
+
   /* Bright chart colors for dark backgrounds */
   --green-chart: oklch(0.75 0.15 140); /* Bright green */
   --red-chart: oklch(0.7 0.22 25); /* Bright red/pink */

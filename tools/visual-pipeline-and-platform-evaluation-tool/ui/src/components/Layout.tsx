@@ -65,7 +65,7 @@ const Layout = () => {
             </header>
             <div className="flex h-full overflow-auto relative">
               {routeConfig.map((route, index) => {
-                const routePath = route.path || "";
+                const routePath = route.path ?? "";
                 const isKeepAlive = keepAliveRoutes.some((keepAlivePath) =>
                   routePath.startsWith(keepAlivePath.replace(/^\//, "")),
                 );
