@@ -496,6 +496,7 @@ export const Pipelines = () => {
                 variants={data.variants}
                 source={source}
                 hasUnsavedChanges={canUndo}
+                disabled={jobStatus?.state === "RUNNING"}
               />
             )}
           </div>
