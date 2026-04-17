@@ -328,7 +328,7 @@ curl -X GET "http://<host-ip>:8200/api/v1/jobs/<job_id>"
 }
 ```
 
-- For details, see the [API specifications](./api-docs/openapi.yaml)
+- For details, see the [API reference](./api-reference.md).
 
 ## Configuration
 
