@@ -124,14 +124,21 @@ Update or edit the values in YAML file as follows:
 
 
 > **Split-device OVMS example (GPU VLM + NPU LLM):**
-
-> ```bash
-> helm install vss . -f summary_override.yaml -f user_values_override.yaml \\
->   --set global.devices.ovms.vlm.device=GPU \\
->   --set global.devices.ovms.vlm.key="gpu.intel.com/xe" \\
->   --set global.devices.ovms.llm.device=NPU \\
->   --set global.devices.ovms.llm.key="npu.intel.com/accel" \\
->   --set global.llmName="OpenVINO/Qwen3-8B-int4-cw-ov" -n $my_namespace
+>
+> To run VLM on GPU and LLM on NPU, set the following in `user_values_override.yaml`:
+>
+> ```yaml
+> global:
+>   vlmName: "OpenVINO/Phi-3.5-vision-instruct-int8-ov"
+>   llmName: "OpenVINO/Qwen3-8B-int4-cw-ov"
+>   devices:
+>     ovms:
+>       vlm:
+>         device: GPU
+>         key: "gpu.intel.com/i915"
+>       llm:
+>         device: NPU
+>         key: "npu.intel.com/accel"
 > ```
 
 ### 3. Build Helm Dependencies
@@ -180,11 +187,18 @@ This is the default and recommended deployment mode. OVMS hosts the VLM model sp
 
 #### **Use Case 1a: OVMS with Separate LLM Model (Split-Model Mode)**
 
-To use a separate LLM model for final summarization while using VLM for captioning:
+To use a separate LLM model for final summarization while using VLM for captioning, set `global.vlmName` and `global.llmName` in `user_values_override.yaml`:
+
+```yaml
+global:
+  vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"
+  llmName: "Intel/neural-chat-7b-v3-3"
+```
+
+Then deploy:
 
 ```bash
-helm install vss . -f summary_override.yaml -f user_values_override.yaml \
-  --set global.llmName="Intel/neural-chat-7b-v3-3" -n $my_namespace
+helm install vss . -f summary_override.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
 This deploys OVMS hosting both models:
@@ -194,13 +208,22 @@ This deploys OVMS hosting both models:
 
 #### **Use Case 1b: OVMS with GPU Acceleration**
 
-To enable GPU acceleration for OVMS:
+To enable GPU acceleration for OVMS, configure the device settings and model in `user_values_override.yaml`:
+
+```yaml
+global:
+  vlmName: "OpenVINO/Phi-3.5-vision-instruct-int8-ov"
+  devices:
+    ovms:
+      vlm:
+        device: GPU
+        key: "gpu.intel.com/i915"
+```
+
+Then deploy:
 
 ```bash
-helm install vss . -f summary_override.yaml -f user_values_override.yaml \
-  --set global.devices.ovms.vlm.device=GPU \
-  --set global.devices.ovms.vlm.key="gpu.intel.com/i915" \
-  --set global.vlmName="OpenVINO/Phi-3.5-vision-instruct-int8-ov" -n $my_namespace
+helm install vss . -f summary_override.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
 > **Note:** GPU deployment requires the Intel device plugin to be installed on your cluster. Verify your GPU node label with `kubectl describe node <node-name>` and set the appropriate `key` value accordingly.
@@ -248,14 +271,13 @@ OVMS automatically selects the optimal weight compression format based on the ta
 
 **Overriding Weight Format:**
 
-To explicitly set the weight format for VLM or LLM models, use the `ovms.env` values:
+To explicitly set the weight format for VLM or LLM models, set `ovms.env.VLM_WEIGHT_FORMAT` and/or `ovms.env.LLM_WEIGHT_FORMAT` in `user_values_override.yaml`:
 
-```bash
-helm install vss . -f summary_override.yaml -f user_values_override.yaml \
-  --set global.devices.ovms.vlm.device=GPU \
-  --set global.devices.ovms.vlm.key="gpu.intel.com/xe" \
-  --set ovms.env.VLM_WEIGHT_FORMAT=int8 \
-  --set ovms.env.LLM_WEIGHT_FORMAT=int8 -n $my_namespace
+```yaml
+ovms:
+  env:
+    VLM_WEIGHT_FORMAT: "int8"
+    LLM_WEIGHT_FORMAT: "int8"
 ```
 
 > **Note:** Models from the `OpenVINO/` namespace (e.g., `OpenVINO/Phi-3.5-vision-instruct-int8-ov`) are pre-converted and do not undergo weight format conversion. The weight format in the model name indicates its native format.

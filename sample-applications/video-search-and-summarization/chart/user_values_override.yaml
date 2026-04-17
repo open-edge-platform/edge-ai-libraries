@@ -66,6 +66,12 @@ global:
       llm:
         device: CPU # CPU | GPU | NPU | HETERO:GPU,CPU
         key: "" # Required when device is GPU/NPU/HETERO
+ovms:
+  env:
+    # Override weight format for VLM model conversion (auto-detected by device if not set). Options: int4, int8 etc
+    VLM_WEIGHT_FORMAT: ""
+    # Override weight format for LLM model conversion (auto-detected by device if not set). Options: int4, int8 etc
+    LLM_WEIGHT_FORMAT: ""
 
 videoingestion:
   # odModelName defines the name of Object Detection Model

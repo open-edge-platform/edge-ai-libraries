@@ -86,7 +86,7 @@ data:
     # Install dependencies based on model type
     if is_openvino_namespace_model "$vlm_model" && { [ -z "$llm_model" ] || [ "$llm_model" = "$vlm_model" ] || is_openvino_namespace_model "$llm_model"; }; then
         echo "All models are from OpenVINO namespace (pre-converted). Using lightweight dependencies."
-        pip3 install --no-cache-dir 'huggingface_hub<0.27'
+        pip3 install --no-cache-dir 'huggingface_hub<0.27' jinja2
     else
         echo "Installing full conversion dependencies..."
         requirements_url="https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/requirements.txt"
