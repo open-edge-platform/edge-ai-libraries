@@ -21,6 +21,7 @@ export interface SummaryPipelinePrompts {
 
 export interface SummaryPipelineAudio {
   audioModel: string;
+  useFullTranscriptSummary?: boolean;
 }
 
 export interface SummaryPipelineEvam {

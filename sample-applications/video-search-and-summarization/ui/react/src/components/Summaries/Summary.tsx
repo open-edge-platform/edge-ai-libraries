@@ -6,9 +6,9 @@ import { SummaryActions, SummarySelector } from '../../redux/summary/summarySlic
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { StateActionStatus, SystemConfigWithMeta, UIState } from '../../redux/summary/summary';
-import { AILabel, AILabelContent, IconButton, Tag } from '@carbon/react';
+import { AILabel, AILabelContent, IconButton, Modal, ModalBody, Tag } from '@carbon/react';
 
-import { Renew, Download } from '@carbon/icons-react';
+import { Renew, Download, Headphones } from '@carbon/icons-react';
 import axios from 'axios';
 import ChunksContainer from './ChunksContainer';
 import { socket } from '../../socket';
@@ -200,6 +200,7 @@ export const Summary: FC = () => {
   const { getVideoUrl, videos } = useAppSelector(videosSelector);
 
   const [systemConfig, setSystemConfig] = useState<SystemConfigWithMeta>();
+  const [showAudioSummaryModal, setShowAudioSummaryModal] = useState(false);
 
   useEffect(() => {
     console.log(selectedSummary);
@@ -239,7 +240,7 @@ export const Summary: FC = () => {
 
   const handleSummaryData = (data: UIState) => {
     if (selectedSummary) {
-      if (selectedSummary.chunksCount !== data.chunks.length) {
+      if (data.chunks.length > 0) {
         dispatch(
           VideoChunkActions.addChunks(
             data.chunks.map((curr) => ({
@@ -346,7 +347,7 @@ export const Summary: FC = () => {
       content += `|-------------|-------|\n`;
       content += `| Video Chunking | ${selectedSummary.chunkingStatus.toUpperCase()} |\n`;
       content += `| Frame Summaries Complete | ${selectedSummary.frameSummaryStatus.complete} |\n`;
-      content += `| Frame Summaries Progress | ${selectedSummary.frameSummaryStatus.inProgress} |\n`;
+      content += `| Frame Summaries In Progress | ${selectedSummary.frameSummaryStatus.inProgress + selectedSummary.frameSummaryStatus.ready} |\n`;
       content += `| Video Summary Status | ${selectedSummary.videoSummaryStatus.toUpperCase()} |\n`;
       content += `\n`;
       
@@ -420,7 +421,7 @@ export const Summary: FC = () => {
                   </li>
                 </ul>
                 <hr />
-                <h5 className='secondary bold'>Image Inferencing</h5>
+                <h5 className='secondary bold'>Frame Captioning</h5>
                 <ul>
                   <li>
                     {t('aiModel', {
@@ -444,7 +445,7 @@ export const Summary: FC = () => {
                   </li>
                 </ul>
                 <hr />
-                <h5 className='secondary bold'>Text Inferencing</h5>
+                <h5 className='secondary bold'>Text Summarization</h5>
                 <ul>
                   <li>
                     {t('aiModel', {
@@ -457,17 +458,32 @@ export const Summary: FC = () => {
                     })}
                   </li>
                 </ul>
+                {summaryData.systemConfig?.audioModel && (
+                  <>
+                    <h5 className='secondary bold'>Speech-to-Text</h5>
+                    <ul>
+                      <li>
+                        {t('aiModel', {
+                          model: summaryData.systemConfig.audioModel,
+                        })}
+                      </li>
+                    </ul>
+                  </>
+                )}
               </AILabelContent>
             </AILabel>
           </div>
 
           <div className='status-container'>
-            <StatusTag action={summaryData.chunkingStatus} label={t('chunkingLabel')} />
-            {summaryData.frameSummaryStatus.inProgress > 0 && (
+            <StatusTag action={summaryData.videoChunkingStatus ?? summaryData.chunkingStatus} label={t('chunkingLabel')} />
+            {summaryData.audioStatus && summaryData.audioStatus !== StateActionStatus.NA && (
+              <StatusTag action={summaryData.audioStatus} label={t('audioTranscriptionLabel')} />
+            )}
+            {(summaryData.frameSummaryStatus.inProgress + summaryData.frameSummaryStatus.ready) > 0 && (
               <StatusTag
                 action={StateActionStatus.IN_PROGRESS}
                 label={t('chunkingSummaryLabel')}
-                count={summaryData.frameSummaryStatus.inProgress}
+                count={summaryData.frameSummaryStatus.inProgress + summaryData.frameSummaryStatus.ready}
               />
             )}
 
@@ -477,6 +493,10 @@ export const Summary: FC = () => {
                 label={t('chunkingSummaryLabel')}
                 count={summaryData.frameSummaryStatus.complete}
               />
+            )}
+
+            {summaryData.audioTranscriptSummaryStatus && summaryData.audioTranscriptSummaryStatus !== StateActionStatus.NA && (
+              <StatusTag action={summaryData.audioTranscriptSummaryStatus} label={t('audioSummaryLabel')} />
             )}
 
             <StatusTag action={summaryData.videoSummaryStatus} label={t('summaryLabel')} />
@@ -504,6 +524,18 @@ export const Summary: FC = () => {
     const summaryData = selectedSummary!;
     return (
       <>
+        <Modal
+          onRequestClose={() => setShowAudioSummaryModal(false)}
+          open={showAudioSummaryModal}
+          modalHeading={t('audioTranscriptSummaryHeading', { defaultValue: 'Audio Transcript Summary' })}
+          passiveModal
+        >
+          <ModalBody>
+            <StyledMessage>
+              <Markdown>{processMD(summaryData.audioTranscriptSummary ?? '')}</Markdown>
+            </StyledMessage>
+          </ModalBody>
+        </Modal>
         <SummaryContainer>
           <section>
             <div className="left-section">
@@ -512,14 +544,24 @@ export const Summary: FC = () => {
                 {t(statusClassLabel[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA])}
               </Tag>
             </div>
-            {summaryData.summary && summaryData.summary.trim() !== '' && (
-              <DownloadButton
-                onClick={handleDownloadFinalSummary}
-                data-tooltip={t('downloadFinalSummary')}
-              >
-                <Download />
-              </DownloadButton>
-            )}
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              {summaryData.audioTranscriptSummary && summaryData.audioTranscriptSummary.trim() !== '' && (
+                <DownloadButton
+                  onClick={() => setShowAudioSummaryModal(true)}
+                  data-tooltip={t('viewAudioSummary', { defaultValue: 'View Audio Transcript Summary' })}
+                >
+                  <Headphones />
+                </DownloadButton>
+              )}
+              {summaryData.summary && summaryData.summary.trim() !== '' && (
+                <DownloadButton
+                  onClick={handleDownloadFinalSummary}
+                  data-tooltip={t('downloadFinalSummary')}
+                >
+                  <Download />
+                </DownloadButton>
+              )}
+            </div>
           </section>
 
           <StyledMessage>

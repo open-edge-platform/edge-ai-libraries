@@ -194,6 +194,8 @@ spec:
               value: "http://{{ .Values.audioanalyzer.name }}:{{ .Values.audioanalyzer.service.port }}"
             - name: AUDIO_DEVICE
               value: "{{ .Values.pipelinemanager.env.AUDIO_DEVICE }}"
+            - name: AUDIO_USE_FULL_TRANSCRIPT_SUMMARY
+              value: "{{ .Values.pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY }}"
             - name: OTLP_TRACE_URL
               value: "{{ .Values.global.env.OTLP_ENDPOINT_TRACE }}"
             {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}

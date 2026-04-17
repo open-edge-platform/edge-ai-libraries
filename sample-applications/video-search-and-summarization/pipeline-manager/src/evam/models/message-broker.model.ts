@@ -18,8 +18,11 @@ export interface ChunkQueueItem {
   stateId: string;
 }
 
+export type SummaryQueueTaskType = 'videoSummary' | 'audioTranscriptSummary';
+
 export interface SummaryQueueItem {
   stateId: string;
+  taskType: SummaryQueueTaskType;
 }
 
 export interface FrameQueueItem {

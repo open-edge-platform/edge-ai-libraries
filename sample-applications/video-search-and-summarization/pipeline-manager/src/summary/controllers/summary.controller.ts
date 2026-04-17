@@ -148,11 +148,24 @@ export class SummaryController {
       if (reqBody.prompts.summarySinglePrompt) {
         systemConfig.summarySinglePrompt = reqBody.prompts.summarySinglePrompt;
       }
+      if (reqBody.prompts.audioSummaryMapPrompt) {
+        systemConfig.audioSummaryMapPrompt = reqBody.prompts.audioSummaryMapPrompt;
+      }
+      if (reqBody.prompts.audioSummaryReducePrompt) {
+        systemConfig.audioSummaryReducePrompt =
+          reqBody.prompts.audioSummaryReducePrompt;
+      }
+      if (reqBody.prompts.audioSummarySinglePrompt) {
+        systemConfig.audioSummarySinglePrompt =
+          reqBody.prompts.audioSummarySinglePrompt;
+      }
     }
 
     // Setup Audio Checks
     if (reqBody.audio && reqBody.audio.audioModel) {
       systemConfig.audioModel = reqBody.audio.audioModel;
+      systemConfig.audioUseFullTranscriptSummary =
+        reqBody.audio.useFullTranscriptSummary ?? systemConfig.audioUseFullTranscriptSummary;
     }
 
     let stateId: string | null = null;
