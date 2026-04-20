@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsRight, ExternalLink } from "lucide-react";
 
 const MAX_JSON_LINES_PER_PIPELINE = 400;
 const METADATA_POLL_INTERVAL = 3000;
@@ -23,6 +23,14 @@ const buildStreamLabel = (jobId: string, pipelineId: string): string => {
   return `${shortJob} / ${shortPipeline}`;
 };
 
+/** Shorten a stream URL to its last two meaningful path segments. */
+const shortenStreamUrl = (url: string): string => {
+  const segments = url.replace(/\/+$/, "").split("/").filter(Boolean);
+  return segments.length > 2
+    ? `…/${segments.slice(-2).join("/")}`
+    : url;
+};
+
 const prettifyJson = (raw: string): string => {
   try {
     return JSON.stringify(JSON.parse(raw), null, 2);
@@ -31,7 +39,57 @@ const prettifyJson = (raw: string): string => {
   }
 };
 
-const MetadataJsonViewer = ({ lines }: { lines: string[] }) => {
+const colorizeJson = (raw: string): ReactNode => {
+  const text = prettifyJson(raw);
+  const tokenRegex =
+    /("(?:[^"\\]|\\.)*")\s*:|"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b/g;
+
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = tokenRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    const token = match[0];
+
+    if (match[1]) {
+      parts.push(
+        <span key={key++} className="text-sky-600 dark:text-sky-400">{match[1]}</span>,
+      );
+      parts.push(token.slice(match[1].length));
+    } else if (token.startsWith('"')) {
+      parts.push(
+        <span key={key++} className="text-green-700 dark:text-green-400">{token}</span>,
+      );
+    } else if (token === "true" || token === "false") {
+      parts.push(
+        <span key={key++} className="text-yellow-600 dark:text-yellow-400">{token}</span>,
+      );
+    } else if (token === "null") {
+      parts.push(
+        <span key={key++} className="text-red-600 dark:text-red-400">{token}</span>,
+      );
+    } else {
+      parts.push(
+        <span key={key++} className="text-orange-600 dark:text-orange-300">{token}</span>,
+      );
+    }
+
+    lastIndex = match.index + token.length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts;
+};
+
+const MetadataJsonViewer = ({ lines, stale = false }: { lines: string[]; stale?: boolean }) => {
   const [currentIndex, setCurrentIndex] = useState(lines.length - 1);
   const [followLatest, setFollowLatest] = useState(true);
 
@@ -59,6 +117,13 @@ const MetadataJsonViewer = ({ lines }: { lines: string[] }) => {
     setCurrentIndex(lines.length - 1);
   }, [lines.length]);
 
+  const safeIndex = lines.length > 0 ? Math.max(0, Math.min(currentIndex, lines.length - 1)) : 0;
+  const currentLine = lines[safeIndex] ?? "";
+  const formatted = useMemo(
+    () => (currentLine ? colorizeJson(currentLine) : null),
+    [currentLine],
+  );
+
   if (lines.length === 0) {
     return (
       <div className="min-h-[100px] flex items-center justify-center rounded border bg-muted/20 p-3">
@@ -66,9 +131,6 @@ const MetadataJsonViewer = ({ lines }: { lines: string[] }) => {
       </div>
     );
   }
-
-  const safeIndex = Math.min(currentIndex, lines.length - 1);
-  const formatted = prettifyJson(lines[safeIndex]);
 
   return (
     <div className="flex flex-col space-y-2 min-w-0">
@@ -106,7 +168,7 @@ const MetadataJsonViewer = ({ lines }: { lines: string[] }) => {
           Follow
         </Button>
       </div>
-      <pre className="min-h-[100px] max-h-[400px] overflow-auto rounded border bg-muted/20 p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all">
+      <pre className={`min-h-[100px] max-h-[40vh] overflow-auto rounded border p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-zinc-100 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 ${stale ? "border-2 dark:border-energy-blue/40 dark:shadow-energy-blue/20 dark:ring-1 dark:ring-energy-blue/20 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20 shadow-lg" : ""}`}>
         {formatted}
       </pre>
     </div>
@@ -167,6 +229,12 @@ const PerformanceTestPanel = ({
     Record<string, string | null>
   >({});
 
+  // Frozen snapshot of metadata kept after the run finishes
+  const [frozenMetadata, setFrozenMetadata] = useState<{
+    lines: Record<string, string[]>;
+    entries: [string, string][];
+  } | null>(null);
+
   // Poll all performance jobs to collect metadata stream URLs from ALL running jobs
   const { data: allJobs } = useGetPerformanceStatusesQuery(undefined, {
     pollingInterval: METADATA_POLL_INTERVAL,
@@ -192,14 +260,27 @@ const PerformanceTestPanel = ({
     delete metadataSourceUrlsRef.current[pipelineKey];
   };
 
+  // Auto-switch to media tab when output video becomes available
+  useEffect(() => {
+    if (completedVideoPath && videoOutputEnabled && !livePreviewEnabled) {
+      setActiveMainTab("media");
+    }
+  }, [completedVideoPath, videoOutputEnabled, livePreviewEnabled]);
+
   useEffect(() => {
     const wasRunning = prevIsRunningRef.current;
     prevIsRunningRef.current = isRunning;
 
     if (!wasRunning && isRunning) {
       startRecording();
+      setFrozenMetadata(null);
     } else if (wasRunning && !isRunning) {
       freezeSnapshot(null);
+      setFrozenMetadata((prev) => {
+        const hasLines = Object.values(metadataLines).some((l) => l.length > 0);
+        if (!hasLines) return prev;
+        return { lines: { ...metadataLines }, entries: [...metadataEntries] };
+      });
     }
   }, [isRunning, startRecording, freezeSnapshot]);
 
@@ -315,7 +396,17 @@ const PerformanceTestPanel = ({
   }, []);
 
   const hasMetadataStreams = metadataEntries.length > 0;
-  const metadataTabValue = activeMetadataTab ?? metadataEntries[0]?.[0] ?? "";
+  const hasStaleMetadata = !hasMetadataStreams && frozenMetadata !== null;
+  const showMetadataTab = hasMetadataStreams || hasStaleMetadata;
+
+  const displayEntries = hasMetadataStreams
+    ? metadataEntries
+    : frozenMetadata?.entries ?? [];
+  const displayLines = hasMetadataStreams
+    ? metadataLines
+    : frozenMetadata?.lines ?? {};
+
+  const metadataTabValue = activeMetadataTab ?? displayEntries[0]?.[0] ?? "";
 
   const hasMediaTab = livePreviewEnabled || videoOutputEnabled;
   const mediaTabLabel = livePreviewEnabled ? "Live Preview" : "Output Video";
@@ -337,7 +428,7 @@ const PerformanceTestPanel = ({
           {hasMediaTab && (
             <TabsTrigger value="media">{mediaTabLabel}</TabsTrigger>
           )}
-          <TabsTrigger value="metadata" disabled={!hasMetadataStreams}>
+          <TabsTrigger value="metadata" disabled={!showMetadataTab}>
             Metadata JSON
           </TabsTrigger>
         </TabsList>
@@ -384,19 +475,19 @@ const PerformanceTestPanel = ({
           value="metadata"
           className="space-y-4 mt-2 overflow-hidden min-w-0"
         >
-          {!hasMetadataStreams && (
+          {!showMetadataTab && isRunning && (
             <p className="text-sm text-muted-foreground">
               Waiting for metadata stream URLs from the API...
             </p>
           )}
 
-          {hasMetadataStreams &&
-            metadataEntries.length === 1 &&
+          {showMetadataTab &&
+            displayEntries.length === 1 &&
             (() => {
-              const [compositeKey, streamUrl] = metadataEntries[0];
-              const lines = metadataLines[compositeKey] ?? [];
-              const state = connectionStates[compositeKey] ?? "connecting";
-              const error = connectionErrors[compositeKey];
+              const [compositeKey, streamUrl] = displayEntries[0];
+              const lines = displayLines[compositeKey] ?? [];
+              const state = hasStaleMetadata ? "closed" : (connectionStates[compositeKey] ?? "connecting");
+              const error = hasStaleMetadata ? null : connectionErrors[compositeKey];
               return (
                 <div className="flex flex-col space-y-3 min-w-0">
                   <div className="flex items-center justify-between gap-2">
@@ -404,19 +495,25 @@ const PerformanceTestPanel = ({
                       SSE: {state}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground break-all">
-                    {streamUrl}
-                  </p>
+                  <a
+                    href={streamUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    {shortenStreamUrl(streamUrl)}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
                   {error && <p className="text-xs text-destructive">{error}</p>}
-                  <MetadataJsonViewer lines={lines} />
+                  <MetadataJsonViewer lines={lines} stale={hasStaleMetadata} />
                 </div>
               );
             })()}
 
-          {hasMetadataStreams && metadataEntries.length > 1 && (
+          {showMetadataTab && displayEntries.length > 1 && (
             <Tabs value={metadataTabValue} onValueChange={setActiveMetadataTab}>
               <TabsList className="w-full h-auto flex-wrap justify-start">
-                {metadataEntries.map(([compositeKey]) => {
+                {displayEntries.map(([compositeKey]) => {
                   const [jobId, pipelineId] = compositeKey.split("::");
                   return (
                     <TabsTrigger key={compositeKey} value={compositeKey}>
@@ -426,10 +523,10 @@ const PerformanceTestPanel = ({
                 })}
               </TabsList>
 
-              {metadataEntries.map(([compositeKey, streamUrl], index) => {
-                const lines = metadataLines[compositeKey] ?? [];
-                const state = connectionStates[compositeKey] ?? "connecting";
-                const error = connectionErrors[compositeKey];
+              {displayEntries.map(([compositeKey, streamUrl], index) => {
+                const lines = displayLines[compositeKey] ?? [];
+                const state = hasStaleMetadata ? "closed" : (connectionStates[compositeKey] ?? "connecting");
+                const error = hasStaleMetadata ? null : connectionErrors[compositeKey];
 
                 return (
                   <TabsContent
@@ -446,15 +543,21 @@ const PerformanceTestPanel = ({
                       </span>
                     </div>
 
-                    <p className="text-xs text-muted-foreground break-all">
-                      {streamUrl}
-                    </p>
+                    <a
+                      href={streamUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      {shortenStreamUrl(streamUrl)}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
 
                     {error && (
                       <p className="text-xs text-destructive">{error}</p>
                     )}
 
-                    <MetadataJsonViewer lines={lines} />
+                    <MetadataJsonViewer lines={lines} stale={hasStaleMetadata} />
                   </TabsContent>
                 );
               })}
