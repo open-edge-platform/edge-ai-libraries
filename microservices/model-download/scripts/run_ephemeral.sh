@@ -12,14 +12,6 @@
 #
 # Usage:
 #   /opt/scripts/run_ephemeral.sh --model-name <name> --hub <hub> [options]
-#
-# Example:
-#   /opt/scripts/run_ephemeral.sh \
-#       --model-name meta-llama/Llama-2-7b-hf \
-#       --hub huggingface \
-#       --is-ovms \
-#       --precision int8 \
-#       --device CPU
 # =============================================================================
 
 set -e
