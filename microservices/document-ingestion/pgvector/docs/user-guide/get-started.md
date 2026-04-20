@@ -239,7 +239,7 @@ commands from the same shell as where the environment variables are set.
    Download a sample PDF document to test the file upload and embedding creation process.
 
    ```bash
-   curl -LO https://github.com/py-pdf/sample-files/blob/main/001-trivial/minimal-document.pdf
+   curl -LO https://raw.githubusercontent.com/py-pdf/sample-files/main/001-trivial/minimal-document.pdf
    ```
 
 2. **Upload the file to create embedding and store in object storage**:
