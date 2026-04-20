@@ -1,57 +1,68 @@
-"""JSON filter loading and operation selection for the MCP REST proxy."""
+"""JSON filter loading and exact operation selection for the MCP REST proxy."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 import re
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .models import OperationSpec
 
 
-class PathRule(BaseModel):
-    """A path-pattern rule with optional HTTP method constraints."""
+SUPPORTED_METHODS = {"GET", "PUT", "POST", "DELETE", "PATCH", "HEAD", "OPTIONS"}
+OPERATION_KEY_PATTERN = re.compile(r"^(GET|PUT|POST|DELETE|PATCH|HEAD|OPTIONS)\s+(/.+)$")
+TOOL_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+ApiExposure = Literal["tool", "resource", "disabled"]
+
+class ApiConfig(BaseModel):
+    """Per-operation MCP exposure settings loaded from JSON."""
 
     model_config = ConfigDict(extra="forbid")
 
-    path: str = Field(
-        description="Path pattern such as /videos/{videoId}, /videos/*, or /search/**."
+    expose: ApiExposure = Field(
+        description="Whether this API is exposed as a tool, a resource, or disabled.",
     )
-    methods: list[str] | None = Field(
+    tool_name: str | None = Field(
         default=None,
-        description="Optional list of HTTP methods to constrain this rule.",
+        description="Explicit MCP tool name suffix for tool-exposed APIs.",
+    )
+    description: str | None = Field(
+        default=None,
+        description="Optional shared description override for the tool/resource generated from this API.",
     )
 
-    @field_validator("path")
+    @field_validator("tool_name")
     @classmethod
-    def _validate_path(_cls, value: str) -> str:
+    def _normalize_tool_name(_cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         normalized = value.strip()
         if not normalized:
-            raise ValueError("Rule path must not be empty.")
-        return normalized if normalized.startswith("/") else f"/{normalized}"
-
-    @field_validator("methods")
-    @classmethod
-    def _normalize_methods(_cls, methods: list[str] | None) -> list[str] | None:
-        if methods is None:
             return None
-
-        normalized = []
-        for method in methods:
-            candidate = method.strip().upper()
-            if not candidate:
-                raise ValueError("HTTP methods must not be empty.")
-            normalized.append(candidate)
+        if TOOL_NAME_PATTERN.fullmatch(normalized) is None:
+            raise ValueError(
+                "tool_name must be a valid identifier using letters, numbers, and underscores."
+            )
         return normalized
 
-    def matches(self, operation: OperationSpec) -> bool:
-        """Return whether this rule matches the given operation."""
+    @field_validator("description")
+    @classmethod
+    def _normalize_description(_cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
-        if not _path_matches(operation.path, self.path):
-            return False
-        return self.methods is None or operation.method in self.methods
+    @model_validator(mode="after")
+    def _validate_tool_name_requirements(self) -> "ApiConfig":
+        if self.expose == "tool" and not self.tool_name:
+            raise ValueError('tool_name is required when expose is "tool".')
+        if self.expose != "tool" and self.tool_name is not None:
+            raise ValueError('tool_name is only allowed when expose is "tool".')
+        return self
 
 
 class ProxyFilterConfig(BaseModel):
@@ -72,21 +83,9 @@ class ProxyFilterConfig(BaseModel):
         default="api",
         description="URI scheme used for generated MCP resources.",
     )
-    guidance_markdown: str | None = Field(
-        default=None,
-        description="Optional guidance shown to MCP clients for special handling patterns.",
-    )
-    include: list[PathRule] = Field(
-        default_factory=list,
-        description="Operations must match at least one include rule to be proxied.",
-    )
-    exclude: list[PathRule] = Field(
-        default_factory=list,
-        description="Exclude rules applied after include matching.",
-    )
-    resource_methods: list[str] = Field(
-        default_factory=lambda: ["GET"],
-        description="HTTP methods that may be exposed as read-only resources.",
+    apis: dict[str, ApiConfig] = Field(
+        default_factory=dict,
+        description='Explicit per-API entries keyed as "METHOD /path".',
     )
 
     @field_validator("server_name", "tool_prefix", "resource_scheme")
@@ -97,24 +96,27 @@ class ProxyFilterConfig(BaseModel):
             raise ValueError("Server and prefix values must not be empty.")
         return normalized
 
-    @field_validator("guidance_markdown")
+    @field_validator("apis")
     @classmethod
-    def _normalize_guidance(_cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        normalized = value.strip()
-        return normalized or None
-
-    @field_validator("resource_methods")
-    @classmethod
-    def _normalize_resource_methods(_cls, methods: list[str]) -> list[str]:
-        normalized = []
-        for method in methods:
-            candidate = method.strip().upper()
-            if not candidate:
-                raise ValueError("resource_methods entries must not be empty.")
-            normalized.append(candidate)
+    def _normalize_api_entries(_cls, value: dict[str, ApiConfig]) -> dict[str, ApiConfig]:
+        normalized: dict[str, ApiConfig] = {}
+        for raw_key, config in value.items():
+            normalized[_normalize_operation_key(raw_key)] = config
         return normalized
+
+    @model_validator(mode="after")
+    def _validate_tool_name_uniqueness(self) -> "ProxyFilterConfig":
+        seen: dict[str, str] = {}
+        for api_key, config in self.apis.items():
+            if config.tool_name is None:
+                continue
+            previous_api = seen.get(config.tool_name)
+            if previous_api is not None:
+                raise ValueError(
+                    f'tool_name "{config.tool_name}" is used by both "{previous_api}" and "{api_key}".'
+                )
+            seen[config.tool_name] = api_key
+        return self
 
 
 def load_filter_config(path: str) -> ProxyFilterConfig:
@@ -135,40 +137,72 @@ def load_filter_config(path: str) -> ProxyFilterConfig:
 
 
 def operation_is_enabled(config: ProxyFilterConfig, operation: OperationSpec) -> bool:
-    """Return whether the given operation should be exposed through MCP."""
+    """Return whether the given operation should appear anywhere in MCP."""
 
     if not config.enabled:
         return False
 
-    if not config.include:
+    api_config = operation_config(config, operation)
+    return api_config is not None and api_config.expose != "disabled"
+
+
+def tool_is_enabled(config: ProxyFilterConfig, operation: OperationSpec) -> bool:
+    """Return whether the given operation should be exposed as a tool."""
+
+    if not config.enabled:
         return False
 
-    if not any(rule.matches(operation) for rule in config.include):
-        return False
-
-    return not any(rule.matches(operation) for rule in config.exclude)
+    api_config = operation_config(config, operation)
+    return api_config is not None and api_config.expose == "tool"
 
 
 def resource_is_enabled(config: ProxyFilterConfig, operation: OperationSpec) -> bool:
-    """Return whether a filtered operation should also become a resource."""
+    """Return whether an explicitly configured operation should become a resource."""
 
+    if not config.enabled:
+        return False
+
+    api_config = operation_config(config, operation)
     return (
-        operation_is_enabled(config, operation)
-        and operation.method in config.resource_methods
+        api_config is not None
+        and api_config.expose == "resource"
         and operation.read_only
         and operation.request_body is None
     )
 
 
-def _path_matches(path: str, pattern: str) -> bool:
-    """Match exact paths plus segment-aware wildcard patterns."""
+def operation_config(config: ProxyFilterConfig, operation: OperationSpec) -> ApiConfig | None:
+    """Return the explicit per-operation config for the given REST operation."""
 
-    if path == pattern:
-        return True
+    return config.apis.get(operation_key(operation))
 
-    escaped = re.escape(pattern)
-    escaped = escaped.replace(r"\*\*", "__DOUBLE_WILDCARD__")
-    escaped = escaped.replace(r"\*", "[^/]*")
-    escaped = escaped.replace(r"\?", "[^/]")
-    escaped = escaped.replace("__DOUBLE_WILDCARD__", ".*")
-    return re.fullmatch(escaped, path) is not None
+
+def operation_key(operation: OperationSpec) -> str:
+    """Return the normalized JSON key for an operation."""
+
+    return f"{operation.method} {operation.path}"
+
+
+def configured_tool_name(config: ProxyFilterConfig, operation: OperationSpec) -> str | None:
+    """Return the final MCP tool name for a tool-exposed operation."""
+
+    api_config = operation_config(config, operation)
+    if api_config is None or api_config.tool_name is None:
+        return None
+    return f"{config.tool_prefix}_{api_config.tool_name}"
+
+
+def _normalize_operation_key(value: str) -> str:
+    """Normalize and validate one proxy JSON operation key."""
+
+    normalized = " ".join(value.strip().split())
+    match = OPERATION_KEY_PATTERN.fullmatch(normalized)
+    if match is None:
+        raise ValueError('API keys must use the format "METHOD /path".')
+
+    method, path = match.groups()
+    if method not in SUPPORTED_METHODS:
+        raise ValueError(f"Unsupported HTTP method in API key: {method}")
+    if any(token in path for token in ("*", "?")):
+        raise ValueError("Wildcard API keys are not supported; list each API explicitly.")
+    return f"{method} {path}"

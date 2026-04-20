@@ -3,65 +3,36 @@
   "server_name": "vss_search_proxy_mcp",
   "tool_prefix": "vss",
   "resource_scheme": "vss",
-  "guidance_markdown": "## Direct VSS upload required\n\nVideo upload is intentionally not proxied through MCP.\n\nUse the direct VSS REST API `POST /videos` to upload video content, then use MCP tools for search-oriented operations such as listing videos, creating search embeddings, and running search queries.",
-  "include": [
-    {
-      "path": "/health",
-      "methods": [
-        "GET"
-      ]
+  "apis": {
+    "GET /health": {
+      "expose": "resource"
     },
-    {
-      "path": "/app/features",
-      "methods": [
-        "GET"
-      ]
+    "GET /app/features": {
+      "expose": "resource"
     },
-    {
-      "path": "/tags",
-      "methods": [
-        "GET"
-      ]
+    "GET /tags": {
+      "expose": "resource"
     },
-    {
-      "path": "/tags/*",
-      "methods": [
-        "DELETE"
-      ]
+    "DELETE /tags/{tagId}": {
+      "expose": "tool",
+      "tool_name": "delete_tag"
     },
-    {
-      "path": "/videos",
-      "methods": [
-        "GET"
-      ]
+    "GET /videos": {
+      "expose": "resource"
     },
-    {
-      "path": "/videos/{videoId}",
-      "methods": [
-        "GET"
-      ]
+    "GET /videos/{videoId}": {
+      "expose": "resource"
     },
-    {
-      "path": "/videos/search-embeddings/{videoId}",
-      "methods": [
-        "POST"
-      ]
+    "POST /videos/search-embeddings/{videoId}": {
+      "expose": "tool",
+      "tool_name": "create_video_search_embeddings"
     },
-    {
-      "path": "/search/query",
-      "methods": [
-        "POST"
-      ]
+    "POST /search/query": {
+      "expose": "tool",
+      "tool_name": "run_search_query"
     },
-    {
-      "path": "/search/{queryId}",
-      "methods": [
-        "GET"
-      ]
+    "GET /search/{queryId}": {
+      "expose": "resource"
     }
-  ],
-  "exclude": [],
-  "resource_methods": [
-    "GET"
-  ]
+  }
 }

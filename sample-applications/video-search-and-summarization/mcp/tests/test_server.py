@@ -95,13 +95,25 @@ class ServerRegistrationTests(unittest.TestCase):
                     "server_name": "demo_server",
                     "tool_prefix": "demo",
                     "resource_scheme": "demo",
-                    "include": [
-                        {"path": "/health", "methods": ["GET"]},
-                        {"path": "/widgets", "methods": ["GET"]},
-                        {"path": "/widgets/{widgetId}", "methods": ["GET"]},
-                        {"path": "/widgets/{widgetId}/status", "methods": ["PATCH"]},
-                    ],
-                    "resource_methods": ["GET"],
+                    "apis": {
+                        "GET /health": {
+                            "expose": "resource",
+                            "description": "Read the service health resource.",
+                        },
+                        "GET /widgets": {
+                            "expose": "resource",
+                            "description": "List available widgets.",
+                        },
+                        "GET /widgets/{widgetId}": {
+                            "expose": "tool",
+                            "tool_name": "get_widget_details",
+                        },
+                        "PATCH /widgets/{widgetId}/status": {
+                            "expose": "tool",
+                            "tool_name": "update_widget_status",
+                            "description": "Update widget status.",
+                        },
+                    },
                 }
             ),
             encoding="utf-8",
@@ -144,16 +156,21 @@ class ServerRegistrationTests(unittest.TestCase):
                 thread.join()
                 server.server_close()
 
-        self.assertIn("demo_check_health", mcp._tool_manager._tools)
-        self.assertIn("demo_list_widgets", mcp._tool_manager._tools)
-        self.assertIn("demo_get_widget", mcp._tool_manager._tools)
-        self.assertIn("demo_patch_widgets_by_widget_id_status", mcp._tool_manager._tools)
+        self.assertIn("demo_get_widget_details", mcp._tool_manager._tools)
+        self.assertIn("demo_update_widget_status", mcp._tool_manager._tools)
+        self.assertNotIn("demo_check_health", mcp._tool_manager._tools)
+        self.assertNotIn("demo_list_widgets", mcp._tool_manager._tools)
         self.assertNotIn("demo_create_widget", mcp._tool_manager._tools)
         self.assertIn("demo://__meta/catalog", mcp._resource_manager._resources)
         self.assertIn("demo://__meta/filter", mcp._resource_manager._resources)
         self.assertIn("demo://health", mcp._resource_manager._resources)
-        self.assertIn("demo://widgets/{widget_id}", mcp._resource_manager._templates)
+        self.assertIn("demo://widgets", mcp._resource_manager._resources)
+        self.assertNotIn("demo://widgets/{widget_id}", mcp._resource_manager._templates)
         self.assertNotIn("demo://widgets/{widget_id}/status", mcp._resource_manager._templates)
+        self.assertEqual(
+            mcp._tool_manager._tools["demo_update_widget_status"].description,
+            "Update widget status.",
+        )
 
     def test_generated_tool_schema_includes_generic_path_params(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -169,7 +186,7 @@ class ServerRegistrationTests(unittest.TestCase):
                 thread.join()
                 server.server_close()
 
-        patch_tool = mcp._tool_manager._tools["demo_patch_widgets_by_widget_id_status"]
+        patch_tool = mcp._tool_manager._tools["demo_update_widget_status"]
 
         self.assertIn("widget_id", patch_tool.parameters["properties"])
         self.assertIn("widget_id", patch_tool.parameters["required"])

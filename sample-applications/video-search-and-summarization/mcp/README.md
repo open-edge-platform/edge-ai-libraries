@@ -2,6 +2,8 @@
 
 This directory contains the FastMCP server for the **Video Search and Summarization (VSS)** sample application. It connects MCP clients to the running VSS REST service and exposes only the VSS capabilities selected by the loaded filter file.
 
+Each bundled proxy file now lists APIs explicitly as `"METHOD /path"` entries and decides whether each API is exposed as a **tool**, **resource**, or **disabled**. Tool entries also provide the MCP tool name explicitly.
+
 Provide a reachable VSS OpenAPI/Swagger URL at runtime, then use one of the bundled VSS mode filters:
 
 - three bundled VSS mode filters:
@@ -44,7 +46,7 @@ docker run --rm -p 8000:8000 \
   -v "$(pwd)/proxy-all.json:/app/proxy-all.json:ro" \
   -e APP_PROXY_SPEC_URL=http://<VSS_IP>:12345/manager/swagger/json \
   -e TARGET_BASE_URL=http://<VSS_IP>:12345/manager \
-  -e APP_PROXY_FILTER_PATH=/app/proxy-search.json \
+  -e APP_PROXY_FILTER_PATH=/app/proxy-all.json \
   vss-mcp
 ```
 
@@ -96,12 +98,6 @@ Use:
 1. the direct VSS REST upload API for video upload
 2. the MCP server for discovery, search, status, summary, and other supported VSS flows
 
-The built-in guidance resource is available at:
-
-```text
-vss://__meta/guidance
-```
-
 ## Docker notes
 
 For search-only or summary-only VSS deployments, either:
@@ -131,18 +127,17 @@ Relative paths are resolved against the current working directory first, then ag
 
 ## What MCP clients will see
 
-The server exposes VSS operations as MCP tools and read-only VSS resources.
+The server exposes VSS operations as MCP tools or read-only VSS resources according to the per-API `expose` field in the proxy JSON.
 
 Examples include:
 
-- tools such as `vss_app_controller_get_features`, `vss_search_controller_get_queries`, and `vss_summary_controller_start_summary_pipeline`
+- tools such as `vss_run_search_query`, `vss_create_summary`, and `vss_delete_search_query`
 - resources such as `vss://app/config`, `vss://videos`, and `vss://summary/{state_id}`
 
 Metadata resources are always available:
 
 - `vss://__meta/catalog`
 - `vss://__meta/filter`
-- `vss://__meta/guidance`
 
 ## Connecting clients
 
@@ -165,12 +160,12 @@ When Inspector opens in the browser:
 
 3. click **Connect**
 
-After the connection succeeds, Inspector shows the MCP server metadata and the VSS tools and resources exposed by the running backend.
+After the connection succeeds, Inspector shows the MCP server metadata and the VSS tools and resources exposed by the running backend according to the exact API entries in the loaded proxy file.
 
 #### What to inspect
 
-1. **Tools** - review generated tools such as `vss_app_controller_get_features`, `vss_search_controller_get_queries`, and summary tools when summary mode is enabled
-2. **Resources** - inspect resources such as `vss://app/config`, `vss://videos`, `vss://__meta/catalog`, `vss://__meta/filter`, and `vss://__meta/guidance`
+1. **Tools** - review configured tools such as `vss_run_search_query`, `vss_create_summary`, and other explicitly named tool entries from the loaded proxy file
+2. **Resources** - inspect resources such as `vss://app/config`, `vss://videos`, `vss://__meta/catalog`, and `vss://__meta/filter`
 3. **Tool schema** - open a tool to see the supported arguments, body fields, and other inputs generated from the VSS OpenAPI spec
 4. **Run tool** - invoke a tool from Inspector to confirm the MCP server can reach the VSS backend and return data
 5. **Read resource** - open a resource URI to verify the resource is available in the active VSS mode

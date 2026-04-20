@@ -12,7 +12,14 @@ from mcp.types import CallToolResult, TextContent
 
 from .client import ProxyApiClient, ProxyServiceError
 from .config import Settings
-from .filters import ProxyFilterConfig, operation_is_enabled, resource_is_enabled
+from .filters import (
+    ProxyFilterConfig,
+    configured_tool_name,
+    operation_config,
+    operation_is_enabled,
+    resource_is_enabled,
+    tool_is_enabled,
+)
 from .formatting import build_tool_result, render_resource_payload
 from .lifecycle import AppContext
 from .models import ApiCatalog, FileUpload, OperationSpec, ParameterSpec
@@ -37,14 +44,17 @@ class RegistryContext:
         )
 
     def tool_name(self, operation: OperationSpec) -> str:
-        """Return the generated MCP tool name for an operation."""
+        """Return the configured MCP tool name for an operation."""
 
-        return f"{self.filter_config.tool_prefix}_{operation.slug}"
+        tool_name = configured_tool_name(self.filter_config, operation)
+        if tool_name is None:
+            raise ValueError(f"No tool_name configured for {operation.method} {operation.path}.")
+        return tool_name
 
     def resource_name(self, operation: OperationSpec) -> str:
         """Return the generated MCP resource name for an operation."""
 
-        return f"{self.tool_name(operation)}_resource"
+        return f"{self.filter_config.tool_prefix}_{operation.slug}_resource"
 
     def resource_uri(self, operation: OperationSpec) -> str:
         """Return the generated resource URI template for an operation."""
@@ -65,6 +75,17 @@ class RegistryContext:
         """Return the shared proxy API client from the typed MCP context."""
 
         return ctx.request_context.lifespan_context.client
+
+    def api_config(self, operation: OperationSpec):
+        """Return the explicit per-operation JSON config entry, if present."""
+
+        return operation_config(self.filter_config, operation)
+
+    def description_override(self, operation: OperationSpec) -> str | None:
+        """Return the configured shared description override for an operation."""
+
+        api_config = self.api_config(operation)
+        return api_config.description if api_config is not None else None
 
     @staticmethod
     def error_result(message: str) -> CallToolResult:
@@ -167,7 +188,11 @@ class RegistryContext:
             "resource_scheme": self.filter_config.resource_scheme,
             "operations": [
                 {
-                    "tool_name": self.tool_name(operation),
+                    "tool_name": (
+                        self.tool_name(operation)
+                        if tool_is_enabled(self.filter_config, operation)
+                        else None
+                    ),
                     "resource_uri": (
                         self.resource_uri(operation)
                         if resource_is_enabled(self.filter_config, operation)
@@ -175,8 +200,10 @@ class RegistryContext:
                     ),
                     "method": operation.method,
                     "path": operation.path,
+                    "expose": self.api_config(operation).expose if self.api_config(operation) else None,
                     "operation_id": operation.operation_id,
                     "summary": operation.summary,
+                    "description_override": self.description_override(operation),
                     "tags": list(operation.tags),
                     "request_body_content_types": list(
                         operation.request_body.content_types if operation.request_body else ()
@@ -193,11 +220,6 @@ class RegistryContext:
 
         return json.dumps(self.filter_config.model_dump(mode="json"), indent=2, sort_keys=True)
 
-    def guidance_resource_payload(self) -> str:
-        """Render optional operator guidance for this MCP surface."""
-
-        return self.filter_config.guidance_markdown or ""
-
 
 def build_server_instructions(
     registry: RegistryContext,
@@ -205,6 +227,7 @@ def build_server_instructions(
 ) -> str:
     """Build high-level MCP server instructions for clients."""
 
+    tool_count = sum(1 for operation in operations if tool_is_enabled(registry.filter_config, operation))
     resource_count = sum(
         1 for operation in operations if resource_is_enabled(registry.filter_config, operation)
     )
@@ -212,7 +235,7 @@ def build_server_instructions(
         f"This MCP server proxies the filtered subset of the {registry.catalog.title} REST API.",
         (
             f"It loaded an {registry.catalog.spec_kind} document from {registry.catalog.source} "
-            f"and exposes {len(operations)} tool(s) plus {resource_count} read-only resource(s)."
+            f"and exposes {tool_count} tool(s) and {resource_count} read-only resource(s)."
         ),
         "Only operations matching the JSON filter config are available.",
         (
@@ -224,11 +247,6 @@ def build_server_instructions(
             "GET endpoints with URI-templated path and required query arguments."
         ),
     ]
-    if registry.filter_config.guidance_markdown:
-        lines.append(
-            f"Additional usage guidance is available at "
-            f"{registry.filter_config.resource_scheme}://__meta/guidance."
-        )
     return " ".join(lines)
 
 
@@ -259,17 +277,6 @@ def register_resources(
         payload_factory=registry.filter_resource_payload,
     )
 
-    if registry.filter_config.guidance_markdown:
-        _register_static_resource(
-            mcp,
-            uri=f"{scheme}://__meta/guidance",
-            name=f"{registry.filter_config.tool_prefix}_guidance_resource",
-            title="Operator guidance for this MCP surface",
-            description="Read special usage guidance and intentional exclusions for this MCP server.",
-            mime_type="text/markdown",
-            payload_factory=registry.guidance_resource_payload,
-        )
-
     for operation in operations:
         if not resource_is_enabled(registry.filter_config, operation):
             continue
@@ -279,7 +286,10 @@ def register_resources(
             registry.resource_uri(operation),
             name=registry.resource_name(operation),
             title=f"{operation.method} {operation.path}",
-            description=_build_resource_description(operation),
+            description=_build_resource_description(
+                operation,
+                description_override=registry.description_override(operation),
+            ),
             mime_type="application/json",
         )(handler)
 
@@ -292,11 +302,17 @@ def register_tools(
     """Register generated MCP tools for the filtered operations."""
 
     for operation in operations:
+        if not tool_is_enabled(registry.filter_config, operation):
+            continue
+
         handler = _build_tool_handler(registry, operation)
         mcp.add_tool(
             handler,
             name=registry.tool_name(operation),
-            description=_build_tool_description(operation),
+            description=_build_tool_description(
+                operation,
+                description_override=registry.description_override(operation),
+            ),
             annotations=registry.tool_annotations(operation),
             structured_output=True,
         )
@@ -352,7 +368,10 @@ def _build_tool_handler(registry: RegistryContext, operation: OperationSpec):
 
     return _make_generated_function(
         function_name=registry.tool_name(operation),
-        description=_build_tool_description(operation),
+        description=_build_tool_description(
+            operation,
+            description_override=registry.description_override(operation),
+        ),
         runner=runner,
         operation=operation,
         include_context=True,
@@ -372,7 +391,10 @@ def _build_resource_handler(registry: RegistryContext, operation: OperationSpec)
 
     return _make_generated_function(
         function_name=registry.resource_name(operation),
-        description=_build_resource_description(operation),
+        description=_build_resource_description(
+            operation,
+            description_override=registry.description_override(operation),
+        ),
         runner=runner,
         operation=operation,
         include_context=False,
@@ -573,8 +595,15 @@ def _split_operation_arguments(
     return path_params, query_params, header_params or None
 
 
-def _build_tool_description(operation: OperationSpec) -> str:
+def _build_tool_description(
+    operation: OperationSpec,
+    *,
+    description_override: str | None = None,
+) -> str:
     """Create a readable description for a generated tool."""
+
+    if description_override:
+        return description_override
 
     lines = [f"Proxy {operation.method} {operation.path} from the loaded API spec."]
     if operation.summary:
@@ -603,8 +632,15 @@ def _build_tool_description(operation: OperationSpec) -> str:
     return "\n".join(lines)
 
 
-def _build_resource_description(operation: OperationSpec) -> str:
+def _build_resource_description(
+    operation: OperationSpec,
+    *,
+    description_override: str | None = None,
+) -> str:
     """Create a readable description for a generated resource."""
+
+    if description_override:
+        return description_override
 
     lines = [f"Read-only resource proxy for {operation.method} {operation.path}."]
     if operation.summary:

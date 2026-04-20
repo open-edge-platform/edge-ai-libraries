@@ -3,147 +3,93 @@
   "server_name": "vss_all_proxy_mcp",
   "tool_prefix": "vss",
   "resource_scheme": "vss",
-  "guidance_markdown": "## Direct VSS upload required\n\nVideo upload is intentionally not proxied through MCP.\n\nUse the direct VSS REST API `POST /videos` to upload video content, then use MCP tools for listing videos, creating search embeddings, running search queries, and starting summary workflows.",
-  "include": [
-    {
-      "path": "/health",
-      "methods": [
-        "GET"
-      ]
+  "apis": {
+    "GET /health": {
+      "expose": "resource"
     },
-    {
-      "path": "/app/config",
-      "methods": [
-        "GET"
-      ]
+    "GET /app/config": {
+      "expose": "resource"
     },
-    {
-      "path": "/app/features",
-      "methods": [
-        "GET"
-      ]
+    "GET /app/features": {
+      "expose": "resource"
     },
-    {
-      "path": "/audio/models",
-      "methods": [
-        "GET"
-      ]
+    "GET /audio/models": {
+      "expose": "resource"
     },
-    {
-      "path": "/pipeline/frames",
-      "methods": [
-        "GET"
-      ]
+    "GET /pipeline/frames": {
+      "expose": "resource"
     },
-    {
-      "path": "/pipeline/evam",
-      "methods": [
-        "GET"
-      ]
+    "GET /pipeline/evam": {
+      "expose": "resource"
     },
-    {
-      "path": "/metrics/status",
-      "methods": [
-        "GET"
-      ]
+    "GET /metrics/status": {
+      "expose": "resource"
     },
-    {
-      "path": "/tags",
-      "methods": [
-        "GET"
-      ]
+    "GET /tags": {
+      "expose": "resource"
     },
-    {
-      "path": "/tags/{tagId}",
-      "methods": [
-        "DELETE"
-      ]
+    "DELETE /tags/{tagId}": {
+      "expose": "tool",
+      "tool_name": "delete_tag"
     },
-    {
-      "path": "/videos",
-      "methods": [
-        "GET"
-      ]
+    "GET /videos": {
+      "expose": "resource"
     },
-    {
-      "path": "/videos/{videoId}",
-      "methods": [
-        "GET"
-      ]
+    "GET /videos/{videoId}": {
+      "expose": "resource"
     },
-    {
-      "path": "/videos/search-embeddings/{videoId}",
-      "methods": [
-        "POST"
-      ]
+    "POST /videos/search-embeddings/{videoId}": {
+      "expose": "tool",
+      "tool_name": "create_video_search_embeddings"
     },
-    {
-      "path": "/search",
-      "methods": [
-        "GET",
-        "POST"
-      ]
+    "GET /search": {
+      "expose": "resource"
     },
-    {
-      "path": "/search/watched",
-      "methods": [
-        "GET"
-      ]
+    "POST /search": {
+      "expose": "tool",
+      "tool_name": "create_search"
     },
-    {
-      "path": "/search/query",
-      "methods": [
-        "POST"
-      ]
+    "GET /search/watched": {
+      "expose": "resource"
     },
-    {
-      "path": "/search/{queryId}",
-      "methods": [
-        "GET",
-        "DELETE"
-      ]
+    "POST /search/query": {
+      "expose": "tool",
+      "tool_name": "run_search_query"
     },
-    {
-      "path": "/search/{queryId}/refetch",
-      "methods": [
-        "POST"
-      ]
+    "GET /search/{queryId}": {
+      "expose": "resource"
     },
-    {
-      "path": "/search/{queryId}/watch",
-      "methods": [
-        "PATCH"
-      ]
+    "DELETE /search/{queryId}": {
+      "expose": "tool",
+      "tool_name": "delete_search_query"
     },
-    {
-      "path": "/summary",
-      "methods": [
-        "GET",
-        "POST"
-      ]
+    "POST /search/{queryId}/refetch": {
+      "expose": "tool",
+      "tool_name": "refetch_search_query"
     },
-    {
-      "path": "/summary/ui",
-      "methods": [
-        "GET"
-      ]
+    "PATCH /search/{queryId}/watch": {
+      "expose": "tool",
+      "tool_name": "update_search_watch_state"
     },
-    {
-      "path": "/summary/{stateId}",
-      "methods": [
-        "GET",
-        "DELETE"
-      ]
+    "GET /summary": {
+      "expose": "resource"
     },
-    {
-      "path": "/summary/{stateId}/raw",
-      "methods": [
-        "GET"
-      ]
+    "POST /summary": {
+      "expose": "tool",
+      "tool_name": "create_summary"
+    },
+    "GET /summary/ui": {
+      "expose": "resource"
+    },
+    "GET /summary/{stateId}": {
+      "expose": "resource"
+    },
+    "DELETE /summary/{stateId}": {
+      "expose": "tool",
+      "tool_name": "delete_summary"
+    },
+    "GET /summary/{stateId}/raw": {
+      "expose": "resource"
     }
-  ],
-  "exclude": [],
-  "resource_methods": [
-    "GET"
-  ]
+  }
 }
