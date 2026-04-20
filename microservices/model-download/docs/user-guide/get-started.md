@@ -382,6 +382,64 @@ Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metric
 3. Select model precision according to your performance requirements.
 4. Use appropriate model types and configurations for OpenVINO model server conversion.
 
+## Running as an Ephemeral Container
+
+The microservice can be run as an ephemeral (one-shot) container that downloads or converts a model and exits automatically. This is useful for CI/CD pipelines, pre-provisioning model caches, or scripted workflows.
+
+### Prerequisites
+
+- Docker image built locally or pulled from a registry
+- A host directory for persisting downloaded models
+
+### Quick Start
+
+```bash
+# Create a directory on the host for models
+mkdir -p models
+
+# Download a HuggingFace model
+docker run --rm \
+    -v ./models:/opt/models \
+    model-download:latest \
+    --plugins huggingface --ephemeral \
+    --model-name Qwen/Qwen3-0.6B --hub huggingface
+```
+
+### Download and Convert to OpenVINO
+
+```bash
+docker run --rm \
+    -v ./models:/opt/models \
+    -e HF_TOKEN=<your_hf_token> \
+    model-download:latest \
+    --plugins huggingface,openvino --ephemeral \
+    --model-name Qwen/Qwen3-0.6B --hub huggingface \
+    --type llm --is-ovms --precision int8 --device CPU
+```
+
+### Ephemeral Script Options
+
+| Option | Description | Required |
+|---|---|---|
+| `--model-name <name>` | Model identifier (e.g. `Qwen/Qwen3-0.6B`) | Yes |
+| `--hub <hub>` | Source hub: `huggingface`, `ultralytics`, `ollama`, `openvino`, `geti`, `hls` | Yes |
+| `--type <type>` | Model type: `llm`, `vlm`, `embeddings`, `rerank`, `vision`, `3d-pose`, `rppg`, `ai-ecg` | No |
+| `--download-path <path>` | Sub-directory under models directory | No |
+| `--revision <rev>` | Model revision (branch/tag/commit) | No |
+| `--is-ovms` | Convert to OpenVINO format after downloading | No |
+| `--precision <prec>` | Weight precision: `int4`, `int8`, `fp16`, `fp32` (default: `int8`) | No |
+| `--device <dev>` | Target device: `CPU`, `GPU`, `NPU` (default: `CPU`) | No |
+| `--cache-size <gb>` | KV cache size in GB (for LLM/VLM conversion) | No |
+| `--config-json <json>` | Additional config as JSON string | No |
+
+### Notes
+
+- The container exits with code `0` on success and `1` on failure.
+- Use `--rm` with `docker run` to automatically remove the container after exit.
+- The `--plugins` flag controls which plugins are installed at startup. Only specify what you need to reduce startup time.
+- For gated HuggingFace models, pass your token via `-e HF_TOKEN=<token>`.
+- Ensure the host models directory has proper permissions. If you encounter permission issues, run `chmod o+rw ./models` on the host directory before starting the container.
+
 ## Run in Kubernetes Cluster
 
 See [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md) for details. Address the prerequisites mentioned on this page before deploying with Helm chart.
