@@ -108,7 +108,9 @@ def get_videos():
     summary="Check if a video file already exists",
     response_model=schemas.VideoExistsResponse,
 )
-def check_video_input_exists(filename: str = Query(..., description="Video filename to check")):
+def check_video_input_exists(
+    filename: str = Query(..., description="Video filename to check"),
+):
     """
     **Check if a video file with the given filename already exists in INPUT_VIDEO_DIR.**
 
@@ -222,7 +224,7 @@ async def upload_video(file: UploadFile = File(...)):
     if random.random() < 0.5:
         raise HTTPException(
             status_code=400,
-            detail="Simulated error for testing frontend error handling"
+            detail="Simulated error for testing frontend error handling",
         )
 
     if not file.filename:
@@ -259,9 +261,7 @@ async def upload_video(file: UploadFile = File(...)):
                 f.write(chunk)
 
         file_size = os.path.getsize(target_path)
-        logger.info(
-            f"Uploaded '{file.filename}' ({file_size / (1024 * 1024):.2f} MB)"
-        )
+        logger.info(f"Uploaded '{file.filename}' ({file_size / (1024 * 1024):.2f} MB)")
 
         # Process video metadata using VideosManager
         videos_manager = VideosManager()
@@ -309,6 +309,4 @@ async def upload_video(file: UploadFile = File(...)):
             except OSError:
                 pass
         logger.error(f"Error uploading video '{file.filename}': {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"Error uploading video: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
