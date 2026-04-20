@@ -71,3 +71,7 @@ export const routeConfig: Array<RouteObject> = [
   { path: "jobs/optimize", Component: Jobs },
   { path: "jobs/optimize/:jobId", Component: OptimizationJobDetail },
 ];
+
+// Routes that should stay mounted (keep-alive) when navigating away
+// Used for pages with long-running operations like file uploads
+export const keepAliveRoutes = ["/videos"];
