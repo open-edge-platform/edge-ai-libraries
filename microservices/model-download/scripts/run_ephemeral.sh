@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 # =============================================================================
@@ -9,9 +9,6 @@
 # Runs the model download service temporarily, performs a single download
 # (and optional OpenVINO conversion), then exits. Designed for use inside
 # a Docker container in one-shot mode.
-#
-# Usage:
-#   /opt/scripts/run_ephemeral.sh --model-name <name> --hub <hub> [options]
 # =============================================================================
 
 set -e
