@@ -1754,6 +1754,56 @@ class VideoExistsResponse(BaseModel):
     )
 
 
+class ImageSet(BaseModel):
+    """
+    **Metadata for a single image set (directory of images).**
+
+    ## Attributes
+    - `name` - Name of the image set (directory name under INPUT_IMAGES_DIR)
+    - `image_count` - Number of image files in the directory
+
+    ### Example
+    ```json
+    {
+      "name": "traffic_dataset",
+      "image_count": 120
+    }
+    ```
+    """
+
+    name: str = Field(..., description="Name of the image set directory.")
+    image_count: int = Field(
+        ..., description="Number of image files in the directory."
+    )
+
+
+class ImageSetExistsResponse(BaseModel):
+    """
+    **Response indicating whether an image set directory exists.**
+
+    ## Attributes
+    - `exists` - True if directory exists in INPUT_IMAGES_DIR, False otherwise
+    - `name` - The image set name that was checked
+
+    ### Example
+    ```json
+    {
+      "exists": true,
+      "name": "traffic_dataset"
+    }
+    ```
+    """
+
+    exists: bool = Field(
+        ...,
+        description="True if the image set directory exists, False otherwise.",
+    )
+    name: str = Field(
+        ...,
+        description="The image set name (directory) that was checked.",
+    )
+
+
 class CameraDetails(BaseModel):
     """
     **Base class for camera-specific details.**
