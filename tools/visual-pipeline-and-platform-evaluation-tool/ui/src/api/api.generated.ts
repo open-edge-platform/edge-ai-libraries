@@ -9,6 +9,7 @@ export const addTagTypes = [
   "pipelines",
   "tests",
   "videos",
+  "images",
   "cameras",
 ] as const;
 const injectedRtkApi = api
@@ -365,6 +366,33 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["videos"],
       }),
+      getImageSets: build.query<GetImageSetsApiResponse, GetImageSetsApiArg>({
+        query: () => ({ url: `/images` }),
+        providesTags: ["images"],
+      }),
+      checkImageSetExists: build.query<
+        CheckImageSetExistsApiResponse,
+        CheckImageSetExistsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/images/check-image-set-exists`,
+          params: {
+            name: queryArg.name,
+          },
+        }),
+        providesTags: ["images"],
+      }),
+      uploadImageArchive: build.mutation<
+        UploadImageArchiveApiResponse,
+        UploadImageArchiveApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/images/upload`,
+          method: "POST",
+          body: queryArg.bodyUploadImageArchive,
+        }),
+        invalidatesTags: ["images"],
+      }),
       getCameras: build.query<GetCamerasApiResponse, GetCamerasApiArg>({
         query: () => ({ url: `/cameras` }),
         providesTags: ["cameras"],
@@ -587,6 +615,20 @@ export type UploadVideoApiResponse =
   /** status 201 Successful Response */ Video;
 export type UploadVideoApiArg = {
   bodyUploadVideo: BodyUploadVideo;
+};
+export type GetImageSetsApiResponse =
+  /** status 200 Successful Response */ ImageSet[];
+export type GetImageSetsApiArg = void;
+export type CheckImageSetExistsApiResponse =
+  /** status 200 Successful Response */ ImageSetExistsResponse;
+export type CheckImageSetExistsApiArg = {
+  /** Image set (directory) name to check */
+  name: string;
+};
+export type UploadImageArchiveApiResponse =
+  /** status 201 Successful Response */ ImageSet;
+export type UploadImageArchiveApiArg = {
+  bodyUploadImageArchive: BodyUploadImageArchive;
 };
 export type GetCamerasApiResponse =
   /** status 200 List of all cameras successfully retrieved. */ Camera[];
@@ -947,6 +989,21 @@ export type VideoExistsResponse = {
 export type BodyUploadVideo = {
   file: string;
 };
+export type ImageSet = {
+  /** Name of the image set directory. */
+  name: string;
+  /** Number of image files in the directory. */
+  image_count: number;
+};
+export type ImageSetExistsResponse = {
+  /** True if the image set directory exists, False otherwise. */
+  exists: boolean;
+  /** The image set name (directory) that was checked. */
+  name: string;
+};
+export type BodyUploadImageArchive = {
+  file: string;
+};
 export type CameraType = "USB" | "NETWORK";
 export type V4L2BestCapture = {
   fourcc: string;
@@ -1052,6 +1109,11 @@ export const {
   useCheckVideoInputExistsQuery,
   useLazyCheckVideoInputExistsQuery,
   useUploadVideoMutation,
+  useGetImageSetsQuery,
+  useLazyGetImageSetsQuery,
+  useCheckImageSetExistsQuery,
+  useLazyCheckImageSetExistsQuery,
+  useUploadImageArchiveMutation,
   useGetCamerasQuery,
   useLazyGetCamerasQuery,
   useGetCameraQuery,

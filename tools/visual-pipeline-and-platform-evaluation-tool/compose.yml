@@ -47,6 +47,7 @@ x-vippet: &vippet
   volumes:
     - "/dev:/dev"
     - ./shared/collector-signals:/home/dlstreamer/vippet/.collector-signals
+    - ./shared/images/:/images
     - ./shared/models/:/models
     - ./shared/videos/:/videos
     - ./shared/scripts/:/scripts
@@ -176,7 +177,7 @@ services:
     ports:
       - "8554:8554"     # RTSP
       - "8889:8889"     # WebRTC signaling/HTTP
-      - "8189:8189/udp" # WebRTC/ICE UDP 
+      - "8189:8189/udp" # WebRTC/ICE UDP
   onvif-discovery:
     image: docker.io/intel/vippet-onvif-discovery:${DOCKER_TAG}
     build:
@@ -224,4 +225,3 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
-

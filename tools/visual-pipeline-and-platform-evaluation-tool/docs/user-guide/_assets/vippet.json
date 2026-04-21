@@ -2287,6 +2287,119 @@
         }
       }
     },
+    "/images": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "List all available image sets",
+        "description": "**List all discovered image sets (directories) in INPUT_IMAGES_DIR.**\n\n## Operation\n\n1. ImagesManager scans INPUT_IMAGES_DIR for subdirectories\n2. Counts image files in each subdirectory\n3. Returns array of ImageSet objects\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of ImageSet objects (empty if none found) |\n| 500  | Runtime error while listing image sets |\n\n## Example Response\n\n```json\n[\n  {\n    \"name\": \"traffic_dataset\",\n    \"image_count\": 120\n  }\n]\n```",
+        "operationId": "get_image_sets",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ImageSet"
+                  },
+                  "type": "array",
+                  "title": "Response Get Image Sets"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/images/check-image-set-exists": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Check if an image set directory already exists",
+        "description": "**Check if an image set directory with the given name exists in INPUT_IMAGES_DIR.**\n\n## Parameters\n- `name` (query) - Name of the image set directory to check\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | Returns ImageSetExistsResponse with exists boolean |\n\n## Example Response\n\n```json\n{\n  \"exists\": true,\n  \"name\": \"traffic_dataset\"\n}\n```",
+        "operationId": "check_image_set_exists",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Image set (directory) name to check",
+              "title": "Name"
+            },
+            "description": "Image set (directory) name to check"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageSetExistsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/images/upload": {
+      "post": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Upload a new image set as an archive",
+        "description": "**Upload an archive of images. The archive is extracted into its own directory under INPUT_IMAGES_DIR.**\n\n## Operation\n\n1. Validate archive extension against supported formats\n2. Derive image set directory name from archive filename (without extension)\n3. Reject if a directory with that name already exists\n4. Save archive to a temp location, then extract safely into the target directory\n5. Return ImageSet object with the discovered image count\n\n## Parameters\n- `file` (multipart/form-data) - Archive file to upload (zip, tar, tar.gz, tgz, tar.bz2, tbz2)\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 201  | Archive uploaded and extracted, returns ImageSet object |\n| 400  | Invalid archive (unsupported extension, duplicate name, unsafe paths, no images) |\n| 500  | Error during upload or extraction |\n\n## Example Response\n\n```json\n{\n  \"name\": \"traffic_dataset\",\n  \"image_count\": 120\n}\n```",
+        "operationId": "upload_image_archive",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_image_archive"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageSet"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cameras": {
       "get": {
         "tags": [
@@ -2492,6 +2605,20 @@
         ],
         "title": "AppStatus",
         "description": "**Application status enum for tracking initialization progress.**\n\n## Values\n- `STARTING` - Application is starting, no initialization yet\n- `INITIALIZING` - Application is initializing resources (e.g., loading videos)\n- `READY` - Application is fully initialized and ready to serve requests\n- `SHUTDOWN` - Application is shutting down\n\n### Example\n```json\n\"ready\"\n```"
+      },
+      "Body_upload_image_archive": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_image_archive"
       },
       "Body_upload_video": {
         "properties": {
@@ -3010,6 +3137,48 @@
         ],
         "title": "HealthResponse",
         "description": "**Response model for health endpoint.**\n\nUsed by Docker healthcheck and monitoring systems to verify\napplication health status.\n\n## Attributes\n- `healthy` - True if application is healthy (not shutdown)\n\n### Example\n```json\n{\n  \"healthy\": true\n}\n```"
+      },
+      "ImageSet": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Name of the image set directory."
+          },
+          "image_count": {
+            "type": "integer",
+            "title": "Image Count",
+            "description": "Number of image files in the directory."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "image_count"
+        ],
+        "title": "ImageSet",
+        "description": "**Metadata for a single image set (directory of images).**\n\n## Attributes\n- `name` - Name of the image set (directory name under INPUT_IMAGES_DIR)\n- `image_count` - Number of image files in the directory\n\n### Example\n```json\n{\n  \"name\": \"traffic_dataset\",\n  \"image_count\": 120\n}\n```"
+      },
+      "ImageSetExistsResponse": {
+        "properties": {
+          "exists": {
+            "type": "boolean",
+            "title": "Exists",
+            "description": "True if the image set directory exists, False otherwise."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "The image set name (directory) that was checked."
+          }
+        },
+        "type": "object",
+        "required": [
+          "exists",
+          "name"
+        ],
+        "title": "ImageSetExistsResponse",
+        "description": "**Response indicating whether an image set directory exists.**\n\n## Attributes\n- `exists` - True if directory exists in INPUT_IMAGES_DIR, False otherwise\n- `name` - The image set name that was checked\n\n### Example\n```json\n{\n  \"exists\": true,\n  \"name\": \"traffic_dataset\"\n}\n```"
       },
       "MessageResponse": {
         "properties": {

@@ -1,4 +1,10 @@
 import {
+  api,
+  useGetImageSetsQuery,
+  useLazyCheckImageSetExistsQuery,
+} from "@/api/api.generated.ts";
+import { ENDPOINTS } from "@/api/apiEndpoints";
+import {
   Table,
   TableBody,
   TableCaption,
@@ -14,7 +20,9 @@ import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 import { MultiFileUploader } from "@/components/shared/MultiFileUploader.tsx";
 
 export const Images = () => {
+  const { data: imageSets, isSuccess, isLoading } = useGetImageSetsQuery();
   const dispatch = useAppDispatch();
+  const [checkImageSetExists] = useLazyCheckImageSetExistsQuery();
   const { registerJobGroup, unregisterJobGroup, updateJobs } =
     useBackgroundJobs();
 
@@ -29,14 +37,19 @@ export const Images = () => {
   const handleCheckFileExists = useCallback(
     async (filename: string): Promise<{ exists: boolean }> => {
       try {
-        // TODO: Implement image exists check when API is available
-        return { exists: false };
+        // Extract name without extension for image set directory check
+        const name = filename.replace(
+          /\.(zip|tar|tar\.gz|tgz|tar\.bz2|tbz2)$/i,
+          "",
+        );
+        const result = await checkImageSetExists({ name }).unwrap();
+        return { exists: result.exists };
       } catch (error) {
         console.error(`Error checking file ${filename}:`, error);
         return { exists: false };
       }
     },
-    [],
+    [checkImageSetExists],
   );
 
   const handleUploadProgress = useCallback(
@@ -49,14 +62,13 @@ export const Images = () => {
   const handleUploadComplete = useCallback(
     (succeeded: number, failed: number) => {
       if (failed === 0 && succeeded > 0) {
-        // TODO: Invalidate images cache when API is available
-        // dispatch(api.util.invalidateTags(["images"]));
+        dispatch(api.util.invalidateTags(["images"]));
         toast.success("Upload completed.");
       } else if (succeeded > 0 && failed > 0) {
         toast.warning(
           `${succeeded} file(s) uploaded successfully. ${failed} failed.`,
         );
-        // dispatch(api.util.invalidateTags(["images"]));
+        dispatch(api.util.invalidateTags(["images"]));
       } else if (failed > 0) {
         toast.error(`Upload failed for ${failed} file(s).`);
       }
@@ -64,14 +76,10 @@ export const Images = () => {
     [dispatch],
   );
 
-  // TODO: Replace with actual API query when available
-  const images: any[] = [];
-  const isLoading = false;
-
   if (isLoading) {
     return (
       <div className="h-full overflow-auto">
-        <div className="container mx-auto py-10">Loading images...</div>
+        <div className="container mx-auto py-10">Loading image sets...</div>
       </div>
     );
   }
@@ -81,13 +89,13 @@ export const Images = () => {
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Images</h1>
         <p className="text-muted-foreground mt-2">
-          Ready-to-use images available in the platform
+          Upload archive files to extract and use image sets
         </p>
       </div>
 
       <MultiFileUploader
-        accept="image/*"
-        uploadEndpoint="/api/images/upload"
+        accept=".zip,.tar,.tar.gz,.tgz,.tar.bz2,.tbz2,application/zip,application/x-tar,application/gzip,application/x-gzip,application/x-bzip2"
+        uploadEndpoint={ENDPOINTS.UPLOAD_IMAGE_ARCHIVE}
         checkFileExists={handleCheckFileExists}
         onUploadProgress={handleUploadProgress}
         onUploadComplete={handleUploadComplete}
@@ -96,39 +104,27 @@ export const Images = () => {
         className="mb-8"
       />
 
-      {images.length > 0 ? (
+      {isSuccess && imageSets && imageSets.length > 0 ? (
         <Table>
-          <TableCaption>A list of loaded images.</TableCaption>
+          <TableCaption>A list of loaded image sets.</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[25%]">File name</TableHead>
-              <TableHead>Resolution</TableHead>
-              <TableHead>Format</TableHead>
-              <TableHead>Preview</TableHead>
+              <TableHead className="w-[50%]">Image Set Name</TableHead>
+              <TableHead>Number of Images</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {images.map((image: any) => (
-              <TableRow key={image.filename}>
-                <TableCell className="font-medium">{image.filename}</TableCell>
-                <TableCell>
-                  {image.width}x{image.height}
-                </TableCell>
-                <TableCell>{image.format}</TableCell>
-                <TableCell>
-                  <img
-                    src={`/assets/images/input/${image.filename}`}
-                    alt={image.filename}
-                    className="w-48 h-auto"
-                  />
-                </TableCell>
+            {imageSets.map((imageSet) => (
+              <TableRow key={imageSet.name}>
+                <TableCell className="font-medium">{imageSet.name}</TableCell>
+                <TableCell>{imageSet.image_count}</TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       ) : (
         <div className="text-center py-10 text-muted-foreground">
-          No images uploaded yet. Upload your first image above.
+          No image sets uploaded yet. Upload your first archive above.
         </div>
       )}
     </div>
