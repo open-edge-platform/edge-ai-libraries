@@ -28,12 +28,14 @@ RUN apt-get update && \
 
 # Install qmassa
 RUN cargo install --locked qmassa@1.2.1
+RUN cargo install --locked qmmd@0.1.1
 
 # Final image for the collector
 FROM docker.io/library/telegraf:1.38.2 AS collector
 
 # Copy qmassa binary from the build stage
 COPY --from=qmassa /usr/local/cargo/bin/qmassa /usr/local/bin/qmassa
+COPY --from=qmassa /usr/local/cargo/bin/qmmd /usr/local/bin/qmmd
 
 # Set environment variable to non-interactive mode (avoids some prompts)
 ENV DEBIAN_FRONTEND=noninteractive
