@@ -29,6 +29,8 @@ x-vippet: &vippet
     METRICS_LOG_LEVEL: INFO
     MODELS_PATH: /models/output
     SUPPORTED_MODELS_FILE: /models/supported_models.yaml
+    INPUT_IMAGES_DIR: /images/input
+    OUTPUT_IMAGES_DIR: /images/output
     INPUT_VIDEO_DIR: /videos/input
     OUTPUT_VIDEO_DIR: /videos/output
     METADATA_DIR: /metadata
