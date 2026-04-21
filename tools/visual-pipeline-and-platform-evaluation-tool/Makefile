@@ -71,6 +71,8 @@ env-setup: ## Environment setup target: always run before build/run targets that
 	mkdir -p shared/models/output && chmod o+w shared/models/output
 	mkdir -p shared/model-download/venv && chmod o+w shared/model-download/venv
 	mkdir -p shared/model-download/cache && chmod o+w shared/model-download/cache
+	mkdir -p shared/images/input && chmod o+w shared/images/input
+	mkdir -p shared/images/output && chmod o+w shared/images/output
 	mkdir -p shared/videos/input && chmod o+w shared/videos/input
 	mkdir -p shared/videos/output && chmod o+w shared/videos/output
 	mkdir -p shared/videos/video-generator && chmod o+w shared/videos/video-generator
