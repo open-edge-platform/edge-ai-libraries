@@ -68,6 +68,7 @@ generate_openapi: $(VENV_DIR) ## Generate OpenAPI schema file
 
 env-setup: ## Environment setup target: always run before build/run targets that need .env and shared dirs
 	mkdir -p shared/collector-signals && chmod o+w shared/collector-signals
+	mkdir -p shared/metadata && chmod o+w shared/metadata
 	mkdir -p shared/models/output && chmod o+w shared/models/output
 	mkdir -p shared/model-download/venv && chmod o+w shared/model-download/venv
 	mkdir -p shared/model-download/cache && chmod o+w shared/model-download/cache
