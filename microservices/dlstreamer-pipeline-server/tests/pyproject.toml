@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning:opentelemetry.sdk._logs._internal",
+]

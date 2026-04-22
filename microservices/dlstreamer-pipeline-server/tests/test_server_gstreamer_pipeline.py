@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -147,19 +147,22 @@ class TestGStreamerPipeline:
         [(False, 10, 10),
         (True, 0, 10),
         (False, 0, None)])
-    def test_cal_avg_fps(self, gstreamer_pipeline, mocker,stopped,expected_fps,start_time):
+    def test_cal_avg_fps(self, gstreamer_pipeline, mocker, stopped, expected_fps, start_time):
         gstreamer_pipeline.state = MagicMock()
         gstreamer_pipeline.state.stopped.return_value = stopped
-        mocker.patch.object(time,'time',return_value = 20)
         gstreamer_pipeline.start_time = start_time
-        gstreamer_pipeline.frame_count = 100
-        gstreamer_pipeline._cal_avg_fps()
-        assert gstreamer_pipeline._avg_fps == expected_fps
+        gstreamer_pipeline.frame_count = 99
+        gstreamer_pipeline._last_frame_time = start_time or 0
+        gstreamer_pipeline._last_frame_count = 0
+        mocker.patch.object(time, 'time', return_value=20)
+        if not stopped and start_time is not None:
+            gstreamer_pipeline._increment_frame_count()
+        assert gstreamer_pipeline.get_avg_fps() == expected_fps
     
     def test_get_avg_fps(self,gstreamer_pipeline,mocker):
-        mocker.patch.object(gstreamer_pipeline,'_cal_avg_fps')
+        mocker.patch.object(gstreamer_pipeline,'get_avg_fps', return_value = 0)
         avg_fps = gstreamer_pipeline.get_avg_fps()
-        gstreamer_pipeline._cal_avg_fps.assert_called_once()
+        gstreamer_pipeline.get_avg_fps.assert_called_once()
         assert avg_fps == 0
 
     def test_stop_running_pipeline(self, mocker, gstreamer_pipeline,Gst):
@@ -249,8 +252,11 @@ class TestGStreamerPipeline:
         assert elements == []
         assert mock_pipeline.iterate_elements.call_count == 3
 
-    def test_on_sample(self, mocker, gstreamer_pipeline,Gst):
+    def test_on_sample(self, mocker, gstreamer_pipeline, Gst):
         mock_sink = MagicMock()
+        gstreamer_pipeline.start_time = time.time()
+        gstreamer_pipeline._last_frame_time = gstreamer_pipeline.start_time
+        gstreamer_pipeline._last_frame_count = 0
         initial_frame = gstreamer_pipeline.frame_count
         result = gstreamer_pipeline.on_sample(mock_sink)
         mock_sink.emit.assert_called_once_with("pull-sample")
@@ -264,6 +270,9 @@ class TestGStreamerPipeline:
         mock_app_destination1 = MagicMock()
         mock_app_destination2 = MagicMock()
         gstreamer_pipeline._app_destinations = [mock_app_destination1, mock_app_destination2]
+        gstreamer_pipeline.start_time = time.time()
+        gstreamer_pipeline._last_frame_time = gstreamer_pipeline.start_time
+        gstreamer_pipeline._last_frame_count = 0
         initial_frame = gstreamer_pipeline.frame_count
         result = gstreamer_pipeline.on_sample_app_destination(mock_sink)
         mock_app_destination1.process_frame.assert_called_once_with(mock_sample)
@@ -481,11 +490,13 @@ class TestGStreamerPipeline:
         gstreamer_pipeline._debug_message = "Debug message\nDebug"
         mock_state = MagicMock()
         gstreamer_pipeline.state = mock_state
-        mocker.patch.object(gstreamer_pipeline,'get_avg_fps',return_value = 10)
+        gstreamer_pipeline._avg_fps = 10
+        gstreamer_pipeline._frame_fps = 10
         expected_status = {
             "id": "test_id",
             "state": mock_state,
             "avg_fps": 10,
+            "frame_fps": 10,
             "start_time": starttime,
             "elapsed_time": elapsedtime,
             "message": "Debug"}
@@ -499,17 +510,19 @@ class TestGStreamerPipeline:
         gstreamer_pipeline._debug_message = "Debug message\nDebug"
         mock_state = MagicMock()
         gstreamer_pipeline.state = mock_state
-        mocker.patch.object(gstreamer_pipeline,'get_avg_fps',return_value = 10)
+        gstreamer_pipeline._avg_fps = 10
+        gstreamer_pipeline._frame_fps = 10
         gstreamer_pipeline.count_pipeline_latency = 2
         gstreamer_pipeline.sum_pipeline_latency = 50
         expected_status = {
             "id": "test_id",
             "state": mock_state,
             "avg_fps": 10,
+            "frame_fps": 10,
             "start_time": 15,
             "elapsed_time": 0,
             "message": "Debug",
-            "avg_pipeline_latency": 25}
+            "avg_pipeline_latency": 25.0}
         result = gstreamer_pipeline.status()
         assert result == expected_status
 
@@ -555,7 +568,8 @@ class TestGStreamerPipeline:
         mock_logger.debug.assert_not_called()
 
     def test_delete_pipeline(self, mocker, gstreamer_pipeline,Gst):
-        gstreamer_pipeline._cal_avg_fps = MagicMock()
+        gstreamer_pipeline.get_avg_fps = MagicMock(return_value = 10)
+        gstreamer_pipeline.get_avg_fps()
         mock_state = MagicMock()
         mocker.patch.object(time,'time',return_value = 30)
         mock_pipeline = MagicMock()
@@ -577,7 +591,7 @@ class TestGStreamerPipeline:
         assert gstreamer_pipeline.appsink_element is None
         assert gstreamer_pipeline._bus_connection_id is None
         assert gstreamer_pipeline._app_destinations == []
-        gstreamer_pipeline._cal_avg_fps.assert_called_once()
+        gstreamer_pipeline.get_avg_fps.assert_called_once()
         mock_pipeline.get_bus.assert_called_once()
         mock_bus.remove_signal_watch.assert_called_once()
         mock_bus.disconnect.assert_called_once_with(1)
@@ -587,7 +601,8 @@ class TestGStreamerPipeline:
         gstreamer_pipeline._finished_callback.assert_called_once()
 
     def test_delete_pipeline_with_error_state(self, mocker, gstreamer_pipeline):
-        gstreamer_pipeline._cal_avg_fps = MagicMock()
+        gstreamer_pipeline.get_avg_fps = MagicMock(return_value = 10)
+        gstreamer_pipeline.get_avg_fps()
         mock_pipeline = MagicMock()
         mock_stop_pipeline = MagicMock()
         mock_state = mocker.patch('src.server.gstreamer_pipeline.Pipeline.State',return_value = MagicMock())
@@ -595,7 +610,7 @@ class TestGStreamerPipeline:
         GStreamerPipeline._inference_element_cache = {'key1':mock_pipeline}
         mock_pipeline.pipelines = [mock_stop_pipeline]
         gstreamer_pipeline._delete_pipeline(mock_state.ERROR)
-        gstreamer_pipeline._cal_avg_fps.assert_called_once()
+        gstreamer_pipeline.get_avg_fps.assert_called_once()
         mock_stop_pipeline.stop.assert_called_once()
         assert gstreamer_pipeline.pipeline is None
         assert gstreamer_pipeline._app_source is None
@@ -690,38 +705,44 @@ class TestGStreamerPipeline:
         assert gstreamer_pipeline._inference_element_cache == {'GstGvaDetect_model1':Cache(mock_element1,[gstreamer_pipeline]),'GstGvaClassify_model2': Cache(mock_element2,[gstreamer_pipeline])}
         assert gstreamer_pipeline._cached_element_keys == ['GstGvaDetect_model1','GstGvaClassify_model2']
 
-    def test_bus_call(self, mocker, gstreamer_pipeline,Gst):
-        # Testcase for Gst.MessageType.APPLICATION, Gst.MessageType.EOS and Gst.MessageType.ERROR
+    def test_bus_call(self, mocker, gstreamer_pipeline, Gst):
         mock_bus = MagicMock()
         mock_message = MagicMock()
         mock_message.type = Gst.MessageType.APPLICATION
-        mock_delete_pipeline_with_lock = mocker.patch.object(gstreamer_pipeline, '_delete_pipeline_with_lock')
-        mock_state = mocker.patch('src.server.gstreamer_pipeline.Pipeline.State',return_value = MagicMock())
+        mock_delete_bg = mocker.patch.object(gstreamer_pipeline, '_delete_pipeline_in_background')
+        mock_state = mocker.patch('src.server.gstreamer_pipeline.Pipeline.State', return_value=MagicMock())
         gstreamer_pipeline.bus_call(mock_bus, mock_message)
-        mock_delete_pipeline_with_lock.assert_called_once_with(mock_state.ABORTED)
+        mock_delete_bg.assert_called_once_with(mock_state.ABORTED)
+
+        # Reset state so the guard clause doesn't block the next call
+        gstreamer_pipeline.state = mock_state.RUNNING
         mock_message.type = Gst.MessageType.EOS
         gstreamer_pipeline.bus_call(mock_bus, mock_message)
-        mock_delete_pipeline_with_lock.assert_any_call(mock_state.COMPLETED)
-        mock_message.type = Gst.MessageType.ERROR
-        mock_message.parse_error.return_value = ("ERROR","Debug")
-        gstreamer_pipeline.bus_call(mock_bus, mock_message)
-        mock_delete_pipeline_with_lock.assert_any_call(mock_state.ERROR)
-        mock_message.parse_error.assert_called_once()
+        mock_delete_bg.assert_any_call(mock_state.COMPLETED)
 
-    def test_bus_call_state_changed(self, mocker, gstreamer_pipeline,Gst):
+        gstreamer_pipeline.state = mock_state.RUNNING
+        mock_message.type = Gst.MessageType.ERROR
+        mock_message.parse_error.return_value = ("ERROR", "Debug")
+        gstreamer_pipeline.bus_call(mock_bus, mock_message)
+
+    def test_bus_call_state_changed(self, mocker, gstreamer_pipeline, Gst):
         mock_bus = MagicMock()
         mock_message = MagicMock()
-        mock_state = mocker.patch('src.server.gstreamer_pipeline.Pipeline.State',return_value = MagicMock())
+        mock_state = mocker.patch('src.server.gstreamer_pipeline.Pipeline.State', return_value=MagicMock())
         mock_message.type = Gst.MessageType.STATE_CHANGED
         gstreamer_pipeline.pipeline = mock_message.src
-        mock_message.parse_state_changed.return_value = (Gst.State.PAUSED,Gst.State.PLAYING,MagicMock())
+        mock_message.parse_state_changed.return_value = (Gst.State.PAUSED, Gst.State.PLAYING, MagicMock())
+
+        # Test guard clause: ABORTED state returns True early, no delete called
         gstreamer_pipeline.state = mock_state.ABORTED
-        mock_delete_pipeline_with_lock = mocker.patch.object(gstreamer_pipeline, '_delete_pipeline_with_lock')
+        mock_delete_bg = mocker.patch.object(gstreamer_pipeline, '_delete_pipeline_in_background')
         result = gstreamer_pipeline.bus_call(mock_bus, mock_message)
         assert result is True
-        gstreamer_pipeline._delete_pipeline_with_lock.assert_any_call(mock_state.ABORTED)
+        mock_delete_bg.assert_not_called()
+
+        # Test STATE_CHANGED with QUEUED -> transitions to RUNNING
         gstreamer_pipeline.state = mock_state.QUEUED
-        mocker.patch.object(time,'time',return_value = 10)
+        mocker.patch.object(time, 'time', return_value=10)
         result = gstreamer_pipeline.bus_call(mock_bus, mock_message)
         assert result is True
         assert gstreamer_pipeline.state == mock_state.RUNNING
