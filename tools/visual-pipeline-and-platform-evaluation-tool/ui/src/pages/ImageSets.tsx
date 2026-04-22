@@ -11,8 +11,9 @@ import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 import { MultiFileUploader } from "@/components/shared/MultiFileUploader.tsx";
 import { Folder } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card.tsx";
+import { Link } from "react-router";
 
-export const Images = () => {
+export const ImageSets = () => {
   const { data: imageSets, isSuccess, isLoading } = useGetImageSetsQuery();
   const dispatch = useAppDispatch();
   const [checkImageSetExists] = useLazyCheckImageSetExistsQuery();
@@ -97,23 +98,22 @@ export const Images = () => {
       {isSuccess && imageSets && imageSets.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {imageSets.map((imageSet) => (
-            <Card
-              key={imageSet.name}
-              className="transition-all duration-200 overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-md"
-            >
-              <CardContent className="flex flex-col items-center justify-center p-6">
-                <Folder className="w-16 h-16 text-primary mb-3" />
-                <div className="text-center">
-                  <p className="font-medium text-sm wrap-break-word">
-                    {imageSet.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {imageSet.image_count}{" "}
-                    {imageSet.image_count === 1 ? "image" : "images"}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <Link key={imageSet.name} to={`/images/${imageSet.name}`}>
+              <Card className="transition-all duration-200 overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-md">
+                <CardContent className="flex flex-col items-center justify-center p-6">
+                  <Folder className="w-16 h-16 text-primary mb-3" />
+                  <div className="text-center">
+                    <p className="font-medium text-sm wrap-break-word">
+                      {imageSet.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {imageSet.image_count}{" "}
+                      {imageSet.image_count === 1 ? "image" : "images"}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       ) : (

@@ -15,7 +15,8 @@ import { Home as HomePage } from "@/pages/Home.tsx";
 import { Pipelines } from "@/pages/Pipelines.tsx";
 import { Models } from "@/pages/Models.tsx";
 import { Videos } from "@/pages/Videos.tsx";
-import { Images } from "@/pages/Images.tsx";
+import { ImageSets } from "@/pages/ImageSets.tsx";
+import { ImagesInSet } from "@/pages/ImagesInSet.tsx";
 import { PerformanceTests } from "@/pages/PerformanceTests.tsx";
 import { DensityTests } from "@/pages/DensityTests.tsx";
 import { Jobs } from "@/pages/Jobs.tsx";
@@ -59,7 +60,8 @@ export const routeConfig: Array<RouteObject> = [
   { path: "pipelines/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
-  { path: "images", Component: Images },
+  { path: "images", Component: ImageSets },
+  { path: "images/:id", Component: ImagesInSet },
   { path: "cameras", Component: Cameras },
   { path: "tests/performance", Component: PerformanceTests },
   { path: "tests/density", Component: DensityTests },

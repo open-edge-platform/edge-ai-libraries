@@ -2400,6 +2400,55 @@
         }
       }
     },
+    "/images/{name}": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "List all images inside a given image set",
+        "description": "**List all image files in the given image set with per-file metadata.**\n\n## Operation\n\n1. Validate the image set name and ensure the directory exists\n2. Recursively walk the set directory for supported image extensions\n3. For each image, collect filename, extension, size, and dimensions\n4. Return the list sorted by filename\n\n## Parameters\n- `name` (path) - Name of the image set directory\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of ImageInfo objects (empty if the set has no images) |\n| 404  | Image set with the given name does not exist |\n| 500  | Runtime error while listing images |\n\n## Example Response\n\n```json\n[\n  {\n    \"filename\": \"frame_0001.jpg\",\n    \"extension\": \"jpg\",\n    \"size_bytes\": 204812,\n    \"width\": 1920,\n    \"height\": 1080\n  }\n]\n```",
+        "operationId": "list_images_in_set",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Name of the image set directory",
+              "title": "Name"
+            },
+            "description": "Name of the image set directory"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ImageInfo"
+                  },
+                  "title": "Response List Images In Set"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cameras": {
       "get": {
         "tags": [
@@ -3137,6 +3186,57 @@
         ],
         "title": "HealthResponse",
         "description": "**Response model for health endpoint.**\n\nUsed by Docker healthcheck and monitoring systems to verify\napplication health status.\n\n## Attributes\n- `healthy` - True if application is healthy (not shutdown)\n\n### Example\n```json\n{\n  \"healthy\": true\n}\n```"
+      },
+      "ImageInfo": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "description": "Filename of the image, relative to the image set root (uses '/' as separator)."
+          },
+          "extension": {
+            "type": "string",
+            "title": "Extension",
+            "description": "Lowercase image file extension without the leading dot."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes",
+            "description": "Size of the image file in bytes."
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width",
+            "description": "Image width in pixels, or null if it could not be read."
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height",
+            "description": "Image height in pixels, or null if it could not be read."
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "extension",
+          "size_bytes"
+        ],
+        "title": "ImageInfo",
+        "description": "**Metadata for a single image file inside an image set.**\n\n## Attributes\n- `filename` - Relative path of the image inside the image set directory\n- `extension` - Lowercase file extension (without leading dot)\n- `size_bytes` - File size in bytes\n- `width` - Image width in pixels (null if unreadable)\n- `height` - Image height in pixels (null if unreadable)\n\n### Example\n```json\n{\n  \"filename\": \"frame_0001.jpg\",\n  \"extension\": \"jpg\",\n  \"size_bytes\": 204812,\n  \"width\": 1920,\n  \"height\": 1080\n}\n```"
       },
       "ImageSet": {
         "properties": {

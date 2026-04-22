@@ -393,6 +393,13 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["images"],
       }),
+      listImagesInSet: build.query<
+        ListImagesInSetApiResponse,
+        ListImagesInSetApiArg
+      >({
+        query: (queryArg) => ({ url: `/images/${queryArg.name}` }),
+        providesTags: ["images"],
+      }),
       getCameras: build.query<GetCamerasApiResponse, GetCamerasApiArg>({
         query: () => ({ url: `/cameras` }),
         providesTags: ["cameras"],
@@ -629,6 +636,12 @@ export type UploadImageArchiveApiResponse =
   /** status 201 Successful Response */ ImageSet;
 export type UploadImageArchiveApiArg = {
   bodyUploadImageArchive: BodyUploadImageArchive;
+};
+export type ListImagesInSetApiResponse =
+  /** status 200 Successful Response */ ImageInfo[];
+export type ListImagesInSetApiArg = {
+  /** Name of the image set directory */
+  name: string;
 };
 export type GetCamerasApiResponse =
   /** status 200 List of all cameras successfully retrieved. */ Camera[];
@@ -1004,6 +1017,18 @@ export type ImageSetExistsResponse = {
 export type BodyUploadImageArchive = {
   file: string;
 };
+export type ImageInfo = {
+  /** Filename of the image, relative to the image set root (uses '/' as separator). */
+  filename: string;
+  /** Lowercase image file extension without the leading dot. */
+  extension: string;
+  /** Size of the image file in bytes. */
+  size_bytes: number;
+  /** Image width in pixels, or null if it could not be read. */
+  width?: number | null;
+  /** Image height in pixels, or null if it could not be read. */
+  height?: number | null;
+};
 export type CameraType = "USB" | "NETWORK";
 export type V4L2BestCapture = {
   fourcc: string;
@@ -1114,6 +1139,8 @@ export const {
   useCheckImageSetExistsQuery,
   useLazyCheckImageSetExistsQuery,
   useUploadImageArchiveMutation,
+  useListImagesInSetQuery,
+  useLazyListImagesInSetQuery,
   useGetCamerasQuery,
   useLazyGetCamerasQuery,
   useGetCameraQuery,
