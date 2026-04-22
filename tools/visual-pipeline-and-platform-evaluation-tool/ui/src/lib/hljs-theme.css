@@ -1,0 +1,33 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+@import "highlight.js/styles/github.css";
+
+.hljs {
+  background: transparent;
+  padding: 0;
+}
+
+pre code.hljs {
+  padding: 0;
+}
+
+/*
+ * JSON-specific overrides — the default GitHub theme maps keys, numbers, and
+ * strings to almost the same blue/navy, making JSON hard to scan. These
+ * overrides give each token type a distinct colour.
+ */
+
+.hljs-attr { color: #005cc5 }           /* keys – blue */
+.hljs-string { color: #22863a }         /* string values – green */
+.hljs-number { color: #e36209 }         /* numbers – orange */
+.hljs-literal { color: #6f42c1 }        /* true / false / null wrapper */
+.hljs-literal .hljs-keyword { color: #d73a49 }  /* true / false / null – red */
+.hljs-punctuation { color: #6a737d }    /* braces, brackets, commas – gray */
+
+.dark .hljs { color: #c9d1d9 }
+.dark .hljs-attr { color: #79c0ff }     /* keys – light blue */
+.dark .hljs-string { color: #7ee787 }   /* string values – green */
+.dark .hljs-number { color: #ffa657 }   /* numbers – orange */
+.dark .hljs-literal { color: #d2a8ff }  /* true / false / null wrapper – purple */
+.dark .hljs-literal .hljs-keyword { color: #ff7b72 }  /* true / false / null – coral */
+.dark .hljs-punctuation { color: #8b949e }  /* braces, brackets, commas – muted gray */

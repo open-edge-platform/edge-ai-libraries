@@ -354,14 +354,14 @@ export const Pipelines = () => {
         toast.success("Pipeline run completed", {
           description: new Date().toISOString(),
         });
-      }
 
-      if (videoOutputEnabled && status.video_output_paths) {
-        const paths = Object.values(status.video_output_paths)[0];
-        if (paths && paths.length > 0) {
-          const videoPath = [...paths].pop();
-          if (videoPath) {
-            setCompletedVideoPath(videoPath);
+        if (videoOutputEnabled && status.video_output_paths) {
+          const paths = Object.values(status.video_output_paths)[0];
+          if (paths && paths.length > 0) {
+            const videoPath = [...paths].pop();
+            if (videoPath) {
+              setCompletedVideoPath(videoPath);
+            }
           }
         }
       }

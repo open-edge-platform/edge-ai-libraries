@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, ChevronsRight, ExternalLink } from "lucide-react";
+import { highlightJson } from "@/lib/jsonUtils";
+import "@/lib/hljs-theme.css";
 
 const MAX_JSON_LINES_PER_PIPELINE = 400;
 const METADATA_POLL_INTERVAL = 3000;
@@ -29,64 +31,6 @@ const shortenStreamUrl = (url: string): string => {
   return segments.length > 2
     ? `…/${segments.slice(-2).join("/")}`
     : url;
-};
-
-const prettifyJson = (raw: string): string => {
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2);
-  } catch {
-    return raw;
-  }
-};
-
-const colorizeJson = (raw: string): ReactNode => {
-  const text = prettifyJson(raw);
-  const tokenRegex =
-    /("(?:[^"\\]|\\.)*")\s*:|"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b/g;
-
-  const parts: ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let key = 0;
-
-  while ((match = tokenRegex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
-    }
-
-    const token = match[0];
-
-    if (match[1]) {
-      parts.push(
-        <span key={key++} className="text-sky-600 dark:text-sky-400">{match[1]}</span>,
-      );
-      parts.push(token.slice(match[1].length));
-    } else if (token.startsWith('"')) {
-      parts.push(
-        <span key={key++} className="text-green-700 dark:text-green-400">{token}</span>,
-      );
-    } else if (token === "true" || token === "false") {
-      parts.push(
-        <span key={key++} className="text-yellow-600 dark:text-yellow-400">{token}</span>,
-      );
-    } else if (token === "null") {
-      parts.push(
-        <span key={key++} className="text-red-600 dark:text-red-400">{token}</span>,
-      );
-    } else {
-      parts.push(
-        <span key={key++} className="text-orange-600 dark:text-orange-300">{token}</span>,
-      );
-    }
-
-    lastIndex = match.index + token.length;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-
-  return parts;
 };
 
 const MetadataJsonViewer = ({ lines, stale = false }: { lines: string[]; stale?: boolean }) => {
@@ -119,14 +63,14 @@ const MetadataJsonViewer = ({ lines, stale = false }: { lines: string[]; stale?:
 
   const safeIndex = lines.length > 0 ? Math.max(0, Math.min(currentIndex, lines.length - 1)) : 0;
   const currentLine = lines[safeIndex] ?? "";
-  const formatted = useMemo(
-    () => (currentLine ? colorizeJson(currentLine) : null),
+  const highlightedHtml = useMemo(
+    () => (currentLine ? highlightJson(currentLine) : ""),
     [currentLine],
   );
 
   if (lines.length === 0) {
     return (
-      <div className="min-h-[100px] flex items-center justify-center rounded border bg-muted/20 p-3">
+      <div className="min-h-[100px] flex items-center justify-center border bg-muted/20 p-3">
         <p className="text-sm text-muted-foreground">Waiting for JSON entries...</p>
       </div>
     );
@@ -168,8 +112,8 @@ const MetadataJsonViewer = ({ lines, stale = false }: { lines: string[]; stale?:
           Follow
         </Button>
       </div>
-      <pre className={`min-h-[100px] max-h-[40vh] overflow-auto rounded border p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-zinc-100 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 ${stale ? "border-2 dark:border-energy-blue/40 dark:shadow-energy-blue/20 dark:ring-1 dark:ring-energy-blue/20 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20 shadow-lg" : ""}`}>
-        {formatted}
+      <pre className={`min-h-[100px] max-h-[40vh] overflow-auto border p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-zinc-100 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 ${stale ? "border-2 dark:border-energy-blue/40 dark:shadow-energy-blue/20 dark:ring-1 dark:ring-energy-blue/20 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20 shadow-lg" : ""}`}>
+        <code className="hljs" dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
       </pre>
     </div>
   );
@@ -260,12 +204,12 @@ const PerformanceTestPanel = ({
     delete metadataSourceUrlsRef.current[pipelineKey];
   };
 
-  // Auto-switch to media tab when output video becomes available
+  // Auto-switch to media tab when output video becomes available (only after pipeline finishes)
   useEffect(() => {
-    if (completedVideoPath && videoOutputEnabled && !livePreviewEnabled) {
+    if (!isRunning && completedVideoPath && videoOutputEnabled && !livePreviewEnabled) {
       setActiveMainTab("media");
     }
-  }, [completedVideoPath, videoOutputEnabled, livePreviewEnabled]);
+  }, [isRunning, completedVideoPath, videoOutputEnabled, livePreviewEnabled]);
 
   useEffect(() => {
     const wasRunning = prevIsRunningRef.current;
@@ -411,7 +355,7 @@ const PerformanceTestPanel = ({
   const hasMediaTab = livePreviewEnabled || videoOutputEnabled;
   const mediaTabLabel = livePreviewEnabled ? "Live Preview" : "Output Video";
   const hasLiveStream = livePreviewEnabled && (isRunning || !!liveStreamUrl);
-  const hasOutputVideo = !livePreviewEnabled && !!completedVideoPath;
+  const hasOutputVideo = !livePreviewEnabled && !isRunning && !!completedVideoPath;
   const effectiveMainTab =
     activeMainTab === "media" && !hasMediaTab ? "metadata" : activeMainTab;
 
@@ -455,16 +399,16 @@ const PerformanceTestPanel = ({
                 {hasOutputVideo && completedVideoPath ? (
                   <video
                     controls
-                    className="w-full h-auto border border-gray-300 rounded"
+                    className="w-full h-auto border border-gray-300"
                     src={`/assets${completedVideoPath}`}
                   >
                     Your browser does not support the video tag.
                   </video>
-                ) : (
+                ) : isRunning ? (
                   <p className="text-sm text-muted-foreground">
                     Waiting for output video...
                   </p>
-                )}
+                ) : null}
               </div>
             )}
 
@@ -488,23 +432,28 @@ const PerformanceTestPanel = ({
               const lines = displayLines[compositeKey] ?? [];
               const state = hasStaleMetadata ? "closed" : (connectionStates[compositeKey] ?? "connecting");
               const error = hasStaleMetadata ? null : connectionErrors[compositeKey];
+              const isStreamActive = !hasStaleMetadata && state !== "error" && state !== "closed";
               return (
                 <div className="flex flex-col space-y-3 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                      SSE: {state}
-                    </span>
-                  </div>
-                  <a
-                    href={streamUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                  >
-                    {shortenStreamUrl(streamUrl)}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                  {error && <p className="text-xs text-destructive">{error}</p>}
+                  {isStreamActive && (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                          SSE: {state}
+                        </span>
+                      </div>
+                      <a
+                        href={streamUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        {shortenStreamUrl(streamUrl)}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                      {error && <p className="text-xs text-destructive">{error}</p>}
+                    </>
+                  )}
                   <MetadataJsonViewer lines={lines} stale={hasStaleMetadata} />
                 </div>
               );
@@ -527,6 +476,7 @@ const PerformanceTestPanel = ({
                 const lines = displayLines[compositeKey] ?? [];
                 const state = hasStaleMetadata ? "closed" : (connectionStates[compositeKey] ?? "connecting");
                 const error = hasStaleMetadata ? null : connectionErrors[compositeKey];
+                const isStreamActive = !hasStaleMetadata && state !== "error" && state !== "closed";
 
                 return (
                   <TabsContent
@@ -534,27 +484,31 @@ const PerformanceTestPanel = ({
                     value={compositeKey}
                     className="space-y-3 mt-4"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-medium text-muted-foreground">
-                        Stream {index + 1}
-                      </h3>
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                        SSE: {state}
-                      </span>
-                    </div>
+                    {isStreamActive && (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="text-sm font-medium text-muted-foreground">
+                            Stream {index + 1}
+                          </h3>
+                          <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                            SSE: {state}
+                          </span>
+                        </div>
 
-                    <a
-                      href={streamUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      {shortenStreamUrl(streamUrl)}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
+                        <a
+                          href={streamUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          {shortenStreamUrl(streamUrl)}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
 
-                    {error && (
-                      <p className="text-xs text-destructive">{error}</p>
+                        {error && (
+                          <p className="text-xs text-destructive">{error}</p>
+                        )}
+                      </>
                     )}
 
                     <MetadataJsonViewer lines={lines} stale={hasStaleMetadata} />
