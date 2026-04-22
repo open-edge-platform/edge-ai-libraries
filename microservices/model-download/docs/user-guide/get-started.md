@@ -189,6 +189,35 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=yolo_mo
 > **Note:** YOLO vision models from Ultralytics model hub will be downloaded and converted to
 > the OpenVINO IR format with FP32 and FP16 precision by default.
 
+**Download an Ultralytics model with INT8 quantization:**
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=yolo_int8" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "yolov8n",
+        "hub": "ultralytics",
+        "type": "vision",
+        "config": {
+          "quantize": "coco128"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+> **Note: INT8 behavior for Ultralytics requests:**
+> - Set `config.quantize` to request INT8 export.
+> - INT8 requests only support a single model name per request. Requests using comma-separated model names, `all`, or `yolo_all` with `quantize` are rejected.
+> - If INT8 is requested but no INT8 artifact is produced, the request fails and partial artifacts are cleaned up.
+> - Due to a limitation in the DL Streamer public model download script, requesting INT8 also downloads other supported precision artifacts for the model if present like FP32, FP16.
+> - Currently available datasets are coco, coco8 and coco128.
+
+**NOTE:** coco is a very large dataset of over 20GB and containing more than a 100,000 images. Quantization on this dataset can take a very long time. For development purposes, it is recommended to use coco128 or coco8 instead, which is much lighter.
+
 **Download a Hugging Face model and convert it to OpenVINO IR format:**
 
 ```bash
@@ -381,6 +410,7 @@ Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metric
 2. Configure cache sizes based on available memory.
 3. Select model precision according to your performance requirements.
 4. Use appropriate model types and configurations for OpenVINO model server conversion.
+5. For Ultralytics INT8 exports, submit one model per request and verify `config.quantize` is provided only when INT8 is intended.
 
 ## Run in Kubernetes Cluster
 
