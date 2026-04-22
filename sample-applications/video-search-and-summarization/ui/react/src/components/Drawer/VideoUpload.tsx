@@ -112,7 +112,7 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
   const minFrames: number = 2;
   const defaultSampleFrames: number = 8;
   const defaultChunkDuration: number = 8;
-  const defaultOverlap: number = 4;
+  const defaultOverlap: number = 0;
 
   const dispatch = useAppDispatch();
   const summaryApi = `${APP_URL}/summary`;
@@ -148,6 +148,7 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
   const [audio, setAudio] = useState<boolean>(true);
   const [selectedAudioModel, setSelectedAudioModel] = useState<string>('');
   const [useAudioSummary, setUseAudioSummary] = useState(false);
+  const [produceFinalSummary, setProduceFinalSummary] = useState(true);
   const videoFileRef = useRef<HTMLInputElement>(null);
   const videoLabelRef = useRef<HTMLInputElement>(null);
   const selectorRef = useRef<HTMLSelectElement>(null);
@@ -200,6 +201,7 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
       setSystemConfig(res.data);
       setSelectedAudioModel(res.data.meta?.defaultAudioModel ?? '');
       setUseAudioSummary(res.data.audioUseFullTranscriptSummary ?? false);
+      setProduceFinalSummary(res.data.produceFinalSummary ?? true);
     }
   };
 
@@ -288,6 +290,7 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
       },
       videoId,
       title,
+      produceFinalSummary,
     };
 
     if (audio && systemConfig?.meta.defaultAudioModel) {
@@ -442,6 +445,12 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
               onChange={(_, { value }) => setSampleFrame(+value)}
               label={t('FramePerChunkLabel')}
               id='sampleFrame'
+            />
+            <Checkbox
+              id='produceFinalSummaryCheckbox'
+              labelText={t('ProduceFinalSummary')}
+              checked={produceFinalSummary}
+              onChange={(_, { checked }) => setProduceFinalSummary(checked)}
             />
             {systemConfig && (
               <StyledAcc>

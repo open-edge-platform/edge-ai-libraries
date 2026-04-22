@@ -50,6 +50,7 @@ describe('SummaryQueueService', () => {
     const stateServiceMock = {
       fetch: jest.fn(),
       addTextInferenceConfig: jest.fn(),
+      updateSummaryStatus: jest.fn(),
     };
 
     const llmServiceMock = {
@@ -135,6 +136,55 @@ describe('SummaryQueueService', () => {
       expect(service.waiting[0]).toEqual({ stateId: 'state-1', taskType: 'videoSummary' });
       expect(service.waiting[1]).toEqual({ stateId: 'state-2', taskType: 'videoSummary' });
       expect(service.waiting[2]).toEqual({ stateId: 'state-3', taskType: 'videoSummary' });
+    });
+
+    it('should skip queueing and set status to NA when produceFinalSummary is false', () => {
+      // Arrange
+      stateService.fetch.mockReturnValue({
+        ...mockState,
+        systemConfig: { ...mockState.systemConfig, produceFinalSummary: false },
+        status: { summarizing: 'na' },
+      } as any);
+
+      // Act
+      service.streamTrigger({ stateId: mockStateId });
+
+      // Assert
+      expect(service.waiting).toHaveLength(0);
+      expect(stateService.updateSummaryStatus).toHaveBeenCalledWith(
+        mockStateId,
+        'na',
+      );
+    });
+
+    it('should queue normally when produceFinalSummary is true', () => {
+      // Arrange
+      stateService.fetch.mockReturnValue({
+        ...mockState,
+        systemConfig: { ...mockState.systemConfig, produceFinalSummary: true },
+        status: { summarizing: 'na' },
+      } as any);
+
+      // Act
+      service.streamTrigger({ stateId: mockStateId });
+
+      // Assert
+      expect(service.waiting).toHaveLength(1);
+      expect(service.waiting[0]).toEqual({ stateId: mockStateId, taskType: 'videoSummary' });
+    });
+
+    it('should queue normally when produceFinalSummary is undefined (default behavior)', () => {
+      // Arrange - no produceFinalSummary set (backward compatibility)
+      stateService.fetch.mockReturnValue({
+        ...mockState,
+        status: { summarizing: 'na' },
+      } as any);
+
+      // Act
+      service.streamTrigger({ stateId: mockStateId });
+
+      // Assert
+      expect(service.waiting).toHaveLength(1);
     });
   });
 
