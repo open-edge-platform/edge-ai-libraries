@@ -104,6 +104,8 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
+hostIPC: true
+
 podAffinity:
   requiredDuringSchedulingIgnoredDuringExecution:
     - labelSelector:
@@ -138,6 +140,21 @@ frameProcessing:
   detectionConfidence: 0.85
   detectionModelDir: "/app/models/yolox"
   framesTempDir: "/tmp/dataprep"
+sdkPipeline:
+  embeddingBatchSize: 32
+  maxParallelWorkers: ""
+  videoShmMaxBlocks: 512
+  videoShmBlockSize: 6220800
+  videoExtractionBatchSize: 256
+  pipelineQueueMaxsize: 16
+  pipelineCompletionQueueMaxsize: 1
+  detectionWorkerThreads: 2
+  embedWorkerThreads: 2
+  pipelineQueueGetTimeoutS: 1.0
+  saveRuntimePipelineStats: false
+  enableTracing: false
+  videoFrameDecoderWorkers: 2
+  videoFrameLogLevel: "INFO"
 
 minioServer:
   name: minio-server
