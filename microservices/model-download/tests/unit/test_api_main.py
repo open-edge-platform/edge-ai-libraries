@@ -167,6 +167,75 @@ class TestAPIMain:
     @patch('src.api.main.model_manager')
     @patch('src.api.main.plugin_registry')
     @patch('os.getenv')
+    def test_quantize_forwarded_for_ultralytics_only(self, mock_getenv, mock_registry, mock_manager, client):
+        """Test quantize request parameter is forwarded for Ultralytics downloads."""
+        mock_getenv.side_effect = lambda key, default=None: {
+            "MODELS_DIR": "/opt/models"
+        }.get(key, default)
+
+        mock_registry.plugins = {"downloader": {"ultralytics": MagicMock()}}
+        mock_registry.get_plugin_names.return_value = ["ultralytics"]
+        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_manager.register_job.return_value = "job-quantize"
+        mock_manager.process_download = AsyncMock()
+
+        request_data = {
+            "models": [
+                {
+                    "name": "yolov8n.pt",
+                    "hub": "ultralytics",
+                    "type": "vision",
+                    "is_ovms": False,
+                    "config": {"quantize": "coco128"}
+                }
+            ]
+        }
+
+        response = client.post("/models/download?download_path=ultralytics_models", json=request_data)
+
+        assert response.status_code == 200
+        assert mock_manager.process_download.call_count == 1
+        call_kwargs = mock_manager.process_download.call_args.kwargs
+        assert call_kwargs.get("config", {}).get("quantize") == "coco"
+
+    @patch('src.api.main.model_manager')
+    @patch('src.api.main.plugin_registry')
+    @patch('os.getenv')
+    def test_quantize_inside_config_forwarded_for_all_hubs(self, mock_getenv, mock_registry, mock_manager, client):
+        """Test quantize inside config is forwarded as-is; non-Ultralytics plugins simply ignore it."""
+        mock_getenv.side_effect = lambda key, default=None: {
+            "HF_TOKEN": "test_hf_token",
+            "MODELS_DIR": "/opt/models"
+        }.get(key, default)
+
+        mock_registry.plugins = {"downloader": {"huggingface": MagicMock()}}
+        mock_registry.get_plugin_names.return_value = ["huggingface"]
+        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_manager.register_job.return_value = "job-hf"
+        mock_manager.process_download = AsyncMock()
+
+        request_data = {
+            "models": [
+                {
+                    "name": "bert-base-uncased",
+                    "hub": "huggingface",
+                    "type": "llm",
+                    "is_ovms": False,
+                    "config": {"quantize": "coco128"}
+                }
+            ]
+        }
+
+        response = client.post("/models/download?download_path=test_models", json=request_data)
+
+        assert response.status_code == 200
+        assert mock_manager.process_download.call_count == 1
+        call_kwargs = mock_manager.process_download.call_args.kwargs
+        assert call_kwargs.get("config", {}).get("quantize") == "coco128"
+
+    @patch('src.api.main.model_manager')
+    @patch('src.api.main.plugin_registry')
+    @patch('os.getenv')
     def test_download_with_openvino_conversion(self, mock_getenv, mock_registry, mock_manager, client):
         """Test model download with OpenVINO conversion"""
         # Setup mocks

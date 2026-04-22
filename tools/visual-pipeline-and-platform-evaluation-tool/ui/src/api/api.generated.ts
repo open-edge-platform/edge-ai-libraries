@@ -83,6 +83,27 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["jobs"],
       }),
+      getPerformanceJobMetadataSnapshot: build.query<
+        GetPerformanceJobMetadataSnapshotApiResponse,
+        GetPerformanceJobMetadataSnapshotApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/jobs/tests/performance/${queryArg.jobId}/metadata/${queryArg.pipelineId}/${queryArg.fileIndex}`,
+          params: {
+            limit: queryArg.limit,
+          },
+        }),
+        providesTags: ["jobs"],
+      }),
+      streamPerformanceJobMetadata: build.query<
+        StreamPerformanceJobMetadataApiResponse,
+        StreamPerformanceJobMetadataApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/jobs/tests/performance/${queryArg.jobId}/metadata/${queryArg.pipelineId}/${queryArg.fileIndex}/stream`,
+        }),
+        providesTags: ["jobs"],
+      }),
       getDensityStatuses: build.query<
         GetDensityStatusesApiResponse,
         GetDensityStatusesApiArg
@@ -157,7 +178,7 @@ const injectedRtkApi = api
         GetValidationJobStatusApiResponse,
         GetValidationJobStatusApiArg
       >({
-        query: (queryArg) =>  ({
+        query: (queryArg) => ({
           url: `/jobs/validation/${queryArg.jobId}/status`,
         }),
         providesTags: ["jobs"],
@@ -324,6 +345,26 @@ const injectedRtkApi = api
         query: () => ({ url: `/videos` }),
         providesTags: ["videos"],
       }),
+      checkVideoInputExists: build.query<
+        CheckVideoInputExistsApiResponse,
+        CheckVideoInputExistsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/videos/check-video-input-exists`,
+          params: {
+            filename: queryArg.filename,
+          },
+        }),
+        providesTags: ["videos"],
+      }),
+      uploadVideo: build.mutation<UploadVideoApiResponse, UploadVideoApiArg>({
+        query: (queryArg) => ({
+          url: `/videos/upload`,
+          method: "POST",
+          body: queryArg.bodyUploadVideo,
+        }),
+        invalidatesTags: ["videos"],
+      }),
       getCameras: build.query<GetCamerasApiResponse, GetCamerasApiArg>({
         query: () => ({ url: `/cameras` }),
         providesTags: ["cameras"],
@@ -383,6 +424,21 @@ export type StopPerformanceTestJobApiResponse =
   /** status 200 Successful Response */ MessageResponse;
 export type StopPerformanceTestJobApiArg = {
   jobId: string;
+};
+export type GetPerformanceJobMetadataSnapshotApiResponse =
+  /** status 200 List of metadata records for the specified pipeline stream */ object[];
+export type GetPerformanceJobMetadataSnapshotApiArg = {
+  jobId: string;
+  pipelineId: string;
+  fileIndex: number;
+  limit?: number;
+};
+export type StreamPerformanceJobMetadataApiResponse =
+  /** status 200 SSE stream of metadata records */ any;
+export type StreamPerformanceJobMetadataApiArg = {
+  jobId: string;
+  pipelineId: string;
+  fileIndex: number;
 };
 export type GetDensityStatusesApiResponse =
   /** status 200 Successful Response */ DensityJobStatus[];
@@ -521,6 +577,17 @@ export type RunDensityTestApiArg = {
 export type GetVideosApiResponse =
   /** status 200 Successful Response */ Video[];
 export type GetVideosApiArg = void;
+export type CheckVideoInputExistsApiResponse =
+  /** status 200 Successful Response */ VideoExistsResponse;
+export type CheckVideoInputExistsApiArg = {
+  /** Video filename to check */
+  filename: string;
+};
+export type UploadVideoApiResponse =
+  /** status 201 Successful Response */ Video;
+export type UploadVideoApiArg = {
+  bodyUploadVideo: BodyUploadVideo;
+};
 export type GetCamerasApiResponse =
   /** status 200 List of all cameras successfully retrieved. */ Camera[];
 export type GetCamerasApiArg = void;
@@ -576,7 +643,7 @@ export type ValidationError = {
   loc: (string | number)[];
   msg: string;
   type: string;
-  input?: unknown;
+  input?: any;
   ctx?: object;
 };
 export type HttpValidationError = {
@@ -618,11 +685,14 @@ export type PerformanceJobStatus = {
   live_stream_urls: {
     [key: string]: string;
   } | null;
+  metadata_stream_urls: {
+    [key: string]: string[];
+  } | null;
 };
 export type PerformanceJobSummary = {
   id: string;
   request: {
-    [key: string]: unknown;
+    [key: string]: any;
   };
 };
 export type DensityJobStatus = {
@@ -642,7 +712,7 @@ export type DensityJobStatus = {
 export type DensityJobSummary = {
   id: string;
   request: {
-    [key: string]: unknown;
+    [key: string]: any;
   };
 };
 export type OptimizationType = "preprocess" | "optimize";
@@ -665,7 +735,7 @@ export type OptimizationJobStatus = {
 export type PipelineRequestOptimize = {
   type: OptimizationType;
   parameters: {
-    [key: string]: unknown;
+    [key: string]: any;
   } | null;
 };
 export type OptimizationJobSummary = {
@@ -684,7 +754,7 @@ export type ValidationJobStatus = {
 export type PipelineValidation = {
   pipeline_graph: PipelineGraph;
   parameters?: {
-    [key: string]: unknown;
+    [key: string]: any;
   } | null;
 };
 export type ValidationJobSummary = {
@@ -760,7 +830,7 @@ export type ValidationJobResponse = {
 export type PipelineValidation2 = {
   pipeline_graph: PipelineGraph;
   parameters?: {
-    [key: string]: unknown;
+    [key: string]: any;
   } | null;
 };
 export type PipelineUpdate = {
@@ -821,11 +891,14 @@ export type PipelinePerformanceSpec = {
   streams?: number;
 };
 export type OutputMode = "disabled" | "file" | "live_stream";
+export type MetadataMode = "disabled" | "file";
 export type ExecutionConfig = {
   /** Mode for pipeline output generation. */
   output_mode?: OutputMode;
   /** Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled). */
   max_runtime?: number;
+  /** Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints. */
+  metadata_mode?: MetadataMode;
 };
 export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */
@@ -864,6 +937,15 @@ export type Video = {
   frame_count: number;
   codec: string;
   duration: number;
+};
+export type VideoExistsResponse = {
+  /** True if the video file exists, False otherwise. */
+  exists: boolean;
+  /** The filename that was checked. */
+  filename: string;
+};
+export type BodyUploadVideo = {
+  file: string;
 };
 export type CameraType = "USB" | "NETWORK";
 export type V4L2BestCapture = {
@@ -920,6 +1002,10 @@ export const {
   useGetPerformanceJobSummaryQuery,
   useLazyGetPerformanceJobSummaryQuery,
   useStopPerformanceTestJobMutation,
+  useGetPerformanceJobMetadataSnapshotQuery,
+  useLazyGetPerformanceJobMetadataSnapshotQuery,
+  useStreamPerformanceJobMetadataQuery,
+  useLazyStreamPerformanceJobMetadataQuery,
   useGetDensityStatusesQuery,
   useLazyGetDensityStatusesQuery,
   useGetDensityJobStatusQuery,
@@ -963,6 +1049,9 @@ export const {
   useRunDensityTestMutation,
   useGetVideosQuery,
   useLazyGetVideosQuery,
+  useCheckVideoInputExistsQuery,
+  useLazyCheckVideoInputExistsQuery,
+  useUploadVideoMutation,
   useGetCamerasQuery,
   useLazyGetCamerasQuery,
   useGetCameraQuery,

@@ -101,6 +101,36 @@ services:
       - https_proxy=${https_proxy}
       - no_proxy=${no_proxy}
     command: './model_manager.sh'
+  model-download:
+    image: docker.io/intel/model-download:2026.1.0-20260331-weekly
+    container_name: model-download
+    command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-openvino,huggingface,ultralytics,geti}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+      start_interval: 5s
+    restart: on-failure:5
+    environment:
+      MODELS_DIR: /models/output
+      CORS_ALLOW_ORIGINS: "*"
+      HF_HUB_ENABLE_HF_TRANSFER: "1"
+      HF_TOKEN: ${HF_TOKEN:-}
+      UV_CACHE_DIR: /cache/uv
+      GETI_HOST: ${GETI_HOST:-}
+      GETI_TOKEN: ${GETI_TOKEN:-}
+      GETI_WORKSPACE_ID: ${GETI_WORKSPACE_ID:-}
+      GETI_SERVER_API_VERSION: ${GETI_SERVER_API_VERSION:-v1}
+      GETI_SERVER_SSL_VERIFY: ${GETI_SERVER_SSL_VERIFY:-False}
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
+    volumes:
+      - ./shared/models/:/models
+      - ./shared/model-download/venv:/opt/.venv
+      - ./shared/model-download/cache:/cache
   vippet:  # Always 'vippet', hardware config from override files
     <<: *vippet
     container_name: vippet

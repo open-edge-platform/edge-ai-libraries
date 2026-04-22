@@ -1,0 +1,258 @@
+# Input profiles for benchmarking GenAI applications
+# This file defines various input profiles with different sizes and modalities
+
+profiles:
+
+  video_search_wsf:
+    input_type: "video"
+    input_size: "medium"
+    files:
+      - name: "store-aisle-detection.mp4"
+        path: "data/store-aisle-detection.mp4" 
+      - name: "one-by-one-person-detection.mp4"
+        path: "data/one-by-one-person-detection.mp4" 
+    queries: 
+      - query: "Show all scenes where a person in a blue jacket, picks up or closely looks at items in a store"
+      - query: "Search for a person in a black t-shirt with cap, who is only walking in store aisle, without picking up or touching any items."
+  
+  video_search_multiple:
+      input_type: "video"
+      input_size: "multiple"
+      files:
+        - name: "CCID_security_mark_kelly__officer_lee_converted.mp4"
+          path: "data/CCID_security_mark_kelly__officer_lee_converted.mp4" 
+        - name: "CCID_Traffic_detector_daisy-gavilan_cctv_05172022_164843.mp4"
+          path: "data/CCID_Traffic_detector_daisy-gavilan_cctv_05172022_164843.mp4"
+        - name: "FIS_ForkliftAxis.mp4"
+          path: "data/FIS_ForkliftAxis.mp4"
+        - name: "HEC_Aurify_Gate_4 18-19.mp4"
+          path: "data/HEC_Aurify_Gate_4 18-19.mp4" 
+        - name: "HEC_Big_basket_chunk_15.mp4"
+          path: "data/HEC_Big_basket_chunk_15.mp4" 
+      queries: 
+        - query: "Find mark kelly officer who is chasing with gun."
+        - query: "Show me time and scene when traffic congestion or slow-moving vehicles are detected."
+        - query: "Jump to the scene where the female security guard stops customer and ask a customer to show the bill before leaving store."
+        - query: "Show the clip where a person is removing a tray that is obstructing the aisle"
+        - query: "Find the frame where the shipping label and barcode on the box are fully visible and clearly readable."
+
+  video_summary_wsf:
+    input_type: "video"
+    input_size: "medium" 
+    files:
+      - name: "one-by-one-person-detection.mp4"
+        path: "data/one-by-one-person-detection.mp4"    
+    payload:
+        '{"evam": {"evamPipeline": "video_ingestion"},
+        "sampling": {
+            "chunkDuration": 30,
+            "samplingFrame": 32,
+            "frameOverlap": 2,
+            "multiFrame": 34
+        },
+        "prompts": {
+             "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
+            "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
+            "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
+            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+        },
+        "title": "one-by-one-person-detection.mp4"}'
+        
+  chatqna_wsf:
+    input_type: "text"
+    input_size: "small"  # ~100 words
+    files:
+      - name: "file1.txt"
+        path: "data/file1.txt" 
+    prompt: "Analyze and interpret the sonnet My mistress eyes are nothing like the sun by William Shakespeare. Identify the main themes, poetic devices used, and the overall message of the poem while summarizing its significance in the context of Shakespeare body of work. Present your analysis clearly and concisely, making sure to include details on the structure of the sonnet, such as the rhyme scheme and meter. Provide insight into how this sonnet challenges conventional beauty standards of the time. Use evidence from the text to support your interpretations."
+    max_tokens: "1024"    # ~100-200 tokens
+
+  
+  chatqna_warmup_profile:
+    input_type: "text"
+    input_size: "small"  # ~100 words
+    files:
+      - name: "file1.txt"
+        path: "data/file.txt" 
+    prompt: "warmup test prompt"
+    max_tokens: "1024"    # ~100-200 tokens
+
+  video_search_warmup_profile:
+    input_type: "video"
+    input_size: "warmup"
+    files:
+      - name: "store-aisle-detection.mp4"
+        path: "data/store-aisle-detection.mp4" 
+    queries: 
+      - query: "Show all scenes where a person in a blue jacket, picks up or closely looks at items in a store"
+
+  
+  video_summary_warmup_profile:
+    input_type: "video"
+    input_size: "warmup" 
+    files:
+      - name: "store-aisle-detection.mp4"
+        path: "data/store-aisle-detection.mp4"    
+    payload:
+        '{"evam": {"evamPipeline": "video_ingestion"},
+        "sampling": {
+            "chunkDuration": 10,
+            "samplingFrame": 2,
+            "frameOverlap": 4,
+            "multiFrame": 6
+        },
+        "prompts": {
+             "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
+            "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
+            "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
+            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+        },
+        "title": "store-aisle-detection.mp4"}'
+
+
+  video_summary_injection:
+    input_type: "video"
+    input_size: "medium" 
+    files:
+      - name: "store-aisle-detection.mp4"
+        path: "data/store-aisle-detection.mp4"    
+    payload:
+        '{"evam": {"evamPipeline": "video_ingestion"},
+        "sampling": {
+            "chunkDuration": 8,
+            "samplingFrame": 8,
+            "frameOverlap": 4,
+            "multiFrame": 12
+        },
+        "prompts": {
+             "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
+            "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
+            "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
+            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+        },
+        "title": "store-aisle-detection.mp4"}'
+  
+  video_summary_object_detection:
+    input_type: "video"
+    input_size: "medium" 
+    files:
+      - name: "store-aisle-detection.mp4"
+        path: "data/store-aisle-detection.mp4"    
+    payload:
+        '{"evam": {"evamPipeline": "object_detection"},
+        "sampling": {
+            "chunkDuration": 8,
+            "samplingFrame": 8,
+            "frameOverlap": 4,
+            "multiFrame": 12
+        },
+        "prompts": {
+             "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
+            "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
+            "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
+            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+        },
+        "title": "store-aisle-detection.mp4"}'
+  
+  video_summary_audio_injection:
+    input_type: "video"
+    input_size: "medium" 
+    files:
+      - name: "store-aisle-detection.mp4"
+        path: "data/store-aisle-detection.mp4"    
+    payload:
+        '{"evam": {"evamPipeline": "video_ingestion"},
+        "audio":{"audioModel":"tiny.en"},
+        "sampling": {
+            "chunkDuration": 8,
+            "samplingFrame": 8,
+            "frameOverlap": 4,
+            "multiFrame": 12
+        },
+        "prompts": {
+           "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
+            "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
+            "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
+            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+        },
+        "title": "store-aisle-detection.mp4"}'
+
+  video_summary_object_detection_audio_injection:
+    input_type: "video"
+    input_size: "medium" 
+    files:
+      - name: "store-aisle-detection.mp4"
+        path: "data/store-aisle-detection.mp4"    
+    payload:
+        '{"evam": {"evamPipeline": "object_detection"},
+        "audio":{"audioModel":"tiny.en"},
+        "sampling": {
+             "chunkDuration": 8,
+            "samplingFrame": 8,
+            "frameOverlap": 4,
+            "multiFrame": 12
+        },
+        "prompts": {
+            "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
+            "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
+            "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
+            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+        },
+        "title": "store-aisle-detection.mp4"}'
+  
+  video_summary_aud_od_accuracy:
+    input_type: "video"
+    input_size: "medium" 
+    files:
+      - name: "store-aisle-detection.mp4"
+        path: "data/store-aisle-detection.mp4"    
+    payload:
+        '{"evam": {"evamPipeline": "object_detection"},
+        "audio":{"audioModel":"tiny.en"},
+        "sampling": {
+            "chunkDuration": 2,
+            "samplingFrame": 4,
+            "frameOverlap": 2,
+            "multiFrame": 6
+        },
+        "prompts": {
+            "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
+            "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
+            "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
+            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+        },
+        "title": "store-aisle-detection.mp4"}'
+  
+  live_video_caption_2_parallel_runs:
+    input_type: "rtsp stream"
+    input_size: "2 parallel runs" 
+    payloads:
+      - run: '{ "rtspUrl": "rtsp://<ip:port/name>",
+                "prompt": "Describe what you see in one sentence.",
+                "detectionModelName": null,
+                "detectionThreshold": null,
+                "modelName": "InternVL2-1B",
+                "maxNewTokens": 70,
+                "pipelineName": "GenAI_Pipeline_on_GPU"
+              }'
+      - run: '{ "rtspUrl": "rtsp://<ip:port/name>",
+                "prompt": "Describe what you see in one sentence.",
+                "detectionModelName": null,
+                "detectionThreshold": null,
+                "modelName": "InternVL3-1B",
+                "maxNewTokens": 70,
+                "pipelineName": "GenAI_Pipeline_on_CPU"
+              }'
+  
+  live_video_caption_wsf:
+    input_type: "rtsp stream"
+    input_size: "single run" 
+    payloads:
+      - run: '{ "rtspUrl": "rtsp://<ip:port/name>",
+                "prompt": "Describe what you see in one sentence.",
+                "detectionModelName": null,
+                "detectionThreshold": null,
+                "modelName": "InternVL2-1B",
+                "maxNewTokens": 70,
+                "pipelineName": "GenAI_Pipeline_on_GPU"
+              }'
