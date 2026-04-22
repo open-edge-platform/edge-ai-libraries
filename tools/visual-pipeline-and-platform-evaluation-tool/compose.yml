@@ -78,6 +78,7 @@ services:
       https_proxy: ${https_proxy}
       no_proxy: "${no_proxy:+${no_proxy},}mediamtx"
     volumes:
+      - ./shared/images/:/images
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   models:
