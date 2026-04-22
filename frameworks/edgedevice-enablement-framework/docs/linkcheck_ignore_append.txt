@@ -1,2 +1,0 @@
-https://releases.ubuntu.com/22.04/*
-https://www.dell.com/en-us/shop/servers-storage-and-networking/poweredge-r760-rack-server/spd/poweredge-r760/pe_r760_tm_vi_vp_sb

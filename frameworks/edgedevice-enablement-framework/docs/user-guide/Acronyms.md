@@ -6,7 +6,6 @@
 |ECI                | Edge Control for Industrial       |
 |EEF                | Edge Device Enablement Framework  |
 |EN                 | Edge Node                        |
-|ESH                | Edge Software Hub                |
 |IPM                | Infrastructure Power Manager      |
 |JWT                | JSON Web token                   |
 |OS                 | Operating System                 |
