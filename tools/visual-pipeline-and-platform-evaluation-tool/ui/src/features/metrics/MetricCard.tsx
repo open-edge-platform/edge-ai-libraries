@@ -66,7 +66,7 @@ export const MetricCard = ({
         {title}
       </h3>
       <p
-        className={`text-3xl font-bold ${
+        className={`${useDemoStyles ? "text-3xl" : "text-2xl"} font-bold ${
           useDemoStyles && forceDark ? "text-white" : "text-foreground"
         }`}
       >

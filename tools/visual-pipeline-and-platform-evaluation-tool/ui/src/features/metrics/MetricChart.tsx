@@ -152,7 +152,7 @@ export const MetricChart = ({
                     ? summaryTitleClassName
                     : "text-neutral-400"
                 }`
-              : "text-sm font-medium text-foreground mb-5"
+              : "text-sm font-medium text-foreground mb-5 min-h-[2.5rem]"
           }`}
         >
           {title}
