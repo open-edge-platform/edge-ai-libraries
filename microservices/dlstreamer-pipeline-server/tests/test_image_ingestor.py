@@ -41,9 +41,9 @@ class TestImageIngestor:
         img_ing_obj = ImageIngestor(queue.Queue(), img_cfg)
     
     def test_start(self, mocker, img_ing_obj):
-        mocked_thread = mocker.patch('src.subscriber.image_ingestor.th.Thread')
+        img_ing_obj.th = MagicMock()
         img_ing_obj.start()
-        assert mocked_thread.start.called_with('target=self._run')
+        img_ing_obj.th.start.assert_called_once()
 
     @pytest.mark.parametrize(
         'is_set, expected',
