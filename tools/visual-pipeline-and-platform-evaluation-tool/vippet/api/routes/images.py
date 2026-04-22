@@ -3,7 +3,7 @@ import os
 import tempfile
 from typing import List
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, Query
+from fastapi import APIRouter, File, UploadFile, HTTPException, Query, Path
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
@@ -217,3 +217,81 @@ async def upload_image_archive(file: UploadFile = File(...)):
             os.remove(tmp_path)
         except OSError:
             pass
+
+
+@router.get(
+    "/{name}",
+    operation_id="list_images_in_set",
+    summary="List all images inside a given image set",
+    response_model=List[schemas.ImageInfo],
+)
+def list_images_in_set(
+    name: str = Path(..., description="Name of the image set directory"),
+):
+    """
+    **List all image files in the given image set with per-file metadata.**
+
+    ## Operation
+
+    1. Validate the image set name and ensure the directory exists
+    2. Recursively walk the set directory for supported image extensions
+    3. For each image, collect filename, extension, size, and dimensions
+    4. Return the list sorted by filename
+
+    ## Parameters
+    - `name` (path) - Name of the image set directory
+
+    ## Response Format
+
+    | Code | Description |
+    |------|-------------|
+    | 200  | JSON array of ImageInfo objects (empty if the set has no images) |
+    | 404  | Image set with the given name does not exist |
+    | 500  | Runtime error while listing images |
+
+    ## Example Response
+
+    ```json
+    [
+      {
+        "filename": "frame_0001.jpg",
+        "extension": "jpg",
+        "size_bytes": 204812,
+        "width": 1920,
+        "height": 1080
+      }
+    ]
+    ```
+    """
+    logger.debug(f"Received request for images in set '{name}'.")
+    try:
+        images = ImagesManager().get_images_in_set(name)
+        if images is None:
+            logger.warning(f"Image set '{name}' not found.")
+            raise HTTPException(
+                status_code=404, detail=f"Image set '{name}' not found"
+            )
+
+        logger.debug(f"Found {len(images)} images in set '{name}'.")
+        return [
+            schemas.ImageInfo(
+                filename=img.filename,
+                extension=img.extension,
+                size_bytes=img.size_bytes,
+                width=img.width,
+                height=img.height,
+            )
+            for img in images
+        ]
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error(
+            f"Failed to list images for set '{name}'", exc_info=True
+        )
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message="Unexpected error while listing images"
+            ).model_dump(),
+            status_code=500,
+        )

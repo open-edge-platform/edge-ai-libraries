@@ -7,6 +7,8 @@ import zipfile
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+import cv2
+
 logger = logging.getLogger("images")
 
 # Default directory for input image sets
@@ -51,6 +53,28 @@ class ImageSet:
 
     def to_dict(self) -> dict:
         return {"name": self.name, "image_count": self.image_count}
+
+
+@dataclass
+class ImageInfo:
+    """
+    Represents a single image file in an image set.
+    """
+
+    filename: str
+    extension: str
+    size_bytes: int
+    width: Optional[int]
+    height: Optional[int]
+
+    def to_dict(self) -> dict:
+        return {
+            "filename": self.filename,
+            "extension": self.extension,
+            "size_bytes": self.size_bytes,
+            "width": self.width,
+            "height": self.height,
+        }
 
 
 class ImagesManager:
@@ -121,6 +145,54 @@ class ImagesManager:
         if not self.image_set_exists(name):
             return None
         return os.path.join(INPUT_IMAGES_DIR, name)
+
+    def get_images_in_set(self, name: str) -> Optional[List[ImageInfo]]:
+        """
+        Returns a list of ImageInfo objects describing every image file in the
+        given image set directory. Returns None if the set does not exist.
+
+        The set directory is walked recursively; only files with supported
+        IMAGE_EXTENSIONS are included. The returned list is sorted by filename
+        (as relative path from the set root).
+        """
+        set_path = self.get_image_set_path(name)
+        if set_path is None:
+            return None
+
+        images: List[ImageInfo] = []
+        for root, _dirs, files in os.walk(set_path):
+            for fname in files:
+                ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+                if ext not in IMAGE_EXTENSIONS:
+                    continue
+
+                full_path = os.path.join(root, fname)
+                rel_path = os.path.relpath(full_path, set_path).replace(
+                    os.sep, "/"
+                )
+
+                try:
+                    size_bytes = os.path.getsize(full_path)
+                except OSError as e:
+                    logger.warning(
+                        f"Failed to stat image '{full_path}': {e}"
+                    )
+                    size_bytes = 0
+
+                width, height = self._read_image_dimensions(full_path)
+
+                images.append(
+                    ImageInfo(
+                        filename=rel_path,
+                        extension=ext,
+                        size_bytes=size_bytes,
+                        width=width,
+                        height=height,
+                    )
+                )
+
+        images.sort(key=lambda i: i.filename)
+        return images
 
     @staticmethod
     def derive_set_name(archive_filename: str) -> Optional[str]:
@@ -219,6 +291,24 @@ class ImagesManager:
                 if ext in IMAGE_EXTENSIONS:
                     count += 1
         return count
+
+    @staticmethod
+    def _read_image_dimensions(
+        file_path: str,
+    ) -> tuple[Optional[int], Optional[int]]:
+        """
+        Reads (width, height) from an image file using OpenCV.
+        Returns (None, None) if the image cannot be read.
+        """
+        try:
+            img = cv2.imread(file_path, cv2.IMREAD_UNCHANGED)
+        except Exception as e:
+            logger.warning(f"Failed to read image '{file_path}': {e}")
+            return None, None
+        if img is None:
+            return None, None
+        h, w = img.shape[:2]
+        return int(w), int(h)
 
     @staticmethod
     def _is_within_directory(base: str, target: str) -> bool:

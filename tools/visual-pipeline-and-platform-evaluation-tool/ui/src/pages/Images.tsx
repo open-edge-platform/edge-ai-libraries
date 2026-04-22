@@ -4,20 +4,13 @@ import {
   useLazyCheckImageSetExistsQuery,
 } from "@/api/api.generated.ts";
 import { ENDPOINTS } from "@/api/apiEndpoints";
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table.tsx";
 import { useEffect, useCallback } from "react";
 import { useAppDispatch } from "@/store/hooks";
 import { toast } from "sonner";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 import { MultiFileUploader } from "@/components/shared/MultiFileUploader.tsx";
+import { Folder } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card.tsx";
 
 export const Images = () => {
   const { data: imageSets, isSuccess, isLoading } = useGetImageSetsQuery();
@@ -38,10 +31,7 @@ export const Images = () => {
     async (filename: string): Promise<{ exists: boolean }> => {
       try {
         // Extract name without extension for image set directory check
-        const name = filename.replace(
-          /\.(zip|tar|tar\.gz|tgz|tar\.bz2|tbz2)$/i,
-          "",
-        );
+        const name = filename.replace(/\.(zip|tar|tar\.gz)$/i, "");
         const result = await checkImageSetExists({ name }).unwrap();
         return { exists: result.exists };
       } catch (error) {
@@ -94,7 +84,7 @@ export const Images = () => {
       </div>
 
       <MultiFileUploader
-        accept=".zip,.tar,.tar.gz,.tgz,.tar.bz2,.tbz2,application/zip,application/x-tar,application/gzip,application/x-gzip,application/x-bzip2"
+        accept=".zip,.tar,.tar.gz,.tgz,application/zip,application/x-tar,application/gzip,application/x-gzip"
         uploadEndpoint={ENDPOINTS.UPLOAD_IMAGE_ARCHIVE}
         checkFileExists={handleCheckFileExists}
         onUploadProgress={handleUploadProgress}
@@ -105,23 +95,27 @@ export const Images = () => {
       />
 
       {isSuccess && imageSets && imageSets.length > 0 ? (
-        <Table>
-          <TableCaption>A list of loaded image sets.</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[50%]">Image Set Name</TableHead>
-              <TableHead>Number of Images</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {imageSets.map((imageSet) => (
-              <TableRow key={imageSet.name}>
-                <TableCell className="font-medium">{imageSet.name}</TableCell>
-                <TableCell>{imageSet.image_count}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {imageSets.map((imageSet) => (
+            <Card
+              key={imageSet.name}
+              className="transition-all duration-200 overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-md"
+            >
+              <CardContent className="flex flex-col items-center justify-center p-6">
+                <Folder className="w-16 h-16 text-primary mb-3" />
+                <div className="text-center">
+                  <p className="font-medium text-sm wrap-break-word">
+                    {imageSet.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {imageSet.image_count}{" "}
+                    {imageSet.image_count === 1 ? "image" : "images"}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : (
         <div className="text-center py-10 text-muted-foreground">
           No image sets uploaded yet. Upload your first archive above.

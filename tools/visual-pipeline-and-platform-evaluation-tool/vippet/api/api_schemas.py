@@ -1804,6 +1804,54 @@ class ImageSetExistsResponse(BaseModel):
     )
 
 
+class ImageInfo(BaseModel):
+    """
+    **Metadata for a single image file inside an image set.**
+
+    ## Attributes
+    - `filename` - Relative path of the image inside the image set directory
+    - `extension` - Lowercase file extension (without leading dot)
+    - `size_bytes` - File size in bytes
+    - `width` - Image width in pixels (null if unreadable)
+    - `height` - Image height in pixels (null if unreadable)
+
+    ### Example
+    ```json
+    {
+      "filename": "frame_0001.jpg",
+      "extension": "jpg",
+      "size_bytes": 204812,
+      "width": 1920,
+      "height": 1080
+    }
+    ```
+    """
+
+    filename: str = Field(
+        ...,
+        description=(
+            "Filename of the image, relative to the image set root "
+            "(uses '/' as separator)."
+        ),
+    )
+    extension: str = Field(
+        ...,
+        description="Lowercase image file extension without the leading dot.",
+    )
+    size_bytes: int = Field(
+        ...,
+        description="Size of the image file in bytes.",
+    )
+    width: Optional[int] = Field(
+        None,
+        description="Image width in pixels, or null if it could not be read.",
+    )
+    height: Optional[int] = Field(
+        None,
+        description="Image height in pixels, or null if it could not be read.",
+    )
+
+
 class CameraDetails(BaseModel):
     """
     **Base class for camera-specific details.**
