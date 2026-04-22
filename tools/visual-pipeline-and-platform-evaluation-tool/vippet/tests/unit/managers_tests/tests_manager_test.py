@@ -20,7 +20,7 @@ from internal_types import (
     InternalTestJobState,
 )
 from managers.tests_manager import TestsManager
-from managers.pipeline_manager import PipelineManager
+from managers.pipeline_manager import PipelineManager, PipelineCommand
 from pipeline_runner import PipelineRunner, PipelineResult
 
 
@@ -527,10 +527,13 @@ class TestTestsManager(unittest.TestCase):
     def test_execute_performance_test_starts_pipeline(self, mock_pipeline_manager_cls):
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
-            "fakesrc ! fakesink",
-            {},
-            {},
-            {},
+            PipelineCommand(
+                command="fakesrc ! fakesink",
+                video_output_paths={},
+                live_stream_urls={},
+                metadata_file_paths={},
+                streams_per_pipeline={},
+            )
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
 
@@ -582,10 +585,13 @@ class TestTestsManager(unittest.TestCase):
     ):
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
-            "fakesrc ! fakesink",
-            {},
-            {},
-            {},
+            PipelineCommand(
+                command="fakesrc ! fakesink",
+                video_output_paths={},
+                live_stream_urls={},
+                metadata_file_paths={},
+                streams_per_pipeline={},
+            )
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
 
@@ -654,10 +660,15 @@ class TestTestsManager(unittest.TestCase):
         mock_pipeline_manager_instance = MagicMock()
         # build_pipeline_command now returns dict[str, str] (directory paths)
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
-            "fakesrc ! fakesink",
-            {"/pipelines/p/variants/v": "/tmp/output/pipeline_dir"},
-            {},
-            {},
+            PipelineCommand(
+                command="fakesrc ! fakesink",
+                video_output_paths={
+                    "/pipelines/p/variants/v": "/tmp/output/pipeline_dir"
+                },
+                live_stream_urls={},
+                metadata_file_paths={},
+                streams_per_pipeline={},
+            )
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
 
@@ -719,10 +730,13 @@ class TestTestsManager(unittest.TestCase):
         """When cancelled and exit code is non-zero, job should be FAILED."""
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
-            "fakesrc ! fakesink",
-            {},
-            {},
-            {},
+            PipelineCommand(
+                command="fakesrc ! fakesink",
+                video_output_paths={},
+                live_stream_urls={},
+                metadata_file_paths={},
+                streams_per_pipeline={},
+            )
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
 
@@ -1314,10 +1328,13 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         }
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
-            "fakesrc ! fakesink",
-            {},
-            expected_urls,
-            {},
+            PipelineCommand(
+                command="fakesrc ! fakesink",
+                video_output_paths={},
+                live_stream_urls=expected_urls,
+                metadata_file_paths={},
+                streams_per_pipeline={},
+            )
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
         manager = TestsManager()
@@ -1373,10 +1390,13 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
     ):
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
-            "fakesrc ! fakesink",
-            {},
-            {},
-            {},
+            PipelineCommand(
+                command="fakesrc ! fakesink",
+                video_output_paths={},
+                live_stream_urls={},
+                metadata_file_paths={},
+                streams_per_pipeline={},
+            )
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
         mock_runner = MagicMock()
@@ -1404,7 +1424,9 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
             "managers.tests_manager.collect_video_outputs_from_dirs", return_value={}
         ):
             manager._execute_performance_test(job_id, internal_spec)
-        mock_pipeline_runner_cls.assert_called_once_with(mode="normal", max_runtime=120)
+        mock_pipeline_runner_cls.assert_called_once_with(
+            mode="normal", max_runtime=120, enable_latency_metrics=False
+        )
 
 
 class TestInlineGraphSupport(unittest.TestCase):
@@ -1485,10 +1507,13 @@ class TestInlineGraphSupport(unittest.TestCase):
     ):
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
-            "fakesrc ! fakesink",
-            {},
-            {},
-            {},
+            PipelineCommand(
+                command="fakesrc ! fakesink",
+                video_output_paths={},
+                live_stream_urls={},
+                metadata_file_paths={},
+                streams_per_pipeline={},
+            )
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
         manager = TestsManager()
@@ -1540,10 +1565,13 @@ class TestInlineGraphSupport(unittest.TestCase):
     ):
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
-            "fakesrc ! fakesink",
-            {},
-            {},
-            {},
+            PipelineCommand(
+                command="fakesrc ! fakesink",
+                video_output_paths={},
+                live_stream_urls={},
+                metadata_file_paths={},
+                streams_per_pipeline={},
+            )
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
         manager = TestsManager()
@@ -1717,12 +1745,15 @@ class TestMetadataStreamUrlsInPerformanceJob(unittest.TestCase):
 
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
-            "fakesrc ! gvametaconvert add-empty-results=true"
-            " ! gvametapublish method=file file-format=json-lines"
-            " file-path=/metadata/job/pipeline/metadata_0.jsonl ! fakesink",
-            {},
-            {},
-            metadata_files,
+            PipelineCommand(
+                command="fakesrc ! gvametaconvert add-empty-results=true"
+                " ! gvametapublish method=file file-format=json-lines"
+                " file-path=/metadata/job/pipeline/metadata_0.jsonl ! fakesink",
+                video_output_paths={},
+                live_stream_urls={},
+                metadata_file_paths=metadata_files,
+                streams_per_pipeline={},
+            )
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
 
@@ -1780,15 +1811,16 @@ class TestMetadataStreamUrlsInPerformanceJob(unittest.TestCase):
         }
 
         mock_pipeline_manager_instance = MagicMock()
-        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
-            "fakesrc ! gvametaconvert add-empty-results=true"
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = PipelineCommand(
+            command="fakesrc ! gvametaconvert add-empty-results=true"
             " ! tee name=t ! gvametapublish name=publish0 method=file file-format=json-lines"
             " file-path=/metadata/job/pipeline/metadata_0.jsonl t. ! "
             " gvametapublish name=publish1 method=file file-format=json-lines"
             " file-path=/metadata/job/pipeline/metadata_1.jsonl ! fakesink",
-            {},
-            {},
-            metadata_files,
+            video_output_paths={},
+            live_stream_urls={},
+            metadata_file_paths=metadata_files,
+            streams_per_pipeline={},
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
 
@@ -1845,11 +1877,12 @@ class TestMetadataStreamUrlsInPerformanceJob(unittest.TestCase):
         self, mock_pipeline_manager_cls, mock_metadata_manager_cls
     ):
         mock_pipeline_manager_instance = MagicMock()
-        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
-            "fakesrc ! gvametaconvert add-empty-results=true ! gvametapublish ! fakesink",
-            {},
-            {},
-            {},
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = PipelineCommand(
+            command="fakesrc ! gvametaconvert add-empty-results=true ! gvametapublish ! fakesink",
+            video_output_paths={},
+            live_stream_urls={},
+            metadata_file_paths={},
+            streams_per_pipeline={},
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
 

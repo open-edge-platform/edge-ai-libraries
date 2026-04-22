@@ -747,6 +747,19 @@ class PipelineStreamSpec(BaseModel):
         description="Number of streams allocated to this pipeline.",
         examples=[4],
     )
+    streams_ids: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Stable, stream-unique identifiers for every stream started "
+            "by this pipeline, in the order streams were created. Each "
+            "entry has the format `{source_name}__{sink_name}` where "
+            "both parts are the GStreamer `name` properties applied to "
+            "the main source and main sink of the stream. These ids are "
+            "also the keys used in the job's `latency_tracer_metrics` "
+            "map. The length always equals `streams`."
+        ),
+        examples=[["src_p0_s0_0_0__sink_p0_s0_0_0"]],
+    )
 
 
 class PipelinePerformanceSpec(BaseModel):
@@ -1202,6 +1215,17 @@ class ExecutionConfig(BaseModel):
         default=MetadataMode.DISABLED,
         description="Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints.",
     )
+    enable_latency_metrics: bool = Field(
+        default=False,
+        description=(
+            "When true, activates the DLStreamer `latency_tracer` in "
+            "pipeline-only mode with a 1000 ms interval by setting "
+            "`GST_DEBUG=GST_TRACER:7` (appended if already set) and "
+            "`GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on "
+            "the GStreamer subprocess environment. When false (default), "
+            "neither environment variable is modified."
+        ),
+    )
 
 
 class PerformanceTestSpec(BaseModel):
@@ -1361,6 +1385,67 @@ class TestJobResponse(BaseModel):
     )
 
 
+class LatencyMetrics(BaseModel):
+    """
+    **Last observed DLStreamer `latency_tracer` sample for a single stream.**
+
+    Each value is extracted from a single
+    `latency_tracer_pipeline_interval` line emitted by the
+    `latency_tracer` (one such line per stream per interval ~1000 ms).
+    Only the most recent sample per stream is kept; history is not
+    reported here.
+
+    All timing fields are in milliseconds. `fps` reported by the tracer
+    is intentionally **not** included because FPS is already exposed on
+    the job status via `total_fps` / `per_stream_fps` (from
+    `gvafpscounter`).
+
+    ## Attributes
+    - `interval_ms` - Length of the measurement window, in milliseconds
+    - `avg_ms` - Average frame latency over the window, in milliseconds
+    - `min_ms` - Minimum frame latency observed in the window, in milliseconds
+    - `max_ms` - Maximum frame latency observed in the window, in milliseconds
+    - `latency_ms` - Current end-to-end latency reported by the tracer, in milliseconds
+
+    ### Example
+    ```json
+    {
+      "interval_ms": 1000.25,
+      "avg_ms": 364.31,
+      "min_ms": 0.004,
+      "max_ms": 529.26,
+      "latency_ms": 21.28
+    }
+    ```
+    """
+
+    interval_ms: float = Field(
+        ...,
+        description="Length of the measurement window reported by the tracer, in ms.",
+        examples=[1000.25],
+    )
+    avg_ms: float = Field(
+        ...,
+        description="Average frame latency over the window, in ms.",
+        examples=[364.31],
+    )
+    min_ms: float = Field(
+        ...,
+        description="Minimum frame latency observed in the window, in ms.",
+        examples=[0.004],
+    )
+    max_ms: float = Field(
+        ...,
+        description="Maximum frame latency observed in the window, in ms.",
+        examples=[529.26],
+    )
+    latency_ms: float = Field(
+        ...,
+        description="Current end-to-end latency reported by the tracer, in ms.",
+        examples=[21.28],
+    )
+
+
 class TestsJobStatus(BaseModel):
     """
     **Base status fields shared by performance and density jobs.**
@@ -1391,6 +1476,18 @@ class TestsJobStatus(BaseModel):
     total_streams: int | None
     streams_per_pipeline: list[PipelineStreamSpec] | None
     video_output_paths: dict[str, list[str]] | None
+    latency_tracer_metrics: dict[str, LatencyMetrics] | None = Field(
+        default=None,
+        description=(
+            "Last observed DLStreamer `latency_tracer` sample per stream, "
+            "keyed by `stream_id` (`{source_name}__{sink_name}`). `null` "
+            "when the job was executed with "
+            "`execution_config.enable_latency_metrics=false` (the tracer "
+            "was not started at all). An empty object `{}` means the "
+            "tracer was active but produced no samples — for example when "
+            "the pipeline exited before the first 1000 ms interval closed."
+        ),
+    )
 
 
 class PerformanceJobStatus(TestsJobStatus):

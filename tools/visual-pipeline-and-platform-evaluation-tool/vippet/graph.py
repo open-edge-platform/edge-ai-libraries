@@ -703,6 +703,241 @@ class Graph:
 
         return modified_graph
 
+    def apply_stream_identifiers(
+        self, pipeline_index: int, stream_index: int
+    ) -> tuple["Graph", str, str, str]:
+        """
+        Assign explicit GStreamer element names to the main-branch source and sink.
+
+        The goal is to make every stream individually identifiable in external
+        tracers (for example the DLStreamer `latency_tracer`), which reports
+        measurements keyed by `source_name` and `sink_name`. Without explicit
+        names, GStreamer auto-generates non-deterministic names like
+        "filesrc0", "fakesink0", ..., which are impossible to map back to a
+        specific stream when several streams run in parallel.
+
+        What this method does:
+          1. Finds the main-branch source: the start node (no incoming edges).
+             When multiple start nodes exist, the one with the smallest id
+             is selected, consistent with `to_pipeline_description` ordering.
+          2. Finds the "main sink" — i.e. the terminal element that actually
+             represents the user-facing video output for this stream. The
+             selection rule, in priority order, mirrors
+             `prepare_main_output_placeholder` so that every stream (stream
+             0 where the placeholder has already been inserted, AND
+             stream_index > 0 where the placeholder step is skipped) picks
+             the same semantic element:
+
+               a) The single OUTPUT_PLACEHOLDER node, if present.
+               b) The fakesink with `name == "default_output_sink"`, if
+                  present (the canonical user-facing output marker).
+               c) The single unnamed fakesink in the graph, if that is the
+                  only fakesink.
+               d) Best-effort fallback: the terminal reached by walking
+                  `targets[0]` from the source (first-branch-inline).
+
+             Intermediate recorder sinks on the tee's inline branch (e.g.
+             a splitmuxsink used to simulate a DVR) are therefore never
+             mistaken for the main sink when the graph carries the
+             `default_output_sink` marker on another tee branch.
+          3. Sets `name=<source_name>` on the source node and
+             `name=<sink_name>` on the resolved main-sink node. Both names
+             include `pipeline_index` and `stream_index` so they remain
+             unique across all streams of a single run.
+          4. Returns the computed `stream_id` (concatenation of source and
+             sink names) so the caller can log / track it.
+
+        Special case — OUTPUT_PLACEHOLDER main sink:
+            When the main sink is an OUTPUT_PLACEHOLDER, no `name` property
+            is written into the graph, because the placeholder is about to
+            be replaced by a full output subpipeline (e.g. encoder +
+            filesink). The caller is responsible for injecting
+            `name=<sink_name>` into the expanded output subpipeline string
+            so the sink name still ends up in the final pipeline. The
+            computed sink name is returned regardless.
+
+        Args:
+            pipeline_index: Index of the pipeline in the current run.
+            stream_index: Index of the stream within this pipeline.
+
+        Returns:
+            tuple:
+                - Graph: New Graph instance with source/sink names applied.
+                - str: Assigned source element name.
+                - str: Assigned sink element name (to be used either from the
+                  graph itself or injected into the output subpipeline).
+                - str: `stream_id` (source_name + "__" + sink_name), unique
+                  within a single run.
+
+        Raises:
+            ValueError: If no source (start) node can be found.
+            ValueError: If no main sink can be found.
+            ValueError: If more than one OUTPUT_PLACEHOLDER node exists
+                (only one user-facing output is supported per stream).
+            ValueError: If more than one fakesink is named
+                `default_output_sink` (same invariant as
+                `prepare_main_output_placeholder`).
+        """
+        modified_graph = copy.deepcopy(self)
+
+        # Build an adjacency map: node_id -> list of downstream node ids.
+        # This mirrors the structure used by `to_pipeline_description`.
+        edges_from: dict[str, list[str]] = defaultdict(list)
+        for edge in modified_graph.edges:
+            edges_from[edge.source].append(edge.target)
+
+        nodes_by_id = {node.id: node for node in modified_graph.nodes}
+
+        # --- Source selection ---
+
+        # Start nodes = nodes with no incoming edges.
+        target_node_ids = {edge.target for edge in modified_graph.edges}
+        start_node_ids = [
+            node.id for node in modified_graph.nodes if node.id not in target_node_ids
+        ]
+
+        if not start_node_ids:
+            raise ValueError(
+                "Cannot apply stream identifiers: no source node found in graph."
+            )
+
+        # Pick the first start node in sorted order so the choice is
+        # deterministic and consistent with `to_pipeline_description`, which
+        # also iterates `sorted(start_nodes)`.
+        source_id = sorted(start_node_ids)[0]
+        source_node = nodes_by_id[source_id]
+
+        # --- Main sink selection ---
+        #
+        # The main sink is the user-facing output terminal. We want its
+        # GStreamer `name` to match the stream_id so that external tracers
+        # (latency_tracer) can correlate their per-frame rows back to a
+        # specific stream. Selection priority — intentionally aligned with
+        # `prepare_main_output_placeholder`, so every stream (stream 0 with
+        # the placeholder already inserted, AND streams 1+ where the
+        # placeholder step is skipped) picks the same semantic element:
+        #
+        #   (a) If the graph contains an OUTPUT_PLACEHOLDER node, that is
+        #       the main sink. This is the stream-0 case after
+        #       `prepare_main_output_placeholder` has already run.
+        #       Intermediate recorder sinks (e.g. a splitmuxsink sitting on
+        #       the tee's inline branch) are therefore never selected.
+        #
+        #   (b) If a fakesink with `name == "default_output_sink"` exists,
+        #       that is the main sink. This matches the marker used by
+        #       `prepare_main_output_placeholder` and covers streams where
+        #       the placeholder step has NOT run (stream_index > 0, or
+        #       output_mode=disabled). It also correctly handles graphs
+        #       where the user-facing output sits on a non-first tee branch
+        #       while an intermediate recorder sink sits on the inline
+        #       branch.
+        #
+        #   (c) If there is exactly one fakesink in the graph and it has
+        #       no explicit name, that fakesink is the main sink (mirrors
+        #       the auto-pick rule of `prepare_main_output_placeholder`).
+        #
+        #   (d) Otherwise, walk the main chain by always following
+        #       `targets[0]` from the source (mirroring `_build_chain`'s
+        #       first-branch-inline logic) and use the terminal node. This
+        #       is the best-effort fallback for pipelines that don't
+        #       follow the fakesink convention.
+        #
+        # In all cases, tee-branch sinks reached via `targets[1:]` are NOT
+        # renamed unless they are the selected main sink.
+        placeholder_nodes = [
+            node for node in modified_graph.nodes if node.type == OUTPUT_PLACEHOLDER
+        ]
+        if len(placeholder_nodes) > 1:
+            raise ValueError(
+                f"Cannot apply stream identifiers: found {len(placeholder_nodes)} "
+                "OUTPUT_PLACEHOLDER nodes, expected at most one."
+            )
+
+        sink_node: Optional[Node] = None
+
+        # (a) OUTPUT_PLACEHOLDER has highest priority.
+        if len(placeholder_nodes) == 1:
+            sink_node = placeholder_nodes[0]
+
+        # (b) fakesink named "default_output_sink".
+        if sink_node is None:
+            named_default_sinks = [
+                node
+                for node in modified_graph.nodes
+                if node.type == "fakesink"
+                and node.data.get("name") == "default_output_sink"
+            ]
+            if len(named_default_sinks) > 1:
+                # Same invariant as `prepare_main_output_placeholder`.
+                raise ValueError(
+                    f"Cannot apply stream identifiers: found "
+                    f"{len(named_default_sinks)} fakesink nodes with "
+                    f"name='default_output_sink', expected at most one."
+                )
+            if len(named_default_sinks) == 1:
+                sink_node = named_default_sinks[0]
+
+        # (c) Single unnamed fakesink in the graph.
+        if sink_node is None:
+            fakesink_nodes = [
+                node for node in modified_graph.nodes if node.type == "fakesink"
+            ]
+            if len(fakesink_nodes) == 1:
+                sink_node = fakesink_nodes[0]
+
+        # (d) Fallback: walk targets[0] from the source.
+        if sink_node is None:
+            current_id: str = source_id
+            visited: set[str] = set()
+            while True:
+                if current_id in visited:
+                    # Defensive: the graph should be acyclic (validated
+                    # elsewhere), but break here to avoid any theoretical
+                    # infinite loop.
+                    break
+                visited.add(current_id)
+                targets = edges_from.get(current_id, [])
+                if not targets:
+                    break
+                current_id = targets[0]
+
+            sink_node = nodes_by_id.get(current_id)
+
+        if sink_node is None:
+            raise ValueError("Cannot apply stream identifiers: no main sink found.")
+
+        # Deterministic, run-unique names. Prefix disambiguates source vs sink
+        # in log output; indices guarantee uniqueness across streams.
+        source_name = f"src_p{pipeline_index}_s{stream_index}"
+        sink_name = f"sink_p{pipeline_index}_s{stream_index}"
+
+        # Assign the source name. Overwrites any pre-existing `name` so the
+        # stream is guaranteed to be identifiable by the tracer.
+        source_node.data["name"] = source_name
+        logger.debug(
+            f"Set source name on node {source_node.id} "
+            f"(type={source_node.type}): {source_name}"
+        )
+
+        # Assign the sink name only if the terminal is a real element. For
+        # OUTPUT_PLACEHOLDER the caller injects the name into the expanded
+        # output subpipeline instead.
+        if sink_node.type == OUTPUT_PLACEHOLDER:
+            logger.debug(
+                f"Main sink node {sink_node.id} is OUTPUT_PLACEHOLDER; "
+                f"skipping in-graph rename. Sink name '{sink_name}' will be "
+                f"injected into the output subpipeline by the caller."
+            )
+        else:
+            sink_node.data["name"] = sink_name
+            logger.debug(
+                f"Set sink name on node {sink_node.id} "
+                f"(type={sink_node.type}): {sink_name}"
+            )
+
+        stream_id = f"{source_name}__{sink_name}"
+        return modified_graph, source_name, sink_name, stream_id
+
     def strip_watermark_if_all_sinks_are_fake(self) -> "Graph":
         """
         Remove all gvawatermark nodes if every sink in the graph is a fakesink.
