@@ -25,7 +25,7 @@ const PipelineNodeCard = ({
   handles = "both",
 }: PipelineNodeCardProps) => (
   <div
-    className={`p-4 rounded shadow-md bg-background border border-l-4 ${roleClasses.border} ${minWidthClass}`}
+    className={`p-4 rounded shadow-md bg-background border border-l-4 ${roleClasses.color} ${roleClasses.border} ${minWidthClass}`}
   >
     <div className="flex gap-3">
       <div

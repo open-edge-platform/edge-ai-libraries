@@ -58,6 +58,62 @@
   }
 }
 
+/* Node color themes */
+@utility node-sky {
+  --node-color: var(--electric-sky);
+}
+@utility node-steel {
+  --node-color: var(--blue-steel);
+}
+@utility node-chart-blue {
+  --node-color: var(--shadcn-chart-blue);
+}
+@utility node-cobalt {
+  --node-color: var(--electric-cobalt);
+}
+@utility node-amethyst {
+  --node-color: var(--electric-amethyst);
+}
+@utility node-indigo {
+  --node-color: var(--electric-indigo);
+}
+@utility node-geode {
+  --node-color: var(--electric-geode);
+}
+@utility node-cerulean {
+  --node-color: var(--electric-cerulean);
+}
+@utility node-periwinkle {
+  --node-color: var(--electric-periwinkle);
+}
+@utility node-lavender {
+  --node-color: var(--electric-lavender);
+}
+@utility node-orchid {
+  --node-color: var(--electric-orchid);
+}
+@utility node-neutral {
+  --node-border: color-mix(in srgb, var(--foreground) 24%, var(--background));
+  --node-surface: color-mix(in srgb, var(--muted) 78%, var(--background));
+  --node-icon: color-mix(in srgb, var(--foreground) 62%, var(--background));
+  --node-title: color-mix(in srgb, var(--foreground) 78%, var(--background));
+  --node-handle: color-mix(in srgb, var(--foreground) 54%, var(--background));
+}
+
+/* Status color themes */
+@utility status-info {
+  --status-color: var(--brand-accent);
+}
+@utility status-success {
+  --status-color: var(--electric-moss);
+}
+@utility status-error {
+  --status-color: var(--destructive);
+}
+@utility status-accent {
+  --status-color: var(--electric-geode);
+}
+
 @layer components {
   @keyframes dashedFlow {
     to {

@@ -31,8 +31,8 @@ export const DensityJobDetail = () => {
       {isLoading ? (
         <p className="text-muted-foreground">Loading job details...</p>
       ) : error ? (
-        <div className="p-4 border border-status-error-border bg-status-error-bg">
-          <p className="text-status-error-fg">
+        <div className="status-error p-4 border border-status-border bg-status-bg">
+          <p className="text-status-fg">
             Error loading job details
           </p>
         </div>

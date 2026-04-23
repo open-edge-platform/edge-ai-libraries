@@ -550,50 +550,24 @@ const DemoMode = () => {
     second: "8,28,80",
     third: "40,95,220",
     fourth: "10,30,90",
-    fifth: "70,140,210",
-    sixth: "30,90,180",
   };
 
   // UI color styles
   const colors = {
     headerTitle: "text-demo-header-title",
-    headerGradient:
-      "from-demo-surface-via via-brand-accent-hover to-demo-header-title",
     exitButton:
       "border-demo-exit-border hover:bg-demo-exit-hover-surface hover:border-demo-exit-hover-border",
     exitIcon: "text-demo-exit-fg",
-    configBorder: "border-demo-panel-border shadow-xl",
-    configTitle: "text-demo-panel-title",
-    label: "text-demo-panel-label",
-    dropdown:
-      "border-demo-panel-input-border hover:border-demo-panel-input-focus-border focus:ring-demo-panel-input-focus-ring focus:border-demo-panel-input-focus-border",
-    dropdownIcon: "text-demo-panel-label",
-    dropdownBg: "bg-demo-panel-menu-surface border-demo-panel-menu-border",
-    dropdownHover: "hover:bg-demo-panel-menu-hover",
-    dropdownActive: "bg-demo-panel-menu-active",
-    participationBorder: "border-demo-panel-border",
     testBorder: "border-demo-panel-border shadow-xl",
     testTitle: "text-demo-panel-title",
-    testLabel: "text-demo-panel-label",
-    testInput:
-      "border-demo-panel-input-border focus:ring-demo-panel-input-focus-ring focus:border-demo-panel-input-focus-border",
-    testInputText: "text-demo-panel-input-text",
     checkbox:
       "border-demo-checkbox-border data-[state=checked]:bg-demo-checkbox-active data-[state=checked]:border-demo-checkbox-active",
-    checkboxLabel: "text-demo-checkbox-label group-hover:text-demo-panel-title",
     runButton:
       "bg-demo-primary-button hover:bg-demo-primary-button-hover rounded-xl shadow-lg shadow-demo-primary-button-shadow hover:shadow-demo-primary-button-shadow-hover",
     runButtonOverlay:
       "bg-gradient-to-r from-demo-primary-button-overlay-from to-demo-primary-button-overlay-to",
-    runButtonText: "",
-    gridConfigBorder: "border-demo-panel-border shadow-lg",
-    gridConfigTitle: "text-demo-panel-title",
-    gridTestBorder: "border-demo-panel-border shadow-lg",
-    gridTestTitle: "text-demo-panel-title",
     gridResultsBorder: "border-demo-panel-border shadow-lg",
     gridResultsTitle: "text-demo-panel-title",
-    gridPreviewBorder: "border-demo-panel-border shadow-lg",
-    gridPreviewTitle: "text-demo-panel-title",
     loadingDots: "bg-demo-checkbox-active",
     summaryFpsBorder:
       "border-brand-accent/60 shadow-lg shadow-brand-accent/20 ring-2 ring-brand-accent/30",
@@ -2514,11 +2488,11 @@ const DemoMode = () => {
                         )}
 
                         {performanceErrorMessage && (
-                          <div className="rounded-lg border border-status-error-border bg-status-error-bg p-3">
-                            <p className="text-sm font-bold text-status-error-fg mb-1">
+                          <div className="status-error rounded-lg border border-status-border bg-status-bg p-3">
+                            <p className="text-sm font-bold text-status-fg mb-1">
                               Test Failed
                             </p>
-                            <p className="text-xs text-status-error-fg">
+                            <p className="text-xs text-status-fg">
                               {performanceErrorMessage}
                             </p>
                           </div>
@@ -2680,11 +2654,11 @@ const DemoMode = () => {
                         )}
 
                         {errorMessage && (
-                          <div className="rounded-lg border border-status-error-border bg-status-error-bg p-3">
-                            <p className="text-sm font-bold text-status-error-fg mb-1">
+                          <div className="status-error rounded-lg border border-status-border bg-status-bg p-3">
+                            <p className="text-sm font-bold text-status-fg mb-1">
                               Test Failed
                             </p>
-                            <p className="text-xs text-status-error-fg">
+                            <p className="text-xs text-status-fg">
                               {errorMessage}
                             </p>
                           </div>

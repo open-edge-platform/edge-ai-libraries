@@ -226,13 +226,13 @@ export const Jobs = () => {
                         <TableCell>
                           <span
                             className={cn(
-                              "px-2 py-1 text-xs font-medium",
+                              "px-2 py-1 text-xs font-medium bg-status-bg text-status-fg",
                               job.state === "COMPLETED"
-                                ? "bg-status-success-bg text-status-success-fg"
+                                ? "status-success"
                                 : job.state === "RUNNING"
-                                  ? "bg-status-info-bg text-status-info-fg"
+                                  ? "status-info"
                                   : job.state === "FAILED"
-                                    ? "bg-status-error-bg text-status-error-fg"
+                                    ? "status-error"
                                     : "bg-status-neutral-bg text-status-neutral-fg",
                             )}
                           >
@@ -324,13 +324,13 @@ export const Jobs = () => {
                         <TableCell>
                           <span
                             className={cn(
-                              "px-2 py-1 text-xs font-medium",
+                              "px-2 py-1 text-xs font-medium bg-status-bg text-status-fg",
                               job.state === "COMPLETED"
-                                ? "bg-status-success-bg text-status-success-fg"
+                                ? "status-success"
                                 : job.state === "RUNNING"
-                                  ? "bg-status-info-bg text-status-info-fg"
+                                  ? "status-info"
                                   : job.state === "FAILED"
-                                    ? "bg-status-error-bg text-status-error-fg"
+                                    ? "status-error"
                                     : "bg-status-neutral-bg text-status-neutral-fg",
                             )}
                           >
@@ -426,20 +426,20 @@ export const Jobs = () => {
                           </Link>
                         </TableCell>
                         <TableCell>
-                          <span className="px-2 py-1 bg-status-accent-bg text-status-accent-fg text-xs font-medium">
+                          <span className="status-accent px-2 py-1 bg-status-bg text-status-fg text-xs font-medium">
                             {job.type ?? "-"}
                           </span>
                         </TableCell>
                         <TableCell>
                           <span
                             className={cn(
-                              "px-2 py-1 text-xs font-medium",
+                              "px-2 py-1 text-xs font-medium bg-status-bg text-status-fg",
                               job.state === "COMPLETED"
-                                ? "bg-status-success-bg text-status-success-fg"
+                                ? "status-success"
                                 : job.state === "RUNNING"
-                                  ? "bg-status-info-bg text-status-info-fg"
+                                  ? "status-info"
                                   : job.state === "FAILED"
-                                    ? "bg-status-error-bg text-status-error-fg"
+                                    ? "status-error"
                                     : "bg-status-neutral-bg text-status-neutral-fg",
                             )}
                           >

@@ -556,27 +556,27 @@ export const PerformanceTests = () => {
         )}
 
         {errorMessage && (
-          <div className="my-4 p-3 bg-status-error-bg border border-status-error-border">
-            <p className="text-sm font-medium text-status-error-fg mb-2">
+          <div className="status-error my-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
               Test Failed
             </p>
-            <p className="text-xs text-status-error-fg">
+            <p className="text-xs text-status-fg">
               {errorMessage}
             </p>
           </div>
         )}
 
         {testResult && (
-          <div className="my-4 p-3 bg-status-success-bg border border-status-success-border">
-            <p className="text-sm font-medium text-status-success-fg mb-2">
+          <div className="status-success my-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
               Test Completed Successfully
             </p>
             <div className="space-y-1 text-sm">
-              <p className="text-status-success-fg">
+              <p className="text-status-fg">
                 <span className="font-medium">Total FPS:</span>{" "}
                 {testResult.total_fps?.toFixed(2) ?? "N/A"}
               </p>
-              <p className="text-status-success-fg">
+              <p className="text-status-fg">
                 <span className="font-medium">Per Stream FPS:</span>{" "}
                 {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
               </p>
@@ -586,7 +586,7 @@ export const PerformanceTests = () => {
               testResult.video_output_paths &&
               Object.keys(testResult.video_output_paths).length > 0 && (
                 <div className="mt-4">
-                  <p className="text-sm font-medium text-status-success-fg mb-3">
+                  <p className="text-sm font-medium text-status-fg mb-3">
                     Output Videos:
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -600,10 +600,10 @@ export const PerformanceTests = () => {
                         return (
                           <div
                             key={pipelineRefKey}
-                            className="border border-status-success-border overflow-hidden"
+                            className="border border-status-border overflow-hidden"
                           >
-                            <div className="bg-status-success-bg px-3 py-2">
-                              <p className="text-xs font-medium text-status-success-fg">
+                            <div className="bg-status-bg px-3 py-2">
+                              <p className="text-xs font-medium text-status-fg">
                                 <PipelineName
                                   pipelineId={reference.pipelineId}
                                   variantId={reference.variantId}
@@ -619,7 +619,7 @@ export const PerformanceTests = () => {
                                 Your browser does not support the video tag.
                               </video>
                             ) : (
-                              <div className="p-4 text-center text-sm text-status-success-fg">
+                              <div className="p-4 text-center text-sm text-status-fg">
                                 no streams
                               </div>
                             )}
@@ -634,8 +634,8 @@ export const PerformanceTests = () => {
         )}
 
         {jobStatus && (
-          <div className="my-4 p-3 bg-brand-accent/5 border border-brand-accent/20">
-            <p className="text-sm font-medium text-status-info-fg">
+          <div className="status-info my-4 p-3 bg-brand-accent/5 border border-brand-accent/20">
+            <p className="text-sm font-medium text-status-fg">
               Test Status: {jobStatus.state}
             </p>
             {jobStatus.state === "RUNNING" && (
@@ -651,7 +651,7 @@ export const PerformanceTests = () => {
                   "live_stream_urls" in jobStatus &&
                   jobStatus.live_stream_urls && (
                     <div className="mt-4">
-                      <p className="text-sm font-medium text-status-info-fg mb-3">
+                      <p className="text-sm font-medium text-status-fg mb-3">
                         Live Preview:
                       </p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -664,10 +664,10 @@ export const PerformanceTests = () => {
                             return (
                               <div
                                 key={reference.rawKey}
-                                className="border border-status-info-border overflow-hidden"
+                                className="border border-status-border overflow-hidden"
                               >
-                                <div className="bg-status-info-bg px-3 py-2">
-                                  <p className="text-xs font-medium text-status-info-fg">
+                                <div className="bg-status-bg px-3 py-2">
+                                  <p className="text-xs font-medium text-status-fg">
                                     <PipelineName
                                       pipelineId={reference.pipelineId}
                                       variantId={reference.variantId}
@@ -683,7 +683,7 @@ export const PerformanceTests = () => {
                                     />
                                   </div>
                                 ) : (
-                                  <div className="p-4 text-center text-sm text-status-info-fg">
+                                  <div className="p-4 text-center text-sm text-status-fg">
                                     Waiting for live stream to be published...
                                   </div>
                                 )}
@@ -702,8 +702,8 @@ export const PerformanceTests = () => {
         )}
 
         {!isRunning && frozenSummary && (
-          <div className="my-4 p-3 bg-brand-accent/5 border border-brand-accent/20">
-            <p className="text-sm font-medium text-status-info-fg mb-2">
+          <div className="status-info my-4 p-3 bg-brand-accent/5 border border-brand-accent/20">
+            <p className="text-sm font-medium text-status-fg mb-2">
               Frozen Metrics Snapshot
             </p>
             <MetricsDashboard

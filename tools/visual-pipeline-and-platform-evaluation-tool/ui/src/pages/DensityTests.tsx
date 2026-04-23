@@ -472,15 +472,15 @@ export const DensityTests = () => {
         )}
 
         {jobStatus && (
-          <div className="m-4 p-3 bg-status-info-bg border border-status-info-border">
-            <p className="text-sm font-medium text-status-info-fg">
+          <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg">
               Test Status: {jobStatus.state}
             </p>
             {jobStatus.state === "RUNNING" && (
               <div className="mt-2">
                 <div className="animate-pulse flex items-center gap-2">
                   <div className="h-2 w-2 bg-status-info-accent"></div>
-                  <span className="text-xs text-status-info-fg">
+                  <span className="text-xs text-status-fg">
                     Running density test...
                   </span>
                 </div>
@@ -491,8 +491,8 @@ export const DensityTests = () => {
         )}
 
         {!isRunning && frozenSummary && (
-          <div className="m-4 p-3 bg-status-info-bg border border-status-info-border">
-            <p className="text-sm font-medium text-status-info-fg mb-2">
+          <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
               Frozen Metrics Snapshot
             </p>
             <MetricsDashboard
@@ -503,33 +503,33 @@ export const DensityTests = () => {
         )}
 
         {errorMessage && (
-          <div className="my-4 p-3 bg-status-error-bg border border-status-error-border">
-            <p className="text-sm font-medium text-status-error-fg mb-2">
+          <div className="status-error my-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
               Test Failed
             </p>
-            <p className="text-xs text-status-error-fg">
+            <p className="text-xs text-status-fg">
               {errorMessage}
             </p>
           </div>
         )}
 
         {testResult && (
-          <div className="my-4 p-3 bg-status-success-bg border border-status-success-border">
-            <p className="text-sm font-medium text-status-success-fg mb-2">
+          <div className="status-success my-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
               Test Completed Successfully
             </p>
             <div className="space-y-1 text-sm">
-              <p className="text-status-success-fg">
+              <p className="text-status-fg">
                 <span className="font-medium">Per Stream FPS:</span>{" "}
                 {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
               </p>
-              <p className="text-status-success-fg">
+              <p className="text-status-fg">
                 <span className="font-medium">Total Streams:</span>{" "}
                 {testResult.total_streams ?? "N/A"}
               </p>
               {testResult.streams_per_pipeline && (
                 <div className="mt-2">
-                  <p className="text-status-success-fg font-medium mb-1">
+                  <p className="text-status-fg font-medium mb-1">
                     Streams per Pipeline:
                   </p>
                   <PipelineStreamsSummary
