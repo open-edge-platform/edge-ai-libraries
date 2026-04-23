@@ -86,19 +86,23 @@ const SummaryTitle = styled.div`
   margin-top: 1rem;
   background-color: #fff;
   .video-container {
+    flex: 0 0 auto;
+    max-width: 40%;
     overflow: hidden;
     height: 100%;
     .video {
       height: 100%;
+      width: 100%;
+      object-fit: contain;
     }
   }
   .info-container {
+    flex: 1 1 0%;
+    min-width: 0;
     height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 0 1rem;
-    // display: flex;
-    // flex-flow: row wrap;
-    // align-items: center;
-    // justify-content: flex-start;
     .title-container {
       display: flex;
       flex-flow: row wrap;
@@ -107,13 +111,27 @@ const SummaryTitle = styled.div`
       & > * {
         margin-right: 1rem;
       }
+      .cds--btn--ghost {
+        width: 25px;
+        height: 25px;
+        min-height: 10px;
+        padding: 0;
+        border: 1px solid var(--cds-border-inverse, #161616);
+        border-radius: 0;
+      }
+      .cds--btn--ghost:hover {
+        background-color: var(--cds-border-inverse, #161616);
+        color: #fff;
+      }
+      .cds--btn--ghost:hover svg {
+        fill: #fff;
+      }
     }
     .status-container {
       display: flex;
-      .status {
-        padding: 0.5rem;
-        border: 1px solid #000;
-      }
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.25rem;
     }
   }
 `;
@@ -123,9 +141,6 @@ const NothingSelected = styled.div`
   padding: 0 2rem;
 `;
 
-const Spacer = styled.span`
-  flex: 1 1 auto;
-`;
 
 const StyledMessage = styled.div`
   font-size: 1rem;
@@ -480,6 +495,18 @@ export const Summary: FC = () => {
                 )}
               </AILabelContent>
             </AILabel>
+
+            <IconButton
+              label={t('SyncState')}
+              align={'left'}
+              size='sm'
+              kind='ghost'
+              onClick={() => {
+                refetchSummary(summaryData.stateId);
+              }}
+            >
+              <Renew />
+            </IconButton>
           </div>
 
           <div className='status-container'>
@@ -509,21 +536,7 @@ export const Summary: FC = () => {
 
             <StatusTag action={summaryData.videoSummaryStatus} label={t('summaryLabel')} />
           </div>
-          <div className='actions'>
-            <IconButton
-              label={t('SyncState')}
-              align={'left'}
-              size='sm'
-              onClick={() => {
-                refetchSummary(summaryData.stateId);
-              }}
-            >
-              <Renew />
-            </IconButton>
-          </div>
         </div>
-
-        <Spacer />
       </SummaryTitle>
     );
   };
