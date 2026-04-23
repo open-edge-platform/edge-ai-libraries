@@ -102,33 +102,11 @@ EXPOSE 8000
 ENTRYPOINT [ "/entrypoint.sh" ] 
 CMD [ "poetry", "run", "uvicorn", "--host", "0.0.0.0", "--port", "8000", "--reload", "src.main:app" ]
 
-# Linter stage to lint code in dev image
-FROM dev AS lint
-
-USER root
-COPY --chown=appuser:appuser . .
-USER appuser
-
-RUN black --config ./pyproject.toml --check tests src
-RUN isort --settings-path ./pyproject.toml --check-only .
-
-# Final dev stage after passing linting and tests criteria.
-FROM lint AS final-dev
-ARG COVERAGE_REQ
-RUN coverage run --rcfile ./pyproject.toml -m pytest ./tests
-RUN coverage report -m --fail-under $COVERAGE_REQ
-
-# Generate test coverage report on lint stage and serve it using python http server.
-FROM lint AS report
-# Copy script with proper ownership from the start
-USER root
-COPY --chown=appuser:appuser ./scripts/reporter.sh /reporter.sh
-RUN chmod +x /reporter.sh
-USER appuser
-
-CMD [ "/reporter.sh" ]
-
 # `prod` image used for runtime
+# NOTE: This stage is placed before lint/test stages to ensure the legacy Docker
+# builder (non-BuildKit) can build prod without executing lint checks. BuildKit
+# skips unneeded stages automatically, but the legacy builder executes stages
+# in order. Keep prod before lint to support both builders.
 FROM python-base AS prod
 
 ARG INSTALL_DRIVER_VERSION
@@ -199,3 +177,29 @@ EXPOSE 8000
 
 ENTRYPOINT [ "/entrypoint.sh" ]
 CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.main:app", "--timeout", "1200", "--log-level", "debug"]
+
+# Linter stage to lint code in dev image
+FROM dev AS lint
+
+USER root
+COPY --chown=appuser:appuser . .
+USER appuser
+
+RUN black --config ./pyproject.toml --check tests src
+RUN isort --settings-path ./pyproject.toml --check-only .
+
+# Final dev stage after passing linting and tests criteria.
+FROM lint AS final-dev
+ARG COVERAGE_REQ
+RUN coverage run --rcfile ./pyproject.toml -m pytest ./tests
+RUN coverage report -m --fail-under $COVERAGE_REQ
+
+# Generate test coverage report on lint stage and serve it using python http server.
+FROM lint AS report
+# Copy script with proper ownership from the start
+USER root
+COPY --chown=appuser:appuser ./scripts/reporter.sh /reporter.sh
+RUN chmod +x /reporter.sh
+USER appuser
+
+CMD [ "/reporter.sh" ]
