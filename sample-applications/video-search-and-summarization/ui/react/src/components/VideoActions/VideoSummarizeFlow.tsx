@@ -1233,7 +1233,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                         <Checkbox
                           id='audiocheckBox'
                           labelText={t('UseAudio')}
-                          defaultChecked={true}
+                          checked={audio}
                           onChange={(_, { checked }) => setAudio(checked)}
                         />
                         {audio && (

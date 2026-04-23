@@ -476,7 +476,7 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
                     <Checkbox
                       id='audiocheckBox'
                       labelText={t('UseAudio')}
-                      defaultChecked={true}
+                      checked={audio}
                       onChange={(_, { checked }) => setAudio(checked)}
                     />
 
