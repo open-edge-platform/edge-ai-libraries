@@ -167,16 +167,12 @@ class ImagesManager:
                     continue
 
                 full_path = os.path.join(root, fname)
-                rel_path = os.path.relpath(full_path, set_path).replace(
-                    os.sep, "/"
-                )
+                rel_path = os.path.relpath(full_path, set_path).replace(os.sep, "/")
 
                 try:
                     size_bytes = os.path.getsize(full_path)
                 except OSError as e:
-                    logger.warning(
-                        f"Failed to stat image '{full_path}': {e}"
-                    )
+                    logger.warning(f"Failed to stat image '{full_path}': {e}")
                     size_bytes = 0
 
                 width, height = self._read_image_dimensions(full_path)
@@ -256,9 +252,7 @@ class ImagesManager:
                     + ", ".join(IMAGE_EXTENSIONS)
                 )
 
-            logger.info(
-                f"Extracted image set '{set_name}' ({image_count} images)"
-            )
+            logger.info(f"Extracted image set '{set_name}' ({image_count} images)")
             return ImageSet(name=set_name, image_count=image_count)
 
         except (zipfile.BadZipFile, tarfile.TarError) as e:
@@ -326,9 +320,7 @@ class ImagesManager:
             for member in zf.namelist():
                 member_path = os.path.join(dest_dir, member)
                 if not cls._is_within_directory(dest_dir, member_path):
-                    raise ValueError(
-                        "Archive contains unsafe paths (path traversal)."
-                    )
+                    raise ValueError("Archive contains unsafe paths (path traversal).")
             zf.extractall(dest_dir)
 
     @classmethod
@@ -337,9 +329,7 @@ class ImagesManager:
             for member in tf.getmembers():
                 member_path = os.path.join(dest_dir, member.name)
                 if not cls._is_within_directory(dest_dir, member_path):
-                    raise ValueError(
-                        "Archive contains unsafe paths (path traversal)."
-                    )
+                    raise ValueError("Archive contains unsafe paths (path traversal).")
             tf.extractall(dest_dir)
 
 

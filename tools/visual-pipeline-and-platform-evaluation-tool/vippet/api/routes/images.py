@@ -193,9 +193,7 @@ async def upload_image_archive(file: UploadFile = File(...)):
         logger.info(
             f"Successfully extracted image set '{set_name}' ({image_set.image_count} images)"
         )
-        return schemas.ImageSet(
-            name=image_set.name, image_count=image_set.image_count
-        )
+        return schemas.ImageSet(name=image_set.name, image_count=image_set.image_count)
 
     except FileExistsError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -268,9 +266,7 @@ def list_images_in_set(
         images = ImagesManager().get_images_in_set(name)
         if images is None:
             logger.warning(f"Image set '{name}' not found.")
-            raise HTTPException(
-                status_code=404, detail=f"Image set '{name}' not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Image set '{name}' not found")
 
         logger.debug(f"Found {len(images)} images in set '{name}'.")
         return [
@@ -286,9 +282,7 @@ def list_images_in_set(
     except HTTPException:
         raise
     except Exception:
-        logger.error(
-            f"Failed to list images for set '{name}'", exc_info=True
-        )
+        logger.error(f"Failed to list images for set '{name}'", exc_info=True)
         return JSONResponse(
             content=schemas.MessageResponse(
                 message="Unexpected error while listing images"

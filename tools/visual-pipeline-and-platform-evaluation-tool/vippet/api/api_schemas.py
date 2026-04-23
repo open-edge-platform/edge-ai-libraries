@@ -1772,9 +1772,7 @@ class ImageSet(BaseModel):
     """
 
     name: str = Field(..., description="Name of the image set directory.")
-    image_count: int = Field(
-        ..., description="Number of image files in the directory."
-    )
+    image_count: int = Field(..., description="Number of image files in the directory.")
 
 
 class ImageSetExistsResponse(BaseModel):

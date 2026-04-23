@@ -3,6 +3,8 @@ __pycache__
 .env
 .idea
 shared/collector-signals/
+shared/images/input/*
+shared/images/output/*
 shared/models/output/*
 shared/videos/input/*
 shared/videos/output/*
