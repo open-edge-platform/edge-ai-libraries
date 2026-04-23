@@ -3209,60 +3209,6 @@
         "title": "HealthResponse",
         "description": "**Response model for health endpoint.**\n\nUsed by Docker healthcheck and monitoring systems to verify\napplication health status.\n\n## Attributes\n- `healthy` - True if application is healthy (not shutdown)\n\n### Example\n```json\n{\n  \"healthy\": true\n}\n```"
       },
-      "LatencyMetrics": {
-        "properties": {
-          "interval_ms": {
-            "type": "number",
-            "title": "Interval Ms",
-            "description": "Length of the measurement window reported by the tracer, in ms.",
-            "examples": [
-              1000.25
-            ]
-          },
-          "avg_ms": {
-            "type": "number",
-            "title": "Avg Ms",
-            "description": "Average frame latency over the window, in ms.",
-            "examples": [
-              364.31
-            ]
-          },
-          "min_ms": {
-            "type": "number",
-            "title": "Min Ms",
-            "description": "Minimum frame latency observed in the window, in ms.",
-            "examples": [
-              0.004
-            ]
-          },
-          "max_ms": {
-            "type": "number",
-            "title": "Max Ms",
-            "description": "Maximum frame latency observed in the window, in ms.",
-            "examples": [
-              529.26
-            ]
-          },
-          "latency_ms": {
-            "type": "number",
-            "title": "Latency Ms",
-            "description": "Current end-to-end latency reported by the tracer, in ms.",
-            "examples": [
-              21.28
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "interval_ms",
-          "avg_ms",
-          "min_ms",
-          "max_ms",
-          "latency_ms"
-        ],
-        "title": "LatencyMetrics",
-        "description": "**Last observed DLStreamer `latency_tracer` sample for a single stream.**\n\nEach value is extracted from a single\n`latency_tracer_pipeline_interval` line emitted by the\n`latency_tracer` (one such line per stream per interval ~1000 ms).\nOnly the most recent sample per stream is kept; history is not\nreported here.\n\nAll timing fields are in milliseconds. `fps` reported by the tracer\nis intentionally **not** included because FPS is already exposed on\nthe job status via `total_fps` / `per_stream_fps` (from\n`gvafpscounter`).\n\n## Attributes\n- `interval_ms` - Length of the measurement window, in milliseconds\n- `avg_ms` - Average frame latency over the window, in milliseconds\n- `min_ms` - Minimum frame latency observed in the window, in milliseconds\n- `max_ms` - Maximum frame latency observed in the window, in milliseconds\n- `latency_ms` - Current end-to-end latency reported by the tracer, in milliseconds\n\n### Example\n```json\n{\n  \"interval_ms\": 1000.25,\n  \"avg_ms\": 364.31,\n  \"min_ms\": 0.004,\n  \"max_ms\": 529.26,\n  \"latency_ms\": 21.28\n}\n```"
-      },
       "ImageInfo": {
         "properties": {
           "filename": {
@@ -3355,6 +3301,60 @@
         ],
         "title": "ImageSetExistsResponse",
         "description": "**Response indicating whether an image set directory exists.**\n\n## Attributes\n- `exists` - True if directory exists in INPUT_IMAGES_DIR, False otherwise\n- `name` - The image set name that was checked\n\n### Example\n```json\n{\n  \"exists\": true,\n  \"name\": \"traffic_dataset\"\n}\n```"
+      },
+      "LatencyMetrics": {
+        "properties": {
+          "interval_ms": {
+            "type": "number",
+            "title": "Interval Ms",
+            "description": "Length of the measurement window reported by the tracer, in ms.",
+            "examples": [
+              1000.25
+            ]
+          },
+          "avg_ms": {
+            "type": "number",
+            "title": "Avg Ms",
+            "description": "Average frame latency over the window, in ms.",
+            "examples": [
+              364.31
+            ]
+          },
+          "min_ms": {
+            "type": "number",
+            "title": "Min Ms",
+            "description": "Minimum frame latency observed in the window, in ms.",
+            "examples": [
+              0.004
+            ]
+          },
+          "max_ms": {
+            "type": "number",
+            "title": "Max Ms",
+            "description": "Maximum frame latency observed in the window, in ms.",
+            "examples": [
+              529.26
+            ]
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms",
+            "description": "Current end-to-end latency reported by the tracer, in ms.",
+            "examples": [
+              21.28
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "interval_ms",
+          "avg_ms",
+          "min_ms",
+          "max_ms",
+          "latency_ms"
+        ],
+        "title": "LatencyMetrics",
+        "description": "**Last observed DLStreamer `latency_tracer` sample for a single stream.**\n\nEach value is extracted from a single\n`latency_tracer_pipeline_interval` line emitted by the\n`latency_tracer` (one such line per stream per interval ~1000 ms).\nOnly the most recent sample per stream is kept; history is not\nreported here.\n\nAll timing fields are in milliseconds. `fps` reported by the tracer\nis intentionally **not** included because FPS is already exposed on\nthe job status via `total_fps` / `per_stream_fps` (from\n`gvafpscounter`).\n\n## Attributes\n- `interval_ms` - Length of the measurement window, in milliseconds\n- `avg_ms` - Average frame latency over the window, in milliseconds\n- `min_ms` - Minimum frame latency observed in the window, in milliseconds\n- `max_ms` - Maximum frame latency observed in the window, in milliseconds\n- `latency_ms` - Current end-to-end latency reported by the tracer, in milliseconds\n\n### Example\n```json\n{\n  \"interval_ms\": 1000.25,\n  \"avg_ms\": 364.31,\n  \"min_ms\": 0.004,\n  \"max_ms\": 529.26,\n  \"latency_ms\": 21.28\n}\n```"
       },
       "MessageResponse": {
         "properties": {
