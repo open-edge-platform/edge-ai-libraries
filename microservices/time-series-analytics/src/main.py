@@ -253,8 +253,9 @@ async def receive_alert(alert: OpcuaAlertsMessage):
     try:
         if "alerts" in config.keys() and "opcua" in config["alerts"].keys():
             try:
+                configured_opcua_server = config["alerts"]["opcua"]["opcua_server"]
                 if OPCUA_SEND_ALERT is None or \
-                    OPCUA_SEND_ALERT.opcua_server != config["alerts"]["opcua"]["opcua_server"] or \
+                    OPCUA_SEND_ALERT.configured_opcua_server != configured_opcua_server or \
                     not (await OPCUA_SEND_ALERT.is_connected()):
                     logger.info("Initializing OPC UA client for sending alerts")
                     OPCUA_SEND_ALERT = OpcuaAlerts(config)

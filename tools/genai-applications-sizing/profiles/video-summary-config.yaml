@@ -1,0 +1,18 @@
+global:
+  report_dir: 'reports'
+  input_profiles_path: 'profiles/profiles.yaml'  # Reference to external input profiles file
+  perf_tool_repo: 'https://github.com/intel-retail/performance-tools.git'
+
+
+apis:
+  video_summary:
+    enabled: true
+    service_name: 'video'
+    endpoints:
+      upload: '12345/manager/videos'
+      summary: '12345/manager/summary'
+      states: '12345/manager/states'
+      telemetry: '9766/v1/telemetry'
+    input_profile: 'video_summary_wsf'  # Reference to input profile
+  
+

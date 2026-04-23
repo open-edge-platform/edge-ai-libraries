@@ -320,20 +320,18 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls, metadata_file_paths = (
-            manager.build_pipeline_command(
-                pipeline_performance_specs, execution_config, self.job_id
-            )
+        pipeline_cmd = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify command is not empty and contains pipeline elements
-        self.assertIsInstance(command, str)
-        self.assertIsInstance(output_paths, dict)
-        self.assertIsInstance(live_stream_urls, dict)
-        self.assertIsInstance(metadata_file_paths, dict)
-        self.assertGreater(len(command), 0)
-        self.assertIn("fakesrc", command)
-        self.assertIn("fakesink", command)
+        self.assertIsInstance(pipeline_cmd.command, str)
+        self.assertIsInstance(pipeline_cmd.video_output_paths, dict)
+        self.assertIsInstance(pipeline_cmd.live_stream_urls, dict)
+        self.assertIsInstance(pipeline_cmd.metadata_file_paths, dict)
+        self.assertGreater(len(pipeline_cmd.command), 0)
+        self.assertIn("fakesrc", pipeline_cmd.command)
+        self.assertIn("fakesink", pipeline_cmd.command)
 
     def test_build_pipeline_command_with_inline_graph(self):
         """Test building pipeline command with inline graph format."""
@@ -350,18 +348,15 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls, metadata_file_paths = (
-            manager.build_pipeline_command(
-                pipeline_performance_specs, execution_config, self.job_id
-            )
+        pipeline_cmd = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
-        self.assertIsInstance(command, str)
-        self.assertGreater(len(command), 0)
-        self.assertIn("fakesrc", command)
+        self.assertGreater(len(pipeline_cmd.command), 0)
+        self.assertIn("fakesrc", pipeline_cmd.command)
 
         # Verify output_paths key uses __graph- prefix for inline graphs
-        for key in output_paths.keys():
+        for key in pipeline_cmd.video_output_paths.keys():
             self.assertTrue(key.startswith("__graph-"))
 
     def test_build_pipeline_command_single_pipeline_multiple_streams(self):
@@ -400,17 +395,14 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls, metadata_file_paths = (
-            manager.build_pipeline_command(
-                pipeline_performance_specs, execution_config, self.job_id
-            )
+        pipeline_cmd = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify command contains multiple instances
-        self.assertIsInstance(command, str)
-        self.assertGreater(len(command), 0)
+        self.assertGreater(len(pipeline_cmd.command), 0)
         # Should have 3 instances of videotestsrc (one per stream)
-        self.assertEqual(command.count("videotestsrc"), 3)
+        self.assertEqual(pipeline_cmd.command.count("videotestsrc"), 3)
 
     def test_build_pipeline_command_multiple_pipelines(self):
         manager = PipelineManager()
@@ -461,18 +453,15 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls, metadata_file_paths = (
-            manager.build_pipeline_command(
-                pipeline_performance_specs, execution_config, self.job_id
-            )
+        pipeline_cmd = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify both pipeline types are present
-        self.assertIsInstance(command, str)
-        self.assertGreater(len(command), 0)
+        self.assertIsInstance(pipeline_cmd.command, str)
         # Should have 2 instances of fakesrc and 3 instances of videotestsrc
-        self.assertEqual(command.count("fakesrc"), 2)
-        self.assertEqual(command.count("videotestsrc"), 3)
+        self.assertEqual(pipeline_cmd.command.count("fakesrc"), 2)
+        self.assertEqual(pipeline_cmd.command.count("videotestsrc"), 3)
 
     def test_update_pipeline_description_and_name(self):
         manager = PipelineManager()
@@ -606,27 +595,24 @@ class TestPipelineManager(unittest.TestCase):
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls, metadata_file_paths = (
-            manager.build_pipeline_command(
-                pipeline_performance_specs, execution_config, self.job_id
-            )
+        pipeline_cmd = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify video output is configured
-        self.assertIsInstance(command, str)
-        self.assertIsInstance(output_paths, dict)
-        self.assertIn(pipeline_id, output_paths)
-        self.assertGreater(len(output_paths[pipeline_id]), 0)
+        self.assertIsInstance(pipeline_cmd.command, str)
+        self.assertIsInstance(pipeline_cmd.video_output_paths, dict)
+        self.assertGreater(len(pipeline_cmd.video_output_paths[pipeline_id]), 0)
 
         # Verify output directory is in the command
-        self.assertIn(OUTPUT_VIDEO_DIR, command)
+        self.assertIn(OUTPUT_VIDEO_DIR, pipeline_cmd.command)
 
         # Verify fakesink is replaced with encoder pipeline
-        self.assertNotIn("fakesink", command)
-        self.assertIn("filesink", command)
+        self.assertNotIn("fakesink", pipeline_cmd.command)
+        self.assertIn("filesink", pipeline_cmd.command)
 
         # Verify no live stream URLs for file output mode
-        self.assertEqual(len(live_stream_urls), 0)
+        self.assertEqual(len(pipeline_cmd.live_stream_urls), 0)
 
     def test_pipeline_id_format_variant_reference(self):
         """Test that variant reference format produces correct pipeline ID."""
@@ -643,12 +629,528 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        _, output_paths, _, _ = manager.build_pipeline_command(
+        pipeline_cmd = manager.build_pipeline_command(
             pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify pipeline ID format for variant reference
-        self.assertIn(pipeline_id, output_paths.keys())
+        self.assertIn(pipeline_id, pipeline_cmd.video_output_paths.keys())
+
+
+class TestBuildPipelineCommandStreamIdentifiers(unittest.TestCase):
+    """Tests for per-stream source/sink naming done by build_pipeline_command.
+
+    These tests verify that:
+      * every stream gets unique source/sink GStreamer element names,
+      * tee-branch sinks are not renamed,
+      * when the main-output placeholder is replaced by an encoder
+        subpipeline, the final terminal sink still carries the
+        stream-unique `name` property so external tracers
+        (latency_tracer) can correlate measurements to a specific stream.
+    """
+
+    def setUp(self):
+        PipelineManager._instance = None
+        self.job_id = "test-job-stream-ids"
+
+    def test_single_stream_gets_named_source_and_sink(self):
+        """For a single stream the command contains exactly one source/sink name pair."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "fakesrc", "data": {}},
+                    {
+                        "id": "1",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [{"id": "0", "source": "0", "target": "1"}],
+            }
+        )
+
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/p/variants/cpu",
+                pipeline_name="p",
+                pipeline_graph=graph,
+                streams=1,
+            )
+        ]
+        execution_config = InternalExecutionConfig(
+            output_mode=InternalOutputMode.DISABLED,
+            max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+
+        pipeline_cmd = manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        # `unify_all_element_names` appends `_{pipeline_index}_{stream_index}`
+        # so the final names include those indices.
+        self.assertIn("name=src_p0_s0_0_0", pipeline_cmd.command)
+        self.assertIn("name=sink_p0_s0_0_0", pipeline_cmd.command)
+
+    def test_multiple_streams_have_unique_source_and_sink_names(self):
+        """All streams of a single pipeline get distinct source/sink names."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {
+                        "id": "1",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [{"id": "0", "source": "0", "target": "1"}],
+            }
+        )
+
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/multi/variants/cpu",
+                pipeline_name="multi",
+                pipeline_graph=graph,
+                streams=3,
+            )
+        ]
+        execution_config = InternalExecutionConfig(
+            output_mode=InternalOutputMode.DISABLED,
+            max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+
+        pipeline_cmd = manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        # Exactly one occurrence per stream of the expected source and sink names.
+        for stream_index in range(3):
+            self.assertEqual(
+                pipeline_cmd.command.count(
+                    f"name=src_p0_s{stream_index}_0_{stream_index}"
+                ),
+                1,
+            )
+            self.assertEqual(
+                pipeline_cmd.command.count(
+                    f"name=sink_p0_s{stream_index}_0_{stream_index}"
+                ),
+                1,
+            )
+
+    def test_multiple_pipelines_produce_unique_stream_ids(self):
+        """Different pipelines use different pipeline_index, giving disjoint names."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        g1 = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "fakesrc", "data": {}},
+                    {
+                        "id": "1",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [{"id": "0", "source": "0", "target": "1"}],
+            }
+        )
+        g2 = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {
+                        "id": "1",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [{"id": "0", "source": "0", "target": "1"}],
+            }
+        )
+
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/p1/variants/cpu",
+                pipeline_name="p1",
+                pipeline_graph=g1,
+                streams=2,
+            ),
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/p2/variants/cpu",
+                pipeline_name="p2",
+                pipeline_graph=g2,
+                streams=2,
+            ),
+        ]
+        execution_config = InternalExecutionConfig(
+            output_mode=InternalOutputMode.DISABLED,
+            max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+
+        pipeline_cmd = manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        # pipeline_index 0 produces src_p0_*, pipeline_index 1 produces src_p1_*.
+        # Each index/stream combination must appear exactly once.
+        expected = [
+            "name=src_p0_s0_0_0",
+            "name=src_p0_s1_0_1",
+            "name=src_p1_s0_1_0",
+            "name=src_p1_s1_1_1",
+            "name=sink_p0_s0_0_0",
+            "name=sink_p0_s1_0_1",
+            "name=sink_p1_s0_1_0",
+            "name=sink_p1_s1_1_1",
+        ]
+        for token in expected:
+            self.assertEqual(
+                pipeline_cmd.command.count(token), 1, f"Missing or duplicate: {token}"
+            )
+
+    def test_tee_branch_sink_is_not_given_stream_sink_name(self):
+        """Tee-branch sinks are not renamed — only the main-branch sink is."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        # Main branch goes through the first outgoing edge of the tee.
+        # The second outgoing edge leads to a separately-named fakesink that
+        # must keep its original name (suffixed by unify_all_element_names).
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {"id": "1", "type": "tee", "data": {"name": "t"}},
+                    {"id": "2", "type": "queue", "data": {}},
+                    {
+                        "id": "3",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                    {"id": "4", "type": "queue", "data": {}},
+                    {
+                        "id": "5",
+                        "type": "fakesink",
+                        "data": {"name": "branch_sink"},
+                    },
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                    {"id": "2", "source": "2", "target": "3"},
+                    {"id": "3", "source": "1", "target": "4"},
+                    {"id": "4", "source": "4", "target": "5"},
+                ],
+            }
+        )
+
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/tee/variants/cpu",
+                pipeline_name="tee",
+                pipeline_graph=graph,
+                streams=1,
+            )
+        ]
+        execution_config = InternalExecutionConfig(
+            output_mode=InternalOutputMode.DISABLED,
+            max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+
+        pipeline_cmd = manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        # Main-branch sink uses the new stream sink name.
+        self.assertIn("name=sink_p0_s0_0_0", pipeline_cmd.command)
+        # Tee-branch sink keeps its original name (suffixed by unify_all_element_names).
+        self.assertIn("name=branch_sink_0_0", pipeline_cmd.command)
+        # The tee-branch sink is NOT renamed to a stream sink name.
+        self.assertNotIn("name=sink_p0_s0_0_0 name=branch_sink", pipeline_cmd.command)
+
+    def test_sink_name_is_injected_into_output_subpipeline_for_stream_zero(self):
+        """When the placeholder is replaced by filesink, the sink name is appended."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {
+                        "id": "1",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [{"id": "0", "source": "0", "target": "1"}],
+            }
+        )
+
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/with-output/variants/cpu",
+                pipeline_name="with-output",
+                pipeline_graph=graph,
+                streams=1,
+            )
+        ]
+        execution_config = InternalExecutionConfig(
+            output_mode=InternalOutputMode.FILE,
+            max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+
+        pipeline_cmd = manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        # With file output, the fakesink is replaced by encoder + filesink.
+        # The stream-unique sink name must still appear in the expanded
+        # subpipeline so latency_tracer can correlate rows to this stream.
+        self.assertIn("filesink", pipeline_cmd.command)
+        self.assertIn("name=sink_p0_s0_0_0", pipeline_cmd.command)
+
+    def test_default_output_sink_marker_is_preserved_for_stream_zero(self):
+        """`default_output_sink` still triggers placeholder conversion (no interference)."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        # A second fakesink with an unrelated name must not trip placeholder
+        # selection: only the one with name=default_output_sink is promoted.
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {"id": "1", "type": "tee", "data": {"name": "t"}},
+                    {"id": "2", "type": "queue", "data": {}},
+                    {
+                        "id": "3",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                    {"id": "4", "type": "queue", "data": {}},
+                    {
+                        "id": "5",
+                        "type": "fakesink",
+                        "data": {"name": "branch_sink"},
+                    },
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                    {"id": "2", "source": "2", "target": "3"},
+                    {"id": "3", "source": "1", "target": "4"},
+                    {"id": "4", "source": "4", "target": "5"},
+                ],
+            }
+        )
+
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/default-marker/variants/cpu",
+                pipeline_name="default-marker",
+                pipeline_graph=graph,
+                streams=1,
+            )
+        ]
+        execution_config = InternalExecutionConfig(
+            output_mode=InternalOutputMode.FILE,
+            max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+
+        pipeline_cmd = manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        # The default_output_sink fakesink was converted to the encoder output
+        # subpipeline, so it must not remain in the final command.
+        self.assertNotIn("default_output_sink", pipeline_cmd.command)
+        # The branch sink survives and keeps its original name intact.
+        self.assertIn("name=branch_sink_0_0", pipeline_cmd.command)
+        # And the encoder terminal sink carries the stream sink name.
+        self.assertIn("name=sink_p0_s0_0_0", pipeline_cmd.command)
+
+    def test_recorder_pipeline_with_main_output_on_tee_branch(self):
+        """
+        Recorder-style pipelines place an intermediate splitmuxsink on
+        the tee's first (inline) branch and the user-facing output
+        (default_output_sink) on a subsequent tee branch. The stream
+        sink name must be assigned to the main output sink (expanded
+        from OUTPUT_PLACEHOLDER), NOT to the intermediate splitmuxsink.
+        Emitting the same name twice would produce a GStreamer
+        "elements don't share a common ancestor" linking error.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {"id": "1", "type": "tee", "data": {"name": "t"}},
+                    # Inline branch: intermediate recorder sink (must NOT
+                    # receive the stream sink name).
+                    {"id": "2", "type": "queue", "data": {}},
+                    {
+                        "id": "3",
+                        "type": "splitmuxsink",
+                        "data": {"location": "recording.mp4"},
+                    },
+                    # Second branch: user-facing output (becomes the main
+                    # sink after placeholder expansion).
+                    {"id": "4", "type": "queue", "data": {}},
+                    {
+                        "id": "5",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                    {"id": "2", "source": "2", "target": "3"},
+                    {"id": "3", "source": "1", "target": "4"},
+                    {"id": "4", "source": "4", "target": "5"},
+                ],
+            }
+        )
+
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/recorder/variants/cpu",
+                pipeline_name="recorder",
+                pipeline_graph=graph,
+                streams=1,
+            )
+        ]
+        execution_config = InternalExecutionConfig(
+            output_mode=InternalOutputMode.FILE,
+            max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+
+        pipeline_cmd = manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        # The stream sink name appears EXACTLY ONCE — on the expanded
+        # output subpipeline's filesink, not on the intermediate
+        # splitmuxsink.
+        self.assertEqual(pipeline_cmd.command.count("name=sink_p0_s0_0_0"), 1)
+
+        # The splitmuxsink element is still present but does not carry the
+        # stream sink name.
+        self.assertIn("splitmuxsink", pipeline_cmd.command)
+        # Sanity: filesink (from the expanded output subpipeline) is
+        # present and immediately followed by the stream sink name.
+        self.assertIn("filesink", pipeline_cmd.command)
+
+    def test_recorder_pipeline_with_multiple_streams_names_correct_sinks(self):
+        """
+        Multi-stream recorder pipelines:
+
+        Stream 0 uses OUTPUT_PLACEHOLDER → sink_p0_s0 is injected into the
+        expanded encoder subpipeline.
+
+        Stream 1 (and beyond) does NOT have OUTPUT_PLACEHOLDER. The
+        `default_output_sink`-named fakesink on a non-first tee branch
+        must be selected as the main sink, not the intermediate
+        splitmuxsink on the inline branch.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {"id": "1", "type": "tee", "data": {"name": "t"}},
+                    # Inline branch: intermediate recorder sink.
+                    {"id": "2", "type": "queue", "data": {}},
+                    {
+                        "id": "3",
+                        "type": "splitmuxsink",
+                        "data": {"location": "recording.mp4"},
+                    },
+                    # Second tee branch: user-facing output marked with
+                    # default_output_sink.
+                    {"id": "4", "type": "queue", "data": {}},
+                    {
+                        "id": "5",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                    {"id": "2", "source": "2", "target": "3"},
+                    {"id": "3", "source": "1", "target": "4"},
+                    {"id": "4", "source": "4", "target": "5"},
+                ],
+            }
+        )
+
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/recorder-multi/variants/cpu",
+                pipeline_name="recorder-multi",
+                pipeline_graph=graph,
+                streams=2,
+            )
+        ]
+        execution_config = InternalExecutionConfig(
+            output_mode=InternalOutputMode.FILE,
+            max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+
+        pipeline_cmd = manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        # --- Stream 0: placeholder replaced → encoder subpipeline with
+        #     `filesink ... name=sink_p0_s0_0_0`.
+        self.assertEqual(pipeline_cmd.command.count("name=sink_p0_s0_0_0"), 1)
+
+        # --- Stream 1: no placeholder. The default_output_sink fakesink on
+        #     the second tee branch must receive `name=sink_p0_s1_0_1`.
+        #     The intermediate splitmuxsink on the inline branch must NOT.
+        self.assertEqual(pipeline_cmd.command.count("name=sink_p0_s1_0_1"), 1)
+
+        # The `default_output_sink` marker itself must no longer be present
+        # in the final command for stream 1 (it has been renamed).
+        self.assertNotIn("name=default_output_sink_0_1", pipeline_cmd.command)
+
+        # Quick structural assertion: for stream 1, the sink name comes
+        # after a fakesink (not a splitmuxsink).
+        # Find the substring and check the preceding element type.
+        stream1_sink_marker = "name=sink_p0_s1_0_1"
+        idx = pipeline_cmd.command.find(stream1_sink_marker)
+        self.assertGreater(idx, 0)
+        # The element directly preceding this `name=...` token should be a
+        # fakesink (the user-facing output), not a splitmuxsink.
+        preceding_segment = pipeline_cmd.command[:idx]
+        # Find the last `!` boundary before this `name=` token.
+        last_separator = preceding_segment.rfind("!")
+        element_chunk = preceding_segment[last_separator + 1 :]
+        self.assertIn("fakesink", element_chunk)
+        self.assertNotIn("splitmuxsink", element_chunk)
 
 
 class TestVariantCRUD(unittest.TestCase):
@@ -1119,15 +1621,12 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls, _ = (
-            self.manager.build_pipeline_command(
-                self.specs, execution_config, self.job_id
-            )
+        pipeline_cmd = self.manager.build_pipeline_command(
+            self.specs, execution_config, self.job_id
         )
-
-        self.assertIsInstance(command, str)
-        self.assertGreater(len(command), 0)
-        self.assertIn("filesink", command)
+        self.assertIsInstance(pipeline_cmd.command, str)
+        self.assertGreater(len(pipeline_cmd.command), 0)
+        self.assertIn("filesink", pipeline_cmd.command)
 
     def test_disabled_output_with_max_runtime_succeeds(self):
         """Test that disabled output mode with max_runtime > 0 works correctly."""
@@ -1137,17 +1636,14 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls, metadata_file_paths = (
-            self.manager.build_pipeline_command(
-                self.specs, execution_config, self.job_id
-            )
+        pipeline_cmd = self.manager.build_pipeline_command(
+            self.specs, execution_config, self.job_id
         )
 
-        self.assertIsInstance(command, str)
-        self.assertGreater(len(command), 0)
-        self.assertIn("fakesink", command)
+        self.assertIsInstance(pipeline_cmd.command, str)
+        self.assertGreater(len(pipeline_cmd.command), 0)
+        self.assertIn("fakesink", pipeline_cmd.command)
 
-    def test_live_stream_output_with_max_runtime_succeeds(self):
         """Test that live stream output mode with max_runtime > 0 works correctly."""
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.LIVE_STREAM,
@@ -1155,17 +1651,15 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        (command, output_paths, live_stream_urls, metadata_file_paths) = (
-            self.manager.build_pipeline_command(
-                self.specs, execution_config, self.job_id
-            )
+        pipeline_cmd = self.manager.build_pipeline_command(
+            self.specs, execution_config, self.job_id
         )
 
-        self.assertIsInstance(command, str)
-        self.assertGreater(len(command), 0)
-        self.assertIn("rtspclientsink", command)
+        self.assertIsInstance(pipeline_cmd.command, str)
+        self.assertGreater(len(pipeline_cmd.command), 0)
+        self.assertIn("rtspclientsink", pipeline_cmd.command)
         pipeline_id = "/pipelines/test-execution-config/variants/cpu"
-        self.assertIn(pipeline_id, live_stream_urls)
+        self.assertIn(pipeline_id, pipeline_cmd.live_stream_urls)
 
     def test_live_stream_output_returns_stream_urls(self):
         """Test that live stream output mode returns correct stream URLs."""
@@ -1175,18 +1669,15 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls, metadata_file_paths = (
-            self.manager.build_pipeline_command(
-                self.specs, execution_config, self.job_id
-            )
+        pipeline_cmd = self.manager.build_pipeline_command(
+            self.specs, execution_config, self.job_id
         )
 
         pipeline_id = "/pipelines/test-execution-config/variants/cpu"
-        self.assertIn(pipeline_id, live_stream_urls)
-        stream_url = live_stream_urls[pipeline_id]
+        self.assertIn(pipeline_id, pipeline_cmd.live_stream_urls)
+        stream_url = pipeline_cmd.live_stream_urls[pipeline_id]
         self.assertTrue(stream_url.startswith("rtsp://"))
 
-    def test_live_stream_one_url_per_pipeline(self):
         """Test that only one live stream URL is generated per pipeline."""
         specs = [
             create_internal_performance_spec(
@@ -1206,26 +1697,25 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls, metadata_file_paths = (
-            self.manager.build_pipeline_command(specs, execution_config, self.job_id)
+        pipeline_cmd = self.manager.build_pipeline_command(
+            specs, execution_config, self.job_id
         )
 
         # Should have exactly 2 live stream URLs (one per pipeline)
-        self.assertEqual(len(live_stream_urls), 2)
+        self.assertEqual(len(pipeline_cmd.live_stream_urls), 2)
         # Only first stream of each pipeline should have rtspclientsink
-        self.assertEqual(command.count("rtspclientsink"), 2)
+        self.assertEqual(pipeline_cmd.command.count("rtspclientsink"), 2)
 
     def test_metadata_file_paths_empty_when_mode_disabled(self):
-        """metadata_file_paths must be an empty dict when metadata_mode=DISABLED."""
         execution_config = create_internal_execution_config(
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
-        self.assertEqual(metadata_file_paths, {})
+        self.assertEqual(pipeline_cmd.metadata_file_paths, {})
 
     def test_metadata_mode_disabled_with_gvametapublish_does_not_inject_paths(self):
         """When metadata is disabled, gvametapublish nodes must not have file-path set."""
@@ -1241,13 +1731,13 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             specs, execution_config, self.job_id
         )
 
-        self.assertEqual(metadata_file_paths, {})
+        self.assertEqual(pipeline_cmd.metadata_file_paths, {})
         # file-path must NOT appear in the command (no injection happened)
-        self.assertNotIn("file-path", command)
+        self.assertNotIn("file-path", pipeline_cmd.command)
 
     def test_metadata_mode_file_without_gvametapublish_raises_error(self):
         """metadata_mode=FILE on a pipeline that has no gvametapublish must raise ValueError."""
@@ -1312,12 +1802,12 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.FILE,
         )
 
-        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             specs, execution_config, self.job_id
         )
 
-        self.assertIn(pipeline_id, metadata_file_paths)
-        paths = metadata_file_paths[pipeline_id]
+        self.assertIn(pipeline_id, pipeline_cmd.metadata_file_paths)
+        paths = pipeline_cmd.metadata_file_paths[pipeline_id]
         self.assertIsInstance(paths, list)
         self.assertEqual(len(paths), 1)
 
@@ -1336,11 +1826,11 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.FILE,
         )
 
-        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             specs, execution_config, self.job_id
         )
 
-        for path in metadata_file_paths[pipeline_id]:
+        for path in pipeline_cmd.metadata_file_paths[pipeline_id]:
             self.assertTrue(
                 path.endswith(".jsonl"),
                 f"Expected .jsonl extension, got: {path}",
@@ -1362,11 +1852,11 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.FILE,
         )
 
-        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             specs, execution_config, self.job_id
         )
 
-        for path in metadata_file_paths[pipeline_id]:
+        for path in pipeline_cmd.metadata_file_paths[pipeline_id]:
             self.assertTrue(
                 path.startswith(METADATA_DIR),
                 f"Expected path under {METADATA_DIR}, got: {path}",
@@ -1387,12 +1877,12 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.FILE,
         )
 
-        command, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             specs, execution_config, self.job_id
         )
 
-        for path in metadata_file_paths[pipeline_id]:
-            self.assertIn(path, command)
+        for path in pipeline_cmd.metadata_file_paths[pipeline_id]:
+            self.assertIn(path, pipeline_cmd.command)
 
     def test_metadata_mode_file_multiple_gvametapublish_returns_one_path_each(self):
         """A pipeline with two gvametapublish elements must produce two metadata paths."""
@@ -1409,12 +1899,12 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.FILE,
         )
 
-        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             specs, execution_config, self.job_id
         )
 
-        self.assertIn(pipeline_id, metadata_file_paths)
-        self.assertEqual(len(metadata_file_paths[pipeline_id]), 2)
+        self.assertIn(pipeline_id, pipeline_cmd.metadata_file_paths)
+        self.assertEqual(len(pipeline_cmd.metadata_file_paths[pipeline_id]), 2)
 
     def test_metadata_mode_file_only_injects_paths_for_first_stream(self):
         """Metadata paths must be returned as a single list regardless of stream count
@@ -1432,13 +1922,13 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.FILE,
         )
 
-        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             specs, execution_config, self.job_id
         )
 
         # Paths list length equals number of gvametapublish nodes, NOT stream count
-        self.assertIn(pipeline_id, metadata_file_paths)
-        self.assertEqual(len(metadata_file_paths[pipeline_id]), 1)
+        self.assertIn(pipeline_id, pipeline_cmd.metadata_file_paths)
+        self.assertEqual(len(pipeline_cmd.metadata_file_paths[pipeline_id]), 1)
 
     def test_metadata_mode_file_multiple_pipelines_get_independent_paths(self):
         """Each pipeline in a multi-pipeline spec gets its own entry in metadata_file_paths."""
@@ -1462,16 +1952,16 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.FILE,
         )
 
-        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             specs, execution_config, self.job_id
         )
 
-        self.assertIn(pipeline_id_1, metadata_file_paths)
-        self.assertIn(pipeline_id_2, metadata_file_paths)
+        self.assertIn(pipeline_id_1, pipeline_cmd.metadata_file_paths)
+        self.assertIn(pipeline_id_2, pipeline_cmd.metadata_file_paths)
         # Paths for the two pipelines must be different
         self.assertNotEqual(
-            metadata_file_paths[pipeline_id_1],
-            metadata_file_paths[pipeline_id_2],
+            pipeline_cmd.metadata_file_paths[pipeline_id_1],
+            pipeline_cmd.metadata_file_paths[pipeline_id_2],
         )
 
     def test_metadata_mode_file_paths_are_unique_across_pipelines(self):
@@ -1496,12 +1986,13 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             metadata_mode=InternalMetadataMode.FILE,
         )
 
-        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             specs, execution_config, self.job_id
         )
 
         all_paths = (
-            metadata_file_paths[pipeline_id_1] + metadata_file_paths[pipeline_id_2]
+            pipeline_cmd.metadata_file_paths[pipeline_id_1]
+            + pipeline_cmd.metadata_file_paths[pipeline_id_2]
         )
         self.assertEqual(
             len(all_paths), len(set(all_paths)), "Metadata paths must be unique"
@@ -1548,12 +2039,12 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, _, _, _ = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
-        self.assertIn("videotestsrc", command)
-        self.assertNotIn("multifilesrc", command)
+        self.assertIn("videotestsrc", pipeline_cmd.command)
+        self.assertNotIn("multifilesrc", pipeline_cmd.command)
 
     def test_looping_applied_when_max_runtime_positive_and_disabled_mode(self):
         """Test that looping modifications are applied for disabled mode with max_runtime > 0."""
@@ -1563,12 +2054,12 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, _, _, _ = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
-        self.assertIn("videotestsrc", command)
-        self.assertIn("fakesink", command)
+        self.assertIn("videotestsrc", pipeline_cmd.command)
+        self.assertIn("fakesink", pipeline_cmd.command)
 
     def test_looping_applied_when_max_runtime_positive_and_live_stream_mode(self):
         """Test that looping modifications are applied for live stream mode with max_runtime > 0."""
@@ -1578,13 +2069,13 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, _, live_stream_urls, _ = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
-        self.assertIn("rtspclientsink", command)
+        self.assertIn("rtspclientsink", pipeline_cmd.command)
         pipeline_id = "/pipelines/test-looping/variants/cpu"
-        self.assertIn(pipeline_id, live_stream_urls)
+        self.assertIn(pipeline_id, pipeline_cmd.live_stream_urls)
 
     def test_looping_not_applied_for_file_mode(self):
         """Test that looping modifications are never applied for file mode."""
@@ -1594,12 +2085,12 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
             metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, _, _, _ = self.manager.build_pipeline_command(
+        pipeline_cmd = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
-        self.assertIn("videotestsrc", command)
-        self.assertNotIn("multifilesrc", command)
+        self.assertIn("videotestsrc", pipeline_cmd.command)
+        self.assertNotIn("multifilesrc", pipeline_cmd.command)
 
 
 # Mock pipeline configs for testing predefined pipelines

@@ -1,4 +1,9 @@
-import { useGetVideosQuery } from "@/api/api.generated.ts";
+import {
+  api,
+  useGetVideosQuery,
+  useLazyCheckVideoInputExistsQuery,
+} from "@/api/api.generated.ts";
+import { ENDPOINTS } from "@/api/apiEndpoints";
 import {
   Table,
   TableBody,
@@ -10,21 +15,96 @@ import {
 } from "@/components/ui/table.tsx";
 import { formatElapsedTimeSeconds } from "@/lib/timeUtils.ts";
 import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
+import { useEffect, useCallback } from "react";
+import { useAppDispatch } from "@/store/hooks";
+import { toast } from "sonner";
+import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
+import { MultiFileUploader } from "@/components/shared/MultiFileUploader.tsx";
 
 export const Videos = () => {
-  const { data: videos, isSuccess } = useGetVideosQuery();
+  const { data: videos, isSuccess, isLoading } = useGetVideosQuery();
+  const dispatch = useAppDispatch();
+  const [checkVideoExists] = useLazyCheckVideoInputExistsQuery();
+  const { registerJobGroup, unregisterJobGroup, updateJobs } =
+    useBackgroundJobs();
+
+  // Register this component as a job group
+  useEffect(() => {
+    registerJobGroup("videos", "Video Uploads", ["/videos"]);
+    return () => {
+      unregisterJobGroup("videos");
+    };
+  }, [registerJobGroup, unregisterJobGroup]);
+
+  const handleCheckFileExists = useCallback(
+    async (filename: string): Promise<{ exists: boolean }> => {
+      try {
+        const result = await checkVideoExists({ filename }).unwrap();
+        return { exists: result.exists };
+      } catch (error) {
+        console.error(`Error checking file ${filename}:`, error);
+        return { exists: false };
+      }
+    },
+    [checkVideoExists],
+  );
+
+  const handleUploadProgress = useCallback(
+    (jobs: Array<{ id: string; name: string; progress: number }>) => {
+      updateJobs("videos", jobs);
+    },
+    [updateJobs],
+  );
+
+  const handleUploadComplete = useCallback(
+    (succeeded: number, failed: number) => {
+      if (failed === 0 && succeeded > 0) {
+        dispatch(api.util.invalidateTags(["videos"]));
+        toast.success("Upload completed.");
+      } else if (succeeded > 0 && failed > 0) {
+        toast.warning(
+          `${succeeded} file(s) uploaded successfully. ${failed} failed.`,
+        );
+        dispatch(api.util.invalidateTags(["videos"]));
+      } else if (failed > 0) {
+        toast.error(`Upload failed for ${failed} file(s).`);
+      }
+    },
+    [dispatch],
+  );
+
   const filteredVideos =
     isSuccess && videos ? filterOutTransportStreams(videos) : [];
 
-  if (isSuccess && filteredVideos.length > 0) {
+  if (isLoading) {
     return (
-      <div className="container pl-16 mx-auto py-10">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold">Videos</h1>
-          <p className="text-muted-foreground mt-2">
-            Ready-to-use video clips available in the platform
-          </p>
-        </div>
+      <div className="h-full overflow-auto">
+        <div className="container mx-auto py-10">Loading videos...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container pl-16 mx-auto py-10">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Videos</h1>
+        <p className="text-muted-foreground mt-2">
+          Ready-to-use video clips available in the platform
+        </p>
+      </div>
+
+      <MultiFileUploader
+        accept="video/*"
+        uploadEndpoint={ENDPOINTS.UPLOAD_VIDEO}
+        checkFileExists={handleCheckFileExists}
+        onUploadProgress={handleUploadProgress}
+        onUploadComplete={handleUploadComplete}
+        multiple={true}
+        maxConcurrentUploads={3}
+        className="mb-8"
+      />
+
+      {filteredVideos.length > 0 ? (
         <Table>
           <TableCaption>A list of loaded videos.</TableCaption>
           <TableHeader>
@@ -62,12 +142,11 @@ export const Videos = () => {
             ))}
           </TableBody>
         </Table>
-      </div>
-    );
-  }
-  return (
-    <div className="h-full overflow-auto">
-      <div className="container mx-auto py-10">Loading videos</div>
+      ) : (
+        <div className="text-center py-10 text-muted-foreground">
+          No videos uploaded yet. Upload your first video above.
+        </div>
+      )}
     </div>
   );
 };

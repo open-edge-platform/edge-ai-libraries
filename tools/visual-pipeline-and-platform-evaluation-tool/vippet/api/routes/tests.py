@@ -477,6 +477,7 @@ def _convert_execution_config(
         output_mode=_convert_output_mode(config.output_mode),
         max_runtime=config.max_runtime,
         metadata_mode=_convert_metadata_mode(config.metadata_mode),
+        enable_latency_metrics=config.enable_latency_metrics,
     )
 
 

@@ -82,6 +82,11 @@ components:
           type: integer
           minimum: 1
           description: Cache size for model optimization
+        quantize:
+          type: string
+          nullable: true
+          description: Ultralytics quantization dataset used to enable INT8 export
+          example: coco128
       description: Configuration for OVMS model conversion
 
     ModelRequest:
