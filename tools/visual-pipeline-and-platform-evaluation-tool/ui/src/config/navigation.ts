@@ -61,7 +61,7 @@ export const routeConfig: Array<RouteObject> = [
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
   { path: "images", Component: ImageSets },
-  { path: "images/:id", Component: ImagesInSet },
+  { path: "images/:imageSetName", Component: ImagesInSet },
   { path: "cameras", Component: Cameras },
   { path: "tests/performance", Component: PerformanceTests },
   { path: "tests/density", Component: DensityTests },

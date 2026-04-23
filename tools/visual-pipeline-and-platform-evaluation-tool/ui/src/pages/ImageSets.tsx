@@ -32,7 +32,7 @@ export const ImageSets = () => {
     async (filename: string): Promise<{ exists: boolean }> => {
       try {
         // Extract name without extension for image set directory check
-        const name = filename.replace(/\.(zip|tar|tar\.gz)$/i, "");
+        const name = filename.replace(/\.(zip|tar|tar\.gz|tgz)$/i, "");
         const result = await checkImageSetExists({ name }).unwrap();
         return { exists: result.exists };
       } catch (error) {

@@ -12,14 +12,15 @@ import { useParams, Link } from "react-router";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { formatBytes } from "@/lib/fileUtils.ts";
 
 export function ImagesInSet() {
-  const { id } = useParams<{ id: string }>();
+  const { imageSetName } = useParams<{ imageSetName: string }>();
   const {
     data: images,
     isSuccess,
     isLoading,
-  } = useListImagesInSetQuery({ name: id! }, { skip: !id });
+  } = useListImagesInSetQuery({ name: imageSetName! }, { skip: !imageSetName });
 
   if (isLoading) {
     return (
@@ -68,7 +69,7 @@ export function ImagesInSet() {
     );
   }
 
-  if (!id) {
+  if (!imageSetName) {
     return (
       <div className="h-full overflow-auto">
         <div className="container mx-auto py-10">
@@ -77,14 +78,6 @@ export function ImagesInSet() {
       </div>
     );
   }
-
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
-  };
 
   return (
     <div className="container pl-16 mx-auto py-10">
@@ -95,7 +88,7 @@ export function ImagesInSet() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
           </Button>
-          <h1 className="text-3xl font-bold">{id}</h1>
+          <h1 className="text-3xl font-bold">{imageSetName}</h1>
         </div>
         <p className="text-muted-foreground ml-14">
           The list of images in this collection
@@ -130,7 +123,7 @@ export function ImagesInSet() {
                 <TableCell>{formatBytes(image.size_bytes)}</TableCell>
                 <TableCell>
                   <img
-                    src={`/assets/images/input/${id}/${image.filename}`}
+                    src={`/assets/images/input/${imageSetName}/${image.filename}`}
                     alt={image.filename}
                     className="w-32 h-auto object-contain"
                   />
