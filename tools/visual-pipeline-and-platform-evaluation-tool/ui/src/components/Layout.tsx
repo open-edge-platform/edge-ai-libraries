@@ -43,7 +43,6 @@ const Layout = () => {
                 aria-label="Toggle theme"
                 variant="ghost"
                 size="icon"
-                className=""
               >
                 {theme === "dark" ? (
                   <Sun className="w-5 h-5" />

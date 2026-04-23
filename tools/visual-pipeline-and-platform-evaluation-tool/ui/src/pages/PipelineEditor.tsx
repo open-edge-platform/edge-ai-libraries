@@ -384,7 +384,6 @@ export const PipelineEditor = () => {
 
       const target = event.target as HTMLElement;
 
-      // Ignore clicks in the header toolbar
       if (target.closest("header")) return;
 
       if (

@@ -1,8 +1,7 @@
 import { toast as sonnerToast } from "sonner";
 
 const toast = {
-  success: sonnerToast.success,
-  info: sonnerToast.info,
+  ...sonnerToast,
   warning: (
     message: Parameters<typeof sonnerToast.warning>[0],
     data?: Parameters<typeof sonnerToast.warning>[1],
@@ -23,13 +22,6 @@ const toast = {
       duration: Infinity,
       dismissible: true,
     }),
-  custom: sonnerToast.custom,
-  message: sonnerToast.message,
-  promise: sonnerToast.promise,
-  dismiss: sonnerToast.dismiss,
-  loading: sonnerToast.loading,
-  getHistory: sonnerToast.getHistory,
-  getToasts: sonnerToast.getToasts,
 };
 
 export { toast };
