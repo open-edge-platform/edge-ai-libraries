@@ -159,6 +159,51 @@ Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` envi
    source setup.sh --summary
    ```
 
+## Smaller Models May Block Final Summary Due to Limited Context Window
+
+**Problem**: The final video summary fails or hangs when using a smaller VLM/LLM model.
+
+**Cause**: Smaller models often have a limited context window (e.g., 4096 tokens). When the combined prompt tokens and requested `max_completion_tokens` exceed this limit, the inference backend rejects the request and the final summary never completes.
+
+**Symptoms**:
+
+- Final summary status stays at "Ready" or "In Progress" indefinitely
+- OVMS logs show errors such as: `Number of prompt tokens: <N> + max tokens value: <M> exceeds model max length: <L>`
+- The chunk-wise summaries complete successfully but the final summary does not
+
+**Solution**:
+
+Reduce `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` to a value below the default of 4000 so that the prompt plus completion tokens fit within the model's context window:
+
+```bash
+export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=2000
+source setup.sh --summary
+```
+
+Alternatively, switch to a model with a larger context window.
+
+## VLM Workload Fails on NPU
+
+**Problem**: The VLM model fails to load or run when `VLM_TARGET_DEVICE` or `LLM_TARGET_DEVICE` is set to `NPU`.
+
+**Cause**: Not all VLM/LLM models are compatible with NPU execution. NPU support depends on the model architecture and the OpenVINO version installed.
+
+**Symptoms**:
+
+- OVMS container crashes or fails to start when targeting NPU
+- Inference errors or unsupported-operation messages in OVMS logs
+- Model conversion succeeds but inference produces errors
+
+**Solution**:
+
+1. Verify that your model is listed on the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page for NPU execution.
+2. If the model is not supported on NPU, switch to a supported model or fall back to CPU/GPU:
+
+   ```bash
+   export VLM_TARGET_DEVICE="CPU"
+   source setup.sh --summary
+   ```
+
 ## GPU Out-of-Resources When Loading Multiple Models
 
 **Problem**: OVMS crashes or fails inference when multiple models (e.g., VLM + LLM) are loaded on the same GPU.
