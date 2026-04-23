@@ -48,13 +48,13 @@ export const TestProgressIndicator = ({
   const [selectedGpu, setSelectedGpu] = useState<number>(0);
 
   const summaryContainerClassName =
-    "p-4 rounded-xl border-2 border-brand-accent-40 bg-gradient-to-br from-brand-accent-05 to-brand-accent-soft-05 shadow-lg shadow-brand-accent-10";
+    "p-4 rounded-xl border-2 border-brand-accent/40 bg-gradient-to-br from-brand-accent/5 to-brand-accent-soft/5 shadow-lg shadow-brand-accent/10";
   const summaryCardClassName =
-    "border-2 border-brand-accent-60 shadow-brand-accent-20 shadow-lg ring-2 ring-brand-accent-30";
+    "border-2 border-brand-accent/60 shadow-brand-accent/20 shadow-lg ring-2 ring-brand-accent/30";
   const summarySectionClassName =
-    "border-2 border-brand-accent-40 shadow-brand-accent-20 ring-1 ring-brand-accent-20";
+    "border-2 border-brand-accent/40 shadow-brand-accent/20 ring-1 ring-brand-accent/20";
   const summaryIconClassName =
-    "bg-gradient-to-br from-brand-accent-20 to-brand-accent-soft-20";
+    "bg-gradient-to-br from-brand-accent/20 to-brand-accent-soft/20";
   const summaryTitleClassName = "text-summary-title";
   const summaryUnitClassName = "text-summary-unit";
 

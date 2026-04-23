@@ -372,9 +372,9 @@ export const InteractiveStepperIndicator = React.forwardRef<
 
   const classes = {
     completed:
-      "bg-primary text-primary-foreground shadow hover:bg-primary-90 h-9 w-9 p-1 flex flex-col items-center text-center gap-1 z-10 rounded-full shrink-0",
+      "bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 w-9 p-1 flex flex-col items-center text-center gap-1 z-10 rounded-full shrink-0",
     active:
-      "bg-primary text-primary-foreground shadow hover:bg-primary-90 h-9 w-9 p-1 flex flex-col items-center text-center gap-1 z-10 rounded-full shrink-0 ring-2 ring-ring ring-offset-2 ring-offset-background",
+      "bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 w-9 p-1 flex flex-col items-center text-center gap-1 z-10 rounded-full shrink-0 ring-2 ring-ring ring-offset-2 ring-offset-background",
     inactive:
       "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 w-9 p-1 flex flex-col items-center text-center gap-1 z-10 rounded-full shrink-0",
   };

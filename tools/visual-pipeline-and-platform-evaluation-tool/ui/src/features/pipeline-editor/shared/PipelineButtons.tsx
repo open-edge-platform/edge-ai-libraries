@@ -21,13 +21,13 @@ export type PipelineToolbarButtonProps = {
 
 const TOOLBAR_VARIANT_CLASSES: Record<PipelineToolbarButtonVariant, string> = {
   primary:
-    "bg-primary hover:bg-primary-90 text-primary-foreground disabled:bg-muted rounded-none",
+    "bg-primary hover:bg-primary/90 text-primary-foreground disabled:bg-muted rounded-none",
   "accent-outline":
     "bg-background hover:bg-brand-accent text-brand-accent hover:text-white border-2 border-brand-accent rounded-none",
   destructive:
-    "bg-destructive hover:bg-destructive-90 text-primary-foreground disabled:bg-destructive-40 rounded-none",
+    "bg-destructive hover:bg-destructive/90 text-primary-foreground disabled:bg-destructive/40 rounded-none",
   "icon-primary":
-    "bg-primary hover:bg-primary-90 text-primary-foreground rounded-lg",
+    "bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg",
 };
 
 export const PipelineToolbarButton = ({
@@ -100,7 +100,7 @@ export type PipelineDialogButtonProps = {
 };
 
 const DIALOG_VARIANT_CLASSES: Record<PipelineDialogButtonVariant, string> = {
-  primary: "text-primary-foreground bg-primary rounded-md hover:bg-primary-90",
+  primary: "text-primary-foreground bg-primary rounded-md hover:bg-primary/90",
   secondary:
     "text-foreground bg-background border border-input rounded-md hover:bg-muted",
 };

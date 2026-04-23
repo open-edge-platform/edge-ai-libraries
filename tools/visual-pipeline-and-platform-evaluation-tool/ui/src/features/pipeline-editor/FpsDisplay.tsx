@@ -14,7 +14,7 @@ const FpsDisplay = ({ className = "" }: FpsDisplayProps) => {
   return (
     <div
       className={cn(
-        "bg-background dark:text-white-80 text-black-80 p-2 shadow-lg dark:shadow-[0.125rem_0.125rem_0.5rem_0_rgba(255,255,255,0.08)] text-sm",
+        "bg-background dark:text-white/80 text-black/80 p-2 shadow-lg dark:shadow-[0.125rem_0.125rem_0.5rem_0_rgba(255,255,255,0.08)] text-sm",
         className,
       )}
     >

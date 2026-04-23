@@ -62,7 +62,7 @@ export const PipelineVariantSelect = ({
         <DropdownMenu>
           <Tooltip>
             <TooltipTrigger asChild>
-              <DropdownMenuTrigger className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent-50 transition-colors">
+              <DropdownMenuTrigger className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent/50 transition-colors">
                 <ChevronDown className="size-4 text-muted-foreground" />
               </DropdownMenuTrigger>
             </TooltipTrigger>

@@ -596,14 +596,14 @@ const DemoMode = () => {
     gridPreviewTitle: "text-demo-panel-title",
     loadingDots: "bg-demo-checkbox-active",
     summaryFpsBorder:
-      "border-brand-accent-60 shadow-lg shadow-brand-accent-20 ring-2 ring-brand-accent-30",
+      "border-brand-accent/60 shadow-lg shadow-brand-accent/20 ring-2 ring-brand-accent/30",
     summaryFpsGradient:
-      "bg-gradient-to-r from-brand-accent-15 via-brand-accent-soft-15 to-brand-accent-15",
+      "bg-gradient-to-r from-brand-accent/15 via-brand-accent-soft/15 to-brand-accent/15",
     summaryFpsText: "text-summary-title",
     summaryStreamsBorder:
-      "border-brand-accent-60 shadow-lg shadow-brand-accent-20 ring-2 ring-brand-accent-30",
+      "border-brand-accent/60 shadow-lg shadow-brand-accent/20 ring-2 ring-brand-accent/30",
     summaryStreamsGradient:
-      "bg-gradient-to-r from-brand-accent-15 via-brand-accent-soft-15 to-brand-accent-15",
+      "bg-gradient-to-r from-brand-accent/15 via-brand-accent-soft/15 to-brand-accent/15",
     summaryStreamsText: "text-summary-title",
     summaryStreamsValueText: "text-white",
   };
@@ -1267,7 +1267,7 @@ const DemoMode = () => {
                           className={cn(
                             "relative flex flex-col transition-all duration-100 overflow-hidden border-2 bg-gradient-to-br from-demo-surface-from via-demo-surface-via to-demo-surface-to backdrop-blur-md cursor-pointer scale-[0.9]",
                             isSelected
-                              ? "border-demo-selection-card-border-active shadow-lg shadow-brand-accent-20 scale-[0.95]"
+                              ? "border-demo-selection-card-border-active shadow-lg shadow-brand-accent/20 scale-[0.95]"
                               : "border-demo-selection-card-border hover:border-demo-selection-card-border-hover hover:shadow-lg hover:scale-[0.95]",
                           )}
                         >
@@ -1388,7 +1388,7 @@ const DemoMode = () => {
                           className={cn(
                             "relative flex w-full max-h-[13.4375rem] flex-col border bg-gradient-to-br from-demo-surface-from via-demo-surface-via to-demo-surface-to backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer",
                             isSelected
-                              ? "border-demo-selection-card-border-active ring-2 ring-brand-accent-30"
+                              ? "border-demo-selection-card-border-active ring-2 ring-brand-accent/30"
                               : "border-demo-panel-input-border hover:border-demo-selection-card-border-hover opacity-50 grayscale",
                             isReadOnly && "opacity-70",
                           )}
@@ -2444,7 +2444,7 @@ const DemoMode = () => {
                     "rounded-xl bg-gradient-to-br from-demo-surface-from via-demo-surface-via to-demo-surface-to border p-4 backdrop-blur-md flex flex-col flex-1 min-h-0 animate-[softSlideInRight_0.9s_ease-out]",
                     colors.gridResultsBorder,
                     isTestFinished &&
-                      "ring-1 ring-brand-accent-30 shadow-lg shadow-brand-accent-20",
+                      "ring-1 ring-brand-accent/30 shadow-lg shadow-brand-accent/20",
                   )}
                 >
                   <div className="mb-3 flex-shrink-0">

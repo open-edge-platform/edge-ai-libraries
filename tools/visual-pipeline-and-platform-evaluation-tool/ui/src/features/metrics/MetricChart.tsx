@@ -119,7 +119,7 @@ export const MetricChart = ({
   const isCompact = className?.includes("!h-");
   const hasTitle = title.trim().length > 0;
   const summaryBorderClassName =
-    "border-2 border-brand-accent-40 shadow-brand-accent-20 ring-1 ring-brand-accent-20";
+    "border-2 border-brand-accent/40 shadow-brand-accent/20 ring-1 ring-brand-accent/20";
   const summaryTitleClassName = "text-summary-title";
 
   return (
@@ -128,7 +128,7 @@ export const MetricChart = ({
         useDemoStyles
           ? forceDark
             ? "bg-surface-overlay"
-            : "bg-card-80"
+            : "bg-card/80"
           : "bg-background",
         useDemoStyles ? "rounded-xl shadow-2xl" : "shadow-md",
         isCompact ? "p-4 pb-6" : "p-4",

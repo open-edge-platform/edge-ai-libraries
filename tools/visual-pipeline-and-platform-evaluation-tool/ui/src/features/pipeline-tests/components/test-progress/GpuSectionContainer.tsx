@@ -30,7 +30,7 @@ export const GpuSectionContainer = ({
     className={cn(
       `${
         useDemoStyles
-          ? `${forceDark ? "bg-surface-overlay" : "bg-card-80"}`
+          ? `${forceDark ? "bg-surface-overlay" : "bg-card/80"}`
           : "bg-background"
       } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
         isSummary

@@ -72,7 +72,7 @@ export const PipelineCards = ({
     <>
       <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18.75rem,1fr))]">
         <CreatePipelineDialog>
-          <button className="w-full h-full min-h-[12.5rem] border-2 border-dashed border-border hover:border-brand-accent hover:bg-brand-accent-05 transition-all flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-brand-accent">
+          <button className="w-full h-full min-h-[12.5rem] border-2 border-dashed border-border hover:border-brand-accent hover:bg-brand-accent/5 transition-all flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-brand-accent">
             <Plus className="w-12 h-12" />
             <span className="text-lg font-medium">Create Pipeline</span>
           </button>
@@ -121,7 +121,7 @@ export const PipelineCards = ({
                     setOpenDropdownId(open ? pipeline.id : null)
                   }
                 >
-                  <DropdownMenuTrigger className="shrink-0 size-8 hover:bg-accent dark:hover:bg-accent-50 rounded flex items-center justify-center">
+                  <DropdownMenuTrigger className="shrink-0 size-8 hover:bg-accent dark:hover:bg-accent/50 rounded flex items-center justify-center">
                     <EllipsisVertical className="h-4 w-4" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">

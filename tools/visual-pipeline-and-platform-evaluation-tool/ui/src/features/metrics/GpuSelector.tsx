@@ -25,7 +25,7 @@ export const GpuSelector = ({
             "py-1 text-sm font-medium transition-all text-left whitespace-nowrap",
             selectedGpu === gpuId
               ? "text-foreground"
-              : "text-muted-foreground hover:text-foreground-70",
+              : "text-muted-foreground hover:text-foreground/70",
           )}
         >
           GPU {gpuId}

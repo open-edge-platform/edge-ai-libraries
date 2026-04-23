@@ -282,7 +282,7 @@ const NodeDataPanel = ({
               (typeof value === "object" ? "textarea" : "text");
 
             return (
-              <div key={keyStr} className="border-l-2 border-brand-accent-20 pl-3">
+              <div key={keyStr} className="border-l-2 border-brand-accent/20 pl-3">
                 <label className="text-xs font-medium text-muted-foreground block mb-1">
                   {propConfig?.label ?? keyStr}:
                   {propConfig?.required && (

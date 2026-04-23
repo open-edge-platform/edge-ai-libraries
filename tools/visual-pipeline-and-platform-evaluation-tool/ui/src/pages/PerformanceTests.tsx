@@ -539,7 +539,7 @@ export const PerformanceTests = () => {
           <button
             onClick={handleStopTest}
             disabled={isStopping}
-            className="w-[10rem] bg-destructive dark:bg-destructive-60 dark:text-primary-foreground font-medium hover:bg-destructive-90 dark:hover:bg-destructive-40 disabled:bg-status-neutral-bg text-white px-3 py-2 shadow-lg transition-colors flex items-center justify-center gap-2"
+            className="w-[10rem] bg-destructive dark:bg-destructive/60 dark:text-primary-foreground font-medium hover:bg-destructive/90 dark:hover:bg-destructive/40 disabled:bg-status-neutral-bg text-white px-3 py-2 shadow-lg transition-colors flex items-center justify-center gap-2"
             title="Stop test"
           >
             <Square className="w-5 h-5" />
@@ -634,7 +634,7 @@ export const PerformanceTests = () => {
         )}
 
         {jobStatus && (
-          <div className="my-4 p-3 bg-brand-accent-05 border border-brand-accent-20">
+          <div className="my-4 p-3 bg-brand-accent/5 border border-brand-accent/20">
             <p className="text-sm font-medium text-status-info-fg">
               Test Status: {jobStatus.state}
             </p>
@@ -702,7 +702,7 @@ export const PerformanceTests = () => {
         )}
 
         {!isRunning && frozenSummary && (
-          <div className="my-4 p-3 bg-brand-accent-05 border border-brand-accent-20">
+          <div className="my-4 p-3 bg-brand-accent/5 border border-brand-accent/20">
             <p className="text-sm font-medium text-status-info-fg mb-2">
               Frozen Metrics Snapshot
             </p>

@@ -460,7 +460,7 @@ export const PipelineEditor = () => {
           <div className="flex flex-wrap items-center gap-2 px-2">
             <Link
               to={source === "dashboard" ? "/" : "/pipelines"}
-              className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent-50 transition-colors"
+              className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent/50 transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
@@ -640,7 +640,7 @@ export const PipelineEditor = () => {
                           setStreams(normalizedValue);
                           setStreamsInput(String(normalizedValue));
                         }}
-                        className="h-7 w-12 px-2 text-sm text-center bg-background dark:bg-input-60"
+                        className="h-7 w-12 px-2 text-sm text-center bg-background dark:bg-input/60"
                       />
                     </div>
 
@@ -711,7 +711,7 @@ export const PipelineEditor = () => {
                                 setLoopingRuntimeSeconds(normalizedValue);
                                 setLoopingRuntimeInput(String(normalizedValue));
                               }}
-                              className="h-7 w-20 px-2 text-xs bg-background dark:bg-input-60"
+                              className="h-7 w-20 px-2 text-xs bg-background dark:bg-input/60"
                             />
                             <span className="text-xs text-muted-foreground">
                               s
