@@ -647,5 +647,444 @@ class TestPipelineRunnerModeValidation(unittest.TestCase):
         self.assertIn("Invalid mode", str(ctx.exception))
 
 
+class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
+    """Tests for the `enable_latency_metrics` subprocess-env configuration.
+
+    These tests verify that when the flag is True the GStreamer subprocess
+    is launched with the environment variables required to activate the
+    DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms
+    interval, and that when the flag is False neither GST_DEBUG nor
+    GST_TRACERS is touched.
+    """
+
+    test_pipeline_command = "videotestsrc ! fakesink"
+
+    def _assert_tracer_env_applied(self, env: dict[str, str]) -> None:
+        """Shared assertions for an env dict built with the flag enabled."""
+        self.assertIn("GST_DEBUG", env)
+        self.assertIn("GST_TRACER:7", env["GST_DEBUG"])
+        self.assertEqual(
+            env["GST_TRACERS"],
+            "latency_tracer(flags=pipeline,interval=1000)",
+        )
+
+    # --- Pure _build_subprocess_env unit tests --------------------------------
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_disabled_leaves_tracer_vars_unset(self):
+        """With the flag False the env must not contain GST_DEBUG/GST_TRACERS."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        env = runner._build_subprocess_env()
+        self.assertNotIn("GST_DEBUG", env)
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_enabled_sets_tracer_vars_when_gst_debug_unset(self):
+        """With the flag True and no pre-existing GST_DEBUG, both vars are set."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_DEBUG"], "GST_TRACER:7")
+        self._assert_tracer_env_applied(env)
+
+    @patch.dict("os.environ", {"GST_DEBUG": "2,GST_ELEMENT_PADS:5"}, clear=True)
+    def test_build_env_enabled_appends_to_existing_gst_debug(self):
+        """Existing GST_DEBUG must be extended with `,GST_TRACER:7`, not overwritten."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_DEBUG"], "2,GST_ELEMENT_PADS:5,GST_TRACER:7")
+        self._assert_tracer_env_applied(env)
+
+    @patch.dict(
+        "os.environ",
+        {"GST_TRACERS": "some_other_tracer"},
+        clear=True,
+    )
+    def test_build_env_enabled_overwrites_existing_gst_tracers(self):
+        """GST_TRACERS is always set to the latency_tracer value when enabled."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        env = runner._build_subprocess_env()
+        self._assert_tracer_env_applied(env)
+
+    # --- Popen-level integration: normal mode ---------------------------------
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_normal_mode_disabled_does_not_modify_env(
+        self, mock_select, mock_ps, mock_popen
+    ):
+        """Normal-mode Popen env must have neither GST_DEBUG nor GST_TRACERS when disabled."""
+        process_mock = _make_process_mock([])
+        mock_select.return_value = ([], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
+
+        env = mock_popen.call_args.kwargs["env"]
+        self.assertNotIn("GST_DEBUG", env)
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_normal_mode_enabled_sets_tracer_env(
+        self, mock_select, mock_ps, mock_popen
+    ):
+        """Normal-mode Popen env must contain the tracer vars when enabled."""
+        process_mock = _make_process_mock([])
+        mock_select.return_value = ([], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
+
+        env = mock_popen.call_args.kwargs["env"]
+        self._assert_tracer_env_applied(env)
+
+    # --- Popen-level integration: validation mode -----------------------------
+
+    @patch("pipeline_runner.subprocess.Popen")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_validation_mode_disabled_does_not_modify_env(self, mock_popen):
+        """Validation-mode Popen env must not be modified when disabled."""
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = ("", "")
+        process_mock.returncode = 0
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="validation", max_runtime=5, enable_latency_metrics=False
+        )
+        runner.run(self.test_pipeline_command)
+
+        env = mock_popen.call_args.kwargs["env"]
+        self.assertNotIn("GST_DEBUG", env)
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch("pipeline_runner.subprocess.Popen")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_validation_mode_enabled_sets_tracer_env(self, mock_popen):
+        """Validation-mode Popen env must contain the tracer vars when enabled."""
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = ("", "")
+        process_mock.returncode = 0
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="validation", max_runtime=5, enable_latency_metrics=True
+        )
+        runner.run(self.test_pipeline_command)
+
+        env = mock_popen.call_args.kwargs["env"]
+        self._assert_tracer_env_applied(env)
+
+    # --- PipelineResult.latency_tracer_metrics semantics in validation mode ---
+    #
+    # Validation mode never parses tracer samples. The map on the result
+    # must still reflect whether the tracer was enabled, matching the
+    # semantics documented on `PipelineResult.latency_tracer_metrics`:
+    #   * `None`  → tracer disabled,
+    #   * `{}`    → tracer enabled but no samples were collected.
+
+    @patch("pipeline_runner.subprocess.Popen")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_validation_mode_disabled_returns_none_metrics(self, mock_popen):
+        """With the flag False, validation results carry `latency_tracer_metrics=None`."""
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = ("", "")
+        process_mock.returncode = 0
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="validation", max_runtime=5, enable_latency_metrics=False
+        )
+        result = runner.run(self.test_pipeline_command)
+
+        self.assertIsNone(result.latency_tracer_metrics)
+
+    @patch("pipeline_runner.subprocess.Popen")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_validation_mode_enabled_returns_empty_metrics(self, mock_popen):
+        """With the flag True, validation results carry `latency_tracer_metrics={}`."""
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = ("", "")
+        process_mock.returncode = 0
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="validation", max_runtime=5, enable_latency_metrics=True
+        )
+        result = runner.run(self.test_pipeline_command)
+
+        self.assertEqual(result.latency_tracer_metrics, {})
+
+    @patch("pipeline_runner.subprocess.Popen")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_validation_mode_timeout_preserves_metrics_semantics(self, mock_popen):
+        """On hard-timeout, the returned PipelineResult keeps the same tracer-map semantics."""
+        import subprocess as _subprocess
+
+        process_mock = MagicMock()
+        # First communicate() raises TimeoutExpired; second (after kill) returns empty.
+        process_mock.communicate.side_effect = [
+            _subprocess.TimeoutExpired(cmd="gst_runner.py", timeout=1),
+            ("", ""),
+        ]
+        process_mock.returncode = -9
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="validation",
+            max_runtime=1,
+            hard_timeout=1,
+            enable_latency_metrics=True,
+        )
+        with patch.object(runner, "_graceful_terminate"):
+            result = runner.run(self.test_pipeline_command)
+
+        self.assertEqual(result.latency_tracer_metrics, {})
+
+    # --- latency_tracer sample line from gst_runner is forwarded to INFO ---
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_latency_tracer_interval_line_forwarded_from_gst_runner_stdout(
+        self, mock_select, mock_ps, mock_popen
+    ):
+        """`gst_runner - INFO - latency_tracer_pipeline_interval,...` stdout lines must be forwarded to INFO log.
+
+        In production the subprocess's ``gst_log_bridge`` promotes tracer
+        samples to INFO level, which Python logging prints to stdout as
+        ``gst_runner - INFO - latency_tracer_pipeline_interval, ...``.
+        The parent PipelineRunner then picks them up through
+        ``_is_loggable_gst_runner_line`` and logs them as INFO.
+        """
+        sample_line = (
+            "gst_runner - INFO - latency_tracer_pipeline_interval, "
+            "pipeline_name=(string)pipeline0, source_name=(string)filesrc0, "
+            "sink_name=(string)default_output_sink_0_0, interval=(double)1000.0, "
+            "avg=(double)5.0, min=(double)1.0, max=(double)9.0, "
+            "latency=(double)3.0, fps=(double)60.0"
+        )
+        process_mock = _make_process_mock([sample_line])
+        mock_select.return_value = ([process_mock.stdout], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+
+        with self.assertLogs("PipelineRunner", level="INFO") as captured:
+            runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
+
+        joined = "\n".join(captured.output)
+        self.assertIn("latency_tracer_pipeline_interval", joined)
+
+
+class TestLatencyTracerIntervalParser(unittest.TestCase):
+    """Unit tests for the `latency_tracer_pipeline_interval` line parser.
+
+    The parser lives on :class:`PipelineRunner` as
+    ``_parse_and_record_latency_sample`` and is driven by the
+    class-level compiled regex ``_LATENCY_TRACER_INTERVAL_PATTERN``.
+    These tests exercise the parser directly (no subprocess) so we can
+    assert the exact shape of the resulting
+    :class:`InternalLatencyMetrics` entries.
+
+    Sample lines follow the format documented in
+    ``/docs/user-guide/dev_guide/latency_tracer.md`` in the DLStreamer
+    repository.
+    """
+
+    # Sample line taken from the DLStreamer `latency_tracer` documentation.
+    SAMPLE_INTERVAL_LINE = (
+        "latency_tracer_pipeline_interval, "
+        "pipeline_name=(string)pipeline0, "
+        "source_name=(string)src_p0_s0_0_0, "
+        "sink_name=(string)sink_p0_s0_0_0, "
+        "interval=(double)1000.25, "
+        "avg=(double)364.31, "
+        "min=(double)0.004, "
+        "max=(double)529.26, "
+        "latency=(double)21.28, "
+        "fps=(double)46.99;"
+    )
+
+    # Same payload as seen on our subprocess stdout — prefixed with the
+    # Python log format emitted by `gst_runner`.
+    SAMPLE_INTERVAL_LINE_WITH_PREFIX = "gst_runner - INFO - " + SAMPLE_INTERVAL_LINE
+
+    def _make_runner(self, enable: bool) -> PipelineRunner:
+        """Return a PipelineRunner configured for parser testing.
+
+        Args:
+            enable: Value of ``enable_latency_metrics``. When False the
+                runner keeps ``latency_tracer_metrics=None`` and the
+                parser is expected to short-circuit.
+        """
+        return PipelineRunner(mode="normal", enable_latency_metrics=enable)
+
+    def test_parser_extracts_all_five_fields(self):
+        """All five timing fields are extracted as floats from a sample line."""
+        runner = self._make_runner(enable=True)
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        self.assertIsNotNone(runner.latency_tracer_metrics)
+        assert runner.latency_tracer_metrics is not None  # for the type-checker
+        self.assertEqual(len(runner.latency_tracer_metrics), 1)
+
+        stream_id = "src_p0_s0_0_0__sink_p0_s0_0_0"
+        self.assertIn(stream_id, runner.latency_tracer_metrics)
+        metrics = runner.latency_tracer_metrics[stream_id]
+
+        # Exact values, rounded to the tracer's emitted precision.
+        self.assertAlmostEqual(metrics.interval_ms, 1000.25)
+        self.assertAlmostEqual(metrics.avg_ms, 364.31)
+        self.assertAlmostEqual(metrics.min_ms, 0.004)
+        self.assertAlmostEqual(metrics.max_ms, 529.26)
+        self.assertAlmostEqual(metrics.latency_ms, 21.28)
+
+    def test_parser_accepts_gst_runner_prefix(self):
+        """Any log prefix before the marker is ignored by the parser."""
+        runner = self._make_runner(enable=True)
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE_WITH_PREFIX)
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(len(runner.latency_tracer_metrics), 1)
+
+    def test_parser_ignores_non_interval_lines(self):
+        """Lines that don't contain the interval marker produce no update."""
+        runner = self._make_runner(enable=True)
+
+        runner._parse_and_record_latency_sample(
+            "FpsCounter(average 5.0sec): total=120.0 fps, "
+            "number-streams=2, per-stream=60.0 fps"
+        )
+        runner._parse_and_record_latency_sample(
+            "latency_tracer_pipeline, frame_latency=(double)704.90, "
+            "avg=(double)238.75, min=(double)0.013, max=(double)704.90, "
+            "latency=(double)32.28, fps=(double)30.98, frame_num=(uint)27;"
+        )
+        runner._parse_and_record_latency_sample("some unrelated stderr line")
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(runner.latency_tracer_metrics, {})
+
+    def test_parser_ignores_malformed_interval_lines(self):
+        """Lines with the marker but a broken field layout are dropped silently."""
+        runner = self._make_runner(enable=True)
+
+        # Truncated after `source_name`: `sink_name` and the rest missing.
+        runner._parse_and_record_latency_sample(
+            "latency_tracer_pipeline_interval, source_name=(string)src_p0_s0"
+        )
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(runner.latency_tracer_metrics, {})
+
+    def test_parser_keeps_only_last_sample_per_stream(self):
+        """Successive samples for the same stream_id overwrite the entry."""
+        runner = self._make_runner(enable=True)
+
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        second_line = (
+            "latency_tracer_pipeline_interval, "
+            "source_name=(string)src_p0_s0_0_0, "
+            "sink_name=(string)sink_p0_s0_0_0, "
+            "interval=(double)2000.50, avg=(double)400.00, "
+            "min=(double)0.010, max=(double)600.00, "
+            "latency=(double)25.00, fps=(double)48.00"
+        )
+        runner._parse_and_record_latency_sample(second_line)
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(len(runner.latency_tracer_metrics), 1)
+        metrics = runner.latency_tracer_metrics["src_p0_s0_0_0__sink_p0_s0_0_0"]
+        # Only the latest values are retained — no history.
+        self.assertAlmostEqual(metrics.interval_ms, 2000.50)
+        self.assertAlmostEqual(metrics.avg_ms, 400.00)
+
+    def test_parser_separates_streams_by_source_sink_pair(self):
+        """Different source/sink pairs produce distinct map entries."""
+        runner = self._make_runner(enable=True)
+
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+        runner._parse_and_record_latency_sample(
+            "latency_tracer_pipeline_interval, "
+            "source_name=(string)src_p0_s1_0_1, "
+            "sink_name=(string)sink_p0_s1_0_1, "
+            "interval=(double)1000.00, avg=(double)100.0, "
+            "min=(double)1.0, max=(double)200.0, "
+            "latency=(double)10.0, fps=(double)30.0"
+        )
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(
+            set(runner.latency_tracer_metrics.keys()),
+            {
+                "src_p0_s0_0_0__sink_p0_s0_0_0",
+                "src_p0_s1_0_1__sink_p0_s1_0_1",
+            },
+        )
+
+    def test_parser_short_circuits_when_latency_metrics_disabled(self):
+        """When enable_latency_metrics=False, the map is None and no entry is recorded."""
+        runner = self._make_runner(enable=False)
+
+        self.assertIsNone(runner.latency_tracer_metrics)
+
+        # Calling the parser must not crash and must not allocate the map.
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        self.assertIsNone(runner.latency_tracer_metrics)
+
+    def test_parser_drops_samples_outside_allowed_stream_ids(self):
+        """
+        Samples whose stream_id is not in ``_allowed_stream_ids`` are
+        silently discarded. This models the production filter applied
+        by ``PipelineRunner.run(allowed_stream_ids=...)`` that keeps
+        only user-facing source/sink pairs (dropping internal bin
+        sinks and intermediate ``splitmuxsink`` rows).
+        """
+        runner = self._make_runner(enable=True)
+        # Only accept the "real" main source/sink pair for stream 0.
+        runner._allowed_stream_ids = {"src_p0_s0_0_0__sink_p0_s0_0_0"}
+
+        # Allowed: appears verbatim in the allowlist.
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        # Disallowed: an internal bin sink named just "sink".
+        runner._parse_and_record_latency_sample(
+            "latency_tracer_pipeline_interval, "
+            "source_name=(string)src_p0_s0_0_0, "
+            "sink_name=(string)sink, "
+            "interval=(double)1000.0, avg=(double)1.0, "
+            "min=(double)1.0, max=(double)1.0, "
+            "latency=(double)1.0, fps=(double)30.0"
+        )
+        # Disallowed: the recorder's splitmuxsink.
+        runner._parse_and_record_latency_sample(
+            "latency_tracer_pipeline_interval, "
+            "source_name=(string)src_p0_s0_0_0, "
+            "sink_name=(string)splitmuxsink0, "
+            "interval=(double)1000.0, avg=(double)1.0, "
+            "min=(double)1.0, max=(double)1.0, "
+            "latency=(double)1.0, fps=(double)30.0"
+        )
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(
+            set(runner.latency_tracer_metrics.keys()),
+            {"src_p0_s0_0_0__sink_p0_s0_0_0"},
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

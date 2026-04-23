@@ -598,5 +598,68 @@ class TestMain(unittest.TestCase):
         self.assertEqual(exit_code, 1)
 
 
+class TestGstLogBridgeLatencyTracer(unittest.TestCase):
+    """Tests for the `gst_log_bridge` latency_tracer promotion logic.
+
+    The DLStreamer `latency_tracer` emits samples at GStreamer TRACE
+    level. Normally TRACE is mapped to ``logger.debug()`` and thus
+    suppressed at the default INFO log level. The bridge makes a single
+    exception for ``latency_tracer_pipeline_interval`` messages which
+    must be promoted to INFO so the parent ViPPET process can consume
+    them from the subprocess stdout.
+    """
+
+    def _invoke_bridge(self, text: str, level: int) -> None:
+        """Call gst_log_bridge with a fake GLib message carrying `text`."""
+        fake_message = mock.MagicMock()
+        fake_message.get.return_value = text
+        gst_runner.gst_log_bridge(
+            category=None,
+            level=level,
+            file=None,
+            function=None,
+            line=0,
+            obj=None,
+            message=fake_message,
+            user_data=None,
+        )
+
+    def test_pipeline_interval_sample_is_promoted_to_info(self) -> None:
+        """`latency_tracer_pipeline_interval,...` TRACE messages must be logged as INFO."""
+        sample = (
+            "latency_tracer_pipeline_interval, pipeline_name=(string)pipeline0, "
+            "source_name=(string)filesrc0, sink_name=(string)sink0, "
+            "interval=(double)1000.0, avg=(double)5.0, min=(double)1.0, "
+            "max=(double)9.0, latency=(double)3.0, fps=(double)60.0"
+        )
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            self._invoke_bridge(sample, RealGst.DebugLevel.TRACE)
+
+        joined = "\n".join(captured.output)
+        self.assertIn("INFO", joined)
+        self.assertIn("latency_tracer_pipeline_interval", joined)
+
+    def test_unrelated_trace_message_stays_at_debug(self) -> None:
+        """Non-tracer TRACE messages must still land at DEBUG (default suppressed at INFO)."""
+        # If promoted, assertLogs at INFO would succeed; we expect it to fail.
+        with self.assertRaises(AssertionError):
+            with self.assertLogs("gst_runner", level="INFO"):
+                self._invoke_bridge(
+                    "some unrelated trace line", RealGst.DebugLevel.TRACE
+                )
+
+    def test_per_frame_pipeline_sample_stays_at_debug(self) -> None:
+        """Per-frame `latency_tracer_pipeline` samples must NOT be promoted."""
+        per_frame = (
+            "latency_tracer_pipeline, pipeline_name=(string)pipeline0, "
+            "source_name=(string)filesrc0, sink_name=(string)sink0, "
+            "frame_latency=(double)1.0, avg=(double)1.0, min=(double)1.0, "
+            "max=(double)1.0, latency=(double)1.0, fps=(double)1.0, frame_num=(uint)1"
+        )
+        with self.assertRaises(AssertionError):
+            with self.assertLogs("gst_runner", level="INFO"):
+                self._invoke_bridge(per_frame, RealGst.DebugLevel.TRACE)
+
+
 if __name__ == "__main__":
     unittest.main()

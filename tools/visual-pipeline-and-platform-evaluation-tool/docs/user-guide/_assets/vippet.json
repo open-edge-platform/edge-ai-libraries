@@ -2740,6 +2740,21 @@
               }
             ],
             "title": "Video Output Paths"
+          },
+          "latency_tracer_metrics": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/LatencyMetrics"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Tracer Metrics",
+            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples \u2014 for example when the pipeline exited before the first 1000 ms interval closed."
           }
         },
         "type": "object",
@@ -2823,7 +2838,8 @@
             "default": {
               "output_mode": "disabled",
               "max_runtime": 0.0,
-              "metadata_mode": "disabled"
+              "metadata_mode": "disabled",
+              "enable_latency_metrics": false
             },
             "examples": [
               {
@@ -2942,6 +2958,12 @@
             "$ref": "#/components/schemas/MetadataMode",
             "description": "Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints.",
             "default": "disabled"
+          },
+          "enable_latency_metrics": {
+            "type": "boolean",
+            "title": "Enable Latency Metrics",
+            "description": "When true, activates the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval by setting `GST_DEBUG=GST_TRACER:7` (appended if already set) and `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on the GStreamer subprocess environment. When false (default), neither environment variable is modified.",
+            "default": false
           }
         },
         "type": "object",
@@ -3010,6 +3032,60 @@
         ],
         "title": "HealthResponse",
         "description": "**Response model for health endpoint.**\n\nUsed by Docker healthcheck and monitoring systems to verify\napplication health status.\n\n## Attributes\n- `healthy` - True if application is healthy (not shutdown)\n\n### Example\n```json\n{\n  \"healthy\": true\n}\n```"
+      },
+      "LatencyMetrics": {
+        "properties": {
+          "interval_ms": {
+            "type": "number",
+            "title": "Interval Ms",
+            "description": "Length of the measurement window reported by the tracer, in ms.",
+            "examples": [
+              1000.25
+            ]
+          },
+          "avg_ms": {
+            "type": "number",
+            "title": "Avg Ms",
+            "description": "Average frame latency over the window, in ms.",
+            "examples": [
+              364.31
+            ]
+          },
+          "min_ms": {
+            "type": "number",
+            "title": "Min Ms",
+            "description": "Minimum frame latency observed in the window, in ms.",
+            "examples": [
+              0.004
+            ]
+          },
+          "max_ms": {
+            "type": "number",
+            "title": "Max Ms",
+            "description": "Maximum frame latency observed in the window, in ms.",
+            "examples": [
+              529.26
+            ]
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms",
+            "description": "Current end-to-end latency reported by the tracer, in ms.",
+            "examples": [
+              21.28
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "interval_ms",
+          "avg_ms",
+          "min_ms",
+          "max_ms",
+          "latency_ms"
+        ],
+        "title": "LatencyMetrics",
+        "description": "**Last observed DLStreamer `latency_tracer` sample for a single stream.**\n\nEach value is extracted from a single\n`latency_tracer_pipeline_interval` line emitted by the\n`latency_tracer` (one such line per stream per interval ~1000 ms).\nOnly the most recent sample per stream is kept; history is not\nreported here.\n\nAll timing fields are in milliseconds. `fps` reported by the tracer\nis intentionally **not** included because FPS is already exposed on\nthe job status via `total_fps` / `per_stream_fps` (from\n`gvafpscounter`).\n\n## Attributes\n- `interval_ms` - Length of the measurement window, in milliseconds\n- `avg_ms` - Average frame latency over the window, in milliseconds\n- `min_ms` - Minimum frame latency observed in the window, in milliseconds\n- `max_ms` - Maximum frame latency observed in the window, in milliseconds\n- `latency_ms` - Current end-to-end latency reported by the tracer, in milliseconds\n\n### Example\n```json\n{\n  \"interval_ms\": 1000.25,\n  \"avg_ms\": 364.31,\n  \"min_ms\": 0.004,\n  \"max_ms\": 529.26,\n  \"latency_ms\": 21.28\n}\n```"
       },
       "MessageResponse": {
         "properties": {
@@ -3413,6 +3489,21 @@
             ],
             "title": "Video Output Paths"
           },
+          "latency_tracer_metrics": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/LatencyMetrics"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Tracer Metrics",
+            "description": "Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples \u2014 for example when the pipeline exited before the first 1000 ms interval closed."
+          },
           "live_stream_urls": {
             "anyOf": [
               {
@@ -3511,7 +3602,8 @@
             "default": {
               "output_mode": "disabled",
               "max_runtime": 0.0,
-              "metadata_mode": "disabled"
+              "metadata_mode": "disabled",
+              "enable_latency_metrics": false
             },
             "examples": [
               {
@@ -3942,6 +4034,19 @@
             "description": "Number of streams allocated to this pipeline.",
             "examples": [
               4
+            ]
+          },
+          "streams_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Streams Ids",
+            "description": "Stable, stream-unique identifiers for every stream started by this pipeline, in the order streams were created. Each entry has the format `{source_name}__{sink_name}` where both parts are the GStreamer `name` properties applied to the main source and main sink of the stream. These ids are also the keys used in the job's `latency_tracer_metrics` map. The length always equals `streams`.",
+            "examples": [
+              [
+                "src_p0_s0_0_0__sink_p0_s0_0_0"
+              ]
             ]
           }
         },
