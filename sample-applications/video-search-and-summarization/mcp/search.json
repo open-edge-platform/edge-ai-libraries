@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "server_name": "vss_search_proxy_mcp",
+  "server_name": "vss_search_mcp",
   "tool_prefix": "vss",
   "resource_scheme": "vss",
   "apis": {
@@ -11,17 +11,21 @@
       "expose": "resource"
     },
     "GET /tags": {
-      "expose": "resource"
+      "expose": "tool",
+      "tool_name": "get_tags"
     },
     "DELETE /tags/{tagId}": {
       "expose": "tool",
       "tool_name": "delete_tag"
     },
     "GET /videos": {
-      "expose": "resource"
+      "expose": "tool",
+      "tool_name": "get_all_videos"
+
     },
     "GET /videos/{videoId}": {
-      "expose": "resource"
+      "expose": "tool",
+      "tool_name": "get_video"
     },
     "POST /videos/search-embeddings/{videoId}": {
       "expose": "tool",
@@ -30,9 +34,6 @@
     "POST /search/query": {
       "expose": "tool",
       "tool_name": "run_search_query"
-    },
-    "GET /search/{queryId}": {
-      "expose": "resource"
     }
   }
 }

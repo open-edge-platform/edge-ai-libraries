@@ -3,7 +3,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
-    APP_PROXY_FILTER_PATH=/app/proxy-all.json \
+    FILTER_FILE_PATH=/app/all.json \
     MCP_HOST=0.0.0.0 \
     MCP_PORT=8000
 

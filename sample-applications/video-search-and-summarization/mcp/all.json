@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "server_name": "vss_summary_proxy_mcp",
+  "server_name": "vss_all_mcp",
   "tool_prefix": "vss",
   "resource_scheme": "vss",
   "apis": {
@@ -28,11 +28,48 @@
     "GET /tags": {
       "expose": "resource"
     },
+    "DELETE /tags/{tagId}": {
+      "expose": "tool",
+      "tool_name": "delete_tag"
+    },
     "GET /videos": {
       "expose": "resource"
     },
     "GET /videos/{videoId}": {
       "expose": "resource"
+    },
+    "POST /videos/search-embeddings/{videoId}": {
+      "expose": "tool",
+      "tool_name": "create_video_search_embeddings"
+    },
+    "GET /search": {
+      "expose": "resource"
+    },
+    "POST /search": {
+      "expose": "tool",
+      "tool_name": "create_search"
+    },
+    "GET /search/watched": {
+      "expose": "resource"
+    },
+    "POST /search/query": {
+      "expose": "tool",
+      "tool_name": "run_search_query"
+    },
+    "GET /search/{queryId}": {
+      "expose": "resource"
+    },
+    "DELETE /search/{queryId}": {
+      "expose": "tool",
+      "tool_name": "delete_search_query"
+    },
+    "POST /search/{queryId}/refetch": {
+      "expose": "tool",
+      "tool_name": "refetch_search_query"
+    },
+    "PATCH /search/{queryId}/watch": {
+      "expose": "tool",
+      "tool_name": "update_search_watch_state"
     },
     "GET /summary": {
       "expose": "resource"

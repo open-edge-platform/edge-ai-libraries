@@ -12,15 +12,13 @@ DEFAULT_REQUEST_TIMEOUT_SECONDS = 60.0
 DEFAULT_MCP_HOST = "127.0.0.1"
 DEFAULT_MCP_PORT = 8000
 DEFAULT_MCP_PATH = "/mcp"
-DEFAULT_FILTER_CONFIG_PATH = "proxy-all.json"
+DEFAULT_FILTER_CONFIG_PATH = "all.json"
 
 
 @dataclass(frozen=True, slots=True)
 class Settings:
     """Runtime settings for the MCP proxy server."""
 
-    app_name: str
-    app_version: str
     spec_url: str
     filter_config_path: str
     target_base_url: str | None
@@ -94,7 +92,7 @@ def _read_path(name: str, default: str) -> str:
 def project_root() -> Path:
     """Return the mcp project root regardless of current working directory."""
 
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def bundled_filter_config_path() -> Path:
@@ -125,12 +123,12 @@ def _resolve_path_input(value: str, *, default_path: Path | None = None) -> str 
 def _read_spec_url() -> str:
     """Read the configured OpenAPI specification URL."""
 
-    spec_url = os.getenv("APP_PROXY_SPEC_URL", "").strip()
+    spec_url = os.getenv("API_SPEC_URL", "").strip()
     if spec_url:
         return spec_url
 
     raise ValueError(
-        "Set APP_PROXY_SPEC_URL so the server knows which OpenAPI/Swagger document to load."
+        "Set API_SPEC_URL so the server knows which OpenAPI/Swagger document to load."
     )
 
 
@@ -138,14 +136,12 @@ def _read_spec_url() -> str:
 def get_settings() -> Settings:
     """Return validated MCP proxy settings."""
 
-    target_base_url = os.getenv("TARGET_BASE_URL", "").strip() or None
+    target_base_url = os.getenv("API_BASE_URL", "").strip() or None
 
     return Settings(
-        app_name="App Proxy MCP",
-        app_version="0.2.0",
         spec_url=_read_spec_url(),
         filter_config_path=_resolve_path_input(
-            os.getenv("APP_PROXY_FILTER_PATH", ""),
+            os.getenv("FILTER_FILE_PATH", ""),
             default_path=bundled_filter_config_path(),
         )
         or str(bundled_filter_config_path()),

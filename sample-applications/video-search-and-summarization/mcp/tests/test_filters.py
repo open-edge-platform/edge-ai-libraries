@@ -1,39 +1,24 @@
 from __future__ import annotations
 
-from pathlib import Path
-from tempfile import TemporaryDirectory
 import json
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from pydantic import ValidationError
 
 from src.filters import (
-    operation_config,
     ProxyFilterConfig,
+    api_config_for,
     configured_tool_name,
     load_filter_config,
     operation_is_enabled,
     resource_is_enabled,
     tool_is_enabled,
 )
-from src.models import OperationSpec
 
 
 class FilterConfigTests(unittest.TestCase):
-    def _operation(self, *, method: str, path: str) -> OperationSpec:
-        return OperationSpec(
-            method=method,
-            path=path,
-            slug="example",
-            operation_id=None,
-            summary=None,
-            description=None,
-            tags=(),
-            parameters=(),
-            request_body=None,
-            response_content_types=(),
-        )
-
     def test_api_entries_enable_expected_operations(self) -> None:
         config = ProxyFilterConfig.model_validate(
             {
@@ -52,28 +37,21 @@ class FilterConfigTests(unittest.TestCase):
             }
         )
 
-        self.assertTrue(operation_is_enabled(config, self._operation(method="GET", path="/widgets")))
-        self.assertFalse(tool_is_enabled(config, self._operation(method="GET", path="/widgets")))
-        self.assertTrue(resource_is_enabled(config, self._operation(method="GET", path="/widgets")))
-        self.assertTrue(tool_is_enabled(config, self._operation(method="PATCH", path="/jobs/{jobId}/retry")))
-        self.assertFalse(
-            resource_is_enabled(config, self._operation(method="PATCH", path="/jobs/{jobId}/retry"))
-        )
+        self.assertTrue(operation_is_enabled(config, "GET", "/widgets"))
+        self.assertFalse(tool_is_enabled(config, "GET", "/widgets"))
+        self.assertTrue(resource_is_enabled(config, "GET", "/widgets"))
+        self.assertTrue(tool_is_enabled(config, "PATCH", "/jobs/{jobId}/retry"))
+        self.assertFalse(resource_is_enabled(config, "PATCH", "/jobs/{jobId}/retry"))
         self.assertEqual(
-            configured_tool_name(
-                config,
-                self._operation(method="PATCH", path="/jobs/{jobId}/retry"),
-            ),
+            configured_tool_name(config, "PATCH", "/jobs/{jobId}/retry"),
             "demo_retry_job",
         )
-        self.assertFalse(tool_is_enabled(config, self._operation(method="GET", path="/reports/{reportId}")))
-        self.assertTrue(resource_is_enabled(config, self._operation(method="GET", path="/reports/{reportId}")))
-        self.assertFalse(operation_is_enabled(config, self._operation(method="POST", path="/widgets")))
-        self.assertFalse(
-            operation_is_enabled(config, self._operation(method="DELETE", path="/jobs/private/{jobId}"))
-        )
+        self.assertFalse(tool_is_enabled(config, "GET", "/reports/{reportId}"))
+        self.assertTrue(resource_is_enabled(config, "GET", "/reports/{reportId}"))
+        self.assertFalse(operation_is_enabled(config, "POST", "/widgets"))
+        self.assertFalse(operation_is_enabled(config, "DELETE", "/jobs/private/{jobId}"))
 
-    def test_resource_exposure_still_requires_read_only_requestless_endpoint(self) -> None:
+    def test_resource_exposure_requires_get(self) -> None:
         config = ProxyFilterConfig.model_validate(
             {
                 "enabled": True,
@@ -86,10 +64,8 @@ class FilterConfigTests(unittest.TestCase):
             }
         )
 
-        self.assertTrue(resource_is_enabled(config, self._operation(method="GET", path="/runs/{runId}")))
-        self.assertFalse(
-            resource_is_enabled(config, self._operation(method="DELETE", path="/runs/{runId}"))
-        )
+        self.assertTrue(resource_is_enabled(config, "GET", "/runs/{runId}"))
+        self.assertFalse(resource_is_enabled(config, "DELETE", "/runs/{runId}"))
 
     def test_wildcards_are_rejected_in_api_keys(self) -> None:
         with self.assertRaisesRegex(ValueError, "Wildcard API keys are not supported"):
@@ -166,6 +142,23 @@ class FilterConfigTests(unittest.TestCase):
                 }
             )
 
+    def test_disabled_config_reports_nothing_enabled(self) -> None:
+        config = ProxyFilterConfig.model_validate(
+            {
+                "enabled": False,
+                "tool_prefix": "demo",
+                "resource_scheme": "demo",
+                "apis": {
+                    "GET /widgets": {"expose": "resource"},
+                    "POST /widgets": {"expose": "tool", "tool_name": "create_widget"},
+                },
+            }
+        )
+
+        self.assertFalse(operation_is_enabled(config, "GET", "/widgets"))
+        self.assertFalse(tool_is_enabled(config, "POST", "/widgets"))
+        self.assertFalse(resource_is_enabled(config, "GET", "/widgets"))
+
     def test_load_filter_config_reads_generic_file(self) -> None:
         with TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "demo-filter.json"
@@ -184,7 +177,7 @@ class FilterConfigTests(unittest.TestCase):
                             "POST /widgets": {
                                 "expose": "tool",
                                 "tool_name": "create_widget",
-                            }
+                            },
                         },
                     }
                 ),
@@ -195,11 +188,13 @@ class FilterConfigTests(unittest.TestCase):
 
         self.assertEqual(config.server_name, "demo_server")
         self.assertEqual(config.tool_prefix, "demo")
-        operation = self._operation(method="GET", path="/widgets/{widgetId}")
-        self.assertTrue(operation_is_enabled(config, operation))
-        self.assertEqual(operation_config(config, operation).description, "Get a widget by ID.")
+        self.assertTrue(operation_is_enabled(config, "GET", "/widgets/{widgetId}"))
         self.assertEqual(
-            configured_tool_name(config, self._operation(method="POST", path="/widgets")),
+            api_config_for(config, "GET", "/widgets/{widgetId}").description,
+            "Get a widget by ID.",
+        )
+        self.assertEqual(
+            configured_tool_name(config, "POST", "/widgets"),
             "demo_create_widget",
         )
 

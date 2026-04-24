@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import os
 import unittest
 
-from src.config import _read_spec_url, _resolve_path_input
+from src.core.config import _read_spec_url, _resolve_path_input
 
 
 class ConfigPathTests(unittest.TestCase):
@@ -33,13 +33,13 @@ class ConfigPathTests(unittest.TestCase):
         self.assertEqual(resolved, str(default_path))
 
     def test_read_spec_url_requires_explicit_runtime_spec_url(self) -> None:
-        original_spec_url = os.environ.pop("APP_PROXY_SPEC_URL", None)
+        original_spec_url = os.environ.pop("API_SPEC_URL", None)
         try:
-            with self.assertRaisesRegex(ValueError, "Set APP_PROXY_SPEC_URL"):
+            with self.assertRaisesRegex(ValueError, "Set API_SPEC_URL"):
                 _read_spec_url()
         finally:
             if original_spec_url is not None:
-                os.environ["APP_PROXY_SPEC_URL"] = original_spec_url
+                os.environ["API_SPEC_URL"] = original_spec_url
 
 
 if __name__ == "__main__":
