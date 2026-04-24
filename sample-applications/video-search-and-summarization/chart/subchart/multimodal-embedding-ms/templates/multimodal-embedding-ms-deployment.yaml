@@ -1,3 +1,10 @@
+{{- $mmDevice := default "CPU" .Values.global.devices.multimodalEmbedding.device -}}
+{{- $mmKey := .Values.global.devices.multimodalEmbedding.key -}}
+{{- $mmUsesGpu := eq $mmDevice "GPU" -}}
+{{- /* Validate: key required when device is GPU */ -}}
+{{- if and $mmUsesGpu (not $mmKey) -}}
+{{- fail "global.devices.multimodalEmbedding.key is required when device is GPU" -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,7 +43,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ ternary .Values.image.gpu.repository .Values.image.cpu.repository .Values.global.gpu.multimodalembeddingmsEnabled }}:{{ ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion }}"
+          image: "{{ ternary .Values.image.gpu.repository .Values.image.cpu.repository $mmUsesGpu }}:{{ ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             privileged: false
@@ -53,12 +60,12 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "multimodal-embedding-ms.fullname" . }}-config
-      {{- if .Values.global.gpu.multimodalembeddingmsEnabled }}
+      {{- if $mmUsesGpu }}
           resources:
             requests:
-              {{ .Values.global.gpu.key}}: 1
+              {{ $mmKey }}: 1
             limits:
-              {{ .Values.global.gpu.key}}: 1
+              {{ $mmKey }}: 1
       {{- else if .Values.resources }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -84,7 +91,7 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-      {{- if .Values.global.gpu.multimodalembeddingmsEnabled }}
+      {{- if $mmUsesGpu }}
         - name: dri-device
           hostPath:
             path: /dev/dri

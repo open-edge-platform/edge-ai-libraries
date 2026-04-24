@@ -13,6 +13,7 @@ services:
       APP_UI: vss-ui:8080
       APP_MANAGER: ${PM_HOST}:3000
       APP_ASSETS: minio-service
+      APP_OVMS: ${OVMS_HOST}:80
       NGINX_ENVSUBST_TEMPLATE_DIR: /etc/nginx/templates
       NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
     volumes:

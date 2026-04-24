@@ -26,7 +26,6 @@ x-vippet: &vippet
     APP_LOG_LEVEL: INFO
     RUNNER_LOG_LEVEL: INFO
     WEB_SERVER_LOG_LEVEL: WARNING
-    METRICS_LOG_LEVEL: INFO
     MODELS_PATH: /models/output
     SUPPORTED_MODELS_FILE: /models/supported_models.yaml
     INPUT_VIDEO_DIR: /videos/input
@@ -37,16 +36,16 @@ x-vippet: &vippet
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
     RTSPSRC_DEFAULT_LATENCY_MS: ${RTSPSRC_DEFAULT_LATENCY_MS:-100}
+    METRICS_SERVICE_URL: ${METRICS_SERVICE_URL:-http://metrics-service:9090}
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
-    no_proxy: "${no_proxy:+${no_proxy},}mediamtx"
+    no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-service"
   device_cgroup_rules:
     # Broad access to USB devices is required to support a wide range of USB cameras.
     - 'c 189:* rmw'
     - 'a 189:* rwm'
   volumes:
     - "/dev:/dev"
-    - ./shared/collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./shared/models/:/models
     - ./shared/videos/:/videos
     - ./shared/scripts/:/scripts
@@ -70,10 +69,12 @@ services:
     depends_on:
       vippet:
         condition: service_healthy
+      metrics-service:
+        condition: service_healthy
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: "${no_proxy:+${no_proxy},}mediamtx"
+      no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-service"
     volumes:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
@@ -136,35 +137,39 @@ services:
     container_name: vippet
     ports:
       - "7860:7860"
-  collector:
-    image: docker.io/intel/vippet-collector:${DOCKER_TAG}
-    build:
-      context: ./collector
-      dockerfile: Dockerfile
-      args:
-        http_proxy:
-        https_proxy:
-        no_proxy:
-    container_name: collector
+  metrics-service:
+    image: docker.io/intel/metrics-service:2026.1.0-20260417-weekly
+    container_name: metrics-service
     ports:
+      - "9090:9090"
       - "9273:9273"
     privileged: true
+    pid: host
+    security_opt:
+      - apparmor:unconfined
     devices:
-      - "/sys:/sys"
-      - "/dev:/dev"
-      - "/run:/run"
-      - "/proc:/proc"
-    pid: host # qmassa needs it
+      - "/dev/dri:/dev/dri"
     volumes:
-      - "./shared/collector-signals:/app/.collector-signals"
-    restart: on-failure:5
-    depends_on:
-      vippet:
-        condition: service_healthy
+      - /sys:/sys:ro
+      - /run:/run:ro
+      # TODO: Temporary, to have websocket output plugin available. Remove this mount and file from repo after metrics-service enables the plugin by default.
+      - ./my-telegraf.conf:/etc/telegraf/telegraf.conf:ro
     environment:
+      METRICS_PORT: 9090
+      LOG_LEVEL: INFO
+      CORS_ORIGINS: "*"
+      CUSTOM_METRICS_DIR: /app/custom-metrics
+      METRICS_RETENTION_SECONDS: 300
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
+    restart: on-failure:5
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
   mediamtx:
     image: bluenviron/mediamtx:1.15.6
     container_name: mediamtx
