@@ -317,11 +317,12 @@ class ImagesManager:
     @classmethod
     def _safe_extract_zip(cls, archive_path: str, dest_dir: str) -> None:
         with zipfile.ZipFile(archive_path) as zf:
-            for member in zf.namelist():
+            members = zf.namelist()
+            for member in members:
                 member_path = os.path.join(dest_dir, member)
                 if not cls._is_within_directory(dest_dir, member_path):
                     raise ValueError("Archive contains unsafe paths (path traversal).")
-            zf.extractall(dest_dir)
+            zf.extractall(dest_dir, members=members)
 
     @classmethod
     def _safe_extract_tar(cls, archive_path: str, dest_dir: str) -> None:
