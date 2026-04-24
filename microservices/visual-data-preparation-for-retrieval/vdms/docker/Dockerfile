@@ -12,7 +12,7 @@ ENV PYTHONUNBUFFERED=1 \
     # off value above actually emplies, no cache will be used. Confusing.
     PIP_DISABLE_PIP_VERSION_CHECK=on \
     PIP_DEFAULT_TIMEOUT=100 \
-    POETRY_VERSION=1.8.5 \
+    POETRY_VERSION=2.3.1 \
     # Poetry installation location
     POETRY_HOME="/opt/poetry" \
     # Create the virtual environment dir .venv in the project's root
@@ -49,14 +49,12 @@ WORKDIR $SETUP_PATH
 COPY poetry.lock pyproject.toml ./
 COPY wheels ./wheels
 
-# Run poetry lock to install build dependencies
-RUN poetry lock --no-update
 
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
 # If value of ARCH is cpu, install with optional cpu dependencies else install main dependencies
 RUN if [ "${ARCH}" = "cpu" ]; \
-    then poetry install --with cpu; \
-    else poetry install --only main; fi
+    then poetry install --no-root --with cpu; \
+    else poetry install --no-root --only main; fi
 
 # Install additional packages that have dependency conflicts with --no-deps
 # These are required for the multimodal embedding service SDK
@@ -76,7 +74,7 @@ COPY --from=builder-base $POETRY_HOME $POETRY_HOME
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 # Install dev dependencies. Prod dependencies are already installed.
-RUN poetry install --with dev
+RUN poetry install --no-root --with dev
 
 # Copy the entrypoint script and makeit executable
 COPY ./scripts/entrypoint.sh /entrypoint.sh
@@ -102,33 +100,11 @@ EXPOSE 8000
 ENTRYPOINT [ "/entrypoint.sh" ] 
 CMD [ "poetry", "run", "uvicorn", "--host", "0.0.0.0", "--port", "8000", "--reload", "src.main:app" ]
 
-# Linter stage to lint code in dev image
-FROM dev AS lint
-
-USER root
-COPY --chown=appuser:appuser . .
-USER appuser
-
-RUN black --config ./pyproject.toml --check tests src
-RUN isort --settings-path ./pyproject.toml --check-only .
-
-# Final dev stage after passing linting and tests criteria.
-FROM lint AS final-dev
-ARG COVERAGE_REQ
-RUN coverage run --rcfile ./pyproject.toml -m pytest ./tests
-RUN coverage report -m --fail-under $COVERAGE_REQ
-
-# Generate test coverage report on lint stage and serve it using python http server.
-FROM lint AS report
-# Copy script with proper ownership from the start
-USER root
-COPY --chown=appuser:appuser ./scripts/reporter.sh /reporter.sh
-RUN chmod +x /reporter.sh
-USER appuser
-
-CMD [ "/reporter.sh" ]
-
 # `prod` image used for runtime
+# NOTE: This stage is placed before lint/test stages to ensure the legacy Docker
+# builder (non-BuildKit) can build prod without executing lint checks. BuildKit
+# skips unneeded stages automatically, but the legacy builder executes stages
+# in order. Keep prod before lint to support both builders.
 FROM python-base AS prod
 
 ARG INSTALL_DRIVER_VERSION
@@ -199,3 +175,29 @@ EXPOSE 8000
 
 ENTRYPOINT [ "/entrypoint.sh" ]
 CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.main:app", "--timeout", "1200", "--log-level", "debug"]
+
+# Linter stage to lint code in dev image
+FROM dev AS lint
+
+USER root
+COPY --chown=appuser:appuser . .
+USER appuser
+
+RUN black --config ./pyproject.toml --check tests src
+RUN isort --settings-path ./pyproject.toml --check-only .
+
+# Final dev stage after passing linting and tests criteria.
+FROM lint AS final-dev
+ARG COVERAGE_REQ
+RUN coverage run --rcfile ./pyproject.toml -m pytest ./tests
+RUN coverage report -m --fail-under $COVERAGE_REQ
+
+# Generate test coverage report on lint stage and serve it using python http server.
+FROM lint AS report
+# Copy script with proper ownership from the start
+USER root
+COPY --chown=appuser:appuser ./scripts/reporter.sh /reporter.sh
+RUN chmod +x /reporter.sh
+USER appuser
+
+CMD [ "/reporter.sh" ]

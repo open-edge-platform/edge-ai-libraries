@@ -151,94 +151,137 @@ export class ChunkingService {
       const nextFrame = this.waiting.shift();
 
       if (nextFrame) {
+        // Move a frame group into the active set before dispatch so the state
+        // manager and summary trigger can treat it as in-flight work.
         this.processing.push(nextFrame);
 
         const { stateId, frames } = nextFrame;
 
         const state = this.$state.fetch(stateId);
 
-        if (state) {
-          this.$emitter.emit(PipelineEvents.FRAME_CAPTION_PROCESSING, {
-            stateId,
-            frameIds: frames,
-          });
-
-          const framesData = frames
-            .map((frameId: string) => this.$state.fetchFrame(stateId, frameId))
-            .filter((el) => el);
-
-          if (framesData.length > 0) {
-            const queryData = framesData.map((frameData) => {
-              return {
-                frameData: frameData!,
-                query: '',
-                imageUrl: this.$dataStore.getWithURL(frameData!.frameUri),
-              };
-            });
-
-            let transcripts: string = '';
-
-            if (queryData.length > 0) {
-              this.$emitter.emit(PipelineEvents.FRAME_CAPTION_PROCESSING, {
-                stateId,
-                frameIds: queryData.map((data) => data.frameData.frameId),
-                caption: '',
-              });
-
-              const vlmInference = this.$vlm.getInferenceConfig();
-              this.$state.addImageInferenceConfig(stateId, vlmInference);
-
-              let prompt = state.systemConfig.framePrompt;
-
-              // Process Detected Objects
-              const detectedObjects = this.extractDetectedObjects(
-                nextFrame,
-                stateId,
-              );
-
-              if (detectedObjects.size > 0) {
-                prompt = this.$template.addDetectedObjects(
-                  prompt,
-                  detectedObjects,
-                );
-              }
-
-              // Process Audio Transcripts
-              transcripts = this.getAudioTranscripts(
-                state,
-                nextFrame,
-                transcripts,
-              );
-              if (transcripts) {
-                prompt = this.$template.addAudioTranscripts(
-                  prompt,
-                  transcripts,
-                );
-              }
-
-              console.log('Prompting for:', nextFrame.queueKey, prompt);
-
-              this.subs.add(
-                from(
-                  this.$vlm.imageInference(
-                    prompt,
-                    queryData.map((el) => el.imageUrl),
-                  ),
-                ).subscribe({
-                  next: (res: string | null) => {
-                    if (res) {
-                      this.inferenceCompleteHandler(res, stateId, queryData);
-                    }
-                  },
-                  error: (err) => {
-                    console.log('Inference error', err);
-                  },
-                }),
-              );
-            }
-          }
+        if (!state) {
+          this.removeProcessing(stateId, nextFrame.queueKey);
+          return;
         }
+
+        this.$emitter.emit(PipelineEvents.FRAME_CAPTION_PROCESSING, {
+          stateId,
+          frameIds: frames,
+        });
+
+        const framesData = frames
+          .map((frameId: string) => this.$state.fetchFrame(stateId, frameId))
+          .filter((el) => el);
+
+        if (framesData.length === 0) {
+          this.requeueFrame(nextFrame, 'No frame data available for captioning');
+          return;
+        }
+
+        const queryData = framesData.map((frameData) => {
+          return {
+            frameData: frameData!,
+            query: '',
+            imageUrl: this.$dataStore.getWithURL(frameData!.frameUri),
+          };
+        });
+
+        let transcripts: string = '';
+
+        this.$emitter.emit(PipelineEvents.FRAME_CAPTION_PROCESSING, {
+          stateId,
+          frameIds: queryData.map((data) => data.frameData.frameId),
+          caption: '',
+        });
+
+        const vlmInference = this.$vlm.getInferenceConfig();
+        this.$state.addImageInferenceConfig(stateId, vlmInference);
+
+        let prompt = state.systemConfig.framePrompt;
+
+        // Process Detected Objects
+        const detectedObjects = this.extractDetectedObjects(nextFrame, stateId);
+
+        if (detectedObjects.size > 0) {
+          prompt = this.$template.addDetectedObjects(prompt, detectedObjects);
+        }
+
+        // Process Audio Transcripts
+        transcripts = this.getAudioTranscripts(state, nextFrame, transcripts);
+        if (transcripts) {
+          prompt = this.$template.addAudioTranscripts(prompt, transcripts);
+        }
+
+        console.log('Prompting for:', nextFrame.queueKey, prompt);
+
+        this.subs.add(
+          from(
+            this.$vlm.imageInference(
+              prompt,
+              queryData.map((el) => el.imageUrl),
+            ),
+          ).subscribe({
+            next: (res: string | null) => {
+              if (res) {
+                // Successful captioning continues through the normal completion
+                // event path, which removes the frame group from `processing`.
+                this.inferenceCompleteHandler(res, stateId, queryData);
+              }
+            },
+            error: (err) => {
+              Logger.error(
+                `Inference error for ${stateId}:${nextFrame.queueKey}`,
+                err instanceof Error ? err.stack : String(err),
+                ChunkingService.name,
+              );
+              this.requeueFrame(nextFrame, err);
+            },
+          }),
+        );
       }
+    }
+  }
+
+  private removeProcessing(stateId: string, queueKey: string) {
+    const processingIndex = this.processing.findIndex(
+      (el) => el.stateId === stateId && el.queueKey === queueKey,
+    );
+
+    if (processingIndex > -1) {
+      this.processing.splice(processingIndex, 1);
+    }
+  }
+
+  private requeueFrame(nextFrame: FrameQueueItem, reason: unknown) {
+    const message = reason instanceof Error ? reason.message : String(reason);
+    Logger.warn(
+      `Re-queueing frame caption ${nextFrame.stateId}:${nextFrame.queueKey} after failure: ${message}`,
+      ChunkingService.name,
+    );
+
+    // Failures should not leave a frame group stuck in `processing`; reset the
+    // frame summary back to READY so the queue can retry after the backend recovers.
+    this.removeProcessing(nextFrame.stateId, nextFrame.queueKey);
+    this.$state.updateFrameSummary(
+      nextFrame.stateId,
+      nextFrame.queueKey,
+      StateActionStatus.READY,
+    );
+
+    const alreadyQueued =
+      this.waiting.some(
+        (el) =>
+          el.stateId === nextFrame.stateId &&
+          el.queueKey === nextFrame.queueKey,
+      ) ||
+      this.processing.some(
+        (el) =>
+          el.stateId === nextFrame.stateId &&
+          el.queueKey === nextFrame.queueKey,
+      );
+
+    if (!alreadyQueued) {
+      this.waiting.unshift(nextFrame);
     }
   }
 
@@ -392,14 +435,8 @@ export class ChunkingService {
     const { stateId, frameIds } = data;
     const queueKey = frameIds.join('#');
 
-    const processingIndex = this.processing.findIndex(
-      (el) => el.stateId === stateId && el.queueKey === queueKey,
-    );
-
-    if (processingIndex > -1) {
-      console.log('Processing Complete', stateId, queueKey, frameIds);
-      this.processing.splice(processingIndex, 1);
-    }
+    this.removeProcessing(stateId, queueKey);
+    console.log('Processing Complete', stateId, queueKey, frameIds);
     const anyIncomplete = this.hasProcessing(stateId);
     console.log(`anyIncomplete:${anyIncomplete}`);
 

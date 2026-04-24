@@ -109,14 +109,15 @@ This service does not replace full model registry solutions and has the followin
 ## Learn More
 
 - [**Get Started Guide**](./get-started.md)
-- [**API Reference**](./api-docs/openapi.yaml)
+- [**API Reference**](./api-reference.md)
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
-get-started
-running-tests
+./get-started.md
+./running-tests.md
+./api-reference.md
 Release Notes <./release-notes.md>
 
 :::

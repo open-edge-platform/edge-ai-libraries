@@ -5774,5 +5774,364 @@ class TestInjectMetadataFilePaths(unittest.TestCase):
         self.assertEqual(graph.nodes[3].data, {})
 
 
+class TestApplyStreamIdentifiers(unittest.TestCase):
+    """Test cases for Graph.apply_stream_identifiers method."""
+
+    def test_linear_pipeline_names_source_and_sink(self):
+        """Source and main-branch sink get deterministic names; stream_id is returned."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result, source_name, sink_name, stream_id = graph.apply_stream_identifiers(1, 2)
+
+        self.assertEqual(source_name, "src_p1_s2")
+        self.assertEqual(sink_name, "sink_p1_s2")
+        self.assertEqual(stream_id, "src_p1_s2__sink_p1_s2")
+        # Source node and main-branch sink node get their `name` set.
+        self.assertEqual(result.nodes[0].data.get("name"), "src_p1_s2")
+        self.assertEqual(result.nodes[2].data.get("name"), "sink_p1_s2")
+        # Intermediate node untouched.
+        self.assertNotIn("name", result.nodes[1].data)
+        # Original graph is not mutated (deep copy semantics).
+        self.assertNotIn("name", graph.nodes[0].data)
+        self.assertNotIn("name", graph.nodes[2].data)
+
+    def test_tee_branch_sinks_are_not_renamed(self):
+        """Only the main-branch terminal sink is named; tee-branch sinks stay untouched."""
+        # Layout:
+        #   filesrc -> tee -> queue -> fakesink (MAIN BRANCH; first outgoing edge of tee)
+        #                  `-> queue2 -> fakesink2 (TEE BRANCH)
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(id="2", type="queue", data={}),
+                Node(id="3", type="fakesink", data={}),  # main-branch sink
+                Node(id="4", type="queue", data={}),
+                Node(
+                    id="5", type="fakesink", data={"name": "branch_sink"}
+                ),  # tee branch
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                # First outgoing edge of the tee = main branch
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                # Second outgoing edge of the tee = tee branch
+                Edge(id="3", source="1", target="4"),
+                Edge(id="4", source="4", target="5"),
+            ],
+        )
+
+        result, _, sink_name, _ = graph.apply_stream_identifiers(0, 0)
+
+        # Main-branch sink got the new name.
+        main_sink = next(n for n in result.nodes if n.id == "3")
+        self.assertEqual(main_sink.data.get("name"), sink_name)
+
+        # Tee-branch sink kept its original name, unchanged.
+        tee_sink = next(n for n in result.nodes if n.id == "5")
+        self.assertEqual(tee_sink.data.get("name"), "branch_sink")
+
+    def test_output_placeholder_sink_is_not_renamed_in_graph(self):
+        """When main terminal is OUTPUT_PLACEHOLDER, no `name` is written to the graph."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type=OUTPUT_PLACEHOLDER, data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        result, source_name, sink_name, stream_id = graph.apply_stream_identifiers(0, 0)
+
+        # Source is named, placeholder stays clean.
+        self.assertEqual(result.nodes[0].data.get("name"), source_name)
+        self.assertNotIn("name", result.nodes[1].data)
+        # Sink name is still computed and returned so the caller can inject it
+        # into the expanded output subpipeline.
+        self.assertEqual(sink_name, "sink_p0_s0")
+        self.assertEqual(stream_id, f"{source_name}__{sink_name}")
+
+    def test_names_are_unique_across_streams(self):
+        """Different pipeline/stream indices produce different stream_ids."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+
+        seen: set[str] = set()
+        for pi in range(2):
+            for si in range(3):
+                _, _, _, stream_id = graph.apply_stream_identifiers(pi, si)
+                self.assertNotIn(stream_id, seen)
+                seen.add(stream_id)
+
+        self.assertEqual(len(seen), 6)
+
+    def test_existing_source_name_is_overwritten(self):
+        """If source already has a `name`, it is replaced (tracer needs deterministic value)."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"name": "old_src"}),
+                Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+
+        result, source_name, sink_name, _ = graph.apply_stream_identifiers(3, 4)
+
+        self.assertEqual(result.nodes[0].data["name"], source_name)
+        self.assertEqual(result.nodes[0].data["name"], "src_p3_s4")
+        # The "default_output_sink" marker is overwritten, which is
+        # acceptable here because `prepare_main_output_placeholder` is always
+        # run first (for stream 0). For other streams, the tracer-unique name
+        # is exactly what is expected on the main sink.
+        self.assertEqual(result.nodes[1].data["name"], sink_name)
+        self.assertEqual(result.nodes[1].data["name"], "sink_p3_s4")
+
+    def test_empty_graph_raises(self):
+        """Empty graph cannot produce a source, so the method raises."""
+        graph = Graph(nodes=[], edges=[])
+        with self.assertRaises(ValueError):
+            graph.apply_stream_identifiers(0, 0)
+
+    def test_multiple_start_nodes_picks_smallest_id(self):
+        """When multiple sources exist, the smallest id is used, matching to_pipeline_description ordering."""
+        # Two independent chains: 0 -> 1 and 2 -> 3
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+                Node(id="2", type="filesrc", data={"location": "b.mp4"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        result, source_name, sink_name, _ = graph.apply_stream_identifiers(0, 0)
+
+        # Chain that starts at id="0" is the one selected (smallest start id).
+        self.assertEqual(result.nodes[0].data.get("name"), source_name)
+        self.assertEqual(result.nodes[1].data.get("name"), sink_name)
+        # The second chain is left untouched.
+        self.assertNotIn("name", result.nodes[2].data)
+        self.assertNotIn("name", result.nodes[3].data)
+
+    def test_placeholder_on_non_first_tee_branch_is_selected_as_main_sink(self):
+        """
+        When the OUTPUT_PLACEHOLDER is on a non-first tee branch
+        (e.g. recorder pipelines where the inline branch ends in an
+        intermediate splitmuxsink and the user-facing output is on the
+        second tee branch), the placeholder — not the inline-branch
+        terminal — must be selected as the main sink. Otherwise the
+        inline splitmuxsink would receive the stream sink name and the
+        caller would then inject the same name into the expanded output
+        subpipeline, producing two elements with identical names.
+        """
+        # Layout:
+        #   filesrc -> tee -> queue -> splitmuxsink  (inline / first branch,
+        #                                              intermediate recorder)
+        #                  `-> queue2 -> OUTPUT_PLACEHOLDER  (second branch,
+        #                                                     user-facing output)
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(id="2", type="queue", data={}),
+                Node(
+                    id="3",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/intermediate.mp4"},
+                ),
+                Node(id="4", type="queue", data={}),
+                Node(id="5", type=OUTPUT_PLACEHOLDER, data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                # First outgoing edge of the tee = inline/intermediate branch
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                # Second outgoing edge of the tee = user-facing output branch
+                Edge(id="3", source="1", target="4"),
+                Edge(id="4", source="4", target="5"),
+            ],
+        )
+
+        result, source_name, sink_name, _ = graph.apply_stream_identifiers(0, 0)
+
+        # Source is named as usual.
+        source = next(n for n in result.nodes if n.id == "0")
+        self.assertEqual(source.data.get("name"), source_name)
+
+        # The intermediate splitmuxsink on the inline branch MUST NOT be
+        # renamed to the stream sink name.
+        splitmux = next(n for n in result.nodes if n.id == "3")
+        self.assertNotIn("name", splitmux.data)
+        self.assertNotEqual(splitmux.data.get("name"), sink_name)
+
+        # The placeholder stays clean (caller injects the name into the
+        # expanded output subpipeline) but is what the returned sink_name
+        # refers to.
+        placeholder = next(n for n in result.nodes if n.id == "5")
+        self.assertEqual(placeholder.type, OUTPUT_PLACEHOLDER)
+        self.assertNotIn("name", placeholder.data)
+        self.assertEqual(sink_name, "sink_p0_s0")
+
+    def test_multiple_placeholders_raise(self):
+        """More than one OUTPUT_PLACEHOLDER is ambiguous and must be rejected."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(id="2", type=OUTPUT_PLACEHOLDER, data={}),
+                Node(id="3", type=OUTPUT_PLACEHOLDER, data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="1", target="3"),
+            ],
+        )
+
+        with self.assertRaises(ValueError):
+            graph.apply_stream_identifiers(0, 0)
+
+    def test_default_output_sink_on_non_first_tee_branch_is_selected(self):
+        """
+        For streams without OUTPUT_PLACEHOLDER (stream_index > 0 or
+        output_mode=disabled), when the user-facing output fakesink is
+        marked with `name=default_output_sink` AND sits on a non-first tee
+        branch (inline branch terminates at an intermediate splitmuxsink),
+        the method must select the `default_output_sink` fakesink — NOT
+        the intermediate splitmuxsink on the inline branch.
+        """
+        # Layout:
+        #   filesrc -> tee -> queue -> splitmuxsink      (inline / first branch,
+        #                                                  intermediate recorder)
+        #                  `-> queue2 -> fakesink        (second branch,
+        #                                                  user-facing output)
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(id="2", type="queue", data={}),
+                Node(
+                    id="3",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/intermediate.mp4"},
+                ),
+                Node(id="4", type="queue", data={}),
+                Node(
+                    id="5",
+                    type="fakesink",
+                    data={"name": "default_output_sink"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="1", target="4"),
+                Edge(id="4", source="4", target="5"),
+            ],
+        )
+
+        result, _, sink_name, _ = graph.apply_stream_identifiers(0, 1)
+
+        # Main sink = default_output_sink fakesink on the second tee branch.
+        main_sink = next(n for n in result.nodes if n.id == "5")
+        self.assertEqual(main_sink.data.get("name"), sink_name)
+
+        # Intermediate splitmuxsink keeps its data and is NOT renamed.
+        splitmux = next(n for n in result.nodes if n.id == "3")
+        self.assertNotIn("name", splitmux.data)
+        self.assertEqual(splitmux.data.get("location"), "/tmp/intermediate.mp4")
+
+    def test_multiple_default_output_sinks_raise(self):
+        """Two fakesinks named `default_output_sink` are ambiguous and rejected."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(
+                    id="2",
+                    type="fakesink",
+                    data={"name": "default_output_sink"},
+                ),
+                Node(
+                    id="3",
+                    type="fakesink",
+                    data={"name": "default_output_sink"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="1", target="3"),
+            ],
+        )
+
+        with self.assertRaises(ValueError):
+            graph.apply_stream_identifiers(0, 0)
+
+    def test_single_fakesink_without_name_is_selected(self):
+        """
+        When there is no placeholder and no `default_output_sink` marker
+        but exactly one fakesink exists, that fakesink is the main sink
+        — mirroring `prepare_main_output_placeholder`'s auto-pick rule.
+        """
+        # Layout: filesrc -> tee -> queue -> splitmuxsink (inline)
+        #                         `-> queue2 -> fakesink (no name)
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(id="2", type="queue", data={}),
+                Node(
+                    id="3",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/intermediate.mp4"},
+                ),
+                Node(id="4", type="queue", data={}),
+                Node(id="5", type="fakesink", data={}),  # unnamed, sole fakesink
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="1", target="4"),
+                Edge(id="4", source="4", target="5"),
+            ],
+        )
+
+        result, _, sink_name, _ = graph.apply_stream_identifiers(0, 0)
+
+        # The single fakesink on the second tee branch is chosen.
+        main_sink = next(n for n in result.nodes if n.id == "5")
+        self.assertEqual(main_sink.data.get("name"), sink_name)
+
+        # Inline splitmuxsink is not renamed.
+        splitmux = next(n for n in result.nodes if n.id == "3")
+        self.assertNotIn("name", splitmux.data)
+
+
 if __name__ == "__main__":
     unittest.main()

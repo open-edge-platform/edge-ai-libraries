@@ -10,13 +10,25 @@ global:
 
   # huggingfaceToken should be set during installation if gated models need to be accessed.
   huggingfaceToken: ""
-  # llmName is the Large Language Model used by OVMS
+  # vlmName is the Vision-Language Model used by OVMS for captioning.
+  vlmName: ""
+  # llmName is optional when OVMS serves a separate summarization model.
   llmName: ""
 
   proxy:
     no_proxy:
     http_proxy:
     https_proxy:
+
+  # Per-service device configuration (inherited from parent chart)
+  devices:
+    ovms:
+      vlm:
+        device: CPU
+        key: ""
+      llm:
+        device: CPU
+        key: ""
 
 # claimSize is the storage size claimed by PVC if usePvc is set to true.
 # claimSize should be set based on the size of models and files expected to be stored.
@@ -26,8 +38,8 @@ ovms:
   name: ovms
   image:
     repository: openvino/model_server
-    tag: "2025.3"
-    Gputag: "2025.3-gpu"
+    tag: "2026.1"
+    Gputag: "2026.1-gpu"
     pullPolicy: IfNotPresent
 
   containerPort: 8300   # Port on which container application listens internally
@@ -39,7 +51,12 @@ ovms:
   group_add: $(stat -c "%g" /dev/dri/render*)
   # scriptconfigmap: ovms-configmap.yaml
   env:
-    WEIGHT_FORMAT: "fp16"
+    # Weight format for model quantization.
+    # Values: fp16, int8, int4, nf4
+    # If not set, auto-detected based on device (GPU/NPU → int4, CPU → int8)
+    LLM_WEIGHT_FORMAT: ""
+    VLM_WEIGHT_FORMAT: ""
+    ALLOWED_MEDIA_DOMAINS: "minio-server,localhost"
     model_directory_name: "converted_model"
   script:
     name: "ovms-model-preparation"

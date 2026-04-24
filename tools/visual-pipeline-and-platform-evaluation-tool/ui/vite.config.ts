@@ -28,6 +28,12 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: true,
         },
+        "/api/v1/metrics": {
+          target: env.VITE_METRICS_URL || "http://localhost:9090",
+          changeOrigin: true,
+          secure: false,
+          ws: false,
+        },
         "/model-download": {
           target: env.VITE_MODEL_DOWNLOAD_URL || "http://localhost:8000",
           changeOrigin: true,
@@ -42,7 +48,7 @@ export default defineConfig(({ mode }) => {
           ws: false,
         },
         "/metrics/ws": {
-          target: env.VITE_API_URL || "http://localhost:7860",
+          target: env.VITE_METRICS_URL || "http://localhost:9090",
           changeOrigin: true,
           secure: false,
           ws: true,

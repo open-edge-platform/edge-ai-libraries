@@ -94,6 +94,15 @@ Open another terminal and send the following curl request
 }'
 ```
 
+> **Note:** When using a custom `gvawatermark` configuration (e.g., `displ-cfg=show-roi=...` or `displ-cfg=hide-roi=...`) in your pipeline, set `"overlay": false` in the frame destination to prevent the RTSP stream from adding a second `gvawatermark` with default settings that overrides your filtering configuration:
+> ```json
+> "frame": {
+>     "type": "rtsp",
+>     "path": "pallet-defect-detection",
+>     "overlay": false
+> }
+> ```
+
 The REST request will return a pipeline instance ID, which can be used as an identifier to query later the pipeline status or stop the pipeline instance. For example, a6d67224eacc11ec9f360242c0a86003.
 
 - To view the metadata, open another terminal and run the following command,

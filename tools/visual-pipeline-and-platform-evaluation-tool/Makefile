@@ -6,7 +6,7 @@ SHELL := bash -eu -o pipefail
 # default goal to show help
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
-	shell shell-vippet shell-models shell-model-download shell-collector shell-videogenerator stop clean clean-output-videos help \
+	shell shell-vippet shell-models shell-model-download shell-metrics-service shell-videogenerator stop clean clean-output-videos help \
 	build-videogenerator build-models build-onvif-discovery docker-build env-setup \
 	install-models-once install-models-force install-models-all \
 	test-smoke test-full
@@ -67,7 +67,7 @@ generate_openapi: $(VENV_DIR) ## Generate OpenAPI schema file
 	PYTHONPATH=. SUPPORTED_MODELS_FILE=../shared/models/supported_models.yaml INPUT_VIDEO_DIR=../shared/videos/input python ../generate_openapi.py
 
 env-setup: ## Environment setup target: always run before build/run targets that need .env and shared dirs
-	mkdir -p shared/collector-signals && chmod o+w shared/collector-signals
+	mkdir -p shared/metadata && chmod o+w shared/metadata
 	mkdir -p shared/models/output && chmod o+w shared/models/output
 	mkdir -p shared/model-download/venv && chmod o+w shared/model-download/venv
 	mkdir -p shared/model-download/cache && chmod o+w shared/model-download/cache
@@ -76,10 +76,10 @@ env-setup: ## Environment setup target: always run before build/run targets that
 	mkdir -p shared/videos/video-generator && chmod o+w shared/videos/video-generator
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-collector, vippet-ui)
+build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
 
-build-dev: env-setup ## Build core dev images (vippet-app, vippet-collector, vippet-ui)
+build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onvif-discovery)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
 
 build-videogenerator: env-setup ## Build videogenerator image
@@ -143,17 +143,17 @@ shell-models: ## Open shell in models container
 shell-model-download: ## Open shell in model-download container
 	$(MAKE) shell SERVICE=model-download
 
-shell-collector: ## Open shell in collector container
-	$(MAKE) shell SERVICE=collector
+shell-metrics-service: ## Open shell in metrics-service container
+	$(MAKE) shell SERVICE=metrics-service
 
 shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop the docker compose services
-	docker compose down models model-download collector videogenerator mediamtx vippet-ui vippet onvif-discovery
+	docker compose down models model-download metrics-service videogenerator mediamtx vippet-ui vippet onvif-discovery
 
 clean: ## Clean all build artifacts
-	rm -rf shared/collector-signals shared/models/output/ shared/model-download/ shared/onvif/onvif_cameras.json shared/videos/input shared/videos/output shared/videos/video-generator
+	rm -rf shared/models/output/ shared/model-download/ shared/onvif/onvif_cameras.json shared/videos/input shared/videos/output shared/videos/video-generator
 
 clean-output-videos: ## Clean only output videos
 	rm -rf shared/videos/output/*

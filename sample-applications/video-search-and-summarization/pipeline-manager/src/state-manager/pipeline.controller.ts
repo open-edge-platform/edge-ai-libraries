@@ -3,8 +3,9 @@
 import { Controller, Get, Req } from '@nestjs/common';
 import { ChunkingService } from './queues/chunking.service';
 import { EvamService } from 'src/evam/services/evam.service';
-import { ApiOkResponse } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Pipeline')
 @Controller('pipeline')
 export class PipelineController {
   constructor(
@@ -13,6 +14,7 @@ export class PipelineController {
   ) {}
 
   @Get('frames')
+  @ApiOperation({ summary: 'Get frame pipeline status' })
   @ApiOkResponse({
     description: 'Get the current status of the frame processing pipeline',
   })
@@ -24,6 +26,7 @@ export class PipelineController {
   }
 
   @Get('evam')
+  @ApiOperation({ summary: 'Get EVAM pipeline status' })
   @ApiOkResponse({ description: 'Get the current status of the EVAM pipeline' })
   getEvamPipeline() {
     return { chunkingInProgress: this.$evam.inProgress };

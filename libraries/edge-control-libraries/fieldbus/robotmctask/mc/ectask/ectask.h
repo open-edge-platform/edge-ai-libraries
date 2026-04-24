@@ -1,3 +1,7 @@
+#pragma once
+
+#include <functional>
+
 #include <motionentry.h>
 #include <shmringbuf.h>
 #include "ecservo.h"

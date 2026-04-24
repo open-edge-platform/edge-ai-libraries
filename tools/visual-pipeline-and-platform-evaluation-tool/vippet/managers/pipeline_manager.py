@@ -1,6 +1,7 @@
 import logging
 import threading
 from copy import deepcopy
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
 
@@ -13,6 +14,7 @@ from internal_types import (
     InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
     InternalPipelineSource,
+    InternalStreamInfo,
     InternalVariant,
 )
 from pipelines.loader import PipelineLoader
@@ -27,6 +29,68 @@ from videos import OUTPUT_VIDEO_DIR
 from managers.metadata_manager import METADATA_DIR
 
 logger = logging.getLogger("pipeline_manager")
+
+
+@dataclass
+class PipelineCommand:
+    """
+    Result bundle returned by :meth:`PipelineManager.build_pipeline_command`.
+
+    Groups all outputs in a single object so callers use attribute
+    access and the public signature stays stable as fields are added.
+
+    Attributes:
+        command: Complete, ready-to-run GStreamer ``gst-launch``-style
+            pipeline description string covering every pipeline and
+            every stream of the test.
+        video_output_paths: Mapping from pipeline id to that pipeline's
+            output directory path. Empty when no pipeline produces
+            video files (e.g. ``output_mode=disabled``).
+        live_stream_urls: Mapping from pipeline id to its RTSP live
+            stream URL. Only populated when
+            ``output_mode=live_stream``. Empty for density tests,
+            which do not support live streaming.
+        metadata_file_paths: Mapping from pipeline id to the list of
+            ``gvametapublish`` JSON-Lines file paths (one per
+            ``gvametapublish`` element) injected into the pipeline
+            when ``metadata_mode=file``. Empty otherwise.
+        streams_per_pipeline: Mapping from pipeline id to the list of
+            :class:`InternalStreamInfo` records describing every
+            running stream of that pipeline, in creation order. Each
+            entry carries the exact ``source_name``/``sink_name``
+            applied to the main source/sink pair of the stream —
+            these are the values external tracers (e.g. DLStreamer
+            ``latency_tracer``) will report, so they act as the
+            correlation key between tracer rows and streams.
+    """
+
+    command: str
+    video_output_paths: dict[str, str] = field(default_factory=dict)
+    live_stream_urls: dict[str, str] = field(default_factory=dict)
+    metadata_file_paths: dict[str, list[str]] = field(default_factory=dict)
+    streams_per_pipeline: dict[str, list[InternalStreamInfo]] = field(
+        default_factory=dict
+    )
+
+    @property
+    def all_stream_ids(self) -> list[str]:
+        """
+        Return every ``stream_id`` declared by this command, flat.
+
+        The returned list preserves pipeline order and, within each
+        pipeline, stream creation order. It is the exhaustive set of
+        identifiers that external tracers are expected to report for
+        this run; any row they emit with a ``stream_id`` outside this
+        list refers to an element that is NOT one of the
+        user-facing source/sink pairs (internal bin sinks, the
+        intermediate ``splitmuxsink`` recorder, and similar) and must
+        be ignored.
+        """
+        return [
+            info.stream_id
+            for infos in self.streams_per_pipeline.values()
+            for info in infos
+        ]
 
 
 class PipelineManager:
@@ -405,7 +469,7 @@ class PipelineManager:
         pipeline_performance_specs: list[InternalPipelinePerformanceSpec],
         execution_config: InternalExecutionConfig,
         job_id: str,
-    ) -> tuple[str, dict[str, str], dict[str, str], dict[str, list[str]]]:
+    ) -> PipelineCommand:
         """
         Build a complete executable GStreamer pipeline command from internal specifications.
 
@@ -425,10 +489,10 @@ class PipelineManager:
             job_id: Unique job identifier used for directory naming and stream names.
 
         Returns:
-            tuple: (Complete GStreamer command string,
-                    dictionary mapping pipeline IDs to their output directory paths,
-                    dictionary mapping pipeline IDs to live stream URLs,
-                    dictionary mapping pipeline IDs to their metadata file paths)
+            A :class:`PipelineCommand` bundle carrying the complete
+            pipeline string plus all per-pipeline side outputs
+            (video / live-stream / metadata / stream identifiers). See
+            :class:`PipelineCommand` for field semantics.
 
             Note: live_stream_urls will be empty for density tests since they do not
             support live-streaming output mode. The caller is responsible for validating
@@ -469,6 +533,15 @@ class PipelineManager:
         live_stream_urls: dict[str, str] = {}
         metadata_file_paths: dict[str, list[str]] = {}
         output_subpipeline: str | None = None
+
+        # Per-pipeline collection of streams. Each entry is a list of
+        # `InternalStreamInfo` objects — one per stream of that pipeline,
+        # in creation order. We keep source/sink names separate here
+        # because external tracers (latency_tracer) report them as
+        # separate tokens; the combined `stream_id` is exposed via the
+        # computed `InternalStreamInfo.stream_id` property and used as a
+        # key in the job's `latency_tracer_metrics` map.
+        streams_per_pipeline: dict[str, list[InternalStreamInfo]] = {}
 
         # Determine if we need looping behavior based on max_runtime
         # Looping is only supported for disabled and live_stream modes
@@ -565,8 +638,45 @@ class PipelineManager:
                 # Remove gvawatermark nodes when all sinks are fakesink (no real video output)
                 graph_instance = graph_instance.strip_watermark_if_all_sinks_are_fake()
 
+                # Assign explicit, unique element names to the main-branch
+                # source and sink BEFORE the generic "unify_all_element_names"
+                # rename. This lets us build a distinct `stream_id` per
+                # running stream that external tracers (latency_tracer) can
+                # use to correlate their rows. Tee-branch sinks are
+                # intentionally left untouched by this method.
+                (
+                    graph_instance,
+                    stream_source_name,
+                    stream_sink_name,
+                    _,
+                ) = graph_instance.apply_stream_identifiers(
+                    pipeline_index, stream_index
+                )
+
                 graph_instance = graph_instance.unify_all_element_names(
                     pipeline_index, stream_index
+                )
+
+                # `unify_all_element_names` appends `_{pipeline_index}_{stream_index}`
+                # to every `name`, so the effective source/sink names used in
+                # the final pipeline string are the suffixed versions. We
+                # recompute them here so downstream logic (output subpipeline
+                # injection below, and the InternalStreamInfo record for this
+                # stream) uses the exact final names.
+                final_source_name = (
+                    f"{stream_source_name}_{pipeline_index}_{stream_index}"
+                )
+                final_sink_name = f"{stream_sink_name}_{pipeline_index}_{stream_index}"
+
+                # Record this stream with its final, run-unique source/sink
+                # names. These names are exactly what the GStreamer
+                # subprocess sees, and therefore exactly what external
+                # tracers (latency_tracer) will report back to us.
+                streams_per_pipeline.setdefault(pipeline_id, []).append(
+                    InternalStreamInfo(
+                        source_name=final_source_name,
+                        sink_name=final_sink_name,
+                    )
                 )
 
                 unique_pipeline_str = graph_instance.to_pipeline_description()
@@ -582,17 +692,38 @@ class PipelineManager:
                         raise ValueError(
                             "Output subpipeline was not created as expected."
                         )
+                    # Inject the explicit sink name into the output subpipeline
+                    # so the terminal sink element (filesink / rtspclientsink)
+                    # carries a deterministic, stream-unique GStreamer name.
+                    # This preserves the stream_id correlation even when the
+                    # main sink is replaced by the encoder + writer subpipeline.
+                    output_subpipeline_with_name = (
+                        f"{output_subpipeline} name={final_sink_name}"
+                    )
                     unique_pipeline_str = unique_pipeline_str.replace(
-                        OUTPUT_PLACEHOLDER, output_subpipeline
+                        OUTPUT_PLACEHOLDER, output_subpipeline_with_name
                     )
 
                 pipeline_parts.append(unique_pipeline_str)
 
-        return (
-            " ".join(pipeline_parts),
-            video_output_paths,
-            live_stream_urls,
-            metadata_file_paths,
+        # TODO: Must be removed once the live metrics stream is in place
+        # Diagnostic summary so the stream-to-tracer correlation can be
+        # verified from the logs. Kept at INFO because it is printed once
+        # per run (not per sample).
+        if streams_per_pipeline:
+            lines = ["Stream identifiers per pipeline:"]
+            for pid, infos in streams_per_pipeline.items():
+                lines.append(f"  pipeline '{pid}' ({len(infos)} stream(s)):")
+                for info in infos:
+                    lines.append(f"    - {info.stream_id}")
+            logger.info("\n".join(lines))
+
+        return PipelineCommand(
+            command=" ".join(pipeline_parts),
+            video_output_paths=video_output_paths,
+            live_stream_urls=live_stream_urls,
+            metadata_file_paths=metadata_file_paths,
+            streams_per_pipeline=streams_per_pipeline,
         )
 
     def add_variant(

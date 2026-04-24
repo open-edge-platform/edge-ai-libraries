@@ -12,7 +12,7 @@ export interface SummaryPipelineSampling {
   frameOverlap: number;
   multiFrame: number;
 }
-class SummaryPipelineSamplingSwagger implements SummaryPipelineSampling {
+export class SummaryPipelineSamplingSwagger implements SummaryPipelineSampling {
   @ApiProperty({
     required: true,
     description: 'Duration for a chunk in seconds',
@@ -21,7 +21,7 @@ class SummaryPipelineSamplingSwagger implements SummaryPipelineSampling {
 
   @ApiProperty({
     required: true,
-    description: 'Start time of the video in seconds',
+    description: 'Number of frames to sample per chunk',
   })
   samplingFrame: number;
 
@@ -33,7 +33,7 @@ class SummaryPipelineSamplingSwagger implements SummaryPipelineSampling {
 
   @ApiProperty({
     required: true,
-    description: 'Multi frame count',
+    description: 'Multi frame count (batch size)',
   })
   multiFrame: number;
 }
@@ -139,5 +139,10 @@ export class SummaryPipelineDTOSwagger implements SummaryPipelineDTO {
 }
 
 export interface SummaryPipelinRO {
+  summaryPipelineId: string;
+}
+
+export class SummaryPipelineROSwagger implements SummaryPipelinRO {
+  @ApiProperty({ description: 'ID of the created summary pipeline state' })
   summaryPipelineId: string;
 }
