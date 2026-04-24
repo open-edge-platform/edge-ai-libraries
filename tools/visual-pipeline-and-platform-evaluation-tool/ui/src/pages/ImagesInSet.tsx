@@ -103,7 +103,7 @@ export function ImagesInSet() {
           </TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[30%]">File name</TableHead>
+              <TableHead className="w-[30%] truncate">File name</TableHead>
               <TableHead>Resolution</TableHead>
               <TableHead>Extension</TableHead>
               <TableHead>Size</TableHead>
@@ -113,7 +113,11 @@ export function ImagesInSet() {
           <TableBody>
             {images.map((image) => (
               <TableRow key={image.filename}>
-                <TableCell className="font-medium">{image.filename}</TableCell>
+                <TableCell className="font-medium max-w-0">
+                  <div className="truncate" title={image.filename}>
+                    {image.filename}
+                  </div>
+                </TableCell>
                 <TableCell>
                   {image.width && image.height
                     ? `${image.width}x${image.height}`
