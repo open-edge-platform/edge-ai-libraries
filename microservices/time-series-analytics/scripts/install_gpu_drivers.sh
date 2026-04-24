@@ -86,12 +86,9 @@ case $INSTALL_DRIVER_VERSION in \
 	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps && \
         curl --fail -L -O  https://github.com/intel/intel-graphics-compiler/releases/download/v2.32.7/intel-igc-core-2_2.32.7+21184_amd64.deb && \
         curl --fail -L -O  https://github.com/intel/intel-graphics-compiler/releases/download/v2.32.7/intel-igc-opencl-2_2.32.7+21184_amd64.deb && \
-        curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/intel-ocloc-dbgsym_26.14.37833.4-0_amd64.ddeb && \
         curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/intel-ocloc_26.14.37833.4-0_amd64.deb && \
-        curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/intel-opencl-icd-dbgsym_26.14.37833.4-0_amd64.ddeb && \
         curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/intel-opencl-icd_26.14.37833.4-0_amd64.deb && \
         curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/libigdgmm12_22.9.0_amd64.deb && \
-        curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/libze-intel-gpu1-dbgsym_26.14.37833.4-0_amd64.ddeb && \
         curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/libze-intel-gpu1_26.14.37833.4-0_amd64.deb && \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
