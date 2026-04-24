@@ -8,6 +8,7 @@ mode, providing unified interface for both production pipeline execution and
 pipeline validation.
 """
 
+import json
 import logging
 import os
 import re
@@ -16,6 +17,7 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.request
 from dataclasses import dataclass, field
 from subprocess import PIPE, Popen
 
@@ -141,8 +143,8 @@ class PipelineRunner:
     including timeout enforcement, output parsing, and error handling.
     """
 
-    # Default path to the FPS file
-    DEFAULT_FPS_FILE_PATH = "/home/dlstreamer/vippet/.collector-signals/fps.txt"
+    # Default metrics-service URL for pushing FPS metrics
+    DEFAULT_METRICS_SERVICE_URL = "http://metrics-service:9090"
 
     # ------------------------------------------------------------------
     # latency_tracer configuration
@@ -228,7 +230,6 @@ class PipelineRunner:
         mode: str = "normal",
         max_runtime: float = 0.0,
         poll_interval: int = 1,
-        fps_file_path: str | None = None,
         inactivity_timeout: int = 120,
         hard_timeout: int | None = None,
         enable_latency_metrics: bool = False,
@@ -245,8 +246,6 @@ class PipelineRunner:
                 - For validation mode: must be >0.
             poll_interval: Interval in seconds to poll the process for metrics
                 (only used in normal mode).
-            fps_file_path: Optional path to write latest FPS values for real-time
-                monitoring (only used in normal mode).
             inactivity_timeout: Max seconds to wait without new stdout/stderr logs
                 before treating the pipeline as hung and terminating it
                 (only used in normal mode).
@@ -263,9 +262,19 @@ class PipelineRunner:
         self.mode = mode
         self.max_runtime = max_runtime
         self.poll_interval = poll_interval
-        self.fps_file_path = fps_file_path or self.DEFAULT_FPS_FILE_PATH
         self.inactivity_timeout = inactivity_timeout
         self.hard_timeout = hard_timeout
+        # Resolve the metrics-service base URL once and pre-compute the
+        # full endpoint used by `_push_fps_metric`. Trailing slashes on
+        # the configured base are stripped so concatenation with the
+        # fixed path cannot produce `//api/v1/...`, which some proxies
+        # and routers treat as a distinct (and unmapped) path.
+        self.metrics_service_url = os.environ.get(
+            "METRICS_SERVICE_URL", self.DEFAULT_METRICS_SERVICE_URL
+        ).rstrip("/")
+        self._metrics_service_fps_url = (
+            f"{self.metrics_service_url}/api/v1/metrics/simple"
+        )
         self.enable_latency_metrics = enable_latency_metrics
         self.logger = logging.getLogger("PipelineRunner")
         self.logger_level = self._get_log_level()
@@ -618,8 +627,8 @@ class PipelineRunner:
 
                             latest_fps = result["per_stream_fps"]
 
-                            # Write latest FPS to file
-                            self._write_fps_to_file(latest_fps)
+                            # Push latest FPS to metrics-service
+                            self._push_fps_metric(latest_fps)
 
                         # ----------------------------------------------------------
                         # latency_tracer_pipeline_interval parsing
@@ -869,26 +878,35 @@ class PipelineRunner:
             self.logger.error(f"Pipeline execution error: {e}")
             raise
         finally:
-            # Always write 0.0 to FPS file after pipeline completion (success or failure)
-            self._write_fps_to_file(0.0)
+            # Push 0.0 to metrics-service after pipeline completion (success or failure)
+            self._push_fps_metric(0.0)
 
-    def _write_fps_to_file(self, fps: float) -> None:
+    def _push_fps_metric(self, fps: float) -> None:
         """
-        Write the given FPS value to the FPS file.
-
+        Push the given FPS value to metrics-service via REST API.
         This method is called:
-        - During pipeline execution to write current FPS metrics for monitoring
+        - During pipeline execution to report current FPS metrics for monitoring
         - After pipeline completion (with 0.0) to signal that pipeline is no longer running
-
         Args:
-            fps: FPS value to write to the file.
+            fps: FPS value to push.
         """
         try:
-            with open(self.fps_file_path, "w") as f:
-                f.write(f"{fps}\n")
-        except (OSError, IOError) as e:
+            data = json.dumps({"name": "fps", "value": fps}).encode()
+            req = urllib.request.Request(
+                self._metrics_service_fps_url,
+                data=data,
+                headers={"Content-Type": "application/json"},
+            )
+            # Use a context manager so the underlying socket / file
+            # descriptor is released deterministically after every POST,
+            # instead of waiting for GC to reclaim the response object.
+            with urllib.request.urlopen(req, timeout=1):
+                pass
+        except Exception as e:
             self.logger.warning(
-                "Failed to write FPS to file %s: %s", self.fps_file_path, e
+                "Failed to push FPS metric to %s: %s",
+                self._metrics_service_fps_url,
+                e,
             )
 
     def _parse_and_record_latency_sample(self, line: str) -> None:

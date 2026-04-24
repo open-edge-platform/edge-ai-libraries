@@ -22,6 +22,8 @@ import { LocalstoreService } from 'src/datastore/services/localstore.service';
 import { unlinkSync } from 'fs';
 import { AudioQueueService } from '../queues/audio-queue.service';
 import { AudioService } from 'src/audio/services/audio.service';
+import { VlmService } from 'src/language-model/services/vlm.service';
+import { LlmService } from 'src/language-model/services/llm.service';
 
 @Injectable()
 export class PipelineService {
@@ -34,6 +36,8 @@ export class PipelineService {
     private $audio: AudioService,
     private $chunking: ChunkingService,
     private $audioQueue: AudioQueueService,
+    private $vlm: VlmService,
+    private $llm: LlmService,
   ) {}
 
   @OnEvent(PipelineEvents.CHUNKING_COMPLETE)
@@ -128,6 +132,20 @@ export class PipelineService {
           stateId,
           this.$evam.getInferenceConfig(),
         );
+
+        // Pre-populate VLM and LLM inference configs so UI shows model info upfront
+        if (this.$vlm.serviceReady) {
+          this.$state.addImageInferenceConfig(
+            stateId,
+            this.$vlm.getInferenceConfig(),
+          );
+        }
+        if (this.$llm.serviceReady) {
+          this.$state.addTextInferenceConfig(
+            stateId,
+            this.$llm.getInferenceConfig(),
+          );
+        }
 
         if (res.data) {
           console.log(res.data);

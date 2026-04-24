@@ -1,13 +1,30 @@
 import itertools
+import json
 import signal
 import sys
 import unittest
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
 from pipeline_runner import (
     PipelineRunner,
     PipelineResult,
 )
+
+
+def _extract_pushed_fps_values(mock_urlopen: MagicMock) -> list[float]:
+    """Extract the `value` field from every JSON payload sent via urlopen.
+
+    Used by tests that verify FPS metrics are pushed to metrics-service
+    through `PipelineRunner._push_fps_metric` (which calls
+    `urllib.request.urlopen` with a JSON body of the form
+    `{"name": "fps", "value": <float>}`).
+    """
+    values: list[float] = []
+    for call in mock_urlopen.call_args_list:
+        req = call[0][0]
+        payload = json.loads(req.data.decode())
+        values.append(payload["value"])
+    return values
 
 
 def _make_process_mock(stdout_lines: list[str], exit_code: int = 0) -> MagicMock:
@@ -140,7 +157,6 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
             mode="normal",
             max_runtime=0,
             poll_interval=1,
-            fps_file_path="/tmp/fps.txt",
             inactivity_timeout=0,
         )
 
@@ -164,11 +180,11 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
     @patch("pipeline_runner.Popen")
     @patch("pipeline_runner.ps")
     @patch("pipeline_runner.select.select")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_run_pipeline_writes_zero_fps_on_completion(
-        self, mock_open_file, mock_select, mock_ps, mock_popen
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_run_pipeline_pushes_zero_fps_on_completion(
+        self, mock_urlopen, mock_select, mock_ps, mock_popen
     ):
-        """PipelineRunner should write 0.0 to FPS file after successful completion."""
+        """PipelineRunner should push 0.0 to metrics-service after successful completion."""
         process_mock = _make_process_mock(
             [
                 "FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps",
@@ -179,9 +195,7 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         if mock_ps is not None:
             mock_ps.Process.return_value.status.return_value = "zombie"
 
-        runner = PipelineRunner(
-            mode="normal", max_runtime=0, fps_file_path="/tmp/test_fps.txt"
-        )
+        runner = PipelineRunner(mode="normal", max_runtime=0)
         result = runner.run(
             pipeline_command=self.test_pipeline_command, total_streams=1
         )
@@ -189,65 +203,57 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertIsInstance(result, PipelineResult)
         self.assertEqual(result.total_fps, 100.0)
 
-        # Verify that current FPS (100.0) was written during execution
-        # and 0.0 was written at the end (in finally block)
-        write_calls = mock_open_file().write.call_args_list
-        fps_writes = [call[0][0] for call in write_calls]
+        # Verify that current FPS (100.0) was pushed during execution
+        # and 0.0 was pushed at the end (in finally block).
+        pushed = _extract_pushed_fps_values(mock_urlopen)
 
-        # Should have written the current FPS during execution
-        self.assertIn(
-            "100.0\n", fps_writes, "Current FPS should be written during execution"
-        )
+        self.assertIn(100.0, pushed, "Current FPS should be pushed during execution")
+        self.assertIn(0.0, pushed, "0.0 should be pushed after completion")
+        # Last push should be 0.0 (from finally block).
+        self.assertEqual(pushed[-1], 0.0, "Last FPS push should be 0.0")
 
-        # Should have written 0.0 at the end
-        self.assertIn("0.0\n", fps_writes, "0.0 should be written after completion")
-
-        # Last write should be 0.0 (from finally block)
-        self.assertEqual(fps_writes[-1], "0.0\n", "Last FPS write should be 0.0")
+        # Every request targets the metrics-service `/api/v1/metrics/simple` endpoint.
+        for call in mock_urlopen.call_args_list:
+            req = call[0][0]
+            self.assertTrue(req.full_url.endswith("/api/v1/metrics/simple"))
+            self.assertEqual(req.headers.get("Content-type"), "application/json")
 
     @patch("pipeline_runner.Popen")
     @patch("pipeline_runner.select.select")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_run_pipeline_writes_zero_fps_on_error(
-        self, mock_open_file, mock_select, mock_popen
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_run_pipeline_pushes_zero_fps_on_error(
+        self, mock_urlopen, mock_select, mock_popen
     ):
-        """PipelineRunner should write 0.0 to FPS file after pipeline failure."""
+        """PipelineRunner should push 0.0 to metrics-service after pipeline failure."""
         process_mock = _make_process_mock([], exit_code=1)
         process_mock.stderr.readline.side_effect = itertools.repeat(b"")
         mock_select.return_value = ([], [], [])
         mock_popen.return_value = process_mock
 
-        runner = PipelineRunner(
-            mode="normal", max_runtime=0, fps_file_path="/tmp/test_fps.txt"
-        )
+        runner = PipelineRunner(mode="normal", max_runtime=0)
 
         with self.assertRaises(RuntimeError):
             runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
 
-        # Verify that 0.0 was written to FPS file (in finally block) even on error
-        write_calls = [
-            call
-            for call in mock_open_file().write.call_args_list
-            if call[0][0] == "0.0\n"
-        ]
+        # Verify that 0.0 was pushed exactly once (finally block) even on error.
+        pushed = _extract_pushed_fps_values(mock_urlopen)
         self.assertEqual(
-            len(write_calls),
+            pushed.count(0.0),
             1,
-            "0.0 should be written exactly once to FPS file after pipeline error",
+            "0.0 should be pushed exactly once to metrics-service after pipeline error",
         )
 
     @patch("pipeline_runner.Popen")
     @patch("pipeline_runner.select.select")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_pipeline_hang_writes_zero_fps_before_raising(
-        self, mock_open_file, mock_select, mock_popen
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_pipeline_hang_pushes_zero_fps_before_raising(
+        self, mock_urlopen, mock_select, mock_popen
     ):
-        """PipelineRunner should write 0.0 to FPS file when raising inactivity timeout error."""
+        """PipelineRunner should push 0.0 to metrics-service when raising inactivity timeout error."""
         runner = PipelineRunner(
             mode="normal",
             max_runtime=0,
             poll_interval=1,
-            fps_file_path="/tmp/test_fps.txt",
             inactivity_timeout=0,
         )
 
@@ -266,22 +272,18 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
 
         self.assertIn("inactivity timeout", str(ctx.exception))
 
-        # Verify that 0.0 was written to FPS file (in finally block)
-        write_calls = [
-            call
-            for call in mock_open_file().write.call_args_list
-            if call[0][0] == "0.0\n"
-        ]
+        # Verify that 0.0 was pushed exactly once (finally block).
+        pushed = _extract_pushed_fps_values(mock_urlopen)
         self.assertEqual(
-            len(write_calls),
+            pushed.count(0.0),
             1,
-            "0.0 should be written exactly once to FPS file after timeout error",
+            "0.0 should be pushed exactly once to metrics-service after timeout error",
         )
 
     @patch("pipeline_runner.Popen")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_stop_pipeline_writes_zero_fps(self, mock_open_file, mock_popen):
-        """PipelineRunner should write 0.0 to FPS file when cancelled."""
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_stop_pipeline_pushes_zero_fps(self, mock_urlopen, mock_popen):
+        """PipelineRunner should push 0.0 to metrics-service when cancelled."""
         process_mock = MagicMock()
         # First poll() returns None (main loop: process running),
         # second poll() returns None (_graceful_terminate: still running).
@@ -294,9 +296,7 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         process_mock.communicate.return_value = (b"", b"")
         mock_popen.return_value = process_mock
 
-        runner = PipelineRunner(
-            mode="normal", max_runtime=0, fps_file_path="/tmp/test_fps.txt"
-        )
+        runner = PipelineRunner(mode="normal", max_runtime=0)
         runner.cancel()
         result = runner.run(
             pipeline_command=self.test_pipeline_command, total_streams=1
@@ -305,16 +305,44 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertTrue(runner.is_cancelled())
         self.assertIsInstance(result, PipelineResult)
 
-        # Verify that 0.0 was written to FPS file (in finally block) after cancellation
-        write_calls = [
-            call
-            for call in mock_open_file().write.call_args_list
-            if call[0][0] == "0.0\n"
-        ]
+        # Verify that 0.0 was pushed exactly once (finally block) after cancellation.
+        pushed = _extract_pushed_fps_values(mock_urlopen)
         self.assertEqual(
-            len(write_calls),
+            pushed.count(0.0),
             1,
-            "0.0 should be written exactly once to FPS file after cancellation",
+            "0.0 should be pushed exactly once to metrics-service after cancellation",
+        )
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_fps_metric_uses_configured_url(self, mock_urlopen):
+        """`_push_fps_metric` must POST JSON to `{METRICS_SERVICE_URL}/api/v1/metrics/simple`."""
+        with patch.dict(
+            "os.environ", {"METRICS_SERVICE_URL": "http://example:1234"}, clear=False
+        ):
+            runner = PipelineRunner(mode="normal", max_runtime=0)
+
+        runner._push_fps_metric(42.5)
+
+        mock_urlopen.assert_called_once()
+        req = mock_urlopen.call_args[0][0]
+        self.assertEqual(req.full_url, "http://example:1234/api/v1/metrics/simple")
+        payload = json.loads(req.data.decode())
+        self.assertEqual(payload, {"name": "fps", "value": 42.5})
+        self.assertEqual(req.headers.get("Content-type"), "application/json")
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_fps_metric_swallows_network_errors(self, mock_urlopen):
+        """Network errors while pushing FPS must be logged but not raised."""
+        mock_urlopen.side_effect = OSError("boom")
+
+        runner = PipelineRunner(mode="normal", max_runtime=0)
+
+        # Must not raise — pipeline execution cannot be impacted by telemetry failures.
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            runner._push_fps_metric(1.0)
+
+        self.assertTrue(
+            any("Failed to push FPS metric" in line for line in captured.output)
         )
 
 

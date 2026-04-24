@@ -17,7 +17,7 @@ export RABBITMQ_CONFIG=${CONFIG_DIR}/rmq.conf
 # Function to stop Docker containers
 stop_containers() {
     echo -e "${YELLOW}Bringing down the Docker containers... ${NC}"
-    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.vllm.yaml -f docker/compose.search.yaml -f docker/compose.telemetry.yaml --profile ovms --profile vlm-ov --profile vllm down
+    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.vllm.yaml -f docker/compose.search.yaml -f docker/compose.telemetry.yaml --profile ovms --profile vllm down
     if [ $? -ne 0 ]; then
         echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
         return 1
@@ -114,28 +114,10 @@ export TAG=${TAG:-latest}
 export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 echo -e "${GREEN}Using registry: ${YELLOW}$REGISTRY ${NC}"
 
-# env for vlm-openvino-serving
-export VLM_HOST_PORT=9766
 export VLM_MODEL_NAME=${VLM_MODEL_NAME}
-export VLM_COMPRESSION_WEIGHT_FORMAT=int8
-export VLM_DEVICE=CPU
-export VLM_SEED=42
-export WORKERS=${WORKERS:-6}
-export VLM_LOG_LEVEL=${VLM_LOG_LEVEL:-info}
-export VLM_MAX_COMPLETION_TOKENS=${VLM_MAX_COMPLETION_TOKENS}
-export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
-export VLM_TELEMETRY_PATH=${VLM_TELEMETRY_PATH:-/opt/vlm_telemetry.jsonl}
-
-if [ -z "$VLM_TELEMETRY_MAX_RECORDS" ]; then
-    export VLM_TELEMETRY_MAX_RECORDS=100
-elif ! [[ "$VLM_TELEMETRY_MAX_RECORDS" =~ ^[0-9]+$ ]] || [ "$VLM_TELEMETRY_MAX_RECORDS" -le 0 ]; then
-    echo -e "[vlm-openvino-serving] ${YELLOW}Invalid VLM_TELEMETRY_MAX_RECORDS: ${VLM_TELEMETRY_MAX_RECORDS}. Using default 100.${NC}"
-    export VLM_TELEMETRY_MAX_RECORDS=100
-fi
-
-export VLM_TELEMETRY_MAX_RECORDS=$VLM_TELEMETRY_MAX_RECORDS
-export VLM_HOST=vlm-openvino-serving
-export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
+export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-int8}
+export VLM_TARGET_DEVICE=${VLM_TARGET_DEVICE:-CPU}
+export USE_VLLM=${USE_VLLM:-CONFIG_OFF}
 export ENABLE_VLLM=${ENABLE_VLLM:-false}
 export VLLM_HOST=vllm-cpu-service
 export VLLM_HOST_PORT=${VLLM_HOST_PORT:-8200}
@@ -145,51 +127,26 @@ export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 
-# Set VLM_OPENVINO_LOG_LEVEL based on VLM_LOG_LEVEL
-# OpenVINO log levels: 0=NO, 1=ERR, 2=WARNING, 3=INFO, 4=DEBUG, 5=TRACE
-case "${VLM_LOG_LEVEL}" in
-    "debug")
-        export VLM_OPENVINO_LOG_LEVEL=4  # DEBUG
-        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
-        ;;
-    "info")
-        export VLM_OPENVINO_LOG_LEVEL=0  # INFO
-        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
-        ;;
-    "warning")
-        export VLM_OPENVINO_LOG_LEVEL=2  # WARNING
-        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
-        ;;
-    "error")
-        export VLM_OPENVINO_LOG_LEVEL=1  # ERR
-        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
-        ;;
-    *)
-        export VLM_OPENVINO_LOG_LEVEL=0  # INFO (default)
-        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
-        ;;
-esac
-
-# OpenVINO Configuration (optional)
-# OV_CONFIG allows you to pass OpenVINO configuration parameters as a JSON string
-# If not set, the default configuration will be: {"PERFORMANCE_HINT": "LATENCY"}
-if [ -n "$OV_CONFIG" ]; then
-    export OV_CONFIG=$OV_CONFIG
-    echo -e "[vlm-openvino-serving] ${GREEN}Using custom OpenVINO configuration: ${YELLOW}$OV_CONFIG${NC}"
-else
-    unset OV_CONFIG
-    # Default configuration will be handled by the VLM service
-    echo -e "[vlm-openvino-serving] ${GREEN}Using default OpenVINO configuration: ${YELLOW}{\"PERFORMANCE_HINT\": \"LATENCY\"}${NC}"
-fi
-
 # env for pipeline-manager
 export PM_HOST_PORT=3001
 export PM_HOST=pipeline-manager
-export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=4000
-export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
+export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=${PM_SUMMARIZATION_MAX_COMPLETION_TOKENS:-4000}
+PM_CAPTIONING_MAX_COMPLETION_TOKENS_DEFAULTED=false
+if [[ -z "${PM_CAPTIONING_MAX_COMPLETION_TOKENS+x}" ]]; then
+    export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
+    PM_CAPTIONING_MAX_COMPLETION_TOKENS_DEFAULTED=true
+fi
 export PM_LLM_MAX_CONTEXT_LENGTH=${PM_LLM_MAX_CONTEXT_LENGTH:-90000}
-export PM_LLM_CONCURRENT=2
-export PM_VLM_CONCURRENT=4
+PM_LLM_CONCURRENT_DEFAULTED=false
+if [[ -z "${PM_LLM_CONCURRENT+x}" ]]; then
+    export PM_LLM_CONCURRENT=2
+    PM_LLM_CONCURRENT_DEFAULTED=true
+fi
+PM_VLM_CONCURRENT_DEFAULTED=false
+if [[ -z "${PM_VLM_CONCURRENT+x}" ]]; then
+    export PM_VLM_CONCURRENT=4
+    PM_VLM_CONCURRENT_DEFAULTED=true
+fi
 PM_MULTI_FRAME_COUNT_DEFAULTED=false
 if [[ -z "${PM_MULTI_FRAME_COUNT+x}" ]]; then
     export PM_MULTI_FRAME_COUNT=12
@@ -198,9 +155,9 @@ fi
 export PM_MINIO_BUCKET=video-summary
 
 # env for ovms-service
-export LLM_DEVICE=CPU
-export LLM_MODEL_API="v1/models"
-export OVMS_LLM_MODEL_NAME=${OVMS_LLM_MODEL_NAME}
+export LLM_TARGET_DEVICE=${LLM_TARGET_DEVICE:-CPU}
+export LLM_MODEL_NAME=${LLM_MODEL_NAME:-${OVMS_LLM_MODEL_NAME}}
+export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-int8}
 export OVMS_HTTP_HOST_PORT=8300
 export OVMS_GRPC_HOST_PORT=9300
 export OVMS_HOST=ovms-service
@@ -238,6 +195,7 @@ export MINIO_CONSOLE_HOST_PORT=4002
 export MINIO_HOST=minio-service
 export MINIO_ROOT_USER=${MINIO_ROOT_USER} # Set this in your shell before running the script
 export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} # Set this in your shell before running the script
+export OVMS_ALLOWED_MEDIA_DOMAINS=${OVMS_ALLOWED_MEDIA_DOMAINS:-${MINIO_HOST},localhost}
 
 # env for vdms-vector-db
 export VDMS_VDB_HOST_PORT=55555
@@ -488,12 +446,6 @@ if [ "$1" != "--down" ] && [ "$1" != "--clean-data" ] && [ "$2" != "config" ]; t
         export EMBEDDING_MODEL_NAME=${TEXT_EMBEDDING_MODEL_NAME}
         echo "Using TEXT_EMBEDDING_MODEL_NAME to override EMBEDDING_MODEL_NAME for --all mode."
     fi
-    if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
-        if [ -z "$OVMS_LLM_MODEL_NAME" ]; then
-            echo -e "${RED}ERROR: OVMS_LLM_MODEL_NAME is not set in your shell environment.${NC}"
-            return
-        fi
-    fi
 fi
 
 # if only base environment variables are to be set without deploying application, exit here
@@ -519,6 +471,15 @@ if [ -d /dev/dri ] && [ "$(ls -A /dev/dri)" ]; then
 else
     export DRI_MOUNT_PATH="/dev/null"
     echo -e "${YELLOW}/dev/dri not found or empty, will mount /dev/null instead.${NC}"
+fi
+
+# Set ACCEL_MOUNT_PATH based on whether /dev/accel/accel0 exists (for NPU)
+if [ -e /dev/accel/accel0 ]; then
+    export ACCEL_MOUNT_PATH="/dev/accel/accel0"
+    echo -e "${GREEN}/dev/accel/accel0 found. NPU device available.${NC}"
+else
+    export ACCEL_MOUNT_PATH="/dev/null"
+    echo -e "${YELLOW}/dev/accel/accel0 not found, NPU not available.${NC}"
 fi
 
 # Function to convert object detection models
@@ -553,94 +514,343 @@ convert_object_detection_models() {
     rm -rf ov_model_venv
 }
 
+get_ovms_cache_size() {
+    local target_device="$1"
+    case "$target_device" in
+        *GPU*|*NPU*)
+            echo "2"
+            ;;
+        *)
+            echo "10"
+            ;;
+    esac
+}
+
+# Get weight format based on target device
+# NPU and GPU require int4 for optimal performance
+get_ovms_weight_format() {
+    local target_device="$1"
+    case "$target_device" in
+        *NPU*|*GPU*)
+            echo "int4"
+            ;;
+        *)
+            echo "int8"
+            ;;
+    esac
+}
+
+sanitize_ovms_metadata_name() {
+    printf '%s' "$1" | sed 's#[^A-Za-z0-9_.-]#_#g'
+}
+
+# Generate storage-aware model name that encodes device and weight format
+# This allows multiple configurations of the same model to coexist
+get_ovms_storage_model_name() {
+    local source_model="$1"
+    local target_device="$2"
+    local weight_format="$3"
+    local sanitized
+    sanitized=$(sanitize_ovms_metadata_name "$source_model")
+    
+    # OpenVINO namespace models have fixed weight format baked into name
+    # Only append device, not format
+    if is_openvino_namespace_model "$source_model"; then
+        printf '%s_%s' "$sanitized" "$target_device"
+    else
+        printf '%s_%s_%s' "$sanitized" "$target_device" "$weight_format"
+    fi
+}
+
+ovms_config_has_model() {
+    local config_path="$1"
+    local model_name="$2"
+
+    python3 - "$config_path" "$model_name" <<'PY'
+import json
+import sys
+
+config_path, model_name = sys.argv[1:3]
+
+try:
+    with open(config_path, encoding="utf-8") as config_file:
+        config = json.load(config_file)
+except Exception:
+    raise SystemExit(1)
+
+def contains_model(node):
+    if isinstance(node, dict):
+        if node.get("name") == model_name:
+            return True
+        return any(contains_model(value) for value in node.values())
+    if isinstance(node, list):
+        return any(contains_model(item) for item in node)
+    return False
+
+raise SystemExit(0 if contains_model(config) else 1)
+PY
+}
+
+# Function to reset OVMS config.json to only include specified models
+# This ensures stale models from previous runs are removed
+reset_ovms_config() {
+    local ovms_model_config="${OVMS_CONFIG_DIR}/models/config.json"
+    local models_to_keep=("$@")
+
+    if [ ! -f "${ovms_model_config}" ]; then
+        return 0
+    fi
+
+    python3 - "$ovms_model_config" "${models_to_keep[@]}" <<'PY'
+import json
+import sys
+
+config_path = sys.argv[1]
+models_to_keep = set(sys.argv[2:])
+
+try:
+    with open(config_path, encoding="utf-8") as config_file:
+        config = json.load(config_file)
+except Exception:
+    raise SystemExit(0)
+
+if "model_config_list" not in config:
+    raise SystemExit(0)
+
+# Filter to only keep models that are in the models_to_keep set
+original_count = len(config["model_config_list"])
+config["model_config_list"] = [
+    entry for entry in config["model_config_list"]
+    if entry.get("config", {}).get("name") in models_to_keep
+]
+filtered_count = len(config["model_config_list"])
+
+if filtered_count < original_count:
+    with open(config_path, "w", encoding="utf-8") as config_file:
+        json.dump(config, config_file, indent=4)
+    removed = original_count - filtered_count
+    print(f"Removed {removed} stale model(s) from OVMS config")
+
+raise SystemExit(0)
+PY
+}
+
+# Check if model is from OpenVINO namespace (pre-converted, no conversion needed)
+is_openvino_namespace_model() {
+    [[ "$1" == OpenVINO/* ]]
+}
+
 # Function to export and save requested model for OVMS
+# Uses storage-aware naming: {model}_{device}_{format} to allow multiple configs
 export_model_for_ovms() {
-    # Create a directory for model, model_export.py script and virtual environment
-    curr_dir=$(pwd)
-    mkdir -p ${CONFIG_DIR}/ovms_config
-    cd ${CONFIG_DIR}/ovms_config
+    local source_model="$1"
+    local target_device="$2"
+    local weight_format="$3"
+    local pipeline_type="$4"
+    local cache_size="$5"
+    local extra_args=()
+    local export_status
+    local storage_model_name
 
-    # Download the OVMS model export script
-    if [ ! -f export_model.py ]; then
-        curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2025.4.1/demos/common/export_models/export_model.py -o export_model.py
-    else
-        echo -e  "${YELLOW}Model export script already exists, skipping download${NC}"
-    fi
-    
-    # Create a virtual environment for model export and activate it
-    echo -e  "Creating Python virtual environment for model export..."
-    # Check if python3-venv is already installed
-    if ! dpkg-query -W -f='${Status}' python3-venv 2>/dev/null | grep -q "ok installed"; then
-        echo -e  "Installing python3-venv package..."
-        sudo apt install -y python3-venv
-    else
-        echo -e  "python3-venv is already installed, skipping installation"
-    fi
-    python3 -m venv ovms_venv
-    source ovms_venv/bin/activate
-    
-    # Install requirements in the virtual environment
-    local ovms_requirements_url="https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2025.4.1/demos/common/export_models/requirements.txt"
-    local tmp_requirements
-    tmp_requirements=$(mktemp)
-
-    if ! curl -fsSL "$ovms_requirements_url" -o "$tmp_requirements"; then
-        echo -e "${RED}ERROR: Failed to download OVMS requirements from ${ovms_requirements_url}.${NC}"
-        deactivate
-        rm -rf ovms_venv
-        rm -f "$tmp_requirements"
+    if [ -z "$source_model" ]; then
+        echo -e "${RED}ERROR: Missing source model for OVMS export.${NC}"
         return 1
     fi
 
-    if grep -q '^transformers' "$tmp_requirements"; then
-        sed -i 's/^transformers.*/transformers==4.53.3/' "$tmp_requirements"
+    # Generate storage-aware model name that includes device and format
+    storage_model_name=$(get_ovms_storage_model_name "$source_model" "$target_device" "$weight_format")
+    echo -e "[ovms-service] ${BLUE}Storage model name: ${YELLOW}${storage_model_name}${NC}"
+
+    if [ -n "$pipeline_type" ]; then
+        extra_args+=(--pipeline_type "$pipeline_type")
+    fi
+    
+    # Export storage_model_name so it's available in subshell
+    export storage_model_name
+    
+    (
+        mkdir -p "${CONFIG_DIR}/ovms_config"
+        cd "${CONFIG_DIR}/ovms_config" || exit 1
+
+        # Always pull latest export_model.py script
+        echo -e "Downloading latest export_model.py from OVMS repository..."
+        curl -fsSL https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/export_model.py -o export_model.py || exit 1
+
+        echo -e "Creating Python virtual environment for model export..."
+        if ! dpkg-query -W -f='${Status}' python3-venv 2>/dev/null | grep -q "ok installed"; then
+            echo -e "Installing python3-venv package..."
+            sudo apt install -y python3-venv || exit 1
+        else
+            echo -e "python3-venv is already installed, skipping installation"
+        fi
+
+        python3 -m venv ovms_venv || exit 1
+        # shellcheck disable=SC1091
+        source ovms_venv/bin/activate || exit 1
+
+        # Check if model is from OpenVINO namespace (pre-converted)
+        if [[ "$source_model" == OpenVINO/* ]]; then
+            echo -e "${GREEN}Model '${source_model}' is from OpenVINO namespace (pre-converted).${NC}"
+            echo -e "${YELLOW}Skipping full requirements installation - only need huggingface_hub for download.${NC}"
+            
+            # Lightweight dependencies: huggingface_hub (<0.27 for huggingface-cli support) and jinja2 (for graph.pbtxt)
+            # Note: huggingface_hub 0.27+ deprecated huggingface-cli in favor of 'hf' command
+            if ! pip install --no-cache-dir 'huggingface_hub<0.27' jinja2; then
+                echo -e "${RED}ERROR: Failed to install minimal dependencies for OpenVINO model.${NC}"
+                deactivate
+                rm -rf ovms_venv
+                exit 1
+            fi
+        else
+            # Full conversion path: install all requirements for optimum-cli conversion
+            local ovms_requirements_url="https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/requirements.txt"
+            local tmp_requirements
+            tmp_requirements=$(mktemp)
+
+            if ! curl -fsSL "$ovms_requirements_url" -o "$tmp_requirements"; then
+                echo -e "${RED}ERROR: Failed to download OVMS requirements from ${ovms_requirements_url}.${NC}"
+                rm -f "$tmp_requirements"
+                deactivate
+                rm -rf ovms_venv
+                exit 1
+            fi
+
+            if ! pip install --no-cache-dir -r "$tmp_requirements"; then
+                echo -e "${RED}ERROR: Failed to install OVMS requirements.${NC}"
+                rm -f "$tmp_requirements"
+                deactivate
+                rm -rf ovms_venv
+                exit 1
+            fi
+            rm -f "$tmp_requirements"
+        fi
+
+        if [ "$GATED_MODEL" = true ]; then
+            pip install --no-cache-dir -U huggingface_hub[hf_xet]==0.36.0 || exit 1
+            echo -e "${BLUE}Logging in to Hugging Face to access gated models...${NC}"
+            hf auth login --token "$HUGGINGFACE_TOKEN" || exit 1
+        fi
+
+        mkdir -p models
+
+        # Use storage_model_name for --model_name to create device/format-specific folder
+        # --source_model is the HuggingFace model ID for downloading
+        # --model_name is the folder name where it will be stored
+        if ! python3 export_model.py text_generation \
+            --source_model "$source_model" \
+            --model_name "$storage_model_name" \
+            --weight-format "$weight_format" \
+            --config_file_path models/config.json \
+            --model_repository_path models \
+            --target_device "$target_device" \
+            --cache_size "$cache_size" \
+            "${extra_args[@]}"; then
+            echo -e "${RED}ERROR: Failed to export the model '${source_model}' for OVMS.${NC}"
+            deactivate
+            rm -rf ovms_venv
+            exit 1
+        fi
+
+        echo -e "Cleaning up virtual environment..."
+        deactivate
+        rm -rf ovms_venv
+    )
+    export_status=$?
+    if [ $export_status -ne 0 ]; then
+        return $export_status
+    fi
+    
+    # Return the storage model name for the caller to use
+    echo "$storage_model_name"
+}
+
+ensure_ovms_model() {
+    local model_name="$1"
+    local target_device="$2"
+    local weight_format="$3"
+    local pipeline_type="$4"
+    local ovms_model_config="${OVMS_CONFIG_DIR}/models/config.json"
+    local storage_model_name
+    local model_path
+    local exported_name
+
+    # Generate storage-aware model name (includes device and format)
+    storage_model_name=$(get_ovms_storage_model_name "$model_name" "$target_device" "$weight_format")
+    model_path="${OVMS_CONFIG_DIR}/models/${storage_model_name}"
+
+    echo -e "[ovms-service] ${BLUE}Checking for model: ${YELLOW}${storage_model_name}${NC}"
+
+    # Check if model folder already exists with this device/format configuration
+    if [ -d "$model_path" ] && [ -f "${model_path}/graph.pbtxt" ]; then
+        echo -e "[ovms-service] ${GREEN}Model ${YELLOW}${storage_model_name}${GREEN} already exists. Skipping export.${NC}"
+        
+        # Ensure it's registered in config.json
+        if [ -f "${ovms_model_config}" ] && ovms_config_has_model "${ovms_model_config}" "${storage_model_name}"; then
+            echo -e "[ovms-service] ${GREEN}Model is registered in OVMS config.${NC}"
+        else
+            echo -e "[ovms-service] ${YELLOW}Adding model to OVMS config...${NC}"
+            # The model exists but config.json doesn't reference it - add it
+            add_model_to_ovms_config "${ovms_model_config}" "${storage_model_name}" "${model_path}"
+        fi
+        
+        # Export the storage model name for pipeline-manager
+        echo "$storage_model_name"
     else
-        echo 'transformers==4.53.3' >> "$tmp_requirements"
+        echo -e "[ovms-service] ${YELLOW}Model ${RED}${storage_model_name}${YELLOW} not found. Exporting...${NC}"
+        
+        # Export returns the storage model name
+        exported_name=$(export_model_for_ovms \
+            "$model_name" \
+            "$target_device" \
+            "$weight_format" \
+            "$pipeline_type" \
+            "$(get_ovms_cache_size "$target_device")") || return 1
+        
+        echo "$exported_name"
     fi
+}
 
-    pip install --no-cache-dir -r "$tmp_requirements"
-    local pip_status=$?
-    rm -f "$tmp_requirements"
-    if [ $pip_status -ne 0 ]; then
-        echo -e "${RED}ERROR: Failed to install OVMS requirements.${NC}"
-        deactivate
-        rm -rf ovms_venv
-        return 1
-    fi
-    if [ "$GATED_MODEL" = true ]; then
-        pip install --no-cache-dir -U huggingface_hub[hf_xet]==0.36.0 # Install huggingface-hub for downloading gated models
-        echo -e "${BLUE}Logging in to Hugging Face to access gated models...${NC}"
-	hf auth login --token $HUGGINGFACE_TOKEN # Login to Hugging Face using the provided token
-    fi
-    mkdir -p models
-
-    python3 export_model.py text_generation \
-        --source_model $OVMS_LLM_MODEL_NAME \
-        --weight-format $LLM_COMPRESSION_WEIGHT_FORMAT \
-        --config_file_path models/config.json \
-        --model_repository_path models \
-        --target_device ${LLM_DEVICE} \
-        --cache $OVMS_CACHE_SIZE \
-        --overwrite_models
+# Helper to add a model to OVMS config.json
+add_model_to_ovms_config() {
+    local config_path="$1"
+    local model_name="$2"
+    local model_path="$3"
+    local relative_path
     
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}ERROR: Failed to export the model for OVMS.${NC}"
-        deactivate
-        rm -rf ovms_venv
-        return 1
-    fi
-
-    # Create a file to mark what device the model was generated for
-    echo "${LLM_DEVICE}" > models/${OVMS_LLM_MODEL_NAME}/device_type.txt
+    relative_path=$(realpath --relative-to="$(dirname "$config_path")" "$model_path")
     
-    # Deactivate and remove the virtual environment
-    echo -e  "Cleaning up virtual environment..."
-    deactivate
-    cd $curr_dir
+    python3 - "$config_path" "$model_name" "$relative_path" <<'PY'
+import json
+import sys
+import os
+
+config_path, model_name, base_path = sys.argv[1:4]
+
+if os.path.exists(config_path):
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+else:
+    config = {"model_config_list": []}
+
+# Check if model already exists
+for model in config.get("model_config_list", []):
+    if model.get("config", {}).get("name") == model_name:
+        print(f"Model {model_name} already in config")
+        sys.exit(0)
+
+# Add new model
+config.setdefault("model_config_list", []).append({
+    "config": {"name": model_name, "base_path": base_path}
+})
+
+with open(config_path, 'w') as f:
+    json.dump(config, f, indent=2)
+print(f"Added {model_name} to config")
+PY
 }
 
 if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
-    BACKEND_PROFILE="vlm-ov"
+    BACKEND_PROFILE="ovms"
 
     # Turn on feature flags for summarization and turn off search
     export SUMMARY_FEATURE="FEATURE_ON"
@@ -723,113 +933,113 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         fi
     fi
 
+    configured_ovms_llm_model=${OVMS_LLM_MODEL_NAME:-${LLM_MODEL_NAME}}
+    BACKEND_PROFILE_ARGS="--profile ovms"
+
     if [ "$ENABLE_VLLM" = true ]; then
         echo -e "[vllm-cpu-service] ${BLUE}Using vLLM for both chunk captioning and final summary${NC}"
-        echo -e "[vllm-cpu-service] ${YELLOW}Disabling OVMS and vlm-openvino-serving because ENABLE_VLLM=true${NC}"
-        BACKEND_PROFILE="vllm"
-        export ENABLE_OVMS_LLM_SUMMARY=false
-        export ENABLE_OVMS_LLM_SUMMARY_GPU=false
-        export ENABLE_VLM_GPU=false
-        export USE_OVMS_CONFIG=CONFIG_OFF
+        BACKEND_PROFILE_ARGS="--profile vllm"
+        export USE_VLLM=CONFIG_ON
         export LLM_SUMMARIZATION_API=${VLLM_ENDPOINT}
         export VLM_ENDPOINT=${VLLM_ENDPOINT}
         export VLM_HOST=${VLLM_HOST}
+        if [ -n "$configured_ovms_llm_model" ] && [ "$configured_ovms_llm_model" != "$VLM_MODEL_NAME" ]; then
+            echo -e "[pipeline-manager] ${YELLOW}Ignoring separate OVMS LLM model in vLLM-only mode; summarization will use VLM_MODEL_NAME=${VLM_MODEL_NAME}${NC}"
+        fi
+        export LLM_MODEL_NAME=${VLM_MODEL_NAME}
+        if [ "$PM_VLM_CONCURRENT_DEFAULTED" = true ]; then
+            export PM_VLM_CONCURRENT=1
+        fi
+        if [ "$PM_LLM_CONCURRENT_DEFAULTED" = true ]; then
+            export PM_LLM_CONCURRENT=1
+        fi
+        if [ "$PM_CAPTIONING_MAX_COMPLETION_TOKENS_DEFAULTED" = true ]; then
+            export PM_CAPTIONING_MAX_COMPLETION_TOKENS=256
+        fi
         APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.vllm.yaml"
-    fi
-
-    # Check if both LLM and VLM are configured for GPU. In which case, prioritize VLM for GPU and set OVMS to CPU
-    if [ "$ENABLE_VLLM" != true ] && [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ] && \
-       [ "$ENABLE_VLM_GPU" = true ]; then
-        echo -e "[ovms-service] ${BLUE}Both VLM and LLM are configured for GPU. Resetting OVMS to run on CPU${NC}"
-        export ENABLE_OVMS_LLM_SUMMARY_GPU="false"
-    fi
-
-    # If OVMS is to be used for summarization, set up the environment variables and compose files accordingly
-    if [ "$ENABLE_VLLM" != true ] && { [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; }; then
-        echo -e "[ovms-service] ${BLUE}Using OVMS for generating final summary for the video${NC}"
-        export USE_OVMS_CONFIG=CONFIG_ON
+    else
+        echo -e "[ovms-service] ${BLUE}Using OVMS for both chunk captioning and final summary${NC}"
+        export USE_VLLM=CONFIG_OFF
+        export LLM_MODEL_NAME=${configured_ovms_llm_model}
         export LLM_SUMMARIZATION_API=http://$OVMS_HOST/v3
-        export LLM_MODEL_API="v1/config"
+        export VLM_ENDPOINT=http://$OVMS_HOST/v3
+        export VLM_HOST=${OVMS_HOST}
 
-        # Set relevant variables, compose files and profiles based on whether GPU is used or not
-        if [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
-            echo -e "[ovms-service] ${BLUE}Using GPU acceleration for OVMS${NC}"
-            export OVMS_CACHE_SIZE=2
-            export LLM_COMPRESSION_WEIGHT_FORMAT=int4
-            export LLM_DEVICE=GPU
-            APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.gpu_ovms.yaml --profile ovms"
-        else
-            echo -e "[ovms-service] ${BLUE}Running OVMS on CPU${NC}"
-            export OVMS_CACHE_SIZE=10
-            export LLM_COMPRESSION_WEIGHT_FORMAT=int8
-            export LLM_DEVICE=CPU
-            APP_COMPOSE_FILE="$APP_COMPOSE_FILE --profile ovms"
-        fi
-
-        # Setup OVMS model 
-        ovms_model_config="${OVMS_CONFIG_DIR}/models/config.json"
-        device_marker_file="${OVMS_CONFIG_DIR}/models/${OVMS_LLM_MODEL_NAME}/device_type.txt"    
-        needs_export=false
+        # VLM_TARGET_DEVICE and LLM_TARGET_DEVICE support: CPU, GPU, NPU, HETERO:...
+        # (defaults already set at top of script)
         
-        # Export model only if docker-compose config is not requested
-        if [ "$2" != "config" ]; then
+        # Determine weight format: user override takes precedence, otherwise auto-detect based on device
+        export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-$(get_ovms_weight_format "$VLM_TARGET_DEVICE")}
+        export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-$(get_ovms_weight_format "$LLM_TARGET_DEVICE")}
 
-            # Check if model config exists            
-            if [ ! -f "${ovms_model_config}" ]; then
-                echo -e "[ovms-service] ${YELLOW}No existing model configurations found. Exporting model ${RED}${OVMS_LLM_MODEL_NAME}${YELLOW}...${NC}"
-                needs_export=true
-            # Check whether the model exists in OVMS config
-            elif grep -q ${OVMS_LLM_MODEL_NAME} "${ovms_model_config}"; then
-                echo -e "[ovms-service] ${YELLOW}Model ${RED}${OVMS_LLM_MODEL_NAME}${YELLOW} exists in OVMS config. Checking device type...${NC}"
-                # If model exists, check if device type matches
-                if [ -f "${device_marker_file}" ]; then
-                    saved_device=$(cat "${device_marker_file}")
-                    if [ "${saved_device}" != "${LLM_DEVICE}" ]; then
-                        echo -e "[ovms-service] ${YELLOW}Model was exported for ${RED}${saved_device}${YELLOW}. Re-exporting model for ${RED}${LLM_DEVICE}${YELLOW}...${NC}"
-                        needs_export=true
-                    else
-                        echo -e "[ovms-service] ${YELLOW}Model was exported for ${RED}${LLM_DEVICE}${YELLOW}. Skipping model setup...${NC}"
-                    fi
-                else
-                    echo -e "[ovms-service] ${YELLOW}Device type information missing. Re-exporting model...${NC}"
-                    needs_export=true
-                fi
-            else
-                echo -e "[ovms-service] ${YELLOW}Model ${RED}${OVMS_LLM_MODEL_NAME}${YELLOW} not found in OVMS config. Exporting model...${NC}"
-                needs_export=true
-            fi
-            
-            # Export model if needed
-            if [ "$needs_export" = true ]; then
-                export_model_for_ovms
-            fi
-        fi
-    elif [ "$ENABLE_VLLM" != true ]; then
-        echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for generating final summary for the video${NC}"
-        export USE_OVMS_CONFIG=CONFIG_OFF
-        export LLM_SUMMARIZATION_API=http://$VLM_HOST:8000/v1
-    fi
+        echo -e "[ovms-service] ${BLUE}VLM Target Device: ${YELLOW}${VLM_TARGET_DEVICE}${NC} (weight format: ${VLM_COMPRESSION_WEIGHT_FORMAT})"
+        echo -e "[ovms-service] ${BLUE}LLM Target Device: ${YELLOW}${LLM_TARGET_DEVICE}${NC} (weight format: ${LLM_COMPRESSION_WEIGHT_FORMAT})"
 
-    if [ "$ENABLE_VLLM" != true ]; then
-        if [ "$ENABLE_VLM_GPU" = true ]; then
-            export VLM_DEVICE=GPU
+        # Adjust concurrency and frame count for non-CPU devices
+        if [[ "$VLM_TARGET_DEVICE" != "CPU" ]]; then
             export PM_VLM_CONCURRENT=1
             export PM_LLM_CONCURRENT=1
-            export VLM_COMPRESSION_WEIGHT_FORMAT=int4
             if [ "$PM_MULTI_FRAME_COUNT_DEFAULTED" = true ]; then
                 export PM_MULTI_FRAME_COUNT=6
             fi
-            export WORKERS=1
-            echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for summarization on GPU${NC}"
+        fi
+
+        # Add GPU compose override if either device uses GPU
+        if [[ "$VLM_TARGET_DEVICE" == *"GPU"* ]] || [[ "$LLM_TARGET_DEVICE" == *"GPU"* ]]; then
+            echo -e "[ovms-service] ${BLUE}Using GPU-capable OVMS image${NC}"
+            APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.gpu_ovms.yaml"
+        fi
+
+        ovms_split_model=false
+        if [ -n "$LLM_MODEL_NAME" ] && [ "$LLM_MODEL_NAME" != "$VLM_MODEL_NAME" ]; then
+            ovms_split_model=true
+            echo -e "[ovms-service] ${BLUE}Using split-model OVMS mode: VLM=${VLM_MODEL_NAME}, LLM=${LLM_MODEL_NAME}${NC}"
         else
-            export VLM_DEVICE=CPU
-            echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for summarization on CPU${NC}"
+            echo -e "[ovms-service] ${BLUE}Using shared single-model OVMS mode with VLM=${VLM_MODEL_NAME}${NC}"
+        fi
+
+        # Compute storage model names that encode device and format
+        # These are exported for pipeline-manager to use when calling OVMS API
+        export VLM_STORAGE_MODEL_NAME
+        VLM_STORAGE_MODEL_NAME=$(get_ovms_storage_model_name "$VLM_MODEL_NAME" "$VLM_TARGET_DEVICE" "$VLM_COMPRESSION_WEIGHT_FORMAT")
+        
+        if [ "$ovms_split_model" = true ]; then
+            export LLM_STORAGE_MODEL_NAME
+            LLM_STORAGE_MODEL_NAME=$(get_ovms_storage_model_name "$LLM_MODEL_NAME" "$LLM_TARGET_DEVICE" "$LLM_COMPRESSION_WEIGHT_FORMAT")
+        else
+            export LLM_STORAGE_MODEL_NAME="$VLM_STORAGE_MODEL_NAME"
+        fi
+        
+        echo -e "[ovms-service] ${GREEN}VLM Storage Model: ${YELLOW}${VLM_STORAGE_MODEL_NAME}${NC}"
+        echo -e "[ovms-service] ${GREEN}LLM Storage Model: ${YELLOW}${LLM_STORAGE_MODEL_NAME}${NC}"
+
+        if [ "$2" != "config" ]; then
+            # Reset OVMS config to only include storage model names needed for this run
+            if [ "$ovms_split_model" = true ]; then
+                reset_ovms_config "$VLM_STORAGE_MODEL_NAME" "$LLM_STORAGE_MODEL_NAME"
+            else
+                reset_ovms_config "$VLM_STORAGE_MODEL_NAME"
+            fi
+
+            ensure_ovms_model \
+                "$VLM_MODEL_NAME" \
+                "$VLM_TARGET_DEVICE" \
+                "$VLM_COMPRESSION_WEIGHT_FORMAT" \
+                "VLM_CB" || return 1
+
+            if [ "$ovms_split_model" = true ]; then
+                ensure_ovms_model \
+                    "$LLM_MODEL_NAME" \
+                    "$LLM_TARGET_DEVICE" \
+                    "$LLM_COMPRESSION_WEIGHT_FORMAT" \
+                    "" || return 1
+            fi
         fi
     fi
 
     # if config is passed, set the command to only generate the config
     FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
-    DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE --profile $BACKEND_PROFILE $FINAL_ARG"
+    DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $BACKEND_PROFILE_ARGS $FINAL_ARG"
 
 elif [ "$1" = "--search" ]; then
     mkdir -p ${VS_WATCHER_DIR}

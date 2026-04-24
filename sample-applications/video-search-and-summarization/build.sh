@@ -7,6 +7,29 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
+# Check prerequisites
+# Args: $1 = true if poetry check is needed (for --dependencies)
+check_prerequisites() {
+  local check_poetry=${1:-false}
+  
+  # Docker is always required
+  if ! command -v docker &> /dev/null; then
+    echo -e "${RED}Error: docker is not installed or not in PATH${NC}"
+    echo -e "Please install Docker: https://docs.docker.com/get-docker/"
+    exit 1
+  fi
+  
+  # Poetry is required for --dependencies (to build multimodal-embedding wheel)
+  if [ "$check_poetry" = true ]; then
+    if ! command -v poetry &> /dev/null; then
+      echo -e "${RED}Error: poetry is not installed or not in PATH${NC}"
+      echo -e "Poetry is required to build the multimodal-embedding wheel."
+      echo -e "Please install poetry: https://python-poetry.org/docs/#installation"
+      exit 1
+    fi
+  fi
+}
+
 export REGISTRY_URL=${REGISTRY_URL:-}
 export PROJECT_NAME=${PROJECT_NAME:-}
 export TAG=${TAG:-latest}
@@ -28,7 +51,7 @@ fi
 # Usage information
 show_usage() {
   echo -e "Usage: $0 [OPTION]"
-  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding, vlm-openvino-serving, audio-analyzer)"
+  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding, audio-analyzer)"
   echo -e "  --help, -h\t\t Show this help message"
   echo -e "  --push\t Push all built Docker images to the registry"
   echo -e "  <no option>\t Build sample application services (video-ingestion, pipeline-manager, search-ms, and UI)"
@@ -102,19 +125,6 @@ build_dependencies() {
     log_info "${YELLOW}compose.yml not found for multimodal embedding serving${NC}";
   fi
 
-  
-  # Build vlm-openvino-serving
-  cd "${uservices_dir}/vlm-openvino-serving/docker" || return 0
-  if [ -f "compose.yaml" ]; then
-    cd .. && docker_build -t ${REGISTRY}vlm-openvino-serving:${TAG} -f docker/Dockerfile . || {
-      log_info "${RED}Failed to build vlm-openvino-serving${NC}"; 
-      build_success=false; 
-    }
-  else
-    log_info "${YELLOW}compose.yaml not found for vlm-openvino-serving ${NC}";
-  fi
-
-
   # Build audio analyzer microservice
   cd "${uservices_dir}/audio-analyzer/docker" || return 1
   if [ -f "compose.yaml" ]; then
@@ -133,7 +143,7 @@ build_dependencies() {
     # Print built images
     log_info "${GREEN}Built images:${NC}"
     echo "Retrieving Docker images related to microservice dependencies..."
-    docker images | grep -E "${REGISTRY}.*(vdms|multimodal|vlm|audio).*${TAG}"
+    docker images | grep -E "${REGISTRY}.*(vdms|multimodal|audio).*${TAG}"
     
     return 0
   else
@@ -266,9 +276,12 @@ push_images() {
 if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
   show_usage
 elif [ "$1" == "--dependencies" ]; then
+  check_prerequisites true
   build_dependencies
 elif [ "$1" == "--push" ]; then
+  check_prerequisites false
   push_images
 else
+  check_prerequisites false
   build_sample_app
 fi

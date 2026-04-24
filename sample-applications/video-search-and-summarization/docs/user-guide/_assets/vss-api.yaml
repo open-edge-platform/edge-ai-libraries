@@ -1,5 +1,19 @@
 openapi: 3.0.0
 paths:
+  /health:
+    get:
+      operationId: HealthController_check
+      parameters: []
+      responses:
+        '200':
+          description: Health check status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckRO'
+      summary: Check service health status
+      tags:
+        - Health
   /app/config:
     get:
       operationId: AppController_getSystemConfig
@@ -15,12 +29,13 @@ paths:
       operationId: AppController_getFeatures
       parameters: []
       responses:
-        default:
-          description: ''
+        '200':
+          description: Feature flags
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/FeaturesRO'
+      summary: Get enabled features
       tags:
         - App
   /pipeline/frames:
@@ -30,6 +45,7 @@ paths:
       responses:
         '200':
           description: Get the current status of the frame processing pipeline
+      summary: Get frame pipeline status
       tags:
         - Pipeline
   /pipeline/evam:
@@ -39,8 +55,23 @@ paths:
       responses:
         '200':
           description: Get the current status of the EVAM pipeline
+      summary: Get EVAM pipeline status
       tags:
         - Pipeline
+  /metrics/status:
+    get:
+      operationId: TelemetryController_status
+      parameters: []
+      responses:
+        '200':
+          description: Telemetry collector status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryStatusRO'
+      summary: Get telemetry collector connection status
+      tags:
+        - Metrics
   /audio/models:
     get:
       operationId: AudioController_getAudioModels
@@ -52,8 +83,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AudioModelROSwagger'
+      summary: Get available audio models
       tags:
         - Audio
+  /tags:
+    get:
+      operationId: TagsController_getTags
+      parameters: []
+      responses:
+        '200':
+          description: Returns a list of all tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+      summary: Get all tags
+      tags:
+        - Tags
+  /tags/{tagId}:
+    delete:
+      operationId: TagsController_removeTag
+      parameters:
+        - name: tagId
+          required: true
+          in: path
+          description: ID of the tag to remove
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Tag removed successfully
+      summary: Remove a tag by ID
+      tags:
+        - Tags
   /videos:
     post:
       operationId: VideoController_videoUpload
@@ -66,7 +130,7 @@ paths:
               $ref: '#/components/schemas/VideoDTOSwagger'
       responses:
         '201':
-          description: ''
+          description: Video uploaded successfully
       summary: Upload a video file
       tags:
         - Video
@@ -91,7 +155,7 @@ paths:
             type: string
       responses:
         '200':
-          description: ''
+          description: Video details
       summary: Get a video by ID
       tags:
         - Video
@@ -107,7 +171,7 @@ paths:
             type: string
       responses:
         '201':
-          description: ''
+          description: Search embeddings creation started
       summary: Create search embeddings for a video
       tags:
         - Video
@@ -117,50 +181,133 @@ paths:
       parameters: []
       responses:
         '200':
-          description: ''
+          description: Returns a list of all search queries
+      summary: Get all search queries
       tags:
         - Search
     post:
       operationId: SearchController_addQuery
       parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchQueryDTO'
       responses:
         '201':
-          description: ''
+          description: Search query created
+      summary: Add a new search query
       tags:
         - Search
-  /search/{queryId}:
+  /search/watched:
     get:
-      operationId: SearchController_getQuery
+      operationId: SearchController_getWatchedQueries
       parameters: []
       responses:
         '200':
-          description: ''
-      tags:
-        - Search
-    delete:
-      operationId: SearchController_deleteQuery
-      parameters: []
-      responses:
-        '200':
-          description: ''
+          description: Returns a list of watched queries
+      summary: Get all watched search queries
       tags:
         - Search
   /search/query:
     post:
       operationId: SearchController_searchQuery
       parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchQueryDTO'
       responses:
         '201':
-          description: ''
+          description: Search results
+      summary: Execute a one-off search query
+      tags:
+        - Search
+  /search/{queryId}:
+    get:
+      operationId: SearchController_getQuery
+      parameters:
+        - name: queryId
+          required: true
+          in: path
+          description: ID of the search query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search query details
+      summary: Get a search query by ID
+      tags:
+        - Search
+    delete:
+      operationId: SearchController_deleteQuery
+      parameters:
+        - name: queryId
+          required: true
+          in: path
+          description: ID of the search query to delete
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search query deleted
+      summary: Delete a search query
+      tags:
+        - Search
+  /search/{queryId}/refetch:
+    post:
+      operationId: SearchController_refetchQuery
+      parameters:
+        - name: queryId
+          required: true
+          in: path
+          description: ID of the search query to refetch
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                timeFilter:
+                  $ref: '#/components/schemas/TimeFilterSelection'
+      responses:
+        '200':
+          description: Search query refetched
+      summary: Refetch search results for a query
       tags:
         - Search
   /search/{queryId}/watch:
     patch:
       operationId: SearchController_watchQuery
-      parameters: []
+      parameters:
+        - name: queryId
+          required: true
+          in: path
+          description: ID of the search query
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                watch:
+                  type: boolean
+                  description: Whether to watch this query
+              required:
+                - watch
       responses:
         '200':
-          description: ''
+          description: Watch status updated
+      summary: Toggle watch status for a search query
       tags:
         - Search
   /summary:
@@ -170,6 +317,7 @@ paths:
       responses:
         '200':
           description: Get all summary states raw
+      summary: Get all summary states
       tags:
         - Summary
     post:
@@ -183,7 +331,22 @@ paths:
               $ref: '#/components/schemas/SummaryPipelineDTOSwagger'
       responses:
         '201':
-          description: ''
+          description: Summary pipeline started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryPipelineRO'
+      summary: Start a video summary pipeline
+      tags:
+        - Summary
+  /summary/ui:
+    get:
+      operationId: SummaryController_getSummaryList
+      parameters: []
+      responses:
+        '200':
+          description: Get a list of summary states in UI-friendly format
+      summary: Get summary list for UI
       tags:
         - Summary
   /summary/{stateId}:
@@ -194,10 +357,34 @@ paths:
           required: true
           in: path
           description: ID of the summary state
-          schema: {}
+          schema:
+            type: string
       responses:
         '200':
           description: Get UI Friendly summary state by ID
+      summary: Get summary state by ID
+      tags:
+        - Summary
+    delete:
+      operationId: SummaryController_deleteSummaryById
+      parameters:
+        - name: stateId
+          required: true
+          in: path
+          description: ID of the summary state to delete
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Summary state deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+      summary: Delete a summary state
       tags:
         - Summary
   /summary/{stateId}/raw:
@@ -208,34 +395,82 @@ paths:
           required: true
           in: path
           description: ID of the summary state to fetch raw data
-          schema: {}
+          schema:
+            type: string
       responses:
         '200':
           description: Get raw summary state data by ID
+      summary: Get raw summary state by ID
       tags:
         - Summary
 info:
   title: Pipeline Manager
-  description: Pipeline Manager API
-  version: '1.0'
+  description: Pipeline Manager API for Video Search and Summarization
+  version: '1.1'
   contact: {}
 tags:
-  - name: pipeline
-    description: ''
+  - name: Health
+    description: Service health endpoints
+  - name: App
+    description: Application configuration endpoints
+  - name: Pipeline
+    description: Pipeline status endpoints
+  - name: Metrics
+    description: Telemetry and metrics endpoints
+  - name: Audio
+    description: Audio model endpoints
+  - name: Tags
+    description: Tag management endpoints
+  - name: Video
+    description: Video upload and management endpoints
+  - name: Search
+    description: Video search endpoints
+  - name: Summary
+    description: Video summarization endpoints
 servers: []
 components:
   schemas:
+    HealthCheckRO:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Overall health status
+          enum:
+            - ok
+            - error
+            - shutting_down
+        info:
+          type: object
+          description: Health check details
+        error:
+          type: object
+          description: Error details if any
+        details:
+          type: object
+          description: Detailed health information
     FeaturesRO:
       type: object
       properties:
         summary:
           type: string
+          description: Summary feature status
         search:
           type: string
+          description: Search feature status
           readOnly: true
       required:
         - summary
         - search
+    TelemetryStatusRO:
+      type: object
+      properties:
+        collectorConnected:
+          type: boolean
+          description: Whether the telemetry collector is connected
+        message:
+          type: string
+          description: Status message
     AudioModelSwagger:
       type: object
       properties:
@@ -278,9 +513,52 @@ components:
           description: Name of the video file
         tags:
           type: string
-          description: Tags seperated by commas
+          description: Tags separated by commas
       required:
         - video
+    TimeFilterSelection:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - relative
+            - absolute
+          description: Type of time filter
+        relative:
+          type: object
+          properties:
+            value:
+              type: number
+            unit:
+              type: string
+              enum:
+                - minutes
+                - hours
+                - days
+                - weeks
+        absolute:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+    SearchQueryDTO:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Search query text
+        tags:
+          type: string
+          description: Comma-separated tags to filter by
+        timeFilter:
+          $ref: '#/components/schemas/TimeFilterSelection'
+      required:
+        - query
     SummaryPipelineSamplingSwagger:
       type: object
       properties:
@@ -289,29 +567,29 @@ components:
           description: Duration for a chunk in seconds
         samplingFrame:
           type: number
-          description: Start time of the video in seconds
+          description: Number of frames to sample per chunk
         frameOverlap:
           type: number
           description: Frame overlap count
         multiFrame:
           type: number
-          description: Multi frame count
+          description: Multi frame count (batch size)
       required:
         - chunkDuration
         - samplingFrame
         - frameOverlap
         - multiFrame
-    EVAM Pipeline:
+    EvamPipeline:
       type: string
       enum:
         - object_detection
         - video_ingestion
+      description: EVAM pipeline type
     SummaryPipelineEvamSwagger:
       type: object
       properties:
         evamPipeline:
-          allOf:
-            - $ref: '#/components/schemas/EVAM Pipeline'
+          $ref: '#/components/schemas/EvamPipeline'
       required:
         - evamPipeline
     SummaryPipelinePromptsSwagger:
@@ -319,7 +597,7 @@ components:
       properties:
         framePrompt:
           type: string
-          description: Prompt for frame processing
+          description: Prompt for frame captioning
         summaryMapPrompt:
           type: string
           description: Prompt for summary map processing
@@ -334,7 +612,7 @@ components:
       properties:
         audioModel:
           type: string
-          description: Audio model configuration
+          description: Audio model ID for transcription
       required:
         - audioModel
     SummaryPipelineDTOSwagger:
@@ -342,28 +620,32 @@ components:
       properties:
         videoId:
           type: string
-          description: ID of the video
+          description: ID of the video to summarize
         title:
           type: string
           description: Title for the summary
         sampling:
           description: Sampling configuration for the summary
-          allOf:
-            - $ref: '#/components/schemas/SummaryPipelineSamplingSwagger'
+          $ref: '#/components/schemas/SummaryPipelineSamplingSwagger'
         evam:
           description: EVAM pipeline configuration
-          allOf:
-            - $ref: '#/components/schemas/SummaryPipelineEvamSwagger'
+          $ref: '#/components/schemas/SummaryPipelineEvamSwagger'
         prompts:
-          description: Prompts override
-          allOf:
-            - $ref: '#/components/schemas/SummaryPipelinePromptsSwagger'
+          description: Optional prompts override
+          $ref: '#/components/schemas/SummaryPipelinePromptsSwagger'
         audio:
-          description: Audio model configuration
-          allOf:
-            - $ref: '#/components/schemas/SummaryPipelineAudioSwagger'
+          description: Optional audio model configuration
+          $ref: '#/components/schemas/SummaryPipelineAudioSwagger'
       required:
         - videoId
         - title
         - sampling
         - evam
+    SummaryPipelineRO:
+      type: object
+      properties:
+        summaryPipelineId:
+          type: string
+          description: ID of the created summary pipeline state
+      required:
+        - summaryPipelineId

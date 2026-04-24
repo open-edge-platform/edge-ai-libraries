@@ -8,30 +8,150 @@ metadata:
 data:
   init-script.sh: |-
     #!/bin/bash
-    model=$0
-    weight_format=$1
-    gpu_enabled=$3
-    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2025.4.1/demos/common/export_models/requirements.txt
-    pip3 install -U huggingface_hub[hf_xet]==0.36.0
-    # Log in to Hugging Face using the provided token
-    hf auth login --token $2
+    vlm_model=$0
+    llm_model=$1
+    vlm_weight_format=$2
+    llm_weight_format=$3
+    huggingface_token=$4
+    vlm_target_device=$5
+    llm_target_device=$6
 
-    # Check if the login was successful
-    if [ $? -eq 0 ]; then
-        echo "Successfully logged in to Hugging Face!"
-    else
-        echo "Failed to log in to Hugging Face. Please check your token and try again."
+    # Helper functions
+    sanitize_name() {
+        printf '%s' "$1" | sed 's#[^A-Za-z0-9_.-]#_#g'
+    }
+
+    is_openvino_namespace_model() {
+        case "$1" in
+            OpenVINO/*) return 0 ;;
+            *) return 1 ;;
+        esac
+    }
+
+    # Generate storage-aware model name that encodes device and weight format
+    # This allows multiple configurations of the same model to coexist
+    get_storage_model_name() {
+        local source_model="$1"
+        local target_device="$2"
+        local weight_format="$3"
+        local sanitized
+        sanitized=$(sanitize_name "$source_model")
+        
+        # OpenVINO namespace models have fixed weight format baked into name
+        if is_openvino_namespace_model "$source_model"; then
+            printf '%s_%s' "$sanitized" "$target_device"
+        else
+            printf '%s_%s_%s' "$sanitized" "$target_device" "$weight_format"
+        fi
+    }
+
+    # Auto-detect weight format based on device if not explicitly set
+    get_weight_format() {
+        local device="$1"
+        local explicit_format="$2"
+        
+        if [ -n "$explicit_format" ] && [ "$explicit_format" != "auto" ]; then
+            echo "$explicit_format"
+        else
+            case "$device" in
+                *NPU*|*GPU*) echo "int4" ;;
+                *) echo "int8" ;;
+            esac
+        fi
+    }
+
+    cache_size_arg_for_device() {
+        case "$1" in
+            *GPU*|*NPU*) echo "--cache_size 2" ;;
+            *) echo "--cache_size 10" ;;
+        esac
+    }
+
+    # Resolve weight formats (auto-detect if needed)
+    vlm_weight_format=$(get_weight_format "$vlm_target_device" "$vlm_weight_format")
+    llm_weight_format=$(get_weight_format "$llm_target_device" "$llm_weight_format")
+
+    # Generate storage model names
+    vlm_storage_name=$(get_storage_model_name "$vlm_model" "$vlm_target_device" "$vlm_weight_format")
+    llm_storage_name=""
+    if [ -n "$llm_model" ] && [ "$llm_model" != "$vlm_model" ]; then
+        llm_storage_name=$(get_storage_model_name "$llm_model" "$llm_target_device" "$llm_weight_format")
     fi
-    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2025.4.1/demos/common/export_models/export_model.py -o export_model.py
-    mkdir models
-    if [ "$gpu_enabled" = "true" ]; then
-        echo "GPU is enabled, exporting model for GPU..."
-        python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device {{ .Values.global.gpu.device }} --cache_size 2
+
+    echo "VLM Model: $vlm_model -> Storage: $vlm_storage_name (device: $vlm_target_device, format: $vlm_weight_format)"
+    if [ -n "$llm_storage_name" ]; then
+        echo "LLM Model: $llm_model -> Storage: $llm_storage_name (device: $llm_target_device, format: $llm_weight_format)"
+    fi
+
+    # Install dependencies based on model type
+    if is_openvino_namespace_model "$vlm_model" && { [ -z "$llm_model" ] || [ "$llm_model" = "$vlm_model" ] || is_openvino_namespace_model "$llm_model"; }; then
+        echo "All models are from OpenVINO namespace (pre-converted). Using lightweight dependencies."
+        pip3 install --no-cache-dir 'huggingface_hub<0.27' jinja2
     else
-        echo "GPU is not enabled, exporting model for CPU..."
-        python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device CPU
+        echo "Installing full conversion dependencies..."
+        requirements_url="https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/requirements.txt"
+        tmp_requirements=$(mktemp)
+        curl -fsSL "${requirements_url}" -o "${tmp_requirements}"
+        pip3 install --no-cache-dir -r "${tmp_requirements}"
+        rm -f "${tmp_requirements}"
+    fi
+
+    pip3 install --no-cache-dir -U huggingface_hub[hf_xet]==0.36.0
+
+    if [ -n "${huggingface_token}" ]; then
+        hf auth login --token "${huggingface_token}"
+        if [ $? -eq 0 ]; then
+            echo "Successfully logged in to Hugging Face!"
+        else
+            echo "Failed to log in to Hugging Face. Please check your token and try again."
+        fi
+    fi
+
+    curl -fsSL https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/export_model.py -o export_model.py
+    mkdir -p models
+
+    vlm_cache_size_arg=$(cache_size_arg_for_device "${vlm_target_device}")
+    llm_cache_size_arg=$(cache_size_arg_for_device "${llm_target_device}")
+
+    # Export VLM model with storage-aware name
+    python export_model.py text_generation \
+        --source_model "${vlm_model}" \
+        --model_name "${vlm_storage_name}" \
+        --weight-format "${vlm_weight_format}" \
+        --config_file_path models/config.json \
+        --model_repository_path models \
+        --target_device "${vlm_target_device}" \
+        ${vlm_cache_size_arg} \
+        --pipeline_type VLM_CB
+    if [ $? -ne 0 ]; then
+        echo "ERROR: VLM model export failed for ${vlm_model}"
+        exit 1
+    fi
+
+    # Export LLM model if different from VLM
+    if [ -n "${llm_model}" ] && [ "${llm_model}" != "${vlm_model}" ]; then
+        python export_model.py text_generation \
+            --source_model "${llm_model}" \
+            --model_name "${llm_storage_name}" \
+            --weight-format "${llm_weight_format}" \
+            --config_file_path models/config.json \
+            --model_repository_path models \
+            --target_device "${llm_target_device}" \
+            ${llm_cache_size_arg}
+        if [ $? -ne 0 ]; then
+            echo "ERROR: LLM model export failed for ${llm_model}"
+            exit 1
+        fi
     fi
 
     cp -r models /opt/data
+
+    # Write storage model names to a file for pipeline-manager to read
+    echo "${vlm_storage_name}" > /opt/data/vlm_storage_name.txt
+    if [ -n "${llm_storage_name}" ]; then
+        echo "${llm_storage_name}" > /opt/data/llm_storage_name.txt
+    else
+        echo "${vlm_storage_name}" > /opt/data/llm_storage_name.txt
+    fi
 
     echo "All the steps are completed successfully"

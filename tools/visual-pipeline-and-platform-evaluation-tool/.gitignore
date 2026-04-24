@@ -2,7 +2,6 @@ __pycache__
 .coverage
 .env
 .idea
-shared/collector-signals/
 shared/images/input/*
 shared/images/output/*
 shared/models/output/*

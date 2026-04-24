@@ -67,17 +67,19 @@ export default () => ({
     password: process.env.RABBITMQ_PASSWORD,
   },
 
+  // OpenAI-compatible API configuration for VLM captioning and LLM summarization.
+  // USE_VLLM controls backend selection: CONFIG_ON = vLLM, CONFIG_OFF = OVMS.
   openai: {
     usecase: 'default',
-    useOVMS: process.env.USE_OVMS ?? CONFIG_STATE.OFF,
-    useVLLM: process.env.USE_VLLM ?? CONFIG_STATE.OFF,
     llmSummarization: {
       apiKey: process.env.LLM_SUMMARIZATION_KEY ?? '',
       apiBase: process.env.LLM_SUMMARIZATION_API,
+      useVLLM: process.env.USE_VLLM ?? CONFIG_STATE.OFF,
       maxContextLength: process.env.MAX_CONTEXT_LENGTH ?? 90_000,
       device: process.env.LLM_SUMMARIZATION_DEVICE,
       concurrent: process.env.LLM_CONCURRENT,
-      modelsAPI: process.env.LLM_MODEL_API ?? 'v1/models',
+      modelName: process.env.LLM_MODEL_NAME,
+      modelsAPI: process.env.LLM_MODEL_API ?? 'v1/config',
       defaults: {
         temperature: null,
         topP: null,
@@ -96,9 +98,11 @@ export default () => ({
     vlmCaptioning: {
       apiKey: process.env.VLM_CAPTIONING_KEY ?? '',
       apiBase: process.env.VLM_CAPTIONING_API,
+      useVLLM: process.env.USE_VLLM ?? CONFIG_STATE.OFF,
       device: process.env.VLM_CAPTIONING_DEVICE,
       concurrent: process.env.VLM_CONCURRENT,
-      modelsAPI: process.env.VLM_MODEL_API ?? 'v1/models',
+      modelName: process.env.VLM_MODEL_NAME,
+      modelsAPI: process.env.VLM_MODEL_API ?? 'v1/config',
       multiFrame: process.env.MULTI_FRAME_COUNT ?? 12, // process.env.MULTI_FRAME_COUNT ?? 5,
       frameOverlap: 0, // process.env.FRAME_OVERFLAP ?? 0,
       defaults: {
