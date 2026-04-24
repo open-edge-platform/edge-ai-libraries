@@ -58,39 +58,97 @@
   }
 }
 
-/* Node color themes */
+/* Node color themes
+   Each utility must set all derived properties on the element because
+   :root computes --node-border etc. with --node-color: transparent at
+   :root scope — children inherit the resolved value, not the formula. */
 @utility node-sky {
   --node-color: var(--electric-sky);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
-@utility node-steel {
-  --node-color: var(--blue-steel);
+@utility node-emerald {
+  --node-color: var(--electric-emerald);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
-@utility node-chart-blue {
-  --node-color: var(--shadcn-chart-blue);
+@utility node-teal {
+  --node-color: var(--electric-teal);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
 @utility node-cobalt {
   --node-color: var(--electric-cobalt);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
 @utility node-amethyst {
   --node-color: var(--electric-amethyst);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
 @utility node-indigo {
   --node-color: var(--electric-indigo);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
 @utility node-geode {
   --node-color: var(--electric-geode);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
-@utility node-cerulean {
-  --node-color: var(--electric-cerulean);
+@utility node-coral {
+  --node-color: var(--electric-coral);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
-@utility node-periwinkle {
-  --node-color: var(--electric-periwinkle);
+@utility node-rust {
+  --node-color: var(--electric-rust);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
-@utility node-lavender {
-  --node-color: var(--electric-lavender);
+@utility node-fuchsia {
+  --node-color: var(--electric-fuchsia);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
-@utility node-orchid {
-  --node-color: var(--electric-orchid);
+@utility node-moss {
+  --node-color: var(--electric-moss);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
 @utility node-neutral {
   --node-border: color-mix(in srgb, var(--foreground) 24%, var(--background));
@@ -100,18 +158,30 @@
   --node-handle: color-mix(in srgb, var(--foreground) 54%, var(--background));
 }
 
-/* Status color themes */
+/* Status color themes — same pattern: derived props must be set on the element */
 @utility status-info {
   --status-color: var(--brand-accent);
+  --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
+  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
 }
 @utility status-success {
   --status-color: var(--electric-moss);
+  --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
+  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
 }
 @utility status-error {
   --status-color: var(--destructive);
+  --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
+  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
 }
 @utility status-accent {
   --status-color: var(--electric-geode);
+  --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
+  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
 }
 
 @layer components {
