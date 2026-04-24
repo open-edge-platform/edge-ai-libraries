@@ -12,7 +12,7 @@ ENV PYTHONUNBUFFERED=1 \
     # off value above actually emplies, no cache will be used. Confusing.
     PIP_DISABLE_PIP_VERSION_CHECK=on \
     PIP_DEFAULT_TIMEOUT=100 \
-    POETRY_VERSION=1.8.5 \
+    POETRY_VERSION=2.3.1 \
     # Poetry installation location
     POETRY_HOME="/opt/poetry" \
     # Create the virtual environment dir .venv in the project's root
@@ -49,14 +49,12 @@ WORKDIR $SETUP_PATH
 COPY poetry.lock pyproject.toml ./
 COPY wheels ./wheels
 
-# Run poetry lock to install build dependencies
-RUN poetry lock --no-update
 
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
 # If value of ARCH is cpu, install with optional cpu dependencies else install main dependencies
 RUN if [ "${ARCH}" = "cpu" ]; \
-    then poetry install --with cpu; \
-    else poetry install --only main; fi
+    then poetry install --no-root --with cpu; \
+    else poetry install --no-root --only main; fi
 
 # Install additional packages that have dependency conflicts with --no-deps
 # These are required for the multimodal embedding service SDK
@@ -76,7 +74,7 @@ COPY --from=builder-base $POETRY_HOME $POETRY_HOME
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 # Install dev dependencies. Prod dependencies are already installed.
-RUN poetry install --with dev
+RUN poetry install --no-root --with dev
 
 # Copy the entrypoint script and makeit executable
 COPY ./scripts/entrypoint.sh /entrypoint.sh
