@@ -1,5 +1,3 @@
-/*SPDX-License-Identifier: Apache-2.0*/
-
 import { MetricChart } from "@/features/metrics/MetricChart";
 import {
   CHART_MAX_DATA_POINTS,

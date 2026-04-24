@@ -1,5 +1,3 @@
-/*SPDX-License-Identifier: Apache-2.0*/
-
 export interface MetricCardProps {
   title: string;
   value: number;
