@@ -83,11 +83,13 @@ export function ImagesInSet() {
     <div className="container pl-16 mx-auto py-10">
       <div className="mb-6">
         <div className="flex items-center gap-4 mb-2">
-          <Button variant="ghost" size="icon" asChild>
-            <Link to="/images">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-          </Button>
+          <Link
+            to="/images"
+            className="p-2 hover:bg-accent rounded transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+
           <h1 className="text-3xl font-bold">{imageSetName}</h1>
         </div>
         <p className="text-muted-foreground ml-14">
