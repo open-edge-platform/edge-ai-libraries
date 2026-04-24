@@ -5,36 +5,24 @@ import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.co
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
 import { gvaMotionDetectConfig } from "@/features/pipeline-editor/nodes/GVAMotionDetectNode.config.ts";
-import { sourceNodeConfig } from "./nodes/custom/SourceNode.config.ts";
+import { sourceNodeConfig } from "./nodes/SourceNode.config.ts";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import DeviceSelect from "@/components/shared/DeviceSelect";
-import {
-  useGetCamerasQuery,
-  useGetImageSetsQuery,
-  useGetVideosQuery,
-} from "@/api/api.generated";
+import { useGetCamerasQuery, useGetVideosQuery } from "@/api/api.generated";
 import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
-
-type SelectOptionConfig = string | readonly [string, string];
 
 type NodePropertyConfig = {
   key: string;
   label: string;
   type: "text" | "number" | "boolean" | "select" | "textarea";
   defaultValue?: unknown;
-  options?: SelectOptionConfig[] | readonly SelectOptionConfig[];
+  options?: string[] | readonly string[];
   description?: string;
   required?: boolean;
   params?: { [key: string]: string };
 };
-
-const getOptionValue = (option: SelectOptionConfig): string =>
-  Array.isArray(option) ? option[0] : (option as string);
-
-const getOptionLabel = (option: SelectOptionConfig): string =>
-  Array.isArray(option) ? option[1] : (option as string);
 
 type NodeConfig = {
   editableProperties: NodePropertyConfig[];
@@ -62,13 +50,12 @@ const NodeDataPanel = ({
   const models = useAppSelector(selectModels);
   const { data: cameras = [] } = useGetCamerasQuery();
   const { data: videos = [] } = useGetVideosQuery();
-  const { data: imageSets = [] } = useGetImageSetsQuery();
 
   const cameraOptions = useMemo<SelectOption[]>(
     () =>
       cameras.map((camera) => {
         const details = camera.details as Record<string, unknown> | undefined;
-        let value;
+        let value = "";
         let disabled = false;
 
         if (camera.device_type === "USB") {
@@ -117,15 +104,6 @@ const NodeDataPanel = ({
         value: video.filename,
       })),
     [videos],
-  );
-
-  const imageSetOptions = useMemo<SelectOption[]>(
-    () =>
-      imageSets.map((set) => ({
-        label: set.name,
-        value: set.name,
-      })),
-    [imageSets],
   );
 
   useEffect(() => {
@@ -184,26 +162,22 @@ const NodeDataPanel = ({
     return [{ label: currentSource, value: currentSource }, ...options];
   };
 
-  const normalizeKindValue = (kind: unknown): string =>
-    String(kind ?? "").toLowerCase();
+  const normalizeKindValue = (kind: unknown): string => {
+    const normalized = String(kind ?? "").toLowerCase();
+
+    if (normalized === "camera") {
+      return "camera";
+    }
+
+    if (normalized === "file") {
+      return "file";
+    }
+
+    return String(kind ?? "");
+  };
 
   const isCameraKind = (kind: unknown): boolean =>
     normalizeKindValue(kind) === "camera";
-
-  const isImageSetKind = (kind: unknown): boolean =>
-    normalizeKindValue(kind) === "image_set";
-
-  const getSourceOptionsForKind = (kind: unknown): SelectOption[] => {
-    if (isCameraKind(kind)) {
-      return cameraOptions;
-    }
-
-    if (isImageSetKind(kind)) {
-      return imageSetOptions;
-    }
-
-    return videoOptions;
-  };
 
   const handleInputChange = (key: string, value: string | unknown) => {
     if (!selectedNode) {
@@ -214,7 +188,9 @@ const NodeDataPanel = ({
     const updatedData = { ...editableData, [key]: nextValue };
 
     if (selectedNode.type === "source" && key === "kind") {
-      const sourceOptions = getSourceOptionsForKind(nextValue);
+      const sourceOptions = isCameraKind(nextValue)
+        ? cameraOptions
+        : videoOptions;
       const defaultSource = getDefaultSourceValue(sourceOptions);
       updatedData.source = defaultSource;
       updatedData.location = defaultSource;
@@ -360,7 +336,9 @@ const NodeDataPanel = ({
                     {ensureCurrentSourceOption(
                       selectedNode.type === "filesrc"
                         ? videoOptions
-                        : getSourceOptionsForKind(editableData.kind),
+                        : isCameraKind(editableData.kind)
+                          ? cameraOptions
+                          : videoOptions,
                       sourceSelectValue,
                     ).map((option) => (
                       <option
@@ -388,18 +366,14 @@ const NodeDataPanel = ({
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   >
-                    {propConfig?.options?.map((option) => {
-                      const optionValue = getOptionValue(option);
-                      const optionLabel = getOptionLabel(option);
-                      return (
-                        <option key={optionValue} value={optionValue}>
-                          {keyStr === "kind"
-                            ? optionLabel.charAt(0).toUpperCase() +
-                              optionLabel.slice(1)
-                            : optionLabel}
-                        </option>
-                      );
-                    })}
+                    {propConfig?.options?.map((option) => (
+                      <option key={option} value={option}>
+                        {keyStr === "kind"
+                          ? normalizeKindValue(option).charAt(0).toUpperCase() +
+                            normalizeKindValue(option).slice(1)
+                          : option}
+                      </option>
+                    ))}
                   </select>
                 ) : inputType === "boolean" ? (
                   <div className="flex items-center gap-2">

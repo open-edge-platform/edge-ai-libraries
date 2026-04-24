@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
-type SelectOptionConfig = string | readonly [string, string];
-
 type NodePropertyConfig = {
   key: string;
   label: string;
   type: "text" | "number" | "boolean" | "select" | "textarea";
   defaultValue?: unknown;
-  options?: SelectOptionConfig[] | readonly SelectOptionConfig[];
+  options?: string[] | readonly string[];
   description?: string;
   required?: boolean;
   params?: { [key: string]: string };
@@ -23,8 +21,8 @@ export const sourceNodeConfig: NodeConfig = {
       key: "kind",
       label: "Source Type",
       type: "select",
-      options: ["video", ["image_set", "Image Set"], "camera"],
-      defaultValue: "video",
+      options: ["file", "camera"],
+      defaultValue: "file",
       description: "Select the input source type",
     },
     {
