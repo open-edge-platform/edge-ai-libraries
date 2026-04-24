@@ -326,11 +326,12 @@ class ImagesManager:
     @classmethod
     def _safe_extract_tar(cls, archive_path: str, dest_dir: str) -> None:
         with tarfile.open(archive_path) as tf:
-            for member in tf.getmembers():
+            members = tf.getmembers()
+            for member in members:
                 member_path = os.path.join(dest_dir, member.name)
                 if not cls._is_within_directory(dest_dir, member_path):
                     raise ValueError("Archive contains unsafe paths (path traversal).")
-            tf.extractall(dest_dir)
+            tf.extractall(dest_dir, members=members)
 
 
 def list_image_sets() -> List[ImageSet]:
