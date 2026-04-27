@@ -11,10 +11,11 @@ import {
   SummaryCompleteRO,
 } from 'src/events/Pipeline.events';
 import { AppEvents } from 'src/events/app.events';
-import { Subject, Subscription, takeUntil } from 'rxjs';
+import { Subject, Subscription } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
 import { InferenceCountService } from 'src/language-model/services/inference-count.service';
-import { StateActionStatus } from '../models/state.model';
+import { State, StateActionStatus } from '../models/state.model';
+import { TemplateService } from 'src/language-model/services/template.service';
 
 @Injectable()
 export class SummaryQueueService {
@@ -29,6 +30,7 @@ export class SummaryQueueService {
     private $config: ConfigService,
     private $state: StateService,
     private $llm: LlmService,
+    private $template: TemplateService,
     private $emitter: EventEmitter2,
     private $inferenceCount: InferenceCountService,
   ) {}
@@ -38,8 +40,14 @@ export class SummaryQueueService {
     const state = this.$state.fetch(stateId);
 
     const alreadyQueued =
-      this.waiting.some((el) => el.stateId === stateId) ||
-      this.processing.some((el) => el.stateId === stateId);
+      this.waiting.some(
+        (el) =>
+          el.stateId === stateId && el.taskType === 'videoSummary',
+      ) ||
+      this.processing.some(
+        (el) =>
+          el.stateId === stateId && el.taskType === 'videoSummary',
+      );
 
     if (
       alreadyQueued ||
@@ -49,7 +57,26 @@ export class SummaryQueueService {
       return;
     }
 
-    this.waiting.push({ stateId });
+    this.waiting.push({ stateId, taskType: 'videoSummary' });
+  }
+
+  @OnEvent(PipelineEvents.AUDIO_SUMMARY_TRIGGER)
+  audioSummaryTrigger({ stateId }: PipelineDTOBase) {
+    const alreadyQueued =
+      this.waiting.some(
+        (item) =>
+          item.stateId === stateId &&
+          item.taskType === 'audioTranscriptSummary',
+      ) ||
+      this.processing.some(
+        (item) =>
+          item.stateId === stateId &&
+          item.taskType === 'audioTranscriptSummary',
+      );
+
+    if (!alreadyQueued) {
+      this.waiting.unshift({ stateId, taskType: 'audioTranscriptSummary' });
+    }
   }
 
   startVideoSummary(data: SummaryQueueItem) {
@@ -59,6 +86,12 @@ export class SummaryQueueService {
     this.$emitter.emit(PipelineEvents.SUMMARY_PROCESSING, { stateId });
 
     const state = this.$state.fetch(stateId);
+
+    if (!state || Object.values(state.frameSummaries).length === 0) {
+      this.$inferenceCount.decrementLlmProcessCount();
+      this.removeProcessingItem(stateId, 'videoSummary');
+      return;
+    }
 
     if (state && Object.values(state.frameSummaries).length > 0) {
       const streamer = new Subject<string>();
@@ -73,16 +106,15 @@ export class SummaryQueueService {
 
       let mapPrompt = state.systemConfig.summaryMapPrompt;
 
-      if (state.audio && state.audio.transcript.length > 0) {
-        const transcripts = state.audio.transcript
-          .map((el) =>
-            [el.id, `${el.startTime} --> ${el.endTime}`, el.text].join('\n'),
-          )
-          .join('\n\n');
+      const useAudioTranscriptSummary =
+        this.shouldUseAudioTranscriptSummary(state);
 
-        if (transcripts) {
-          mapPrompt += `Audio transcripts for this video:\n${transcripts}\n\n`;
-        }
+      if (useAudioTranscriptSummary) {
+        const audioSummary = state.audio?.transcriptSummary ?? '';
+        const audioBlock = `\nThe following is a summary of the video's spoken audio. Integrate relevant dialogue, narration, or spoken context naturally with the visual observations.\n\nAudio Transcript Summary:\n${audioSummary}\n`;
+        mapPrompt = mapPrompt.replaceAll('%audio_summary%', audioBlock);
+      } else {
+        mapPrompt = mapPrompt.replaceAll('%audio_summary%', '');
       }
 
       this.$llm
@@ -95,6 +127,7 @@ export class SummaryQueueService {
         )
         .catch((error) => {
           this.$inferenceCount.decrementLlmProcessCount();
+          this.removeProcessingItem(stateId, 'videoSummary');
           console.error('Error summarizing video:', error);
         });
 
@@ -118,10 +151,69 @@ export class SummaryQueueService {
           },
           error: () => {
             this.$inferenceCount.decrementLlmProcessCount();
+            this.removeProcessingItem(stateId, 'videoSummary');
           },
         }),
       );
     }
+  }
+
+  startAudioTranscriptSummary(data: SummaryQueueItem) {
+    this.$inferenceCount.incrementLlmProcessCount();
+
+    const { stateId } = data;
+    const state = this.$state.fetch(stateId);
+
+    if (!state || !state.audio || state.audio.transcript.length === 0) {
+      this.$emitter.emit(PipelineEvents.AUDIO_SUMMARY_COMPLETE, { stateId });
+      return;
+    }
+
+    this.$state.audioTranscriptSummaryProcessing(stateId);
+
+    const transcripts = state.audio.transcript
+      .map((el) =>
+        [el.id, `${el.startTime} --> ${el.endTime}`, el.text].join('\n'),
+      )
+      .join('\n\n');
+
+    const streamer = new Subject<string>();
+    let audioSummary = '';
+
+    const { mapPrompt, reducePrompt, singlePrompt } =
+      this.getAudioTranscriptPrompts(state);
+
+    this.$llm
+      .summarizeMapReduce(
+        [transcripts],
+        mapPrompt,
+        reducePrompt,
+        singlePrompt,
+        streamer,
+      )
+      .catch((error) => {
+        this.$inferenceCount.decrementLlmProcessCount();
+        this.removeProcessingItem(stateId, 'audioTranscriptSummary');
+        console.error('Error summarizing transcript:', error);
+      });
+
+    this.subs.add(
+      streamer.subscribe({
+        next: (res) => {
+          audioSummary += res;
+        },
+        complete: () => {
+          this.$state.audioTranscriptSummaryComplete(stateId, audioSummary);
+          this.$emitter.emit(PipelineEvents.AUDIO_SUMMARY_COMPLETE, {
+            stateId,
+          });
+        },
+        error: () => {
+          this.$inferenceCount.decrementLlmProcessCount();
+          this.removeProcessingItem(stateId, 'audioTranscriptSummary');
+        },
+      }),
+    );
   }
 
   @OnEvent(AppEvents.SUMMARY_REMOVED)
@@ -133,24 +225,101 @@ export class SummaryQueueService {
   @OnEvent(AppEvents.FAST_TICK)
   processQueue() {
     if (this.waiting.length > 0 && this.$inferenceCount.hasLlmSlots()) {
-      const queueItem = this.waiting.shift();
+      const nextReadyIndex = this.waiting.findIndex((item) =>
+        this.isQueueItemReady(item),
+      );
 
-      if (queueItem) {
+      if (nextReadyIndex > -1) {
+        const queueItem = this.waiting.splice(nextReadyIndex, 1)[0];
         this.processing.push(queueItem);
-        this.startVideoSummary(queueItem);
+
+        if (queueItem.taskType === 'audioTranscriptSummary') {
+          this.startAudioTranscriptSummary(queueItem);
+        } else {
+          this.startVideoSummary(queueItem);
+        }
       }
     }
   }
 
   @OnEvent(PipelineEvents.SUMMARY_COMPLETE)
   summaryComplete({ stateId }: SummaryCompleteRO) {
+    this.removeProcessingItem(stateId, 'videoSummary');
     this.$inferenceCount.decrementLlmProcessCount();
+  }
+
+  @OnEvent(PipelineEvents.AUDIO_SUMMARY_COMPLETE)
+  audioSummaryComplete({ stateId }: PipelineDTOBase) {
+    this.removeProcessingItem(stateId, 'audioTranscriptSummary');
+    this.$inferenceCount.decrementLlmProcessCount();
+  }
+
+  private removeProcessingItem(
+    stateId: string,
+    taskType: 'videoSummary' | 'audioTranscriptSummary',
+  ) {
     const processingIndex = this.processing.findIndex(
-      (el) => el.stateId == stateId,
+      (el) => el.stateId === stateId && el.taskType === taskType,
     );
 
     if (processingIndex > -1) {
       this.processing.splice(processingIndex, 1);
     }
+  }
+
+  private shouldUseAudioTranscriptSummary(state: State): boolean {
+    return Boolean(
+      state.systemConfig.audioModel &&
+        state.systemConfig.audioUseFullTranscriptSummary,
+    );
+  }
+
+  private isQueueItemReady(item: SummaryQueueItem): boolean {
+    const state = this.$state.fetch(item.stateId);
+
+    if (!state) {
+      return false;
+    }
+
+    if (item.taskType === 'audioTranscriptSummary') {
+      return Boolean(state.audio && state.audio.transcript.length > 0);
+    }
+
+    if (!this.shouldUseAudioTranscriptSummary(state)) {
+      return true;
+    }
+
+    return (
+      state.audio?.transcriptSummaryStatus === StateActionStatus.COMPLETE &&
+      Boolean(state.audio?.transcriptSummary)
+    );
+  }
+
+  private getAudioTranscriptPrompts(state: State): {
+    mapPrompt: string;
+    reducePrompt: string;
+    singlePrompt: string;
+  } {
+    const useCase = this.$config.get<string>('openai.usecase') ?? 'default';
+
+    const mapPrompt =
+      state.systemConfig.audioSummaryMapPrompt ||
+      this.$template.getTemplate(`${useCase}AudioSummary`) ||
+      this.$template.getTemplate('defaultAudioSummary') ||
+      state.systemConfig.summaryMapPrompt;
+
+    const reducePrompt =
+      state.systemConfig.audioSummaryReducePrompt ||
+      this.$template.getTemplate(`${useCase}AudioReduce`) ||
+      this.$template.getTemplate('defaultAudioReduce') ||
+      state.systemConfig.summaryReducePrompt;
+
+    const singlePrompt =
+      state.systemConfig.audioSummarySinglePrompt ||
+      this.$template.getTemplate(`${useCase}AudioSingle`) ||
+      this.$template.getTemplate('defaultAudioSingle') ||
+      state.systemConfig.summarySinglePrompt;
+
+    return { mapPrompt, reducePrompt, singlePrompt };
   }
 }
