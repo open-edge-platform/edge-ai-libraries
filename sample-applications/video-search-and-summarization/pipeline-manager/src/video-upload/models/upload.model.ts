@@ -52,6 +52,10 @@ export interface SystemConfig {
   evamPipeline: EVAMPipelines;
 
   audioModel?: string;
+  audioUseFullTranscriptSummary?: boolean;
+  audioSummaryMapPrompt?: string;
+  audioSummaryReducePrompt?: string;
+  audioSummarySinglePrompt?: string;
 
   framePrompt: string;
   summaryMapPrompt: string;

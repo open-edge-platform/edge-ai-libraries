@@ -58,21 +58,21 @@ README.md           @xwu2intel
 # ============================================================================
 # microservices
 # ============================================================================
-/microservices/audio-analyzer/                         @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey
-/microservices/audio-analyzer/docs/                    @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
-/microservices/audio-analyzer/README.md                @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
+/microservices/audio-analyzer/                         @bhardwaj-nakul @bharagha @krish918 @avinash-palleti
+/microservices/audio-analyzer/docs/                    @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
+/microservices/audio-analyzer/README.md                @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/dlstreamer-pipeline-server/             @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat
 /microservices/dlstreamer-pipeline-server/docs/        @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
 /microservices/dlstreamer-pipeline-server/README.md    @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/document-ingestion/                     @bharagha @madhuri-rai07 @yogeshmpandey
-/microservices/document-ingestion/docs/                @bharagha @madhuri-rai07 @yogeshmpandey  @open-edge-platform/open-edge-platform-docs-write
-/microservices/document-ingestion/README.md            @bharagha @madhuri-rai07 @yogeshmpandey  @open-edge-platform/open-edge-platform-docs-write
+/microservices/document-ingestion/                     @bharagha @madhuri-rai07 @Supriya-Krishnamurthi
+/microservices/document-ingestion/docs/                @bharagha @madhuri-rai07 @Supriya-Krishnamurthi  @open-edge-platform/open-edge-platform-docs-write
+/microservices/document-ingestion/README.md            @bharagha @madhuri-rai07 @Supriya-Krishnamurthi  @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/model-download/                         @bharagha @madhuri-rai07 @14pankaj
-/microservices/model-download/docs/                    @bharagha @madhuri-rai07 @14pankaj  @open-edge-platform/open-edge-platform-docs-write
-/microservices/model-download/README.md                @bharagha @madhuri-rai07 @14pankaj  @open-edge-platform/open-edge-platform-docs-write
+/microservices/model-download/                         @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj
+/microservices/model-download/docs/                    @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
+/microservices/model-download/README.md                @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/model-registry/                         @bharagha @madhuri-rai07 @14pankaj
 /microservices/model-registry/docs/                    @bharagha @madhuri-rai07 @14pankaj  @open-edge-platform/open-edge-platform-docs-write
@@ -107,13 +107,13 @@ README.md           @xwu2intel
 # ============================================================================
 # Sample Applications
 # ============================================================================
-/sample-applications/chat-question-and-answer/                @bharagha @yogeshmpandey @madhuri-rai07
-/sample-applications/chat-question-and-answer/docs/           @bharagha @yogeshmpandey @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
-/sample-applications/chat-question-and-answer/README.md       @bharagha @yogeshmpandey @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/chat-question-and-answer/                @bharagha @14pankaj @madhuri-rai07
+/sample-applications/chat-question-and-answer/docs/           @bharagha @14pankaj @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/chat-question-and-answer/README.md       @bharagha @14pankaj @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
 
-/sample-applications/chat-question-and-answer-core/           @bharagha @yogeshmpandey @madhuri-rai07
-/sample-applications/chat-question-and-answer-core/docs/      @bharagha @yogeshmpandey @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
-/sample-applications/chat-question-and-answer-core/README.md  @bharagha @yogeshmpandey @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/chat-question-and-answer-core/           @bharagha @hteeyeoh @madhuri-rai07
+/sample-applications/chat-question-and-answer-core/docs/      @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/chat-question-and-answer-core/README.md  @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
 
 # the main folder lacks codeowners, needs resolution
 # /sample-applications/document-summarization
@@ -139,9 +139,10 @@ README.md           @xwu2intel
 /tools/visual-pipeline-and-platform-evaluation-tool/docs/      @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence   @open-edge-platform/open-edge-platform-docs-write
 /tools/visual-pipeline-and-platform-evaluation-tool/README.md  @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence   @open-edge-platform/open-edge-platform-docs-write
 
+/tools/genai-applications-sizing/                              @bharagha @rudra-intel @madhuri-rai07 @hteeyeoh
+
 # ============================================================================
 # Frameworks
 # ============================================================================
 /frameworks/edgedevice-enablement-framework/             @chinthap @ANUSHABHASKAR @mutra-vamsi
-/frameworks/edgedevice-enablement-framework/README.md    @chinthap @ANUSHABHASKAR @mutra-vamsi  @open-edge-platform/open-edge-platform-docs-write
-
+/frameworks/edgedevice-enablement-framework/README.md    @chinthap @ANUSHABHASKAR @mutra-vamsi @k-mochi  @open-edge-platform/open-edge-platform-docs-write

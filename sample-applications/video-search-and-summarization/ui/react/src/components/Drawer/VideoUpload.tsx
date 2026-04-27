@@ -146,11 +146,11 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
   const [systemConfig, setSystemConfig] = useState<SystemConfigWithMeta>();
 
   const [audio, setAudio] = useState<boolean>(true);
-
+  const [selectedAudioModel, setSelectedAudioModel] = useState<string>('');
+  const [useAudioSummary, setUseAudioSummary] = useState(false);
   const videoFileRef = useRef<HTMLInputElement>(null);
   const videoLabelRef = useRef<HTMLInputElement>(null);
   const selectorRef = useRef<HTMLSelectElement>(null);
-  const audioModelRef = useRef<HTMLSelectElement>(null);
 
   const videoFileInputClick = () => {
     if (!uploading) {
@@ -198,6 +198,8 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
     const res = await axios.get<SystemConfigWithMeta>(`${APP_URL}/app/config`);
     if (res.data) {
       setSystemConfig(res.data);
+      setSelectedAudioModel(res.data.meta?.defaultAudioModel ?? '');
+      setUseAudioSummary(res.data.audioUseFullTranscriptSummary ?? false);
     }
   };
 
@@ -289,7 +291,7 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
     };
 
     if (audio && systemConfig?.meta.defaultAudioModel) {
-      res.audio = { audioModel: audioModelRef?.current?.value ?? systemConfig.meta.defaultAudioModel };
+      res.audio = { audioModel: selectedAudioModel || systemConfig.meta.defaultAudioModel, useFullTranscriptSummary: useAudioSummary };
     }
 
     if (systemConfig) {
@@ -474,16 +476,26 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
                     <Checkbox
                       id='audiocheckBox'
                       labelText={t('UseAudio')}
-                      defaultChecked={true}
+                      checked={audio}
                       onChange={(_, { checked }) => setAudio(checked)}
                     />
 
                     {audio && (
-                      <SelectInputStyled id='audioModelsSelector' labelText={t('AudioModels')} ref={audioModelRef}>
+                      <SelectInputStyled id='audioModelsSelector' labelText={t('AudioModels')} value={selectedAudioModel} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedAudioModel(e.target.value)}>
                         {systemConfig.meta.audioModels.map((option) => (
                           <SelectItem text={option.display_name} value={option.model_id} />
                         ))}
                       </SelectInputStyled>
+                    )}
+                    {audio && (
+                      <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--cds-border-subtle)' }}>
+                        <Checkbox
+                          id='useAudioSummaryCheckbox'
+                          labelText={t('UseAudioSummary')}
+                          checked={useAudioSummary}
+                          onChange={(_, { checked }) => setUseAudioSummary(checked)}
+                        />
+                      </div>
                     )}
                   </AccordionItem>
                 )}

@@ -51,11 +51,15 @@ export class PipelineService {
   async checkQueueStatus(stateId: string[]) {
     const notInProgress: string[] = stateId.reduce(
       (acc: string[], stateId: string) => {
-        const inProgress =
-          this.$evam.isChunkingInProgress(stateId) ||
-          this.$audioQueue.isAudioProcessing(stateId);
+        const evamInProgress = this.$evam.isChunkingInProgress(stateId);
+        const audioInProgress = this.$audioQueue.isAudioProcessing(stateId);
 
-        if (!inProgress) {
+        // Mark video chunking complete independently of audio
+        if (!evamInProgress) {
+          this.$state.updateVideoChunkingStatus(stateId, StateActionStatus.COMPLETE);
+        }
+
+        if (!evamInProgress && !audioInProgress) {
           acc.push(stateId);
         }
 
@@ -105,6 +109,7 @@ export class PipelineService {
   @OnEvent(PipelineEvents.CHUNKING_TRIGGERED)
   chunkingTriggered({ stateId }: { stateId: string }) {
     this.$state.updateChunkingStatus(stateId, StateActionStatus.IN_PROGRESS);
+    this.$state.updateVideoChunkingStatus(stateId, StateActionStatus.IN_PROGRESS);
   }
 
   @OnEvent(PipelineEvents.SUMMARY_PIPELINE_START)

@@ -54,6 +54,8 @@ export default () => ({
   audio: {
     host: process.env.AUDIO_HOST,
     device: process.env.AUDIO_DEVICE,
+    useFullTranscriptSummary:
+      process.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY ?? 'true',
     version: 'api/v1',
     apiHealth: 'health',
     apiTranscription: 'transcriptions',

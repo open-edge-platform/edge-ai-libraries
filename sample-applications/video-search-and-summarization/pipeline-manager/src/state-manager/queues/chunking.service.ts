@@ -343,14 +343,12 @@ export class ChunkingService {
       const firstFrame: number = +sortedFrames[0];
       const lastFrame: number = +sortedFrames[sortedFrames.length - 1];
 
-      const startChunk = Math.floor(firstFrame / sampleFrames);
-      const endChunk = Math.floor(lastFrame / sampleFrames);
+      // Frame IDs are 1-indexed; map to the chunk's time window
+      const startChunk = Math.floor((firstFrame - 1) / sampleFrames);
+      const endChunk = Math.floor((lastFrame - 1) / sampleFrames);
 
-      const startTime =
-        startChunk * chunkDuration +
-        (chunkDuration * firstFrame) / sampleFrames;
-      const endTime =
-        endChunk * chunkDuration + (chunkDuration * lastFrame) / sampleFrames;
+      const startTime = startChunk * chunkDuration;
+      const endTime = (endChunk + 1) * chunkDuration;
 
       console.log('IN AUDIO:', startTime, endTime);
 

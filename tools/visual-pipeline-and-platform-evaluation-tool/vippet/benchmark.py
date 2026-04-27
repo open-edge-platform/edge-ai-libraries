@@ -103,15 +103,23 @@ class _BestConfig:
 class Benchmark:
     """Benchmarking class for pipeline evaluation."""
 
-    def __init__(self, max_runtime: float = 0, enable_latency_metrics: bool = False):
+    def __init__(
+        self,
+        max_runtime: float = 0,
+        enable_latency_metrics: bool = False,
+        job_id: str | None = None,
+    ):
         self.best_result = None
         # Initialize PipelineRunner in normal mode with optional max_runtime for each run.
         # `enable_latency_metrics` is forwarded so that the GStreamer subprocess
         # is launched with the DLStreamer latency_tracer active when requested.
+        # `job_id` is forwarded so FPS metrics pushed during each density
+        # iteration are tagged with the owning job's id in metrics-service.
         self.runner = PipelineRunner(
             mode="normal",
             max_runtime=max_runtime,
             enable_latency_metrics=enable_latency_metrics,
+            job_id=job_id,
         )
         self.logger = logging.getLogger(__name__)
 

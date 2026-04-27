@@ -86,6 +86,8 @@ export const enTranslations = {
   summaryLabel: 'Video Summarization',
   chunkingLabel: 'Video Chunking',
   chunkingSummaryLabel: 'Video Chunks Summary',
+  audioTranscriptionLabel: 'Audio Transcription',
+  audioSummaryLabel: 'Audio Summarization',
   sampleRate: 'Sample Rate: {{frames}} frames every {{interval}} seconds',
   aiModel: 'Model: {{model}}',
   runningOn: 'Running on: {{device}}',
@@ -172,6 +174,8 @@ export const enTranslations = {
   PromptSettings: 'Prompt Settings',
   UseAudio: 'Use Audio Transcription',
   AudioModels: 'Audio Models',
+  UseAudioSummary: 'Summarize audio transcript for final summary',
+  UseAudioSummaryInfo: 'When enabled, the full audio transcript is first summarized by the LLM, then the resulting audio summary is included alongside chunk captions in the final video summary. This improves accuracy for dialogue-heavy or narrated videos.',
 
   drawerTitle: 'Drawer Title',
   confirm: 'Confirm',

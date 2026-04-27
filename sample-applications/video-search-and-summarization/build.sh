@@ -238,7 +238,7 @@ push_images() {
 
   # Get list of dependency images to push
   log_info "Pushing dependency images..."
-  dependency_images=$(docker images | grep -E "${REGISTRY}.*(vdms|multimodal|vlm|audio).*${TAG}" | awk '{print $1":"$2}')
+  dependency_images=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E "${REGISTRY}.*(vdms|multimodal|vlm|audio).*${TAG}")
   
   # Push dependency images
   for image in $dependency_images; do
@@ -251,7 +251,7 @@ push_images() {
 
   # Push sample application images
   log_info "Pushing sample application images..."
-  app_images=$(docker images | grep -E "${REGISTRY}.*(pipeline-manager|video-search|video-ingestion|vss-ui).*${TAG}" | awk '{print $1":"$2}')
+  app_images=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E "${REGISTRY}.*(pipeline-manager|video-search|video-ingestion|vss-ui).*${TAG}")
   
   for image in $app_images; do
     log_info "Pushing $image..."

@@ -607,12 +607,27 @@ components:
         summarySinglePrompt:
           type: string
           description: Prompt for single summary processing
+        audioSummaryMapPrompt:
+          type: string
+          description: Prompt for audio transcript summary map processing
+        audioSummaryReducePrompt:
+          type: string
+          description: Prompt for audio transcript summary reduce processing
+        audioSummarySinglePrompt:
+          type: string
+          description: Prompt for audio transcript single summary processing
     SummaryPipelineAudioSwagger:
       type: object
       properties:
         audioModel:
           type: string
           description: Audio model ID for transcription
+        useFullTranscriptSummary:
+          type: boolean
+          description: >-
+            When true, the full audio transcript is summarized by the LLM and
+            included in the final video summary. Overrides the server default
+            set by AUDIO_USE_FULL_TRANSCRIPT_SUMMARY.
       required:
         - audioModel
     SummaryPipelineDTOSwagger:

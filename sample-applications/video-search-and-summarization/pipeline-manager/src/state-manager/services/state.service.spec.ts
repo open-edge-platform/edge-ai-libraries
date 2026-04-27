@@ -83,6 +83,7 @@ describe('StateService', () => {
       summarizing: StateActionStatus.NA,
       dataStoreUpload: StateActionStatus.NA,
       chunking: StateActionStatus.NA,
+      videoChunking: StateActionStatus.NA,
     },
   };
 
