@@ -182,6 +182,58 @@ class OptimizationType(str, Enum):
     OPTIMIZE = "optimize"
 
 
+class VideoSource(str, Enum):
+    """
+    **Origin of an input video file on disk.**
+
+    ## Values
+    - `AUTO` - Video downloaded automatically from `default_recordings.yaml`
+      into `/videos/input/auto/`
+    - `UPLOADED` - Video uploaded by the user via the
+      `POST /videos/upload` endpoint into `/videos/input/uploaded/`
+
+    ### Example
+    ```json
+    "uploaded"
+    ```
+    """
+
+    AUTO = "auto"
+    UPLOADED = "uploaded"
+
+
+class VideoUploadErrorKind(str, Enum):
+    """
+    **Machine-readable reason why a video upload was rejected.**
+
+    Returned in the `error` field of the `VideoUploadError` response body
+    together with a human-readable `detail` message.
+
+    ## Values
+    - `MISSING_FILENAME` - The multipart part did not carry a filename.
+    - `UNSUPPORTED_EXTENSION` - File extension is not in the allowed list.
+    - `FILE_TOO_LARGE` - File size exceeds the configured maximum.
+    - `UNSUPPORTED_CONTAINER` - Container format is not in the allowed list.
+    - `UNSUPPORTED_CODEC` - Video codec is not in the allowed list.
+    - `INVALID_VIDEO` - File cannot be opened as a video by OpenCV.
+    - `FILE_EXISTS` - A video with the same filename is already present in
+      either `auto/` or `uploaded/`.
+
+    ### Example
+    ```json
+    "unsupported_codec"
+    ```
+    """
+
+    MISSING_FILENAME = "missing_filename"
+    UNSUPPORTED_EXTENSION = "unsupported_extension"
+    FILE_TOO_LARGE = "file_too_large"
+    UNSUPPORTED_CONTAINER = "unsupported_container"
+    UNSUPPORTED_CODEC = "unsupported_codec"
+    INVALID_VIDEO = "invalid_video"
+    FILE_EXISTS = "file_exists"
+
+
 class CameraType(str, Enum):
     """
     **Type of camera device.**
@@ -1791,13 +1843,19 @@ class Video(BaseModel):
     **Metadata for a single input video file.**
 
     ## Attributes
-    - `filename` - Base name of the video file located under INPUT_VIDEO_DIR
+    - `filename` - Base name of the video file
     - `width` - Frame width in pixels
     - `height` - Frame height in pixels
     - `fps` - Frames per second for the stream
     - `frame_count` - Total number of frames in the file
     - `codec` - Normalized codec name (e.g., "h264" or "h265")
     - `duration` - Approximate duration in seconds
+    - `source` - Origin of the video on disk (`auto` for auto-downloaded,
+      `uploaded` for user-uploaded via `POST /videos/upload`)
+    - `path` - Location of the file prefixed with its source directory name
+      (e.g. `auto/traffic_1080p_h264.mp4` or `uploaded/myclip.mp4`).
+      Clients can build a preview URL as
+      `/assets/videos/input/{path}`.
 
     ### Example
     ```json
@@ -1809,7 +1867,9 @@ class Video(BaseModel):
         "fps": 30.0,
         "frame_count": 900,
         "codec": "h264",
-        "duration": 30.0
+        "duration": 30.0,
+        "source": "auto",
+        "path": "auto/traffic_1080p_h264.mp4"
       }
     ]
     ```
@@ -1822,6 +1882,88 @@ class Video(BaseModel):
     frame_count: int
     codec: str
     duration: float
+    source: VideoSource = Field(
+        default=VideoSource.AUTO,
+        description="Origin of the video on disk: 'auto' (auto-downloaded) or 'uploaded' (user-uploaded).",
+    )
+    path: str = Field(
+        default="",
+        description=(
+            "Location of the file prefixed with its source directory name, "
+            "for example 'auto/traffic_1080p_h264.mp4' or "
+            "'uploaded/myclip.mp4'. Clients can build a preview URL as "
+            "'/assets/videos/input/{path}'."
+        ),
+    )
+
+
+class VideoUploadError(BaseModel):
+    """
+    **Structured error body returned when a video upload is rejected.**
+
+    Returned with HTTP 422 by `POST /videos/upload` when the submitted file
+    fails any validation step (extension, size, container, codec, duplicate
+    filename, or invalid video). The response also includes a `detail`
+    field with a human-readable message so consumers can display it
+    directly without mapping the `error` code.
+
+    ## Attributes
+    - `detail` - Human-readable error message suitable for direct display
+      in the UI (for example: "Unsupported codec 'vp9'. Allowed codecs: h264, h265.").
+    - `error` - Machine-readable error kind (see `VideoUploadErrorKind`).
+    - `found` - Optional value that actually failed validation. The type
+      depends on the error: a string for extension/codec/container,
+      an integer (bytes) for size, or a filename for duplicates.
+    - `allowed` - Optional list of accepted values for the failed check.
+      Omitted when a list does not apply (for example for `file_exists`).
+
+    ### Example (unsupported codec)
+    ```json
+    {
+      "detail": "Unsupported codec 'vp9'. Allowed codecs: h264, h265.",
+      "error": "unsupported_codec",
+      "found": "vp9",
+      "allowed": ["h264", "h265"]
+    }
+    ```
+
+    ### Example (file too large)
+    ```json
+    {
+      "detail": "File is too large (3221225472 bytes). Maximum allowed size is 2147483648 bytes.",
+      "error": "file_too_large",
+      "found": 3221225472,
+      "allowed": [2147483648]
+    }
+    ```
+
+    ### Example (duplicate filename)
+    ```json
+    {
+      "detail": "A video with filename 'people.mp4' already exists.",
+      "error": "file_exists",
+      "found": "people.mp4",
+      "allowed": null
+    }
+    ```
+    """
+
+    detail: str = Field(
+        ...,
+        description="Human-readable error message suitable for UI display.",
+    )
+    error: VideoUploadErrorKind = Field(
+        ...,
+        description="Machine-readable error kind.",
+    )
+    found: Optional[Union[str, int]] = Field(
+        default=None,
+        description="Value that actually failed validation (string, integer, or null).",
+    )
+    allowed: Optional[List[Union[str, int]]] = Field(
+        default=None,
+        description="List of accepted values for the failed check, or null when not applicable.",
+    )
 
 
 class VideoExistsResponse(BaseModel):
@@ -1829,7 +1971,8 @@ class VideoExistsResponse(BaseModel):
     **Response indicating whether a video file exists.**
 
     ## Attributes
-    - `exists` - True if file exists in INPUT_VIDEO_DIR, False otherwise
+    - `exists` - True if a file with the given basename exists in
+      `AUTO_VIDEO_DIR` or `UPLOADED_VIDEO_DIR`, False otherwise
     - `filename` - The filename that was checked
 
     ### Example

@@ -1,6 +1,7 @@
+import os
 import unittest
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from graph import Graph
 from internal_types import (
@@ -14,6 +15,48 @@ from internal_types import (
 )
 from managers.pipeline_manager import PipelineManager, METADATA_DIR
 from videos import OUTPUT_VIDEO_DIR
+
+
+# Module-level VideosManager patch.
+#
+# build_pipeline_command goes through graph.to_pipeline_description, which
+# instantiates VideosManager. The real VideosManager singleton downloads
+# default recordings and converts them to .ts on first use, which is
+# expensive and requires network access — neither is acceptable in unit
+# tests. We replace graph.VideosManager with a MagicMock that returns a
+# stub instance exposing only the handful of lookups the graph module
+# performs on file source nodes.
+_videos_manager_patcher = None
+
+
+def _mock_get_video_filename(path: str) -> str:
+    return os.path.basename(path)
+
+
+def _mock_get_video_path(filename: str) -> str:
+    return os.path.join("/tmp", filename)
+
+
+def setUpModule() -> None:
+    """Install the VideosManager patch before any test runs."""
+    global _videos_manager_patcher
+    mock_instance = MagicMock()
+    mock_instance.get_video_filename.side_effect = _mock_get_video_filename
+    mock_instance.get_video_path.side_effect = _mock_get_video_path
+    mock_instance.get_video.return_value = None
+    mock_instance.get_ts_path.side_effect = lambda p: p
+    mock_instance.ensure_ts_file.side_effect = lambda p: p
+
+    _videos_manager_patcher = patch("graph.VideosManager", return_value=mock_instance)
+    _videos_manager_patcher.start()
+
+
+def tearDownModule() -> None:
+    """Remove the VideosManager patch after the module's tests finish."""
+    global _videos_manager_patcher
+    if _videos_manager_patcher is not None:
+        _videos_manager_patcher.stop()
+        _videos_manager_patcher = None
 
 
 def create_simple_graph() -> Graph:
