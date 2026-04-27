@@ -1,12 +1,37 @@
-"""Configuration helpers for the spec-driven MCP REST proxy."""
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+"""Runtime configuration for the spec-driven MCP REST proxy.
+
+All settings are sourced from environment variables so that the same Docker
+image can be reused unmodified across deployments.
+
+Recognised variables:
+
+==================== ==================================================
+Variable             Purpose
+==================== ==================================================
+``API_SPEC_URL``     URL to the upstream OpenAPI / Swagger document (required).
+``API_BASE_URL``     Override for the backend base URL (recommended).
+``FILTER_FILE_PATH`` Path to the JSON filter file inside the container.
+``REQUEST_TIMEOUT``  Per-request timeout in seconds (float, > 0).
+``LOG_LEVEL``        Python logging level (default ``INFO``).
+``MCP_HOST``         Bind address for the MCP HTTP listener.
+``MCP_PORT``         TCP port for the MCP HTTP listener.
+``MCP_PATH``         URL path prefix for the MCP endpoint (e.g. ``/mcp``).
+``MCP_STATELESS_HTTP`` Whether to run in stateless HTTP mode (default ``true``).
+==================== ==================================================
+"""
 
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass
 from functools import lru_cache
-import os
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
 
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 60.0
 DEFAULT_MCP_HOST = "127.0.0.1"
@@ -17,11 +42,29 @@ DEFAULT_FILTER_CONFIG_PATH = "all.json"
 
 @dataclass(frozen=True, slots=True)
 class Settings:
-    """Runtime settings for the MCP proxy server."""
+    """Immutable runtime settings for the MCP proxy server.
+
+    Attributes:
+        spec_url: URL of the upstream OpenAPI / Swagger document.
+        filter_config_path: Absolute path to the JSON filter file.
+        target_base_url: Optional explicit backend base URL. When ``None`` the
+            URL is derived from the spec's ``servers`` list.
+        request_timeout_seconds: Timeout applied to both the spec download and
+            every proxied request.
+        log_level: Python logging level name (e.g. ``"INFO"``, ``"DEBUG"``).
+        mcp_host: Bind address for the MCP HTTP listener.
+        mcp_port: TCP port for the MCP HTTP listener.
+        mcp_path: URL path prefix exposed by the MCP server.
+        stateless_http: Whether the MCP HTTP transport runs without sessions.
+    """
 
     spec_url: str
+    """URL of the upstream OpenAPI / Swagger document."""
+
+    api_base_url: str
+    """Base URL the proxy forwards REST traffic to (from ``API_BASE_URL``)."""
+
     filter_config_path: str
-    target_base_url: str | None
     request_timeout_seconds: float
     log_level: str
     mcp_host: str
@@ -31,7 +74,18 @@ class Settings:
 
 
 def _read_positive_float(name: str, default: float) -> float:
-    """Read a positive float from the environment."""
+    """Read a strictly-positive float from the environment.
+
+    Args:
+        name: Environment variable to read.
+        default: Value to return when the variable is unset.
+
+    Returns:
+        The parsed float value, or ``default`` when the variable is unset.
+
+    Raises:
+        ValueError: If the variable is set but not a positive number.
+    """
 
     raw_value = os.getenv(name)
     if raw_value is None:
@@ -39,7 +93,7 @@ def _read_positive_float(name: str, default: float) -> float:
 
     try:
         value = float(raw_value)
-    except ValueError as exc:  # pragma: no cover - exercised via startup validation
+    except ValueError as exc:
         raise ValueError(f"{name} must be a valid number.") from exc
 
     if value <= 0:
@@ -49,7 +103,18 @@ def _read_positive_float(name: str, default: float) -> float:
 
 
 def _read_port(name: str, default: int) -> int:
-    """Read and validate a TCP port number from the environment."""
+    """Read and validate a TCP port number from the environment.
+
+    Args:
+        name: Environment variable to read.
+        default: Value to return when the variable is unset.
+
+    Returns:
+        The validated port number in ``[1, 65535]``.
+
+    Raises:
+        ValueError: If the variable is set but is not an integer in range.
+    """
 
     raw_value = os.getenv(name)
     if raw_value is None:
@@ -57,7 +122,7 @@ def _read_port(name: str, default: int) -> int:
 
     try:
         port = int(raw_value)
-    except ValueError as exc:  # pragma: no cover - exercised via startup validation
+    except ValueError as exc:
         raise ValueError(f"{name} must be a valid integer port.") from exc
 
     if not 1 <= port <= 65535:
@@ -67,7 +132,21 @@ def _read_port(name: str, default: int) -> int:
 
 
 def _read_bool(name: str, default: bool) -> bool:
-    """Read a boolean flag from the environment."""
+    """Read a boolean flag from the environment.
+
+    Accepts the case-insensitive forms ``true/false``, ``yes/no``, ``on/off``,
+    and ``1/0``.
+
+    Args:
+        name: Environment variable to read.
+        default: Value to return when the variable is unset.
+
+    Returns:
+        The parsed boolean value, or ``default`` when the variable is unset.
+
+    Raises:
+        ValueError: If the variable is set to an unrecognised string.
+    """
 
     raw_value = os.getenv(name)
     if raw_value is None:
@@ -83,26 +162,52 @@ def _read_bool(name: str, default: bool) -> bool:
 
 
 def _read_path(name: str, default: str) -> str:
-    """Read and normalize an HTTP path."""
+    """Read an HTTP URL path from the environment, normalising the leading slash.
+
+    Args:
+        name: Environment variable to read.
+        default: Path used when the variable is unset or blank.
+
+    Returns:
+        A path that is guaranteed to start with ``/``.
+    """
 
     value = os.getenv(name, default).strip() or default
     return value if value.startswith("/") else f"/{value}"
 
 
 def project_root() -> Path:
-    """Return the mcp project root regardless of current working directory."""
+    """Return the absolute path to the ``mcp`` project root.
+
+    Used to locate bundled filter files regardless of the process's current
+    working directory.
+    """
 
     return Path(__file__).resolve().parents[2]
 
 
 def bundled_filter_config_path() -> Path:
-    """Return the bundled example filter config path."""
+    """Return the absolute path to the bundled default filter config file."""
 
     return project_root() / DEFAULT_FILTER_CONFIG_PATH
 
 
 def _resolve_path_input(value: str, *, default_path: Path | None = None) -> str | None:
-    """Resolve a configured path relative to cwd first, then project root."""
+    """Resolve a configured path: cwd first, then project root, else verbatim.
+
+    A blank input falls back to ``default_path`` (when supplied). Absolute
+    paths are returned unchanged. Relative paths are tried against the current
+    working directory first; if that file does not exist, they are resolved
+    against the project root so the default ``all.json`` ships inside the
+    Docker image.
+
+    Args:
+        value: Raw path string from the user / environment.
+        default_path: Path to fall back to when ``value`` is blank.
+
+    Returns:
+        A fully-resolved path string, or ``None`` if no candidate was usable.
+    """
 
     normalized = value.strip()
     if not normalized:
@@ -120,8 +225,36 @@ def _resolve_path_input(value: str, *, default_path: Path | None = None) -> str 
     return str(project_candidate)
 
 
+def _read_api_base_url() -> str:
+    """Return the configured backend base URL.
+
+    Returns:
+        The non-empty value of the ``API_BASE_URL`` environment variable,
+        with any trailing slash stripped.
+
+    Raises:
+        ValueError: If the environment variable is unset or blank.
+    """
+
+    base_url = os.getenv("API_BASE_URL", "").strip()
+    if base_url:
+        return base_url.rstrip("/")
+
+    raise ValueError(
+        "Set API_BASE_URL to the base URL of the running REST service "
+        "(e.g. http://<HOST_IP>:12345/apiBase)."
+    )
+
+
 def _read_spec_url() -> str:
-    """Read the configured OpenAPI specification URL."""
+    """Return the configured upstream OpenAPI spec URL.
+
+    Returns:
+        The non-empty value of the ``API_SPEC_URL`` environment variable.
+
+    Raises:
+        ValueError: If the environment variable is unset or blank.
+    """
 
     spec_url = os.getenv("API_SPEC_URL", "").strip()
     if spec_url:
@@ -134,21 +267,29 @@ def _read_spec_url() -> str:
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Return validated MCP proxy settings."""
+    """Read and validate all runtime settings from the environment.
 
-    target_base_url = os.getenv("API_BASE_URL", "").strip() or None
+    The result is cached for the lifetime of the process so callers can call
+    this function freely without re-parsing the environment.
 
-    return Settings(
+    Returns:
+        A populated :class:`Settings` instance.
+
+    Raises:
+        ValueError: If any required variable is missing or any optional
+            variable is set to an invalid value.
+    """
+
+    settings = Settings(
         spec_url=_read_spec_url(),
+        api_base_url=_read_api_base_url(),
         filter_config_path=_resolve_path_input(
             os.getenv("FILTER_FILE_PATH", ""),
             default_path=bundled_filter_config_path(),
         )
         or str(bundled_filter_config_path()),
-        target_base_url=target_base_url.rstrip("/") if target_base_url else None,
         request_timeout_seconds=_read_positive_float(
-            "APP_PROXY_REQUEST_TIMEOUT",
-            DEFAULT_REQUEST_TIMEOUT_SECONDS,
+            "REQUEST_TIMEOUT", DEFAULT_REQUEST_TIMEOUT_SECONDS
         ),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         mcp_host=os.getenv("MCP_HOST", DEFAULT_MCP_HOST).strip() or DEFAULT_MCP_HOST,
@@ -156,3 +297,13 @@ def get_settings() -> Settings:
         mcp_path=_read_path("MCP_PATH", DEFAULT_MCP_PATH),
         stateless_http=_read_bool("MCP_STATELESS_HTTP", True),
     )
+    logger.debug(
+        "Settings resolved: spec_url=%s filter=%s api_base_url=%s host=%s port=%d path=%s",
+        settings.spec_url,
+        settings.filter_config_path,
+        settings.api_base_url,
+        settings.mcp_host,
+        settings.mcp_port,
+        settings.mcp_path,
+    )
+    return settings

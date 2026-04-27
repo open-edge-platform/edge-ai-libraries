@@ -1,39 +1,47 @@
 {
   "enabled": true,
   "server_name": "vss_search_mcp",
-  "tool_prefix": "vss",
-  "resource_scheme": "vss",
+  "prefix": "vss",
   "apis": {
     "GET /health": {
-      "expose": "resource"
+      "expose": "resource",
+      "resource_name": "health",
+      "description": "Returns the current health status of the VSS service. Use this to verify that the backend is running and reachable before issuing other requests."
     },
     "GET /app/features": {
-      "expose": "resource"
+      "expose": "resource",
+      "resource_name": "app_features",
+      "description": "Returns the set of features enabled in the running VSS deployment (e.g. search, summary). Use this to determine which capabilities are available before calling feature-specific tools."
     },
     "GET /tags": {
       "expose": "tool",
-      "tool_name": "get_tags"
+      "tool_name": "get_tags",
+      "description": "List all tags that have been applied to videos in the VSS library. Tags are short labels (e.g. 'outdoor', 'interview') used to categorise and filter videos."
     },
     "DELETE /tags/{tagId}": {
       "expose": "tool",
-      "tool_name": "delete_tag"
+      "tool_name": "delete_tag",
+      "description": "Permanently delete a tag by its ID. The tag is removed from the system and detached from any videos it was associated with. This action cannot be undone."
     },
     "GET /videos": {
       "expose": "tool",
-      "tool_name": "get_all_videos"
-
+      "tool_name": "get_all_videos",
+      "description": "List all videos ingested into the VSS library. Returns a JSON array of video records, each containing the video ID, file name, upload timestamp, duration, associated tags, and storage metadata. Use this to discover available videos before running a search or requesting embeddings."
     },
     "GET /videos/{videoId}": {
       "expose": "tool",
-      "tool_name": "get_video"
+      "tool_name": "get_video",
+      "description": "Retrieve detailed metadata for a single video identified by its ID. Returns file name, upload timestamp, duration, processing status, associated tags, and any generated embedding information."
     },
     "POST /videos/search-embeddings/{videoId}": {
       "expose": "tool",
-      "tool_name": "create_video_search_embeddings"
+      "tool_name": "create_video_search_embeddings",
+      "description": "Trigger the generation of semantic search embeddings for a specific video. Embeddings must exist before the video can be matched by natural-language search queries. Call this after uploading a new video or if a previous embedding run failed."
     },
     "POST /search/query": {
       "expose": "tool",
-      "tool_name": "run_search_query"
+      "tool_name": "run_search_query",
+      "description": "Execute an immediate, one-off natural-language search across all indexed videos. Provide a text query (e.g. 'person wearing a red jacket near a car') and receive a ranked list of matching video segments with timestamps and relevance scores."
     }
   }
 }

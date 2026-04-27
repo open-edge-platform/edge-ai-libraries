@@ -1,3 +1,6 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 import json
@@ -10,6 +13,7 @@ from pydantic import ValidationError
 from src.filters import (
     ProxyFilterConfig,
     api_config_for,
+    configured_resource_name,
     configured_tool_name,
     load_filter_config,
     operation_is_enabled,
@@ -23,15 +27,14 @@ class FilterConfigTests(unittest.TestCase):
         config = ProxyFilterConfig.model_validate(
             {
                 "enabled": True,
-                "tool_prefix": "demo",
-                "resource_scheme": "demo",
+                "prefix": "demo",
                 "apis": {
-                    "GET /widgets": {"expose": "resource"},
+                    "GET /widgets": {"expose": "resource", "resource_name": "list_widgets"},
                     "PATCH /jobs/{jobId}/retry": {
                         "expose": "tool",
                         "tool_name": "retry_job",
                     },
-                    "GET /reports/{reportId}": {"expose": "resource"},
+                    "GET /reports/{reportId}": {"expose": "resource", "resource_name": "get_report"},
                     "DELETE /jobs/private/{jobId}": {"expose": "disabled"},
                 },
             }
@@ -40,6 +43,10 @@ class FilterConfigTests(unittest.TestCase):
         self.assertTrue(operation_is_enabled(config, "GET", "/widgets"))
         self.assertFalse(tool_is_enabled(config, "GET", "/widgets"))
         self.assertTrue(resource_is_enabled(config, "GET", "/widgets"))
+        self.assertEqual(
+            configured_resource_name(config, "GET", "/widgets"),
+            "demo_list_widgets",
+        )
         self.assertTrue(tool_is_enabled(config, "PATCH", "/jobs/{jobId}/retry"))
         self.assertFalse(resource_is_enabled(config, "PATCH", "/jobs/{jobId}/retry"))
         self.assertEqual(
@@ -48,6 +55,10 @@ class FilterConfigTests(unittest.TestCase):
         )
         self.assertFalse(tool_is_enabled(config, "GET", "/reports/{reportId}"))
         self.assertTrue(resource_is_enabled(config, "GET", "/reports/{reportId}"))
+        self.assertEqual(
+            configured_resource_name(config, "GET", "/reports/{reportId}"),
+            "demo_get_report",
+        )
         self.assertFalse(operation_is_enabled(config, "POST", "/widgets"))
         self.assertFalse(operation_is_enabled(config, "DELETE", "/jobs/private/{jobId}"))
 
@@ -55,11 +66,10 @@ class FilterConfigTests(unittest.TestCase):
         config = ProxyFilterConfig.model_validate(
             {
                 "enabled": True,
-                "tool_prefix": "demo",
-                "resource_scheme": "demo",
+                "prefix": "demo",
                 "apis": {
-                    "GET /runs/{runId}": {"expose": "resource"},
-                    "DELETE /runs/{runId}": {"expose": "resource"},
+                    "GET /runs/{runId}": {"expose": "resource", "resource_name": "get_run"},
+                    "DELETE /runs/{runId}": {"expose": "resource", "resource_name": "delete_run"},
                 },
             }
         )
@@ -72,10 +82,9 @@ class FilterConfigTests(unittest.TestCase):
             ProxyFilterConfig.model_validate(
                 {
                     "enabled": True,
-                    "tool_prefix": "demo",
-                    "resource_scheme": "demo",
+                    "prefix": "demo",
                     "apis": {
-                        "GET /search/*": {"expose": "resource"},
+                        "GET /search/*": {"expose": "resource", "resource_name": "search"},
                     },
                 }
             )
@@ -85,10 +94,21 @@ class FilterConfigTests(unittest.TestCase):
             ProxyFilterConfig.model_validate(
                 {
                     "enabled": True,
-                    "tool_prefix": "demo",
-                    "resource_scheme": "demo",
+                    "prefix": "demo",
                     "apis": {
                         "POST /widgets": {"expose": "tool"},
+                    },
+                }
+            )
+
+    def test_resource_entries_require_resource_name(self) -> None:
+        with self.assertRaisesRegex(ValidationError, 'resource_name is required when expose is "resource"'):
+            ProxyFilterConfig.model_validate(
+                {
+                    "enabled": True,
+                    "prefix": "demo",
+                    "apis": {
+                        "GET /widgets": {"expose": "resource"},
                     },
                 }
             )
@@ -98,12 +118,28 @@ class FilterConfigTests(unittest.TestCase):
             ProxyFilterConfig.model_validate(
                 {
                     "enabled": True,
-                    "tool_prefix": "demo",
-                    "resource_scheme": "demo",
+                    "prefix": "demo",
                     "apis": {
                         "GET /widgets": {
                             "expose": "resource",
+                            "resource_name": "list_widgets",
                             "tool_name": "list_widgets",
+                        },
+                    },
+                }
+            )
+
+    def test_tool_entries_reject_resource_name(self) -> None:
+        with self.assertRaisesRegex(ValidationError, 'resource_name is only allowed when expose is "resource"'):
+            ProxyFilterConfig.model_validate(
+                {
+                    "enabled": True,
+                    "prefix": "demo",
+                    "apis": {
+                        "POST /widgets": {
+                            "expose": "tool",
+                            "tool_name": "create_widget",
+                            "resource_name": "create_widget",
                         },
                     },
                 }
@@ -114,8 +150,7 @@ class FilterConfigTests(unittest.TestCase):
             ProxyFilterConfig.model_validate(
                 {
                     "enabled": True,
-                    "tool_prefix": "demo",
-                    "resource_scheme": "demo",
+                    "prefix": "demo",
                     "apis": {
                         "GET /widgets": {"expose": "both"},
                     },
@@ -127,8 +162,7 @@ class FilterConfigTests(unittest.TestCase):
             ProxyFilterConfig.model_validate(
                 {
                     "enabled": True,
-                    "tool_prefix": "demo",
-                    "resource_scheme": "demo",
+                    "prefix": "demo",
                     "apis": {
                         "POST /widgets": {
                             "expose": "tool",
@@ -142,14 +176,32 @@ class FilterConfigTests(unittest.TestCase):
                 }
             )
 
+    def test_duplicate_resource_names_are_rejected(self) -> None:
+        with self.assertRaisesRegex(ValidationError, 'resource_name "get_widget" is used by both'):
+            ProxyFilterConfig.model_validate(
+                {
+                    "enabled": True,
+                    "prefix": "demo",
+                    "apis": {
+                        "GET /widgets/{widgetId}": {
+                            "expose": "resource",
+                            "resource_name": "get_widget",
+                        },
+                        "GET /widgets/{widgetId}/details": {
+                            "expose": "resource",
+                            "resource_name": "get_widget",
+                        },
+                    },
+                }
+            )
+
     def test_disabled_config_reports_nothing_enabled(self) -> None:
         config = ProxyFilterConfig.model_validate(
             {
                 "enabled": False,
-                "tool_prefix": "demo",
-                "resource_scheme": "demo",
+                "prefix": "demo",
                 "apis": {
-                    "GET /widgets": {"expose": "resource"},
+                    "GET /widgets": {"expose": "resource", "resource_name": "list_widgets"},
                     "POST /widgets": {"expose": "tool", "tool_name": "create_widget"},
                 },
             }
@@ -167,11 +219,11 @@ class FilterConfigTests(unittest.TestCase):
                     {
                         "enabled": True,
                         "server_name": "demo_server",
-                        "tool_prefix": "demo",
-                        "resource_scheme": "demo",
+                        "prefix": "demo",
                         "apis": {
                             "GET /widgets/{widgetId}": {
                                 "expose": "resource",
+                                "resource_name": "get_widget",
                                 "description": "Get a widget by ID.",
                             },
                             "POST /widgets": {
@@ -187,7 +239,7 @@ class FilterConfigTests(unittest.TestCase):
             config = load_filter_config(str(config_path))
 
         self.assertEqual(config.server_name, "demo_server")
-        self.assertEqual(config.tool_prefix, "demo")
+        self.assertEqual(config.prefix, "demo")
         self.assertTrue(operation_is_enabled(config, "GET", "/widgets/{widgetId}"))
         self.assertEqual(
             api_config_for(config, "GET", "/widgets/{widgetId}").description,
@@ -196,6 +248,10 @@ class FilterConfigTests(unittest.TestCase):
         self.assertEqual(
             configured_tool_name(config, "POST", "/widgets"),
             "demo_create_widget",
+        )
+        self.assertEqual(
+            configured_resource_name(config, "GET", "/widgets/{widgetId}"),
+            "demo_get_widget",
         )
 
 

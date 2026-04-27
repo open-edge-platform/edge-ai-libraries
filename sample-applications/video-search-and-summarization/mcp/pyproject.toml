@@ -1,17 +1,15 @@
 [project]
-name = "app-proxy-mcp"
+name = "mcp-app"
 version = "0.2.0"
 description = "Spec-driven FastMCP proxy for filtered REST APIs"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "httpx==0.28.1",
-    "fastmcp>=3.0,<4.0",
-    "PyYAML>=6.0.2,<7.0",
+    "fastmcp==3.2.4",
 ]
 
 [project.scripts]
-app-proxy-mcp = "src.main:main"
+mcp-app = "src.main:main"
 
 [build-system]
 requires = ["hatchling>=1.27.0"]
