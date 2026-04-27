@@ -1,12 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Fetch OpenAPI / Swagger documents from the upstream backend.
-
-The MCP server bootstraps from a *live* OpenAPI specification served by the
-upstream backend. This module is responsible
-for downloading and decoding that document.
-"""
+"""Fetch OpenAPI / Swagger documents from the upstream backend."""
 
 from __future__ import annotations
 

@@ -92,42 +92,41 @@ Each filter file is a JSON object:
   "server_name": "vss_search_mcp",
   "prefix": "vss",
   "apis": {
-    "GET /app/features": { "expose": "resource", "resource_name": "app_features" },
-    "POST /search/query": {
-      "expose": "tool",
-      "tool_name": "run_search_query"
-    },
+    "GET /app/features": { "type": "resource", "name": "app_features" },
+    "POST /search/query": { "type": "tool", "name": "run_search_query" },
     "DELETE /tags/{tagId}": {
-      "expose": "tool",
-      "tool_name": "delete_tag",
+      "type": "tool",
+      "name": "delete_tag",
       "description": "Remove a tag from the VSS index."
     }
   }
 }
 ```
 
+**Top-level fields:**
+
 | Field         | Description                                                                              |
 |---------------|------------------------------------------------------------------------------------------|
 | `enabled`     | Set to `false` to disable the server without removing the config                         |
 | `server_name` | MCP server name reported to clients                                                      |
 | `prefix`      | Prefix applied to every tool and resource name (e.g. `"vss"` → `"vss_run_search_query"`) |
-| `apis`        | Map of `"METHOD /path"` → exposure config                                                |
+| `apis`        | Map of `"METHOD /path"` → exposure config (entries not listed here are excluded)         |
 
-Exposure values for `expose`:
+**Per-API entry fields:**
 
-- `"tool"` : registered as an MCP tool; `tool_name` is **required**
-- `"resource"` : registered as a read-only MCP resource (GET only); `resource_name` is **required**
-- `"disabled"` : explicitly excluded from the MCP surface
+| Field         | Required | Description                                                                              |
+|---------------|----------|------------------------------------------------------------------------------------------|
+| `type`        | yes      | `"tool"` or `"resource"` — selects the MCP component kind. Resources are GET-only.       |
+| `name`        | yes      | Identifier suffix; combined with `prefix` to form the final MCP name                     |
+| `description` | no       | Optional override prepended to the OpenAPI description for this tool/resource            |
 
-Each endpoint entry can optionally include a `description` field to override the OpenAPI description.
-
-Any endpoint **not listed** in `apis` is automatically excluded.
+To exclude an endpoint, simply omit it from `apis`.
 
 
 ## Adding a New Endpoint
 
 1. Open the relevant filter file (or create a new one) in the `mcp/` directory.
-2. Add a `"METHOD /path"` entry under `"apis"` with the desired `expose` value.
+2. Add a `"METHOD /path"` entry under `"apis"` with the desired `type` and `name`.
 3. Restart the container, the server re-reads the spec and filter on each start.
 
 No code changes are needed.

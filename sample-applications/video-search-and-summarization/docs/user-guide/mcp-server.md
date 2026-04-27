@@ -14,7 +14,6 @@ The server is controlled by a **filter file**, a small JSON document that
 lists exactly which VSS endpoints to expose and whether each appears as a tool
 or a resource. The bundled `search.json` filter covers the Search mode:
 
----
 
 ## Prerequisites
 
@@ -23,7 +22,6 @@ or a resource. The bundled `search.json` filter covers the Search mode:
 - Network access from the machine running this container to the VSS host.
 - The VSS OpenAPI spec URL, for example `http://<VSS_IP>:12345/manager/swagger/json`.
 
----
 
 ## Quick Start
 
@@ -56,7 +54,6 @@ The MCP server is then reachable at:
 http://127.0.0.1:8000/mcp
 ```
 
----
 
 ## Runtime Configuration
 
@@ -72,7 +69,6 @@ http://127.0.0.1:8000/mcp
 | `MCP_PATH`                  | No                | `/mcp`             | Streamable HTTP endpoint path                         |
 
 
----
 
 ## What MCP Clients See
 
@@ -90,18 +86,17 @@ registers exactly the operations listed in the filter.
 | `vss_get_tags`                       | `GET /tags`                                    |
 | `vss_delete_tag`                     | `DELETE /tags/{tagId}`                         |
 
-Tool names are built from `prefix` + `tool_name` in the filter file, forming names like
+Tool names are built from `prefix` + `name` in the filter file, forming names like
 `"vss_run_search_query"`.
 
-**Resources** (read-only, GET only) are named from `prefix` + `resource_name` in the filter
-file. For example, a resource with `prefix: "vss"` and `resource_name: "app_features"` is
+**Resources** (read-only, GET only) are named from `prefix` + `name` in the filter
+file. For example, a resource with `prefix: "vss"` and `name: "app_features"` is
 reachable as:
 
 ```
 resource://vss_app_features
 ```
 
----
 
 ## Video Upload
 
@@ -109,7 +104,6 @@ resource://vss_app_features
 multipart operation better handled directly via the VSS REST API. Use the MCP
 server for discovery, search, status, and summary workflows only.
 
----
 
 ## Connecting with MCP Inspector
 

@@ -1,27 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Runtime configuration for the spec-driven MCP REST proxy.
-
-All settings are sourced from environment variables so that the same Docker
-image can be reused unmodified across deployments.
-
-Recognised variables:
-
-==================== ==================================================
-Variable             Purpose
-==================== ==================================================
-``API_SPEC_URL``     URL to the upstream OpenAPI / Swagger document (required).
-``API_BASE_URL``     Override for the backend base URL (recommended).
-``FILTER_FILE_PATH`` Path to the JSON filter file inside the container.
-``REQUEST_TIMEOUT``  Per-request timeout in seconds (float, > 0).
-``LOG_LEVEL``        Python logging level (default ``INFO``).
-``MCP_HOST``         Bind address for the MCP HTTP listener.
-``MCP_PORT``         TCP port for the MCP HTTP listener.
-``MCP_PATH``         URL path prefix for the MCP endpoint (e.g. ``/mcp``).
-``MCP_STATELESS_HTTP`` Whether to run in stateless HTTP mode (default ``true``).
-==================== ==================================================
-"""
+"""Runtime configuration for the spec-driven MCP REST proxy."""
 
 from __future__ import annotations
 
@@ -40,6 +20,7 @@ DEFAULT_MCP_PATH = "/mcp"
 DEFAULT_FILTER_CONFIG_PATH = "all.json"
 
 
+# Used in long lived singelton.
 @dataclass(frozen=True, slots=True)
 class Settings:
     """Immutable runtime settings for the MCP proxy server.
@@ -130,7 +111,6 @@ def _read_port(name: str, default: int) -> int:
 
     return port
 
-
 def _read_bool(name: str, default: bool) -> bool:
     """Read a boolean flag from the environment.
 
@@ -176,55 +156,6 @@ def _read_path(name: str, default: str) -> str:
     return value if value.startswith("/") else f"/{value}"
 
 
-def project_root() -> Path:
-    """Return the absolute path to the ``mcp`` project root.
-
-    Used to locate bundled filter files regardless of the process's current
-    working directory.
-    """
-
-    return Path(__file__).resolve().parents[2]
-
-
-def bundled_filter_config_path() -> Path:
-    """Return the absolute path to the bundled default filter config file."""
-
-    return project_root() / DEFAULT_FILTER_CONFIG_PATH
-
-
-def _resolve_path_input(value: str, *, default_path: Path | None = None) -> str | None:
-    """Resolve a configured path: cwd first, then project root, else verbatim.
-
-    A blank input falls back to ``default_path`` (when supplied). Absolute
-    paths are returned unchanged. Relative paths are tried against the current
-    working directory first; if that file does not exist, they are resolved
-    against the project root so the default ``all.json`` ships inside the
-    Docker image.
-
-    Args:
-        value: Raw path string from the user / environment.
-        default_path: Path to fall back to when ``value`` is blank.
-
-    Returns:
-        A fully-resolved path string, or ``None`` if no candidate was usable.
-    """
-
-    normalized = value.strip()
-    if not normalized:
-        return str(default_path) if default_path is not None else None
-
-    candidate = Path(normalized).expanduser()
-    if candidate.is_absolute():
-        return str(candidate.resolve())
-
-    cwd_candidate = (Path.cwd() / candidate).resolve()
-    if cwd_candidate.exists():
-        return str(cwd_candidate)
-
-    project_candidate = (project_root() / candidate).resolve()
-    return str(project_candidate)
-
-
 def _read_api_base_url() -> str:
     """Return the configured backend base URL.
 
@@ -265,6 +196,32 @@ def _read_spec_url() -> str:
     )
 
 
+def _read_filter_config_path() -> str:
+    """Return the configured filter config file path and validate it exists.
+
+    Returns:
+        The non-empty value of the ``FILTER_FILE_PATH`` environment variable.
+
+    Raises:
+        ValueError: If the environment variable is unset, blank, or the file
+            does not exist at the specified path.
+    """
+
+    filter_path = os.getenv("FILTER_FILE_PATH", "").strip()
+    if not filter_path:
+        raise ValueError(
+            "Set FILTER_FILE_PATH to the absolute path of the filter configuration file."
+        )
+
+    path_obj = Path(filter_path)
+    if not path_obj.exists():
+        raise ValueError(
+            f"Filter config file does not exist at FILTER_FILE_PATH: {filter_path}"
+        )
+
+    return filter_path
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Read and validate all runtime settings from the environment.
@@ -283,11 +240,7 @@ def get_settings() -> Settings:
     settings = Settings(
         spec_url=_read_spec_url(),
         api_base_url=_read_api_base_url(),
-        filter_config_path=_resolve_path_input(
-            os.getenv("FILTER_FILE_PATH", ""),
-            default_path=bundled_filter_config_path(),
-        )
-        or str(bundled_filter_config_path()),
+        filter_config_path=_read_filter_config_path(),
         request_timeout_seconds=_read_positive_float(
             "REQUEST_TIMEOUT", DEFAULT_REQUEST_TIMEOUT_SECONDS
         ),

@@ -4,8 +4,9 @@
 """JSON filter loading for controlling which REST operations are exposed via MCP.
 
 The filter file is the single source of truth for what an MCP client can do
-through the proxy. It enumerates every API operation (by HTTP method and path)
-and declares whether it is exposed as a tool, a resource, or hidden.
+through the proxy. Each entry under ``apis`` declares two things: the kind of
+MCP component to register (``tool`` or ``resource``) and the human-readable
+``name`` to register it under. Operations not listed in ``apis`` are excluded.
 """
 
 from __future__ import annotations
@@ -22,83 +23,54 @@ logger = logging.getLogger(__name__)
 
 SUPPORTED_METHODS = {"GET", "PUT", "POST", "DELETE", "PATCH", "HEAD", "OPTIONS"}
 OPERATION_KEY_PATTERN = re.compile(r"^(GET|PUT|POST|DELETE|PATCH|HEAD|OPTIONS)\s+(/.+)$")
-TOOL_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-ApiExposure = Literal["tool", "resource", "disabled"]
+NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+ApiType = Literal["tool", "resource"]
 
 
 class ApiConfig(BaseModel):
     """Per-operation MCP exposure settings loaded from JSON.
 
     Attributes:
-        expose: How the operation should appear: as an MCP tool, an MCP
-            resource, or hidden entirely.
-        tool_name: Tool-name suffix (combined with the global ``prefix``
-            to form the final MCP tool name). Required when ``expose='tool'``;
-            forbidden otherwise.
-        resource_name: Resource-name suffix (combined with the global
-            ``prefix`` to form the final MCP resource name). Required
-            when ``expose='resource'``; forbidden otherwise.
+        type: Either ``"tool"`` or ``"resource"`` — selects which MCP
+            component kind FastMCP will register for this operation.
+        name: Suffix combined with the global ``prefix`` to form the final
+            MCP component name (e.g. ``prefix="vss"`` + ``name="get_tags"``
+            → ``"vss_get_tags"``). Must be a valid identifier.
         description: Optional override prepended to the OpenAPI-generated
             description of the resulting tool/resource.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    expose: ApiExposure = Field(
-        description="Whether this API is exposed as a tool, a resource, or disabled.",
-    )
-    tool_name: str | None = Field(
-        default=None,
-        description="Explicit MCP tool name suffix for tool-exposed APIs.",
-    )
-    resource_name: str | None = Field(
-        default=None,
-        description="Explicit MCP resource name suffix for resource-exposed APIs.",
-    )
+    type: ApiType = Field(description="MCP component kind to register for this operation.")
+    name: str = Field(description="Identifier suffix used (with the prefix) as the MCP name.")
     description: str | None = Field(
         default=None,
-        description="Optional description override for the tool/resource generated from this API.",
+        description="Optional description override prepended to the OpenAPI description.",
     )
 
-    @field_validator("tool_name", "resource_name")
+    @field_validator("name")
     @classmethod
-    def _normalize_component_name(_cls, value: str | None) -> str | None:
-        """Strip whitespace and ensure the name is a valid identifier."""
+    def _validate_name(cls, value: str) -> str:
+        """Ensure ``name`` is a non-empty valid identifier."""
 
-        if value is None:
-            return None
         normalized = value.strip()
         if not normalized:
-            return None
-        if TOOL_NAME_PATTERN.fullmatch(normalized) is None:
+            raise ValueError("name must not be empty.")
+        if NAME_PATTERN.fullmatch(normalized) is None:
             raise ValueError(
-                "Name must be a valid identifier using letters, numbers, and underscores."
+                "name must be a valid identifier (letters, numbers, underscores only)."
             )
         return normalized
 
     @field_validator("description")
     @classmethod
-    def _normalize_description(_cls, value: str | None) -> str | None:
-        """Trim surrounding whitespace; collapse all-whitespace strings to ``None``."""
+    def _normalize_description(cls, value: str | None) -> str | None:
+        """Trim whitespace; collapse all-whitespace strings to ``None``."""
 
         if value is None:
             return None
-        normalized = value.strip()
-        return normalized or None
-
-    @model_validator(mode="after")
-    def _validate_name_requirements(self) -> "ApiConfig":
-        """Enforce that each name field is present only for its matching expose value."""
-
-        if self.tool_name is not None and self.expose != "tool":
-            raise ValueError('tool_name is only allowed when expose is "tool".')
-        if self.resource_name is not None and self.expose != "resource":
-            raise ValueError('resource_name is only allowed when expose is "resource".')
-        if self.expose == "tool" and not self.tool_name:
-            raise ValueError('tool_name is required when expose is "tool".')
-        if self.expose == "resource" and not self.resource_name:
-            raise ValueError('resource_name is required when expose is "resource".')
-        return self
+        return value.strip() or None
 
 
 class ProxyFilterConfig(BaseModel):
@@ -108,10 +80,8 @@ class ProxyFilterConfig(BaseModel):
         enabled: Master kill switch. When ``False`` the proxy refuses to expose
             any API regardless of per-entry settings.
         server_name: ``FastMCP`` server name surfaced to clients.
-        prefix: Prefix applied to every generated MCP tool and resource
-            name. Final names follow the pattern
-            ``f"{prefix}_{tool_name}"`` for tools and
-            ``f"{prefix}_{resource_name}"`` for resources.
+        prefix: Prefix applied to every generated MCP component name. Final
+            names follow the pattern ``f"{prefix}_{name}"``.
         apis: Per-operation rules keyed as ``"METHOD /path"``. Operations not
             listed here are excluded from MCP entirely.
     """
@@ -125,7 +95,7 @@ class ProxyFilterConfig(BaseModel):
     )
     prefix: str = Field(
         default="api",
-        description="Prefix applied to generated MCP tool and resource names.",
+        description="Prefix applied to generated MCP component names.",
     )
     apis: dict[str, ApiConfig] = Field(
         default_factory=dict,
@@ -134,42 +104,39 @@ class ProxyFilterConfig(BaseModel):
 
     @field_validator("server_name", "prefix")
     @classmethod
-    def _normalize_names(_cls, value: str) -> str:
+    def _normalize_names(cls, value: str) -> str:
         """Lowercase, strip, and replace ``-`` with ``_`` for identifier-like fields."""
 
         normalized = value.strip().lower().replace("-", "_")
         if not normalized:
-            raise ValueError("Server and prefix values must not be empty.")
+            raise ValueError("server_name and prefix must not be empty.")
         return normalized
 
     @field_validator("apis")
     @classmethod
-    def _normalize_api_entries(_cls, value: dict[str, ApiConfig]) -> dict[str, ApiConfig]:
-        """Normalise every API key to canonical ``METHOD /path`` form."""
+    def _normalize_api_keys(cls, value: dict[str, ApiConfig]) -> dict[str, ApiConfig]:
+        """Normalise every API key to canonical ``"METHOD /path"`` form."""
 
         return {_normalize_operation_key(raw_key): cfg for raw_key, cfg in value.items()}
 
     @model_validator(mode="after")
-    def _validate_name_uniqueness(self) -> "ProxyFilterConfig":
-        """Reject duplicate ``tool_name`` or ``resource_name`` values across the filter."""
+    def _validate_apis(self) -> "ProxyFilterConfig":
+        """Cross-entry checks: name uniqueness, and resources must be GET-only."""
 
-        seen_tools: dict[str, str] = {}
-        seen_resources: dict[str, str] = {}
-        for api_key, config in self.apis.items():
-            if config.tool_name is not None:
-                previous = seen_tools.get(config.tool_name)
-                if previous is not None:
-                    raise ValueError(
-                        f'tool_name "{config.tool_name}" is used by both "{previous}" and "{api_key}".'
-                    )
-                seen_tools[config.tool_name] = api_key
-            if config.resource_name is not None:
-                previous = seen_resources.get(config.resource_name)
-                if previous is not None:
-                    raise ValueError(
-                        f'resource_name "{config.resource_name}" is used by both "{previous}" and "{api_key}".'
-                    )
-                seen_resources[config.resource_name] = api_key
+        seen_names: dict[str, str] = {}
+        for api_key, cfg in self.apis.items():
+            previous = seen_names.get(cfg.name)
+            if previous is not None:
+                raise ValueError(
+                    f'name "{cfg.name}" is used by both "{previous}" and "{api_key}".'
+                )
+            seen_names[cfg.name] = api_key
+
+            if cfg.type == "resource" and not api_key.startswith("GET "):
+                raise ValueError(
+                    f'"{api_key}" is configured as a resource, but only GET operations '
+                    f"can be exposed as MCP resources."
+                )
         return self
 
 
@@ -210,15 +177,7 @@ def load_filter_config(path: str) -> ProxyFilterConfig:
 
 
 def operation_key(method: str, path: str) -> str:
-    """Return the canonical filter key for a ``(method, path)`` pair.
-
-    Args:
-        method: HTTP method, case-insensitive.
-        path: Request path including any ``{param}`` placeholders.
-
-    Returns:
-        A string of the form ``"METHOD /path"``.
-    """
+    """Return the canonical filter key for a ``(method, path)`` pair."""
 
     return f"{method.upper()} {path}"
 
@@ -226,48 +185,21 @@ def operation_key(method: str, path: str) -> str:
 def api_config_for(
     config: ProxyFilterConfig, method: str, path: str
 ) -> ApiConfig | None:
-    """Return the explicit per-operation config for a ``(method, path)`` pair, if any."""
+    """Return the per-operation config for ``(method, path)``, or ``None``.
 
+    Returns ``None`` when the operation is not listed in the filter or when
+    the master ``enabled`` switch is off.
+    """
+
+    if not config.enabled:
+        return None
     return config.apis.get(operation_key(method, path))
 
 
-def operation_is_enabled(config: ProxyFilterConfig, method: str, path: str) -> bool:
-    """Return whether the given operation should appear anywhere in MCP."""
-
-    if not config.enabled:
-        return False
-    api_config = api_config_for(config, method, path)
-    return api_config is not None and api_config.expose != "disabled"
-
-
-def tool_is_enabled(config: ProxyFilterConfig, method: str, path: str) -> bool:
-    """Return whether the given operation should be exposed as a tool."""
-
-    if not config.enabled:
-        return False
-    api_config = api_config_for(config, method, path)
-    return api_config is not None and api_config.expose == "tool"
-
-
-def resource_is_enabled(config: ProxyFilterConfig, method: str, path: str) -> bool:
-    """Return whether the given operation should be exposed as a resource.
-
-    Resources must be read-only (``GET``) — any non-``GET`` operation that
-    declares ``expose: resource`` is rejected here even if the schema accepted it.
-    """
-
-    if not config.enabled:
-        return False
-    api_config = api_config_for(config, method, path)
-    if api_config is None or api_config.expose != "resource":
-        return False
-    return method.upper() == "GET"
-
-
-def configured_tool_name(
+def configured_name(
     config: ProxyFilterConfig, method: str, path: str
 ) -> str | None:
-    """Return the final MCP tool name (with prefix) for a tool-exposed operation.
+    """Return the final MCP component name (with prefix) for an operation.
 
     Args:
         config: Loaded filter configuration.
@@ -275,42 +207,18 @@ def configured_tool_name(
         path: Request path.
 
     Returns:
-        The fully prefixed tool name, e.g. ``"vss_run_search_query"``, or
-        ``None`` when no explicit ``tool_name`` was configured for the entry.
+        The fully prefixed MCP name, e.g. ``"vss_run_search_query"``, or
+        ``None`` when the operation is not in the filter.
     """
 
     api_config = api_config_for(config, method, path)
-    if api_config is None or api_config.tool_name is None:
+    if api_config is None:
         return None
-    return f"{config.prefix}_{api_config.tool_name}"
-
-
-def configured_resource_name(
-    config: ProxyFilterConfig, method: str, path: str
-) -> str | None:
-    """Return the final MCP resource name (with prefix) for a resource-exposed operation.
-
-    Mirrors :func:`configured_tool_name` but reads the ``resource_name`` field
-    and applies the same ``prefix``.
-
-    Args:
-        config: Loaded filter configuration.
-        method: HTTP method.
-        path: Request path.
-
-    Returns:
-        The fully prefixed resource name, e.g. ``"vss_app_features"``, or
-        ``None`` when no explicit ``resource_name`` was configured for the entry.
-    """
-
-    api_config = api_config_for(config, method, path)
-    if api_config is None or api_config.resource_name is None:
-        return None
-    return f"{config.prefix}_{api_config.resource_name}"
+    return f"{config.prefix}_{api_config.name}"
 
 
 def _normalize_operation_key(value: str) -> str:
-    """Validate and canonicalise one filter JSON operation key.
+    """Validate and canonicalise a JSON operation key.
 
     Args:
         value: Raw key as read from JSON (e.g. ``"  get   /widgets "``).

@@ -13,12 +13,8 @@ from pydantic import ValidationError
 from src.filters import (
     ProxyFilterConfig,
     api_config_for,
-    configured_resource_name,
-    configured_tool_name,
+    configured_name,
     load_filter_config,
-    operation_is_enabled,
-    resource_is_enabled,
-    tool_is_enabled,
 )
 
 
@@ -29,53 +25,39 @@ class FilterConfigTests(unittest.TestCase):
                 "enabled": True,
                 "prefix": "demo",
                 "apis": {
-                    "GET /widgets": {"expose": "resource", "resource_name": "list_widgets"},
-                    "PATCH /jobs/{jobId}/retry": {
-                        "expose": "tool",
-                        "tool_name": "retry_job",
-                    },
-                    "GET /reports/{reportId}": {"expose": "resource", "resource_name": "get_report"},
-                    "DELETE /jobs/private/{jobId}": {"expose": "disabled"},
+                    "GET /widgets": {"type": "resource", "name": "list_widgets"},
+                    "PATCH /jobs/{jobId}/retry": {"type": "tool", "name": "retry_job"},
+                    "GET /reports/{reportId}": {"type": "resource", "name": "get_report"},
                 },
             }
         )
 
-        self.assertTrue(operation_is_enabled(config, "GET", "/widgets"))
-        self.assertFalse(tool_is_enabled(config, "GET", "/widgets"))
-        self.assertTrue(resource_is_enabled(config, "GET", "/widgets"))
         self.assertEqual(
-            configured_resource_name(config, "GET", "/widgets"),
+            configured_name(config, "GET", "/widgets"),
             "demo_list_widgets",
         )
-        self.assertTrue(tool_is_enabled(config, "PATCH", "/jobs/{jobId}/retry"))
-        self.assertFalse(resource_is_enabled(config, "PATCH", "/jobs/{jobId}/retry"))
         self.assertEqual(
-            configured_tool_name(config, "PATCH", "/jobs/{jobId}/retry"),
+            configured_name(config, "PATCH", "/jobs/{jobId}/retry"),
             "demo_retry_job",
         )
-        self.assertFalse(tool_is_enabled(config, "GET", "/reports/{reportId}"))
-        self.assertTrue(resource_is_enabled(config, "GET", "/reports/{reportId}"))
         self.assertEqual(
-            configured_resource_name(config, "GET", "/reports/{reportId}"),
+            configured_name(config, "GET", "/reports/{reportId}"),
             "demo_get_report",
         )
-        self.assertFalse(operation_is_enabled(config, "POST", "/widgets"))
-        self.assertFalse(operation_is_enabled(config, "DELETE", "/jobs/private/{jobId}"))
+        self.assertIsNone(configured_name(config, "POST", "/widgets"))
+        self.assertIsNone(api_config_for(config, "POST", "/widgets"))
 
-    def test_resource_exposure_requires_get(self) -> None:
-        config = ProxyFilterConfig.model_validate(
-            {
-                "enabled": True,
-                "prefix": "demo",
-                "apis": {
-                    "GET /runs/{runId}": {"expose": "resource", "resource_name": "get_run"},
-                    "DELETE /runs/{runId}": {"expose": "resource", "resource_name": "delete_run"},
-                },
-            }
-        )
-
-        self.assertTrue(resource_is_enabled(config, "GET", "/runs/{runId}"))
-        self.assertFalse(resource_is_enabled(config, "DELETE", "/runs/{runId}"))
+    def test_resource_must_be_get(self) -> None:
+        with self.assertRaisesRegex(ValidationError, "only GET operations"):
+            ProxyFilterConfig.model_validate(
+                {
+                    "enabled": True,
+                    "prefix": "demo",
+                    "apis": {
+                        "DELETE /runs/{runId}": {"type": "resource", "name": "delete_run"},
+                    },
+                }
+            )
 
     def test_wildcards_are_rejected_in_api_keys(self) -> None:
         with self.assertRaisesRegex(ValueError, "Wildcard API keys are not supported"):
@@ -84,113 +66,100 @@ class FilterConfigTests(unittest.TestCase):
                     "enabled": True,
                     "prefix": "demo",
                     "apis": {
-                        "GET /search/*": {"expose": "resource", "resource_name": "search"},
+                        "GET /search/*": {"type": "resource", "name": "search"},
                     },
                 }
             )
 
-    def test_tool_entries_require_tool_name(self) -> None:
-        with self.assertRaisesRegex(ValidationError, 'tool_name is required when expose is "tool"'):
-            ProxyFilterConfig.model_validate(
-                {
-                    "enabled": True,
-                    "prefix": "demo",
-                    "apis": {
-                        "POST /widgets": {"expose": "tool"},
-                    },
-                }
-            )
-
-    def test_resource_entries_require_resource_name(self) -> None:
-        with self.assertRaisesRegex(ValidationError, 'resource_name is required when expose is "resource"'):
-            ProxyFilterConfig.model_validate(
-                {
-                    "enabled": True,
-                    "prefix": "demo",
-                    "apis": {
-                        "GET /widgets": {"expose": "resource"},
-                    },
-                }
-            )
-
-    def test_resource_entries_reject_tool_name(self) -> None:
-        with self.assertRaisesRegex(ValidationError, 'tool_name is only allowed when expose is "tool"'):
-            ProxyFilterConfig.model_validate(
-                {
-                    "enabled": True,
-                    "prefix": "demo",
-                    "apis": {
-                        "GET /widgets": {
-                            "expose": "resource",
-                            "resource_name": "list_widgets",
-                            "tool_name": "list_widgets",
-                        },
-                    },
-                }
-            )
-
-    def test_tool_entries_reject_resource_name(self) -> None:
-        with self.assertRaisesRegex(ValidationError, 'resource_name is only allowed when expose is "resource"'):
-            ProxyFilterConfig.model_validate(
-                {
-                    "enabled": True,
-                    "prefix": "demo",
-                    "apis": {
-                        "POST /widgets": {
-                            "expose": "tool",
-                            "tool_name": "create_widget",
-                            "resource_name": "create_widget",
-                        },
-                    },
-                }
-            )
-
-    def test_both_exposure_is_rejected(self) -> None:
+    def test_name_is_required(self) -> None:
         with self.assertRaises(ValidationError):
             ProxyFilterConfig.model_validate(
                 {
                     "enabled": True,
                     "prefix": "demo",
                     "apis": {
-                        "GET /widgets": {"expose": "both"},
+                        "POST /widgets": {"type": "tool"},
                     },
                 }
             )
 
-    def test_duplicate_tool_names_are_rejected(self) -> None:
-        with self.assertRaisesRegex(ValidationError, 'tool_name "save_widget" is used by both'):
+    def test_type_is_required(self) -> None:
+        with self.assertRaises(ValidationError):
+            ProxyFilterConfig.model_validate(
+                {
+                    "enabled": True,
+                    "prefix": "demo",
+                    "apis": {
+                        "POST /widgets": {"name": "create_widget"},
+                    },
+                }
+            )
+
+    def test_unknown_type_value_is_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            ProxyFilterConfig.model_validate(
+                {
+                    "enabled": True,
+                    "prefix": "demo",
+                    "apis": {
+                        "GET /widgets": {"type": "both", "name": "list_widgets"},
+                    },
+                }
+            )
+
+    def test_extra_fields_are_rejected(self) -> None:
+        # Old schema fields like "expose", "tool_name", "resource_name" must
+        # be rejected so users can't accidentally use a stale filter file.
+        with self.assertRaises(ValidationError):
             ProxyFilterConfig.model_validate(
                 {
                     "enabled": True,
                     "prefix": "demo",
                     "apis": {
                         "POST /widgets": {
+                            "type": "tool",
+                            "name": "create_widget",
                             "expose": "tool",
-                            "tool_name": "save_widget",
-                        },
-                        "PATCH /widgets/{widgetId}": {
-                            "expose": "tool",
-                            "tool_name": "save_widget",
                         },
                     },
                 }
             )
 
-    def test_duplicate_resource_names_are_rejected(self) -> None:
-        with self.assertRaisesRegex(ValidationError, 'resource_name "get_widget" is used by both'):
+    def test_invalid_name_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValidationError, "valid identifier"):
             ProxyFilterConfig.model_validate(
                 {
                     "enabled": True,
                     "prefix": "demo",
                     "apis": {
-                        "GET /widgets/{widgetId}": {
-                            "expose": "resource",
-                            "resource_name": "get_widget",
-                        },
-                        "GET /widgets/{widgetId}/details": {
-                            "expose": "resource",
-                            "resource_name": "get_widget",
-                        },
+                        "POST /widgets": {"type": "tool", "name": "create-widget"},
+                    },
+                }
+            )
+
+    def test_duplicate_names_are_rejected(self) -> None:
+        with self.assertRaisesRegex(ValidationError, 'name "save_widget" is used by both'):
+            ProxyFilterConfig.model_validate(
+                {
+                    "enabled": True,
+                    "prefix": "demo",
+                    "apis": {
+                        "POST /widgets": {"type": "tool", "name": "save_widget"},
+                        "PATCH /widgets/{widgetId}": {"type": "tool", "name": "save_widget"},
+                    },
+                }
+            )
+
+    def test_duplicate_names_across_kinds_are_rejected(self) -> None:
+        # Names live in a single namespace because the prefix is shared.
+        with self.assertRaisesRegex(ValidationError, "is used by both"):
+            ProxyFilterConfig.model_validate(
+                {
+                    "enabled": True,
+                    "prefix": "demo",
+                    "apis": {
+                        "GET /widgets": {"type": "resource", "name": "widget"},
+                        "POST /widgets": {"type": "tool", "name": "widget"},
                     },
                 }
             )
@@ -201,15 +170,14 @@ class FilterConfigTests(unittest.TestCase):
                 "enabled": False,
                 "prefix": "demo",
                 "apis": {
-                    "GET /widgets": {"expose": "resource", "resource_name": "list_widgets"},
-                    "POST /widgets": {"expose": "tool", "tool_name": "create_widget"},
+                    "GET /widgets": {"type": "resource", "name": "list_widgets"},
+                    "POST /widgets": {"type": "tool", "name": "create_widget"},
                 },
             }
         )
 
-        self.assertFalse(operation_is_enabled(config, "GET", "/widgets"))
-        self.assertFalse(tool_is_enabled(config, "POST", "/widgets"))
-        self.assertFalse(resource_is_enabled(config, "GET", "/widgets"))
+        self.assertIsNone(api_config_for(config, "GET", "/widgets"))
+        self.assertIsNone(configured_name(config, "POST", "/widgets"))
 
     def test_load_filter_config_reads_generic_file(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -222,14 +190,11 @@ class FilterConfigTests(unittest.TestCase):
                         "prefix": "demo",
                         "apis": {
                             "GET /widgets/{widgetId}": {
-                                "expose": "resource",
-                                "resource_name": "get_widget",
+                                "type": "resource",
+                                "name": "get_widget",
                                 "description": "Get a widget by ID.",
                             },
-                            "POST /widgets": {
-                                "expose": "tool",
-                                "tool_name": "create_widget",
-                            },
+                            "POST /widgets": {"type": "tool", "name": "create_widget"},
                         },
                     }
                 ),
@@ -240,17 +205,16 @@ class FilterConfigTests(unittest.TestCase):
 
         self.assertEqual(config.server_name, "demo_server")
         self.assertEqual(config.prefix, "demo")
-        self.assertTrue(operation_is_enabled(config, "GET", "/widgets/{widgetId}"))
         self.assertEqual(
             api_config_for(config, "GET", "/widgets/{widgetId}").description,
             "Get a widget by ID.",
         )
         self.assertEqual(
-            configured_tool_name(config, "POST", "/widgets"),
+            configured_name(config, "POST", "/widgets"),
             "demo_create_widget",
         )
         self.assertEqual(
-            configured_resource_name(config, "GET", "/widgets/{widgetId}"),
+            configured_name(config, "GET", "/widgets/{widgetId}"),
             "demo_get_widget",
         )
 
