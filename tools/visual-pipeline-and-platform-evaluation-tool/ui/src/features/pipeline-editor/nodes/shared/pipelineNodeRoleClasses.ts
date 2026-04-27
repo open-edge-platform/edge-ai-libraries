@@ -34,4 +34,5 @@ export const PIPELINE_NODE_ROLE_CLASSES = {
   aiDetect: { color: "node-cobalt", ...NODE_CLASSES },
   aiClassify: { color: "node-geode", ...NODE_CLASSES },
   aiTrack: { color: "node-fuchsia", ...NODE_CLASSES },
+  aiMotionDetect: { color: "node-coral", ...NODE_CLASSES },
 } as const satisfies Record<string, PipelineNodeRoleClasses>;

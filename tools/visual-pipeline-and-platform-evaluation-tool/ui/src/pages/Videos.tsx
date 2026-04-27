@@ -7,6 +7,7 @@ import { ENDPOINTS } from "@/api/apiEndpoints";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
