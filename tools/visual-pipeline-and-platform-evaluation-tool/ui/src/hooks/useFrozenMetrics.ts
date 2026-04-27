@@ -12,6 +12,10 @@ export interface FrozenMetricsSummary {
   memory: number;
   availableGpuIds: string[];
   gpuDetailedMetrics: Record<string, GpuMetrics>;
+  latencyAvg?: number;
+  latencyMin?: number;
+  latencyMax?: number;
+  latencyFps?: number;
 }
 
 /**
@@ -112,6 +116,24 @@ export function useFrozenMetrics() {
     const avg = (values: number[]) =>
       values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : 0;
 
+    const defined = (values: (number | undefined)[]) =>
+      values.filter((v): v is number => v !== undefined);
+
+    const avgOrUndefined = (values: (number | undefined)[]) => {
+      const d = defined(values);
+      return d.length > 0 ? avg(d) : undefined;
+    };
+
+    const minOrUndefined = (values: (number | undefined)[]) => {
+      const d = defined(values);
+      return d.length > 0 ? Math.min(...d) : undefined;
+    };
+
+    const maxOrUndefined = (values: (number | undefined)[]) => {
+      const d = defined(values);
+      return d.length > 0 ? Math.max(...d) : undefined;
+    };
+
     const fpsSeries = snapshot.map((p) => p.fps ?? 0);
     const firstPos = fpsSeries.findIndex((v) => v > 0);
     const fpsSlice = firstPos >= 0 ? fpsSeries.slice(firstPos) : fpsSeries;
@@ -151,6 +173,9 @@ export function useFrozenMetrics() {
       memory: avg(snapshot.map((p) => p.memory ?? 0)),
       availableGpuIds: gpuIds,
       gpuDetailedMetrics,
+      latencyAvg: avgOrUndefined(snapshot.map((p) => p.latencyAvg)),
+      latencyMin: minOrUndefined(snapshot.map((p) => p.latencyMin)),
+      latencyMax: maxOrUndefined(snapshot.map((p) => p.latencyMax)),
     };
   }, [snapshot, resultFps]);
 

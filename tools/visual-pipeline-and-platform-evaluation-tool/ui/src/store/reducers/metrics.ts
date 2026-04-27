@@ -107,6 +107,17 @@ export const selectCpuMetrics = (state: RootState) => {
   };
 };
 
+export const selectLatencyMetrics = (state: RootState) => {
+  const latencyMetric = state.metrics.metrics.find((m) => m.name === "latency");
+  if (!latencyMetric) return undefined;
+  return {
+    avgMs: latencyMetric.fields.avg_ms as number | undefined,
+    minMs: latencyMetric.fields.min_ms as number | undefined,
+    maxMs: latencyMetric.fields.max_ms as number | undefined,
+    fps: latencyMetric.fields.fps as number | undefined,
+  };
+};
+
 export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
   const gpuMetrics = state.metrics.metrics.filter(
     (m) => m.name === "gpu_engine_usage" && m.tags?.gpu_id === gpuId,

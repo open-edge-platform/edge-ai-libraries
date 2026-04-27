@@ -1,7 +1,7 @@
 /*SPDX-License-Identifier: Apache-2.0*/
 
 import { useMemo, useState } from "react";
-import { Cpu, Gauge, Gpu } from "lucide-react";
+import { Clock, Cpu, Gauge, Gpu } from "lucide-react";
 import { useTheme } from "next-themes";
 import { MetricCard } from "@/features/metrics/MetricCard.tsx";
 import {
@@ -14,8 +14,10 @@ import {
   GpuFrequencyChart,
   GpuPowerChart,
   GpuUsageChart,
+  LatencyChart,
   MemoryUtilizationChart,
 } from "@/features/metrics/charts";
+import { LatencySummaryPanel } from "@/features/metrics/LatencySummaryPanel.tsx";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
 import {
   useMetricHistory,
@@ -101,6 +103,7 @@ interface MetricsDashboardProps {
   className?: string;
   forceDark?: boolean;
   useDemoStyles?: boolean;
+  enableLatencyMetrics?: boolean;
   historyOverride?: MetricHistoryPoint[];
   metricsOverride?: {
     fps: number;
@@ -108,6 +111,10 @@ interface MetricsDashboardProps {
     memory: number;
     availableGpuIds: string[];
     gpuDetailedMetrics: Record<string, GpuMetrics>;
+    latencyAvg?: number;
+    latencyMin?: number;
+    latencyMax?: number;
+    latencyFps?: number;
   };
 }
 
@@ -115,6 +122,7 @@ export const MetricsDashboard = ({
   className = "",
   forceDark = false,
   useDemoStyles = false,
+  enableLatencyMetrics = false,
   historyOverride,
   metricsOverride,
 }: MetricsDashboardProps) => {
@@ -288,6 +296,32 @@ export const MetricsDashboard = ({
     timestamp: point.timestamp,
     memory: point.memory ?? 0,
   }));
+
+  const latencyData = history.map((point) => ({
+    timestamp: point.timestamp,
+    avg: point.latencyAvg ?? 0,
+    min: point.latencyMin ?? 0,
+    max: point.latencyMax ?? 0,
+  }));
+
+  const hasLatencyData = latencyData.some(
+    (point) => point.avg > 0 || point.min > 0 || point.max > 0,
+  );
+
+  const hasSummaryLatency =
+    isSummary &&
+    metricsOverride?.latencyAvg !== undefined &&
+    metricsOverride?.latencyMin !== undefined &&
+    metricsOverride?.latencyMax !== undefined;
+
+  const showLatencySection =
+    enableLatencyMetrics || hasLatencyData || hasSummaryLatency;
+
+  const latencyYAxisMax = getRecentYAxisMax(
+    latencyData.map((point) => Math.max(point.avg, point.min, point.max)),
+    CHART_MAX_DATA_POINTS,
+    1,
+  );
 
   const fpsYAxisMax = getRecentYAxisMax(
     fpsData.map((point) => point.value),
@@ -479,6 +513,56 @@ export const MetricsDashboard = ({
           )}
         </div>
       </div>
+
+      {showLatencySection && (
+        <div className="space-y-4">
+          {hasSummaryLatency ? (
+            <>
+              <LatencySummaryPanel
+                avgMs={metricsOverride!.latencyAvg!}
+                minMs={metricsOverride!.latencyMin!}
+                maxMs={metricsOverride!.latencyMax!}
+                fps={metricsOverride!.latencyFps ?? metricsOverride!.fps}
+                forceDark={forceDark}
+              />
+              <LatencyChart
+                data={latencyData}
+                yAxisMax={latencyYAxisMax}
+                isSummary={isSummary}
+                forceDark={forceDark}
+                useDemoStyles={useDemoStyles}
+              />
+            </>
+          ) : hasLatencyData ? (
+            <>
+              <MetricCard
+                title="Avg Latency"
+                value={latencyData.at(-1)?.avg ?? 0}
+                unit="ms"
+                icon={<Clock className="h-6 w-6 text-orange-chart" />}
+                isSummary={isSummary}
+                forceDark={forceDark}
+                useDemoStyles={useDemoStyles}
+                summaryCardClassName={summaryCardClassName}
+                summaryIconClassName={summaryIconClassName}
+                summaryTitleClassName={summaryTitleClassName}
+                summaryUnitClassName={summaryUnitClassName}
+              />
+              <LatencyChart
+                data={latencyData}
+                yAxisMax={latencyYAxisMax}
+                isSummary={isSummary}
+                forceDark={forceDark}
+                useDemoStyles={useDemoStyles}
+              />
+            </>
+          ) : (
+            <div className="p-4 text-center text-sm text-muted-foreground">
+              Waiting for latency data…
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

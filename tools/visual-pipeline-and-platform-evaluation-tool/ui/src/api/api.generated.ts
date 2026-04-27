@@ -826,6 +826,8 @@ export type ExecutionConfig = {
   output_mode?: OutputMode;
   /** Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled). */
   max_runtime?: number;
+  /** Enable per-frame latency measurement. When true, the pipeline emits latency metrics (avg_ms, min_ms, max_ms) over WebSocket. */
+  enable_latency_metrics?: boolean;
 };
 export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */

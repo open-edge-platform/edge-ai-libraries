@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMetrics } from "@/features/metrics/useMetrics";
+import { selectLatencyMetrics } from "@/store/reducers/metrics";
+import { useAppSelector } from "@/store/hooks";
 
 export interface GpuMetrics {
   compute?: number;
@@ -22,6 +24,9 @@ export interface MetricHistoryPoint {
   cpuAvgFrequency?: number;
   cpuTemp?: number;
   memory?: number;
+  latencyAvg?: number;
+  latencyMin?: number;
+  latencyMax?: number;
   gpus: Record<string, GpuMetrics>;
 }
 
@@ -29,6 +34,7 @@ const MAX_HISTORY_POINTS = 60; // save last 60 data points
 
 export const useMetricHistory = () => {
   const metrics = useMetrics();
+  const latency = useAppSelector(selectLatencyMetrics);
   const [history, setHistory] = useState<MetricHistoryPoint[]>([]);
   const lastUpdateRef = useRef<number>(0);
 
@@ -67,6 +73,9 @@ export const useMetricHistory = () => {
         cpuAvgFrequency: metrics.cpuDetailed.avgFrequency,
         cpuTemp: metrics.cpuDetailed.temp,
         memory: metrics.memory,
+        latencyAvg: latency?.avgMs,
+        latencyMin: latency?.minMs,
+        latencyMax: latency?.maxMs,
         gpus,
       };
 
@@ -88,6 +97,7 @@ export const useMetricHistory = () => {
     metrics.memory,
     metrics.availableGpuIds,
     metrics.gpuDetailedMetrics,
+    latency,
   ]);
 
   return history;

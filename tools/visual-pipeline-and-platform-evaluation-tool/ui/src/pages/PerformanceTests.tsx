@@ -92,6 +92,7 @@ export const PerformanceTests = () => {
     String(DEFAULT_LOOPING_RUNTIME_SECONDS),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [latencyMetricsEnabled, setLatencyMetricsEnabled] = useState(false);
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
 
@@ -220,6 +221,7 @@ export const PerformanceTests = () => {
               : loopingEnabled
                 ? loopingRuntimeSeconds
                 : 0,
+            enable_latency_metrics: latencyMetricsEnabled,
           },
           pipeline_performance_specs: pipelineSelections.map((selection) => ({
             pipeline: {
@@ -532,6 +534,31 @@ export const PerformanceTests = () => {
               <SaveOutputWarning />
             </div>
           )}
+
+          <div className="flex items-center space-x-4">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <Checkbox
+                    checked={latencyMetricsEnabled}
+                    disabled={isRunning}
+                    onCheckedChange={(checked) => {
+                      setLatencyMetricsEnabled(checked === true);
+                    }}
+                  />
+                  <span className="text-sm font-medium">
+                    Enable latency metrics
+                  </span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>
+                  Measure per-frame latency (avg, min, max) and display on the
+                  dashboard
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
 
         {isRunning ? (
@@ -694,7 +721,9 @@ export const PerformanceTests = () => {
                     </div>
                   )}
 
-                <MetricsDashboard />
+                <MetricsDashboard
+                  enableLatencyMetrics={latencyMetricsEnabled}
+                />
               </div>
             )}
           </div>
@@ -706,6 +735,7 @@ export const PerformanceTests = () => {
               Frozen Metrics Snapshot
             </p>
             <MetricsDashboard
+              enableLatencyMetrics={latencyMetricsEnabled}
               historyOverride={frozenHistory}
               metricsOverride={frozenSummary}
             />

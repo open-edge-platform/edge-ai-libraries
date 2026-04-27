@@ -1202,6 +1202,10 @@ class ExecutionConfig(BaseModel):
         default=MetadataMode.DISABLED,
         description="Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints.",
     )
+    enable_latency_metrics: bool = Field(
+        default=False,
+        description="Enable per-frame latency measurement. When true, the pipeline emits latency metrics (avg_ms, min_ms, max_ms) over WebSocket.",
+    )
 
 
 class PerformanceTestSpec(BaseModel):
