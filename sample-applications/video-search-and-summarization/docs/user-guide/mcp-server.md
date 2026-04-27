@@ -10,7 +10,7 @@ live VSS OpenAPI spec at startup and registers a selected subset of endpoints as
 > **Note:** The MCP server currently supports **Search mode** only.
 > Summary and combined Search + Summary modes will be supported in a future release.
 
-The server is controlled by a **filter file** — a small JSON document that
+The server is controlled by a **filter file**, a small JSON document that
 lists exactly which VSS endpoints to expose and whether each appears as a tool
 or a resource. The bundled `search.json` filter covers the Search mode:
 
@@ -27,7 +27,7 @@ or a resource. The bundled `search.json` filter covers the Search mode:
 
 ## Quick Start
 
-Navigate to the `mcp/` directory first — all commands below assume you are there:
+Navigate to the `mcp/` directory first, all commands below assume you are there:
 
 ```bash
 cd sample-applications/video-search-and-summarization/mcp
@@ -62,7 +62,7 @@ http://127.0.0.1:8000/mcp
 
 | Variable                    | Required          | Default            | Description                                           |
 |-----------------------------|-------------------|--------------------|-------------------------------------------------------|
-| `API_SPEC_URL`              | **Yes**           | —                  | URL to the VSS OpenAPI/Swagger JSON document          |
+| `API_SPEC_URL`              | **Yes**           | -                 | URL to the VSS OpenAPI/Swagger JSON document          |
 | `API_BASE_URL`              | **Yes**   | from spec          | Base URL of the running VSS REST service              |
 | `FILTER_FILE_PATH`          | No                | bundled `search.json` | Path to the mounted filter file inside the container  |
 | `DEFAULT_REQUEST_TIMEOUT_SECONDS` | No                | `60`               | Outbound request timeout in seconds                   |
@@ -79,7 +79,7 @@ http://127.0.0.1:8000/mcp
 At startup the server reads the VSS OpenAPI spec and the filter file, then
 registers exactly the operations listed in the filter.
 
-**Tools** (state-changing or parameterised operations) — examples from `search.json`:
+**Tools** (state-changing or parameterised operations), examples from `search.json`:
 
 | Tool name                            | VSS endpoint                                   |
 |--------------------------------------|------------------------------------------------|
@@ -90,14 +90,15 @@ registers exactly the operations listed in the filter.
 | `vss_get_tags`                       | `GET /tags`                                    |
 | `vss_delete_tag`                     | `DELETE /tags/{tagId}`                         |
 
-Tool names are built from `"tool_prefix"` + `"tool_name"` in the filter file.
+Tool names are built from `prefix` + `tool_name` in the filter file, forming names like
+`"vss_run_search_query"`.
 
-**Resources** (read-only, no body) are auto-named from the VSS `operationId`.
-For example, `GET /app/features` with operationId `AppController_getFeatures`
-is reachable as:
+**Resources** (read-only, GET only) are named from `prefix` + `resource_name` in the filter
+file. For example, a resource with `prefix: "vss"` and `resource_name: "app_features"` is
+reachable as:
 
 ```
-resource://AppController_getFeatures
+resource://vss_app_features
 ```
 
 ---
