@@ -121,7 +121,7 @@ async def upload_image_archive(file: UploadFile = File(...)):
     5. Return ImageSet object with the discovered image count
 
     ## Parameters
-    - `file` (multipart/form-data) - Archive file to upload (zip, tar, tar.gz, tgz, tar.bz2, tbz2)
+    - `file` (multipart/form-data) - Archive file to upload (zip, tar, tar.gz, tgz)
 
     ## Response Format
 

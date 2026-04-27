@@ -26,8 +26,6 @@ ARCHIVE_EXTENSIONS = (
     "tar",
     "tar.gz",
     "tgz",
-    "tar.bz2",
-    "tbz2",
 )
 
 # Supported image file extensions (lowercase, without leading dot)
@@ -242,7 +240,7 @@ class ImagesManager:
             if lower.endswith(".zip"):
                 self._safe_extract_zip(archive_path, target_dir)
             else:
-                # tar, tar.gz, tgz, tar.bz2, tbz2
+                # tar, tar.gz, tgz
                 self._safe_extract_tar(archive_path, target_dir)
 
             image_count = self._count_images(target_dir)
