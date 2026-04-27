@@ -1,3 +1,10 @@
+{{- $dpDevice := default "CPU" .Values.global.devices.vdmsDataprep.device -}}
+{{- $dpKey := .Values.global.devices.vdmsDataprep.key -}}
+{{- $dpUsesGpu := eq $dpDevice "GPU" -}}
+{{- /* Validate: key required when device is GPU */ -}}
+{{- if and $dpUsesGpu (not $dpKey) -}}
+{{- fail "global.devices.vdmsDataprep.key is required when device is GPU" -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -58,12 +65,12 @@ spec:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           startupProbe:
             {{- toYaml .Values.startupProbe | nindent 12 }}
-      {{- if .Values.global.gpu.vdmsdataprepEnabled }}
+      {{- if $dpUsesGpu }}
           resources:
             requests:
-              {{ .Values.global.gpu.key }}: 1
+              {{ $dpKey }}: 1
             limits:
-              {{ .Values.global.gpu.key }}: 1
+              {{ $dpKey }}: 1
       {{- else if .Values.resources }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -95,7 +102,7 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-      {{- if .Values.global.gpu.vdmsdataprepEnabled }}
+      {{- if $dpUsesGpu }}
         - name: dri-device
           hostPath:
             path: /dev/dri

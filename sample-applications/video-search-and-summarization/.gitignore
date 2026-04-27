@@ -19,3 +19,4 @@ workspace
 .coverage
 ov_model_venv
 ovms_config
+.ovms

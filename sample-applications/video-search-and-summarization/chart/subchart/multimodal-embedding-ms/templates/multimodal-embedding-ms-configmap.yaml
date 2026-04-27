@@ -1,3 +1,5 @@
+{{- $mmDevice := default "CPU" .Values.global.devices.multimodalEmbedding.device -}}
+{{- $mmUsesGpu := eq $mmDevice "GPU" -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -14,7 +16,7 @@ data:
   {{- $_ := set $embeddingModel "value" (required "Set global.env.EMBEDDING_MODEL_NAME (or override multimodalembeddingms.embeddingModelName) before deploying the chart." (dig "env" "EMBEDDING_MODEL_NAME" "" .Values.global)) }}
   {{- end }}
   EMBEDDING_MODEL_NAME: {{ $embeddingModel.value | quote }}
-  {{- if .Values.global.gpu.multimodalembeddingmsEnabled }}
+  {{- if $mmUsesGpu }}
   EMBEDDING_DEVICE: "GPU"
   EMBEDDING_USE_OV: "true"
   {{- else }}
@@ -39,5 +41,5 @@ data:
   XDG_CACHE_HOME: "/home/appuser/.cache"
   http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
   https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
-  no_proxy: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch"
+  no_proxy: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch"
   no_proxy_env: {{ .Values.global.proxy.no_proxy | quote }}

@@ -39,6 +39,11 @@ export class AudioQueueService {
       try {
         const transcripts = await this.$audio.parseTranscript(minioPath);
         this.$state.audioComplete(stateId, { transcriptPath, transcripts });
+        if (state.systemConfig.audioUseFullTranscriptSummary) {
+          this.$emitter.emit(PipelineEvents.AUDIO_SUMMARY_TRIGGER, {
+            stateId,
+          });
+        }
         this.$emitter.emit(PipelineEvents.CHECK_QUEUE_STATUS, [stateId]);
       } catch (error) {
         console.log('TRANSCRIPT ERROR', error);

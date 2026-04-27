@@ -12,20 +12,20 @@ faiss-cpu = "1.11.0"
 fastapi = "0.120.2"
 h11 = "0.16.0"
 langchain-classic = "1.0.1"
-langchain-core = "1.2.11"
+langchain-core = "1.2.28"
 langchain-community = "^0.3.9"
 pandas = "2.2.3"
 pillow = "12.1.1"
 pyarrow = "20.0.0"
-pypdf = "^6.8.0"
+pypdf = "^6.10.0"
 python-multipart = "0.0.22"
-requests = "2.32.5"
+requests = "2.33.1"
 transformers = "4.53.3"
 uvicorn = ">=0.21.0,<0.23.0"
 
 [tool.poetry.group.openvino.dependencies]
 huggingface_hub = "0.34.4"
-langchain-huggingface = "1.2.0"
+langchain-huggingface = "1.2.1"
 optimum = {extras = ["openvino", "nncf"], version = "2.1.0"}
 
 [tool.poetry.group.ollama.dependencies]

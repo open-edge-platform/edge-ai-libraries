@@ -10,9 +10,9 @@ services:
 
   pipeline-manager:
     depends_on:
-      vlm-openvino-serving:
+      ovms-service:
         condition: service_healthy
-        required: false  # ignored when vlm profile is inactive (e.g. ENABLE_VLLM=true)
+        required: false  # ignored when vllm profile is active (e.g. ENABLE_VLLM=true)
       video-ingestion:
         condition: service_healthy
       rabbitmq-service:
@@ -30,16 +30,19 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       LLM_SUMMARIZATION_KEY: ""
       LLM_SUMMARIZATION_API: ${LLM_SUMMARIZATION_API}
-      LLM_SUMMARIZATION_DEVICE: ${LLM_DEVICE}
+      LLM_SUMMARIZATION_DEVICE: ${LLM_TARGET_DEVICE}
       VLM_CAPTIONING_KEY: ""
       VLM_CAPTIONING_API: ${VLM_ENDPOINT}
-      VLM_CAPTIONING_DEVICE: ${VLM_DEVICE}
+      VLM_CAPTIONING_DEVICE: ${VLM_TARGET_DEVICE}
       LLM_CONCURRENT: ${PM_LLM_CONCURRENT}
       VLM_CONCURRENT: ${PM_VLM_CONCURRENT}
       SUMMARIZATION_MAX_COMPLETION_TOKENS: ${PM_SUMMARIZATION_MAX_COMPLETION_TOKENS}
       CAPTIONING_MAX_COMPLETION_TOKENS: ${PM_CAPTIONING_MAX_COMPLETION_TOKENS}
       MAX_CONTEXT_LENGTH: ${PM_LLM_MAX_CONTEXT_LENGTH}
-      LLM_MODEL_API: ${LLM_MODEL_API}
+      # Storage model names include device and format for OVMS API calls
+      LLM_MODEL_NAME: ${LLM_STORAGE_MODEL_NAME:-${LLM_MODEL_NAME}}
+      VLM_MODEL_NAME: ${VLM_STORAGE_MODEL_NAME:-${VLM_MODEL_NAME}}
+      USE_VLLM: ${USE_VLLM}
       MULTI_FRAME_COUNT: ${PM_MULTI_FRAME_COUNT}
       AUDIO_HOST: ${AUDIO_ENDPOINT}
       AUDIO_DEVICE: CPU
@@ -47,58 +50,13 @@ services:
       SEARCH_DATAPREP_ENDPOINT: ""
       SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_ON}
       SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_OFF}
-      USE_OVMS: "${USE_OVMS_CONFIG:-CONFIG_OFF}"
-      WORKERS: ${WORKERS:-1}
-
-  vlm-openvino-serving:
-    profiles:
-      - vlm-ov
-    image: ${REGISTRY:-}vlm-openvino-serving:${TAG:-latest}
-    ipc: host
-    ports:
-      - "${VLM_HOST_PORT}:8000"
-    environment:
-      no_proxy: ${no_proxy},${MINIO_HOST},localhost
-      no_proxy_env: ${no_proxy},${MINIO_HOST},localhost
-      http_proxy: ${http_proxy}
-      https_proxy: ${https_proxy}
-      VLM_MODEL_NAME: ${VLM_MODEL_NAME}
-      VLM_COMPRESSION_WEIGHT_FORMAT: ${VLM_COMPRESSION_WEIGHT_FORMAT}
-      VLM_DEVICE: ${VLM_DEVICE}
-      VLM_SEED: ${VLM_SEED}
-      WORKERS: ${WORKERS:-1}
-      HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN}
-      OV_CONFIG: ${OV_CONFIG}
-      VLM_LOG_LEVEL: ${VLM_LOG_LEVEL:-info}
-      OPENVINO_LOG_LEVEL: ${VLM_OPENVINO_LOG_LEVEL:-1}
-      VLM_ACCESS_LOG_FILE: ${VLM_ACCESS_LOG_FILE:-/dev/null}
-      VLM_TELEMETRY_PATH: ${VLM_TELEMETRY_PATH:-/opt/vlm_telemetry.jsonl}
-      VLM_TELEMETRY_MAX_RECORDS: ${VLM_TELEMETRY_MAX_RECORDS:-100}
-    restart: unless-stopped
-    devices:
-      - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
-    group_add:
-      - ${USER_GROUP_ID:-1000} 
-      - ${VIDEO_GROUP_ID:-44}    
-      - ${RENDER_GROUP_ID:-1002}
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 60
-      start_period: 60s
-    volumes:
-      - ov-models:/home/appuser/.cache/huggingface
-      - ov-models:/app/ov-model
-    networks:
-      - vs_network
 
   ovms-service:
-    image: openvino/model_server:2025.4.1
+    image: openvino/model_server:2026.1
     profiles:
       - ovms
     environment:
-      - no_proxy=${no_proxy},localhost
+      - no_proxy=${no_proxy},${MINIO_HOST},localhost
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
     ulimits:
@@ -110,13 +68,18 @@ services:
       - "${OVMS_GRPC_HOST_PORT}:81"
     volumes:
       - "${OVMS_CONFIG_DIR}:/workspace:ro"
+    devices:
+      # NPU device passthrough (mount /dev/null if not available)
+      - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
+    group_add:
+      - ${RENDER_GROUP_ID:-1002}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/v2/health/ready"]
       interval: 30s
       timeout: 10s
       retries: 3
     command:
-      ["--port", "81", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/models/config.json"]
+      ["--port", "81", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/models/config.json", "--metrics_enable", "--allowed_media_domains", "${OVMS_ALLOWED_MEDIA_DOMAINS}"]
     networks:
       - vs_network
 

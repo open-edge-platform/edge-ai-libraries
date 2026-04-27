@@ -104,10 +104,11 @@ class OptimizationRunner:
         import optimizer  # pyright: ignore[reportMissingImports]
 
         opt = optimizer.DLSOptimizer()
-        opt.set_search_duration(search_duration)
         opt.set_sample_duration(sample_duration)
 
-        optimized_pipeline, total_fps = opt.optimize_for_fps(pipeline_description)
+        optimized_pipeline, total_fps = opt.optimize_for_fps(
+            pipeline_description, search_duration=search_duration
+        )
 
         return PipelineOptimizationResult(
             optimized_pipeline_description=optimized_pipeline, total_fps=total_fps

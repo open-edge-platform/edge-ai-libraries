@@ -14,6 +14,7 @@ export type CountStatus = Record<StateActionStatus, number>;
 export interface UIChunk {
   chunkId: string;
   duration: { from: number; to: number };
+  audioTranscripts?: string;
 }
 
 export interface UIFrameSummary extends FrameSummary {
@@ -38,7 +39,9 @@ export interface UIStateStatus {
   videoSummaryStatus: StateActionStatus;
   frameSummaryStatus: CountStatus;
   chunkingStatus: StateActionStatus;
+  videoChunkingStatus: StateActionStatus;
   audioStatus?: StateActionStatus;
+  audioTranscriptSummaryStatus?: StateActionStatus;
 }
 
 export interface UIState extends UIStateStatus {
@@ -59,4 +62,6 @@ export interface UIState extends UIStateStatus {
   videoId: string;
 
   inferenceConfig?: InferenceConfig;
+
+  audioTranscriptSummary?: string;
 }

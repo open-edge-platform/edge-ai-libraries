@@ -1,0 +1,14 @@
+global:
+  report_dir: 'reports'
+  input_profiles_path: 'profiles/profiles.yaml'  # Reference to external input profiles file
+  perf_tool_repo: 'https://github.com/intel-retail/performance-tools.git'
+
+apis:
+  live_caption:
+    enabled: true
+    service_name: 'live_caption'
+    endpoints:
+      runs: '4173/api/runs'
+      metadata: '4173/api/runs/metadata-stream'
+    captioning_time: 180 # Time in seconds to wait for captioning
+    input_profile: 'live_video_caption_wsf'  # Reference to input profile

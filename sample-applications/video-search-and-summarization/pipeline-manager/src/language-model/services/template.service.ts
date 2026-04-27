@@ -18,7 +18,13 @@ import {
 @Injectable()
 export class TemplateService {
   addAudioTranscripts(prompt: string, transcripts: string) {
-    return `${prompt}\n\nAudio transcripts for this chunk of video. If you find relevant information here, consider it in the summary:\n${transcripts}\n\n`;
+    // Replace the visual-only constraint that conflicts with audio integration
+    const modifiedPrompt = prompt.replace(
+      /Focus on what is visually evident\.?\s*Do not speculate beyond what the frames show\.?/i,
+      'Describe both what is visually evident in the frames and what is spoken in the provided audio transcript.',
+    );
+
+    return `${modifiedPrompt}\n\nSpoken audio transcript for this video segment. You MUST incorporate the dialogue, narration, or spoken content below into your description alongside the visual observations:\n${transcripts}\n`;
   }
 
   addDetectedObjects(prompt: string, objects: Set<string>) {

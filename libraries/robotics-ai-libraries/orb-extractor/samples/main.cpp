@@ -15,6 +15,7 @@
 
 using namespace std;
 
+// Configuration for the ORB extractor
 constexpr uint32_t max_num_keypts_ = 2000;
 constexpr int num_levels_ = 8;
 constexpr int ini_fast_thr_ = 20;
@@ -40,6 +41,7 @@ inline double getTimeStamp()
 void extract(
   int num_cam, const std::string & image_path, const std::string & thread_name, int iterations)
 {
+  // Initialize the input and output parameters
   int num_of_cameras = num_cam;
   std::vector<cv::Mat> all_images;
   all_images.resize(num_of_cameras);
@@ -51,6 +53,15 @@ void extract(
   std::vector<MatType> all_descriptors(num_of_cameras);
 
 #ifdef OPENCV_FREE
+  // **Note:** Based on `BUILD_OPENCV_FREE=ON`, only OpenCV-free dependency code
+  // compiles and links to the `libgpu_orb_ocvfree.so` library.
+  //
+  // Orb-extractor feature libraries define their own classes for image input and
+  // keypoint output. For details, see the `/usr/include/orb_type.h` file,
+  // installed by the Deb package `liborb-lze-dev`.
+
+  // Initialize the input and output parameters
+  // This example shows how to store images in a `Mat2d` class object
   Mat2d * images = new Mat2d[num_of_cameras];
   std::vector<MatType> in_image_array;
   for (int i = 0; i < num_of_cameras; i++) {
@@ -70,12 +81,23 @@ void extract(
   std::string thread_id = thread_name;
 
   try {
+    // Create `orb_extractor` object
     auto extractor = std::make_shared<orb_extractor>(
       max_num_keypts_, scale_factor_, num_levels_, ini_fast_thr_, min_fast_thr_, num_of_cameras,
       mask_rect);
+    // Set GPU kernel path (specify the path to GPU binaries such as `gaussian_genx.bin`, `resize_genx.bin`)
     extractor->set_gpu_kernel_path(ORBLZE_KERNEL_PATH_STRING);
 
-    // warm up GPU
+    // Warm up GPU
+    //
+    // **Note:** The macro `ORBLZE_KERNEL_PATH_STRING` is defined as `"/usr/lib/x86_64-linux-gnu"` in `config.h`.
+    // This header file is installed by the Deb package `liborb-lze-dev` at `/usr/include/config.h`.
+    //
+    // Call the extract function to output the keypoints and descriptors for
+    // all camera input images.
+    //
+    // Depending on the number of camera inputs, the orb-extractor feature
+    // library returns the vectors of keypoints number and descriptors:
     extractor->extract(in_image_array, in_image_mask_array, keypts, descriptor_array);
 
     double total_host_time = 0.0;
@@ -101,6 +123,9 @@ void extract(
   std::vector<std::vector<cv::KeyPoint>> all_keypts(num_of_cameras);
 
 #ifdef OPENCV_FREE
+  // The vector of keypoints can be used directly by the application or
+  // converted to a different type. This example shows how to convert ORB
+  // extractor `KeyPoint` to `cv::KeyPoint`
   for (int i = 0; i < num_of_cameras; i++) {
     auto & gpu_keypts = keypts.at(i);
     for (int pt = 0; pt < gpu_keypts.size(); pt++) {
@@ -121,6 +146,7 @@ void extract(
 
   thread_id = thread_id + "_and_";
 
+  // Draw keypoints on the image and store them in the corresponding `cv::Mat` vector
   for (int i = 0; i < num_of_cameras; i++) {
     out.at(i).create(all_images.at(i).rows, all_images.at(i).cols, CV_8U);
     cv::drawKeypoints(all_images.at(i), all_keypts[i], out[i], cv::Scalar(255, 0, 0));
@@ -146,6 +172,7 @@ int main(int argc, char ** argv)
 
   std::vector<std::thread> threads;
 
+  // Create multiple threads. Each thread creates one orb-extractor feature object
   for (int i = 0; i < num_of_threads; ++i) {
     std::string thread_name = "Thread:" + std::to_string(i + 1);
     threads.emplace_back(extract, num_images, image_path.c_str(), thread_name, num_of_iter);
@@ -155,7 +182,7 @@ int main(int argc, char ** argv)
     thread.join();
   }
 
-  // show the images
+  // Show the images
   for (int i = 0; i < (num_images * num_of_threads); i++) {
     cv::imshow(gl_images[i].image_title, gl_images[i].img);
   }
