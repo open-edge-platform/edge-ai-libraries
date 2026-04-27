@@ -82,7 +82,7 @@ Describe the activities and events captured in the images. Provide a detailed de
 `;
 
 export const PromptTemplates = {
-  defaultFrames: `The images are sequential frames from a video. Analyze them to provide a concise description of the scene, including:
+  defaultFrames: `The images are sequential frames from a video. Analyze them to provide a concise description (2–3 sentences) of the scene, including:
 - Key activities, events, and interactions
 - Notable objects, people, and environment details
 - Any changes or motion observed across frames
@@ -104,7 +104,7 @@ You are provided with multiple intermediate summaries of video segments from pre
 
 - Maintain chronological order and logical flow of events across all segments.
 - Preserve key activities, interactions, people, objects, and notable details.
-- Use consistent identifiers for recurring people or objects across segments.
+- Use consistent identifiers for recurring people or objects across segments (e.g., "Person A", "the red vehicle", "Officer 1").
 - Merge overlapping or redundant descriptions rather than repeating them.
 - Do not introduce information not present in the provided summaries.
 
@@ -146,7 +146,7 @@ Focus on creating a coherent narrative that reflects the sequence of events accu
   // `,
 
   bodyCamSummary: `
-You are provided with summaries of video segments of single video captured from a law enforcement body camera. Your task is to generate a single detailed and concise summary of the entire video. Ensure that the summary:
+You are provided with summaries of video segments of single video captured from a law enforcement body camera. Your task is to generate a single detailed yet focused summary (aim for 2–4 paragraphs) of the entire video. Ensure that the summary:
 - Clearly describes key actions, interactions, and notable details.
 - Highlights important objects, people, and contextual information.
 - Avoids unnecessary repetition and maintains coherence.
@@ -173,7 +173,7 @@ You are provided with multiple intermediate summaries of video segments from a l
 
 - Maintain chronological order and logical flow of events across all segments.
 - Preserve key actions, commands, interactions, people, and notable details.
-- Use consistent identifiers for recurring individuals or objects across segments.
+- Use consistent identifiers for recurring individuals or objects across segments (e.g., "Person A", "the red vehicle", "Officer 1").
 - Merge overlapping or redundant descriptions rather than repeating them.
 - Do not introduce information not present in the provided summaries.
 
@@ -213,7 +213,7 @@ Full Transcript:
 `,
 
   defaultAudioReduce: `
-You are provided with intermediate summaries derived from a full audio transcript. Merge them into one concise, coherent final summary while preserving chronology, key points, and critical details.
+You are provided with intermediate summaries derived from a full audio transcript. Merge them into one coherent final summary (aim for 2–4 paragraphs) while preserving chronology, key points, and critical details.
 
 %data%
 `,
@@ -238,7 +238,7 @@ Full Transcript:
 `,
 
   bodyCamAudioReduce: `
-You are provided with intermediate summaries of body-cam audio transcript content. Merge them into one concise and chronologically accurate final summary, preserving key commands, responses, and critical statements.
+You are provided with intermediate summaries of body-cam audio transcript content. Merge them into one chronologically accurate final summary (aim for 2–4 paragraphs), preserving key commands, responses, and critical statements.
 
 %data%
 `,
