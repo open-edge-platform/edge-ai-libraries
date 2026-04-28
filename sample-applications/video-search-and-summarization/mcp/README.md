@@ -3,9 +3,7 @@
 This is the **MCP (Model Context Protocol) server** for the
 [Video Search and Summarization (VSS)](https://github.com/open-edge-platform/edge-ai-libraries)
 sample application. It proxies VSS REST endpoints to MCP clients (agents, IDE
-extensions, MCP Inspector, …) as **tools** and **resources**, using the
-[`fastmcp`](https://gofastmcp.com) library to translate the live VSS OpenAPI
-spec into an MCP surface at startup.
+extensions, MCP Inspector, etc.) as **tools** and **resources**.
 
 > **Note:** The MCP server currently supports **Search mode** only.
 > Summary and combined Search + Summary modes will be supported in a future release.
@@ -116,7 +114,7 @@ Each filter file is a JSON object:
 
 | Field         | Required | Description                                                                              |
 |---------------|----------|------------------------------------------------------------------------------------------|
-| `type`        | yes      | `"tool"` or `"resource"` — selects the MCP component kind. Resources are GET-only.       |
+| `type`        | yes      | `"tool"` or `"resource"`, selects the MCP component kind. Resources are GET-only.       |
 | `name`        | yes      | Identifier suffix; combined with `prefix` to form the final MCP name                     |
 | `description` | no       | Optional override prepended to the OpenAPI description for this tool/resource            |
 
@@ -131,3 +129,19 @@ To exclude an endpoint, simply omit it from `apis`.
 
 No code changes are needed.
 
+
+## Running the Tests
+
+### Prerequisites
+
+Ensure you have `uv` installed. If not, install it from [https://github.com/astral-sh/uv](https://github.com/astral-sh/uv).
+
+### Run All Tests
+
+From the `mcp/` directory:
+
+```bash
+uv run python -m unittest discover tests -v
+```
+
+This discovers and runs all test files in the `tests/` directory with verbose output.

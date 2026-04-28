@@ -47,6 +47,42 @@ class FilterConfigTests(unittest.TestCase):
         self.assertIsNone(configured_name(config, "POST", "/widgets"))
         self.assertIsNone(api_config_for(config, "POST", "/widgets"))
 
+    def test_config_normalizes_names_descriptions_and_api_keys(self) -> None:
+        config = ProxyFilterConfig.model_validate(
+            {
+                "enabled": True,
+                "server_name": " Demo-Server ",
+                "prefix": " Demo-API ",
+                "apis": {
+                    "  get   /widgets  ": {
+                        "type": "resource",
+                        "name": " list_widgets ",
+                        "description": "   ",
+                    },
+                    " post /widgets ": {
+                        "type": "tool",
+                        "name": " create_widget ",
+                        "description": " Create a widget. ",
+                    },
+                },
+            }
+        )
+
+        self.assertEqual(config.server_name, "demo_server")
+        self.assertEqual(config.prefix, "demo_api")
+        self.assertIn("GET /widgets", config.apis)
+        self.assertIn("POST /widgets", config.apis)
+        self.assertEqual(config.apis["GET /widgets"].name, "list_widgets")
+        self.assertIsNone(config.apis["GET /widgets"].description)
+        self.assertEqual(
+            config.apis["POST /widgets"].description,
+            "Create a widget.",
+        )
+        self.assertEqual(
+            configured_name(config, "get", "/widgets"),
+            "demo_api_list_widgets",
+        )
+
     def test_resource_must_be_get(self) -> None:
         with self.assertRaisesRegex(ValidationError, "only GET operations"):
             ProxyFilterConfig.model_validate(
@@ -67,6 +103,18 @@ class FilterConfigTests(unittest.TestCase):
                     "prefix": "demo",
                     "apis": {
                         "GET /search/*": {"type": "resource", "name": "search"},
+                    },
+                }
+            )
+
+    def test_unsupported_methods_are_rejected_in_api_keys(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Unsupported HTTP method"):
+            ProxyFilterConfig.model_validate(
+                {
+                    "enabled": True,
+                    "prefix": "demo",
+                    "apis": {
+                        "CONNECT /widgets": {"type": "tool", "name": "connect_widgets"},
                     },
                 }
             )
@@ -217,6 +265,18 @@ class FilterConfigTests(unittest.TestCase):
             configured_name(config, "GET", "/widgets/{widgetId}"),
             "demo_get_widget",
         )
+
+    def test_load_filter_config_reports_missing_file(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Filter config file not found"):
+            load_filter_config("/missing/filter.json")
+
+    def test_load_filter_config_reports_invalid_json(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "broken.json"
+            config_path.write_text("{", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "not valid JSON"):
+                load_filter_config(str(config_path))
 
 
 if __name__ == "__main__":

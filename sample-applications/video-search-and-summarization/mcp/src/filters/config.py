@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 logger = logging.getLogger(__name__)
 
 SUPPORTED_METHODS = {"GET", "PUT", "POST", "DELETE", "PATCH", "HEAD", "OPTIONS"}
-OPERATION_KEY_PATTERN = re.compile(r"^(GET|PUT|POST|DELETE|PATCH|HEAD|OPTIONS)\s+(/.+)$")
+OPERATION_KEY_PATTERN = re.compile(r"^(GET|CONNECT|PUT|POST|DELETE|PATCH|HEAD|OPTIONS)\s+(/.+)$")
 NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 ApiType = Literal["tool", "resource"]
 
@@ -233,11 +233,17 @@ def _normalize_operation_key(value: str) -> str:
     """
 
     normalized = " ".join(value.strip().split())
+    parts = normalized.split(" ", 1)
+    if len(parts) != 2:
+        raise ValueError('API keys must use the format "METHOD /path".')
+
+    normalized = f"{parts[0].upper()} {parts[1]}"
     match = OPERATION_KEY_PATTERN.fullmatch(normalized)
     if match is None:
         raise ValueError('API keys must use the format "METHOD /path".')
 
     method, path = match.groups()
+    method = method.upper()
     if method not in SUPPORTED_METHODS:
         raise ValueError(f"Unsupported HTTP method in API key: {method}")
     if any(token in path for token in ("*", "?")):

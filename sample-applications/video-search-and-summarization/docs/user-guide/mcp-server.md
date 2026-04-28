@@ -4,8 +4,7 @@ The VSS MCP server exposes the [Video Search and Summarization (VSS)](./index.md
 REST API to AI agents and IDE extensions using the
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). It reads the
 live VSS OpenAPI spec at startup and registers a selected subset of endpoints as
-**MCP tools** and **resources**, using the
-[`fastmcp`](https://gofastmcp.com) library for OpenAPI → MCP translation.
+**MCP tools** and **resources**.
 
 > **Note:** The MCP server currently supports **Search mode** only.
 > Summary and combined Search + Summary modes will be supported in a future release.
@@ -102,7 +101,7 @@ resource://vss_app_features
 
 `POST /videos` is intentionally **not** exposed. Video upload is a long-running
 multipart operation better handled directly via the VSS REST API. Use the MCP
-server for discovery, search, status, and summary workflows only.
+server for discovery, search and status workflows only.
 
 
 ## Connecting with MCP Inspector
