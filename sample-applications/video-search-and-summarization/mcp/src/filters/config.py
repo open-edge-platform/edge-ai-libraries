@@ -77,8 +77,6 @@ class ProxyFilterConfig(BaseModel):
     """Top-level filter configuration loaded from JSON.
 
     Attributes:
-        enabled: Master kill switch. When ``False`` the proxy refuses to expose
-            any API regardless of per-entry settings.
         server_name: ``FastMCP`` server name surfaced to clients.
         prefix: Prefix applied to every generated MCP component name. Final
             names follow the pattern ``f"{prefix}_{name}"``.
@@ -88,7 +86,6 @@ class ProxyFilterConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    enabled: bool = Field(default=True, description="When false, no REST operations are proxied.")
     server_name: str = Field(
         default="app_proxy_mcp",
         description="FastMCP server name shown to clients.",
@@ -168,11 +165,7 @@ def load_filter_config(path: str) -> ProxyFilterConfig:
         raise ValueError(f"Filter config file is not valid JSON: {config_path}") from exc
 
     config = ProxyFilterConfig.model_validate(raw_data)
-    logger.debug(
-        "Filter config validated: %d API entries, master enabled=%s",
-        len(config.apis),
-        config.enabled,
-    )
+    logger.debug("Filter config validated: %d API entries", len(config.apis))
     return config
 
 
@@ -187,12 +180,9 @@ def api_config_for(
 ) -> ApiConfig | None:
     """Return the per-operation config for ``(method, path)``, or ``None``.
 
-    Returns ``None`` when the operation is not listed in the filter or when
-    the master ``enabled`` switch is off.
+    Returns ``None`` when the operation is not listed in the filter.
     """
 
-    if not config.enabled:
-        return None
     return config.apis.get(operation_key(method, path))
 
 

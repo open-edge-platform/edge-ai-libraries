@@ -22,7 +22,6 @@ class FilterConfigTests(unittest.TestCase):
     def test_api_entries_enable_expected_operations(self) -> None:
         config = ProxyFilterConfig.model_validate(
             {
-                "enabled": True,
                 "prefix": "demo",
                 "apis": {
                     "GET /widgets": {"type": "resource", "name": "list_widgets"},
@@ -50,7 +49,6 @@ class FilterConfigTests(unittest.TestCase):
     def test_config_normalizes_names_descriptions_and_api_keys(self) -> None:
         config = ProxyFilterConfig.model_validate(
             {
-                "enabled": True,
                 "server_name": " Demo-Server ",
                 "prefix": " Demo-API ",
                 "apis": {
@@ -87,7 +85,6 @@ class FilterConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "only GET operations"):
             ProxyFilterConfig.model_validate(
                 {
-                    "enabled": True,
                     "prefix": "demo",
                     "apis": {
                         "DELETE /runs/{runId}": {"type": "resource", "name": "delete_run"},
@@ -99,7 +96,6 @@ class FilterConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Wildcard API keys are not supported"):
             ProxyFilterConfig.model_validate(
                 {
-                    "enabled": True,
                     "prefix": "demo",
                     "apis": {
                         "GET /search/*": {"type": "resource", "name": "search"},
@@ -111,7 +107,6 @@ class FilterConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unsupported HTTP method"):
             ProxyFilterConfig.model_validate(
                 {
-                    "enabled": True,
                     "prefix": "demo",
                     "apis": {
                         "CONNECT /widgets": {"type": "tool", "name": "connect_widgets"},
@@ -123,7 +118,6 @@ class FilterConfigTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ProxyFilterConfig.model_validate(
                 {
-                    "enabled": True,
                     "prefix": "demo",
                     "apis": {
                         "POST /widgets": {"type": "tool"},
@@ -135,7 +129,6 @@ class FilterConfigTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ProxyFilterConfig.model_validate(
                 {
-                    "enabled": True,
                     "prefix": "demo",
                     "apis": {
                         "POST /widgets": {"name": "create_widget"},
@@ -147,7 +140,6 @@ class FilterConfigTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ProxyFilterConfig.model_validate(
                 {
-                    "enabled": True,
                     "prefix": "demo",
                     "apis": {
                         "GET /widgets": {"type": "both", "name": "list_widgets"},
@@ -161,7 +153,6 @@ class FilterConfigTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ProxyFilterConfig.model_validate(
                 {
-                    "enabled": True,
                     "prefix": "demo",
                     "apis": {
                         "POST /widgets": {
@@ -177,7 +168,6 @@ class FilterConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "valid identifier"):
             ProxyFilterConfig.model_validate(
                 {
-                    "enabled": True,
                     "prefix": "demo",
                     "apis": {
                         "POST /widgets": {"type": "tool", "name": "create-widget"},
@@ -189,7 +179,6 @@ class FilterConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'name "save_widget" is used by both'):
             ProxyFilterConfig.model_validate(
                 {
-                    "enabled": True,
                     "prefix": "demo",
                     "apis": {
                         "POST /widgets": {"type": "tool", "name": "save_widget"},
@@ -203,7 +192,6 @@ class FilterConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "is used by both"):
             ProxyFilterConfig.model_validate(
                 {
-                    "enabled": True,
                     "prefix": "demo",
                     "apis": {
                         "GET /widgets": {"type": "resource", "name": "widget"},
@@ -212,28 +200,12 @@ class FilterConfigTests(unittest.TestCase):
                 }
             )
 
-    def test_disabled_config_reports_nothing_enabled(self) -> None:
-        config = ProxyFilterConfig.model_validate(
-            {
-                "enabled": False,
-                "prefix": "demo",
-                "apis": {
-                    "GET /widgets": {"type": "resource", "name": "list_widgets"},
-                    "POST /widgets": {"type": "tool", "name": "create_widget"},
-                },
-            }
-        )
-
-        self.assertIsNone(api_config_for(config, "GET", "/widgets"))
-        self.assertIsNone(configured_name(config, "POST", "/widgets"))
-
     def test_load_filter_config_reads_generic_file(self) -> None:
         with TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "demo-filter.json"
             config_path.write_text(
                 json.dumps(
                     {
-                        "enabled": True,
                         "server_name": "demo_server",
                         "prefix": "demo",
                         "apis": {

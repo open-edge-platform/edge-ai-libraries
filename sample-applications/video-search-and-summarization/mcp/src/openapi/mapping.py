@@ -99,7 +99,6 @@ def build_route_map_fn(
 
     counters: dict[str, int] = {"tool": 0, "resource": 0, "resource_template": 0, "excluded": 0}
 
-
     def route_map_fn(route: HTTPRoute, _default_type: MCPType) -> MCPType | None:
         method = route.method.upper()
         path = route.path

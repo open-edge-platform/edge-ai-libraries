@@ -1,5 +1,4 @@
 {
-  "enabled": true,
   "server_name": "vss_search_mcp",
   "prefix": "vss",
   "apis": {

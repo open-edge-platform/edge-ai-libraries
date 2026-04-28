@@ -62,14 +62,11 @@ class McpNameMappingTests(unittest.TestCase):
             },
         )
 
-    def test_build_mcp_names_returns_empty_mapping_when_filter_is_disabled(self) -> None:
+    def test_build_mcp_names_returns_empty_mapping_for_empty_apis(self) -> None:
         config = ProxyFilterConfig.model_validate(
             {
-                "enabled": False,
                 "prefix": "vss",
-                "apis": {
-                    "GET /app/features": {"type": "resource", "name": "app_features"},
-                },
+                "apis": {},
             }
         )
         spec = {
@@ -118,10 +115,9 @@ class RouteMapTests(unittest.TestCase):
             {"tool": 1, "resource": 1, "resource_template": 1, "excluded": 1},
         )
 
-    def test_route_map_fn_excludes_everything_when_filter_is_disabled(self) -> None:
+    def test_route_map_fn_excludes_routes_not_in_filter(self) -> None:
         config = ProxyFilterConfig.model_validate(
             {
-                "enabled": False,
                 "apis": {
                     "POST /search/query": {"type": "tool", "name": "run_search_query"},
                 },
@@ -130,8 +126,9 @@ class RouteMapTests(unittest.TestCase):
 
         route_map_fn = build_route_map_fn(config)
 
+        # Route not listed in the filter is always excluded.
         self.assertEqual(
-            route_map_fn(route("POST", "/search/query"), MCPType.TOOL),
+            route_map_fn(route("DELETE", "/search/query"), MCPType.TOOL),
             MCPType.EXCLUDE,
         )
         self.assertEqual(route_map_fn.counters["excluded"], 1)

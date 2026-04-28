@@ -81,7 +81,6 @@ Each filter file is a JSON object:
 
 ```json
 {
-  "enabled": true,
   "server_name": "vss_search_mcp",
   "prefix": "vss",
   "apis": {
@@ -100,7 +99,6 @@ Each filter file is a JSON object:
 
 | Field         | Description                                                                              |
 |---------------|------------------------------------------------------------------------------------------|
-| `enabled`     | Set to `false` to disable the server without removing the config                         |
 | `server_name` | MCP server name reported to clients                                                      |
 | `prefix`      | Prefix applied to every tool and resource name (e.g. `"vss"` → `"vss_run_search_query"`) |
 | `apis`        | Map of `"METHOD /path"` → exposure config (entries not listed here are excluded)         |

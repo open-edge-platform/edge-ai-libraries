@@ -52,10 +52,9 @@ def create_mcp(settings: Settings | None = None) -> FastMCP:
     logger.info("Loading filter configuration from %s", resolved_settings.filter_config_path)
     filter_config = load_filter_config(resolved_settings.filter_config_path)
     logger.info(
-        "Filter loaded: server_name=%s, prefix=%s, enabled=%s, declared_apis=%d",
+        "Filter loaded: server_name=%s, prefix=%s, declared_apis=%d",
         filter_config.server_name,
         filter_config.prefix,
-        filter_config.enabled,
         len(filter_config.apis),
     )
 
