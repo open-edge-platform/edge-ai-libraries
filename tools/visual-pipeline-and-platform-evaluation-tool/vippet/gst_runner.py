@@ -157,6 +157,22 @@ def gst_log_bridge(
     # returns with spaces. This keeps stderr parsing in the caller simple.
     text = text.replace("\r", " ").replace("\n", " ")
 
+    # ------------------------------------------------------------------
+    # latency_tracer sample promotion
+    #
+    # The DLStreamer `latency_tracer` emits its aggregated samples at
+    # GStreamer TRACE level with a message body starting with
+    # `latency_tracer_pipeline_interval,`. By default we would drop TRACE
+    # to `logger.debug()` (and thus suppress it at INFO log level), but
+    # the parent ViPPET process needs these samples on its INFO stream so
+    # they can be forwarded / parsed. Promote them to INFO explicitly.
+    # Only the pipeline-interval samples are forwarded; per-frame and
+    # element-level tracer messages stay at DEBUG as before.
+    # ------------------------------------------------------------------
+    if text.startswith("latency_tracer_pipeline_interval,"):
+        logger.info("%s", text)
+        return
+
     # Log only the message body, without any extra category/prefix.
     # Note: GStreamer debug levels use lower values for higher severity:
     # ERROR=1, WARNING=2, FIXME=3, INFO=4, DEBUG=5, LOG=6, TRACE=7

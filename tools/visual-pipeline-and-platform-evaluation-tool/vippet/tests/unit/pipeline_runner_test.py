@@ -1,13 +1,100 @@
 import itertools
+import json
 import signal
+import subprocess
 import sys
 import unittest
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
 from pipeline_runner import (
     PipelineRunner,
     PipelineResult,
+    LatencyTracerSample,
 )
+
+
+class _SyncExecutor:
+    """Test double for the metrics-push ``ThreadPoolExecutor``.
+
+    Production code submits every metrics push
+    (``_post_metrics_async``) to a shared class-level
+    ``ThreadPoolExecutor`` so the pipeline hot loop is never blocked
+    by HTTP I/O. That makes assertions like
+    ``mock_urlopen.assert_called_once()`` racy in unit tests — by
+    the time the assertion runs, the worker may not have executed
+    yet.
+
+    Patching ``PipelineRunner._get_metrics_executor`` to return this
+    stub makes every push synchronous and deterministic:
+    ``submit(fn, *args, **kwargs)`` simply invokes ``fn`` in the
+    calling thread. The worker's own try/except still swallows
+    exceptions, so test behaviour mirrors production apart from
+    timing.
+    """
+
+    def submit(self, fn, *args, **kwargs):
+        fn(*args, **kwargs)
+        # Return a real-looking sentinel so callers that store the
+        # future do not trip over ``None``. No test inspects it.
+        return MagicMock(name="sync-future")
+
+
+def _patch_sync_metrics_executor(target):
+    """Decorator that swaps the shared metrics executor for a sync stub.
+
+    Uses ``patch.object(..., new=...)`` so no extra mock argument is
+    injected into the decorated methods — keeping test signatures
+    unchanged when the decorator is applied at class level.
+
+    The replacement is wrapped in ``classmethod`` so that the
+    descriptor binding of the original ``_get_metrics_executor`` is
+    preserved (otherwise the auto-passed ``cls`` would arrive as a
+    spurious positional argument). A fresh ``_SyncExecutor`` is
+    returned on every call; it is stateless so the cost is
+    negligible.
+    """
+    return patch.object(
+        PipelineRunner,
+        "_get_metrics_executor",
+        new=classmethod(lambda cls: _SyncExecutor()),
+    )(target)
+
+
+def _extract_pushed_fps_values(mock_urlopen: MagicMock) -> list[float]:
+    """Extract the `value` field from every FPS-simple push.
+
+    Filters urlopen calls to those targeting the
+    ``/api/v1/metrics/simple`` endpoint (used by `_push_fps_metric`),
+    so tests that also trigger latency batch pushes on the same mock
+    still see a clean list of FPS values.
+    """
+    values: list[float] = []
+    for call in mock_urlopen.call_args_list:
+        req = call[0][0]
+        if not req.full_url.endswith("/api/v1/metrics/simple"):
+            continue
+        payload = json.loads(req.data.decode())
+        values.append(payload["value"])
+    return values
+
+
+def _extract_latency_payloads(mock_urlopen: MagicMock) -> list[dict]:
+    """Extract every batch-endpoint payload sent to metrics-service.
+
+    Returns each JSON body as a dict, filtered to calls targeting the
+    ``/api/v1/metrics`` batch endpoint used by `_push_latency_sample`
+    and `_push_final_latency_metrics`.
+    """
+    payloads: list[dict] = []
+    for call in mock_urlopen.call_args_list:
+        req = call[0][0]
+        # Batch endpoint path ends with `/api/v1/metrics` (no trailing `/simple`).
+        if req.full_url.endswith("/api/v1/metrics/simple"):
+            continue
+        if not req.full_url.endswith("/api/v1/metrics"):
+            continue
+        payloads.append(json.loads(req.data.decode()))
+    return payloads
 
 
 def _make_process_mock(stdout_lines: list[str], exit_code: int = 0) -> MagicMock:
@@ -43,8 +130,16 @@ def _make_process_mock(stdout_lines: list[str], exit_code: int = 0) -> MagicMock
     return process_mock
 
 
+@_patch_sync_metrics_executor
 class TestPipelineRunnerNormalMode(unittest.TestCase):
-    """Tests for PipelineRunner in normal mode (production pipeline execution)."""
+    """Tests for PipelineRunner in normal mode (production pipeline execution).
+
+    The shared metrics-push ``ThreadPoolExecutor`` is replaced with a
+    synchronous stub at the class level so metrics pushes
+    (``_post_metrics_async``) run inline in the calling thread. That
+    keeps urlopen assertions deterministic without changing any
+    production code path.
+    """
 
     def setUp(self):
         self.test_pipeline_command = (
@@ -140,7 +235,6 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
             mode="normal",
             max_runtime=0,
             poll_interval=1,
-            fps_file_path="/tmp/fps.txt",
             inactivity_timeout=0,
         )
 
@@ -164,11 +258,11 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
     @patch("pipeline_runner.Popen")
     @patch("pipeline_runner.ps")
     @patch("pipeline_runner.select.select")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_run_pipeline_writes_zero_fps_on_completion(
-        self, mock_open_file, mock_select, mock_ps, mock_popen
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_run_pipeline_pushes_zero_fps_on_completion(
+        self, mock_urlopen, mock_select, mock_ps, mock_popen
     ):
-        """PipelineRunner should write 0.0 to FPS file after successful completion."""
+        """PipelineRunner should push 0.0 to metrics-service after successful completion."""
         process_mock = _make_process_mock(
             [
                 "FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps",
@@ -179,9 +273,7 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         if mock_ps is not None:
             mock_ps.Process.return_value.status.return_value = "zombie"
 
-        runner = PipelineRunner(
-            mode="normal", max_runtime=0, fps_file_path="/tmp/test_fps.txt"
-        )
+        runner = PipelineRunner(mode="normal", max_runtime=0)
         result = runner.run(
             pipeline_command=self.test_pipeline_command, total_streams=1
         )
@@ -189,65 +281,57 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertIsInstance(result, PipelineResult)
         self.assertEqual(result.total_fps, 100.0)
 
-        # Verify that current FPS (100.0) was written during execution
-        # and 0.0 was written at the end (in finally block)
-        write_calls = mock_open_file().write.call_args_list
-        fps_writes = [call[0][0] for call in write_calls]
+        # Verify that current FPS (100.0) was pushed during execution
+        # and 0.0 was pushed at the end (in finally block).
+        pushed = _extract_pushed_fps_values(mock_urlopen)
 
-        # Should have written the current FPS during execution
-        self.assertIn(
-            "100.0\n", fps_writes, "Current FPS should be written during execution"
-        )
+        self.assertIn(100.0, pushed, "Current FPS should be pushed during execution")
+        self.assertIn(0.0, pushed, "0.0 should be pushed after completion")
+        # Last push should be 0.0 (from finally block).
+        self.assertEqual(pushed[-1], 0.0, "Last FPS push should be 0.0")
 
-        # Should have written 0.0 at the end
-        self.assertIn("0.0\n", fps_writes, "0.0 should be written after completion")
-
-        # Last write should be 0.0 (from finally block)
-        self.assertEqual(fps_writes[-1], "0.0\n", "Last FPS write should be 0.0")
+        # Every request targets the metrics-service `/api/v1/metrics/simple` endpoint.
+        for call in mock_urlopen.call_args_list:
+            req = call[0][0]
+            self.assertTrue(req.full_url.endswith("/api/v1/metrics/simple"))
+            self.assertEqual(req.headers.get("Content-type"), "application/json")
 
     @patch("pipeline_runner.Popen")
     @patch("pipeline_runner.select.select")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_run_pipeline_writes_zero_fps_on_error(
-        self, mock_open_file, mock_select, mock_popen
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_run_pipeline_pushes_zero_fps_on_error(
+        self, mock_urlopen, mock_select, mock_popen
     ):
-        """PipelineRunner should write 0.0 to FPS file after pipeline failure."""
+        """PipelineRunner should push 0.0 to metrics-service after pipeline failure."""
         process_mock = _make_process_mock([], exit_code=1)
         process_mock.stderr.readline.side_effect = itertools.repeat(b"")
         mock_select.return_value = ([], [], [])
         mock_popen.return_value = process_mock
 
-        runner = PipelineRunner(
-            mode="normal", max_runtime=0, fps_file_path="/tmp/test_fps.txt"
-        )
+        runner = PipelineRunner(mode="normal", max_runtime=0)
 
         with self.assertRaises(RuntimeError):
             runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
 
-        # Verify that 0.0 was written to FPS file (in finally block) even on error
-        write_calls = [
-            call
-            for call in mock_open_file().write.call_args_list
-            if call[0][0] == "0.0\n"
-        ]
+        # Verify that 0.0 was pushed exactly once (finally block) even on error.
+        pushed = _extract_pushed_fps_values(mock_urlopen)
         self.assertEqual(
-            len(write_calls),
+            pushed.count(0.0),
             1,
-            "0.0 should be written exactly once to FPS file after pipeline error",
+            "0.0 should be pushed exactly once to metrics-service after pipeline error",
         )
 
     @patch("pipeline_runner.Popen")
     @patch("pipeline_runner.select.select")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_pipeline_hang_writes_zero_fps_before_raising(
-        self, mock_open_file, mock_select, mock_popen
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_pipeline_hang_pushes_zero_fps_before_raising(
+        self, mock_urlopen, mock_select, mock_popen
     ):
-        """PipelineRunner should write 0.0 to FPS file when raising inactivity timeout error."""
+        """PipelineRunner should push 0.0 to metrics-service when raising inactivity timeout error."""
         runner = PipelineRunner(
             mode="normal",
             max_runtime=0,
             poll_interval=1,
-            fps_file_path="/tmp/test_fps.txt",
             inactivity_timeout=0,
         )
 
@@ -266,22 +350,18 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
 
         self.assertIn("inactivity timeout", str(ctx.exception))
 
-        # Verify that 0.0 was written to FPS file (in finally block)
-        write_calls = [
-            call
-            for call in mock_open_file().write.call_args_list
-            if call[0][0] == "0.0\n"
-        ]
+        # Verify that 0.0 was pushed exactly once (finally block).
+        pushed = _extract_pushed_fps_values(mock_urlopen)
         self.assertEqual(
-            len(write_calls),
+            pushed.count(0.0),
             1,
-            "0.0 should be written exactly once to FPS file after timeout error",
+            "0.0 should be pushed exactly once to metrics-service after timeout error",
         )
 
     @patch("pipeline_runner.Popen")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_stop_pipeline_writes_zero_fps(self, mock_open_file, mock_popen):
-        """PipelineRunner should write 0.0 to FPS file when cancelled."""
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_stop_pipeline_pushes_zero_fps(self, mock_urlopen, mock_popen):
+        """PipelineRunner should push 0.0 to metrics-service when cancelled."""
         process_mock = MagicMock()
         # First poll() returns None (main loop: process running),
         # second poll() returns None (_graceful_terminate: still running).
@@ -294,9 +374,7 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         process_mock.communicate.return_value = (b"", b"")
         mock_popen.return_value = process_mock
 
-        runner = PipelineRunner(
-            mode="normal", max_runtime=0, fps_file_path="/tmp/test_fps.txt"
-        )
+        runner = PipelineRunner(mode="normal", max_runtime=0)
         runner.cancel()
         result = runner.run(
             pipeline_command=self.test_pipeline_command, total_streams=1
@@ -305,19 +383,49 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertTrue(runner.is_cancelled())
         self.assertIsInstance(result, PipelineResult)
 
-        # Verify that 0.0 was written to FPS file (in finally block) after cancellation
-        write_calls = [
-            call
-            for call in mock_open_file().write.call_args_list
-            if call[0][0] == "0.0\n"
-        ]
+        # Verify that 0.0 was pushed exactly once (finally block) after cancellation.
+        pushed = _extract_pushed_fps_values(mock_urlopen)
         self.assertEqual(
-            len(write_calls),
+            pushed.count(0.0),
             1,
-            "0.0 should be written exactly once to FPS file after cancellation",
+            "0.0 should be pushed exactly once to metrics-service after cancellation",
+        )
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_fps_metric_uses_configured_url(self, mock_urlopen):
+        """`_push_fps_metric` must POST JSON to `{METRICS_SERVICE_URL}/api/v1/metrics/simple`."""
+        with patch.dict(
+            "os.environ", {"METRICS_SERVICE_URL": "http://example:1234"}, clear=False
+        ):
+            runner = PipelineRunner(mode="normal", max_runtime=0)
+
+        runner._push_fps_metric(42.5)
+
+        mock_urlopen.assert_called_once()
+        req = mock_urlopen.call_args[0][0]
+        self.assertEqual(req.full_url, "http://example:1234/api/v1/metrics/simple")
+        payload = json.loads(req.data.decode())
+        self.assertEqual(payload, {"name": "fps", "value": 42.5})
+        self.assertEqual(req.headers.get("Content-type"), "application/json")
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_fps_metric_swallows_network_errors(self, mock_urlopen):
+        """Network errors while pushing FPS must be logged but not raised."""
+        mock_urlopen.side_effect = OSError("boom")
+
+        runner = PipelineRunner(mode="normal", max_runtime=0)
+
+        # Must not raise — pipeline execution cannot be impacted by telemetry failures.
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            runner._push_fps_metric(1.0)
+
+        self.assertTrue(
+            any("Failed to push fps metric" in line for line in captured.output)
         )
 
 
+@patch("pipeline_runner.urllib.request.urlopen", new=MagicMock())
+@_patch_sync_metrics_executor
 class TestFpsMetricSelection(unittest.TestCase):
     """Tests for the FPS metric selection fallback chain in _run_normal.
 
@@ -645,6 +753,968 @@ class TestPipelineRunnerModeValidation(unittest.TestCase):
             PipelineRunner(mode="invalid_mode")
 
         self.assertIn("Invalid mode", str(ctx.exception))
+
+
+@patch("pipeline_runner.urllib.request.urlopen", new=MagicMock())
+@_patch_sync_metrics_executor
+class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
+    """Tests for the `enable_latency_metrics` subprocess-env configuration.
+
+    These tests verify that when the flag is True the GStreamer subprocess
+    is launched with the environment variables required to activate the
+    DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms
+    interval, and that when the flag is False neither GST_DEBUG nor
+    GST_TRACERS is touched.
+    """
+
+    test_pipeline_command = "videotestsrc ! fakesink"
+
+    def _assert_tracer_env_applied(self, env: dict[str, str]) -> None:
+        """Shared assertions for an env dict built with the flag enabled."""
+        self.assertIn("GST_DEBUG", env)
+        self.assertIn("GST_TRACER:7", env["GST_DEBUG"])
+        self.assertEqual(
+            env["GST_TRACERS"],
+            "latency_tracer(flags=pipeline,interval=1000)",
+        )
+
+    # --- Pure _build_subprocess_env unit tests --------------------------------
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_disabled_leaves_tracer_vars_unset(self):
+        """With the flag False the env must not contain GST_DEBUG/GST_TRACERS."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        env = runner._build_subprocess_env()
+        self.assertNotIn("GST_DEBUG", env)
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_enabled_sets_tracer_vars_when_gst_debug_unset(self):
+        """With the flag True and no pre-existing GST_DEBUG, both vars are set."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_DEBUG"], "GST_TRACER:7")
+        self._assert_tracer_env_applied(env)
+
+    @patch.dict("os.environ", {"GST_DEBUG": "2,GST_ELEMENT_PADS:5"}, clear=True)
+    def test_build_env_enabled_appends_to_existing_gst_debug(self):
+        """Existing GST_DEBUG must be extended with `,GST_TRACER:7`, not overwritten."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_DEBUG"], "2,GST_ELEMENT_PADS:5,GST_TRACER:7")
+        self._assert_tracer_env_applied(env)
+
+    @patch.dict(
+        "os.environ",
+        {"GST_TRACERS": "some_other_tracer"},
+        clear=True,
+    )
+    def test_build_env_enabled_overwrites_existing_gst_tracers(self):
+        """GST_TRACERS is always set to the latency_tracer value when enabled."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        env = runner._build_subprocess_env()
+        self._assert_tracer_env_applied(env)
+
+    # --- Popen-level integration: normal mode ---------------------------------
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_normal_mode_disabled_does_not_modify_env(
+        self, mock_select, mock_ps, mock_popen
+    ):
+        """Normal-mode Popen env must have neither GST_DEBUG nor GST_TRACERS when disabled."""
+        process_mock = _make_process_mock([])
+        mock_select.return_value = ([], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
+
+        env = mock_popen.call_args.kwargs["env"]
+        self.assertNotIn("GST_DEBUG", env)
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_normal_mode_enabled_sets_tracer_env(
+        self, mock_select, mock_ps, mock_popen
+    ):
+        """Normal-mode Popen env must contain the tracer vars when enabled."""
+        process_mock = _make_process_mock([])
+        mock_select.return_value = ([], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
+
+        env = mock_popen.call_args.kwargs["env"]
+        self._assert_tracer_env_applied(env)
+
+    # --- Popen-level integration: validation mode -----------------------------
+
+    @patch("pipeline_runner.subprocess.Popen")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_validation_mode_disabled_does_not_modify_env(self, mock_popen):
+        """Validation-mode Popen env must not be modified when disabled."""
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = ("", "")
+        process_mock.returncode = 0
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="validation", max_runtime=5, enable_latency_metrics=False
+        )
+        runner.run(self.test_pipeline_command)
+
+        env = mock_popen.call_args.kwargs["env"]
+        self.assertNotIn("GST_DEBUG", env)
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch("pipeline_runner.subprocess.Popen")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_validation_mode_enabled_sets_tracer_env(self, mock_popen):
+        """Validation-mode Popen env must contain the tracer vars when enabled."""
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = ("", "")
+        process_mock.returncode = 0
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="validation", max_runtime=5, enable_latency_metrics=True
+        )
+        runner.run(self.test_pipeline_command)
+
+        env = mock_popen.call_args.kwargs["env"]
+        self._assert_tracer_env_applied(env)
+
+    # --- PipelineResult.latency_tracer_metrics semantics in validation mode ---
+    #
+    # Validation mode never parses tracer samples. The map on the result
+    # must still reflect whether the tracer was enabled, matching the
+    # semantics documented on `PipelineResult.latency_tracer_metrics`:
+    #   * `None`  → tracer disabled,
+    #   * `{}`    → tracer enabled but no samples were collected.
+
+    @patch("pipeline_runner.subprocess.Popen")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_validation_mode_disabled_returns_none_metrics(self, mock_popen):
+        """With the flag False, validation results carry `latency_tracer_metrics=None`."""
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = ("", "")
+        process_mock.returncode = 0
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="validation", max_runtime=5, enable_latency_metrics=False
+        )
+        result = runner.run(self.test_pipeline_command)
+
+        self.assertIsNone(result.latency_tracer_metrics)
+
+    @patch("pipeline_runner.subprocess.Popen")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_validation_mode_enabled_returns_empty_metrics(self, mock_popen):
+        """With the flag True, validation results carry `latency_tracer_metrics={}`."""
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = ("", "")
+        process_mock.returncode = 0
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="validation", max_runtime=5, enable_latency_metrics=True
+        )
+        result = runner.run(self.test_pipeline_command)
+
+        self.assertEqual(result.latency_tracer_metrics, {})
+
+    @patch("pipeline_runner.subprocess.Popen")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_validation_mode_timeout_preserves_metrics_semantics(self, mock_popen):
+        """On hard-timeout, the returned PipelineResult keeps the same tracer-map semantics."""
+        import subprocess as _subprocess
+
+        process_mock = MagicMock()
+        # First communicate() raises TimeoutExpired; second (after kill) returns empty.
+        process_mock.communicate.side_effect = [
+            _subprocess.TimeoutExpired(cmd="gst_runner.py", timeout=1),
+            ("", ""),
+        ]
+        process_mock.returncode = -9
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="validation",
+            max_runtime=1,
+            hard_timeout=1,
+            enable_latency_metrics=True,
+        )
+        with patch.object(runner, "_graceful_terminate"):
+            result = runner.run(self.test_pipeline_command)
+
+        self.assertEqual(result.latency_tracer_metrics, {})
+
+    # --- latency_tracer sample line from gst_runner is forwarded to INFO ---
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_latency_tracer_interval_line_forwarded_from_gst_runner_stdout(
+        self, mock_select, mock_ps, mock_popen
+    ):
+        """`gst_runner - INFO - latency_tracer_pipeline_interval,...` stdout lines must be forwarded to INFO log.
+
+        In production the subprocess's ``gst_log_bridge`` promotes tracer
+        samples to INFO level, which Python logging prints to stdout as
+        ``gst_runner - INFO - latency_tracer_pipeline_interval, ...``.
+        The parent PipelineRunner then picks them up through
+        ``_is_loggable_gst_runner_line`` and logs them as INFO.
+        """
+        sample_line = (
+            "gst_runner - INFO - latency_tracer_pipeline_interval, "
+            "pipeline_name=(string)pipeline0, source_name=(string)filesrc0, "
+            "sink_name=(string)default_output_sink_0_0, interval=(double)1000.0, "
+            "avg=(double)5.0, min=(double)1.0, max=(double)9.0, "
+            "latency=(double)3.0, fps=(double)60.0"
+        )
+        process_mock = _make_process_mock([sample_line])
+        mock_select.return_value = ([process_mock.stdout], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+
+        with self.assertLogs("PipelineRunner", level="INFO") as captured:
+            runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
+
+        joined = "\n".join(captured.output)
+        self.assertIn("latency_tracer_pipeline_interval", joined)
+
+
+@patch("pipeline_runner.urllib.request.urlopen", new=MagicMock())
+@_patch_sync_metrics_executor
+class TestLatencyTracerIntervalParser(unittest.TestCase):
+    """Unit tests for the `latency_tracer_pipeline_interval` line parser.
+
+    The parser lives on :class:`PipelineRunner` as
+    ``_parse_and_record_latency_sample`` and is driven by the
+    class-level compiled regex ``_LATENCY_TRACER_INTERVAL_PATTERN``.
+    These tests exercise the parser directly (no subprocess) so we can
+    assert the exact shape of the resulting
+    :class:`InternalLatencyMetrics` entries.
+
+    Sample lines follow the format documented in
+    ``/docs/user-guide/dev_guide/latency_tracer.md`` in the DLStreamer
+    repository.
+    """
+
+    # Sample line taken from the DLStreamer `latency_tracer` documentation.
+    SAMPLE_INTERVAL_LINE = (
+        "latency_tracer_pipeline_interval, "
+        "pipeline_name=(string)pipeline0, "
+        "source_name=(string)src_p0_s0_0_0, "
+        "sink_name=(string)sink_p0_s0_0_0, "
+        "interval=(double)1000.25, "
+        "avg=(double)364.31, "
+        "min=(double)0.004, "
+        "max=(double)529.26, "
+        "latency=(double)21.28, "
+        "fps=(double)46.99;"
+    )
+
+    # Same payload as seen on our subprocess stdout — prefixed with the
+    # Python log format emitted by `gst_runner`.
+    SAMPLE_INTERVAL_LINE_WITH_PREFIX = "gst_runner - INFO - " + SAMPLE_INTERVAL_LINE
+
+    def _make_runner(self, enable: bool) -> PipelineRunner:
+        """Return a PipelineRunner configured for parser testing.
+
+        Args:
+            enable: Value of ``enable_latency_metrics``. When False the
+                runner keeps ``latency_tracer_metrics=None`` and the
+                parser is expected to short-circuit.
+        """
+        return PipelineRunner(mode="normal", enable_latency_metrics=enable)
+
+    def test_parser_extracts_all_five_fields(self):
+        """All five timing fields are extracted as floats from a sample line."""
+        runner = self._make_runner(enable=True)
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        self.assertIsNotNone(runner.latency_tracer_metrics)
+        assert runner.latency_tracer_metrics is not None  # for the type-checker
+        self.assertEqual(len(runner.latency_tracer_metrics), 1)
+
+        stream_id = "src_p0_s0_0_0__sink_p0_s0_0_0"
+        self.assertIn(stream_id, runner.latency_tracer_metrics)
+        metrics = runner.latency_tracer_metrics[stream_id]
+
+        # Exact values, rounded to the tracer's emitted precision.
+        self.assertAlmostEqual(metrics.interval_ms, 1000.25)
+        self.assertAlmostEqual(metrics.avg_ms, 364.31)
+        self.assertAlmostEqual(metrics.min_ms, 0.004)
+        self.assertAlmostEqual(metrics.max_ms, 529.26)
+        self.assertAlmostEqual(metrics.latency_ms, 21.28)
+
+    def test_parser_accepts_gst_runner_prefix(self):
+        """Any log prefix before the marker is ignored by the parser."""
+        runner = self._make_runner(enable=True)
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE_WITH_PREFIX)
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(len(runner.latency_tracer_metrics), 1)
+
+    def test_parser_ignores_non_interval_lines(self):
+        """Lines that don't contain the interval marker produce no update."""
+        runner = self._make_runner(enable=True)
+
+        runner._parse_and_record_latency_sample(
+            "FpsCounter(average 5.0sec): total=120.0 fps, "
+            "number-streams=2, per-stream=60.0 fps"
+        )
+        runner._parse_and_record_latency_sample(
+            "latency_tracer_pipeline, frame_latency=(double)704.90, "
+            "avg=(double)238.75, min=(double)0.013, max=(double)704.90, "
+            "latency=(double)32.28, fps=(double)30.98, frame_num=(uint)27;"
+        )
+        runner._parse_and_record_latency_sample("some unrelated stderr line")
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(runner.latency_tracer_metrics, {})
+
+    def test_parser_ignores_malformed_interval_lines(self):
+        """Lines with the marker but a broken field layout are dropped silently."""
+        runner = self._make_runner(enable=True)
+
+        # Truncated after `source_name`: `sink_name` and the rest missing.
+        runner._parse_and_record_latency_sample(
+            "latency_tracer_pipeline_interval, source_name=(string)src_p0_s0"
+        )
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(runner.latency_tracer_metrics, {})
+
+    def test_parser_keeps_only_last_sample_per_stream(self):
+        """Successive samples for the same stream_id overwrite the entry."""
+        runner = self._make_runner(enable=True)
+
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        second_line = (
+            "latency_tracer_pipeline_interval, "
+            "source_name=(string)src_p0_s0_0_0, "
+            "sink_name=(string)sink_p0_s0_0_0, "
+            "interval=(double)2000.50, avg=(double)400.00, "
+            "min=(double)0.010, max=(double)600.00, "
+            "latency=(double)25.00, fps=(double)48.00"
+        )
+        runner._parse_and_record_latency_sample(second_line)
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(len(runner.latency_tracer_metrics), 1)
+        metrics = runner.latency_tracer_metrics["src_p0_s0_0_0__sink_p0_s0_0_0"]
+        # Only the latest values are retained — no history.
+        self.assertAlmostEqual(metrics.interval_ms, 2000.50)
+        self.assertAlmostEqual(metrics.avg_ms, 400.00)
+
+    def test_parser_separates_streams_by_source_sink_pair(self):
+        """Different source/sink pairs produce distinct map entries."""
+        runner = self._make_runner(enable=True)
+
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+        runner._parse_and_record_latency_sample(
+            "latency_tracer_pipeline_interval, "
+            "source_name=(string)src_p0_s1_0_1, "
+            "sink_name=(string)sink_p0_s1_0_1, "
+            "interval=(double)1000.00, avg=(double)100.0, "
+            "min=(double)1.0, max=(double)200.0, "
+            "latency=(double)10.0, fps=(double)30.0"
+        )
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(
+            set(runner.latency_tracer_metrics.keys()),
+            {
+                "src_p0_s0_0_0__sink_p0_s0_0_0",
+                "src_p0_s1_0_1__sink_p0_s1_0_1",
+            },
+        )
+
+    def test_parser_short_circuits_when_latency_metrics_disabled(self):
+        """When enable_latency_metrics=False, the map is None and no entry is recorded."""
+        runner = self._make_runner(enable=False)
+
+        self.assertIsNone(runner.latency_tracer_metrics)
+
+        # Calling the parser must not crash and must not allocate the map.
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        self.assertIsNone(runner.latency_tracer_metrics)
+
+    def test_parser_drops_samples_outside_allowed_stream_ids(self):
+        """
+        Samples whose stream_id is not in ``_allowed_stream_ids`` are
+        silently discarded. This models the production filter applied
+        by ``PipelineRunner.run(allowed_stream_ids=...)`` that keeps
+        only user-facing source/sink pairs (dropping internal bin
+        sinks and intermediate ``splitmuxsink`` rows).
+        """
+        runner = self._make_runner(enable=True)
+        # Only accept the "real" main source/sink pair for stream 0.
+        runner._allowed_stream_ids = {"src_p0_s0_0_0__sink_p0_s0_0_0"}
+
+        # Allowed: appears verbatim in the allowlist.
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        # Disallowed: an internal bin sink named just "sink".
+        runner._parse_and_record_latency_sample(
+            "latency_tracer_pipeline_interval, "
+            "source_name=(string)src_p0_s0_0_0, "
+            "sink_name=(string)sink, "
+            "interval=(double)1000.0, avg=(double)1.0, "
+            "min=(double)1.0, max=(double)1.0, "
+            "latency=(double)1.0, fps=(double)30.0"
+        )
+        # Disallowed: the recorder's splitmuxsink.
+        runner._parse_and_record_latency_sample(
+            "latency_tracer_pipeline_interval, "
+            "source_name=(string)src_p0_s0_0_0, "
+            "sink_name=(string)splitmuxsink0, "
+            "interval=(double)1000.0, avg=(double)1.0, "
+            "min=(double)1.0, max=(double)1.0, "
+            "latency=(double)1.0, fps=(double)30.0"
+        )
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(
+            set(runner.latency_tracer_metrics.keys()),
+            {"src_p0_s0_0_0__sink_p0_s0_0_0"},
+        )
+
+
+@_patch_sync_metrics_executor
+class TestLatencyMetricsPush(unittest.TestCase):
+    """Tests for the live + final latency push to metrics-service.
+
+    Covers the runner behaviour introduced by ITEP-89980:
+    ``_push_latency_sample`` fires on every parsed interval line, and
+    ``_push_final_latency_metrics`` re-pushes the last sample per
+    stream once the subprocess exits. The shared metrics-push
+    ``ThreadPoolExecutor`` is replaced with a synchronous stub so
+    every push runs inline in the calling thread, which keeps
+    urlopen assertions deterministic.
+    """
+
+    # Sample from the DLStreamer tracer documentation — identical to
+    # the fixture used in `TestLatencyTracerIntervalParser`, repeated
+    # here so the push tests are self-contained.
+    SAMPLE_INTERVAL_LINE = (
+        "latency_tracer_pipeline_interval, "
+        "source_name=(string)src_p0_s0_0_0, "
+        "sink_name=(string)sink_p0_s0_0_0, "
+        "interval=(double)1000.25, "
+        "avg=(double)364.31, "
+        "min=(double)0.004, "
+        "max=(double)529.26, "
+        "latency=(double)21.28, "
+        "fps=(double)46.99;"
+    )
+
+    def _sample(self, seed: float = 1.0) -> LatencyTracerSample:
+        """Build a deterministic sample where every field derives from a single seed."""
+        return LatencyTracerSample(
+            interval_ms=1000.0 * seed,
+            avg_ms=10.0 * seed,
+            min_ms=1.0 * seed,
+            max_ms=100.0 * seed,
+            latency_ms=5.0 * seed,
+        )
+
+    # ------------------------------------------------------------------
+    # _push_latency_sample: payload shape, URL, tags
+    # ------------------------------------------------------------------
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_latency_sample_uses_batch_endpoint(self, mock_urlopen):
+        """Latency pushes target the batch `/api/v1/metrics` endpoint (NOT `/simple`)."""
+        with patch.dict(
+            "os.environ",
+            {"METRICS_SERVICE_URL": "http://example:1234"},
+            clear=False,
+        ):
+            runner = PipelineRunner(
+                mode="normal", enable_latency_metrics=True, job_id="job-42"
+            )
+
+        runner._push_latency_sample("stream-a", self._sample())
+
+        mock_urlopen.assert_called_once()
+        req = mock_urlopen.call_args[0][0]
+        self.assertEqual(req.full_url, "http://example:1234/api/v1/metrics")
+        self.assertEqual(req.headers.get("Content-type"), "application/json")
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_latency_sample_payload_shape(self, mock_urlopen):
+        """Payload is a single-entry batch with the four timing fields and both tags."""
+        runner = PipelineRunner(
+            mode="normal", enable_latency_metrics=True, job_id="job-42"
+        )
+        sample = self._sample(seed=2.0)
+
+        runner._push_latency_sample("stream-a", sample)
+
+        req = mock_urlopen.call_args[0][0]
+        body = json.loads(req.data.decode())
+        self.assertEqual(
+            body,
+            {
+                "metrics": [
+                    {
+                        "name": "pipeline_latency",
+                        "fields": {
+                            "avg_ms": sample.avg_ms,
+                            "min_ms": sample.min_ms,
+                            "max_ms": sample.max_ms,
+                            "latency_ms": sample.latency_ms,
+                        },
+                        "tags": {"job_id": "job-42", "stream_id": "stream-a"},
+                    }
+                ]
+            },
+        )
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_latency_sample_omits_interval_and_fps(self, mock_urlopen):
+        """`interval_ms` and `fps` must never leak into the payload fields."""
+        runner = PipelineRunner(
+            mode="normal", enable_latency_metrics=True, job_id="job-42"
+        )
+
+        runner._push_latency_sample("stream-a", self._sample())
+
+        body = json.loads(mock_urlopen.call_args[0][0].data.decode())
+        fields = body["metrics"][0]["fields"]
+        self.assertNotIn("interval_ms", fields)
+        self.assertNotIn("fps", fields)
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_latency_sample_without_job_id_still_tags_stream_id(
+        self, mock_urlopen
+    ):
+        """When `job_id=None`, `stream_id` is still present as a tag."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+
+        runner._push_latency_sample("stream-a", self._sample())
+
+        body = json.loads(mock_urlopen.call_args[0][0].data.decode())
+        self.assertEqual(body["metrics"][0]["tags"], {"stream_id": "stream-a"})
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_latency_sample_swallows_network_errors(self, mock_urlopen):
+        """Network errors while pushing latency must be logged at WARNING, never raised."""
+        mock_urlopen.side_effect = OSError("boom")
+        runner = PipelineRunner(
+            mode="normal", enable_latency_metrics=True, job_id="job-42"
+        )
+
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            runner._push_latency_sample("stream-a", self._sample())
+
+        self.assertTrue(
+            any("Failed to push latency metric" in line for line in captured.output)
+        )
+
+    # ------------------------------------------------------------------
+    # Live push: every parsed sample is forwarded
+    # ------------------------------------------------------------------
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_triggers_live_push_for_each_sample(self, mock_urlopen):
+        """Each parsed interval line produces exactly one batch POST."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        self.assertEqual(mock_urlopen.call_count, 2)
+        for call in mock_urlopen.call_args_list:
+            req = call[0][0]
+            self.assertTrue(req.full_url.endswith("/api/v1/metrics"))
+            body = json.loads(req.data.decode())
+            self.assertEqual(body["metrics"][0]["name"], "pipeline_latency")
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_live_push_uses_parsed_stream_id_as_tag(self, mock_urlopen):
+        """The `stream_id` tag matches the composite `source__sink` key in the map."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        body = json.loads(mock_urlopen.call_args[0][0].data.decode())
+        self.assertEqual(
+            body["metrics"][0]["tags"]["stream_id"],
+            "src_p0_s0_0_0__sink_p0_s0_0_0",
+        )
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_does_not_push_when_latency_metrics_disabled(self, mock_urlopen):
+        """When `enable_latency_metrics=False`, no HTTP request is ever made."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        mock_urlopen.assert_not_called()
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_does_not_push_for_filtered_stream_id(self, mock_urlopen):
+        """Samples dropped by `_allowed_stream_ids` must not produce a push."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        # Allow only a different stream_id than the one in the sample line.
+        runner._allowed_stream_ids = {"some_other_stream"}
+
+        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+
+        mock_urlopen.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Final push: every stream in the map is re-pushed on exit
+    # ------------------------------------------------------------------
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_final_latency_metrics_emits_one_per_stream(self, mock_urlopen):
+        """One batch POST per stream present in `latency_tracer_metrics`."""
+        runner = PipelineRunner(
+            mode="normal", enable_latency_metrics=True, job_id="job-42"
+        )
+        runner.latency_tracer_metrics = {
+            "stream-a": self._sample(seed=1.0),
+            "stream-b": self._sample(seed=2.0),
+        }
+
+        runner._push_final_latency_metrics()
+
+        self.assertEqual(mock_urlopen.call_count, 2)
+        pushed_stream_ids = set()
+        for call in mock_urlopen.call_args_list:
+            body = json.loads(call[0][0].data.decode())
+            pushed_stream_ids.add(body["metrics"][0]["tags"]["stream_id"])
+        self.assertEqual(pushed_stream_ids, {"stream-a", "stream-b"})
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_final_latency_metrics_noop_when_disabled(self, mock_urlopen):
+        """No-op when the tracer is disabled (map is `None`)."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+
+        runner._push_final_latency_metrics()
+
+        mock_urlopen.assert_not_called()
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_final_latency_metrics_noop_when_map_empty(self, mock_urlopen):
+        """No-op when the tracer was enabled but produced no samples."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        # Map already starts empty when enabled; assert explicitly for clarity.
+        self.assertEqual(runner.latency_tracer_metrics, {})
+
+        runner._push_final_latency_metrics()
+
+        mock_urlopen.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # End-to-end: final push is invoked from `_run_normal`'s `finally`
+    # ------------------------------------------------------------------
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_run_normal_triggers_final_latency_push_in_finally(
+        self, mock_urlopen, mock_select, mock_ps, mock_popen
+    ):
+        """A full `_run_normal` emits both a live push and a final push per stream."""
+        # One interval line on stdout: the live push fires once, then the
+        # `finally` block re-pushes the same stream → 2 batch POSTs total.
+        process_mock = _make_process_mock([self.SAMPLE_INTERVAL_LINE])
+        mock_select.return_value = ([process_mock.stdout], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(
+            mode="normal", enable_latency_metrics=True, job_id="job-42"
+        )
+        runner.run(pipeline_command="videotestsrc ! fakesink", total_streams=1)
+
+        batch_bodies = _extract_latency_payloads(mock_urlopen)
+        self.assertEqual(
+            len(batch_bodies),
+            2,
+            "Expected one live push + one final push for the single stream",
+        )
+        for body in batch_bodies:
+            self.assertEqual(body["metrics"][0]["name"], "pipeline_latency")
+            self.assertEqual(body["metrics"][0]["tags"]["job_id"], "job-42")
+            self.assertEqual(
+                body["metrics"][0]["tags"]["stream_id"],
+                "src_p0_s0_0_0__sink_p0_s0_0_0",
+            )
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_run_normal_does_not_push_latency_when_disabled(
+        self, mock_urlopen, mock_select, mock_ps, mock_popen
+    ):
+        """With `enable_latency_metrics=False`, no batch-endpoint call is ever made."""
+        process_mock = _make_process_mock([self.SAMPLE_INTERVAL_LINE])
+        mock_select.return_value = ([process_mock.stdout], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(
+            mode="normal", enable_latency_metrics=False, job_id="job-42"
+        )
+        runner.run(pipeline_command="videotestsrc ! fakesink", total_streams=1)
+
+        batch_bodies = _extract_latency_payloads(mock_urlopen)
+        self.assertEqual(batch_bodies, [])
+
+
+class TestPipelineResultRepr(unittest.TestCase):
+    """Coverage for the custom ``PipelineResult.__repr__``.
+
+    The implementation formats ``latency_tracer_metrics`` by its
+    cardinality so the repr stays compact when many streams are
+    running; both branches (``None`` and non-empty dict) must be
+    covered.
+    """
+
+    def test_repr_with_latency_metrics_none(self):
+        """When tracer is disabled the repr uses the literal ``None`` marker."""
+        result = PipelineResult(total_fps=10.0, per_stream_fps=5.0, num_streams=2)
+        text = repr(result)
+        self.assertIn("PipelineResult(", text)
+        self.assertIn("latency_tracer_metrics=None", text)
+
+    def test_repr_with_latency_metrics_streams(self):
+        """When tracer produced samples the repr summarises their count."""
+        sample = LatencyTracerSample(
+            interval_ms=1000.0,
+            avg_ms=10.0,
+            min_ms=1.0,
+            max_ms=100.0,
+            latency_ms=5.0,
+        )
+        result = PipelineResult(
+            total_fps=10.0,
+            per_stream_fps=5.0,
+            num_streams=2,
+            latency_tracer_metrics={"a": sample, "b": sample},
+        )
+        text = repr(result)
+        self.assertIn("latency_tracer_metrics=<2 stream(s)>", text)
+
+
+class TestGetLogLevel(unittest.TestCase):
+    """Coverage for the ``RUNNER_LOG_LEVEL`` env-var parsing."""
+
+    @patch.dict("os.environ", {"RUNNER_LOG_LEVEL": "DEBUG"}, clear=False)
+    def test_valid_level_is_returned_as_is(self):
+        self.assertEqual(PipelineRunner._get_log_level(), "DEBUG")
+
+    @patch.dict("os.environ", {"RUNNER_LOG_LEVEL": "not-a-level"}, clear=False)
+    def test_invalid_level_falls_back_to_info(self):
+        """Unknown values must map to the documented default ``INFO``."""
+        self.assertEqual(PipelineRunner._get_log_level(), "INFO")
+
+
+class TestGracefulTerminate(unittest.TestCase):
+    """Coverage for ``PipelineRunner._graceful_terminate``.
+
+    The method is a defensive helper used in three distinct
+    scenarios, each represented here by one test:
+
+    1. The subprocess has already exited — ``poll()`` returns an
+       exit code and the method short-circuits with no signal.
+    2. The subprocess ignores SIGINT and ``wait(timeout=...)`` raises
+       ``TimeoutExpired`` — the method must escalate to SIGKILL.
+    3. ``send_signal`` raises ``OSError`` (process reaped between the
+       ``poll()`` check and the signal) — the exception is swallowed.
+    """
+
+    def test_returns_immediately_when_process_already_exited(self):
+        proc = MagicMock()
+        proc.poll.return_value = 0  # already exited
+
+        PipelineRunner._graceful_terminate(proc)
+
+        proc.send_signal.assert_not_called()
+        proc.kill.assert_not_called()
+
+    def test_escalates_to_sigkill_on_sigint_timeout(self):
+        """SIGINT timing out triggers SIGKILL + a final ``wait``."""
+        proc = MagicMock()
+        proc.poll.return_value = None  # still running
+        proc.wait.side_effect = [
+            subprocess.TimeoutExpired(cmd="gst_runner.py", timeout=0.1),
+            0,  # second wait() after kill() succeeds
+        ]
+
+        PipelineRunner._graceful_terminate(proc, timeout=0.1)
+
+        proc.send_signal.assert_called_once_with(signal.SIGINT)
+        proc.kill.assert_called_once()
+        self.assertEqual(proc.wait.call_count, 2)
+
+    def test_swallows_oserror_from_send_signal(self):
+        """``OSError`` (e.g. ``ESRCH`` after reap) must not propagate."""
+        proc = MagicMock()
+        proc.poll.return_value = None
+        proc.send_signal.side_effect = OSError("no such process")
+
+        # Must not raise.
+        PipelineRunner._graceful_terminate(proc)
+
+        proc.send_signal.assert_called_once_with(signal.SIGINT)
+
+
+@_patch_sync_metrics_executor
+class TestRunNormalEdgeCases(unittest.TestCase):
+    """End-to-end coverage for rarely exercised ``_run_normal`` paths.
+
+    These paths are hard to reach through the main happy-path tests
+    because they rely on specific ``select`` / ``psutil`` orderings,
+    but they are the runner's safety net in production and deserve
+    explicit assertions.
+    """
+
+    PIPELINE_CMD = "videotestsrc ! gvafpscounter ! fakesink"
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch("pipeline_runner.urllib.request.urlopen", new=MagicMock())
+    def test_stderr_lines_are_captured_and_returned(
+        self, mock_select, mock_ps, mock_popen
+    ):
+        """An stderr line must land in ``PipelineResult.stderr``.
+
+        The main test suite always wires ``select`` to return stdout
+        only; this one returns stderr so the ``elif r == process.stderr``
+        branch in the stdout reader loop is executed.
+        """
+        process_mock = MagicMock()
+        process_mock.pid = 1234
+        process_mock.stdout = MagicMock()
+        process_mock.stderr = MagicMock()
+        process_mock.stdout.fileno.return_value = 10
+        process_mock.stderr.fileno.return_value = 11
+        # First iteration: stderr has one line. Subsequent iterations:
+        # nothing; poll then returns 0 to end the main loop.
+        process_mock.stderr.readline.side_effect = itertools.chain(
+            [b"boom on stderr\n"], itertools.repeat(b"")
+        )
+        process_mock.stdout.readline.return_value = b""
+        process_mock.poll.side_effect = itertools.chain([None], itertools.repeat(0))
+        process_mock.wait.return_value = 0
+        process_mock.returncode = 0
+        process_mock.communicate.return_value = (b"", b"")
+        mock_popen.return_value = process_mock
+
+        mock_select.side_effect = itertools.chain(
+            [([process_mock.stderr], [], [])], itertools.repeat(([], [], []))
+        )
+        # ps.Process must stay "running" until the main loop exits.
+        mock_ps.Process.return_value.status.return_value = "running"
+
+        runner = PipelineRunner(mode="normal", max_runtime=0)
+        result = runner.run(pipeline_command=self.PIPELINE_CMD, total_streams=1)
+
+        self.assertIn("boom on stderr", "\n".join(result.stderr))
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch("pipeline_runner.urllib.request.urlopen", new=MagicMock())
+    def test_zombie_detection_ends_loop(self, mock_select, mock_ps, mock_popen):
+        """When ``ps`` reports the child as a zombie the runner breaks out
+        and calls ``wait()`` to reap it, regardless of ``poll()``.
+        """
+        process_mock = MagicMock()
+        process_mock.pid = 1234
+        process_mock.stdout = MagicMock()
+        process_mock.stderr = MagicMock()
+        process_mock.stdout.fileno.return_value = 10
+        process_mock.stderr.fileno.return_value = 11
+        process_mock.stdout.readline.side_effect = itertools.chain(
+            [b"some stdout line\n"], itertools.repeat(b"")
+        )
+        process_mock.stderr.readline.return_value = b""
+        # First poll: still running (enters the loop). After the zombie
+        # branch calls wait(), subsequent polls return the exit code so
+        # the outer ``while`` terminates.
+        process_mock.poll.side_effect = itertools.chain([None], itertools.repeat(0))
+        process_mock.wait.return_value = 0
+        process_mock.returncode = 0
+        process_mock.communicate.return_value = (b"", b"")
+        mock_popen.return_value = process_mock
+
+        mock_select.return_value = ([process_mock.stdout], [], [])
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", max_runtime=0)
+        result = runner.run(pipeline_command=self.PIPELINE_CMD, total_streams=1)
+
+        self.assertIsInstance(result, PipelineResult)
+        # wait() must have been called to reap the zombie.
+        process_mock.wait.assert_called()
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch("pipeline_runner.urllib.request.urlopen", new=MagicMock())
+    def test_no_such_process_ends_loop(self, mock_select, mock_ps, mock_popen):
+        """When ``psutil.Process`` raises ``NoSuchProcess`` the runner
+        treats it as end-of-life: breaks out and calls ``wait()``.
+        """
+        process_mock = MagicMock()
+        process_mock.pid = 1234
+        process_mock.stdout = MagicMock()
+        process_mock.stderr = MagicMock()
+        process_mock.stdout.fileno.return_value = 10
+        process_mock.stderr.fileno.return_value = 11
+        process_mock.stdout.readline.side_effect = itertools.chain(
+            [b"some stdout line\n"], itertools.repeat(b"")
+        )
+        process_mock.stderr.readline.return_value = b""
+        # Same trick as the zombie test: first poll lets the runner
+        # enter the loop, subsequent polls exit it.
+        process_mock.poll.side_effect = itertools.chain([None], itertools.repeat(0))
+        process_mock.wait.return_value = 0
+        process_mock.returncode = 0
+        process_mock.communicate.return_value = (b"", b"")
+        mock_popen.return_value = process_mock
+
+        mock_select.return_value = ([process_mock.stdout], [], [])
+        # psutil raises NoSuchProcess(pid) — the runner must handle it.
+        import psutil
+
+        mock_ps.NoSuchProcess = psutil.NoSuchProcess
+        mock_ps.Process.return_value.status.side_effect = psutil.NoSuchProcess(
+            process_mock.pid
+        )
+
+        runner = PipelineRunner(mode="normal", max_runtime=0)
+        result = runner.run(pipeline_command=self.PIPELINE_CMD, total_streams=1)
+
+        self.assertIsInstance(result, PipelineResult)
+        process_mock.wait.assert_called()
 
 
 if __name__ == "__main__":

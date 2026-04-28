@@ -79,10 +79,15 @@ Before running the application, you need to set several environment variables:
    export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"  # or any other supported VLM model on CPU
 
    # For VLM-based chunk captioning and video summarization on GPU
-   export VLM_MODEL_NAME="microsoft/Phi-3.5-vision-instruct"  # or any other supported VLM model on GPU
+   export VLM_MODEL_NAME="OpenVINO/Phi-3.5-vision-instruct-int8-ov"  # or any other supported VLM model on GPU
+   export VLM_TARGET_DEVICE="GPU"  # Options: CPU, GPU, NPU, HETERO:GPU,CPU
 
-   # (Optional) For OVMS-based video summarization (when using with ENABLE_OVMS_LLM_SUMMARY=true or ENABLE_OVMS_LLM_SUMMARY_GPU=true)
+   # (Optional) For OVMS split-model summarization, set a dedicated LLM model for final summary.
+   # If this is not set, OVMS uses VLM_MODEL_NAME for both chunk captioning and final summarization.
    export OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3"  # or any other supported LLM model
+   export LLM_TARGET_DEVICE="CPU"  # Options: CPU, GPU, NPU, HETERO:GPU,CPU
+
+   # When ENABLE_VLLM=true, vLLM is the only inference backend and setup.sh ignores OVMS_LLM_MODEL_NAME.
 
    # Model used by Audio Analyzer service. Only Whisper models variants are supported.
    # Common Supported models: tiny.en, small.en, medium.en, base.en, large-v1, large-v2, large-v3.
@@ -98,7 +103,16 @@ Before running the application, you need to set several environment variables:
    # --all    : configure both the multimodal embedding model and a dedicated text embedding model
    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
    export TEXT_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
+
+    # (Optional, summary mode only) Set the default for audio transcript summarization.
+    # Default is true. Users can override this per-video in the upload modal.
+    # export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false
    ```
+
+   > **Audio Transcript Summarization (`PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY`)**:
+   > When enabled (the default), the pipeline runs a separate LLM-based map-reduce summarization pass over the complete audio transcript *before* generating the final video summary. The condensed transcript summary is then injected into the video summary prompt via the `%audio_summary%` placeholder, giving the LLM a coherent, high-quality representation of spoken content rather than raw subtitle fragments. This significantly improves accuracy for dialogue-heavy or narration-heavy videos. When disabled, audio transcripts are only used at the chunk captioning level — each chunk's VLM prompt includes its time-matched portion of the transcript — but no audio content is included in the final map-reduce video summary.
+   >
+   > This environment variable sets the **default** value. Users can override it per-video using the **"Use Audio in Summary"** checkbox in the Audio Settings section of the video upload modal.
 
    > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
@@ -149,25 +163,7 @@ Before running the application, you need to set several environment variables:
 
    > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
 
-7. **Set advanced VLM Configuration Options**:
-
-   The following environment variables provide additional control over VLM inference behavior and logging:
-
-   ```bash
-   # (Optional) OpenVINO configuration for VLM inference optimization
-   # Pass OpenVINO configuration parameters as a JSON string to fine-tune inference performance
-   # Default latency-optimized configuration (equivalent to not setting OV_CONFIG)
-   # export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY"}'
-
-   # Throughput-optimized configuration
-   export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
-   ```
-
-   > **IMPORTANT:** The `OV_CONFIG` variable is used to pass OpenVINO configuration parameters to the VLM service. It allows you to optimize inference performance based on your hardware and workload.
-   > For a complete list of OpenVINO configuration options, refer to the [OpenVINO Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
-   > **Note**: If OV_CONFIG is not set, the default configuration `{"PERFORMANCE_HINT": "LATENCY"}` will be used.
-
-8. **(Optional) Telemetry collection for Search**:
+7. **(Optional) Telemetry collection for Search**:
 
    The Video Search mode can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI.
 
@@ -178,6 +174,51 @@ Before running the application, you need to set several environment variables:
    # Enable the collector if you want telemetry
    export ENABLE_VSS_COLLECTOR=true
    ```
+
+8. **Tune Inference Concurrency (Video Summarization Mode)**:
+
+   Control how many concurrent inference requests the pipeline manager sends to OVMS or vLLM. These values affect throughput and resource utilization:
+
+   ```bash
+   # Maximum concurrent VLM requests for chunk captioning (default: 6 for CPU, 1 for GPU)
+   export PM_VLM_CONCURRENT=6
+
+   # Maximum concurrent LLM requests for final summarization (default: 1)
+   export PM_LLM_CONCURRENT=1
+   ```
+
+   > **Note**: For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
+
+9. **Override OVMS Model Weight Compression Format (Video Summarization Mode)**:
+
+    When using OVMS for inference, the setup script auto-selects the model weight compression format based on the target device (`int8` for CPU, `int4` for GPU/NPU). You can override this auto-detection by setting these variables before running the setup script:
+
+    ```bash
+    # Override VLM model weight compression format (default: int8 for CPU, int4 for GPU/NPU)
+    export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+
+    # Override LLM model weight compression format (default: int8 for CPU, int4 for GPU/NPU)
+    export LLM_COMPRESSION_WEIGHT_FORMAT=int4
+    ```
+
+    > **Note**: Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
+
+10. **Configure Embedding Processing Mode (Video Search Mode)**:
+
+    Control how the embedding model is loaded and invoked during video search indexing:
+
+    ```bash
+    # Embedding processing mode: "sdk" (default) or "api"
+    #   - "sdk": Loads the embedding model directly within the vdms-dataprep container (optimized, lower memory overhead)
+    #   - "api": Routes embedding requests via HTTP to the multimodal-embedding-serving container
+    export EMBEDDING_PROCESSING_MODE=sdk
+
+    # Enable OpenVINO optimization for SDK-mode embedding (default: true)
+    # Automatically set to true when using GPU mode
+    export SDK_USE_OPENVINO=true
+    ```
+
+    > **Note**: SDK mode is recommended for most deployments as it avoids inter-container HTTP overhead. Set `EMBEDDING_PROCESSING_MODE=api` if you need the embedding model served as a standalone microservice.
 
 **🔐 Work with Gated Models**
 
@@ -208,17 +249,21 @@ The Video Summarization application offers multiple modes and deployment options
 
 | Deployment Option | Chunk-Wise Summary<sup>(1)</sup> Configuration | Final Summary<sup>(2)</sup> Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
-| VLM-CPU | vlm-openvino-serving on CPU | vlm-openvino-serving on CPU | Default | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | For usage with CPUs only; when inference speed is not a priority. |
-| VLM-GPU | vlm-openvino-serving | vlm-openvino-serving GPU | `ENABLE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` | For usage with CPUs and GPUs; when inference speed is a priority. |
-| VLM-CPU-OVMS-CPU | vlm-openvino-serving on CPU | OVMS Microservice on CPU | `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs and microservices; when inference speed is not a priority. |
-| VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `ENABLE_OVMS_LLM_SUMMARY_GPU=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
-| VLM-GPU-OVMS-CPU | vlm-openvino-serving on GPU | OVMS Microservice on CPU | `ENABLE_VLM_GPU=true` `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
-| vLLM-CPU | vLLM serving on CPU | vLLM Service on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | Deploy on Intel® Xeon® Processors without GPU requirements. |
+| OVMS shared-model CPU | OVMS-hosted VLM on CPU | Same OVMS-hosted VLM on CPU | Default | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | Default CPU-only summarization flow. |
+| OVMS shared-model GPU | OVMS-hosted VLM on GPU | Same OVMS-hosted VLM on GPU | `VLM_TARGET_DEVICE=GPU` | VLM: `OpenVINO/Phi-3.5-vision-instruct-int8-ov` | Single-model OVMS deployment with GPU acceleration. |
+| OVMS split-model CPU/CPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on CPU | `OVMS_LLM_MODEL_NAME=<llm-model>` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | One OVMS instance hosts separate VLM and LLM models on CPU. |
+| OVMS split-model GPU/CPU | OVMS-hosted VLM on GPU | OVMS-hosted LLM on CPU | `VLM_TARGET_DEVICE=GPU` with `OVMS_LLM_MODEL_NAME=<llm-model>` | VLM: `OpenVINO/Phi-3.5-vision-instruct-int8-ov`<br>LLM: `Intel/neural-chat-7b-v3-3` | Use GPU for captioning while keeping final summary on CPU. |
+| OVMS split-model CPU/GPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on GPU | `LLM_TARGET_DEVICE=GPU` with `OVMS_LLM_MODEL_NAME=<llm-model>` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | Use GPU for the final-summary LLM while keeping captioning on CPU. |
+| OVMS split-model CPU/NPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on NPU | `LLM_TARGET_DEVICE=NPU` with `OVMS_LLM_MODEL_NAME=<llm-model>` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `OpenVINO/Qwen3-8B-int4-cw-ov` | Use NPU for the final-summary LLM while keeping captioning on CPU. |
+| vLLM-only CPU | vLLM-hosted VLM on CPU | Same vLLM-hosted VLM on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | All-vLLM mode for CPU-only deployments. |
+
 > **Note:**
 >
 > 1) Chunk-Wise Summary is a method of summarization where it breaks videos into chunks and then summarizes each chunk.
 > 2) Final Summary is a method of summarization where it summarizes the whole video.
-> 3) If both VLM and LLM is configured for GPU, VLM will be prioritized for GPU and LLM reset to CPU.
+> 3) Mixed OVMS+vLLM deployments are not supported in the compose setup. Choose either OVMS-only or vLLM-only for summarization.
+> 4) `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution.
+> 5) **NPU Support:** Not all models support NPU execution. Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
 
 ## Using Edge Microvisor Toolkit
 
@@ -303,10 +348,16 @@ Follow these steps to run the application:
      ENABLE_VSS_COLLECTOR=true source setup.sh --all
      ```
 
-   - **To run Video Summarization with OpenVINO model server microservice for a final summary:**
+   - **To run Video Summarization with OVMS using one shared model for both captioning and final summary:**
+
+     ```bash
+     source setup.sh --summary
+     ```
+
+   - **To run Video Summarization with OVMS using a dedicated LLM for final summary:**
 
     ```bash
-    ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
+   OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3" source setup.sh --summary
     ```
 
 - **To run Video Summarization with vLLM as the only inference backend:**
@@ -334,14 +385,19 @@ Follow these steps to run the application:
    # To see resolved configurations for both search and summarization services combined without starting containers
    source setup.sh --all config
 
-   # To see resolved configurations for summarization services with OpenVINO model server setup on CPU without starting containers
-   ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary config
+   # To see resolved configurations for OVMS split-model summarization without starting containers
+   OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3" 
+   source setup.sh --summary config
 
     # To see resolved configurations for summarization services with vLLM enabled without starting containers
     ENABLE_VLLM=true source setup.sh --summary config
    ```
 
-### Use GPU Acceleration
+### Use GPU/NPU Acceleration
+
+> **Note:** Offloading models to different devices (e.g., VLM on CPU and LLM on NPU) is only supported with the OVMS backend. The vLLM backend runs a single model on a single device.
+>
+> **⚠️ NPU Support is Experimental:** Running VLM/LLM models on NPU is experimental and may not work with all models or configurations. Not all model architectures are supported on NPU. If you encounter issues, verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page and consider falling back to CPU or GPU.
 
 To use GPU acceleration for VLM inference:
 
@@ -352,13 +408,19 @@ To use GPU acceleration for VLM inference:
 > ```
 
 ```bash
-ENABLE_VLM_GPU=true source setup.sh --summary
+VLM_TARGET_DEVICE=GPU source setup.sh --summary
 ```
 
-To use GPU acceleration for OpenVINO model server-based summarization:
+To use GPU acceleration for the OVMS final-summary LLM:
 
 ```bash
-ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary
+LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Intel/neural-chat-7b-v3-3 source setup.sh --summary
+```
+
+To use NPU acceleration for the final-summary LLM (split-model mode):
+
+```bash
+LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary
 ```
 
 To use GPU acceleration for vclip-embedding-ms for search usecase:
@@ -371,12 +433,12 @@ To verify the configuration and resolved environment variables without running t
 
 ```bash
 # For VLM inference on GPU
-ENABLE_VLM_GPU=true source setup.sh --summary config
+VLM_TARGET_DEVICE=GPU source setup.sh --summary config
 ```
 
 ```bash
-# For OVMS inference on GPU
-ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary config
+# For LLM on NPU (split-model mode)
+LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary config
 ```
 
 ```bash
@@ -384,11 +446,21 @@ ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary config
 ENABLE_EMBEDDING_GPU=true source setup.sh --search config
 ```
 
-> **Note:** Avoid setting the `ENABLE_VLM_GPU`, `ENABLE_OVMS_LLM_SUMMARY_GPU`, or `ENABLE_EMBEDDING_GPU` flags explicitly on the shell using `export`, because you need to switch these flags off as well, to return to the CPU configuration.
+> **Tip:** `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU` (default), `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution with fallback.
 
 ## Access the Application
 
 After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
+
+## Monitoring OVMS Metrics
+
+When running in summary mode with OVMS, Prometheus-compatible metrics are available at `http://<host-ip>:12345/ovms/metrics`. These metrics provide insights into inference performance:
+
+```bash
+curl http://localhost:12345/ovms/metrics
+```
+
+Key metrics include `ovms_requests_success`, `ovms_inference_time_us`, and `ovms_current_requests`. See [Deploy with Helm - Monitoring and Metrics](./deploy-with-helm.md#monitoring-and-metrics) for the full metrics list.
 
 ## CLI Usage
 

@@ -61,7 +61,8 @@ const StyledGrid = styled.div<{ $super?: boolean }>`
 const StyledMain = styled.main`
   height: 100vh;
   width: 100vw;
-  overflow: hidden;
+  min-width: 960px;
+  overflow: auto;
   display: flex;
   flex-flow: column nowrap;
   align-items: flex-start;

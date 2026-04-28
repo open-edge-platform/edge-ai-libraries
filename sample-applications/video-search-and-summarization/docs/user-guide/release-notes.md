@@ -2,7 +2,29 @@
 
 ## Current Release
 
-**Version**: 1.3.2-rc1 \
+**Version**: 1.3.3-rc1 \
+**Release Date**: 23 April 2026  
+
+**Features**:
+
+- **OVMS-first architecture**: Replaced the standalone `vlm-openvino-serving` microservice with OpenVINO Model Server (OVMS) as the unified inference backend for both VLM captioning and LLM summarization. This is a **breaking change**; the `vlm-inference` subchart and container have been removed.
+
+**HW used for validation**:
+
+- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
+- Vanilla Kubernetes Cluster
+
+**Known Issues/Limitations**:
+
+- This release includes only limited testing on EMT‑S and EMT‑D, some behaviors may not yet be fully validated across all scenarios.
+- HW sizing of the Video Search or Video Summarization pipeline is in progress. Optimization of the pipelines will follow HW sizing.
+- Known issues are internally tracked. Reference not provided here.
+- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
+- NPU support with OVMS is added as experimental feature and may not work for all models or configurations.
+
+## Previous releases
+
+**Version**: 1.3.2 \
 **Release Date**: 17 Feb 2026  
 
 **Features**:
@@ -18,17 +40,6 @@
 
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 - Vanilla Kubernetes Cluster
-
-**Known Issues/Limitations**:
-
-- This release includes only limited testing on EMT‑S and EMT‑D, some behaviors may not yet be fully validated across all scenarios.
-- Video Summarization with `mini_cpm` model not working on Xeon® 5 and Xeon® 6 machines.
-- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
-- HW sizing of the Video Search or Video Summarization pipeline is in progress. Optimization of the pipelines will follow HW sizing.
-- Known issues are internally tracked. Reference not provided here.
-- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
-
-## Previous releases
 
 **Version**: 1.3.1 \
 **Release Date**: 20 Nov 2025

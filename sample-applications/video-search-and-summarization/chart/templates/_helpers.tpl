@@ -81,13 +81,6 @@ Define the name for videoingestion Chart.
 {{- end }}
 
 {{/*
-Define the name for vlminference Chart.
-*/}}
-{{- define "vlminference.fullname" -}}
-{{ .Release.Name | trunc 57 | trimSuffix "-" }}-{{ .Values.vlminference.name }}
-{{- end }}
-
-{{/*
 Define the name for vss-collector.
 */}}
 {{- define "vsscollector.fullname" -}}
@@ -109,16 +102,16 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 
 {{/*
-Validate GPU pairing for multimodal embedding service and VDMS DataPrep when both are enabled.
+Validate device pairing for multimodal embedding service and VDMS DataPrep when both are enabled.
 */}}
 {{- define "video-summarization.validateGpuPairing" -}}
 {{- $mmeEnabled := (default false .Values.multimodalembeddingms.enabled) -}}
 {{- $dataprepEnabled := (default false .Values.vdmsdataprep.enabled) -}}
 {{- if and $mmeEnabled $dataprepEnabled -}}
-	{{- $mmeGpu := default false .Values.global.gpu.multimodalembeddingmsEnabled -}}
-	{{- $dataprepGpu := default false .Values.global.gpu.vdmsdataprepEnabled -}}
-	{{- if ne $mmeGpu $dataprepGpu -}}
-		{{- fail "global.gpu.multimodalembeddingmsEnabled and global.gpu.vdmsdataprepEnabled must be equal when both subcharts are enabled" -}}
+	{{- $mmeDevice := default "CPU" .Values.global.devices.multimodalEmbedding.device -}}
+	{{- $dataprepDevice := default "CPU" .Values.global.devices.vdmsDataprep.device -}}
+	{{- if ne $mmeDevice $dataprepDevice -}}
+		{{- fail "global.devices.multimodalEmbedding.device and global.devices.vdmsDataprep.device must be equal when both subcharts are enabled" -}}
 	{{- end -}}
 {{- end -}}
 {{- end -}}

@@ -122,6 +122,7 @@ describe('SummarySideBarItem', () => {
     framesCount: 10,
     frameSummaries: 3,
     chunkingStatus: StateActionStatus.COMPLETE,
+    videoChunkingStatus: StateActionStatus.COMPLETE,
     videoSummaryStatus: StateActionStatus.IN_PROGRESS,
     frameSummaryStatus: {
       na: 0,
@@ -357,6 +358,7 @@ describe('SummarySideBarItem', () => {
       framesCount: 0,
       frameSummaries: 0,
       chunkingStatus: StateActionStatus.NA,
+      videoChunkingStatus: StateActionStatus.NA,
       videoSummaryStatus: StateActionStatus.NA,
       frameSummaryStatus: {
         na: 0,

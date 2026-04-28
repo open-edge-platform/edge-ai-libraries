@@ -22,6 +22,8 @@ import { LocalstoreService } from 'src/datastore/services/localstore.service';
 import { unlinkSync } from 'fs';
 import { AudioQueueService } from '../queues/audio-queue.service';
 import { AudioService } from 'src/audio/services/audio.service';
+import { VlmService } from 'src/language-model/services/vlm.service';
+import { LlmService } from 'src/language-model/services/llm.service';
 
 @Injectable()
 export class PipelineService {
@@ -34,6 +36,8 @@ export class PipelineService {
     private $audio: AudioService,
     private $chunking: ChunkingService,
     private $audioQueue: AudioQueueService,
+    private $vlm: VlmService,
+    private $llm: LlmService,
   ) {}
 
   @OnEvent(PipelineEvents.CHUNKING_COMPLETE)
@@ -47,11 +51,15 @@ export class PipelineService {
   async checkQueueStatus(stateId: string[]) {
     const notInProgress: string[] = stateId.reduce(
       (acc: string[], stateId: string) => {
-        const inProgress =
-          this.$evam.isChunkingInProgress(stateId) ||
-          this.$audioQueue.isAudioProcessing(stateId);
+        const evamInProgress = this.$evam.isChunkingInProgress(stateId);
+        const audioInProgress = this.$audioQueue.isAudioProcessing(stateId);
 
-        if (!inProgress) {
+        // Mark video chunking complete independently of audio
+        if (!evamInProgress) {
+          this.$state.updateVideoChunkingStatus(stateId, StateActionStatus.COMPLETE);
+        }
+
+        if (!evamInProgress && !audioInProgress) {
           acc.push(stateId);
         }
 
@@ -101,6 +109,7 @@ export class PipelineService {
   @OnEvent(PipelineEvents.CHUNKING_TRIGGERED)
   chunkingTriggered({ stateId }: { stateId: string }) {
     this.$state.updateChunkingStatus(stateId, StateActionStatus.IN_PROGRESS);
+    this.$state.updateVideoChunkingStatus(stateId, StateActionStatus.IN_PROGRESS);
   }
 
   @OnEvent(PipelineEvents.SUMMARY_PIPELINE_START)
@@ -128,6 +137,20 @@ export class PipelineService {
           stateId,
           this.$evam.getInferenceConfig(),
         );
+
+        // Pre-populate VLM and LLM inference configs so UI shows model info upfront
+        if (this.$vlm.serviceReady) {
+          this.$state.addImageInferenceConfig(
+            stateId,
+            this.$vlm.getInferenceConfig(),
+          );
+        }
+        if (this.$llm.serviceReady) {
+          this.$state.addTextInferenceConfig(
+            stateId,
+            this.$llm.getInferenceConfig(),
+          );
+        }
 
         if (res.data) {
           console.log(res.data);

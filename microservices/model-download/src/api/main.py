@@ -25,15 +25,15 @@ app = FastAPI(
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-    
+
     openapi_yaml_path = os.path.join(
-        os.path.dirname(__file__), 
-        "../../docs/user-guide/api-docs/openapi.yaml"
+        os.path.dirname(__file__),
+        "../../docs/user-guide/_assets/openapi.yaml"
     )
-    
+
     with open(openapi_yaml_path, 'r') as f:
         app.openapi_schema = yaml.safe_load(f)
-    
+
     return app.openapi_schema
 
 app.openapi = custom_openapi
@@ -77,15 +77,15 @@ async def download_models(
 ) -> Dict[str, Any]:
     """
     Download and optionally convert models.
-    
+
     Models are downloaded from the specified hub (huggingface, ollama, etc.).
     Models will be converted to OpenVINO format if:
     1. is_ovms is set to true in the request for openvino conversion, or
     2. type can be set to 'llm,embeddings,reranker,vlm or vision' in the request
-    
+
     The config object is optional and used only for conversion.
-    
-    Note: HF_TOKEN environment variable is optional and only required for downloading 
+
+    Note: HF_TOKEN environment variable is optional and only required for downloading
     gated models from HuggingFace. Public models can be downloaded without authentication.
     """
     try:
@@ -105,7 +105,7 @@ async def download_models(
 
         logger.info(f"Initiating model download for {len(request.models)} model(s)")
         job_ids = []
-        
+
         for model in request.models:
             # Check if the plugin's dependencies are installed
             is_plugin_available, error_reason = plugin_registry.check_plugin_dependencies(model.hub)
@@ -114,19 +114,19 @@ async def download_models(
                     status_code=400,
                     detail=f"Plugin '{model.hub}' is not available: {error_reason}"
                 )
-            
-            extra_kwargs = model.model_dump().copy()  
+
+            extra_kwargs = model.model_dump().copy()
             logger.info(f"Model '{model.name}' download initiated using hub '{model.hub}' with parameters: {extra_kwargs}")
 
             needs_conversion = model.is_ovms
             model_download_path = os.path.join(models_dir, download_path)
-            
+
             if model.hub.lower() in [hub.value.lower() for hub in ModelHub] and not needs_conversion:
                 extra_kwargs["token"] = hf_token
                 # Remove fields that shouldn't be passed to plugins
                 extra_kwargs.pop("hub", None)
                 extra_kwargs.pop("is_ovms", None)
-                
+
                 model_download_path = os.path.join(
                     models_dir, download_path
                 )
@@ -139,10 +139,10 @@ async def download_models(
                     plugin_name=model.hub,
                     model_type=model.type,
                 )
-                
+
                 # Add to job_ids for response
                 job_ids.append(download_job_id)
-                
+
                 # Start download in background (async parallel execution)
                 asyncio.create_task(
                     model_manager.process_download(
@@ -163,14 +163,14 @@ async def download_models(
                         status_code=400,
                         detail=f"OpenVINO conversion requested but plugin is not available: {openvino_error}"
                     )
-                
+
                 # Get configuration for conversion
                 extra_kwargs["token"] = hf_token
                 config = model.config.dict() if model.config else {}
                 config['device'] = (config.get("device") or config.get("target_device") or "CPU")
                 config["precision"] = (
-                    config.get("weight-format") or 
-                    config.get("precision") or 
+                    config.get("weight-format") or
+                    config.get("precision") or
                     "int8"
                 ).lower()
 
@@ -178,7 +178,7 @@ async def download_models(
                     logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
                     config['precision'] = "int4"
 
-                
+
                 # Create a unique output directory for the converted model
                 convert_output_dir = os.path.join(
                     models_dir,
@@ -197,10 +197,10 @@ async def download_models(
                     plugin_name="openvino",
                     model_type=model.type,
                 )
-                
+
                 # Add to job_ids for response
                 job_ids.append(convert_job_id)
-                
+
                 # Start conversion in background (async parallel execution)
                 asyncio.create_task(
                     model_manager.process_conversion(
@@ -243,14 +243,14 @@ async def get_model_jobs(model_name: str):
     Get all jobs related to a specific model.
     """
     model_jobs = []
-    
+
     for job_id, job in model_manager._jobs.items():
         if job.get("model_name") == model_name:
             model_jobs.append(job)
-    
+
     if not model_jobs:
         raise HTTPException(status_code=404, detail=f"No jobs found for model {model_name}")
-    
+
     return {"jobs": model_jobs}
 
 
@@ -261,7 +261,7 @@ async def get_job_status(job_id: str):
     """
     if job_id not in model_manager._jobs:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-    
+
     return model_manager._jobs[job_id]
 
 
@@ -271,7 +271,7 @@ async def get_model_results():
     Get completed model downloads and conversions.
     """
     completed_jobs = []
-    
+
     for job_id, job in model_manager._jobs.items():
         if job.get("status") == "completed":
             # Format job as result
@@ -286,7 +286,7 @@ async def get_model_results():
                 "completion_time": job.get("completion_time")
             }
             completed_jobs.append(result)
-    
+
     return {"results": completed_jobs}
 
 
@@ -304,17 +304,17 @@ async def list_plugins():
     List all available plugins and their capabilities.
     """
     plugins_info = {}
-    
+
     # Get plugins for each type
     for plugin_type in plugin_registry.plugins:
         plugins_info[plugin_type] = []
         for plugin_name, plugin in plugin_registry.plugins.get(plugin_type, {}).items():
             # Get plugin capabilities
             can_handle_parallel = hasattr(plugin, "get_download_tasks") and callable(getattr(plugin, "get_download_tasks"))
-            
+
             # Check if plugin dependencies are installed
             is_available, reason = plugin_registry.check_plugin_dependencies(plugin_name)
-            
+
             plugin_info = {
                 "name": plugin_name,
                 "type": plugin_type,
@@ -326,14 +326,14 @@ async def list_plugins():
                 "unavailable_reason": reason if not is_available else None
             }
             plugins_info[plugin_type].append(plugin_info)
-    
+
     # Count available plugins
     total_plugins = sum(len(plugins) for plugins in plugins_info.values())
     available_plugins = sum(
-        1 for plugin_type in plugins_info for plugin in plugins_info[plugin_type] 
+        1 for plugin_type in plugins_info for plugin in plugins_info[plugin_type]
         if plugin.get("available", False)
     )
-    
+
     return {
         "available_plugins": plugins_info,
         "total_count": total_plugins,

@@ -139,7 +139,7 @@ The key components of Video Search and Summarization mode are as follows:
 
     - [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html) - Provides audio transcription capabilities.
 
-    - [VLM microservice](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/vlm-openvino-serving/docs/user-guide/Overview.md) - Generates captions for video content.
+    - [OpenVINO™ Model Server (OVMS)](https://docs.openvino.ai/nightly/model-server/ovms_what_is_openvino_model_server.html) or [vLLM](https://docs.vllm.ai/en/latest/usage/) - Hosts VLM/LLM models for captioning and summarization.
 
    **Data-handling microservices**
 

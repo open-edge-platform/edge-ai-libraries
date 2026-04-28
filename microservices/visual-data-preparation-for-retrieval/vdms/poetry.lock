@@ -1380,7 +1380,7 @@ files = [
 
 [package.dependencies]
 attrs = ">=22.2.0"
-jsonschema-specifications = ">=2023.03.6"
+jsonschema-specifications = ">=2023.3.6"
 referencing = ">=0.28.4"
 rpds-py = ">=0.25.0"
 
@@ -2091,7 +2091,7 @@ optional = false
 python-versions = ">=3.10,<3.14"
 groups = ["main"]
 files = [
-    {file = "multimodal_embedding_serving-0.1.1-py3-none-any.whl", hash = "sha256:1e31aa849b2c7f653faa8420b9363fae63adca0f80f6d9a6513c58c857412aa6"},
+    {file = "multimodal_embedding_serving-0.1.1-py3-none-any.whl", hash = "sha256:c3a8ee242320531546a02f55892d3d8ebbc0a254201d923dd527aa0892c8dc20"},
 ]
 
 [package.dependencies]
@@ -5179,7 +5179,7 @@ files = [
 ]
 
 [package.extras]
-cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and python_version < \"3.14\"", "cffi (>=2.0.0b) ; platform_python_implementation != \"PyPy\" and python_version >= \"3.14\""]
+cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and python_version < \"3.14\"", "cffi (>=2.0.0b0) ; platform_python_implementation != \"PyPy\" and python_version >= \"3.14\""]
 
 [metadata]
 lock-version = "2.1"

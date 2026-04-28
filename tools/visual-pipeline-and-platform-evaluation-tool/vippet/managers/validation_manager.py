@@ -159,11 +159,15 @@ class ValidationManager:
         new entries for that state are appended.
         """
         try:
-            # Create PipelineRunner in validation mode
+            # Create PipelineRunner in validation mode.
+            # `job_id` is forwarded for API consistency with performance
+            # and density paths, even though validation mode never
+            # pushes FPS metrics (no gvafpscounter is attached).
             runner = PipelineRunner(
                 mode="validation",
                 max_runtime=max_runtime,
                 hard_timeout=hard_timeout,
+                job_id=job_id,
             )
 
             # Run pipeline validation

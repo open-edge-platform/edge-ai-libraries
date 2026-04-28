@@ -9,6 +9,9 @@ export const useHorizontalScroll = () => {
     if (el) {
       const onWheel = (e: WheelEvent) => {
         if (e.deltaY == 0) return;
+        // Don't hijack scroll when a modal overlay is open
+        const target = e.target as HTMLElement;
+        if (target.closest('.cds--modal')) return;
         e.preventDefault();
         el.scrollTo({
           left: el.scrollLeft + e.deltaY,
