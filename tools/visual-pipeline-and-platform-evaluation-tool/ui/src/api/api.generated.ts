@@ -9,6 +9,7 @@ export const addTagTypes = [
   "pipelines",
   "tests",
   "videos",
+  "images",
   "cameras",
 ] as const;
 const injectedRtkApi = api
@@ -365,6 +366,40 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["videos"],
       }),
+      getImageSets: build.query<GetImageSetsApiResponse, GetImageSetsApiArg>({
+        query: () => ({ url: `/images` }),
+        providesTags: ["images"],
+      }),
+      checkImageSetExists: build.query<
+        CheckImageSetExistsApiResponse,
+        CheckImageSetExistsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/images/check-image-set-exists`,
+          params: {
+            name: queryArg.name,
+          },
+        }),
+        providesTags: ["images"],
+      }),
+      uploadImageArchive: build.mutation<
+        UploadImageArchiveApiResponse,
+        UploadImageArchiveApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/images/upload`,
+          method: "POST",
+          body: queryArg.bodyUploadImageArchive,
+        }),
+        invalidatesTags: ["images"],
+      }),
+      listImagesInSet: build.query<
+        ListImagesInSetApiResponse,
+        ListImagesInSetApiArg
+      >({
+        query: (queryArg) => ({ url: `/images/${queryArg.name}` }),
+        providesTags: ["images"],
+      }),
       getCameras: build.query<GetCamerasApiResponse, GetCamerasApiArg>({
         query: () => ({ url: `/cameras` }),
         providesTags: ["cameras"],
@@ -588,6 +623,26 @@ export type UploadVideoApiResponse =
 export type UploadVideoApiArg = {
   bodyUploadVideo: BodyUploadVideo;
 };
+export type GetImageSetsApiResponse =
+  /** status 200 Successful Response */ ImageSet[];
+export type GetImageSetsApiArg = void;
+export type CheckImageSetExistsApiResponse =
+  /** status 200 Successful Response */ ImageSetExistsResponse;
+export type CheckImageSetExistsApiArg = {
+  /** Image set (directory) name to check */
+  name: string;
+};
+export type UploadImageArchiveApiResponse =
+  /** status 201 Successful Response */ ImageSet;
+export type UploadImageArchiveApiArg = {
+  bodyUploadImageArchive: BodyUploadImageArchive;
+};
+export type ListImagesInSetApiResponse =
+  /** status 200 Successful Response */ ImageInfo[];
+export type ListImagesInSetApiArg = {
+  /** Name of the image set directory */
+  name: string;
+};
 export type GetCamerasApiResponse =
   /** status 200 List of all cameras successfully retrieved. */ Camera[];
 export type GetCamerasApiArg = void;
@@ -668,6 +723,20 @@ export type PipelineStreamSpec = {
   id: string;
   /** Number of streams allocated to this pipeline. */
   streams: number;
+  /** Stable, stream-unique identifiers for every stream started by this pipeline, in the order streams were created. Each entry has the format `{source_name}__{sink_name}` where both parts are the GStreamer `name` properties applied to the main source and main sink of the stream. These ids are also the keys used in the job's `latency_tracer_metrics` map. The length always equals `streams`. */
+  streams_ids?: string[];
+};
+export type LatencyMetrics = {
+  /** Length of the measurement window reported by the tracer, in ms. */
+  interval_ms: number;
+  /** Average frame latency over the window, in ms. */
+  avg_ms: number;
+  /** Minimum frame latency observed in the window, in ms. */
+  min_ms: number;
+  /** Maximum frame latency observed in the window, in ms. */
+  max_ms: number;
+  /** Current end-to-end latency reported by the tracer, in ms. */
+  latency_ms: number;
 };
 export type PerformanceJobStatus = {
   id: string;
@@ -681,6 +750,10 @@ export type PerformanceJobStatus = {
   streams_per_pipeline: PipelineStreamSpec[] | null;
   video_output_paths: {
     [key: string]: string[];
+  } | null;
+  /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples — for example when the pipeline exited before the first 1000 ms interval closed. */
+  latency_tracer_metrics?: {
+    [key: string]: LatencyMetrics;
   } | null;
   live_stream_urls: {
     [key: string]: string;
@@ -707,6 +780,10 @@ export type DensityJobStatus = {
   streams_per_pipeline: PipelineStreamSpec[] | null;
   video_output_paths: {
     [key: string]: string[];
+  } | null;
+  /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples — for example when the pipeline exited before the first 1000 ms interval closed. */
+  latency_tracer_metrics?: {
+    [key: string]: LatencyMetrics;
   } | null;
 };
 export type DensityJobSummary = {
@@ -899,6 +976,8 @@ export type ExecutionConfig = {
   max_runtime?: number;
   /** Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints. */
   metadata_mode?: MetadataMode;
+  /** When true, activates the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval by setting `GST_DEBUG=GST_TRACER:7` (appended if already set) and `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on the GStreamer subprocess environment. When false (default), neither environment variable is modified. */
+  enable_latency_metrics?: boolean;
 };
 export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */
@@ -929,6 +1008,7 @@ export type DensityTestSpec = {
   /** Execution configuration for output and runtime. */
   execution_config?: ExecutionConfig;
 };
+export type VideoSource = "auto" | "uploaded";
 export type Video = {
   filename: string;
   width: number;
@@ -937,6 +1017,10 @@ export type Video = {
   frame_count: number;
   codec: string;
   duration: number;
+  /** Origin of the video on disk: 'auto' (auto-downloaded) or 'uploaded' (user-uploaded). */
+  source?: VideoSource;
+  /** Location of the file prefixed with its source directory name, for example 'auto/traffic_1080p_h264.mp4' or 'uploaded/myclip.mp4'. Clients can build a preview URL as '/assets/videos/input/{path}'. */
+  path?: string;
 };
 export type VideoExistsResponse = {
   /** True if the video file exists, False otherwise. */
@@ -944,8 +1028,53 @@ export type VideoExistsResponse = {
   /** The filename that was checked. */
   filename: string;
 };
+export type VideoUploadErrorKind =
+  | "missing_filename"
+  | "unsupported_extension"
+  | "file_too_large"
+  | "unsupported_container"
+  | "unsupported_codec"
+  | "invalid_video"
+  | "file_exists";
+export type VideoUploadError = {
+  /** Human-readable error message suitable for UI display. */
+  detail: string;
+  /** Machine-readable error kind. */
+  error: VideoUploadErrorKind;
+  /** Value that actually failed validation (string, integer, or null). */
+  found?: string | number | null;
+  /** List of accepted values for the failed check, or null when not applicable. */
+  allowed?: (string | number)[] | null;
+};
 export type BodyUploadVideo = {
   file: string;
+};
+export type ImageSet = {
+  /** Name of the image set directory. */
+  name: string;
+  /** Number of image files in the directory. */
+  image_count: number;
+};
+export type ImageSetExistsResponse = {
+  /** True if the image set directory exists, False otherwise. */
+  exists: boolean;
+  /** The image set name (directory) that was checked. */
+  name: string;
+};
+export type BodyUploadImageArchive = {
+  file: string;
+};
+export type ImageInfo = {
+  /** Filename of the image, relative to the image set root (uses '/' as separator). */
+  filename: string;
+  /** Lowercase image file extension without the leading dot. */
+  extension: string;
+  /** Size of the image file in bytes. */
+  size_bytes: number;
+  /** Image width in pixels, or null if it could not be read. */
+  width?: number | null;
+  /** Image height in pixels, or null if it could not be read. */
+  height?: number | null;
 };
 export type CameraType = "USB" | "NETWORK";
 export type V4L2BestCapture = {
@@ -1052,6 +1181,13 @@ export const {
   useCheckVideoInputExistsQuery,
   useLazyCheckVideoInputExistsQuery,
   useUploadVideoMutation,
+  useGetImageSetsQuery,
+  useLazyGetImageSetsQuery,
+  useCheckImageSetExistsQuery,
+  useLazyCheckImageSetExistsQuery,
+  useUploadImageArchiveMutation,
+  useListImagesInSetQuery,
+  useLazyListImagesInSetQuery,
   useGetCamerasQuery,
   useLazyGetCamerasQuery,
   useGetCameraQuery,

@@ -8,12 +8,15 @@ import {
   ListTodo,
   GitFork,
   Camera,
+  Image,
 } from "lucide-react";
 import { redirect, type RouteObject } from "react-router";
 import { Home as HomePage } from "@/pages/Home.tsx";
 import { Pipelines } from "@/pages/Pipelines.tsx";
 import { Models } from "@/pages/Models.tsx";
 import { Videos } from "@/pages/Videos.tsx";
+import { ImageSets } from "@/pages/ImageSets.tsx";
+import { ImagesInSet } from "@/pages/ImagesInSet.tsx";
 import { PerformanceTests } from "@/pages/PerformanceTests.tsx";
 import { DensityTests } from "@/pages/DensityTests.tsx";
 import { Jobs } from "@/pages/Jobs.tsx";
@@ -40,6 +43,7 @@ export const menuItems: Array<NavigationItem> = [
   { url: "/pipelines", title: "Pipelines", icon: GitFork },
   { url: "/models", title: "Models", icon: Cpu },
   { url: "/videos", title: "Videos", icon: Film },
+  { url: "/images", title: "Images", icon: Image },
   { url: "/cameras", title: "Cameras", icon: Camera },
   {
     url: "/tests/performance",
@@ -56,6 +60,8 @@ export const routeConfig: Array<RouteObject> = [
   { path: "pipelines/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
+  { path: "images", Component: ImageSets },
+  { path: "images/:imageSetName", Component: ImagesInSet },
   { path: "cameras", Component: Cameras },
   { path: "tests/performance", Component: PerformanceTests },
   { path: "tests/density", Component: DensityTests },
@@ -74,4 +80,4 @@ export const routeConfig: Array<RouteObject> = [
 
 // Routes that should stay mounted (keep-alive) when navigating away
 // Used for pages with long-running operations like file uploads
-export const keepAliveRoutes = ["/videos"];
+export const keepAliveRoutes = ["/videos", "/images"];

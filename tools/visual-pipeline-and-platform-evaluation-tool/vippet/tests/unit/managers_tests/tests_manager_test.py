@@ -1425,7 +1425,10 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
         ):
             manager._execute_performance_test(job_id, internal_spec)
         mock_pipeline_runner_cls.assert_called_once_with(
-            mode="normal", max_runtime=120, enable_latency_metrics=False
+            mode="normal",
+            max_runtime=120,
+            enable_latency_metrics=False,
+            job_id=job_id,
         )
 
 
