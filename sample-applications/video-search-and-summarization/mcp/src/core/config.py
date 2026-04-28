@@ -14,7 +14,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 60.0
-DEFAULT_MCP_HOST = "127.0.0.1"
+DEFAULT_MCP_HOST = "0.0.0.0"
 DEFAULT_MCP_PORT = 8000
 DEFAULT_MCP_PATH = "/mcp"
 DEFAULT_FILTER_CONFIG_PATH = "all.json"
