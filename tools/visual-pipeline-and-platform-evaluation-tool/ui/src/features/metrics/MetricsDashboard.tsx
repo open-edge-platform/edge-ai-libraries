@@ -315,6 +315,15 @@ export const MetricsDashboard = ({
   const showLatencySection =
     enableLatencyMetrics || hasLatencyData || hasSummaryLatency;
 
+  console.log("[latency-debug] dashboard:", {
+    enableLatencyMetrics,
+    hasLatencyData,
+    hasSummaryLatency,
+    showLatencySection,
+    latencyDataLast: latencyData.at(-1),
+    historyLength: history.length,
+  });
+
   const latencyYAxisMax = getRecentYAxisMax(
     latencyData.map((point) => Math.max(point.avg, point.min, point.max)),
     CHART_MAX_DATA_POINTS,

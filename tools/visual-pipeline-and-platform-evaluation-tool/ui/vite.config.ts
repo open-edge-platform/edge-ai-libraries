@@ -69,6 +69,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           ws: true,
+          rewrite: (path: string) => path.replace(/^\/metrics\/ws/, "/ws"),
         },
       },
     },
