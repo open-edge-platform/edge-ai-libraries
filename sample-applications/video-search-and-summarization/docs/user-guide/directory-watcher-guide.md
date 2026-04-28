@@ -99,7 +99,7 @@ export VS_WATCH_DIRECTORY_RECURSIVE=true
 4. **Start the application** with directory watching enabled:
 
    ```bash
-   source setup.sh --search
+   source setup.sh --up
    ```
 
 ### Adding Videos for Processing

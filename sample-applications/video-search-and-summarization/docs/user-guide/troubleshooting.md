@@ -27,14 +27,14 @@ This should resolve OpenCV-related dependency issues and allow the summary stack
 
 ## Search returns no results after changing embedding model
 
-**Problem**: The UI displays `No videos found matching your search query. Try using different keywords or check if videos have been uploaded.` even though videos were ingested in `--search` or `--all` mode.
+**Problem**: The UI displays `No videos found matching your search query. Try using different keywords or check if videos have been uploaded.` even though videos were ingested after running the setup script.
 
 **Cause**: Either no videos have been processed yet, or the embedding model was switched to one with a different embedding dimension. Previously indexed vectors stay in the database, and their dimensions must match the active model. A mismatch prevents similarity lookups from returning any results.
 
 **Solution**:
 
 1. Verify at least one video has been uploaded or a summary run completed after the model change.
-2. If you recently changed `EMBEDDING_MODEL_NAME`, re-run ingestion so embeddings are recreated with the new dimensions. You can clean existing data with `source setup.sh --clean-data` and then re-run your desired mode.
+2. If you recently changed `EMBEDDING_MODEL_NAME`, re-run ingestion so embeddings are recreated with the new dimensions. You can clean existing data with `source setup.sh --clean-data` and then bring the application back up with `source setup.sh --up`.
 3. Review the supported embedding models and their dimensions in [Supported Models for Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before switching models.
 
 ## VLM Microservice Model Loading Issues
@@ -67,11 +67,7 @@ This should resolve OpenCV-related dependency issues and allow the summary stack
 3. Restart the application (the volume will be recreated with correct permissions):
 
    ```bash
-   # For Video Summarization
-   source setup.sh --summary
-
-   # Or for Video Search
-   source setup.sh --search
+   source setup.sh --up
    ```
 
 > Note: Removing the `ov-models` or `docker_ov-models` volume will delete any previously cached or converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
@@ -109,7 +105,7 @@ Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` envi
 3. Restart the application:
 
    ```bash
-   source setup.sh --summary
+   source setup.sh --up
    ```
 
 **Alternative Models to Try**:

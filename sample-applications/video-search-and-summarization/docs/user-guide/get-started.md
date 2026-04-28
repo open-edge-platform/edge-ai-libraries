@@ -5,7 +5,9 @@ The Video Search and Summarization (VSS) sample application helps developers cre
 This guide shows how to:
 
 - **Set up the sample application**: Use Setup script to quickly deploy the application in your environment.
-- **Run different application modes**: Execute different application modes available in the application to perform video search and summarization.
+- **Run different application modes**:
+   - **Dual UI Deployment:** A single setup command brings up both Video Summarization and Video Search application backed with their respective UI instances.
+   - **Unified UI Deployment:** A special `--all` argument to setup command allows to run summarization and search in unified mode, backed with a unified UI.
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
 
 ## Prerequisites
@@ -21,24 +23,34 @@ The repository is organized as follows:
 
 ```text
 sample-applications/video-search-and-summarization/
-├── config                     # Configuration files
-│   ├── nginx.conf             # NGINX configuration
-│   └── rmq.conf               # RabbitMQ configuration
-├── docker                     # Docker Compose files
-│   ├── compose.base.yaml      # Base services configuration
-│   ├── compose.summary.yaml   # Compose override file for video summarization services
-│   ├── compose.vllm.yaml      # vLLM inference service overlay
-│   ├── compose.search.yaml    # Compose override file for video search services
-│   ├── compose.telemetry.yaml # Optional telemetry collector (vss-collector)
-│   └── compose.gpu_ovms.yaml  # GPU configuration for OpenVINO™ model server
-├── docs                       # Documentation
-│   └── user-guide             # User guides and tutorials
-├── pipeline-manager           # Backend service which orchestrates the video Summarization and search
-├── search-ms                  # Video search microservice
-├── ui                         # Video search and summarization UI code
-├── build.sh                   # Script for building application images
-├── setup.sh                   # Setup script for environment and deployment
-└── README.md                  # Project documentation
+├── config/                        # Runtime configs
+│   ├── nginx/                     # Nginx templates used by setup.sh + compose
+│   │   ├── nginx.conf
+│   │   ├── dual_ui.conf
+│   │   └── unified_ui.conf
+│   └── rmq.conf                   # RabbitMQ configuration
+├── docker/                        # Docker Compose base and overlays
+│   ├── compose.base.yaml
+│   ├── compose.ui.yaml
+│   ├── compose.summary.yaml
+│   ├── compose.search.yaml
+│   ├── compose.vllm.yaml
+│   ├── compose.gpu_ovms.yaml
+│   └── compose.telemetry.yaml
+├── docs/
+│   └── user-guide/                # User guides and tutorials
+├── pipeline-manager/              # Orchestrates summarization and search pipelines
+├── search-ms/                     # Video search microservice
+├── video-ingestion/               # Video ingestion and processing service
+├── ui/
+│   └── react/                     # Frontend application
+├── cli/                           # Terminal UI and CLI workflows
+├── scripts/                       # Utility and helper scripts
+├── data/                          # Default watcher/input data directory
+├── ov_models/                     # Local model cache/artifacts
+├── build.sh                       # Script for building application images
+├── setup.sh                       # Main setup and deployment script
+└── README.md
 ```
 
 ## Set Required Environment Variables
@@ -74,48 +86,47 @@ Before running the application, you need to set several environment variables:
 
    You **must** set these environment variables on your current shell. Setting these variables help you customize the models used for deployment.
 
-   ```bash
-   # For VLM-based chunk captioning and video summarization on CPU
-   export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"  # or any other supported VLM model on CPU
+      ```bash
+      # For VLM-based chunk captioning and video summarization on CPU
+      export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"  # or any other supported VLM model on CPU
 
-   # For VLM-based chunk captioning and video summarization on GPU
-   export VLM_MODEL_NAME="microsoft/Phi-3.5-vision-instruct"  # or any other supported VLM model on GPU
+      # For VLM-based chunk captioning and video summarization on GPU
+      export VLM_MODEL_NAME="microsoft/Phi-3.5-vision-instruct"  # or any other supported VLM model on GPU
 
-   # (Optional) For OVMS-based video summarization (when using with ENABLE_OVMS_LLM_SUMMARY=true or ENABLE_OVMS_LLM_SUMMARY_GPU=true)
-   export OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3"  # or any other supported LLM model
+      # (Optional) For OVMS-based video summarization (when using with ENABLE_OVMS_LLM_SUMMARY=true or ENABLE_OVMS_LLM_SUMMARY_GPU=true)
+      export OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3"  # or any other supported LLM model
 
-   # Model used by Audio Analyzer service. Only Whisper models variants are supported.
-   # Common Supported models: tiny.en, small.en, medium.en, base.en, large-v1, large-v2, large-v3.
-   # You can provide just one or comma-separated list of models.
-   export ENABLED_WHISPER_MODELS="tiny.en,small.en,medium.en"
+      # Model used by Audio Analyzer service. Only Whisper models variants are supported.
+      # Common Supported models: tiny.en, small.en, medium.en, base.en, large-v1, large-v2, large-v3.
+      # You can provide just one or comma-separated list of models.
+      export ENABLED_WHISPER_MODELS="tiny.en,small.en,medium.en"
 
-   # Object detection model used for Video Ingestion Service. Only Yolo models are supported.
-   export OD_MODEL_NAME="yolov8l-worldv2"
+      # Object detection model used for Video Ingestion Service. Only Yolo models are supported.
+      export OD_MODEL_NAME="yolov8l-worldv2"
 
-   # --search : use any multimodal embedding model for video-only search flows
-   export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+      # Multimodal embedding model used in default (Dual UI) deployment.
+      export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
 
-   # --all    : configure both the multimodal embedding model and a dedicated text embedding model
-   export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
-   export TEXT_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
-   ```
+      # Text embedding model is used for --all mode. This mode runs unified summary and search. Search is done on summary texts.
+      export TEXT_EMBEDDING_MODEL="QwenText/qwen3-embedding-0.6b"
+      ```
 
-   > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+   > **Note**: Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model names.
 
-4. **Configure Directory Watcher (Video Search Mode Only)**:
+4. **Configure Directory Watcher (Video Search)**:
 
-   For automated video ingestion in search mode, you can use the directory watcher service:
+   For automated video ingestion into the search pipeline, you can use the directory watcher service:
 
-   ```bash
-   # Path to the directory to watch on the host system. Default: "edge-ai-libraries/sample-applications/video-search-and-summarization/data"
-   export VS_WATCHER_DIR="/path/to/your/video/directory"
-   ```
+      ```bash
+      # Path to the directory to watch on the host system. Default: "edge-ai-libraries/sample-applications/video-search-and-summarization/data"
+      export VS_WATCHER_DIR="/path/to/your/video/directory"
+      ```
 
-   > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with the `--search` mode.
+   > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). The watcher feeds the Video Search pipeline, which is always part of the unified deployment.
 
-5. **Control the frame extraction interval (Video Search Mode)**:
+5. **Control the frame extraction interval (Video Search)**:
 
-   The DataPrep microservice samples frames from uploaded videos according to the `FRAME_INTERVAL` environment variable. Set this variable before running `source setup.sh --search` to control how often frames are selected for processing.
+   The DataPrep microservice samples frames from uploaded videos according to the `FRAME_INTERVAL` environment variable. Set this variable before running `source setup.sh` to control how often frames are selected for processing.
 
    ```bash
    export FRAME_INTERVAL=15
@@ -123,7 +134,7 @@ Before running the application, you need to set several environment variables:
 
    In the example above, DataPrep processes every fifteenth frame: each selected frame (optionally after object detection) is converted into embeddings and stored in the vector database. Lower values improve recall at the cost of higher compute and storage usage, while higher values reduce processing load but may skip important frames. If you do not set this variable, the service falls back to its configured default.
 
-6. **Enable ROI consolidation (Video Search Mode)**:
+6. **Enable ROI consolidation (Video Search)**:
 
    ROI consolidation groups overlapping object detections into merged regions of interest (ROIs) before cropping for embeddings. Enable this feature and tune it with the following environment variables:
 
@@ -167,12 +178,12 @@ Before running the application, you need to set several environment variables:
    > For a complete list of OpenVINO configuration options, refer to the [OpenVINO Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
    > **Note**: If OV_CONFIG is not set, the default configuration `{"PERFORMANCE_HINT": "LATENCY"}` will be used.
 
-8. **(Optional) Telemetry collection for Search**:
+8. **(Optional) Telemetry collection**:
 
-   The Video Search mode can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI.
+   The deployment can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI.
 
    ```bash
-   # Disabled by default for --search and --all
+   # Disabled by default
    export ENABLE_VSS_COLLECTOR=false
 
    # Enable the collector if you want telemetry
@@ -192,17 +203,27 @@ export HUGGINGFACE_TOKEN=<your_huggingface_token>
 
 Once exported, run the setup script as mentioned [here](#run-the-application). Switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you no longer use gated models. This avoids unnecessary authentication step during setup.
 
-## Application Mode Overview
+## Application Overview
 
-The Video Summarization application offers multiple modes and deployment options:
+The Video Search and Summarization application brings up **two UI instances** — one scoped to Video Summarization, one scoped to Video Search — behind a single nginx reverse proxy. Both are accessible on the same port at different URL paths and backed by a shared pipeline-manager.
 
-| Mode | Description | Flag (used with setup script) |
-|-------|-------------|------|
-| Video Summarization | Video frame captioning and summarization | `--summary` |
-| Video Search | Video indexing and semantic search | `--search` |
-| Video Search + Summarization | Both search and summarization capabilities | `--all` |
+| UI Instance | Capability | Default URL |
+|-------------|-------------|------|
+| Video Summarization UI | Video frame captioning and summarization | `http://<host-ip>:12345/summary/` |
+| Video Search UI | Video indexing and semantic search | `http://<host-ip>:12345/search/` |
 
-> **Automated Video Ingestion**: The Video Search mode includes an optional Directory Watcher service for automated video processing. See the [Directory Watcher Service Guide](./directory-watcher-guide.md) for details on setting up automatic video monitoring and ingestion.
+Visiting `http://<host-ip>:12345/` redirects to the Video Summarization UI by default.
+
+Both UIs are built from the same image and only differ in the feature flags set on the container, so runtime behavior and look-and-feel are consistent.
+
+Two deployment modes are supported. They differ only in which data modality is used for searching. In default mode embeddings of video frames are stored, whereas in `--all` mode with unified UI, embeddings of video summary texts are stored.
+
+| Mode | Setup command | Required embedding variables | Vector-DB index | When to use |
+|------|---------------|------------------------------|-----------------|-------------|
+| Default | `source setup.sh`, `source setup.sh --up`, or `source setup.sh --setup` | `EMBEDDING_MODEL_NAME` | `video_frame_embeddings` | Search over raw video frame embeddings produced by a multimodal model. |
+| Unified | `source setup.sh --all` | `TEXT_EMBEDDING_MODEL` | `video_summary_embeddings` | Search over the text of generated summaries. |
+
+> **Automated Video Ingestion**: The Video Search pipeline includes an optional Directory Watcher service for automated video processing. See the [Directory Watcher Service Guide](./directory-watcher-guide.md) for details.
 
 ### Deployment Options for Video Summarization
 
@@ -261,58 +282,62 @@ Follow these steps to run the application:
 
 2. [Set the required environment variables](#set-required-environment-variables).
 
-3. Run the setup script with the appropriate flag, depending on your use case.
+3. Run the setup script. A single invocation brings up both the Video Summarization and Video Search UIs.
 
-   > **Note:** Before switching to a different mode, always stop the current application mode by running:
+   > **Note:** To bring down a running deployment before starting again, run:
 
    ```bash
-   source setup.sh --down
+   source setup.sh --down    # or: source setup.sh --stop
    ```
 
    > **💡 Clean-up Tip**: If you encounter issues or want to completely reset the application data, use `source setup.sh --clean-data` to stop all containers and remove all Docker volumes including user data. This provides a fresh start for troubleshooting.
 
-   - **To run Video Summarization only:**
+   - **Default mode — bring up the full application (both Summary and Search UIs):**
 
      ```bash
-     source setup.sh --summary
+     source setup.sh       # or: source setup.sh --up
      ```
 
-   - **To run Video Search only:**
+     > **NOTE:** `source setup.sh` or `source setup.sh --setup` are all aliases to `source setup.sh --up` which kick starts the default mode of application.
 
-     ```bash
-     source setup.sh --search
+     When the script finishes, it prints the URLs for the two UIs, for example:
+
+     ```text
+     Two UI instances are now available:
+       • Video Summarization UI: http://<host-ip>:12345/summary
+       • Video Search UI:        http://<host-ip>:12345/search
      ```
 
-     > **Telemetry**: By default, `--search` does not start the telemetry collector. To enable it:
-
-     ```bash
-     ENABLE_VSS_COLLECTOR=true source setup.sh --search
-     ```
-
-     > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to learn how to set up automatic monitoring and processing of video files from a specified directory.
-
-   - **To run a unified Video Search and Summarization:**
+   - **`--all` mode — unified Summary + Search with text-embedding search over summaries:**
 
      ```bash
      source setup.sh --all
      ```
 
-     > **Telemetry**: By default, `--all` does not start the telemetry collector. To enable it:
+     `--all` brings up a single unified UI with both summary and search features enabled. `TEXT_EMBEDDING_MODEL` environment variable needs to be set for this mode.
 
-     ```bash
-     ENABLE_VSS_COLLECTOR=true source setup.sh --all
-     ```
+   > **Telemetry**: The telemetry collector is disabled by default in both modes. Enable it with:
+   >
+   > ```bash
+   > ENABLE_VSS_COLLECTOR=true source setup.sh --up
+   > # or
+   > ENABLE_VSS_COLLECTOR=true source setup.sh --all
+   > ```
 
-   - **To run Video Summarization with OpenVINO model server microservice for a final summary:**
+   > **📁 Directory Watcher**: For automated video ingestion into the Search pipeline, see the [Directory Watcher Service Guide](./directory-watcher-guide.md).
+
+   > **Legacy flags**: `--summary` and `--search` are still accepted for backward compatibility. They behave like `--up` and print a deprecation notice; they no longer launch a single-mode deployment. `--all` is **not** deprecated and remains a first-class mode.
+
+   - **Use OpenVINO model server microservice for the final summary:**
 
     ```bash
-    ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
+    ENABLE_OVMS_LLM_SUMMARY=true source setup.sh
     ```
 
-- **To run Video Summarization with vLLM as the only inference backend:**
+- **Use vLLM as the only inference backend:**
 
     ```bash
-    ENABLE_VLLM=true source setup.sh --summary
+    ENABLE_VLLM=true source setup.sh
     ```
 
     > **Note:**
@@ -325,70 +350,90 @@ Follow these steps to run the application:
    # To just set environment variables without starting containers
    source setup.sh --setenv
 
-   # To see resolved configurations for summarization services without starting containers
-   source setup.sh --summary config
+   # To see the fully resolved compose configuration for the default deployment
+   source setup.sh config
 
-   # To see resolved configurations for search services without starting containers
-   source setup.sh --search config
+   # To see the fully resolved compose configuration for the --all deployment
+   source setup.sh config --all
 
-   # To see resolved configurations for both search and summarization services combined without starting containers
-   source setup.sh --all config
+   # To see the resolved configuration with OpenVINO model server on CPU
+   ENABLE_OVMS_LLM_SUMMARY=true source setup.sh config
 
-   # To see resolved configurations for summarization services with OpenVINO model server setup on CPU without starting containers
-   ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary config
-
-    # To see resolved configurations for summarization services with vLLM enabled without starting containers
-    ENABLE_VLLM=true source setup.sh --summary config
+   # To see the resolved configuration with vLLM enabled
+   ENABLE_VLLM=true source setup.sh config
    ```
 
 ### Use GPU Acceleration
 
 To use GPU acceleration for VLM inference:
 
-> **Note:** Before switching to a different mode, always stop the current application mode by running:
+> **Note:** To bring down a running deployment before re-running with different flags, run:
 >
 > ```bash
 > source setup.sh --down
 > ```
 
 ```bash
-ENABLE_VLM_GPU=true source setup.sh --summary
+ENABLE_VLM_GPU=true source setup.sh --up
 ```
 
 To use GPU acceleration for OpenVINO model server-based summarization:
 
 ```bash
-ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary
+ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --up
 ```
 
-To use GPU acceleration for vclip-embedding-ms for search usecase:
+To use GPU acceleration for the multimodal embedding service used by search:
 
 ```bash
-ENABLE_EMBEDDING_GPU=true source setup.sh --search
+ENABLE_EMBEDDING_GPU=true source setup.sh --up
 ```
 
 To verify the configuration and resolved environment variables without running the application:
 
 ```bash
 # For VLM inference on GPU
-ENABLE_VLM_GPU=true source setup.sh --summary config
+ENABLE_VLM_GPU=true source setup.sh config
 ```
 
 ```bash
 # For OVMS inference on GPU
-ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary config
+ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh config
 ```
 
 ```bash
-# For vclip-embedding-ms on GPU
-ENABLE_EMBEDDING_GPU=true source setup.sh --search config
+# For embedding service on GPU
+ENABLE_EMBEDDING_GPU=true source setup.sh config
 ```
 
 > **Note:** Avoid setting the `ENABLE_VLM_GPU`, `ENABLE_OVMS_LLM_SUMMARY_GPU`, or `ENABLE_EMBEDDING_GPU` flags explicitly on the shell using `export`, because you need to switch these flags off as well, to return to the CPU configuration.
 
 ## Access the Application
 
-After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
+After successfully starting the application, both UIs are available through a single nginx proxy on the same port, at different URL paths:
+
+### Default mode (`--up` / `--setup` / no args)
+
+| UI | URL | Purpose |
+|----|-----|---------|
+| Video Summarization | `http://<host-ip>:12345/summary/` | Upload a video and generate chunk-wise and final summaries. |
+| Video Search       | `http://<host-ip>:12345/search/` | Index videos and run semantic search over them. |
+
+Visiting the root URL `http://<host-ip>:12345/` automatically redirects to the Video Summarization UI.
+
+### `--all` mode
+
+| UI | URL | Purpose |
+|----|-----|---------|
+| Unified UI | `http://<host-ip>:12345/` | Single UI with both video summarization and search capabilities. Search queries the `video_summary_embeddings` index. |
+
+The `/summary/` and `/search/` paths still work in `--all` mode and route to the unified UI.
+
+### Notes
+
+- Both UIs share the same backend services (pipeline-manager, MinIO, databases, embedding service, etc.), so videos ingested from one UI are visible to the other.
+
+- The host port is customizable by setting the `APP_HOST_PORT` environment variable (default `12345`).
 
 ## CLI Usage
 

@@ -75,15 +75,18 @@ This section shows how to build the Video Search and Summary sample application 
 
 4. **Run the Docker Container**:
 
-    The Video Search and Summary application offers multiple stacks and deployment options, to verify the newly created images run the below command to run the application:
+    The Video Search and Summary application brings up both the Video Summarization and Video Search UIs in a single deployment. To verify the newly created images, run:
 
     ```bash
-    source setup.sh --summary
+    source setup.sh --up
     ```
 
 5. Accessing the Application
 
-    After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
+    After successfully starting the application, both UIs are available through the nginx proxy:
+
+    - Video Summarization UI: `http://<host-ip>:12345/summary/`
+    - Video Search UI:        `http://<host-ip>:12345/search/`
 
 ## Verification
 
