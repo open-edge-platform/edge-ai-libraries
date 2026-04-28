@@ -32,8 +32,48 @@ import numpy as np
 INTERRUPT = object()  # interrupt signal (unique, non-colliding)
 DONE = object()  # consumer → main completion signal
 
+
+def _get_video_config():
+    """Lazy load video configuration to avoid circular imports."""
+    try:
+        from .common import settings
+
+        return settings
+    except ImportError:
+
+        class FallbackSettings:
+            VIDEO_FRAME_LOG_LEVEL = os.getenv("VIDEO_FRAME_LOG_LEVEL", "INFO")
+            VIDEO_FRAME_DECODER_WORKERS = int(
+                os.getenv("VIDEO_FRAME_DECODER_WORKERS", "8")
+            )
+            VIDEO_FRAME_BATCH_SIZE = int(os.getenv("VIDEO_FRAME_BATCH_SIZE", "128"))
+            VIDEO_FRAME_QUEUE_SIZE = int(os.getenv("VIDEO_FRAME_QUEUE_SIZE", "32"))
+            VIDEO_FRAME_SHM_POOL_BLOCK_SIZE = int(
+                os.getenv("VIDEO_FRAME_SHM_POOL_BLOCK_SIZE", str(1920 * 1080 * 3))
+            )
+            VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER = int(
+                os.getenv("VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER", "2")
+            )
+
+        return FallbackSettings()
+
+
+def _get_log_level(level_str: str) -> int:
+    """Convert log level string to logging constant."""
+    level_map = {
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL,
+    }
+    return level_map.get(level_str.upper(), logging.DEBUG)
+
+
+# Configure logger with configurable level
+_video_config = _get_video_config()
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=_get_log_level(_video_config.VIDEO_FRAME_LOG_LEVEL),
     format="%(asctime)s [%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d - %(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -217,9 +257,13 @@ class VideoInput:
 class VideoFrameConfig:
     """Configuration for video frame extraction."""
 
-    batch_size: int = 1
+    batch_size: int = field(
+        default_factory=lambda: _video_config.VIDEO_FRAME_BATCH_SIZE
+    )
     num_workers: int | None = None
-    queue_size: int = 32
+    queue_size: int = field(
+        default_factory=lambda: _video_config.VIDEO_FRAME_QUEUE_SIZE
+    )
     frame_interval: int = 1
     keyframes_only: bool = False
 
@@ -238,7 +282,7 @@ class VideoFrameConfig:
         """Return worker count, auto-detecting if not specified."""
         if self.num_workers is not None:
             return self.num_workers
-        return min(8, (os.cpu_count() or 4) * 2)
+        return _video_config.VIDEO_FRAME_DECODER_WORKERS
 
 
 def convert_and_store_frame(
@@ -271,11 +315,16 @@ def decode_stream_and_batch_generator(
     stream_id: int,
     stream_config: VideoFrameConfig,
     shm_pool: SharedMemoryPool,
-    batch_size: int = 64,
+    batch_size: int | None = None,
     shutdown_event: threading.Event | None = None,
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
 
-    logger.info(f"Stream {stream_id} started decoding with config: {stream_config}")
+    if batch_size is None:
+        batch_size = _video_config.VIDEO_FRAME_BATCH_SIZE
+
+    logger.info(
+        f"Stream {stream_id} started decoding with config: {stream_config}, batch_size: {batch_size}"
+    )
 
     def flush_batch(batch, batch_id):
         frames_meta = list(
@@ -296,7 +345,9 @@ def decode_stream_and_batch_generator(
     batch_id = 0
     global_frame_idx = 0
     start_time = time.perf_counter()
-    with container, ThreadPoolExecutor(max_workers=8) as thread_pool:
+    with container, ThreadPoolExecutor(
+        max_workers=_video_config.VIDEO_FRAME_DECODER_WORKERS
+    ) as thread_pool:
         stream = container.streams.video[0]
         stream.thread_type = "AUTO"
 
@@ -386,14 +437,22 @@ def decode_and_batch_generator(
     stream_id: int,
     stream_config: VideoFrameConfig,
     shm_pool: SharedMemoryPool,
-    batch_size: int = 64,
+    batch_size: int | None = None,
     shutdown_event: threading.Event = None,
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
+
+    if batch_size is None:
+        batch_size = _video_config.VIDEO_FRAME_BATCH_SIZE
+
     batch = []
     batch_id = 0
-    logger.info(f"Stream {stream_id} shutdown_event ID: {id(shutdown_event)}")
+    logger.info(
+        f"Stream {stream_id} shutdown_event ID: {id(shutdown_event)}, batch_size: {batch_size}"
+    )
     start_time = time.perf_counter()
-    with container, ThreadPoolExecutor(max_workers=8) as _thread_pool:
+    with container, ThreadPoolExecutor(
+        max_workers=_video_config.VIDEO_FRAME_DECODER_WORKERS
+    ) as _thread_pool:
         stream = container.streams.video[0]
         stream.thread_type = "AUTO"
 
@@ -628,7 +687,12 @@ class VideoFrameExtractor:
             for inp in self.video_inputs
         ]
 
-        result_queue: queue.Queue = queue.Queue(maxsize=self.config.queue_size)
+        queue_size = (
+            self.configs[0].queue_size
+            if self.configs
+            else _video_config.VIDEO_FRAME_QUEUE_SIZE
+        )
+        result_queue: queue.Queue = queue.Queue(maxsize=queue_size)
         finished_set = set()
 
         threads = []
@@ -716,7 +780,7 @@ class VideoFrameExtractor:
 def extract_batched_frames(
     video_inputs: VideoInput | str | bytes | list[VideoInput | str | bytes],
     frame_interval: int = 1,
-    batch_size: int = 64,
+    batch_size: int | None = None,
     keyframes_only: bool = False,
     shm_pool: SharedMemoryPool | None = None,
 ) -> Generator[List[Image.Image], None, None]:
@@ -729,12 +793,16 @@ def extract_batched_frames(
     Args:
         video_inputs: List of VideoInput objects, file paths, RTSP URLs, or bytes.
         frame_interval: Extract every Nth frame.
-        batch_size: Number of frames per batch.
+        batch_size: Number of frames per batch (uses VIDEO_FRAME_BATCH_SIZE env if None).
         keyframes_only: Whether to extract only keyframes.
+        shm_pool: Optional pre-allocated shared memory pool.
 
     Yields:
         Batches of PIL.Image frames from all sources.
     """
+    if batch_size is None:
+        batch_size = _video_config.VIDEO_FRAME_BATCH_SIZE
+
     config = VideoFrameConfig(
         frame_interval=frame_interval,
         batch_size=batch_size,
@@ -742,12 +810,16 @@ def extract_batched_frames(
     )
     if shm_pool is None:
         # Create a default shared memory pool if not provided
-        shm_pool = SharedMemoryPool(
-            max_blocks=batch_size * 2, block_size=1920 * 1080 * 3
-        )  # Assuming max 1080p RGB frames
+        # Use configurable block size and multiplier
+        max_blocks = batch_size * _video_config.VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER
+        block_size = _video_config.VIDEO_FRAME_SHM_POOL_BLOCK_SIZE
+        logger.info(
+            f"Creating shared memory pool: max_blocks={max_blocks}, block_size={block_size} bytes"
+        )
+        shm_pool = SharedMemoryPool(max_blocks=max_blocks, block_size=block_size)
 
     extractor = VideoFrameExtractor(video_inputs, config, shm_pool=shm_pool)
-    print(f"extractor metadata: {extractor.metadata_list}")
+    logger.info(f"extractor metadata: {extractor.metadata_list}")
     try:
         for batch in extractor.decode_frames():
 
@@ -777,8 +849,9 @@ def extract_batched_frames(
                     ),
                     mode="RGB",
                 )
-                logger.info(
-                    f"(frame_meta['stream_id']: {frame_meta['stream_id']}, frame_meta['frame_id']: {frame_meta['frame_id']}, arr.size: {arr.size}, arr.mode: {arr.mode})"
+                logger.debug(
+                    f"stream_id={frame_meta['stream_id']}, frame_id={frame_meta['frame_id']}, "
+                    f"arr.size={arr.size}, arr.mode={arr.mode}"
                 )
                 batch_frame_pil.append(arr)
 
@@ -787,8 +860,9 @@ def extract_batched_frames(
             batch_frame_pil.clear()
 
             for frame_meta in frames_metadata:
-                logger.info(
-                    f"Releasing shared memory {frame_meta['shm']} for frame {frame_meta['frame_id']} of stream {frame_meta['stream_id']}"
+                logger.debug(
+                    f"Releasing shared memory {frame_meta['shm']} for frame {frame_meta['frame_id']} "
+                    f"of stream {frame_meta['stream_id']}"
                 )
                 shm_pool.release(frame_meta["shm"])
     finally:

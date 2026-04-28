@@ -106,9 +106,9 @@ class MobileCLIPHandler(BaseEmbeddingModel):
         self.ov_text_encoder = None
 
         self._embedding_dim: Optional[int] = None
-        infer_batch_size = model_config.get("infer_batch_size", 64)
+        infer_batch_size = model_config.get("infer_batch_size", os.getenv("INFER_BATCH_SIZE", 64))
         self.preprocess_shape = (infer_batch_size, 3, self.image_size, self.image_size)  # Default shape for CLIP image encoder input
-        self._preprocess_workers = model_config.get("preprocess_workers", min(8, (os.cpu_count() or 4) * 2))
+        self._preprocess_workers = model_config.get("preprocess_workers", os.getenv("PREPROCESS_WORKERS", min(16, (os.cpu_count() or 4) * 2)))
         self.async_infer = None
         self.parallel_preprocessor: Optional[ParallelImagePreprocessor] = None
 

@@ -26,6 +26,7 @@ import multiprocessing
 import os
 import queue
 import signal
+import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -1178,23 +1179,29 @@ def _process_video_from_memory_simple_pipeline(
     method_start_time = now_us()
 
     shutdown_event = shutdown_event or threading.Event()
+    logger.info(settings.model_dump_json())
     logger.info("Processing video using simple parallel pipeline....")
     try:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        tracer = init_tracer(output_file=f"trace_{timestamp}.json", enabled=True)
+        tracer = init_tracer(
+            output_file=os.path.join(tempfile.gettempdir(), f"trace_{timestamp}.json"), 
+            enabled=settings.SDK_ENABLE_TRACING
+        )
         tracer.set_process_name("decode_detect_embed_store_pipeline")
 
         logger.info("Initializing shared memory pools for frames and detected crops...")
-        _shm_pool = SharedMemoryPool(max_blocks=1536, block_size=1920 * 1080 * 3)
+        _shm_pool = SharedMemoryPool(
+            max_blocks=settings.SDK_VIDEO_SHM_MAX_BLOCKS,
+            block_size=settings.SDK_VIDEO_SHM_BLOCK_SIZE,
+        )
         _crop_pool = (
             SharedMemoryPool(max_blocks=_shm_pool.max_blocks, block_size=_shm_pool.block_size)
             if enable_object_detection
             else None
         )
-        extraction_batch_size = 512
 
         config = VideoFrameConfig(
-            batch_size=extraction_batch_size,  # Large batch for efficient extraction
+            batch_size=settings.SDK_VIDEO_EXTRACTION_BATCH_SIZE,  # Large batch for efficient extraction
             frame_interval=frame_interval,
             keyframes_only=False,
         )
@@ -1212,11 +1219,13 @@ def _process_video_from_memory_simple_pipeline(
         all_stream_metadata = extractor.get_metadata()
         logger.info(f"Extracted metadata for all streams: {all_stream_metadata}")
 
-        detection_meta_queue: queue.Queue = queue.Queue(maxsize=32)
-        embed_sink_queue: queue.Queue = queue.Queue(maxsize=32)
-        store_queue: queue.Queue = queue.Queue(maxsize=32)
-        result_queue: queue.Queue = queue.Queue(maxsize=32)
-        completion_queue: queue.Queue = queue.Queue(maxsize=1)
+        detection_meta_queue: queue.Queue = queue.Queue(maxsize=settings.SDK_PIPELINE_QUEUE_MAXSIZE)
+        embed_sink_queue: queue.Queue = queue.Queue(maxsize=settings.SDK_PIPELINE_QUEUE_MAXSIZE)
+        store_queue: queue.Queue = queue.Queue(maxsize=settings.SDK_PIPELINE_QUEUE_MAXSIZE)
+        result_queue: queue.Queue = queue.Queue(maxsize=settings.SDK_PIPELINE_QUEUE_MAXSIZE)
+        completion_queue: queue.Queue = queue.Queue(
+            maxsize=settings.SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE
+        )
 
         def handle_sigint(sig, frame):
             logger.info("Shutdown signal received, stopping frame extraction...")
@@ -1602,7 +1611,10 @@ def detection_worker(
     shutdown_event: threading.Event,
     tracer: Tracer,
 ):
-    thread_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="detection_worker_thread")
+    thread_pool = ThreadPoolExecutor(
+        max_workers=settings.SDK_DETECTION_WORKER_THREADS,
+        thread_name_prefix="detection_worker_thread",
+    )
     detector = get_global_detector(enable_object_detection, detection_confidence)
 
     tid = threading.get_ident()
@@ -1615,7 +1627,7 @@ def detection_worker(
             if shutdown_event.is_set():
                 logger.debug("[DETECTION WORKER] Shutdown event set, exiting.")
                 break
-            batch = detection_meta_queue.get(timeout=1)
+            batch = detection_meta_queue.get(timeout=settings.SDK_PIPELINE_QUEUE_GET_TIMEOUT_S)
             ts_deq = now_us()
         except queue.Empty:
             logger.warning("[DETECTION QUEUE EMPTY] WAITING...")
@@ -1713,7 +1725,10 @@ def embed_worker(
     shutdown_event: threading.Event,
     tracer: Tracer,
 ):
-    thread_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="embed_worker_thread")
+    thread_pool = ThreadPoolExecutor(
+        max_workers=settings.SDK_EMBED_WORKER_THREADS,
+        thread_name_prefix="embed_worker_thread",
+    )
     _sdk_client = get_sdk_client()
 
     tid = threading.get_ident()
@@ -1728,7 +1743,7 @@ def embed_worker(
                 break
 
             # Batch comprises of a list of full +/- detected crops metadata
-            batch = embed_sink_queue.get(timeout=1)
+            batch = embed_sink_queue.get(timeout=settings.SDK_PIPELINE_QUEUE_GET_TIMEOUT_S)
             ts_deq = now_us()
         except queue.Empty:
             if shutdown_event.is_set():
@@ -1877,7 +1892,7 @@ def store_worker(
                 break
 
             # Batch comprises of a list of full +/- detected crops metadata
-            batch_result = store_queue.get(timeout=1)
+            batch_result = store_queue.get(timeout=settings.SDK_PIPELINE_QUEUE_GET_TIMEOUT_S)
             ts_deq = now_us()
         except queue.Empty:
             if shutdown_event.is_set():
@@ -2197,12 +2212,14 @@ def save_batch_results(completed_batches, all_stream_metadata):
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
-    logger.info(f"Saving batch results for {len(completed_batches)} batches")
-    with open(f"batch_stat_results_{timestamp}.json", "w") as f:
-        json.dump(completed_batches, f, indent=2)
+    logger.info("SAVE_RUNTIME_PIPELINE_STATS is set to %s", settings.SAVE_RUNTIME_PIPELINE_STATS)
+    if settings.SAVE_RUNTIME_PIPELINE_STATS:
+        logger.info(f"Saving batch results for {len(completed_batches)} batches")
+        with open(f"batch_stat_results_{timestamp}.json", "w") as f:
+            json.dump(completed_batches, f, indent=2)
 
-    with open(f"stream_stats_results_{timestamp}.json", "w") as f:
-        json.dump(stream_stats, f, indent=2)
+        with open(f"stream_stats_results_{timestamp}.json", "w") as f:
+            json.dump(stream_stats, f, indent=2)
 
     return stream_stats
 
@@ -2211,7 +2228,7 @@ def process_result_worker(result_queue, completion_queue, all_stream_metadata):
     completed_batches = []
     while True:
         try:
-            result = result_queue.get(timeout=1)
+            result = result_queue.get(timeout=settings.SDK_PIPELINE_QUEUE_GET_TIMEOUT_S)
         except queue.Empty:
             logger.warning("[RESULT WORKER] Queue empty, waiting...")
             continue

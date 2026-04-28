@@ -64,7 +64,7 @@ class ParallelImagePreprocessor:
     ):
         self.preprocess_fn = preprocess_fn
         self.max_workers = max_workers
-        self.batch_size = batch_size
+        self.batch_size = preprocess_shape[0] if len(preprocess_shape) == 4 else batch_size
         self.preprocess_shape = preprocess_shape
         self.pool = ThreadPoolExecutor(
             max_workers=self.max_workers, thread_name_prefix="ImagePreprocessWorker"

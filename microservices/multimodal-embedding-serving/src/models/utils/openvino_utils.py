@@ -350,8 +350,6 @@ class AsyncBatchInference:
             samples_in_batch = batch_np.shape[0]
             if samples_in_batch < self.batch_size:
                 # For uneven batch sizes, Pad with zeros to fill the batch
-                # TODO: handle shape more elegantly.
-                # Its a standard CLIP image encoder input shape, but can be made more flexible
                 padded = np.zeros(self.preprocess_shape, dtype=np.float32)
                 padded[:samples_in_batch] = batch_np
                 batch_np = padded

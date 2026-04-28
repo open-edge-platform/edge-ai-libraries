@@ -34,8 +34,47 @@ from src.common import Tracer, now_us
 INTERRUPT = object()  # interrupt signal (unique, non-colliding)
 DONE = object()  # consumer → main completion signal
 
+
+def _get_video_config():
+    """Lazy load video configuration to avoid circular imports."""
+    try:
+        from src.common import settings
+
+        return settings
+    except ImportError:
+
+        class FallbackSettings:
+            VIDEO_FRAME_LOG_LEVEL = os.getenv("VIDEO_FRAME_LOG_LEVEL", "INFO")
+            VIDEO_FRAME_DECODER_WORKERS = int(
+                os.getenv("VIDEO_FRAME_DECODER_WORKERS", "6")
+            )
+            SDK_VIDEO_EXTRACTION_BATCH_SIZE = int(os.getenv("SDK_VIDEO_EXTRACTION_BATCH_SIZE", "256"))
+            SDK_PIPELINE_QUEUE_MAXSIZE = int(os.getenv("SDK_PIPELINE_QUEUE_MAXSIZE", "16"))
+            SDK_VIDEO_SHM_MAX_BLOCKS = int(os.getenv("SDK_VIDEO_SHM_MAX_BLOCKS", "512"))
+            SDK_VIDEO_SHM_BLOCK_SIZE = int(
+                os.getenv("SDK_VIDEO_SHM_BLOCK_SIZE", str(1920 * 1080 * 3))
+            )
+            SDK_ENABLE_TRACING = os.getenv("SDK_ENABLE_TRACING", "False").lower() in ("true", "1", "yes")
+
+        return FallbackSettings()
+
+
+def _get_log_level(level_str: str) -> int:
+    """Convert log level string to logging constant."""
+    level_map = {
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL,
+    }
+    return level_map.get(level_str.upper(), logging.INFO)
+
+
+_video_config = _get_video_config()
+
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=_get_log_level(_video_config.VIDEO_FRAME_LOG_LEVEL),
     format="%(asctime)s [%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d - %(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -111,7 +150,7 @@ class SharedMemoryPool:
 
 @dataclass(frozen=True)
 class VideoStreamMetadata:
-    """Metadata about the video stream for tracability."""
+    """Metadata about the video stream for traceability."""
 
     source_type: VideoSourceType
     video_index: int
@@ -220,7 +259,7 @@ class VideoFrameConfig:
 
     batch_size: int = 1
     num_workers: int | None = None
-    queue_size: int = 32
+    queue_size: int = field(default_factory=lambda: _video_config.SDK_PIPELINE_QUEUE_MAXSIZE)
     frame_interval: int = 1
     keyframes_only: bool = False
 
@@ -272,10 +311,13 @@ def decode_stream_and_batch_generator(
     stream_id: int,
     stream_config: VideoFrameConfig,
     shm_pool: SharedMemoryPool,
-    batch_size: int = 64,
+    batch_size: int | None = None,
     shutdown_event: threading.Event | None = None,
     tracer: Optional[Tracer] = None,
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
+
+    if batch_size is None:
+        batch_size = _video_config.SDK_VIDEO_EXTRACTION_BATCH_SIZE
 
     logger.info(f"Stream {stream_id} started decoding with config: {stream_config}")
 
@@ -306,7 +348,10 @@ def decode_stream_and_batch_generator(
     if tracer is not None and tracer.should_trace():
         tracer.set_thread_name(tid=tid, name=f"decode_stream_sid_{stream_id}")
 
-    with container, ThreadPoolExecutor(max_workers=6, thread_name_prefix=f"decode_stream_sid_{stream_id}") as thread_pool:
+    with container, ThreadPoolExecutor(
+        max_workers=_video_config.VIDEO_FRAME_DECODER_WORKERS,
+        thread_name_prefix=f"decode_stream_sid_{stream_id}",
+    ) as thread_pool:
         stream = container.streams.video[0]
         stream.thread_type = "AUTO"
 
@@ -427,10 +472,13 @@ def decode_and_batch_generator(
     stream_id: int,
     stream_config: VideoFrameConfig,
     shm_pool: SharedMemoryPool,
-    batch_size: int = 64,
+    batch_size: int | None = None,
     shutdown_event: threading.Event = None,
     tracer: Optional[Tracer] = None,
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
+
+    if batch_size is None:
+        batch_size = _video_config.SDK_VIDEO_EXTRACTION_BATCH_SIZE
 
     batch = []
     batch_id = 0
@@ -442,7 +490,10 @@ def decode_and_batch_generator(
     if tracer is not None and tracer.should_trace():
         tracer.set_thread_name(tid=tid, name=f"decode_sid_{stream_id}")
 
-    with container, ThreadPoolExecutor(max_workers=6, thread_name_prefix=f"decode_stream_sid_{stream_id}") as _thread_pool:
+    with container, ThreadPoolExecutor(
+        max_workers=_video_config.VIDEO_FRAME_DECODER_WORKERS,
+        thread_name_prefix=f"decode_stream_sid_{stream_id}",
+    ) as _thread_pool:
         stream = container.streams.video[0]
         stream.thread_type = "AUTO"
 
@@ -703,7 +754,7 @@ class VideoFrameExtractor:
             for inp in self.video_inputs
         ]
 
-        queue_size = 32
+        queue_size = _video_config.SDK_PIPELINE_QUEUE_MAXSIZE
         for config in self.configs:
             queue_size += max(config.queue_size, queue_size)
         result_queue: queue.Queue = queue.Queue(maxsize=queue_size)
@@ -791,7 +842,7 @@ class VideoFrameExtractor:
 def extract_batched_frames(
     video_inputs: VideoInput | str | bytes | list[VideoInput | str | bytes],
     frame_interval: int = 1,
-    batch_size: int = 64,
+    batch_size: int | None = None,
     keyframes_only: bool = False,
     shm_pool: SharedMemoryPool | None = None,
 ) -> Generator[List[Image.Image], None, None]:
@@ -810,6 +861,9 @@ def extract_batched_frames(
     Yields:
         Batches of PIL.Image frames from all sources.
     """
+    if batch_size is None:
+        batch_size = _video_config.SDK_VIDEO_EXTRACTION_BATCH_SIZE
+
     config = VideoFrameConfig(
         frame_interval=frame_interval,
         batch_size=batch_size,
@@ -818,7 +872,8 @@ def extract_batched_frames(
     if shm_pool is None:
         # Create a default shared memory pool if not provided
         shm_pool = SharedMemoryPool(
-            max_blocks=batch_size * 2, block_size=1920 * 1080 * 3
+            max_blocks=_video_config.SDK_VIDEO_SHM_MAX_BLOCKS,
+            block_size=_video_config.SDK_VIDEO_SHM_BLOCK_SIZE,
         )  # Assuming max 1080p RGB frames
 
     extractor = VideoFrameExtractor(video_inputs, config, shm_pool=shm_pool)

@@ -263,13 +263,13 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         # This model includes vision_projection and text_projection (768D → 256D)
         # Note: Both pretrain and pretrain_vitL use the same HuggingFace model
         self.retrieval_model = "Salesforce/blip2-itm-vit-g"  # ITM = Image-Text Matching
-        infer_batch_size = model_config.get("infer_batch_size", 64)
+        infer_batch_size = model_config.get("infer_batch_size", os.getenv("INFER_BATCH_SIZE", 64))
         self.preprocess_shape = (infer_batch_size, 3, 224, 224)
         # OpenVINO models
         self.ov_image_encoder = None
         self.ov_text_encoder = None
         self._embedding_dim: Optional[int] = None
-        self._preprocess_workers = model_config.get("preprocess_workers", min(8, (os.cpu_count() or 4) * 2))
+        self._preprocess_workers = model_config.get("preprocess_workers", os.getenv("PREPROCESS_WORKERS", min(8, (os.cpu_count() or 4) * 2)))
         self.async_infer = None
         self.parallel_preprocessor: Optional[ParallelImagePreprocessor] = None
         
