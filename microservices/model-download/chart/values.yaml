@@ -23,6 +23,8 @@ modeldownload:
     
   env:
     HUGGINGFACEHUB_API_TOKEN: ""
+    MAX_UPLOAD_SIZE_MB: "500"
+    UPLOAD_CHUNK_SIZE_KB: "8"
     GETI_WORKSPACE_ID: ""
     GETI_HOST: ""
     GETI_TOKEN: ""

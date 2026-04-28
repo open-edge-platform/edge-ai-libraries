@@ -195,17 +195,19 @@ SUPPORTED_QUANTIZATION_DATASETS=(
 
         assert result == 1
 
+    @patch.object(UltralyticsDownloader, '_find_int8_artifacts')
     @patch.object(UltralyticsDownloader, '_call_bash_script')
     @patch('os.getenv')
-    def test_download_success(self, mock_getenv, mock_call_script, ultralytics_plugin, temp_dir):
+    def test_download_success(self, mock_getenv, mock_call_script, mock_find_int8_artifacts, ultralytics_plugin, temp_dir):
         """Test successful model download"""
         mock_call_script.return_value = 0
+        mock_find_int8_artifacts.return_value = ["/tmp/fake/int8.xml"]
         mock_getenv.return_value = "/host/models"
 
         result = ultralytics_plugin.download(
             model_name="yolov8n.pt",
             output_dir=temp_dir,
-            quantize="coco"
+            config={"quantize": "coco128"}
         )
 
         expected_hub_dir = os.path.join(temp_dir, "ultralytics")
@@ -217,8 +219,27 @@ SUPPORTED_QUANTIZATION_DATASETS=(
 
         assert result["model_name"] == "yolov8n.pt"
         assert result["source"] == "ultralytics"
+        assert result["int8_requested"] == True
         assert result["success"] == True
         assert "ultralytics" in result["download_path"]
+
+    @patch.object(UltralyticsDownloader, '_cleanup_requested_model_artifacts')
+    @patch.object(UltralyticsDownloader, '_find_int8_artifacts')
+    @patch.object(UltralyticsDownloader, '_call_bash_script')
+    def test_download_quantize_no_int8_artifacts_fails(self, mock_call_script, mock_find_int8_artifacts, mock_cleanup, ultralytics_plugin, temp_dir):
+        """Test explicit quantize request fails when no INT8 artifacts are generated."""
+        mock_call_script.return_value = 0
+        mock_find_int8_artifacts.return_value = []
+
+        with pytest.raises(RuntimeError, match="No INT8 artifacts were produced"):
+            ultralytics_plugin.download(
+                model_name="ch_PP-OCRv4_rec_infer",
+                output_dir=temp_dir,
+                config={"quantize": "coco128"}
+            )
+
+        expected_hub_dir = os.path.join(temp_dir, "ultralytics")
+        mock_cleanup.assert_called_once_with(expected_hub_dir, "ch_PP-OCRv4_rec_infer")
 
     @patch.object(UltralyticsDownloader, '_call_bash_script')
     def test_download_failure(self, mock_call_script, ultralytics_plugin, temp_dir):
@@ -230,6 +251,23 @@ SUPPORTED_QUANTIZATION_DATASETS=(
                 model_name="invalid_model.pt",
                 output_dir=temp_dir
             )
+
+    @patch.object(UltralyticsDownloader, '_cleanup_requested_model_artifacts')
+    @patch.object(UltralyticsDownloader, '_call_bash_script')
+    def test_download_int8_failure_has_retry_guidance(self, mock_call_script, mock_cleanup, ultralytics_plugin, temp_dir):
+        """Test explicit INT8 request fails fast with guidance to retry without quantize."""
+        mock_call_script.return_value = 1
+
+        with pytest.raises(RuntimeError, match="INT8 download attempt failed") as exc_info:
+            ultralytics_plugin.download(
+                model_name="yolov8n.pt",
+                output_dir=temp_dir,
+                config={"quantize": "coco128"}
+            )
+
+        assert "retry without the quantize parameter" in str(exc_info.value)
+        expected_hub_dir = os.path.join(temp_dir, "ultralytics")
+        mock_cleanup.assert_called_once_with(expected_hub_dir, "yolov8n.pt")
 
     @patch.object(UltralyticsDownloader, '_call_bash_script')
     def test_download_without_quantization(self, mock_call_script, ultralytics_plugin, temp_dir):
@@ -250,6 +288,7 @@ SUPPORTED_QUANTIZATION_DATASETS=(
 
         assert result["model_name"] == "yolov8n.pt"
         assert result["source"] == "ultralytics"
+        assert result["int8_requested"] == False
         assert result["success"] == True
 
     @patch.object(UltralyticsDownloader, '_call_bash_script')
@@ -288,6 +327,92 @@ SUPPORTED_QUANTIZATION_DATASETS=(
         expected_hub_dir = os.path.join(temp_dir, "ultralytics")
         assert result["download_path"] == expected_hub_dir
 
+    def test_download_multi_model_comma_separated_with_quantize_fails(self, ultralytics_plugin, temp_dir):
+        """Test that comma-separated models with quantize are rejected with clear error"""
+        with pytest.raises(ValueError) as exc_info:
+            ultralytics_plugin.download(
+                model_name="yolov8n.pt,yolov8s.pt",
+                output_dir=temp_dir,
+                config={"quantize": "coco128"}
+            )
+
+        error_msg = str(exc_info.value)
+        assert "INT8 quantization" in error_msg
+        assert "requires a single model name" in error_msg
+        assert "yolov8n.pt,yolov8s.pt" in error_msg
+
+    def test_download_all_keyword_with_quantize_fails(self, ultralytics_plugin, temp_dir):
+        """Test that 'all' keyword with quantize is rejected"""
+        with pytest.raises(ValueError) as exc_info:
+            ultralytics_plugin.download(
+                model_name="all",
+                output_dir=temp_dir,
+                config={"quantize": "coco128"}
+            )
+
+        error_msg = str(exc_info.value)
+        assert "INT8 quantization" in error_msg
+        assert "requires a single model name" in error_msg
+        assert "all" in error_msg
+
+    def test_download_yolo_all_keyword_with_quantize_fails(self, ultralytics_plugin, temp_dir):
+        """Test that 'yolo_all' keyword with quantize is rejected"""
+        with pytest.raises(ValueError) as exc_info:
+            ultralytics_plugin.download(
+                model_name="yolo_all",
+                output_dir=temp_dir,
+                config={"quantize": "coco128"}
+            )
+
+        error_msg = str(exc_info.value)
+        assert "INT8 quantization" in error_msg
+        assert "requires a single model name" in error_msg
+        assert "yolo_all" in error_msg
+
+    @patch.object(UltralyticsDownloader, '_find_int8_artifacts')
+    @patch.object(UltralyticsDownloader, '_call_bash_script')
+    def test_download_single_model_with_quantize_succeeds(self, mock_call_script, mock_find_int8_artifacts, ultralytics_plugin, temp_dir):
+        """Test that single model with quantize works without validation error"""
+        mock_call_script.return_value = 0
+        mock_find_int8_artifacts.return_value = ["/tmp/fake/int8.xml"]
+
+        # Should NOT raise ValueError; should proceed normally
+        result = ultralytics_plugin.download(
+            model_name="yolov8n.pt",
+            output_dir=temp_dir,
+            config={"quantize": "coco128"}
+        )
+
+        assert result["int8_requested"] == True
+        assert result["success"] == True
+
+    @pytest.mark.parametrize("model_folder", ["yolov8n.pt", "yolov8n"])
+    def test_find_int8_artifacts_primary_and_fallback_folders(self, ultralytics_plugin, temp_dir, model_folder):
+        """Test INT8 artifact lookup works for both model-name and stem folder layouts."""
+        int8_dir = Path(temp_dir) / "ultralytics" / "public" / model_folder / "INT8"
+        int8_dir.mkdir(parents=True, exist_ok=True)
+        xml_path = int8_dir / "yolov8n.xml"
+        xml_path.write_text("<xml/>")
+
+        result = ultralytics_plugin._find_int8_artifacts(
+            hub_dir=str(Path(temp_dir) / "ultralytics"),
+            model_name="yolov8n.pt"
+        )
+
+        assert result == [str(xml_path)]
+
+    def test_find_int8_artifacts_returns_empty_when_missing(self, ultralytics_plugin, temp_dir):
+        """Test INT8 artifact lookup returns empty list when no XML is found."""
+        hub_dir = Path(temp_dir) / "ultralytics"
+        (hub_dir / "public").mkdir(parents=True, exist_ok=True)
+
+        result = ultralytics_plugin._find_int8_artifacts(
+            hub_dir=str(hub_dir),
+            model_name="yolov8n.pt"
+        )
+
+        assert result == []
+
     def test_download_task_not_implemented(self, ultralytics_plugin):
         """Test that download_task raises NotImplementedError"""
         task = DownloadTask("file1", "http://example.com", "/dest")
@@ -313,10 +438,12 @@ SUPPORTED_QUANTIZATION_DATASETS=(
         ("yolov8s.pt", "coco", 1),
         ("all", "imagenet", 1),
     ])
+    @patch.object(UltralyticsDownloader, '_find_int8_artifacts')
     @patch.object(UltralyticsDownloader, '_call_bash_script')
-    def test_download_different_parameters(self, mock_call_script, ultralytics_plugin, temp_dir, model_name, quantize, expected_calls):
+    def test_download_different_parameters(self, mock_call_script, mock_find_int8_artifacts, ultralytics_plugin, temp_dir, model_name, quantize, expected_calls):
         """Test download with different parameter combinations"""
         mock_call_script.return_value = 0
+        mock_find_int8_artifacts.return_value = ["/tmp/fake/int8.xml"]
 
         kwargs = {}
         if quantize:
@@ -432,10 +559,12 @@ class TestUltralyticsPluginIntegration:
     def ultralytics_plugin(self):
         return UltralyticsDownloader()
 
+    @patch.object(UltralyticsDownloader, '_find_int8_artifacts')
     @patch.object(UltralyticsDownloader, '_call_bash_script')
-    def test_end_to_end_download_workflow(self, mock_call_script, ultralytics_plugin):
+    def test_end_to_end_download_workflow(self, mock_call_script, mock_find_int8_artifacts, ultralytics_plugin):
         """Test complete download workflow"""
         mock_call_script.return_value = 0
+        mock_find_int8_artifacts.return_value = ["/tmp/fake/int8.xml"]
         
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test the complete workflow

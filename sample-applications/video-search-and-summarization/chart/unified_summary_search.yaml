@@ -8,7 +8,7 @@ videosearch:
   enabled: true
 rabbitmq:
   enabled: true
-vlminference:
+ovms:
   enabled: true
 videoingestion:
   enabled: true

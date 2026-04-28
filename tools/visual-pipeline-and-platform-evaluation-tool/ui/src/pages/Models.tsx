@@ -26,7 +26,7 @@ export const Models = () => {
           <TableCaption>A list of loaded models.</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[33%]">Name</TableHead>
+              <TableHead className="w-[33%] truncate">Name</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Precision</TableHead>
             </TableRow>
@@ -34,8 +34,10 @@ export const Models = () => {
           <TableBody>
             {models.map((model) => (
               <TableRow key={model.name}>
-                <TableCell className="font-medium">
-                  {model.display_name}
+                <TableCell className="font-medium max-w-0">
+                  <div className="truncate" title={model.display_name}>
+                    {model.display_name}
+                  </div>
                 </TableCell>
                 <TableCell>{model.category}</TableCell>
                 <TableCell>{model.precision}</TableCell>

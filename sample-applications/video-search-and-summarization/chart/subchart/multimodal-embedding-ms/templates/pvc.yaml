@@ -1,4 +1,6 @@
-{{- if and (.Values.global.usePvc) (.Values.global.gpu.multimodalembeddingmsEnabled) }}
+{{- $mmDevice := default "CPU" .Values.global.devices.multimodalEmbedding.device -}}
+{{- $mmUsesGpu := eq $mmDevice "GPU" -}}
+{{- if and (.Values.global.usePvc) $mmUsesGpu }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

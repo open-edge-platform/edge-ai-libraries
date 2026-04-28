@@ -50,6 +50,7 @@ export type CountStatus = Record<StateActionStatus, number>;
 export interface UIChunk {
   chunkId: string;
   duration: { from: number; to: number };
+  audioTranscripts?: string;
 }
 
 export interface UIChunkForState extends UIChunk {
@@ -124,6 +125,7 @@ export interface SystemConfig {
   evamPipeline: EVAMPipelines;
 
   audioModel?: string;
+  audioUseFullTranscriptSummary?: boolean;
 
   framePrompt: string;
   summaryMapPrompt: string;
@@ -161,6 +163,9 @@ export interface UIStateStatus {
   videoSummaryStatus: StateActionStatus;
   frameSummaryStatus: CountStatus;
   chunkingStatus: StateActionStatus;
+  videoChunkingStatus: StateActionStatus;
+  audioStatus?: StateActionStatus;
+  audioTranscriptSummaryStatus?: StateActionStatus;
 }
 
 export interface UIStatusForState extends UIStateStatus {
@@ -181,6 +186,10 @@ export interface UISummaryState {
   videoSummaryStatus: StateActionStatus;
   frameSummaryStatus: CountStatus;
   chunkingStatus: StateActionStatus;
+  videoChunkingStatus: StateActionStatus;
+  audioStatus?: StateActionStatus;
+  audioTranscriptSummaryStatus?: StateActionStatus;
+  audioTranscriptSummary?: string;
 }
 
 export interface UIState extends UIStateStatus {
@@ -194,6 +203,7 @@ export interface UIState extends UIStateStatus {
   frameSummaries: UIFrameSummary[];
   videoId: string;
   inferenceConfig?: InferenceConfig;
+  audioTranscriptSummary?: string;
 }
 
 export interface SummaryUserInputs {

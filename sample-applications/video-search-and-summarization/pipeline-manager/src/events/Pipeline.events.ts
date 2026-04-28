@@ -10,6 +10,8 @@ export enum PipelineEvents {
   AUDIO_TRIGGERED = 'pipeline.audio.triggered',
   AUDIO_COMPLETE = 'pipeline.audio.complete',
   AUDIO_ERROR = 'pipeline.audio.error',
+  AUDIO_SUMMARY_TRIGGER = 'pipeline.audio.summary.trigger',
+  AUDIO_SUMMARY_COMPLETE = 'pipeline.audio.summary.complete',
 
   CHUNKING_TRIGGERED = 'pipeline.chunking.triggered',
   CHUNKING_STATUS = 'pipeline.chunking.status',

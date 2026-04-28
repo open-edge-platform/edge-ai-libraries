@@ -29,6 +29,7 @@ export const SummarySlice = createSlice({
         stateId,
         userInputs,
         chunkingStatus,
+        videoChunkingStatus,
         chunks,
         frames,
         summary,
@@ -39,6 +40,9 @@ export const SummarySlice = createSlice({
         inferenceConfig,
         videoId,
         title,
+        audioTranscriptSummary,
+        audioStatus,
+        audioTranscriptSummaryStatus,
       } = action.payload;
 
       const summaryState: UISummaryState = {
@@ -47,6 +51,7 @@ export const SummarySlice = createSlice({
         userInputs,
         title,
         chunkingStatus,
+        videoChunkingStatus,
         inferenceConfig,
         chunksCount: chunks.length,
         framesCount: frames.length,
@@ -55,6 +60,9 @@ export const SummarySlice = createSlice({
         frameSummaryStatus,
         videoSummaryStatus,
         systemConfig,
+        audioTranscriptSummary,
+        audioStatus,
+        audioTranscriptSummaryStatus,
       };
 
       state.summaries[stateId] = summaryState;
@@ -67,6 +75,7 @@ export const SummarySlice = createSlice({
         stateId,
 
         chunkingStatus,
+        videoChunkingStatus,
         chunks,
         frames,
         summary,
@@ -78,6 +87,9 @@ export const SummarySlice = createSlice({
         frameSummaryStatus,
         systemConfig,
         title,
+        audioTranscriptSummary,
+        audioStatus,
+        audioTranscriptSummaryStatus,
       } = action.payload;
 
       const summaryState: UISummaryState = {
@@ -85,6 +97,7 @@ export const SummarySlice = createSlice({
         summary,
         userInputs,
         chunkingStatus,
+        videoChunkingStatus,
         videoSummaryStatus,
         inferenceConfig,
         chunksCount: chunks.length,
@@ -94,6 +107,9 @@ export const SummarySlice = createSlice({
         frameSummaryStatus,
         systemConfig,
         title,
+        audioTranscriptSummary,
+        audioStatus,
+        audioTranscriptSummaryStatus,
       };
 
       state.summaries[stateId] = summaryState;

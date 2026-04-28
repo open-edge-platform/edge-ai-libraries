@@ -19,8 +19,21 @@ export class AppConfigService {
     private $audio: AudioService,
   ) {}
 
+  private parseBoolean(value: unknown): boolean {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true';
+    }
+    return false;
+  }
+
   systemConfig(): SystemConfig {
     const useCase = this.$config.get<string>('openai.usecase')!;
+    const audioUseFullTranscriptSummary = this.parseBoolean(
+      this.$config.get<string>('audio.useFullTranscriptSummary'),
+    );
 
     const systemConfig: SystemConfig = {
       frameOverlap: this.$config.get<number>(
@@ -28,10 +41,20 @@ export class AppConfigService {
       )!,
       evamPipeline: EVAMPipelines.OBJECT_DETECTION,
       multiFrame: this.$config.get<number>('openai.vlmCaptioning.multiFrame')!,
+      audioUseFullTranscriptSummary,
       framePrompt: this.$template.getTemplate(`${useCase}Frames`),
       summaryMapPrompt: this.$template.getTemplate(`${useCase}Summary`),
       summaryReducePrompt: this.$template.getTemplate(`${useCase}Reduce`),
       summarySinglePrompt: this.$template.getTemplate(`${useCase}Single`),
+      audioSummaryMapPrompt:
+        this.$template.getTemplate(`${useCase}AudioSummary`) ||
+        this.$template.getTemplate('defaultAudioSummary'),
+      audioSummaryReducePrompt:
+        this.$template.getTemplate(`${useCase}AudioReduce`) ||
+        this.$template.getTemplate('defaultAudioReduce'),
+      audioSummarySinglePrompt:
+        this.$template.getTemplate(`${useCase}AudioSingle`) ||
+        this.$template.getTemplate('defaultAudioSingle'),
     };
 
     return systemConfig;
@@ -63,7 +86,12 @@ export class AppConfigService {
       config.meta = {
         ...config.meta,
         defaultAudioModel: audioModels.default_model,
-        audioModels: audioModels.models,
+        audioModels: audioModels.models.map((m) => ({
+          ...m,
+          display_name: m.display_name.toLowerCase().includes('whisper')
+            ? m.display_name
+            : `Whisper ${m.display_name}`,
+        })),
       };
     }
 

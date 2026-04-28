@@ -118,3 +118,118 @@ Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` envi
 - For GPU: Consider other supported VLM models with higher parameter counts
 
 > **Note:** Larger models will require more system resources (RAM or VRAM) and may have longer inference times, but typically provide more accurate and coherent summaries.
+
+## Final Summary Stuck or OVMS Container Stopped
+
+**Problem**: The final video summary remains in a "Ready" or "In Progress" state indefinitely, and never completes.
+
+**Cause**: The OVMS (OpenVINO Model Server) container may have crashed or the LLM request may have been rejected because the prompt size plus the requested `max_completion_tokens` exceeds the model's maximum context length. For example, if a model supports a 4096-token context window and the application requests 4000 completion tokens, even a modest prompt (~300 tokens) will exceed the limit.
+
+**Symptoms**:
+
+- Final summary status stays at "Ready" or "In Progress" and never progresses
+- OVMS container has exited (shows as stopped in `docker ps -a`)
+- OVMS logs contain errors like: `Number of prompt tokens: <N> + max tokens value: <M> exceeds model max length: <L>`
+- OVMS logs contain `CL_OUT_OF_RESOURCES` or similar GPU memory errors
+
+**Diagnosis**:
+
+1. Check if the OVMS container is still running:
+
+   ```bash
+   docker ps -a | grep ovms
+   ```
+
+2. If the container has stopped or is in an exited state, check its logs:
+
+   ```bash
+   docker logs <ovms-container-name> 2>&1 | tail -50
+   ```
+
+3. Look for errors related to token limits or resource exhaustion in the log output.
+
+**Solution**:
+
+- If the logs show a **token limit exceeded** error, either reduce `SUMMARIZATION_MAX_COMPLETION_TOKENS` in your environment configuration, or switch to a model with a larger context window.
+- If the logs show **GPU resource errors**, see the section below on GPU memory issues.
+- After fixing the configuration, restart the application:
+
+   ```bash
+   source setup.sh --down
+   source setup.sh --summary
+   ```
+
+## Smaller Models May Block Final Summary Due to Limited Context Window
+
+**Problem**: The final video summary fails or hangs when using a smaller VLM/LLM model.
+
+**Cause**: Smaller models often have a limited context window (e.g., 4096 tokens). When the combined prompt tokens and requested `max_completion_tokens` exceed this limit, the inference backend rejects the request and the final summary never completes.
+
+**Symptoms**:
+
+- Final summary status stays at "Ready" or "In Progress" indefinitely
+- OVMS logs show errors such as: `Number of prompt tokens: <N> + max tokens value: <M> exceeds model max length: <L>`
+- The chunk-wise summaries complete successfully but the final summary does not
+
+**Solution**:
+
+Reduce `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` to a value below the default of 4000 so that the prompt plus completion tokens fit within the model's context window:
+
+```bash
+export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=2000
+source setup.sh --summary
+```
+
+Alternatively, switch to a model with a larger context window.
+
+## VLM Workload Fails on NPU
+
+**Problem**: The VLM model fails to load or run when `VLM_TARGET_DEVICE` or `LLM_TARGET_DEVICE` is set to `NPU`.
+
+**Cause**: Not all VLM/LLM models are compatible with NPU execution. NPU support depends on the model architecture and the OpenVINO version installed.
+
+**Symptoms**:
+
+- OVMS container crashes or fails to start when targeting NPU
+- Inference errors or unsupported-operation messages in OVMS logs
+- Model conversion succeeds but inference produces errors
+
+**Solution**:
+
+1. Verify that your model is listed on the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page for NPU execution.
+2. If the model is not supported on NPU, switch to a supported model or fall back to CPU/GPU:
+
+   ```bash
+   export VLM_TARGET_DEVICE="CPU"
+   source setup.sh --summary
+   ```
+
+## GPU Out-of-Resources When Loading Multiple Models
+
+**Problem**: OVMS crashes or fails inference when multiple models (e.g., VLM + LLM) are loaded on the same GPU.
+
+**Cause**: Loading multiple large models on a single GPU can exceed the available device memory. When the GPU runs out of resources during inference, the OpenCL runtime returns `CL_OUT_OF_RESOURCES` and OVMS terminates the request or crashes.
+
+**Symptoms**:
+
+- OVMS container exits unexpectedly or restarts repeatedly
+- OVMS logs contain errors like:
+  ```
+  onednn_verbose,v1,primitive,error,ocl,errcode -5,CL_OUT_OF_RESOURCES
+  Exception from src/plugins/intel_gpu/src/graph/impls/onednn/primitive_onednn_base.h
+  Error occurred in LLM executor
+  ```
+- Inference requests hang and then fail
+- Only one model works at a time but loading both causes failures
+
+**Solution**:
+
+1. **Distribute models across devices** — run the VLM on GPU and the LLM on CPU (or vice versa) to avoid competing for GPU memory. Adjust the device settings in your environment configuration accordingly.
+2. **Use smaller model variants** — switch to quantized or smaller parameter models that consume less GPU memory.
+3. **Increase GPU resources** — if available, use a GPU with more memory.
+4. After making changes, restart the application:
+
+   ```bash
+   source setup.sh --down
+   source setup.sh --summary
+   ```

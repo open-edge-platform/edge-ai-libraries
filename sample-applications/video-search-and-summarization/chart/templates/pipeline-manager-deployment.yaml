@@ -1,3 +1,24 @@
+{{- /* OVMS device configuration from global.devices.ovms */ -}}
+{{- $ovmsVlmDevice := default "CPU" .Values.global.devices.ovms.vlm.device -}}
+{{- $ovmsLlmDevice := default "CPU" .Values.global.devices.ovms.llm.device -}}
+{{- $ovmsVlmUsesGpu := contains "GPU" $ovmsVlmDevice -}}
+{{- $ovmsVlmUsesAccelerator := or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice) -}}
+{{- $useVllm := .Values.vllm.enabled -}}
+{{- /* Weight format: use explicit value or auto-detect based on device */ -}}
+{{- $ovmsVlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice))) .Values.ovms.env.VLM_WEIGHT_FORMAT -}}
+{{- $ovmsLlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsLlmDevice))) .Values.ovms.env.LLM_WEIGHT_FORMAT -}}
+{{- /* Generate storage model names for OVMS */ -}}
+{{- $vlmSanitized := .Values.global.vlmName | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
+{{- $vlmIsOpenvino := hasPrefix "OpenVINO/" .Values.global.vlmName -}}
+{{- $vlmStorageName := ternary (printf "%s_%s" $vlmSanitized $ovmsVlmDevice) (printf "%s_%s_%s" $vlmSanitized $ovmsVlmDevice $ovmsVlmWeightFormat) $vlmIsOpenvino -}}
+{{- $llmSanitized := .Values.global.llmName | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
+{{- $llmIsOpenvino := hasPrefix "OpenVINO/" .Values.global.llmName -}}
+{{- $llmStorageName := "" -}}
+{{- if and .Values.global.llmName (ne .Values.global.llmName .Values.global.vlmName) -}}
+{{- $llmStorageName = ternary (printf "%s_%s" $llmSanitized $ovmsLlmDevice) (printf "%s_%s_%s" $llmSanitized $ovmsLlmDevice $ovmsLlmWeightFormat) $llmIsOpenvino -}}
+{{- else -}}
+{{- $llmStorageName = $vlmStorageName -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -71,20 +92,6 @@ spec:
               done
               echo "vLLM service is ready!"
         {{- end }}
-        {{- if .Values.vlminference.enabled }}
-        - name: wait-for-vlm
-          image: curlimages/curl:latest
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for VLM service to be ready..."
-              until curl -s -f http://{{ .Values.vlminference.name }}:8000/health; do
-                echo "VLM service is not ready yet, waiting..."
-                sleep 10
-              done
-              echo "VLM service is ready!"
-        {{ end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.pipelinemanager.image.repository }}:{{ .Values.pipelinemanager.image.tag }}"
@@ -102,7 +109,7 @@ spec:
           {{- end }}
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,{{ .Values.vllm.service.name }},{{ .Values.vllm.service.name }}.{{ .Release.Namespace }}.svc.cluster.local,"
+              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,{{ .Values.vllm.service.name }},{{ .Values.vllm.service.name }}.{{ .Release.Namespace }}.svc.cluster.local,"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
@@ -138,23 +145,25 @@ spec:
             - name: LLM_SUMMARIZATION_KEY
               value: "{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_KEY }}"
             - name: LLM_SUMMARIZATION_API
-              value: {{ if .Values.ovms.enabled }}{{ printf "http://%s:8300/v3" .Values.ovms.name | quote }}{{ else if .Values.vllm.enabled }}{{ printf "http://%s:%d/v1" (default "cpu-vllm-service" .Values.vllm.service.name) (default 80 .Values.vllm.service.port | int) | quote }}{{ else }}{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_API | default (printf "http://%s:8000/v1" .Values.vlminference.name) | quote }}{{ end }}
+              value: {{ if $useVllm }}{{ printf "http://%s:%d/v1" (default "cpu-vllm-service" .Values.vllm.service.name) (default 80 .Values.vllm.service.port | int) | quote }}{{ else if .Values.ovms.enabled }}{{ printf "http://%s:8300/v3" .Values.ovms.name | quote }}{{ else }}{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_API | quote }}{{ end }}
             - name: LLM_SUMMARIZATION_DEVICE
-              value: "{{ if .Values.global.gpu.ovmsEnabled }}GPU{{ else }}{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_DEVICE }}{{ end }}"
+              value: "{{ if and .Values.ovms.enabled (not $useVllm) }}{{ $ovmsLlmDevice }}{{ else }}{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_DEVICE }}{{ end }}"
             - name: LLM_MODEL_NAME
-              value: {{ .Values.global.llmName | quote }}
+              # Use storage model name for OVMS (includes device/format), raw name for vLLM
+              value: {{ if $useVllm }}{{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}{{ else if .Values.ovms.enabled }}{{ $llmStorageName | quote }}{{ else }}{{ .Values.global.llmName | quote }}{{ end }}
             - name: VLM_CAPTIONING_KEY
               value: "{{ .Values.pipelinemanager.env.VLM_CAPTIONING_KEY }}"
             - name: VLM_CAPTIONING_API
-              value: {{ if .Values.vllm.enabled }}{{ printf "http://%s:%d/v1" (default "cpu-vllm-service" .Values.vllm.service.name) (default 80 .Values.vllm.service.port | int) | quote }}{{ else }}{{ printf "http://%s:8000/v1" .Values.vlminference.name | quote }}{{ end }}
+              value: {{ if $useVllm }}{{ printf "http://%s:%d/v1" (default "cpu-vllm-service" .Values.vllm.service.name) (default 80 .Values.vllm.service.port | int) | quote }}{{ else if .Values.ovms.enabled }}{{ printf "http://%s:8300/v3" .Values.ovms.name | quote }}{{ else }}{{ .Values.pipelinemanager.env.VLM_CAPTIONING_API | quote }}{{ end }}
             - name: VLM_CAPTIONING_DEVICE
-              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}GPU{{ else }}{{ .Values.pipelinemanager.env.VLM_CAPTIONING_DEVICE }}{{ end }}"
+              value: "{{ if and .Values.ovms.enabled (not $useVllm) }}{{ $ovmsVlmDevice }}{{ else }}{{ .Values.pipelinemanager.env.VLM_CAPTIONING_DEVICE }}{{ end }}"
             - name: VLM_MODEL_NAME
-              value: {{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}
+              # Use storage model name for OVMS (includes device/format), raw name for vLLM
+              value: {{ if $useVllm }}{{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}{{ else if .Values.ovms.enabled }}{{ $vlmStorageName | quote }}{{ else }}{{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}{{ end }}
             - name: LLM_CONCURRENT
-              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}{{ .Values.pipelinemanager.env.LLM_CONCURRENT }}{{ end }}"
+              value: "{{ if and .Values.ovms.enabled (not $useVllm) $ovmsVlmUsesAccelerator }}1{{ else }}{{ .Values.pipelinemanager.env.LLM_CONCURRENT }}{{ end }}"
             - name: VLM_CONCURRENT
-              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}{{ .Values.pipelinemanager.env.VLM_CONCURRENT }}{{ end }}"
+              value: "{{ if and .Values.ovms.enabled (not $useVllm) $ovmsVlmUsesAccelerator }}1{{ else }}{{ .Values.pipelinemanager.env.VLM_CONCURRENT }}{{ end }}"
             - name: TICK_INTERVAL_MS
               value: "{{ .Values.pipelinemanager.env.TICK_INTERVAL_MS }}"
             - name: FAST_TICK_INTERVAL_MS
@@ -167,8 +176,10 @@ spec:
               value: "{{ .Values.pipelinemanager.env.MAX_CONTEXT_LENGTH }}"
             - name: LLM_MODEL_API
               value: "{{ .Values.pipelinemanager.env.LLM_MODEL_API }}"
+            - name: VLM_MODEL_API
+              value: "{{ .Values.pipelinemanager.env.VLM_MODEL_API }}"
             - name: MULTI_FRAME_COUNT
-              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}6{{ else }}{{ .Values.pipelinemanager.env.MULTI_FRAME_COUNT }}{{ end }}"
+              value: "{{ if and .Values.ovms.enabled (not $useVllm) $ovmsVlmUsesAccelerator }}6{{ else }}{{ .Values.pipelinemanager.env.MULTI_FRAME_COUNT }}{{ end }}"
             - name: DB_HOST
               value: "{{ .Values.postgresql.name }}"
             - name: DB_PORT
@@ -183,13 +194,15 @@ spec:
               value: "http://{{ .Values.audioanalyzer.name }}:{{ .Values.audioanalyzer.service.port }}"
             - name: AUDIO_DEVICE
               value: "{{ .Values.pipelinemanager.env.AUDIO_DEVICE }}"
+            - name: AUDIO_USE_FULL_TRANSCRIPT_SUMMARY
+              value: "{{ .Values.pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY }}"
             - name: OTLP_TRACE_URL
               value: "{{ .Values.global.env.OTLP_ENDPOINT_TRACE }}"
             {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
             - name: DATAPREP_TELEMETRY_URL
               value: "http://{{ .Values.vdmsdataprep.name }}:{{ .Values.vdmsdataprep.service.port }}/v1/dataprep/telemetry?limit=1"
             {{- end }}
-            {{- if .Values.vsscollector.enabled }}
+            {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
             - name: TELEMETRY_SIGNAL_DIR
               value: "/app/.collector-signals"
             {{- end }}
@@ -203,11 +216,9 @@ spec:
             - name: SEARCH_DATAPREP_ENDPOINT
               value: "http://{{ .Values.vdmsdataprep.name }}:{{ .Values.vdmsdataprep.service.port }}"
             {{- end }}
-            - name: USE_OVMS
-              value: "{{ .Values.pipelinemanager.env.USE_OVMS }}"
             - name: USE_VLLM
               value: "{{ .Values.pipelinemanager.env.USE_VLLM }}"
-          {{- if .Values.vsscollector.enabled }}
+          {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
           volumeMounts:
             - name: collector-signals
               mountPath: /app/.collector-signals
@@ -221,7 +232,7 @@ spec:
       {{- end }}
       tolerations:
         {{- toYaml .Values.pipelinemanager.tolerations | nindent 8 }}
-      {{- if .Values.vsscollector.enabled }}
+      {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
       volumes:
         - name: collector-signals
           {{- if .Values.global.usePvc }}
