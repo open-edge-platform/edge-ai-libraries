@@ -1,13 +1,8 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+# Backend services required for Video Summarization Application.
 services:
-  vss-ui:
-    environment:
-      APP_SOCKET_APPEND: ${CONFIG_SOCKET_APPEND:-CONFIG_OFF}
-      APP_SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_ON}
-      APP_SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_OFF}
-
   pipeline-manager:
     depends_on:
       vlm-openvino-serving:
@@ -43,10 +38,6 @@ services:
       MULTI_FRAME_COUNT: ${PM_MULTI_FRAME_COUNT}
       AUDIO_HOST: ${AUDIO_ENDPOINT}
       AUDIO_DEVICE: CPU
-      SEARCH_ENDPOINT: ""
-      SEARCH_DATAPREP_ENDPOINT: ""
-      SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_ON}
-      SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_OFF}
       USE_OVMS: "${USE_OVMS_CONFIG:-CONFIG_OFF}"
       WORKERS: ${WORKERS:-1}
 

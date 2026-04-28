@@ -21,7 +21,7 @@ services:
         environment:
             - http_proxy=${http_proxy}
             - https_proxy=${https_proxy}
-            - no_proxy=localhost,127.0.0.1,${PM_HOST},vss-ui,${no_proxy}
+            - no_proxy=localhost,127.0.0.1,${PM_HOST},vss-ui-summary,vss-ui-search,${no_proxy}
             - WEBSOCKET_URL=ws://${PM_HOST}:3000/metrics/ws/collector
         depends_on:
             pipeline-manager:

@@ -1,13 +1,8 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+# Backend services required for Video Search Application.
 services:
-    vss-ui:
-        environment:
-            APP_SOCKET_APPEND: ${CONFIG_SOCKET_APPEND:-CONFIG_OFF}
-            APP_SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_OFF}
-            APP_SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_ON}
-
     pipeline-manager:
         depends_on:
             vdms-vector-db:
@@ -21,8 +16,6 @@ services:
         environment:
             SEARCH_ENDPOINT: ${VS_ENDPOINT}
             SEARCH_DATAPREP_ENDPOINT: ${VDMS_DATAPREP_ENDPOINT}
-            SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_OFF}
-            SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_ON}
 
     video-search:
         image: ${REGISTRY:-}video-search:${TAG:-latest}
