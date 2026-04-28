@@ -17,7 +17,13 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         "/assets/videos": {
-          target: "http://localhost:80",
+          target: env.VITE_API_URL || "http://localhost",
+          changeOrigin: true,
+          secure: false,
+          ws: false,
+        },
+        "/assets/images": {
+          target: env.VITE_API_URL || "http://localhost",
           changeOrigin: true,
           secure: false,
           ws: false,
@@ -39,7 +45,8 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           ws: false,
-          rewrite: (path: string) => path.replace(/^\/model-download/, "/api/v1"),
+          rewrite: (path: string) =>
+            path.replace(/^\/model-download/, "/api/v1"),
         },
         "/api": {
           target: env.VITE_API_URL || "http://localhost:7860",

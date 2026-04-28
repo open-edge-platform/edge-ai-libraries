@@ -706,18 +706,6 @@ class PipelineManager:
 
                 pipeline_parts.append(unique_pipeline_str)
 
-        # TODO: Must be removed once the live metrics stream is in place
-        # Diagnostic summary so the stream-to-tracer correlation can be
-        # verified from the logs. Kept at INFO because it is printed once
-        # per run (not per sample).
-        if streams_per_pipeline:
-            lines = ["Stream identifiers per pipeline:"]
-            for pid, infos in streams_per_pipeline.items():
-                lines.append(f"  pipeline '{pid}' ({len(infos)} stream(s)):")
-                for info in infos:
-                    lines.append(f"    - {info.stream_id}")
-            logger.info("\n".join(lines))
-
         return PipelineCommand(
             command=" ".join(pipeline_parts),
             video_output_paths=video_output_paths,

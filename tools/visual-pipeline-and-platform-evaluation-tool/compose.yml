@@ -28,8 +28,22 @@ x-vippet: &vippet
     WEB_SERVER_LOG_LEVEL: WARNING
     MODELS_PATH: /models/output
     SUPPORTED_MODELS_FILE: /models/supported_models.yaml
+    INPUT_IMAGES_DIR: /images/input
+    OUTPUT_IMAGES_DIR: /images/output
+    # 'auto' holds recordings downloaded from default_recordings.yaml;
+    # 'uploaded' holds user uploads. Each is created on startup if missing.
+    AUTO_VIDEO_DIR: /videos/input/auto
+    UPLOADED_VIDEO_DIR: /videos/input/uploaded
+    DEFAULT_RECORDINGS_FILE: /videos/default_recordings.yaml
     INPUT_VIDEO_DIR: /videos/input
     OUTPUT_VIDEO_DIR: /videos/output
+    # Upload validation limits for POST /videos/upload. Keep
+    # UPLOAD_MAX_SIZE_BYTES in sync with nginx 'client_max_body_size' in
+    # ui/nginx.conf.
+    UPLOAD_ALLOWED_EXTENSIONS: "mp4,mkv,mov,avi,ts,264,avc,h265,hevc"
+    UPLOAD_ALLOWED_CONTAINERS: "mp4,mov,mkv,avi,mpegts,raw"
+    UPLOAD_ALLOWED_CODECS: "h264,h265"
+    UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
     METADATA_DIR: /metadata
     SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
@@ -46,6 +60,7 @@ x-vippet: &vippet
     - 'a 189:* rwm'
   volumes:
     - "/dev:/dev"
+    - ./shared/images/:/images
     - ./shared/models/:/models
     - ./shared/videos/:/videos
     - ./shared/scripts/:/scripts
@@ -76,6 +91,7 @@ services:
       https_proxy: ${https_proxy}
       no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-service"
     volumes:
+      - ./shared/images/:/images
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   models:
@@ -181,7 +197,7 @@ services:
     ports:
       - "8554:8554"     # RTSP
       - "8889:8889"     # WebRTC signaling/HTTP
-      - "8189:8189/udp" # WebRTC/ICE UDP 
+      - "8189:8189/udp" # WebRTC/ICE UDP
   onvif-discovery:
     image: docker.io/intel/vippet-onvif-discovery:${DOCKER_TAG}
     build:
@@ -229,4 +245,3 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
-

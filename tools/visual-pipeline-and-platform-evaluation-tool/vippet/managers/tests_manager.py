@@ -465,6 +465,7 @@ class TestsManager:
                 mode="normal",
                 max_runtime=internal_spec.execution_config.max_runtime,
                 enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
+                job_id=job_id,
             )
 
             # Store runner for this job so it can be cancelled via stop_job()
@@ -613,6 +614,7 @@ class TestsManager:
             benchmark = Benchmark(
                 max_runtime=internal_spec.execution_config.max_runtime,
                 enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
+                job_id=job_id,
             )
 
             # Store benchmark runner for this job so that a future extension could cancel it.

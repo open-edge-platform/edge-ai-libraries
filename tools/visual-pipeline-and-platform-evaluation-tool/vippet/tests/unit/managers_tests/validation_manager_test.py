@@ -312,6 +312,57 @@ class TestValidationManager(unittest.TestCase):
         self.assertTrue(len(updated.details) > 0)
         self.assertIn("runner exploded", updated.details[0])
 
+    @patch("managers.validation_manager.PipelineRunner")
+    def test_execute_validation_marks_job_failed_without_stderr_entries(
+        self, mock_runner_cls
+    ):
+        """When the runner returns a non-zero exit code but produces no
+        stderr messages, the manager must still mark the job FAILED and
+        synthesise a detail explaining the exit code so the user can
+        distinguish this case from a successful validation.
+
+        This path is the fallback in ``_execute_validation`` when the
+        ``result.stderr`` list is empty — otherwise each stderr line is
+        converted into its own detail entry.
+        """
+        manager = ValidationManager()
+
+        internal_request = self._build_internal_validation()
+
+        job_id = "job-no-stderr"
+        job = InternalValidationJob(
+            id=job_id,
+            request=internal_request,
+            pipeline_description="pipeline",
+            state=InternalValidationJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+        )
+        manager.jobs[job_id] = job
+
+        mock_runner = MagicMock()
+        mock_runner.run.return_value = PipelineResult(
+            exit_code=42,
+            stderr=[],
+            stdout=[],
+        )
+        mock_runner_cls.return_value = mock_runner
+
+        manager._execute_validation(
+            job_id,
+            pipeline_description=job.pipeline_description,
+            max_runtime=10,
+            hard_timeout=70,
+        )
+
+        updated = manager.jobs[job_id]
+        self.assertEqual(updated.state, InternalValidationJobState.FAILED)
+        self.assertFalse(updated.is_valid)
+        assert updated.details is not None
+        self.assertEqual(len(updated.details), 1)
+        # The synthesised message must surface the exit code.
+        self.assertIn("42", updated.details[0])
+        self.assertIn("exit_code", updated.details[0])
+
     # ------------------------------------------------------------------
     # Status and summary retrieval
     # ------------------------------------------------------------------
