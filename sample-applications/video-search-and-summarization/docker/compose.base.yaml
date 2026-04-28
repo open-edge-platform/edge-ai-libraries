@@ -8,7 +8,7 @@ services:
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: ${no_proxy},${MINIO_HOST},vss-search-ui,vss-summary-ui,${PM_HOST},localhost
+      no_proxy: ${no_proxy},${MINIO_HOST},vss-search-ui,vss-summary-ui,vss-unified-ui,${PM_HOST},localhost
       SEARCH_UI: vss-search-ui:8080
       SUMMARY_UI: vss-summary-ui:8080
       UNIFIED_UI: vss-unified-ui:8080
