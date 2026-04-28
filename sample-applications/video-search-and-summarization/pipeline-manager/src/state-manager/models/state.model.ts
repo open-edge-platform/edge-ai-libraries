@@ -69,6 +69,8 @@ export interface StateAudio {
   status: StateActionStatus;
   transcriptPath?: string;
   transcript: srtText[];
+  transcriptSummary?: string;
+  transcriptSummaryStatus?: StateActionStatus;
 }
 
 export interface State {
@@ -91,6 +93,7 @@ export interface State {
     dataStoreUpload: StateActionStatus;
     summarizing: StateActionStatus;
     chunking: StateActionStatus;
+    videoChunking: StateActionStatus;
   };
 }
 

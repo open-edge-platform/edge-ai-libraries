@@ -110,6 +110,8 @@ Update or edit the values in YAML file as follows:
 | `ovms.enabled` | Enable OVMS as the inference backend (default: true in summary mode) | `true` or `false` |
 | `vllm.enabled` | Enable vLLM as the inference backend (alternative to OVMS) | `true` or `false` |
 | `pipelinemanager.env.USE_VLLM` | Set to `CONFIG_ON` when using vLLM backend | `CONFIG_OFF` (default) or `CONFIG_ON` |
+| `pipelinemanager.env.AUDIO_DEVICE` | Device used for audio transcription (Whisper) | `cpu` (default) |
+| `pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | Default for audio transcript summarization. When enabled, the full audio transcript is summarized by the LLM and included in the final video summary. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
 | `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
 | `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
 | `vsscollector.enabled` | Enable the telemetry collector sidecar (telegraf-based) | `true` or `false` |

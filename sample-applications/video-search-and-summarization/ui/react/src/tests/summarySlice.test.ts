@@ -90,6 +90,7 @@ const createMockUIState = (overrides?: Partial<UIState>): UIState => ({
     [StateActionStatus.COMPLETE]: 1,
   },
   chunkingStatus: StateActionStatus.COMPLETE,
+  videoChunkingStatus: StateActionStatus.COMPLETE,
   ...overrides,
 });
 
@@ -104,6 +105,7 @@ const createMockUISummaryState = (overrides?: Partial<UISummaryState>): UISummar
   },
   title: 'Test Video',
   chunkingStatus: StateActionStatus.COMPLETE,
+  videoChunkingStatus: StateActionStatus.COMPLETE,
   inferenceConfig: {
     objectDetection: { model: 'yolo', device: 'cpu' },
   },
@@ -272,6 +274,7 @@ describe('SummarySlice', () => {
           stateId: 'test-state-1',
           videoSummaryStatus: StateActionStatus.IN_PROGRESS,
           chunkingStatus: StateActionStatus.READY,
+          videoChunkingStatus: StateActionStatus.READY,
           frameSummaryStatus: {
             [StateActionStatus.NA]: 1,
             [StateActionStatus.READY]: 2,
@@ -295,6 +298,7 @@ describe('SummarySlice', () => {
           stateId: 'non-existent',
           videoSummaryStatus: StateActionStatus.IN_PROGRESS,
           chunkingStatus: StateActionStatus.READY,
+          videoChunkingStatus: StateActionStatus.READY,
           frameSummaryStatus: {
             [StateActionStatus.NA]: 0,
             [StateActionStatus.READY]: 0,

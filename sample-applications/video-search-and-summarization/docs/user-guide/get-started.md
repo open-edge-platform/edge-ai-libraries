@@ -103,7 +103,16 @@ Before running the application, you need to set several environment variables:
    # --all    : configure both the multimodal embedding model and a dedicated text embedding model
    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
    export TEXT_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
+
+    # (Optional, summary mode only) Set the default for audio transcript summarization.
+    # Default is true. Users can override this per-video in the upload modal.
+    # export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false
    ```
+
+   > **Audio Transcript Summarization (`PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY`)**:
+   > When enabled (the default), the pipeline runs a separate LLM-based map-reduce summarization pass over the complete audio transcript *before* generating the final video summary. The condensed transcript summary is then injected into the video summary prompt via the `%audio_summary%` placeholder, giving the LLM a coherent, high-quality representation of spoken content rather than raw subtitle fragments. This significantly improves accuracy for dialogue-heavy or narration-heavy videos. When disabled, audio transcripts are only used at the chunk captioning level — each chunk's VLM prompt includes its time-matched portion of the transcript — but no audio content is included in the final map-reduce video summary.
+   >
+   > This environment variable sets the **default** value. Users can override it per-video using the **"Use Audio in Summary"** checkbox in the Audio Settings section of the video upload modal.
 
    > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
@@ -154,25 +163,7 @@ Before running the application, you need to set several environment variables:
 
    > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
 
-7. **Set advanced VLM Configuration Options**:
-
-   The following environment variables provide additional control over VLM inference behavior and logging:
-
-   ```bash
-   # (Optional) OpenVINO configuration for VLM inference optimization
-   # Pass OpenVINO configuration parameters as a JSON string to fine-tune inference performance
-   # Default latency-optimized configuration (equivalent to not setting OV_CONFIG)
-   # export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY"}'
-
-   # Throughput-optimized configuration
-   export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
-   ```
-
-   > **IMPORTANT:** The `OV_CONFIG` variable is used to pass OpenVINO configuration parameters to the VLM service. It allows you to optimize inference performance based on your hardware and workload.
-   > For a complete list of OpenVINO configuration options, refer to the [OpenVINO Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
-   > **Note**: If OV_CONFIG is not set, the default configuration `{"PERFORMANCE_HINT": "LATENCY"}` will be used.
-
-8. **(Optional) Telemetry collection for Search**:
+7. **(Optional) Telemetry collection for Search**:
 
    The Video Search mode can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI.
 
@@ -184,7 +175,7 @@ Before running the application, you need to set several environment variables:
    export ENABLE_VSS_COLLECTOR=true
    ```
 
-9. **Tune Inference Concurrency (Video Summarization Mode)**:
+8. **Tune Inference Concurrency (Video Summarization Mode)**:
 
    Control how many concurrent inference requests the pipeline manager sends to OVMS or vLLM. These values affect throughput and resource utilization:
 
@@ -198,7 +189,7 @@ Before running the application, you need to set several environment variables:
 
    > **Note**: For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
 
-10. **Override OVMS Model Weight Compression Format (Video Summarization Mode)**:
+9. **Override OVMS Model Weight Compression Format (Video Summarization Mode)**:
 
     When using OVMS for inference, the setup script auto-selects the model weight compression format based on the target device (`int8` for CPU, `int4` for GPU/NPU). You can override this auto-detection by setting these variables before running the setup script:
 
@@ -212,7 +203,7 @@ Before running the application, you need to set several environment variables:
 
     > **Note**: Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
 
-11. **Configure Embedding Processing Mode (Video Search Mode)**:
+10. **Configure Embedding Processing Mode (Video Search Mode)**:
 
     Control how the embedding model is loaded and invoked during video search indexing:
 

@@ -64,13 +64,15 @@ pyright: $(VENV_DIR) ## Run pyright type checker
 generate_openapi: $(VENV_DIR) ## Generate OpenAPI schema file
 	set +u; . ./$</bin/activate; set -u ;\
 	cd $(PROJECT_NAME) ;\
-	PYTHONPATH=. SUPPORTED_MODELS_FILE=../shared/models/supported_models.yaml INPUT_VIDEO_DIR=../shared/videos/input python ../generate_openapi.py
+	PYTHONPATH=. SUPPORTED_MODELS_FILE=../shared/models/supported_models.yaml AUTO_VIDEO_DIR=../shared/videos/input/auto UPLOADED_VIDEO_DIR=../shared/videos/input/uploaded python ../generate_openapi.py
 
 env-setup: ## Environment setup target: always run before build/run targets that need .env and shared dirs
 	mkdir -p shared/metadata && chmod o+w shared/metadata
 	mkdir -p shared/models/output && chmod o+w shared/models/output
 	mkdir -p shared/model-download/venv && chmod o+w shared/model-download/venv
 	mkdir -p shared/model-download/cache && chmod o+w shared/model-download/cache
+	mkdir -p shared/images/input && chmod o+w shared/images/input
+	mkdir -p shared/images/output && chmod o+w shared/images/output
 	mkdir -p shared/videos/input && chmod o+w shared/videos/input
 	mkdir -p shared/videos/output && chmod o+w shared/videos/output
 	mkdir -p shared/videos/video-generator && chmod o+w shared/videos/video-generator
@@ -108,11 +110,13 @@ test: env-setup ## Run unit tests and generate coverage report
 	. .env && TARGET=test DOCKER_TAG="test" docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run \
 	--build --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet vippet bash -c "\
 		cd $(PROJECT_NAME) && \
-		INPUT_VIDEO_DIR=/tmp \
+		AUTO_VIDEO_DIR=/tmp/auto \
+		UPLOADED_VIDEO_DIR=/tmp/uploaded \
 		OUTPUT_VIDEO_DIR=/tmp \
 		METADATA_DIR=/tmp \
-		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests/unit -p '*_test.py' && \
-		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
+		python -m coverage run --branch --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests/unit -p '*_test.py' && \
+		python -m coverage report --data-file=/tmp/.vippet-coverage --show-missing --skip-covered --omit=*/config-3.py,*/config.py,*_test.py && \
+		python -m coverage html --data-file=/tmp/.vippet-coverage --directory=/tmp/.vippet-coverage-html --omit=*/config-3.py,*/config.py,*_test.py"
 
 test-smoke: $(VENV_DIR) ## Run smoke functional tests
 	set +u; . ./$</bin/activate; set -u ;\

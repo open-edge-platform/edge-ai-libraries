@@ -131,6 +131,7 @@ pipelinemanager:
     VLM_MODEL_API: "v1/config"
     MULTI_FRAME_COUNT: "12"
     AUDIO_DEVICE: "cpu"
+    AUDIO_USE_FULL_TRANSCRIPT_SUMMARY: "true"
     OTLP_TRACE_URL: ""
     USE_VLLM: "CONFIG_OFF"
     SUMMARY_FEATURE: "FEATURE_ON"

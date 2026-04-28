@@ -2180,7 +2180,7 @@
           "videos"
         ],
         "summary": "List all available input videos",
-        "description": "**List all discovered input videos with metadata.**\n\n## Operation\n\n1. VideosManager scans INPUT_VIDEO_DIR for supported video files (h264/h265 codecs only)\n2. Metadata is loaded or extracted for each file (resolution, fps, duration, codec)\n3. Returns array of Video objects\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of Video objects (empty if no videos found) |\n| 500  | Runtime error during video listing |\n\n## Conditions\n\n### \u2705 Success\n- VideosManager successfully initialized at startup\n- INPUT_VIDEO_DIR exists and is a valid directory\n\n### \u274c Failure\n- VideosManager initialization fails \u2192 application exits at startup\n- Runtime errors \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"filename\": \"traffic_1080p_h264.mp4\",\n    \"width\": 1920,\n    \"height\": 1080,\n    \"fps\": 30.0,\n    \"frame_count\": 900,\n    \"codec\": \"h264\",\n    \"duration\": 30.0\n  },\n  {\n    \"filename\": \"people_720p_h265.mp4\",\n    \"width\": 1280,\n    \"height\": 720,\n    \"fps\": 25.0,\n    \"frame_count\": 2500,\n    \"codec\": \"h265\",\n    \"duration\": 100.0\n  }\n]\n```",
+        "description": "**List all discovered input videos with metadata.**\n\n## Operation\n\n1. VideosManager scans `AUTO_VIDEO_DIR` and `UPLOADED_VIDEO_DIR` for\n   supported video files (h264/h265 codecs only)\n2. Metadata is loaded or extracted for each file (resolution, fps,\n   duration, codec, source, path)\n3. Returns array of `Video` objects\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of `Video` objects (empty if no videos found) |\n| 500  | Runtime error during video listing |\n\n## Conditions\n\n### \u2705 Success\n- VideosManager successfully initialized at startup\n- `AUTO_VIDEO_DIR` and `UPLOADED_VIDEO_DIR` exist and are readable\n\n### \u274c Failure\n- VideosManager initialization fails \u2192 application exits at startup\n- Runtime errors \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"filename\": \"traffic_1080p_h264.mp4\",\n    \"width\": 1920,\n    \"height\": 1080,\n    \"fps\": 30.0,\n    \"frame_count\": 900,\n    \"codec\": \"h264\",\n    \"duration\": 30.0,\n    \"source\": \"auto\",\n    \"path\": \"auto/traffic_1080p_h264.mp4\"\n  }\n]\n```",
         "operationId": "get_videos",
         "responses": {
           "200": {
@@ -2206,7 +2206,7 @@
           "videos"
         ],
         "summary": "Check if a video file already exists",
-        "description": "**Check if a video file with the given filename already exists in INPUT_VIDEO_DIR.**\n\n## Operation\n\n1. Validates filename against INPUT_VIDEO_DIR\n2. Returns whether the file exists\n\n## Parameters\n\n- `filename` (query) - Name of the video file to check\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | Returns VideoExistsResponse with exists boolean |\n\n## Conditions\n\n### \u2705 Success\n- Always succeeds with boolean response\n\n## Example Response\n\n```json\n{\n  \"exists\": true,\n  \"filename\": \"traffic_1080p_h264.mp4\"\n}\n```",
+        "description": "**Check if a video file with the given filename already exists under\neither `AUTO_VIDEO_DIR` or `UPLOADED_VIDEO_DIR`.**\n\nUsed by the UI to skip uploading a duplicate file and to warn the user\nearly. Always succeeds with a boolean response.\n\n## Parameters\n\n- `filename` (query) - Base name of the video file to check.\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | Returns `VideoExistsResponse` with `exists` boolean |\n\n## Conditions\n\n### \u2705 Success\n- Always succeeds with a boolean response\n\n### \u274c Failure\n- None (this endpoint has no failure modes)\n\n## Example Response\n\n```json\n{\n  \"exists\": true,\n  \"filename\": \"traffic_1080p_h264.mp4\"\n}\n```",
         "operationId": "check_video_input_exists",
         "parameters": [
           {
@@ -2251,7 +2251,7 @@
           "videos"
         ],
         "summary": "Upload a new video file",
-        "description": "**Upload a new video file to the INPUT_VIDEO_DIR.**\n\n## Operation\n\n1. Validate file extension against supported formats\n2. Save file to INPUT_VIDEO_DIR in 8KB chunks\n3. Extract video metadata (resolution, fps, codec, etc.)\n4. Create TS conversion for looping support\n5. Return Video object with extracted metadata\n\n## Parameters\n\n- `file` (multipart/form-data) - Video file to upload\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 201  | Video uploaded successfully, returns Video object |\n| 400  | Invalid file (unsupported extension or codec, duplicate filename) |\n| 500  | Error during upload or processing |\n\n## Conditions\n\n### \u2705 Success\n- File has supported video extension (mp4, mkv, mov, avi, ts, 264, avc, h265, hevc)\n- File has supported codec (h264 or h265)\n- No file with same name exists in INPUT_VIDEO_DIR\n- Video metadata extraction successful\n\n### \u274c Failure\n- No file provided \u2192 400\n- File extension not supported \u2192 400\n- Filename already exists \u2192 400\n- Video codec not h264/h265 \u2192 400\n- Cannot extract metadata \u2192 500\n- Write error \u2192 500\n\n## Example Response\n\n```json\n{\n  \"filename\": \"uploaded_video.mp4\",\n  \"width\": 1920,\n  \"height\": 1080,\n  \"fps\": 30.0,\n  \"frame_count\": 1800,\n  \"codec\": \"h264\",\n  \"duration\": 60.0\n}\n```",
+        "description": "**Upload a new video file into `UPLOADED_VIDEO_DIR`.**\n\n## Operation\n\n1. **Pre-write validation** (before any bytes touch disk):\n   - Filename is present and safe (no path traversal)\n   - File extension is in `UPLOAD_ALLOWED_EXTENSIONS`\n   - A video with the same basename does not already exist in\n     `AUTO_VIDEO_DIR` or `UPLOADED_VIDEO_DIR`\n2. **Stream upload to a temporary file**, enforcing\n   `UPLOAD_MAX_SIZE_BYTES` per chunk. Aborts and deletes the temp file\n   the moment the accumulated byte count exceeds the limit.\n3. **Post-write validation** via `cv2.VideoCapture`:\n   - Container format is in `UPLOAD_ALLOWED_CONTAINERS`\n   - Codec is in `UPLOAD_ALLOWED_CODECS`\n4. On success: move the temp file into `UPLOADED_VIDEO_DIR`, create\n   metadata JSON, convert to TS, create TS metadata JSON, register both\n   in the in-memory VideosManager cache.\n\nEvery validation rejection returns HTTP 422 with a `VideoUploadError`\nbody containing both a human-readable `detail` field and structured\n`error` / `found` / `allowed` fields.\n\n## Parameters\n\n- `file` (multipart/form-data) - Video file to upload\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 201  | Video uploaded successfully, returns the `Video` metadata |\n| 422  | Upload rejected (`VideoUploadError` body with `error`, `found`, `allowed`, `detail`) |\n| 500  | Unexpected server error (for example disk full during move) |\n\n## Conditions\n\n### \u2705 Success\n- File has a filename that contains only safe characters\n- File extension is in `UPLOAD_ALLOWED_EXTENSIONS`\n- File size is within `UPLOAD_MAX_SIZE_BYTES`\n- Container is in `UPLOAD_ALLOWED_CONTAINERS`\n- Codec is in `UPLOAD_ALLOWED_CODECS`\n- No file with the same name exists in `AUTO_VIDEO_DIR` or `UPLOADED_VIDEO_DIR`\n- Metadata extraction and TS conversion both succeed\n\n### \u274c Failure\n- Missing or unsafe filename \u2192 422 (`missing_filename`)\n- Unsupported extension \u2192 422 (`unsupported_extension`)\n- File exceeds the size limit \u2192 422 (`file_too_large`)\n- Duplicate filename \u2192 422 (`file_exists`)\n- Unsupported container \u2192 422 (`unsupported_container`)\n- Unsupported codec \u2192 422 (`unsupported_codec`)\n- `cv2.VideoCapture` cannot open the file \u2192 422 (`invalid_video`)\n- Metadata extraction, TS conversion or disk move fails \u2192 500\n- Any other unexpected runtime error \u2192 500\n\n## Example success response (HTTP 201)\n\n```json\n{\n  \"filename\": \"myclip.mp4\",\n  \"width\": 1920,\n  \"height\": 1080,\n  \"fps\": 30.0,\n  \"frame_count\": 1800,\n  \"codec\": \"h264\",\n  \"duration\": 60.0,\n  \"source\": \"uploaded\",\n  \"path\": \"uploaded/myclip.mp4\"\n}\n```\n\n## Example error response (HTTP 422, unsupported codec)\n\n```json\n{\n  \"detail\": \"Unsupported codec 'vp9'. Allowed codecs: h264, h265.\",\n  \"error\": \"unsupported_codec\",\n  \"found\": \"vp9\",\n  \"allowed\": [\"h264\", \"h265\"]\n}\n```",
         "operationId": "upload_video",
         "requestBody": {
           "content": {
@@ -2270,6 +2270,178 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Video"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Upload rejected by server-side validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoUploadError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error during upload or processing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/images": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "List all available image sets",
+        "description": "**List all discovered image sets (directories) in INPUT_IMAGES_DIR.**\n\n## Operation\n\n1. ImagesManager scans INPUT_IMAGES_DIR for subdirectories\n2. Counts image files in each subdirectory\n3. Returns array of ImageSet objects\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of ImageSet objects (empty if none found) |\n| 500  | Runtime error while listing image sets |\n\n## Example Response\n\n```json\n[\n  {\n    \"name\": \"traffic_dataset\",\n    \"image_count\": 120\n  }\n]\n```",
+        "operationId": "get_image_sets",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ImageSet"
+                  },
+                  "type": "array",
+                  "title": "Response Get Image Sets"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/images/check-image-set-exists": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Check if an image set directory already exists",
+        "description": "**Check if an image set directory with the given name exists in INPUT_IMAGES_DIR.**\n\n## Parameters\n- `name` (query) - Name of the image set directory to check\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | Returns ImageSetExistsResponse with exists boolean |\n\n## Example Response\n\n```json\n{\n  \"exists\": true,\n  \"name\": \"traffic_dataset\"\n}\n```",
+        "operationId": "check_image_set_exists",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Image set (directory) name to check",
+              "title": "Name"
+            },
+            "description": "Image set (directory) name to check"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageSetExistsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/images/upload": {
+      "post": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Upload a new image set as an archive",
+        "description": "**Upload an archive of images. The archive is extracted into its own directory under INPUT_IMAGES_DIR.**\n\n## Operation\n\n1. Validate archive extension against supported formats\n2. Derive image set directory name from archive filename (without extension)\n3. Reject if a directory with that name already exists\n4. Save archive to a temp location, then extract safely into the target directory\n5. Return ImageSet object with the discovered image count\n\n## Parameters\n- `file` (multipart/form-data) - Archive file to upload (zip, tar, tar.gz, tgz)\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 201  | Archive uploaded and extracted, returns ImageSet object |\n| 400  | Invalid archive (unsupported extension, duplicate name, unsafe paths, no images) |\n| 500  | Error during upload or extraction |\n\n## Example Response\n\n```json\n{\n  \"name\": \"traffic_dataset\",\n  \"image_count\": 120\n}\n```",
+        "operationId": "upload_image_archive",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_image_archive"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageSet"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/images/{name}": {
+      "get": {
+        "tags": [
+          "images"
+        ],
+        "summary": "List all images inside a given image set",
+        "description": "**List all image files in the given image set with per-file metadata.**\n\n## Operation\n\n1. Validate the image set name and ensure the directory exists\n2. Recursively walk the set directory for supported image extensions\n3. For each image, collect filename, extension, size, and dimensions\n4. Return the list sorted by filename\n\n## Parameters\n- `name` (path) - Name of the image set directory\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of ImageInfo objects (empty if the set has no images) |\n| 404  | Image set with the given name does not exist |\n| 500  | Runtime error while listing images |\n\n## Example Response\n\n```json\n[\n  {\n    \"filename\": \"frame_0001.jpg\",\n    \"extension\": \"jpg\",\n    \"size_bytes\": 204812,\n    \"width\": 1920,\n    \"height\": 1080\n  }\n]\n```",
+        "operationId": "list_images_in_set",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Name of the image set directory",
+              "title": "Name"
+            },
+            "description": "Name of the image set directory"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ImageInfo"
+                  },
+                  "title": "Response List Images In Set"
                 }
               }
             }
@@ -2492,6 +2664,20 @@
         ],
         "title": "AppStatus",
         "description": "**Application status enum for tracking initialization progress.**\n\n## Values\n- `STARTING` - Application is starting, no initialization yet\n- `INITIALIZING` - Application is initializing resources (e.g., loading videos)\n- `READY` - Application is fully initialized and ready to serve requests\n- `SHUTDOWN` - Application is shutting down\n\n### Example\n```json\n\"ready\"\n```"
+      },
+      "Body_upload_image_archive": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_image_archive"
       },
       "Body_upload_video": {
         "properties": {
@@ -3032,6 +3218,99 @@
         ],
         "title": "HealthResponse",
         "description": "**Response model for health endpoint.**\n\nUsed by Docker healthcheck and monitoring systems to verify\napplication health status.\n\n## Attributes\n- `healthy` - True if application is healthy (not shutdown)\n\n### Example\n```json\n{\n  \"healthy\": true\n}\n```"
+      },
+      "ImageInfo": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "description": "Filename of the image, relative to the image set root (uses '/' as separator)."
+          },
+          "extension": {
+            "type": "string",
+            "title": "Extension",
+            "description": "Lowercase image file extension without the leading dot."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes",
+            "description": "Size of the image file in bytes."
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width",
+            "description": "Image width in pixels, or null if it could not be read."
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height",
+            "description": "Image height in pixels, or null if it could not be read."
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "extension",
+          "size_bytes"
+        ],
+        "title": "ImageInfo",
+        "description": "**Metadata for a single image file inside an image set.**\n\n## Attributes\n- `filename` - Relative path of the image inside the image set directory\n- `extension` - Lowercase file extension (without leading dot)\n- `size_bytes` - File size in bytes\n- `width` - Image width in pixels (null if unreadable)\n- `height` - Image height in pixels (null if unreadable)\n\n### Example\n```json\n{\n  \"filename\": \"frame_0001.jpg\",\n  \"extension\": \"jpg\",\n  \"size_bytes\": 204812,\n  \"width\": 1920,\n  \"height\": 1080\n}\n```"
+      },
+      "ImageSet": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Name of the image set directory."
+          },
+          "image_count": {
+            "type": "integer",
+            "title": "Image Count",
+            "description": "Number of image files in the directory."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "image_count"
+        ],
+        "title": "ImageSet",
+        "description": "**Metadata for a single image set (directory of images).**\n\n## Attributes\n- `name` - Name of the image set (directory name under INPUT_IMAGES_DIR)\n- `image_count` - Number of image files in the directory\n\n### Example\n```json\n{\n  \"name\": \"traffic_dataset\",\n  \"image_count\": 120\n}\n```"
+      },
+      "ImageSetExistsResponse": {
+        "properties": {
+          "exists": {
+            "type": "boolean",
+            "title": "Exists",
+            "description": "True if the image set directory exists, False otherwise."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "The image set name (directory) that was checked."
+          }
+        },
+        "type": "object",
+        "required": [
+          "exists",
+          "name"
+        ],
+        "title": "ImageSetExistsResponse",
+        "description": "**Response indicating whether an image set directory exists.**\n\n## Attributes\n- `exists` - True if directory exists in INPUT_IMAGES_DIR, False otherwise\n- `name` - The image set name that was checked\n\n### Example\n```json\n{\n  \"exists\": true,\n  \"name\": \"traffic_dataset\"\n}\n```"
       },
       "LatencyMetrics": {
         "properties": {
@@ -4598,6 +4877,17 @@
           "duration": {
             "type": "number",
             "title": "Duration"
+          },
+          "source": {
+            "$ref": "#/components/schemas/VideoSource",
+            "description": "Origin of the video on disk: 'auto' (auto-downloaded) or 'uploaded' (user-uploaded).",
+            "default": "auto"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "Location of the file prefixed with its source directory name, for example 'auto/traffic_1080p_h264.mp4' or 'uploaded/myclip.mp4'. Clients can build a preview URL as '/assets/videos/input/{path}'.",
+            "default": ""
           }
         },
         "type": "object",
@@ -4611,7 +4901,7 @@
           "duration"
         ],
         "title": "Video",
-        "description": "**Metadata for a single input video file.**\n\n## Attributes\n- `filename` - Base name of the video file located under INPUT_VIDEO_DIR\n- `width` - Frame width in pixels\n- `height` - Frame height in pixels\n- `fps` - Frames per second for the stream\n- `frame_count` - Total number of frames in the file\n- `codec` - Normalized codec name (e.g., \"h264\" or \"h265\")\n- `duration` - Approximate duration in seconds\n\n### Example\n```json\n[\n  {\n    \"filename\": \"traffic_1080p_h264.mp4\",\n    \"width\": 1920,\n    \"height\": 1080,\n    \"fps\": 30.0,\n    \"frame_count\": 900,\n    \"codec\": \"h264\",\n    \"duration\": 30.0\n  }\n]\n```"
+        "description": "**Metadata for a single input video file.**\n\n## Attributes\n- `filename` - Base name of the video file\n- `width` - Frame width in pixels\n- `height` - Frame height in pixels\n- `fps` - Frames per second for the stream\n- `frame_count` - Total number of frames in the file\n- `codec` - Normalized codec name (e.g., \"h264\" or \"h265\")\n- `duration` - Approximate duration in seconds\n- `source` - Origin of the video on disk (`auto` for auto-downloaded,\n  `uploaded` for user-uploaded via `POST /videos/upload`)\n- `path` - Location of the file prefixed with its source directory name\n  (e.g. `auto/traffic_1080p_h264.mp4` or `uploaded/myclip.mp4`).\n  Clients can build a preview URL as\n  `/assets/videos/input/{path}`.\n\n### Example\n```json\n[\n  {\n    \"filename\": \"traffic_1080p_h264.mp4\",\n    \"width\": 1920,\n    \"height\": 1080,\n    \"fps\": 30.0,\n    \"frame_count\": 900,\n    \"codec\": \"h264\",\n    \"duration\": 30.0,\n    \"source\": \"auto\",\n    \"path\": \"auto/traffic_1080p_h264.mp4\"\n  }\n]\n```"
       },
       "VideoExistsResponse": {
         "properties": {
@@ -4632,7 +4922,87 @@
           "filename"
         ],
         "title": "VideoExistsResponse",
-        "description": "**Response indicating whether a video file exists.**\n\n## Attributes\n- `exists` - True if file exists in INPUT_VIDEO_DIR, False otherwise\n- `filename` - The filename that was checked\n\n### Example\n```json\n{\n  \"exists\": true,\n  \"filename\": \"traffic_1080p_h264.mp4\"\n}\n```"
+        "description": "**Response indicating whether a video file exists.**\n\n## Attributes\n- `exists` - True if a file with the given basename exists in\n  `AUTO_VIDEO_DIR` or `UPLOADED_VIDEO_DIR`, False otherwise\n- `filename` - The filename that was checked\n\n### Example\n```json\n{\n  \"exists\": true,\n  \"filename\": \"traffic_1080p_h264.mp4\"\n}\n```"
+      },
+      "VideoSource": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "uploaded"
+        ],
+        "title": "VideoSource",
+        "description": "**Origin of an input video file on disk.**\n\n## Values\n- `AUTO` - Video downloaded automatically from `default_recordings.yaml`\n  into `/videos/input/auto/`\n- `UPLOADED` - Video uploaded by the user via the\n  `POST /videos/upload` endpoint into `/videos/input/uploaded/`\n\n### Example\n```json\n\"uploaded\"\n```"
+      },
+      "VideoUploadError": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "Human-readable error message suitable for UI display."
+          },
+          "error": {
+            "$ref": "#/components/schemas/VideoUploadErrorKind",
+            "description": "Machine-readable error kind."
+          },
+          "found": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Found",
+            "description": "Value that actually failed validation (string, integer, or null)."
+          },
+          "allowed": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed",
+            "description": "List of accepted values for the failed check, or null when not applicable."
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail",
+          "error"
+        ],
+        "title": "VideoUploadError",
+        "description": "**Structured error body returned when a video upload is rejected.**\n\nReturned with HTTP 422 by `POST /videos/upload` when the submitted file\nfails any validation step (extension, size, container, codec, duplicate\nfilename, or invalid video). The response also includes a `detail`\nfield with a human-readable message so consumers can display it\ndirectly without mapping the `error` code.\n\n## Attributes\n- `detail` - Human-readable error message suitable for direct display\n  in the UI (for example: \"Unsupported codec 'vp9'. Allowed codecs: h264, h265.\").\n- `error` - Machine-readable error kind (see `VideoUploadErrorKind`).\n- `found` - Optional value that actually failed validation. The type\n  depends on the error: a string for extension/codec/container,\n  an integer (bytes) for size, or a filename for duplicates.\n- `allowed` - Optional list of accepted values for the failed check.\n  Omitted when a list does not apply (for example for `file_exists`).\n\n### Example (unsupported codec)\n```json\n{\n  \"detail\": \"Unsupported codec 'vp9'. Allowed codecs: h264, h265.\",\n  \"error\": \"unsupported_codec\",\n  \"found\": \"vp9\",\n  \"allowed\": [\"h264\", \"h265\"]\n}\n```\n\n### Example (file too large)\n```json\n{\n  \"detail\": \"File is too large (3221225472 bytes). Maximum allowed size is 2147483648 bytes.\",\n  \"error\": \"file_too_large\",\n  \"found\": 3221225472,\n  \"allowed\": [2147483648]\n}\n```\n\n### Example (duplicate filename)\n```json\n{\n  \"detail\": \"A video with filename 'people.mp4' already exists.\",\n  \"error\": \"file_exists\",\n  \"found\": \"people.mp4\",\n  \"allowed\": null\n}\n```"
+      },
+      "VideoUploadErrorKind": {
+        "type": "string",
+        "enum": [
+          "missing_filename",
+          "unsupported_extension",
+          "file_too_large",
+          "unsupported_container",
+          "unsupported_codec",
+          "invalid_video",
+          "file_exists"
+        ],
+        "title": "VideoUploadErrorKind",
+        "description": "**Machine-readable reason why a video upload was rejected.**\n\nReturned in the `error` field of the `VideoUploadError` response body\ntogether with a human-readable `detail` message.\n\n## Values\n- `MISSING_FILENAME` - The multipart part did not carry a filename.\n- `UNSUPPORTED_EXTENSION` - File extension is not in the allowed list.\n- `FILE_TOO_LARGE` - File size exceeds the configured maximum.\n- `UNSUPPORTED_CONTAINER` - Container format is not in the allowed list.\n- `UNSUPPORTED_CODEC` - Video codec is not in the allowed list.\n- `INVALID_VIDEO` - File cannot be opened as a video by OpenCV.\n- `FILE_EXISTS` - A video with the same filename is already present in\n  either `auto/` or `uploaded/`.\n\n### Example\n```json\n\"unsupported_codec\"\n```"
       }
     }
   }

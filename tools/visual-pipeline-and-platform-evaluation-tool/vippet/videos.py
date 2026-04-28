@@ -8,7 +8,7 @@ import urllib.request
 import urllib.error
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional, Tuple
 
 import cv2
 import yaml
@@ -28,21 +28,36 @@ VIDEO_EXTENSIONS = (
     "hevc",
 )
 
-# Default directories for input and output videos
-_OUTPUT_VIDEO_DIR = "/videos/output"
-_INPUT_VIDEO_DIR = "/videos/input"
+# Type alias for the video source (origin on disk).
+VideoSourceKind = Literal["auto", "uploaded"]
 
-# Read paths from environment variables, falling back to defaults
+# Input videos live in two sibling sub-directories so auto-downloaded and
+# user-uploaded content never collide on disk:
+#   - AUTO_VIDEO_DIR      - videos auto-downloaded from default_recordings.yaml
+#   - UPLOADED_VIDEO_DIR  - videos uploaded by the user via the API
+# Both are independently configurable. Defaults match the shared volume
+# layout declared in compose.yml.
+_OUTPUT_VIDEO_DIR = "/videos/output"
+_AUTO_VIDEO_DIR = "/videos/input/auto"
+_UPLOADED_VIDEO_DIR = "/videos/input/uploaded"
+
+# Read paths from environment variables, falling back to defaults.
 OUTPUT_VIDEO_DIR: str = os.path.normpath(
     os.environ.get("OUTPUT_VIDEO_DIR", _OUTPUT_VIDEO_DIR)
 )
-INPUT_VIDEO_DIR: str = os.path.normpath(
-    os.environ.get("INPUT_VIDEO_DIR", _INPUT_VIDEO_DIR)
+AUTO_VIDEO_DIR: str = os.path.normpath(
+    os.environ.get("AUTO_VIDEO_DIR", _AUTO_VIDEO_DIR)
+)
+UPLOADED_VIDEO_DIR: str = os.path.normpath(
+    os.environ.get("UPLOADED_VIDEO_DIR", _UPLOADED_VIDEO_DIR)
 )
 
-# Path to default recordings YAML file (sibling of INPUT_VIDEO_DIR)
-DEFAULT_RECORDINGS_FILE: str = os.path.join(
-    os.path.dirname(INPUT_VIDEO_DIR), "default_recordings.yaml"
+# Path to the default recordings YAML file. Configurable via the
+# DEFAULT_RECORDINGS_FILE environment variable; falls back to the shared
+# default shipped with the image.
+DEFAULT_RECORDINGS_FILE: str = os.environ.get(
+    "DEFAULT_RECORDINGS_FILE",
+    "/videos/default_recordings.yaml",
 )
 
 logger = logging.getLogger("videos")
@@ -87,6 +102,11 @@ class VideoFileInfo:
 class Video:
     """
     Represents a single video file and its metadata.
+
+    The ``source`` field records whether the video was auto-downloaded or
+    uploaded by the user. The ``path`` field is the location of the file
+    relative to the 'auto' / 'uploaded' directories
+    (for example ``auto/people.mp4`` or ``uploaded/myclip.mp4``).
     """
 
     def __init__(
@@ -98,6 +118,8 @@ class Video:
         frame_count: int,
         codec: str,
         duration: float,
+        source: VideoSourceKind = "auto",
+        path: str = "",
     ) -> None:
         """
         Initializes the Video instance.
@@ -110,6 +132,12 @@ class Video:
             frame_count: Total number of frames.
             codec: Video codec (e.g., 'h264', 'h265').
             duration: Duration in seconds.
+            source: Where the video came from ('auto' or 'uploaded').
+            path: Path of the file prefixed with its source directory name,
+                  for example 'auto/people.mp4' or 'uploaded/myclip.mp4'.
+                  An empty value signals that the caller could not determine
+                  the location yet; the authoritative value is always
+                  restored during the directory scan.
         """
         self.filename = filename
         self.width = width
@@ -118,6 +146,8 @@ class Video:
         self.frame_count = frame_count
         self.codec = codec
         self.duration = duration
+        self.source: VideoSourceKind = source
+        self.path = path
 
     def to_dict(self) -> dict:
         """
@@ -131,13 +161,24 @@ class Video:
             "frame_count": self.frame_count,
             "codec": self.codec,
             "duration": self.duration,
+            "source": self.source,
+            "path": self.path,
         }
 
     @staticmethod
     def from_dict(data: dict) -> "Video":
         """
         Deserializes a Video object from a dictionary.
+
+        ``source`` and ``path`` are tolerated as missing in the on-disk JSON
+        so minor schema drift between reads and writes does not break
+        loading. Missing values default to 'auto' and an empty string
+        respectively; the caller is expected to overwrite them with the
+        authoritative values discovered during the directory scan.
         """
+        source = data.get("source", "auto")
+        if source not in ("auto", "uploaded"):
+            source = "auto"
         return Video(
             filename=data["filename"],
             width=data["width"],
@@ -146,27 +187,42 @@ class Video:
             frame_count=data["frame_count"],
             codec=data["codec"],
             duration=data["duration"],
+            source=source,  # type: ignore[arg-type]
+            path=data.get("path", ""),
         )
 
 
 class VideosManager:
     """
-    Thread-safe singleton that manages all video files and their metadata in the INPUT_VIDEO_DIR directory.
+    Thread-safe singleton that manages all video files and their metadata
+    across ``AUTO_VIDEO_DIR`` and ``UPLOADED_VIDEO_DIR``.
 
     Implements singleton pattern using __new__ with double-checked locking.
     Create instances with VideosManager() to get the shared singleton instance.
 
     Initialization performs three phases:
-    1. Download videos from default_recordings.yaml (if not already present)
-    2. Scan and load all video files with their metadata (JSON cache)
-    3. Convert all non-TS videos to TS format for looping support
+    1. Download videos from default_recordings.yaml into AUTO_VIDEO_DIR
+       (if not already present).
+    2. Scan AUTO_VIDEO_DIR and UPLOADED_VIDEO_DIR and load all video files
+       with their metadata (JSON cache).
+    3. Convert all non-TS videos to TS format for looping support. The TS
+       file is written next to the source video (same subdirectory).
+
+    Filenames must be unique across 'auto' and 'uploaded'. This invariant is
+    enforced at upload time by the ``/videos/upload`` endpoint; if a
+    duplicate is somehow present on disk during scan the uploaded copy wins.
 
     Raises:
-        RuntimeError: If INPUT_VIDEO_DIR is not a valid directory.
+        RuntimeError: If either AUTO_VIDEO_DIR or UPLOADED_VIDEO_DIR cannot
+        be created at startup.
     """
 
     _instance: Optional["VideosManager"] = None
     _lock = threading.Lock()
+    # Serialises the final commit inside register_uploaded_video() so two
+    # concurrent uploads that slipped past filename_exists() cannot both
+    # move their temp file into the same target path.
+    _upload_lock = threading.Lock()
 
     def __new__(cls) -> "VideosManager":
         if cls._instance is None:
@@ -179,15 +235,15 @@ class VideosManager:
     def __init__(self) -> None:
         """
         Initializes the VideosManager.
-        - Validates INPUT_VIDEO_DIR exists
-        - Downloads videos from default_recordings.yaml if not already present
-        - Scans directory and loads video metadata
-        - Ensures all TS conversions exist
+        - Creates AUTO_VIDEO_DIR and UPLOADED_VIDEO_DIR if missing
+        - Downloads videos from default_recordings.yaml into AUTO_VIDEO_DIR
+        - Scans both sub-directories and loads video metadata
+        - Ensures all TS conversions exist next to their sources
 
         Protected against multiple initialization.
 
         Raises:
-            RuntimeError: If INPUT_VIDEO_DIR is not a valid directory.
+            RuntimeError: If either sub-directory cannot be created.
         """
         # Protect against multiple initialization
         if hasattr(self, "_initialized"):
@@ -195,28 +251,61 @@ class VideosManager:
         self._initialized = True
 
         logger.debug(
-            f"Initializing VideosManager with INPUT_VIDEO_DIR={INPUT_VIDEO_DIR}"
+            f"Initializing VideosManager with AUTO_VIDEO_DIR={AUTO_VIDEO_DIR}, "
+            f"UPLOADED_VIDEO_DIR={UPLOADED_VIDEO_DIR}"
         )
-        if not os.path.isdir(INPUT_VIDEO_DIR):
-            raise RuntimeError(
-                f"INPUT_VIDEO_DIR '{INPUT_VIDEO_DIR}' does not exist or is not a directory."
-            )
 
+        # Ensure the 'auto' and 'uploaded' subdirectories exist. They are
+        # created on every startup so deployments that only mount the shared
+        # volume (without pre-creating the subdirs) still work.
+        self._ensure_subdirs()
+
+        # In-memory caches. ``_videos`` is the authoritative map from
+        # filename to Video metadata. ``_video_paths`` maps the same
+        # filename to the absolute on-disk path so callers can resolve
+        # either the 'auto' or 'uploaded' location without having to know
+        # which subdir the file lives in.
         self._videos: Dict[str, Video] = {}
+        self._video_paths: Dict[str, str] = {}
 
-        # Phase 1: Download videos from default_recordings.yaml
+        # Phase 1: Download videos from default_recordings.yaml into AUTO_VIDEO_DIR
         self._download_default_videos()
 
         # Phase 2: Scan and load all video files with metadata
         self._scan_and_load_all_videos()
 
-        # Phase 3: Ensure all TS conversions exist
+        # Phase 3: Ensure all TS conversions exist next to their sources
         self._ensure_all_ts_conversions()
+
+    @staticmethod
+    def _ensure_subdirs() -> None:
+        """
+        Ensure AUTO_VIDEO_DIR and UPLOADED_VIDEO_DIR exist on disk with
+        mode 0o755.
+
+        ``os.makedirs(mode=...)`` alone is subject to the process umask and
+        does not touch already-existing directories, so we follow up with
+        an explicit ``os.chmod`` to guarantee the mode regardless of the
+        umask and regardless of who created the directory originally. Any
+        OS error is re-raised as RuntimeError since the application cannot
+        function without these folders.
+        """
+        for subdir in (AUTO_VIDEO_DIR, UPLOADED_VIDEO_DIR):
+            try:
+                os.makedirs(subdir, mode=0o755, exist_ok=True)
+                # Enforce the mode explicitly - os.makedirs() respects the
+                # umask and leaves existing directories untouched.
+                os.chmod(subdir, 0o755)
+            except OSError as e:
+                raise RuntimeError(
+                    f"Failed to create video subdirectory '{subdir}': {e}"
+                ) from e
 
     def _download_default_videos(self) -> None:
         """
         Downloads videos defined in default_recordings.yaml if not already present.
-        Skips downloading if the YAML file does not exist.
+        Skips downloading if the YAML file does not exist. All downloaded
+        files are written to AUTO_VIDEO_DIR.
         """
         if not os.path.isfile(DEFAULT_RECORDINGS_FILE):
             logger.error(
@@ -275,7 +364,8 @@ class VideosManager:
 
     def _download_video(self, url: str, filename: str) -> Optional[str]:
         """
-        Downloads a single video from URL if not already present.
+        Downloads a single video from URL into AUTO_VIDEO_DIR if not
+        already present.
 
         Args:
             url: URL of the video to download.
@@ -284,7 +374,7 @@ class VideosManager:
         Returns:
             Path to the downloaded file, or None on error.
         """
-        target_path = os.path.join(INPUT_VIDEO_DIR, filename)
+        target_path = os.path.join(AUTO_VIDEO_DIR, filename)
 
         # Skip if file already exists
         if os.path.isfile(target_path):
@@ -389,42 +479,79 @@ class VideosManager:
 
     def _scan_and_load_all_videos(self) -> None:
         """
-        Scans the INPUT_VIDEO_DIR directory for video files and loads/extracts metadata.
-        Populates the _videos map with Video objects.
+        Scans the 'auto' and 'uploaded' subdirectories for video files and
+        loads/extracts metadata. Populates ``_videos`` and ``_video_paths``.
+
+        If the same filename appears in both subdirectories (which the
+        upload endpoint actively prevents) the 'uploaded' copy wins so that
+        user intent is preserved and a warning is logged.
         """
-        logger.debug(f"Scanning directory '{INPUT_VIDEO_DIR}' for video files.")
-
-        for entry in os.listdir(INPUT_VIDEO_DIR):
-            file_path = os.path.join(INPUT_VIDEO_DIR, entry)
-            if not os.path.isfile(file_path):
+        # Scan 'auto' first so that any duplicate in 'uploaded' overrides it.
+        for subdir, source in (
+            (AUTO_VIDEO_DIR, "auto"),
+            (UPLOADED_VIDEO_DIR, "uploaded"),
+        ):
+            if not os.path.isdir(subdir):
+                logger.warning(
+                    f"Video subdirectory '{subdir}' is missing, skipping scan."
+                )
                 continue
 
-            ext = entry.lower().rsplit(".", 1)[-1]
-            if ext not in VIDEO_EXTENSIONS:
-                continue
+            logger.debug(f"Scanning directory '{subdir}' for video files.")
 
-            video = self._ensure_video_metadata(file_path)
-            if video is not None:
-                self._videos[entry] = video
+            for entry in os.listdir(subdir):
+                file_path = os.path.join(subdir, entry)
+                if not os.path.isfile(file_path):
+                    continue
 
-    def _ensure_video_metadata(self, file_path: str) -> Optional[Video]:
+                ext = entry.lower().rsplit(".", 1)[-1]
+                if ext not in VIDEO_EXTENSIONS:
+                    continue
+
+                if entry in self._videos:
+                    logger.warning(
+                        f"Duplicate video filename '{entry}' found in '{subdir}'. "
+                        f"Overriding the previous '{self._videos[entry].source}' entry."
+                    )
+
+                video = self._ensure_video_metadata(file_path, source)  # type: ignore[arg-type]
+                if video is not None:
+                    self._videos[entry] = video
+                    self._video_paths[entry] = file_path
+
+    def _ensure_video_metadata(
+        self, file_path: str, source: VideoSourceKind
+    ) -> Optional[Video]:
         """
         Ensures metadata exists for a single video file.
-        Loads from JSON cache if available, otherwise extracts from video and saves to JSON.
+        Loads from JSON cache if available, otherwise extracts from video and
+        saves to JSON. The ``source`` and ``path`` fields are always
+        overwritten with authoritative values derived from ``file_path``.
 
         Args:
             file_path: Full path to the video file.
+            source: Origin of the video ('auto' or 'uploaded').
 
         Returns:
             Video object if successful, None if video cannot be processed.
         """
         filename = os.path.basename(file_path)
         json_path = f"{file_path}.json"
+        # Build a short relative path of the form '<source>/<filename>' that
+        # the API surfaces to clients (they prefix it with their static asset
+        # root). Derived from ``source`` + ``filename`` so it stays valid
+        # regardless of where AUTO_VIDEO_DIR and UPLOADED_VIDEO_DIR live on
+        # disk.
+        rel_path = f"{source}/{filename}"
 
         # Try to load from JSON cache
         if os.path.isfile(json_path):
             video = self._load_video_from_json(json_path, filename)
             if video is not None:
+                # Overwrite any stale source/path in cached metadata so the
+                # in-memory view always matches the actual on-disk location.
+                video.source = source
+                video.path = rel_path
                 return video
 
         # Extract metadata from video file
@@ -450,6 +577,8 @@ class VideosManager:
             frame_count=file_info.frame_count,
             codec=file_info.codec,
             duration=file_info.duration,
+            source=source,
+            path=rel_path,
         )
 
         # Save metadata to JSON
@@ -535,7 +664,7 @@ class VideosManager:
     def _ensure_all_ts_conversions(self) -> None:
         """
         Ensures all non-TS videos have corresponding TS files for looping support.
-        Iterates through all loaded videos and converts if needed.
+        The TS companion lives next to the source video (same subdirectory).
         """
         logger.debug("Ensuring all TS conversions exist.")
 
@@ -544,14 +673,19 @@ class VideosManager:
             if ext in ("ts", "m2ts"):
                 continue
 
-            file_path = os.path.join(INPUT_VIDEO_DIR, filename)
+            file_path = self._video_paths.get(filename)
+            if file_path is None:
+                continue
+
             self.ensure_ts_file(file_path)
 
     def ensure_ts_file(self, source_path: str) -> Optional[str]:
         """
         Ensures a TS file exists for the given video file.
         If TS file does not exist, converts the source video to TS format.
-        Also ensures TS file has metadata JSON.
+        Also ensures TS file has metadata JSON and is registered in the
+        internal filename -> path map. The TS file is written in the same
+        directory as ``source_path``.
 
         This method is public because it's used by graph.py to ensure TS file
         exists before using it in looping playback.
@@ -563,19 +697,22 @@ class VideosManager:
             Path to the TS file if successful, None on error.
         """
         source_filename = os.path.basename(source_path)
+        source_dir = os.path.dirname(source_path)
         ext = source_filename.lower().rsplit(".", 1)[-1]
 
         # If already TS, return as-is
         if ext in ("ts", "m2ts"):
             return source_path
 
-        # Build TS path
+        # Build TS path alongside the source file (same subdir -> so that
+        # 'auto' videos get their TS in 'auto' and 'uploaded' videos get
+        # theirs in 'uploaded').
         ts_filename = f"{os.path.splitext(source_filename)[0]}.ts"
-        ts_path = os.path.join(INPUT_VIDEO_DIR, ts_filename)
+        ts_path = os.path.join(source_dir, ts_filename)
 
         # Check if TS file already exists
         if os.path.isfile(ts_path):
-            # Ensure TS file has metadata
+            # Ensure TS file has metadata and is registered in our maps.
             self._ensure_ts_metadata(ts_path, ts_filename)
             return ts_path
 
@@ -606,18 +743,39 @@ class VideosManager:
     def _ensure_ts_metadata(self, ts_path: str, ts_filename: str) -> None:
         """
         Ensures metadata JSON exists for a TS file.
-        If not already in _videos, loads or creates metadata.
+        If not already in _videos, loads or creates metadata and registers the
+        TS file in both ``_videos`` and ``_video_paths``.
 
         Args:
             ts_path: Full path to the TS file.
             ts_filename: TS filename.
         """
         if ts_filename in self._videos:
+            # Always refresh the path map in case the TS file was moved
+            # between subdirs (for example after a user upload).
+            self._video_paths[ts_filename] = ts_path
             return
 
-        video = self._ensure_video_metadata(ts_path)
+        # Derive the source (auto/uploaded) from the parent directory of the
+        # TS file itself so the metadata matches where it physically lives.
+        source: VideoSourceKind = self._source_for_path(ts_path)
+
+        video = self._ensure_video_metadata(ts_path, source)
         if video is not None:
             self._videos[ts_filename] = video
+            self._video_paths[ts_filename] = ts_path
+
+    @staticmethod
+    def _source_for_path(file_path: str) -> VideoSourceKind:
+        """
+        Decides whether a given absolute file path belongs to the 'auto' or
+        'uploaded' subtree. Defaults to 'auto' for paths that do not match
+        either location (should not happen in practice).
+        """
+        parent = os.path.dirname(os.path.abspath(file_path))
+        if os.path.abspath(parent) == os.path.abspath(UPLOADED_VIDEO_DIR):
+            return "uploaded"
+        return "auto"
 
     @staticmethod
     def _convert_to_ts(source_path: str, ts_path: str, ext: str, codec: str) -> bool:
@@ -717,7 +875,10 @@ class VideosManager:
 
         If the input already has a .ts or .m2ts extension, it is returned unchanged.
         If the extension is unsupported, returns None.
-        Handles both filenames and full paths.
+        Handles both filenames and full paths; when a bare filename is given
+        the source location is resolved via the internal filename -> path map
+        (so callers do not need to know whether the video lives under
+        'auto/' or 'uploaded/').
 
         Args:
             filename: Video filename or full path.
@@ -737,11 +898,17 @@ class VideosManager:
             logger.warning("Unsupported video extension '.%s' for %s", ext, filename)
             return None
 
-        # Build source path
+        # Build source path.
         if directory:
+            # Caller already gave us a full path - trust it.
             source_path = filename
         else:
-            source_path = os.path.join(INPUT_VIDEO_DIR, basename)
+            # Resolve the real location from the map; fall back to
+            # AUTO_VIDEO_DIR for recordings listed in the yaml that have
+            # not been downloaded yet.
+            source_path = self._video_paths.get(basename) or os.path.join(
+                AUTO_VIDEO_DIR, basename
+            )
 
         # If already TS, ensure metadata exists and return as-is
         if ext in ("ts", "m2ts"):
@@ -789,18 +956,186 @@ class VideosManager:
 
     def get_video_path(self, filename: str) -> Optional[str]:
         """
-        Returns the path for the given Video filename, or None if not found.
+        Returns the absolute path for the given Video filename, or None if
+        not known. The returned path points to the real location (inside
+        ``AUTO_VIDEO_DIR`` or ``UPLOADED_VIDEO_DIR``), which lets callers
+        keep working without knowing which sub-directory holds the file.
 
         Args:
             filename: The Video filename.
 
         Returns:
-            Path to the Video filename if found, else None.
+            Full absolute path to the Video file if known, else None.
         """
         if filename not in self._videos:
             return None
 
-        return os.path.join(INPUT_VIDEO_DIR, filename)
+        # The map is populated whenever a Video is inserted into ``_videos``
+        # so the missing-entry case below should not fire in practice.
+        return self._video_paths.get(filename)
+
+    def filename_exists(self, filename: str) -> bool:
+        """
+        Returns True when a file with the given basename already exists under
+        either AUTO_VIDEO_DIR or UPLOADED_VIDEO_DIR.
+
+        This is used by the upload endpoint (and the
+        ``/videos/check-video-input-exists`` endpoint) to prevent filename
+        collisions that would otherwise break the shared _videos map.
+
+        Args:
+            filename: Basename to check (no directory component).
+
+        Returns:
+            True if the file exists in either subdirectory, False otherwise.
+        """
+        if not filename:
+            return False
+
+        # Defend against path traversal by considering only the basename.
+        basename = os.path.basename(filename)
+
+        # Fast path: in-memory map covers every file we have scanned.
+        if basename in self._video_paths:
+            return True
+
+        # Fallback to a disk check - catches files that appeared after the
+        # last scan (e.g. a manual copy into the shared volume).
+        for subdir in (AUTO_VIDEO_DIR, UPLOADED_VIDEO_DIR):
+            if os.path.isfile(os.path.join(subdir, basename)):
+                return True
+
+        return False
+
+    def register_uploaded_video(
+        self, temp_path: str, target_filename: str
+    ) -> Tuple[Video, Optional[Video]]:
+        """
+        Finalises a user upload by moving an already-validated temporary file
+        into UPLOADED_VIDEO_DIR, generating its metadata JSON, producing a TS
+        companion next to it (with its own metadata JSON), and registering
+        both entries in the internal ``_videos`` / ``_video_paths`` maps.
+
+        The caller is responsible for performing extension, size, container
+        and codec checks before invoking this method. On failure the target
+        files are cleaned up so the shared folder is left in a consistent
+        state.
+
+        Args:
+            temp_path: Absolute path to the validated temporary file.
+            target_filename: Final basename to use inside UPLOADED_VIDEO_DIR.
+
+        Returns:
+            Tuple ``(original_video, ts_video)``. ``ts_video`` is None when
+            TS conversion is not applicable (e.g. the upload is already a
+            .ts file).
+
+        Raises:
+            RuntimeError: If the final file cannot be moved into place, the
+                metadata cannot be generated, or the TS conversion fails.
+        """
+        basename = os.path.basename(target_filename)
+        target_path = os.path.join(UPLOADED_VIDEO_DIR, basename)
+
+        # Serialise the commit so two concurrent uploads that both passed
+        # filename_exists() earlier cannot race to move their temp files
+        # into the same ``target_path``. The atomic ``O_CREAT | O_EXCL``
+        # reservation below turns the filename check + move into a single
+        # critical section per target path.
+        with self._upload_lock:
+            # Atomically reserve ``target_path``. If the file (or a
+            # reservation from a concurrent upload) already exists, abort
+            # before touching anything on disk.
+            try:
+                fd = os.open(
+                    target_path,
+                    os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                    0o644,
+                )
+                os.close(fd)
+            except FileExistsError as exc:
+                raise RuntimeError(
+                    f"A video with filename '{basename}' already exists."
+                ) from exc
+
+            # Move the validated temp file into its final location. shutil.move
+            # is used because the temp dir and the shared volume can live on
+            # different filesystems. We just created an empty placeholder
+            # at ``target_path`` above; shutil.move replaces it atomically
+            # on POSIX (same filesystem) or overwrites it otherwise.
+            if not self._move_file(temp_path, target_path):
+                # Drop the placeholder we created so a retry can succeed.
+                self._cleanup_file(target_path)
+                raise RuntimeError(
+                    f"Failed to move uploaded file '{basename}' into place."
+                )
+
+            # The streaming temp file is created with mode 0600 for safety, which
+            # prevents the UI's nginx (running as a different user in its own
+            # container) from reading the final video and serving it back to the
+            # browser. Relax the mode to 0644 - matching the other files produced
+            # during post-upload processing - so the UI can render the preview.
+            try:
+                os.chmod(target_path, 0o644)
+            except OSError as exc:
+                logger.warning(f"Could not set permissions on '{target_path}': {exc}")
+
+        # Generate the metadata JSON for the original file.
+        original_video = self._ensure_video_metadata(target_path, "uploaded")
+        if original_video is None:
+            # _ensure_video_metadata already logged the reason.
+            self._cleanup_uploaded_artifacts(target_path)
+            raise RuntimeError(
+                f"Failed to extract metadata for uploaded video '{basename}'."
+            )
+
+        # Register the original in the in-memory maps so it is queryable
+        # while the TS conversion below is still running. Any failure in the
+        # TS step rolls the entry back (see below) to keep the folder in a
+        # consistent state.
+        self._videos[basename] = original_video
+        self._video_paths[basename] = target_path
+
+        # If the upload is already a transport stream there is nothing to do.
+        ext = basename.lower().rsplit(".", 1)[-1]
+        if ext in ("ts", "m2ts"):
+            return original_video, None
+
+        # Create the TS companion next to the original. ``ensure_ts_file``
+        # handles the conversion, creates the TS JSON and registers the TS
+        # entry in both maps.
+        ts_path = self.ensure_ts_file(target_path)
+        if ts_path is None or not os.path.isfile(ts_path):
+            # Roll back to keep the folder in a consistent state.
+            self._videos.pop(basename, None)
+            self._video_paths.pop(basename, None)
+            self._cleanup_uploaded_artifacts(target_path)
+            raise RuntimeError(
+                f"Failed to create TS companion for uploaded video '{basename}'."
+            )
+
+        ts_filename = os.path.basename(ts_path)
+        ts_video = self._videos.get(ts_filename)
+        return original_video, ts_video
+
+    def _cleanup_uploaded_artifacts(self, target_path: str) -> None:
+        """
+        Remove every artifact belonging to a failed upload: the original
+        file, its metadata JSON, and (if present) the TS file and TS JSON.
+        Missing files are ignored - this is purely best-effort cleanup.
+        """
+        basename = os.path.basename(target_path)
+        base, _ = os.path.splitext(basename)
+        target_dir = os.path.dirname(target_path)
+        ts_path = os.path.join(target_dir, f"{base}.ts")
+
+        for path in (
+            target_path,
+            f"{target_path}.json",
+            ts_path,
+            f"{ts_path}.json",
+        ):
+            self._cleanup_file(path)
 
 
 def collect_video_outputs_from_dirs(

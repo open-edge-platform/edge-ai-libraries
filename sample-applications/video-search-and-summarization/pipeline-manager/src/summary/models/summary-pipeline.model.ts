@@ -43,6 +43,9 @@ export interface SummaryPipelinePrompts {
   summaryMapPrompt?: string;
   summaryReducePrompt?: string;
   summarySinglePrompt?: string;
+  audioSummaryMapPrompt?: string;
+  audioSummaryReducePrompt?: string;
+  audioSummarySinglePrompt?: string;
 }
 export class SummaryPipelinePromptsSwagger implements SummaryPipelinePrompts {
   @ApiProperty({
@@ -65,10 +68,29 @@ export class SummaryPipelinePromptsSwagger implements SummaryPipelinePrompts {
     description: 'Prompt for single summary processing',
   })
   summarySinglePrompt?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Prompt for full audio transcript summarization (map stage)',
+  })
+  audioSummaryMapPrompt?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Prompt for full audio transcript summarization (reduce stage)',
+  })
+  audioSummaryReducePrompt?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Prompt for full audio transcript summarization (single reduction stage)',
+  })
+  audioSummarySinglePrompt?: string;
 }
 
 export interface SummaryPipelineAudio {
   audioModel: string;
+  useFullTranscriptSummary?: boolean;
 }
 
 export class SummaryPipelineAudioSwagger implements SummaryPipelineAudio {
@@ -77,6 +99,12 @@ export class SummaryPipelineAudioSwagger implements SummaryPipelineAudio {
     description: 'Audio model configuration',
   })
   audioModel: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Enable full transcript summarization for audio-dominant videos',
+  })
+  useFullTranscriptSummary?: boolean;
 }
 
 export interface SummaryPipelineEvam {
