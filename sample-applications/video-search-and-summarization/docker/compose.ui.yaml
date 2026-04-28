@@ -19,7 +19,7 @@ services:
     build:
       context: ../ui/react
       dockerfile: Dockerfile
-    image: ${REGISTRY:-}vss-search-ui:${TAG:-latest}
+    image: ${REGISTRY:-}vss-ui:${TAG:-latest}
     ipc: host
     profiles:
       - dual_ui
@@ -44,7 +44,7 @@ services:
     build:
       context: ../ui/react
       dockerfile: Dockerfile
-    image: ${REGISTRY:-}vss-search-ui:${TAG:-latest}
+    image: ${REGISTRY:-}vss-ui:${TAG:-latest}
     ipc: host
     profiles:
       - dual_ui
@@ -69,7 +69,7 @@ services:
     build:
       context: ../ui/react
       dockerfile: Dockerfile
-    image: ${REGISTRY:-}vss-search-ui:${TAG:-latest}
+    image: ${REGISTRY:-}vss-ui:${TAG:-latest}
     ipc: host
     profiles:
       - unified_ui
