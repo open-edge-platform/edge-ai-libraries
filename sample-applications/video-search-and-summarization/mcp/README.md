@@ -1,9 +1,6 @@
 # Video Search and Summarization MCP Server
 
-This is the **MCP (Model Context Protocol) server** for the
-[Video Search and Summarization (VSS)](https://github.com/open-edge-platform/edge-ai-libraries)
-sample application. It proxies VSS REST endpoints to MCP clients (agents, IDE
-extensions, MCP Inspector, etc.) as **tools** and **resources**.
+This is the **MCP (Model Context Protocol) server** for the [Video Search and Summarization (VSS)](https://github.com/open-edge-platform/edge-ai-libraries) sample application. It proxies VSS REST endpoints to MCP clients (agents, IDE extensions, MCP Inspector, etc.) as **tools** and **resources**.
 
 > **Note:** The MCP server currently supports **Search mode** only.
 > Summary and combined Search + Summary modes will be supported in a future release.
@@ -16,9 +13,7 @@ mcp/                             ← cd here before running any commands
 ├── pyproject.toml               # Project metadata and dependencies (uv-managed)
 ├── uv.lock                      # Locked dependency tree
 ├── Dockerfile
-├── all.json                     # Filter: all VSS endpoints (default)
 ├── search.json                  # Filter: search-only endpoints
-├── summary.json                 # Filter: summary-only endpoints
 │
 ├── src/
 │   ├── main.py                  # Server bootstrap
@@ -35,6 +30,7 @@ mcp/                             ← cd here before running any commands
 └── tests/
     ├── test_config.py           # Settings and environment parsing tests
     └── test_filters.py          # Filter config validation tests
+    └── test_mapping.py          # FastMCP OpenAPI mapping callbacks tests
 ```
 
 
@@ -76,8 +72,7 @@ docker run --rm -p 8000:8000 \
 
 The MCP server is then reachable at `http://127.0.0.1:8000/mcp`.
 
-See [docs/user-guide/mcp-server.md](../docs/user-guide/mcp-server.md) for the
-full guide, runtime configuration, filter file format, and how to extend the server.
+See [docs/user-guide/mcp-server.md](../docs/user-guide/mcp-server.md) for the full guide, runtime configuration, filter file format, and how to extend the server.
 
 
 ## Filter File Format

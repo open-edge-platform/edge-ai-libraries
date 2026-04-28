@@ -482,9 +482,7 @@ For alternative ways to set up the sample application, see [How to Build from So
 
 ## Connect AI Agents via MCP
 
-Once VSS is running, you can connect AI agents to it using
-the included MCP server. The MCP server exposes VSS capabilities as typed tools
-and read-only resources for any MCP-compatible client.
+Once VSS is running, you can connect AI agents to it using the included MCP server. The MCP server exposes VSS capabilities as typed tools and read-only resources for any MCP-compatible client.
 
 See the [MCP Server guide](./mcp-server.md) for setup instructions.
 

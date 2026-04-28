@@ -1,17 +1,11 @@
 # MCP Server for VSS
 
-The VSS MCP server exposes the [Video Search and Summarization (VSS)](./index.md)
-REST API to AI agents and IDE extensions using the
-[Model Context Protocol (MCP)](https://modelcontextprotocol.io/). It reads the
-live VSS OpenAPI spec at startup and registers a selected subset of endpoints as
-**MCP tools** and **resources**.
+The VSS MCP server exposes the [Video Search and Summarization (VSS)](./index.md) REST API to AI agents and IDE extensions using the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). It reads the live VSS OpenAPI spec at startup and registers a selected subset of endpoints as **MCP tools** and **resources**.
 
 > **Note:** The MCP server currently supports **Search mode** only.
 > Summary and combined Search + Summary modes will be supported in a future release.
 
-The server is controlled by a **filter file**, a small JSON document that
-lists exactly which VSS endpoints to expose and whether each appears as a tool
-or a resource. The bundled `search.json` filter covers the Search mode:
+The server is controlled by a **filter file**, a small JSON document that lists exactly which VSS endpoints to expose and whether each appears as a tool or a resource. The bundled `search.json` filter covers the Search mode:
 
 
 ## Prerequisites
@@ -71,8 +65,7 @@ http://127.0.0.1:8000/mcp
 
 ## What MCP Clients See
 
-At startup the server reads the VSS OpenAPI spec and the filter file, then
-registers exactly the operations listed in the filter.
+At startup the server reads the VSS OpenAPI spec and the filter file, then registers exactly the operations listed in the filter.
 
 **Tools** (state-changing or parameterised operations), examples from `search.json`:
 
@@ -85,24 +78,17 @@ registers exactly the operations listed in the filter.
 | `vss_get_tags`                       | `GET /tags`                                    |
 | `vss_delete_tag`                     | `DELETE /tags/{tagId}`                         |
 
-Tool names are built from `prefix` + `name` in the filter file, forming names like
-`"vss_run_search_query"`.
+Tool names are built from `prefix` + `name` in the filter file, forming names like `"vss_run_search_query"`.
 
-**Resources** (read-only, GET only) are named from `prefix` + `name` in the filter
-file. For example, a resource with `prefix: "vss"` and `name: "app_features"` is
-reachable as:
+**Resources** (read-only, GET only) are named from `prefix` + `name` in the filter file. For example, a resource with `prefix: "vss"` and `name: "app_features"` is reachable as:
 
 ```
 resource://vss_app_features
 ```
 
-
 ## Video Upload
 
-`POST /videos` is intentionally **not** exposed. Video upload is a long-running
-multipart operation better handled directly via the VSS REST API. Use the MCP
-server for discovery, search and status workflows only.
-
+`POST /videos` is intentionally **not** exposed. Video upload is a long-running multipart operation better handled directly via the VSS REST API. Use the MCP server for discovery, search and status workflows only.
 
 ## Connecting with MCP Inspector
 
@@ -114,8 +100,4 @@ npx -y @modelcontextprotocol/inspector
 2. Enter `http://<HOST_IP>:8000/mcp`.
 3. Click **Connect**.
 
-Inspector lists all tools and resources registered for the active filter. Use
-the **Run tool** button to call a tool and confirm the MCP server can reach the
-VSS backend.
-
-
+Inspector lists all tools and resources registered for the active filter. Use the **Run tool** button to call a tool and confirm the MCP server can reach the VSS backend.
