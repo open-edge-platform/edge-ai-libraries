@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { redirect, type RouteObject } from "react-router";
 import { Home as HomePage } from "@/pages/Home.tsx";
-import { PipelineEditor } from "@/pages/PipelineEditor.tsx";
+import { Pipelines } from "@/pages/Pipelines.tsx";
 import { Models } from "@/pages/Models.tsx";
 import { Videos } from "@/pages/Videos.tsx";
 import { ImageSets } from "@/pages/ImageSets.tsx";
@@ -57,7 +57,7 @@ export const menuItems: Array<NavigationItem> = [
 export const routeConfig: Array<RouteObject> = [
   { index: true, path: "", Component: HomePage },
   { path: "pipelines", Component: PipelineList },
-  { path: "pipelines/:id/:variant", Component: PipelineEditor },
+  { path: "pipelines/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
   { path: "images", Component: ImageSets },

@@ -2057,7 +2057,7 @@ optional = false
 python-versions = ">=3.10,<3.14"
 groups = ["main"]
 files = [
-    {file = "multimodal_embedding_serving-0.1.1-py3-none-any.whl", hash = "sha256:c3a8ee242320531546a02f55892d3d8ebbc0a254201d923dd527aa0892c8dc20"},
+    {file = "multimodal_embedding_serving-0.1.1-py3-none-any.whl", hash = "sha256:312503067021611ffb146a794955e57565e4f22e9b0ae870b11572b014e1db79"},
 ]
 
 [package.dependencies]
@@ -2072,7 +2072,7 @@ httpx = "0.27.2"
 nncf = ">=2.18.0,<3.0.0"
 numpy = ">=2.1.0"
 open-clip-torch = ">=3.1.0,<4.0.0"
-opencv-python = ">=4.11.0.86,<5.0.0.0"
+opencv-python-headless = ">=4.11.0.86,<5.0.0.0"
 openvino = ">=2025.3.0,<2026.0.0"
 optimum-intel = ">=1.26.0,<2.0.0"
 pillow = ">=12.1.1,<13.0.0"
@@ -2347,27 +2347,6 @@ tqdm = "*"
 [package.extras]
 test = ["open_clip_torch[training]", "pytest", "pytest-split", "requests"]
 training = ["fsspec", "pandas", "timm (>=1.0.17)", "torch (>=2.0)", "transformers[sentencepiece]", "webdataset (>=0.2.5,<=0.2.86)"]
-
-[[package]]
-name = "opencv-python"
-version = "4.13.0.92"
-description = "Wrapper package for OpenCV python bindings."
-optional = false
-python-versions = ">=3.6"
-groups = ["main"]
-files = [
-    {file = "opencv_python-4.13.0.92-cp37-abi3-macosx_13_0_arm64.whl", hash = "sha256:caf60c071ec391ba51ed00a4a920f996d0b64e3e46068aac1f646b5de0326a19"},
-    {file = "opencv_python-4.13.0.92-cp37-abi3-macosx_14_0_x86_64.whl", hash = "sha256:5868a8c028a0b37561579bfb8ac1875babdc69546d236249fff296a8c010ccf9"},
-    {file = "opencv_python-4.13.0.92-cp37-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:0bc2596e68f972ca452d80f444bc404e08807d021fbba40df26b61b18e01838a"},
-    {file = "opencv_python-4.13.0.92-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:402033cddf9d294693094de5ef532339f14ce821da3ad7df7c9f6e8316da32cf"},
-    {file = "opencv_python-4.13.0.92-cp37-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:bccaabf9eb7f897ca61880ce2869dcd9b25b72129c28478e7f2a5e8dee945616"},
-    {file = "opencv_python-4.13.0.92-cp37-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:620d602b8f7d8b8dab5f4b99c6eb353e78d3fb8b0f53db1bd258bb1aa001c1d5"},
-    {file = "opencv_python-4.13.0.92-cp37-abi3-win32.whl", hash = "sha256:372fe164a3148ac1ca51e5f3ad0541a4a276452273f503441d718fab9c5e5f59"},
-    {file = "opencv_python-4.13.0.92-cp37-abi3-win_amd64.whl", hash = "sha256:423d934c9fafb91aad38edf26efb46da91ffbc05f3f59c4b0c72e699720706f5"},
-]
-
-[package.dependencies]
-numpy = {version = ">=2", markers = "python_version >= \"3.9\""}
 
 [[package]]
 name = "opencv-python-headless"

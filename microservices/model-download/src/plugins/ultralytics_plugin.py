@@ -73,6 +73,15 @@ class UltralyticsDownloader(ModelDownloadPlugin):
                     "No INT8 artifacts were generated."
                 )
 
+        if int8_requested and return_code == 0:
+            int8_artifacts = self._find_int8_artifacts(hub_dir, model_name)
+            if not int8_artifacts:
+                self._cleanup_requested_model_artifacts(hub_dir, model_name)
+                raise RuntimeError(
+                    f"INT8 export not supported for '{model_name}' (dataset='{quantize}'). "
+                    "No INT8 artifacts were generated."
+                )
+
         if return_code != 0:
             if int8_requested:
                 self._cleanup_requested_model_artifacts(hub_dir, model_name)

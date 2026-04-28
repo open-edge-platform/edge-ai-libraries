@@ -14,6 +14,7 @@
 - Chat data is stored in localStorage for session continuity. After container restarts, old chats may reappear — clear your browser’s localStorage to start fresh.
 - Limited validation done on EMT-S due to EMT-S issues. It is not recommended to use Chat Q&A modular on EMT-S until full validation is completed.
 - DeepSeek/Phi Models are observed, at times, to continue generating responses in an endless loop. Close the browser and restart in such cases.
+- When multiple applications use the model download service concurrently, downloads may take longer than usual. In such cases, retry with increased `SLEEP_SECS` in the `download_ovms_model` function in `setup.sh`.
 
 ## Previous Releases
 

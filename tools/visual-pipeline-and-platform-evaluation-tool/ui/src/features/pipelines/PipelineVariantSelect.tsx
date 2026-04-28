@@ -17,6 +17,7 @@ interface PipelineVariantSelectProps {
   variants: Variant[];
   source?: string | null;
   hasUnsavedChanges?: boolean;
+  disabled?: boolean;
 }
 
 export const PipelineVariantSelect = ({
