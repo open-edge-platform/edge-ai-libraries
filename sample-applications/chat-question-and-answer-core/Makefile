@@ -175,7 +175,7 @@ deploy:
 	echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 	echo ""; \
 	if [ "$(BACKEND_UPPER)" = "OPENVINO" ] && [ -z "$${HUGGINGFACEHUB_API_TOKEN:-}" ]; then \
-		echo "⚠️  HUGGINGFACEHUB_API_TOKEN is not set. Only publicly available models can be downloaded."; \
+		echo "⚠️  HUGGINGFACEHUB_API_TOKEN is not set. Only public models accessible."; \
 		echo "   To use private models: export HUGGINGFACEHUB_API_TOKEN=<your-token>"; \
 		echo ""; \
 	fi; \
