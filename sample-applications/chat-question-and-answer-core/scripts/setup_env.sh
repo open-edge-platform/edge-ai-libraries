@@ -117,7 +117,11 @@ elif [ "$BACKEND" == "OLLAMA" ]; then
 fi
 
 export USER_GROUP_ID=$(id -g ${USER})
-export HF_ACCESS_TOKEN="${HUGGINGFACEHUB_API_TOKEN}"
+if [ -n "${HUGGINGFACEHUB_API_TOKEN}" ]; then
+    export HF_ACCESS_TOKEN="${HUGGINGFACEHUB_API_TOKEN}"
+else
+    echo "INFO - HUGGINGFACEHUB_API_TOKEN is not set. HF_ACCESS_TOKEN will not be exported. Only publicly available models can be downloaded."
+fi
 export MODEL_CACHE_PATH="$MODEL_CACHE_PATH"
 export APP_BACKEND_URL="/v1/chatqna"
 export COMPOSE_PROFILES=$PROFILES
