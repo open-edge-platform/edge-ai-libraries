@@ -1,5 +1,3 @@
-/*SPDX-License-Identifier: Apache-2.0*/
-
 export {
   CHART_MAX_DATA_POINTS,
   getRecentYAxisMax,

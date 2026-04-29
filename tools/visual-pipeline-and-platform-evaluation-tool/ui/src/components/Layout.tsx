@@ -25,12 +25,6 @@ const Layout = () => {
   const { theme, setTheme } = useTheme();
   const location = useLocation();
 
-  const isRouteActive = (path: string) => {
-    if (path === "" && location.pathname === "/") return true;
-    if (path === "") return false;
-    return matchPath({ path, end: false }, location.pathname);
-  };
-
   return (
     <BackgroundJobsProvider>
       <div className="flex flex-col h-screen">
@@ -66,10 +60,13 @@ const Layout = () => {
             <div className="flex h-full overflow-auto relative">
               {routeConfig.map((route, index) => {
                 const routePath = route.path ?? "";
-                const isKeepAlive = keepAliveRoutes.some((keepAlivePath) =>
-                  routePath.startsWith(keepAlivePath.replace(/^\//, "")),
+                const isKeepAlive = keepAliveRoutes.some(
+                  (keepAlivePath) =>
+                    routePath === keepAlivePath.replace(/^\//, ""),
                 );
-                const isActive = isRouteActive(routePath);
+                const isActive =
+                  isKeepAlive &&
+                  matchPath({ path: routePath, end: true }, location.pathname);
 
                 if (isKeepAlive && route.Component) {
                   const Component = route.Component;
@@ -89,7 +86,10 @@ const Layout = () => {
                 return null;
               })}
               {!keepAliveRoutes.some((path) =>
-                location.pathname.startsWith(path),
+                matchPath(
+                  { path: path.replace(/^\//, ""), end: true },
+                  location.pathname,
+                ),
               ) && <Outlet />}
             </div>
           </SidebarInset>

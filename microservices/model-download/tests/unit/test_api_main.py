@@ -829,3 +829,224 @@ class TestAPIErrorHandling:
         data = response.json()
         assert "Started processing 0 model(s)" in data["message"]
         assert data["job_ids"] == []
+
+
+class TestUploadModel:
+    """Test suite for POST /models/upload endpoint"""
+
+    import io as _io
+    import zipfile as _zipfile
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def _make_valid_zip(self) -> bytes:
+        """Helper: create an in-memory ZIP with model.xml and model.bin."""
+        import io
+        import zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("model.xml", "<model/>")
+            zf.writestr("model.bin", b"\x00\x01\x02\x03".decode("latin-1"))
+        return buf.getvalue()
+
+    @patch("src.api.main.model_manager")
+    @patch("os.path.exists", return_value=False)
+    @patch("os.makedirs")
+    @patch("zipfile.ZipFile.extractall")
+    def test_upload_valid_model_returns_200(
+        self, mock_extractall, mock_makedirs, mock_exists, mock_manager, client
+    ):
+        """Successful upload with a valid ZIP returns HTTP 200 and appears in results."""
+        mock_manager.register_job.return_value = "upload-job-1"
+        mock_manager._jobs = {}
+
+        # Simulate register_job populating _jobs
+        def fake_register_job(**kwargs):
+            mock_manager._jobs["upload-job-1"] = {
+                "id": "upload-job-1",
+                "operation_type": "upload",
+                "model_name": kwargs.get("model_name"),
+                "hub": "user-uploaded",
+                "output_dir": kwargs.get("output_dir"),
+                "status": "queued",
+            }
+            return "upload-job-1"
+
+        mock_manager.register_job.side_effect = fake_register_job
+
+        zip_bytes = self._make_valid_zip()
+
+        response = client.post(
+            "/models/upload",
+            data={"model_name": "My Test Model", "provider": "geti", "framework": "openvino"},
+            files={"file": ("model.zip", zip_bytes, "application/zip")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["model_name"] == "my_test_model"  # sanitized
+        assert "model_path" in data
+        assert data["job_id"] == "upload-job-1"
+
+        # Verify it is marked completed in jobs store
+        assert mock_manager._jobs["upload-job-1"]["status"] == "completed"
+        assert "completion_time" in mock_manager._jobs["upload-job-1"]
+
+    def test_upload_missing_file_returns_422(self, client):
+        """POST without a file should return HTTP 422 (missing required field)."""
+        response = client.post(
+            "/models/upload",
+            data={"model_name": "some_model"},
+        )
+        assert response.status_code == 422
+
+    def test_upload_missing_model_name_returns_422(self, client):
+        """POST without model_name should return HTTP 422."""
+        zip_bytes = self._make_valid_zip()
+        response = client.post(
+            "/models/upload",
+            files={"file": ("model.zip", zip_bytes, "application/zip")},
+        )
+        assert response.status_code == 422
+
+    @patch("src.api.main.MAX_UPLOAD_SIZE_BYTES", 10)
+    def test_upload_oversized_file_returns_413(self, client):
+        """File exceeding the size limit must return HTTP 413."""
+        zip_bytes = self._make_valid_zip()  # larger than 10 bytes
+        response = client.post(
+            "/models/upload",
+            data={"model_name": "big_model"},
+            files={"file": ("big_model.zip", zip_bytes, "application/zip")},
+        )
+        assert response.status_code == 413
+        assert "upload limit" in response.json()["detail"]
+
+    def test_upload_non_zip_returns_400(self, client):
+        """Uploading a non-ZIP file should return HTTP 400."""
+        response = client.post(
+            "/models/upload",
+            data={"model_name": "bad_model"},
+            files={"file": ("model.txt", b"not a zip file", "text/plain")},
+        )
+        assert response.status_code == 400
+        assert "not a valid ZIP" in response.json()["detail"]
+
+    def test_upload_zip_missing_xml_returns_400(self, client):
+        """ZIP without .xml file should return HTTP 400."""
+        import io
+        import zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("model.bin", b"\x00\x01".decode("latin-1"))
+        response = client.post(
+            "/models/upload",
+            data={"model_name": "incomplete_model"},
+            files={"file": ("model.zip", buf.getvalue(), "application/zip")},
+        )
+        assert response.status_code == 400
+        assert ".xml" in response.json()["detail"]
+
+    def test_upload_zip_missing_bin_returns_400(self, client):
+        """ZIP without .bin file should return HTTP 400."""
+        import io
+        import zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("model.xml", "<model/>")
+        response = client.post(
+            "/models/upload",
+            data={"model_name": "incomplete_model"},
+            files={"file": ("model.zip", buf.getvalue(), "application/zip")},
+        )
+        assert response.status_code == 400
+        assert ".bin" in response.json()["detail"]
+
+    @patch("os.path.exists", return_value=True)
+    def test_upload_duplicate_model_returns_409(self, mock_exists, client):
+        """Uploading a model whose directory already exists returns HTTP 409."""
+        zip_bytes = self._make_valid_zip()
+        response = client.post(
+            "/models/upload",
+            data={"model_name": "existing_model"},
+            files={"file": ("model.zip", zip_bytes, "application/zip")},
+        )
+        assert response.status_code == 409
+        assert "already exists" in response.json()["detail"]
+
+    @patch("src.api.main.model_manager")
+    @patch("os.path.exists", return_value=False)
+    @patch("os.makedirs")
+    @patch("zipfile.ZipFile.extractall")
+    def test_upload_model_name_sanitization(
+        self, mock_extractall, mock_makedirs, mock_exists, mock_manager, client
+    ):
+        """model_name is lowercased, spaces replaced with underscores, special chars stripped."""
+        mock_manager.register_job.return_value = "upload-job-2"
+        mock_manager._jobs = {}
+
+        def fake_register(**kwargs):
+            mock_manager._jobs["upload-job-2"] = {
+                "id": "upload-job-2",
+                "status": "queued",
+            }
+            return "upload-job-2"
+
+        mock_manager.register_job.side_effect = fake_register
+
+        response = client.post(
+            "/models/upload",
+            data={"model_name": "  My Model!! v2.0 "},
+            files={"file": ("model.zip", self._make_valid_zip(), "application/zip")},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["model_name"] == "my_model_v20"
+
+    @patch("src.api.main.model_manager")
+    @patch("os.path.exists", return_value=False)
+    @patch("os.makedirs")
+    @patch("zipfile.ZipFile.extractall")
+    def test_upload_with_precision_in_path(
+        self, mock_extractall, mock_makedirs, mock_exists, mock_manager, client
+    ):
+        """When precision is provided it appears in the storage path."""
+        mock_manager.register_job.return_value = "upload-job-3"
+        mock_manager._jobs = {}
+
+        def fake_register(**kwargs):
+            mock_manager._jobs["upload-job-3"] = {
+                "id": "upload-job-3",
+                "status": "queued",
+                "output_dir": kwargs.get("output_dir", ""),
+            }
+            return "upload-job-3"
+
+        mock_manager.register_job.side_effect = fake_register
+
+        response = client.post(
+            "/models/upload",
+            data={"model_name": "yolo_custom", "precision": "FP32"},
+            files={"file": ("model.zip", self._make_valid_zip(), "application/zip")},
+        )
+
+        assert response.status_code == 200
+        assert "FP32" in response.json()["model_path"]
+
+    @patch("src.api.main.model_manager")
+    @patch("os.path.exists", return_value=False)
+    @patch("os.makedirs")
+    @patch("zipfile.ZipFile.extractall", side_effect=RuntimeError("disk full"))
+    def test_upload_extraction_failure_returns_500(
+        self, mock_extractall, mock_makedirs, mock_exists, mock_manager, client
+    ):
+        """If extraction fails the endpoint returns HTTP 500 and cleans up."""
+        response = client.post(
+            "/models/upload",
+            data={"model_name": "crash_model"},
+            files={"file": ("model.zip", self._make_valid_zip(), "application/zip")},
+        )
+        assert response.status_code == 500
+        assert "Failed to extract model" in response.json()["detail"]

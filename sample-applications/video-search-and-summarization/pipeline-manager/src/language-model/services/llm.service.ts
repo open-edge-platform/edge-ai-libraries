@@ -64,10 +64,13 @@ export class LlmService {
   private defaultParams(): CompletionQueryParams {
     const accessKey = ['openai', 'llmSummarization', 'defaults'].join('.');
     const params: CompletionQueryParams = {};
-    const isVllm = this.$config.get('openai.useVLLM') === CONFIG_STATE.ON;
+    // LLM summarization reads its own backend flag, which falls back to USE_VLLM.
+    // Compose uses USE_VLLM for exclusive backend selection (OVMS-only or vLLM-only).
+    const isVllm =
+      this.$config.get('openai.llmSummarization.useVLLM') === CONFIG_STATE.ON;
 
     // For do_sample and seed parameters:
-    // These are not supported by vLLM - skip them. Apply for OVMS and internal VLM Microservice.
+    // These are not supported by vLLM - skip them. Apply for OVMS-backed inference.
     if (!isVllm) {
       if (this.$config.get(`${accessKey}.doSample`) !== null) {
         params.do_sample = this.$config.get(`${accessKey}.doSample`)!;
@@ -115,7 +118,6 @@ export class LlmService {
     const baseURL = this.$config.get<string>(
       'openai.llmSummarization.apiBase',
     )!;
-    const usingOVMS = this.$config.get<string>('openai.useOVMS');
     try {
       const { client, openAiConfig, proxyAgent } =
         this.$openAiHelper.initializeClient(apiKey, baseURL);
@@ -136,16 +138,17 @@ export class LlmService {
     }
 
     try {
-      if (usingOVMS === CONFIG_STATE.ON && configUrl) {
-        await this.fetchModelsFromConfig(configUrl, fetchOptions);
-        this.serviceReady = true;
-        this.$inferenceCount.setLlmConfig({
-          model: this.model,
-          ip: baseURL,
-        });
-      } else {
+      if (!configUrl) {
         throw new Error('Config URL is not available');
       }
+
+      // OVMS exposes explicit model config, so prefer that when available.
+      await this.fetchModelsFromConfig(configUrl, fetchOptions);
+      this.serviceReady = true;
+      this.$inferenceCount.setLlmConfig({
+        model: this.model,
+        ip: baseURL,
+      });
     } catch (error) {
       Logger.error(error);
 
@@ -153,6 +156,8 @@ export class LlmService {
         if (!this.client) {
           throw new Error('Client is not initialized');
         }
+        // vLLM and OpenAI-compatible backends may not expose the OVMS config route,
+        // so fall back to the standard models list.
         await this.fetchModelsFromOpenai();
         this.serviceReady = true;
         this.$inferenceCount.setLlmConfig({
@@ -171,7 +176,19 @@ export class LlmService {
     if (response.ok) {
       const data: ModelConfigResponse =
         (await response.json()) as ModelConfigResponse;
-      const modelKey = Object.keys(data)[0];
+      // If LLM_MODEL_NAME is not set but VLM_MODEL_NAME is, use VLM model for LLM (shared-model mode).
+      // This allows OVMS configs with multiple models to work without requiring explicit LLM_MODEL_NAME.
+      const modelKey = this.$openAiHelper.selectModel({
+        availableModels: Object.keys(data),
+        configuredModelName: this.$config.get<string>(
+          'openai.llmSummarization.modelName',
+        ),
+        configuredModelEnv: 'LLM_MODEL_NAME',
+        serviceLabel: 'LLM summarization',
+        fallbackModelName: this.$config.get<string>(
+          'openai.vlmCaptioning.modelName',
+        ),
+      });
       if (data[modelKey].model_version_status[0].state === 'AVAILABLE') {
         this.model = modelKey;
         console.log(`Using LLM model: ${this.model}`);
@@ -187,16 +204,25 @@ export class LlmService {
   }
 
   private async fetchModelsFromOpenai() {
-    if (this.client) {
-      const models = await this.client.models.list();
-      console.log('Models', models);
-      if (models.data && models.data.length > 0) {
-        this.model = models.data[0].id;
-        console.log(`Using model: ${this.model}`);
-      } else {
-        throw new Error('No models available');
-      }
+    if (!this.client) {
+      throw new Error('Client is not initialized');
     }
+
+    const models = await this.client.models.list();
+    console.log('Models', models);
+    // If LLM_MODEL_NAME is not set but VLM_MODEL_NAME is, use VLM model for LLM (shared-model mode).
+    this.model = this.$openAiHelper.selectModel({
+      availableModels: models.data.map((model) => model.id),
+      configuredModelName: this.$config.get<string>(
+        'openai.llmSummarization.modelName',
+      ),
+      configuredModelEnv: 'LLM_MODEL_NAME',
+      serviceLabel: 'LLM summarization',
+      fallbackModelName: this.$config.get<string>(
+        'openai.vlmCaptioning.modelName',
+      ),
+    });
+    console.log(`Using model: ${this.model}`);
   }
 
   public async summarizeMapReduce(

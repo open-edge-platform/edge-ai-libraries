@@ -80,6 +80,48 @@ const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
   });
 };
 
+const normalizeSourceNodeData = (
+  node: ReactFlowNode,
+): { [key: string]: string } => {
+  const rawData = (node.data ?? {}) as Record<string, unknown>;
+  const normalizedData: Record<string, unknown> = { ...rawData };
+
+  if (node.type === "source") {
+    const normalizedKind = String(rawData.kind ?? "").toLowerCase();
+    if (normalizedKind === "camera" || normalizedKind === "file") {
+      normalizedData.kind = normalizedKind;
+    }
+
+    const sourceValue = String(rawData.source ?? rawData.location ?? "").trim();
+
+    if (sourceValue.length > 0) {
+      normalizedData.source = sourceValue;
+      normalizedData.location = sourceValue;
+    }
+  }
+
+  return normalizedData as { [key: string]: string };
+};
+
+const buildGraphData = (
+  nodes: ReactFlowNode[],
+  edges: ReactFlowEdge[],
+): {
+  nodes: Array<{ id: string; type: string; data: { [key: string]: string } }>;
+  edges: Array<{ id: string; source: string; target: string }>;
+} => ({
+  nodes: nodes.map((node) => ({
+    id: node.id,
+    type: node.type ?? "",
+    data: normalizeSourceNodeData(node),
+  })),
+  edges: edges.map((edge) => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+  })),
+});
+
 export const Pipelines = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
   const { id, variant } = useParams<UrlParams>();
@@ -194,18 +236,7 @@ export const Pipelines = () => {
     if (!id || !variant) return;
 
     try {
-      const graphData = {
-        nodes: currentNodes.map((node) => ({
-          id: node.id,
-          type: node.type ?? "",
-          data: node.data as { [key: string]: string },
-        })),
-        edges: currentEdges.map((edge) => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-        })),
-      };
+      const graphData = buildGraphData(currentNodes, currentEdges);
 
       await updateVariant({
         pipelineId: id,
@@ -276,18 +307,7 @@ export const Pipelines = () => {
           ? "file"
           : "disabled";
 
-      const graphData = {
-        nodes: currentNodes.map((node) => ({
-          id: node.id,
-          type: node.type ?? "",
-          data: node.data as { [key: string]: string },
-        })),
-        edges: currentEdges.map((edge) => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-        })),
-      };
+      const graphData = buildGraphData(currentNodes, currentEdges);
 
       let payloadGraphData = graphData;
       if (isSimpleMode) {
@@ -297,6 +317,11 @@ export const Pipelines = () => {
           pipelineGraph: graphData,
         }).unwrap();
       }
+
+      // Check the ADVANCED graph for gvametapublish (simple mode hides these nodes)
+      const hasMetadata = payloadGraphData.nodes.some(
+        (n) => n.type === "gvametapublish",
+      );
 
       toast.success("Pipeline run started", {
         description: new Date().toISOString(),
@@ -316,6 +341,7 @@ export const Pipelines = () => {
           execution_config: {
             output_mode: outputMode,
             max_runtime: maxRuntimeSeconds,
+            metadata_mode: hasMetadata ? "file" : "disabled",
           },
         },
       });
@@ -328,14 +354,14 @@ export const Pipelines = () => {
         toast.success("Pipeline run completed", {
           description: new Date().toISOString(),
         });
-      }
 
-      if (videoOutputEnabled && status.video_output_paths) {
-        const paths = Object.values(status.video_output_paths)[0];
-        if (paths && paths.length > 0) {
-          const videoPath = [...paths].pop();
-          if (videoPath) {
-            setCompletedVideoPath(videoPath);
+        if (videoOutputEnabled && status.video_output_paths) {
+          const paths = Object.values(status.video_output_paths)[0];
+          if (paths && paths.length > 0) {
+            const videoPath = [...paths].pop();
+            if (videoPath) {
+              setCompletedVideoPath(videoPath);
+            }
           }
         }
       }
@@ -470,6 +496,7 @@ export const Pipelines = () => {
                 variants={data.variants}
                 source={source}
                 hasUnsavedChanges={canUndo}
+                disabled={jobStatus?.state === "RUNNING"}
               />
             )}
           </div>
@@ -802,7 +829,7 @@ export const Pipelines = () => {
 
                 <ResizablePanel
                   defaultSize={runPanelSizeRef.current}
-                  minSize={900}
+                  minSize={640}
                   onResize={(size) => {
                     if (typeof size === "number") {
                       runPanelSizeRef.current = size;
@@ -811,12 +838,13 @@ export const Pipelines = () => {
                 >
                   <div
                     ref={detailsPanelRef}
-                    className="w-full h-full bg-background overflow-auto relative"
+                    className="w-full h-full bg-background overflow-y-auto overflow-x-hidden relative [scrollbar-gutter:stable]"
                   >
                     <PerformanceTestPanel
                       isRunning={jobStatus?.state === "RUNNING"}
                       completedVideoPath={completedVideoPath}
                       livePreviewEnabled={livePreviewEnabled}
+                      videoOutputEnabled={videoOutputEnabled}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null

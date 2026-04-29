@@ -3,11 +3,11 @@
 
 services:
   ovms-service:
-    image: openvino/model_server:2025.4.1-gpu
+    image: openvino/model_server:2026.1-gpu
     devices:
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
-    group_add:
-      - ${RENDER_DEVICE_GID:-0}
+      # NPU device passthrough (preserved from base when GPU enabled)
+      - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
     ulimits:
       nofile:
         soft: 16384

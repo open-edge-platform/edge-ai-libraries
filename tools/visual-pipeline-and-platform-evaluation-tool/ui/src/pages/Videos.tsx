@@ -120,7 +120,11 @@ export const Videos = () => {
           <TableBody>
             {filteredVideos.map((video) => (
               <TableRow key={video.filename}>
-                <TableCell className="font-medium">{video.filename}</TableCell>
+                <TableCell className="font-medium max-w-0">
+                  <div className="truncate" title={video.filename}>
+                    {video.filename}
+                  </div>
+                </TableCell>
                 <TableCell>
                   {video.width}x{video.height}
                 </TableCell>
@@ -131,7 +135,7 @@ export const Videos = () => {
                 </TableCell>
                 <TableCell>
                   <video
-                    src={`/assets/videos/input/${video.filename}`}
+                    src={`/assets/videos/input/${video.path}`}
                     controls
                     className="w-48 h-auto"
                   >

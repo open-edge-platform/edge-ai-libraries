@@ -6,7 +6,9 @@ import {
   HealthCheckService,
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Health')
 @Controller('health')
 export class HealthController {
   constructor(
@@ -16,6 +18,8 @@ export class HealthController {
 
   @Get()
   @HealthCheck()
+  @ApiOperation({ summary: 'Check service health status' })
+  @ApiOkResponse({ description: 'Health check status' })
   check() {
     return this.$health.check([() => this.$db.pingCheck('database')]);
   }

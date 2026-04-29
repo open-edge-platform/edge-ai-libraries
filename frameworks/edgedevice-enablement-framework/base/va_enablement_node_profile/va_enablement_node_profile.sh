@@ -12,6 +12,7 @@ PROFILE options:
   vpp            - Install VPP components
   tfcc           - Install TFCC components
   magic9         - Install Magic9 components
+  devkit         - Install only devkit components
   vpro           - Install vPro components
 
 Examples:
@@ -19,6 +20,7 @@ Examples:
   $0 vpp         # Install VPP components only
   $0 tfcc        # Install TFCC components only
   $0 magic9      # Install Magic9 components only
+  $0 devkit      # Install DevKit components only
   $0 vpro        # Install vPro components only
 EOF
   exit 1
@@ -38,6 +40,9 @@ elif [ $# -eq 1 ]; then
       ;;
     magic9)
       PROFILE="magic9"
+      ;;
+    devkit)
+      PROFILE="devkit"
       ;;
     vpro)
       PROFILE="vpro"
@@ -62,17 +67,27 @@ echo "Please enter your sudo password:"
 read -r -s SUDO_PASSWORD
 
 # Cleanup function to ensure IGC restrictions are restored on script exit
+interrupted=false
+failed=false
+
+# Defining the interruption with the proper signals
+trap 'interrupted=true' SIGINT SIGTERM
+trap 'failed=true' ERR
+
 cleanup_on_exit() {
-  echo "Script interrupted. Ensuring IGC restrictions are restored..."
   if [ -f "/etc/apt/preferences.d/temp-gpu-install" ]; then
     echo "$SUDO_PASSWORD" | sudo -S rm -f /etc/apt/preferences.d/temp-gpu-install
     set_intel_repo_priorities
-    echo "IGC restrictions restored."
+  fi
+  if $interrupted; then
+    echo "Installation interrupted. Cleaning up the temp files..."
+  elif $failed; then
+    echo "Installation failed. Cleaning up..."
   fi
 }
 
 # Set trap to call cleanup on script exit/interruption
-trap cleanup_on_exit EXIT INT TERM
+trap cleanup_on_exit EXIT
 
 # Path to the openssl.cnf file
 OPENSSL_CONF_PATH="/usr/lib/ssl/openssl.cnf"
@@ -928,6 +943,7 @@ Install_Docker () {
 echo "Installing Install_Docker"
 if [ "$docker_install_build_status" -ne 1 ]; then
 SECONDS=0
+if [[ "$PROFILE" != "devkit" ]]; then
 echo "*************************"
 echo "    Docker Installation  "
 echo "*************************"
@@ -995,6 +1011,7 @@ fi
 echo "Reloading Docker daemon..."
 sudo systemctl daemon-reload
 sudo systemctl restart docker
+fi
 
 sed -i 's/docker_install_build_status=0/docker_install_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
@@ -1010,6 +1027,7 @@ Configure_Docker_Group () {
 echo "Installing Configure_Docker_Group"
 if [ "$docker_group_build_status" -ne 1 ]; then
 SECONDS=0
+if [[ "$PROFILE" != "devkit" ]]; then
 echo "*************************"
 echo "   Docker Group Setup    "
 echo "*************************"
@@ -1049,6 +1067,7 @@ fi
 echo "$SUDO_PASSWORD" | sudo -S apt-get install acl -y
 echo "$SUDO_PASSWORD" | sudo -S setfacl -m user:"$USER_NAME":rw /var/run/docker.sock
 unset USER_NAME
+fi
 
 sed -i 's/docker_group_build_status=0/docker_group_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
@@ -1435,7 +1454,7 @@ if [ -d vpl-gpu-rt ]; then
 fi
 
 # Install dependencies for oneVPL: LIBVA
-LIBVA_VERSION="2.22.0"
+LIBVA_VERSION="2.23.0"
 LIBVA_REPO="https://github.com/intel/libva.git"
 LIBVA_DIR="libva"
 
@@ -1451,7 +1470,7 @@ cd ..
 delete_folder_if_exists "$LIBVA_DIR"
 
 # Build and install oneVPL GPU runtime
-ONEVPL_VERSION="intel-onevpl-25.4.5"
+ONEVPL_VERSION="intel-onevpl-25.4.6"
 ONEVPL_REPO="https://github.com/intel/vpl-gpu-rt"
 ONEVPL_DIR="vpl-gpu-rt"
 
@@ -1754,11 +1773,17 @@ else
 
     # Install the compute-related packages.
     echo "Installing compute packages..."
-    echo "$SUDO_PASSWORD" | sudo -S apt-get install -y --allow-downgrades \
-      linux-headers-"$(uname -r)" \
+    for pkg in linux-headers-"$(uname -r)" \
       opencl-headers opencl-dev intel-fw-gpu \
       libgdal-dev libpugixml-dev libopencv-dev intel-metrics-discovery intel-gsc clinfo \
-      intel-gpu-tools x11-xserver-utils powercap-utils cpufrequtils || true
+      intel-gpu-tools x11-xserver-utils powercap-utils cpufrequtils; do
+      if apt-mark showhold | grep "$pkg"; then
+        echo "[SKIP]--Skipping the installation of $pkg. Package is marked to be held--"
+        continue
+      fi
+      echo "[INSTALL] Installing the package $pkg"
+      echo "$SUDO_PASSWORD" | sudo -S apt-get install -y --allow-downgrades "$pkg" || true
+    done
     # Some dependencies might be missing, try to fix them
     echo "$SUDO_PASSWORD" | sudo -S apt-get --fix-broken install -y
 
@@ -1829,8 +1854,8 @@ if [[ "$os_version" == *"24.04"* ]]; then
   echo "Installing NPU drivers and firmware..."
   echo "$SUDO_PASSWORD" | sudo -S dpkg --purge --force-remove-reinstreq intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu 2>/dev/null || true
 
-  wget_from_github "https://github.com/intel/linux-npu-driver/releases/download/v1.24.0/linux-npu-driver-v1.24.0.20251003-18218973328-ubuntu2404.tar.gz" "./linux-npu-driver-v1.24.0.20251003-18218973328-ubuntu2404.tar.gz"
-  tar -xf linux-npu-driver-v1.24.0.20251003-18218973328-ubuntu2404.tar.gz
+  wget_from_github "https://github.com/intel/linux-npu-driver/releases/download/v1.32.0/linux-npu-driver-v1.32.0.20260402-23905121947-ubuntu2404.tar.gz" "./linux-npu-driver-v1.32.0.20260402-23905121947-ubuntu2404.tar.gz"
+  tar -xf linux-npu-driver-v1.32.0.20260402-23905121947-ubuntu2404.tar.gz
 
   echo "$SUDO_PASSWORD" | sudo -S apt update
   echo "$SUDO_PASSWORD" | sudo -S apt --fix-broken install -y
@@ -1855,11 +1880,11 @@ if [[ "$os_version" == *"24.04"* ]]; then
 
     echo "$SUDO_PASSWORD" | sudo -S apt install -y ocl-icd-libopencl1
     # Install compatible compute runtime packages
-    wget_from_github "https://github.com/intel/intel-graphics-compiler/releases/download/v2.18.5/intel-igc-core-2_2.18.5+19820_amd64.deb" "./intel-igc-core-2_2.18.5+19820_amd64.deb"
-    wget_from_github "https://github.com/intel/intel-graphics-compiler/releases/download/v2.18.5/intel-igc-opencl-2_2.18.5+19820_amd64.deb" "./intel-igc-opencl-2_2.18.5+19820_amd64.deb"
-    wget_from_github "https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/intel-ocloc-dbgsym_25.35.35096.9-0_amd64.ddeb" "./intel-ocloc-dbgsym_25.35.35096.9-0_amd64.ddeb"
-    wget_from_github "https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/intel-ocloc_25.35.35096.9-0_amd64.deb" "./intel-ocloc_25.35.35096.9-0_amd64.deb"
-    wget_from_github "https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/libigdgmm12_22.8.1_amd64.deb" "./libigdgmm12_22.8.1_amd64.deb"
+    wget_from_github "https://github.com/intel/intel-graphics-compiler/releases/download/v2.30.1/intel-igc-core-2_2.30.1+20950_amd64.deb" "./intel-igc-core-2_2.30.1+20950_amd64.deb"
+    wget_from_github "https://github.com/intel/intel-graphics-compiler/releases/download/v2.30.1/intel-igc-opencl-2_2.30.1+20950_amd64.deb" "./intel-igc-opencl-2_2.30.1+20950_amd64.deb"
+    wget_from_github "https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/intel-ocloc-dbgsym_26.09.37435.1-0_amd64.ddeb" "./intel-ocloc-dbgsym_26.09.37435.1-0_amd64.ddeb"
+    wget_from_github "https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/intel-ocloc_26.09.37435.1-0_amd64.deb" "./intel-ocloc_26.09.37435.1-0_amd64.deb"
+    wget_from_github "https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/libigdgmm12_22.9.0_amd64.deb" "./libigdgmm12_22.9.0_amd64.deb"
     echo "$SUDO_PASSWORD" | sudo -S dpkg -i --force-overwrite ./*.deb
     echo "$SUDO_PASSWORD" | sudo -S apt --fix-broken install -y
 
@@ -1893,7 +1918,7 @@ SECONDS=0
 echo "*************************"
 echo "   Installing OpenCV     "
 echo "*************************"
-OPENCV_VERSION="4.12.0"
+OPENCV_VERSION="4.13.0"
 cd "$STATUS_DIR"
 echo "$SUDO_PASSWORD" | sudo -S apt-get update
 echo "$SUDO_PASSWORD" | sudo -S apt-get install -y cmake g++ wget unzip
@@ -1933,6 +1958,7 @@ SECONDS=0
 echo "*************************"
 echo "   Installing FFmpeg     "
 echo "*************************"
+FFMPEG_VERSION="2025q1"
 cd "$STATUS_DIR"
 # Install libvpl with fallback mechanism
 echo "Attempting to install libvpl..."
@@ -1978,7 +2004,7 @@ if [ -d cartwheel-ffmpeg ]; then
   rm -rf cartwheel-ffmpeg
 fi
 repo_link="https://github.com/intel/cartwheel-ffmpeg.git"
-git_clone "$repo_link" "cartwheel-ffmpeg" "2025q1" true
+git_clone "$repo_link" "cartwheel-ffmpeg" "$FFMPEG_VERSION" true
 cd cartwheel-ffmpeg/ffmpeg || exit 1
 git checkout -b main
 git config user.name "test"
@@ -2006,7 +2032,7 @@ echo "*************************"
 echo "   Installing OpenVINO   "
 echo "*************************"
 cd "$STATUS_DIR"
-OPENVINO_VERSION="2025.4.0"
+OPENVINO_VERSION="2026.0.0"
 echo "*** installing openvino_$OPENVINO_VERSION ***"
 
 # Create and activate a Python virtual environment
@@ -2019,7 +2045,7 @@ python3 -m pip install --upgrade pip
 
 # Download and extract OpenVINO package
 echo "$SUDO_PASSWORD" | sudo -S apt-get install -y curl
-curl -L https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.4/linux/openvino_toolkit_ubuntu24_2025.4.0.20398.8fdad55727d_x86_64.tgz --output openvino_$OPENVINO_VERSION.tgz
+curl -L https://storage.openvinotoolkit.org/repositories/openvino/packages/2026.0/linux/openvino_toolkit_ubuntu24_2026.0.0.20965.c6d6a13a886_x86_64.tgz --output openvino_$OPENVINO_VERSION.tgz
 tar -xf openvino_$OPENVINO_VERSION.tgz
 rm -f openvino_$OPENVINO_VERSION.tgz
 
@@ -2030,12 +2056,12 @@ fi
 
 # Move extracted files to target directory and set up symlinks
 echo "$SUDO_PASSWORD" | sudo -S mkdir -p /opt/intel/openvino_$OPENVINO_VERSION
-echo "$SUDO_PASSWORD" | sudo -S mv -f openvino_toolkit_ubuntu24_2025.4.0.20398.8fdad55727d_x86_64/* /opt/intel/openvino_$OPENVINO_VERSION
+echo "$SUDO_PASSWORD" | sudo -S mv -f openvino_toolkit_ubuntu24_2026.0.0.20965.c6d6a13a886_x86_64/* /opt/intel/openvino_$OPENVINO_VERSION
 echo "$SUDO_PASSWORD" | sudo -S ln -sf /opt/intel/openvino_$OPENVINO_VERSION /opt/intel/openvino_2025
 echo "$SUDO_PASSWORD" | sudo -S ln -sf /opt/intel/openvino_$OPENVINO_VERSION /opt/intel/openvino
 
 # Patch install script for non-interactive install
-echo "$SUDO_PASSWORD" | sudo -S sed -i 's/apt-get install/apt-get -y install/g' /opt/intel/openvino_2025.4.0/install_dependencies/install_openvino_dependencies.sh
+echo "$SUDO_PASSWORD" | sudo -S sed -i 's/apt-get install/apt-get -y install/g' /opt/intel/openvino_$OPENVINO_VERSION/install_dependencies/install_openvino_dependencies.sh
 
 # Install OpenVINO dependencies
 echo "$SUDO_PASSWORD" | sudo -S /opt/intel/openvino/install_dependencies/install_openvino_dependencies.sh
@@ -2047,12 +2073,12 @@ python3 -m pip install -r /opt/intel/openvino/python/requirements.txt
 # Temporarily disable strict error checking for the setupvars.sh script
 disable_strict_mode
 # shellcheck source=/dev/null
-source /opt/intel/openvino_2025.4.0/setupvars.sh
+source /opt/intel/openvino_$OPENVINO_VERSION/setupvars.sh
 # Re-enable strict error checking
 enable_strict_mode
 
 # Clean up extracted directory
-rm -rf openvino_toolkit_ubuntu24_2025.4.0.20398.8fdad55727d_x86_64/
+rm -rf openvino_toolkit_ubuntu24_2026.0.0.20965.c6d6a13a886_x86_64/
 
 sed -i 's/openvino_native_build_status=0/openvino_native_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
@@ -2062,6 +2088,26 @@ echo "openvino_native build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_
 fi
 if [ "$dlstreamer_build_status" -ne 1 ]; then
 SECONDS=0
+if [[ -d "/opt/intel/dlstreamer" ]]; then
+  dlstreamer_available="yes"
+else
+  dlstreamer_available="no"
+fi
+
+install_dlstreamer="yes"
+
+# Ask the user to choose whether to install the DLStreamer or not
+if [[ "$PROFILE" == "devkit" && "$dlstreamer_available" == "no" ]] ; then
+  read -r -p "Do you want to install DL Streamer? (y/n): " user_choice
+
+  user_choice="${user_choice:-Y}"
+  if [[ ! "$user_choice" =~ ^[Yy](es)?$ ]]; then
+    install_dlstreamer="no"
+  fi
+fi
+# Install it only if the user choses yes
+if [[ "$dlstreamer_available" == "no" ]]; then
+if [[ "$install_dlstreamer" == "yes" ]]; then
 echo "*************************"
 echo "  Installing DL Streamer "
 echo "*************************"
@@ -2121,31 +2167,34 @@ else
   # Set repository priorities first
   set_intel_repo_priorities
 
-  echo "$SUDO_PASSWORD" | sudo -S wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
-  echo "$SUDO_PASSWORD" | sudo -S wget -O- https://eci.intel.com/sed-repos/gpg-keys/GPG-PUB-KEY-INTEL-SED.gpg | sudo tee /usr/share/keyrings/sed-archive-keyring.gpg > /dev/null
+  echo "$SUDO_PASSWORD" | sudo -S wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/intel-gpg-archive-keyring.gpg > /dev/null
+  echo "$SUDO_PASSWORD" | sudo -S wget -O- https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg | sudo tee /usr/share/keyrings/dls-archive-keyring.gpg > /dev/null
 
-  # Configure SED repository for Intel products
-  echo "Configuring SED repository..."
+  # Configure DLS repository for Intel products
+  echo "Configuring DLS repository..."
   source /etc/os-release
-  echo "$SUDO_PASSWORD" | sudo -S echo "deb [signed-by=/usr/share/keyrings/sed-archive-keyring.gpg] https://eci.intel.com/sed-repos/$VERSION_CODENAME sed main" | sudo tee /etc/apt/sources.list.d/sed.list
+  echo "$SUDO_PASSWORD" | sudo -S echo "deb [signed-by=/usr/share/keyrings/dls-archive-keyring.gpg] https://apt.repos.intel.com/edgeai/dlstreamer/ubuntu24 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
   # echo "$SUDO_PASSWORD" | sudo -S bash -c 'echo -e "Package: *\nPin: origin eci.intel.com\nPin-Priority: 1000" > /etc/apt/preferences.d/sed'
-  echo "$SUDO_PASSWORD" | sudo -S bash -c 'echo -e "Package: *\nPin: origin eci.intel.com\nPin-Priority: 1200" > /etc/apt/preferences.d/sed'
+  echo "$SUDO_PASSWORD" | sudo -S bash -c 'echo -e "Package: *\nPin: origin apt.repos.intel.com\nPin-Priority: 1200" > /etc/apt/preferences.d/dls'
 
   # Add repositories for Ubuntu 24
-  echo "Configuring repository for Intel OpenVINO 2025 on Ubuntu24.04"
-  echo "$SUDO_PASSWORD" | sudo -S bash -c 'echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list'
+  echo "Configuring repository for Intel OpenVINO 2026 on Ubuntu24.04"
+  echo "$SUDO_PASSWORD" | sudo -S bash -c 'echo "deb [signed-by=/usr/share/keyrings/intel-gpg-archive-keyring.gpg] https://apt.repos.intel.com/openvino ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino.list'
 
   # Install Intel DL Streamer Pipeline Framework
   echo "$SUDO_PASSWORD" | sudo -S apt update
   echo "Installing Intel DL Streamer Pipeline Framework..."
   # echo "$SUDO_PASSWORD" | sudo -S apt-get install intel-dlstreamer=2025.1.2 -y
-  echo "$SUDO_PASSWORD" | sudo -S apt-get install -y --allow-downgrades intel-dlstreamer=2025.1.2
+  echo "$SUDO_PASSWORD" | sudo -S apt-get install -y --allow-downgrades intel-dlstreamer=2026.0.0
 
   echo "Verifying installed packages for Intel DL Streamer..."
   echo "$SUDO_PASSWORD" | sudo -S dpkg -l | grep dlstreamer
   echo "Intel® DL Streamer installation completed successfully."
   fi
-
+else
+  echo "Skipping the DLStreamer installation based on User choice"
+fi
+fi
 sed -i 's/dlstreamer_build_status=0/dlstreamer_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
 elapsedseconds=$SECONDS
@@ -2160,6 +2209,7 @@ Install_TPM () {
 echo "Installing Install_TPM"
 if [ "$discrete_tpm_build_status" -ne 1 ]; then
 SECONDS=0
+if [[ "$PROFILE" != "devkit" ]]; then
 install_pigz_unified "TPM"
 
 echo "****************************"
@@ -2167,6 +2217,7 @@ echo "    Installing TPM          "
 echo "****************************"
 cd "$STATUS_DIR"
 docker pull ghcr.io/tpm2-software/ubuntu-22.04
+fi
 
 sed -i 's/discrete_tpm_build_status=0/discrete_tpm_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
@@ -2196,49 +2247,61 @@ if command -v xpu-smi >/dev/null 2>&1; then
   elapsedseconds=$SECONDS
   echo "intel_xpu_manager build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
 else
-  # Use reusable repository setup function
-  setup_intel_gpu_repositories true true
-
-  delete_folder_if_exists "xpu-smi"
-  create_folder "xpu-smi"
-  cd xpu-smi
-
-  # Allow IGC packages temporarily
-  manage_igc_packages "allow" "xpu"
-
-  echo "Installing XPU SMI dependencies..."
-  echo "$SUDO_PASSWORD" | sudo -S apt-get install -y --allow-downgrades intel-gsc libmetee-dev intel-metrics-library
-
-  # Use unified Level-Zero installation
-  install_level_zero_unified "xpu"
-
-  # Install IGC packages
-  manage_igc_packages "install" "xpu"
-
-  # Download and install XPU SMI
-  xpu_smi_url="https://github.com/intel/xpumanager/releases/download/v1.3.4/xpu-smi_1.3.4_20251105.132841.7410e65e.u24.04_amd64.deb"
-  echo "Downloading and installing XPU SMI..."
-
-  if wget_from_github "$xpu_smi_url" "xpu-smi_1.3.4_20251105.132841.7410e65e.u24.04_amd64.deb"; then
-    echo "$SUDO_PASSWORD" | sudo -S dpkg -i ./*.deb || {
-      echo "$SUDO_PASSWORD" | sudo -S apt-get --fix-broken install -y
-      echo "$SUDO_PASSWORD" | sudo -S dpkg -i ./*.deb
-    }
-    echo "✓ XPU SMI installed successfully"
-  else
-    echo "✗ Failed to download XPU SMI package"
+  configure_xpusmi="yes"
+  if [[ "$PROFILE" == "devkit" ]]; then
+    read -r -p "Do you want to install Intel XPU-SMI ? (y/n): " user_choice
+    user_choice="${user_choice:-Y}"
+    if [[ ! "$user_choice" =~ ^[Yy](es)?$ ]]; then
+      configure_xpusmi="no"
+    fi
   fi
+  if [[ "$configure_xpusmi" == "yes" ]]; then
+    # Use reusable repository setup function
+    setup_intel_gpu_repositories true true
 
-  # Restore IGC restrictions
-  manage_igc_packages "restrict" "xpu"
+    delete_folder_if_exists "xpu-smi"
+    create_folder "xpu-smi"
+    cd xpu-smi
 
-  cd ..
-  delete_folder_if_exists "xpu-smi"
+    # Allow IGC packages temporarily
+    manage_igc_packages "allow" "xpu"
 
-  # Verify installation
-  if command -v xpu-smi >/dev/null 2>&1; then
-    echo "✓ XPU SMI command available"
-    xpu-smi version 2>/dev/null || echo "XPU SMI installed (requires GPU devices for full functionality)"
+    echo "Installing XPU SMI dependencies..."
+    echo "$SUDO_PASSWORD" | sudo -S apt-get install -y --allow-downgrades intel-gsc libmetee-dev intel-metrics-library
+
+    # Use unified Level-Zero installation
+    install_level_zero_unified "xpu"
+
+    # Install IGC packages
+    manage_igc_packages "install" "xpu"
+
+    # Download and install XPU SMI
+    xpu_smi_url="https://github.com/intel/xpumanager/releases/download/v1.3.5/xpu-smi_1.3.5_20251216.170635.605ff78d.u24.04_amd64.deb"
+    echo "Downloading and installing XPU SMI..."
+
+    if wget_from_github "$xpu_smi_url" "xpu-smi_1.3.5_20251216.170635.605ff78d.u24.04_amd64.deb"; then
+      echo "$SUDO_PASSWORD" | sudo -S dpkg -i ./*.deb || {
+        echo "$SUDO_PASSWORD" | sudo -S apt-get --fix-broken install -y
+        echo "$SUDO_PASSWORD" | sudo -S dpkg -i ./*.deb
+      }
+      echo "✓ XPU SMI installed successfully"
+    else
+      echo "✗ Failed to download XPU SMI package"
+    fi
+
+    # Restore IGC restrictions
+    manage_igc_packages "restrict" "xpu"
+
+    cd ..
+    delete_folder_if_exists "xpu-smi"
+
+    # Verify installation
+    if command -v xpu-smi >/dev/null 2>&1; then
+      echo "✓ XPU SMI command available"
+      xpu-smi version 2>/dev/null || echo "XPU SMI installed (requires GPU devices for full functionality)"
+    fi
+  else
+    echo "XPU-SMI configuration is skipped due to user choice"
   fi
 fi
 
@@ -2250,6 +2313,7 @@ echo "intel_xpu_smi build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FI
 fi
 if [ "$prometheus_build_status" -ne 1 ]; then
 SECONDS=0
+if [[ "$PROFILE" != "devkit" ]]; then
 echo "*************************"
 echo " Installing Prometheus   "
 echo "*************************"
@@ -2437,6 +2501,7 @@ fi
 
 # Re-enable strict mode after the critical section
 enable_strict_mode
+fi
 
 sed -i 's/prometheus_build_status=0/prometheus_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
@@ -2446,6 +2511,7 @@ echo "prometheus build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
 fi
 if [ "$grafana_build_status" -ne 1 ]; then
 SECONDS=0
+if [[ "$PROFILE" != "devkit" ]]; then
 echo "****************************"
 echo "   Installing Grafana       "
 echo "****************************"
@@ -2633,6 +2699,7 @@ echo "$SUDO_PASSWORD" | sudo -S ufw allow 3000/tcp
 echo "y" | sudo ufw enable
 
 echo "Grafana installation and setup completed successfully."
+fi
 
 sed -i 's/grafana_build_status=0/grafana_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
@@ -2642,11 +2709,12 @@ echo "grafana build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
 fi
 if [ "$node_exporter_build_status" -ne 1 ]; then
 SECONDS=0
+if [[ "$PROFILE" != "devkit" ]]; then
 echo "****************************"
 echo "  Installing Node Exporter  "
 echo "****************************"
 # Define variables
-NODE_EXPORTER_VERSION="1.9.1"
+NODE_EXPORTER_VERSION="1.11.1"
 NODE_EXPORTER_URL="https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz"
 #NODE_EXPORTER_DIR="/usr/local/bin/node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64"
 NODE_EXPORTER_BIN="/usr/local/bin/node_exporter"
@@ -2748,6 +2816,7 @@ echo "Node Exporter: Prometheus configuration completed ."
 else
   echo "Prometheus.yml does not exist."
 fi
+fi
 
 sed -i 's/node_exporter_build_status=0/node_exporter_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
@@ -2757,6 +2826,7 @@ echo "node_exporter build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FI
 fi
 if [ "$intel_xpum_container_build_status" -ne 1 ]; then
 SECONDS=0
+if [[ "$PROFILE" != "devkit" ]]; then
 echo "****************************"
 echo " Installing XPUM Container  "
 echo "****************************"
@@ -2917,6 +2987,7 @@ echo "$SUDO_PASSWORD" | sudo -S systemctl restart grafana-server.service
 # check Grafana service status
 echo "Checking Grafana service status..."
 echo "$SUDO_PASSWORD" | sudo -S systemctl status grafana-server.service
+fi
 
 sed -i 's/intel_xpum_container_build_status=0/intel_xpum_container_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
@@ -2926,11 +2997,12 @@ echo "intel_xpum_container build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_
 fi
 if [ "$cadvisor_build_status" -ne 1 ]; then
 SECONDS=0
+if [[ "$PROFILE" != "devkit" ]]; then
 echo "****************************"
 echo "   Installing CADVISOR      "
 echo "****************************"
 cd "$STATUS_DIR"
-VERSION=v0.49.1
+VERSION=v0.55.1
 CONTAINER_NAME="cadvisor"
 CADVISOR_IMG="gcr.io/cadvisor/cadvisor"
 PRC_GCR_IMAGE="swr.cn-north-4.myhuaweicloud.com/ddn-k8s/gcr.io/cadvisor/cadvisor-amd64"
@@ -2982,7 +3054,7 @@ echo "$SUDO_PASSWORD" | sudo -S docker run \
 # Check the cadvisor Docker Container
 echo \"***Check the cadvisor Docker Container***\"
 docker ps | grep "$CONTAINER_NAME"
-
+fi
 sed -i 's/cadvisor_build_status=0/cadvisor_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
 elapsedseconds=$SECONDS
@@ -2999,7 +3071,7 @@ if [ "$socwatch_build_status" -ne 1 ]; then
 SECONDS=0
 cd "$STATUS_DIR"
 if [ "$PROFILE" != "magic9" ]; then
-  echo -e "\nSkipping socwatch installation as this is required only for 'magic9'....."
+  echo -e "\nSkipping socwatch installation as this is not required..."
   sed -i 's/socwatch_build_status=0/socwatch_build_status=1/g' "$STATUS_DIR_FILE_PATH"
   elapsedseconds=$SECONDS
   echo "socwatch build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
@@ -3121,7 +3193,7 @@ if [ "$emon_build_status" -ne 1 ]; then
 SECONDS=0
 cd "$STATUS_DIR"
 if [ "$PROFILE" != "magic9" ]; then
-  echo "Skipping emon installation as this is required only for 'magic9'."
+  echo "Skipping emon installation as this is not required..."
   sed -i 's/emon_build_status=0/emon_build_status=1/g' "$STATUS_DIR_FILE_PATH"
   elapsedseconds=$SECONDS
   echo "emon build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
@@ -3133,7 +3205,7 @@ else
   echo "EMON is Intel internal tool, so the download link is not public. (This is for Intel Internal use only)"
   # Define variables
   emon_install_dir="/opt/intel/emon"
-  emon_intel_version="private_5_55_linux_081406569d4b2325e"
+  emon_intel_version="private_5_57_linux"
   emon_installer="emon_${emon_intel_version}.tar.bz2"
   emon_download_url="https://af01p-igk.devtools.intel.com/artifactory/platform_hero-repos/emon/sep_${emon_intel_version}.tar.bz2"
 
@@ -3278,7 +3350,7 @@ if [ "$lms_build_status" -ne 1 ]; then
 SECONDS=0
 cd "$STATUS_DIR"
 if [ "$PROFILE" != "vpro" ]; then
-  echo "Skipping lms installation as this is required only for 'vpro'."
+  echo "Skipping lms installation as this is not required..."
   sed -i 's/lms_build_status=0/lms_build_status=1/g' "$STATUS_DIR_FILE_PATH"
   elapsedseconds=$SECONDS
   echo "lms build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
@@ -3336,14 +3408,14 @@ else
       if echo "$SUDO_PASSWORD" | sudo -S apt-get install -y -o Dpkg::Options::="--force-confnew" "./lms-2506.0.0-Linux.deb"; then
         echo "LMS package installed successfully"
         rm -f "lms-2506.0.0-Linux.deb"
-
+        
         # Start and enable LMS service
         echo "Starting LMS service..."
         echo "$SUDO_PASSWORD" | sudo -S systemctl unmask lms.service 2>/dev/null || true
         echo "$SUDO_PASSWORD" | sudo -S systemctl daemon-reload
         echo "$SUDO_PASSWORD" | sudo -S systemctl enable lms.service
         echo "$SUDO_PASSWORD" | sudo -S systemctl start lms.service
-
+        
         # Give the service a moment to start
         sleep 2
       else
@@ -3383,7 +3455,7 @@ if [ "$rpc_build_status" -ne 1 ]; then
 SECONDS=0
 cd "$STATUS_DIR"
 if [ "$PROFILE" != "vpro" ]; then
-  echo "Skipping rpc installation as this is required only for 'vpro'."
+  echo "Skipping rpc installation as this is not required..."
   sed -i 's/rpc_build_status=0/rpc_build_status=1/g' "$STATUS_DIR_FILE_PATH"
   elapsedseconds=$SECONDS
   echo "rpc build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
@@ -3395,8 +3467,8 @@ else
 
   #Download RPC binary
   echo "Downloading RPC binary...."
-  expected_checksum="01cf33b637631b6a27e20e46bfe046f6b1b3f3ac75d98825b7698488a287b557"
-  curl -LO "https://github.com/device-management-toolkit/rpc-go/releases/download/v2.48.10/rpc_linux_x64.tar.gz"
+  expected_checksum="ea0e34607b812e987daea511ac5b1aeadad94a91fa0a29e427c98c41ec492995"
+  curl -LO "https://github.com/device-management-toolkit/rpc-go/releases/download/v2.50.0/rpc_linux_x64.tar.gz"
 
   if [ -f "rpc_linux_x64.tar.gz" ]; then
     actual_checksum=$(sha256sum "rpc_linux_x64.tar.gz" | awk '{print $1}')

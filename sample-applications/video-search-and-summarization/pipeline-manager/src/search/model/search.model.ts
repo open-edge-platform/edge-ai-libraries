@@ -1,21 +1,46 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { VideoEntity } from 'src/video-upload/models/video.entity';
 
 export type TimeFilterUnit = 'minutes' | 'hours' | 'days' | 'weeks';
 
-export interface TimeFilterSelection {
+export class TimeFilterSelection {
+  @ApiPropertyOptional({ description: 'Relative time value', example: 7 })
   value?: number;
+
+  @ApiPropertyOptional({ enum: ['minutes', 'hours', 'days', 'weeks'], description: 'Time unit for relative filter' })
   unit?: TimeFilterUnit;
+
+  @ApiPropertyOptional({ description: 'Start date (ISO 8601)', example: '2025-01-01T00:00:00Z' })
   start?: string;
+
+  @ApiPropertyOptional({ description: 'End date (ISO 8601)', example: '2025-12-31T23:59:59Z' })
   end?: string;
+
+  @ApiPropertyOptional({ description: 'Filter source identifier' })
   source?: string;
 }
 
-export interface SearchQueryDTO {
+export class SearchQueryDTO {
+  @ApiProperty({ description: 'Search query string', example: 'person walking' })
   query: string;
+
+  @ApiPropertyOptional({ description: 'Comma-separated tags to filter by', example: 'outdoor,daytime' })
   tags?: string;
+
+  @ApiPropertyOptional({ type: TimeFilterSelection, description: 'Time range filter', nullable: true })
   timeFilter?: TimeFilterSelection | null;
+}
+
+export class RefetchBodyDTO {
+  @ApiPropertyOptional({ type: TimeFilterSelection, description: 'Optional time filter override' })
+  timeFilter?: TimeFilterSelection;
+}
+
+export class WatchBodyDTO {
+  @ApiProperty({ description: 'Whether to watch this query' })
+  watch: boolean;
 }
 
 export enum SearchQueryStatus {

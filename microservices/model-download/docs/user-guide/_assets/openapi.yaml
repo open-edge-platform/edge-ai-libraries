@@ -221,6 +221,25 @@ components:
           enum: [processing]
           description: Overall status of the request
 
+    UploadResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Model 'my_custom_model' uploaded successfully.
+        job_id:
+          type: string
+          description: Job ID for the completed upload operation
+        model_name:
+          type: string
+          description: Sanitized model name used for storage
+        model_path:
+          type: string
+          description: Final extracted model path
+
     JobListResponse:
       type: object
       properties:
@@ -572,6 +591,109 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ModelResultsResponse"
+
+  /models/upload:
+    post:
+      summary: Upload Custom model ZIP File
+      description: |
+        Upload a ZIP file that contains `model.xml` and `model.bin` at the ZIP root.
+        The model is extracted under:
+        `/opt/models/custom_uploaded_models/{provider}/{framework}/{model_name}/[{precision}/]`
+
+        **Validation and behavior:**
+        - `model_name` is required and sanitized to lowercase with safe characters
+        - File size limit is enforced (default 500MB via `MAX_UPLOAD_SIZE_MB`)
+        - Files are read in chunks (default 8KB via `UPLOAD_CHUNK_SIZE_KB`) to prevent memory exhaustion with large uploads
+        - If target model path already exists, the API returns `409`
+        - Successful upload is registered as a completed job and appears in `/models/results`
+      operationId: uploadModel
+      tags:
+        - Models
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - model_name
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: ZIP file containing `model.xml` and `model.bin`
+                model_name:
+                  type: string
+                  description: Model name provided by user
+                  example: my_custom_model
+                provider:
+                  type: string
+                  example: geti
+                  description: Provider segment in target path
+                framework:
+                  type: string
+                  example: openvino
+                  description: Framework segment in target path
+                precision:
+                  type: string
+                  example: FP16
+                  nullable: true
+                  description: Optional precision folder (for example FP16, FP32, or INT8)
+      responses:
+        "200":
+          description: Model uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+        "400":
+          description: Invalid ZIP or invalid model contents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+        "409":
+          description: Model already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+        "413":
+          description: Uploaded file exceeds configured size limit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+        "422":
+          description: Validation error in multipart form fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: array
+                    items:
+                      type: object
+        "500":
+          description: Internal server error during extraction
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
 
   /plugins:
     get:

@@ -45,6 +45,7 @@ describe('EventsGateway', () => {
     summary: 'Test summary',
     systemConfig: {},
     chunkingStatus: StateActionStatus.COMPLETE,
+    videoChunkingStatus: StateActionStatus.COMPLETE,
     frameSummaryStatus: {
       complete: 1,
       inProgress: 0,
@@ -57,6 +58,7 @@ describe('EventsGateway', () => {
 
   const mockStateStatus = {
     chunkingStatus: StateActionStatus.COMPLETE,
+    videoChunkingStatus: StateActionStatus.COMPLETE,
     frameSummaryStatus: {
       complete: 1,
       inProgress: 0,
