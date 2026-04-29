@@ -1,5 +1,3 @@
-/*SPDX-License-Identifier: Apache-2.0*/
-
 import { GpuChartSection } from "@/features/metrics/charts/GpuChartSection";
 import {
   type DashboardChartCommonProps,

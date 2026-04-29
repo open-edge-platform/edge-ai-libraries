@@ -16,6 +16,7 @@ interface PipelineVariantSelectProps {
   variants: Variant[];
   source?: string | null;
   hasUnsavedChanges?: boolean;
+  disabled?: boolean;
 }
 
 export const PipelineVariantSelect = ({
@@ -24,6 +25,7 @@ export const PipelineVariantSelect = ({
   variants,
   source,
   hasUnsavedChanges = false,
+  disabled = false,
 }: PipelineVariantSelectProps) => {
   const navigate = useNavigate();
   const [showDialog, setShowDialog] = useState(false);
@@ -59,7 +61,10 @@ export const PipelineVariantSelect = ({
       <div className="flex items-center gap-1">
         <span>({currentVariantName})</span>
         <DropdownMenu>
-          <DropdownMenuTrigger className="p-1 hover:bg-accent rounded transition-colors">
+          <DropdownMenuTrigger
+            className="p-1 hover:bg-accent rounded transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            disabled={disabled}
+          >
             <ChevronDown className="size-4 text-muted-foreground" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">

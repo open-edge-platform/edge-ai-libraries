@@ -6,14 +6,14 @@ The Time Series Analytics Microservice provides an interactive Swagger UI at `ht
 
 ## Accessing the Swagger UI
 
-### To view the current configuration:
+### View the current configuration
 
 1. Open the Swagger UI in your browser.
 2. Locate the `GET /config` endpoint.
 3. Expand the endpoint and click **Execute**.
 The response displays the current configuration of the Time Series Analytics Microservice.
 
-### To update the current configuration:
+### Update the current configuration
 
 1. Open the Swagger UI in your browser.
 2. Find the `POST /config` endpoint.
@@ -22,12 +22,12 @@ This enables dynamic configuration at runtime. The service will apply the update
 
 > **Note:** If you restart the Time Series Analytics Microservice, it will start with the default configuration present in the `config.json` file.
 
-### To send input data to the Time Series Analytics Microservice
+### Send input data to the Time Series Analytics Microservice
 
 1. Open the Swagger UI in your browser.
 2. Find the `POST /input` endpoint.
 3. The input data consists of keys `topic`, `tags`(optional), `fields` and `timestamp`(optional).
-Following is the example configuration for `temperature_classifier` UDF input:
+   Below is an example configuration for `temperature_classifier` UDF input:
 
     ```json
     {
@@ -41,22 +41,24 @@ Following is the example configuration for `temperature_classifier` UDF input:
     "timestamp": 0
     }
     ```
-5. Expand the endpoint, enter the input data in the request body, and click **Execute**.
+
+4. Expand the endpoint, enter the input data in the request body, and click **Execute**.
 The service will use the input for processing data.
 
-### To send OP CUA alerts
+### Send OPC UA alerts
 
 1. Open the Swagger UI in your browser.
 2. Find the `POST /opcua_alerts` endpoint.
-Following is the example configuration for alert input:
+   Below is an example configuration for alert input:
 
     ```json
     {
     "message": "Alert message"
     }
     ```
-4. Expand the endpoint, enter the alert data in the request body, and click **Execute**.
-5. The service sends alert to OP CUA server as configured in the config.
+
+3. Expand the endpoint, enter the alert data in the request body, and click **Execute**.
+4. The service sends alert to OPC UA server as configured in the config.
 
 > **Note:** Before using the OPC UA alerts API, ensure that you have the OPC-UA server running and have added `opcua` to the `alerts` section in `config.json` file
 
