@@ -15,7 +15,6 @@ import {
   LatencyChart,
   MemoryUtilizationChart,
 } from "@/features/metrics/charts";
-import { LatencySummaryPanel } from "@/features/metrics/LatencySummaryPanel.tsx";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
 import {
   useMetricHistory,
@@ -315,15 +314,6 @@ export const MetricsDashboard = ({
   const showLatencySection =
     enableLatencyMetrics || hasLatencyData || hasSummaryLatency;
 
-  console.log("[latency-debug] dashboard:", {
-    enableLatencyMetrics,
-    hasLatencyData,
-    hasSummaryLatency,
-    showLatencySection,
-    latencyDataLast: latencyData.at(-1),
-    historyLength: history.length,
-  });
-
   const latencyYAxisMax = getRecentYAxisMax(
     latencyData.map((point) => Math.max(point.avg, point.min, point.max)),
     CHART_MAX_DATA_POINTS,
@@ -383,20 +373,104 @@ export const MetricsDashboard = ({
       }`}
     >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+        <MetricCard
+          title={isSummary ? "Frame Rate Average" : "Frame Rate"}
+          value={metrics.fps}
+          unit="fps"
+          icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
+          isSummary={isSummary}
+          forceDark={forceDark}
+          useDemoStyles={useDemoStyles}
+          summaryCardClassName={summaryCardClassName}
+          summaryIconClassName={summaryIconClassName}
+          summaryTitleClassName={summaryTitleClassName}
+          summaryUnitClassName={summaryUnitClassName}
+        />
+        <MetricCard
+          title={isSummary ? "CPU Usage Average" : "CPU Usage"}
+          value={metrics.cpu}
+          unit="%"
+          icon={<Cpu className="h-6 w-6 text-green-chart" />}
+          isSummary={isSummary}
+          forceDark={forceDark}
+          useDemoStyles={useDemoStyles}
+          summaryCardClassName={summaryCardClassName}
+          summaryIconClassName={summaryIconClassName}
+          summaryTitleClassName={summaryTitleClassName}
+          summaryUnitClassName={summaryUnitClassName}
+        />
+        <MetricCard
+          title={isSummary ? "GPU Usage Average" : "GPU Usage"}
+          value={displayedGpuUsage}
+          unit="%"
+          icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
+          isSummary={isSummary}
+          forceDark={forceDark}
+          useDemoStyles={useDemoStyles}
+          summaryCardClassName={summaryCardClassName}
+          summaryIconClassName={summaryIconClassName}
+          summaryTitleClassName={summaryTitleClassName}
+          summaryUnitClassName={summaryUnitClassName}
+        />
+        {showLatencySection && (
+          <>
+            <MetricCard
+              title="Avg Latency"
+              value={
+                hasSummaryLatency
+                  ? metricsOverride!.latencyAvg!
+                  : (latencyData.at(-1)?.avg ?? 0)
+              }
+              unit="ms"
+              icon={<Clock className="h-6 w-6 text-orange-chart" />}
+              isSummary={isSummary}
+              forceDark={forceDark}
+              useDemoStyles={useDemoStyles}
+              summaryCardClassName={summaryCardClassName}
+              summaryIconClassName={summaryIconClassName}
+              summaryTitleClassName={summaryTitleClassName}
+              summaryUnitClassName={summaryUnitClassName}
+            />
+            <MetricCard
+              title="Min Latency"
+              value={
+                hasSummaryLatency
+                  ? metricsOverride!.latencyMin!
+                  : (latencyData.at(-1)?.min ?? 0)
+              }
+              unit="ms"
+              icon={<Clock className="h-6 w-6 text-green-chart" />}
+              isSummary={isSummary}
+              forceDark={forceDark}
+              useDemoStyles={useDemoStyles}
+              summaryCardClassName={summaryCardClassName}
+              summaryIconClassName={summaryIconClassName}
+              summaryTitleClassName={summaryTitleClassName}
+              summaryUnitClassName={summaryUnitClassName}
+            />
+            <MetricCard
+              title="Max Latency"
+              value={
+                hasSummaryLatency
+                  ? metricsOverride!.latencyMax!
+                  : (latencyData.at(-1)?.max ?? 0)
+              }
+              unit="ms"
+              icon={<Clock className="h-6 w-6 text-red-chart" />}
+              isSummary={isSummary}
+              forceDark={forceDark}
+              useDemoStyles={useDemoStyles}
+              summaryCardClassName={summaryCardClassName}
+              summaryIconClassName={summaryIconClassName}
+              summaryTitleClassName={summaryTitleClassName}
+              summaryUnitClassName={summaryUnitClassName}
+            />
+          </>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="space-y-4">
-          <MetricCard
-            title={isSummary ? "Frame Rate Average" : "Frame Rate"}
-            value={metrics.fps}
-            unit="fps"
-            icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
-            isSummary={isSummary}
-            forceDark={forceDark}
-            useDemoStyles={useDemoStyles}
-            summaryCardClassName={summaryCardClassName}
-            summaryIconClassName={summaryIconClassName}
-            summaryTitleClassName={summaryTitleClassName}
-            summaryUnitClassName={summaryUnitClassName}
-          />
           <FrameRateChart
             data={fpsData}
             yAxisMax={fpsYAxisMax}
@@ -410,22 +484,18 @@ export const MetricsDashboard = ({
             forceDark={forceDark}
             useDemoStyles={useDemoStyles}
           />
+          {showLatencySection && (
+            <LatencyChart
+              data={latencyData}
+              yAxisMax={latencyYAxisMax}
+              isSummary={isSummary}
+              forceDark={forceDark}
+              useDemoStyles={useDemoStyles}
+            />
+          )}
         </div>
 
         <div className="space-y-4">
-          <MetricCard
-            title={isSummary ? "CPU Usage Average" : "CPU Usage"}
-            value={metrics.cpu}
-            unit="%"
-            icon={<Cpu className="h-6 w-6 text-green-chart" />}
-            isSummary={isSummary}
-            forceDark={forceDark}
-            useDemoStyles={useDemoStyles}
-            summaryCardClassName={summaryCardClassName}
-            summaryIconClassName={summaryIconClassName}
-            summaryTitleClassName={summaryTitleClassName}
-            summaryUnitClassName={summaryUnitClassName}
-          />
           <CpuUsageChart
             data={cpuData}
             isSummary={isSummary}
@@ -449,19 +519,6 @@ export const MetricsDashboard = ({
         </div>
 
         <div className="space-y-4">
-          <MetricCard
-            title={isSummary ? "GPU Usage Average" : "GPU Usage"}
-            value={displayedGpuUsage}
-            unit="%"
-            icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
-            isSummary={isSummary}
-            forceDark={forceDark}
-            useDemoStyles={useDemoStyles}
-            summaryCardClassName={summaryCardClassName}
-            summaryIconClassName={summaryIconClassName}
-            summaryTitleClassName={summaryTitleClassName}
-            summaryUnitClassName={summaryUnitClassName}
-          />
           {!useDemoStyles && (
             <GpuUsageChart
               data={gpuChartData}
@@ -520,56 +577,6 @@ export const MetricsDashboard = ({
           )}
         </div>
       </div>
-
-      {showLatencySection && (
-        <div className="space-y-4">
-          {hasSummaryLatency ? (
-            <>
-              <LatencySummaryPanel
-                avgMs={metricsOverride!.latencyAvg!}
-                minMs={metricsOverride!.latencyMin!}
-                maxMs={metricsOverride!.latencyMax!}
-                fps={metricsOverride!.latencyFps ?? metricsOverride!.fps}
-                forceDark={forceDark}
-              />
-              <LatencyChart
-                data={latencyData}
-                yAxisMax={latencyYAxisMax}
-                isSummary={isSummary}
-                forceDark={forceDark}
-                useDemoStyles={useDemoStyles}
-              />
-            </>
-          ) : hasLatencyData ? (
-            <>
-              <MetricCard
-                title="Avg Latency"
-                value={latencyData.at(-1)?.avg ?? 0}
-                unit="ms"
-                icon={<Clock className="h-6 w-6 text-orange-chart" />}
-                isSummary={isSummary}
-                forceDark={forceDark}
-                useDemoStyles={useDemoStyles}
-                summaryCardClassName={summaryCardClassName}
-                summaryIconClassName={summaryIconClassName}
-                summaryTitleClassName={summaryTitleClassName}
-                summaryUnitClassName={summaryUnitClassName}
-              />
-              <LatencyChart
-                data={latencyData}
-                yAxisMax={latencyYAxisMax}
-                isSummary={isSummary}
-                forceDark={forceDark}
-                useDemoStyles={useDemoStyles}
-              />
-            </>
-          ) : (
-            <div className="p-4 text-center text-sm text-muted-foreground">
-              Waiting for latency data…
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 };

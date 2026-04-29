@@ -108,23 +108,16 @@ export const selectCpuMetrics = (state: RootState) => {
 };
 
 export const selectLatencyMetrics = (state: RootState) => {
-  const allNames = state.metrics.metrics.map((m) => m.name);
-  console.log("[latency-debug] all metric names:", allNames);
-
   const latencyMetric = state.metrics.metrics.find(
     (m) => m.name === "pipeline_latency",
   );
-  console.log("[latency-debug] matched metric:", latencyMetric);
-
   if (!latencyMetric) return undefined;
-  const result = {
+  return {
     avgMs: latencyMetric.fields.avg_ms as number | undefined,
     minMs: latencyMetric.fields.min_ms as number | undefined,
     maxMs: latencyMetric.fields.max_ms as number | undefined,
     fps: latencyMetric.fields.fps as number | undefined,
   };
-  console.log("[latency-debug] selector result:", result);
-  return result;
 };
 
 export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
