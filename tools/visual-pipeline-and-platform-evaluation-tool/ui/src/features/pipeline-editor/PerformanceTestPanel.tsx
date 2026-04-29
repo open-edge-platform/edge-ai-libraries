@@ -143,6 +143,7 @@ type PerformanceTestPanelProps = {
   pipelineId?: string;
   livePreviewEnabled?: boolean;
   videoOutputEnabled?: boolean;
+  enableLatencyMetrics?: boolean;
   liveStreamUrl?: string | null;
 };
 
@@ -152,6 +153,7 @@ const PerformanceTestPanel = ({
   pipelineId,
   livePreviewEnabled = false,
   videoOutputEnabled = false,
+  enableLatencyMetrics = false,
   liveStreamUrl,
 }: PerformanceTestPanelProps) => {
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
@@ -520,9 +522,10 @@ const PerformanceTestPanel = ({
         </TabsContent>
       </Tabs>
 
-      {isRunning && <MetricsDashboard />}
+      {isRunning && <MetricsDashboard enableLatencyMetrics={enableLatencyMetrics} />}
       {!isRunning && frozenSummary && (
         <MetricsDashboard
+          enableLatencyMetrics={enableLatencyMetrics}
           historyOverride={frozenHistory}
           metricsOverride={frozenSummary}
         />

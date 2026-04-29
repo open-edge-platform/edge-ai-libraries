@@ -342,6 +342,7 @@ export const Pipelines = () => {
             output_mode: outputMode,
             max_runtime: maxRuntimeSeconds,
             metadata_mode: hasMetadata ? "file" : "disabled",
+            enable_latency_metrics: true,
           },
         },
       });
@@ -845,6 +846,7 @@ export const Pipelines = () => {
                       completedVideoPath={completedVideoPath}
                       livePreviewEnabled={livePreviewEnabled}
                       videoOutputEnabled={videoOutputEnabled}
+                      enableLatencyMetrics={true}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
