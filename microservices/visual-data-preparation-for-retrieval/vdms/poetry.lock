@@ -2085,13 +2085,13 @@ tests = ["pytest (>=4.6)"]
 
 [[package]]
 name = "multimodal-embedding-serving"
-version = "2.0.3"
+version = "2.0.0"
 description = "The MultiModal Embedding serving is designed to generate embeddings for text, image URLs, base64 encoded images, video URLs, and base64 encoded videos. It leverages the CLIP (Contrastive Language-Image Pretraining) model to create these embeddings."
 optional = false
 python-versions = ">=3.10,<3.14"
 groups = ["main"]
 files = [
-    {file = "multimodal_embedding_serving-2.0.3-py3-none-any.whl", hash = "sha256:d3856a5d3a85723994dda5f6bdd7dfb0abee0dd0b1671502d735777999268bf4"},
+    {file = "multimodal_embedding_serving-2.0.0-py3-none-any.whl", hash = "sha256:610836fc395249c7ce799a712c87530595b9facd75768c61701d2f0835cac0df"},
 ]
 
 [package.dependencies]
@@ -2124,7 +2124,7 @@ wheel = ">=0.46.3,<0.47.0"
 
 [package.source]
 type = "file"
-url = "wheels/multimodal_embedding_serving-2.0.3-py3-none-any.whl"
+url = "wheels/multimodal_embedding_serving-2.0.0-py3-none-any.whl"
 
 [[package]]
 name = "mypy-extensions"
@@ -5163,4 +5163,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.14"
-content-hash = "d34a9745deb5abd36d03a3ac0aef547f7897ab3e0717c45dd2f44cb124f1bae5"
+content-hash = "2d88e235c771e0826fb41dad508e2d4a06990b729334d9bb72829f12d4f06167"
