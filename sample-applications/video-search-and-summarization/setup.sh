@@ -12,17 +12,43 @@ GRAY='\033[0;90m'
 NC='\033[0m' # No Color
 
 # =================== Setup Mount Directories ======================
-export OVMS_CONFIG_DIR=${PWD}/config/ovms_config
+config_dir=${PWD}/config
+nginx_config_dir=${config_dir}/nginx
+
+export OVMS_CONFIG_DIR=${config_dir}/ovms_config
 export OV_MODEL_DIR=${PWD}/ov_models
-export CONFIG_DIR=${PWD}/config
-export NGINX_CONFIG=${CONFIG_DIR}/nginx/
-export NGINX_TEMPLATE_DIR=/etc/nginx/templates
-export RABBITMQ_CONFIG=${CONFIG_DIR}/rmq.conf
+export RABBITMQ_CONFIG=${config_dir}/rmq.conf
+export NGINX_BASE_CONFIG=${nginx_config_dir}/nginx.conf
+
+# ================================= SETUP ALIASES ======================================
+if [ "$#" -eq 1 ] && [ "$1" = "config" ]; then
+    set -- "--dual" "config"
+elif [ "$#" -eq 1 ] && [ "$1" = "--down" ]; then
+    set -- "--stop"
+elif [ "$#" -eq 2 ] && [ "$1" = "config" ]; then
+    set -- "$2" "config"
+elif [ "$#" -eq 0 ]; then
+    set -- "--help"
+fi
+if [ "$1" = "--all" ]; then
+    [ "$#" -eq 1 ] && set -- "--unified" || set -- "--unified" "$2"
+fi
 
 # =================== Function Definitions =========================
 stop_containers() {
     echo -e "${YELLOW}Bringing down all the Docker containers... ${NC}"
-    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.vllm.yaml -f docker/compose.search.yaml -f docker/compose.ui.yaml -f docker/compose.telemetry.yaml --profile ovms --profile vlm-ov --profile vllm --profile dual_ui --profile unified_ui down
+    docker compose \
+        -f docker/compose.base.yaml \
+        -f docker/compose.summary.yaml \
+        -f docker/compose.vllm.yaml \
+        -f docker/compose.search.yaml \
+        -f docker/compose.ui.yaml \
+        -f docker/compose.telemetry.yaml \
+        --profile ovms --profile vlm-ov --profile vllm \
+        --profile dual_ui --profile singleton_unified_ui \
+        --profile singleton_summary_ui \
+        --profile singleton_search_ui \
+        down
     if [ $? -ne 0 ]; then
         echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
         return 1
@@ -47,48 +73,56 @@ if [ "$#" -gt 2 ]; then
     echo -e "${RED}ERROR: Too many arguments provided.${NC}"
     echo -e "${YELLOW}Use --help for usage information${NC}"
     return 1
-    
-elif [ "$#" -eq 1 ] && [ "$1" = "--help" ]; then
+fi
+
+if [ "$#" -eq 1 ] && [ "$1" = "--help" ]; then
     echo -e "-----------------------------------------------------------------"
-    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[config ${GREEN}[--all]${BLUE} | --up | --setup | --all | --setenv | --down | --stop | --clean-data | --help]"
+    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[config ${GREEN}[--summary|--search|--dual|--unified|--all]${BLUE} | --summary | --search |"
+    echo -e "       --dual | --unified | --all | --setenv | --down | --stop | --clean-data | --help]"
     echo -e  "${YELLOW}"
-    echo -e  "  (no args), --up, --setup:  Setup and deploy the application."
-    echo -e  "                             ${GRAY}Brings up all component microservices with separate video summarization and video search UIs"
-    echo -e  "                             to perform video summarization and search respectively.${NC}${YELLOW}"
-    echo -e  "                     --all:  Deploy all microservices with single unified video summarization and search UI. ${GRAY}In this mode,"
-    echo -e  "                             search is performed over video summaries text instead of videos itself.${NC}${YELLOW}"
+    echo -e  "         (no args), --help:  Shows this help message."
+    echo -e  "                 --summary:  Deploy microservices with single summary UI."
+    echo -e  "                  --search:  Deploy microservices with single search UI."
+    echo -e  "                    --dual:  Deploy microservices with separate summary and search UIs."
+    echo -e  "          --unified, --all:  Deploy microservices with one unified summary+search UI."
     echo -e  "                  --setenv:  Set environment variables without setting up application or starting any containers."
     echo -e  "            --down, --stop:  Bring down all the docker containers for the application."
     echo -e  "              --clean-data:  Bring down all the docker containers and remove all docker volumes for the user data."
-    echo -e  "                    --help:  Show this help message"
     echo -e  "                    config:  Print the final compose configuration with all variables resolved without"
-    echo -e  "                             starting containers. Use 'config --all' for unified-UI mode."
-    echo -e  "${RED}"
-    echo -e  "       --summary, --search:  Deprecated aliases${MAGENTA} (accepted for backward compatibility. Behaves like default no arguments, --up or --setup)${NC}"
-    echo -e  ""
+    echo -e  "                             starting containers. Mode defaults to --dual when omitted."
+    echo -e  "                             Supported forms: config, config --summary|--search|--dual|--unified|--all"
     echo -e  "-----------------------------------------------------------------"
     return 0
 
-elif [ "$#" -ge 1 ] \
-     && [ "$1" != "--up" ] && [ "$1" != "--setup" ] \
+fi
+
+if [ "$#" -ge 1 ] \
+     && [ "$1" != "--dual" ] && [ "$1" != "--unified" ] \
      && [ "$1" != "--summary" ] && [ "$1" != "--search" ] \
-     && [ "$1" != "--setenv" ] && [ "$1" != "--clean-data" ] \
-     && [ "$1" != "--stop" ] && [ "$1" != "--down" ] \
-     && [ "$1" != "config" ] && [ "$1" != "--help" ] \
-     && [ "$1" != "--all" ]; then
+     && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] \
+     && [ "$1" != "--setenv" ] && [ "$1" != "config" ] \
+     && [ "$1" != "--help" ]; then
     # Default case for unrecognized first option
     echo -e "${RED}Unknown option: $1 ${NC}"
     echo -e "${YELLOW}Use --help for usage information${NC}"
+    set --
     return 1
 
-elif [ "$#" -eq 2 ] && { [ "$1" != "config" ] || [ "$2" != "--all" ]; }; then
-    # Invalid second argument
+elif [ "$#" -eq 2 ] && [ "$1" = "config" ] \
+    && [ "$2" != "--summary" ] && [ "$2" != "--search" ] \
+    && [ "$2" != "--dual" ] && [ "$2" != "--unified" ] && [ "$2" != "--all" ]; then
     echo -e "${RED}Invalid argument combination: '$1 $2'${NC}"
-    echo -e "${YELLOW}The only valid two-argument form is: 'config --all'${NC}"
+    echo -e "${YELLOW}Valid forms: config, config --summary, config --search, config --dual, config --unified, config --all${NC}"
     echo -e "${YELLOW}Use --help for usage information${NC}"
     return 1
 
-elif [ "$1" = "--down" ] || [ "$1" = "--stop" ] || [ "$1" = "--clean-data" ]; then
+elif [ "$#" -eq 2 ] && [ "$1" != "config" ] && [ "$2" != "config" ]; then
+    echo -e "${RED}Invalid argument combination: '$1 $2'${NC}"
+    echo -e "${YELLOW}Valid two-argument forms are '<mode> config' or 'config <mode>'${NC}"
+    echo -e "${YELLOW}Use --help for usage information${NC}"
+    return 1
+
+elif [ "$1" = "--stop" ] || [ "$1" = "--clean-data" ]; then
     # Bring down all the Docker containers
     stop_containers || return 1
     # Remove volumes if --clean-data is specified
@@ -99,26 +133,6 @@ elif [ "$1" = "--down" ] || [ "$1" = "--stop" ] || [ "$1" = "--clean-data" ]; th
     return 0
 fi
 
-# ================================= SETUP ALIASES ======================================
-#  When no argument or --setup is provided, behave like --up (default dual-UI deployment)
-if [ "$#" -eq 0 ]; then
-    set -- "--up"
-elif [ "$1" = "--setup" ]; then
-    set -- "--up"
-# Older --summary/--search legacy aliases of --up (deprecation notice printed)
-# TODO: Remove in next version.
-elif [ "$1" = "--summary" ] || [ "$1" = "--search" ]; then
-    echo -e "${MAGENTA}Note: '$1' is deprecated. The default deployment now brings up both${NC}"
-    echo -e "$              Video Summarization and Video Search as two separate UI instances.${NC}"
-    echo -e "${YELLOW}      Treating '$1' as default deployment to bring up both Summarization and Search UI Instances. ${NC}"
-    echo -e "${YELLOW}      If you need the search on video summaries text, use '--all' instead.${NC}"
-    set -- "--up" "$2"
-#  Create alias for 'config' option to behave like '--up config' or '--all config' for easier usage
-elif [ "$#" -eq 1 ] && [ "$1" = "config" ]; then
-    set -- "--up" "config"
-elif [ "$#" -eq 2 ] && [ "$1" = "config" ] && [ "$2" = "--all" ]; then
-    set -- "--all" "config"
-fi
 
 # ================================== Export Environment Variables ===================================
 # Base configuration
@@ -206,7 +220,6 @@ fi
 
 # env for pipeline-manager
 export PM_HOST_PORT=3001
-export PM_HOST=pipeline-manager
 export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=4000
 export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
 export PM_LLM_MAX_CONTEXT_LENGTH=${PM_LLM_MAX_CONTEXT_LENGTH:-90000}
@@ -269,7 +282,7 @@ export VDMS_VDB_HOST=vdms-vector-db
 export VDMS_DATAPREP_HOST_PORT=6016
 export VDMS_DATAPREP_HOST=vdms-dataprep
 export VDMS_DATAPREP_ENDPOINT=http://$VDMS_DATAPREP_HOST:8000
-export VDMS_PIPELINE_MANAGER_UPLOAD=http://$PM_HOST:3000
+export VDMS_PIPELINE_MANAGER_UPLOAD=http://pipeline-manager:3000
 export DEFAULT_BUCKET_NAME="vdms-bucket"
 
 # YOLOX model volume configuration for object detection
@@ -306,7 +319,7 @@ export ALLOW_HEADERS=${ALLOW_HEADERS:-*}
 
 # env for multimodal-embedding-serving (unified embedding service)
 export EMBEDDING_SERVER_PORT=9777
-export EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}  # Must be explicitly provided - no default
+# export EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}  # Must be explicitly provided - no default
 export DEFAULT_START_OFFSET_SEC=0
 export DEFAULT_CLIP_DURATION=${DEFAULT_CLIP_DURATION:--1}
 export DEFAULT_NUM_FRAMES=64
@@ -384,28 +397,29 @@ if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
     processing_scope+=", plus the multimodal-embedding-serving container"
 fi
 
-if [ $1 = "--all" ]; then
-    embedding_model_display="${TEXT_EMBEDDING_MODEL:-"(not provided)"}"
-else
-    embedding_model_display="${EMBEDDING_MODEL_NAME:-"(not provided)"}"
+if [ $1 != "--summary" ]; then
+    if [ "$1" = "--unified" ]; then
+        embedding_model_display="${TEXT_EMBEDDING_MODEL:-"(not provided)"}"
+    else
+        embedding_model_display="${MULTIMODAL_EMBEDDING_MODEL:-"(not provided)"}"
+    fi
+
+    embedding_endpoint_display=${MULTIMODAL_EMBEDDING_ENDPOINT:-"(not configured)"}
+
+    if [[ "${EMBEDDING_PROCESSING_MODE}" == "sdk" ]]; then
+        embedding_mode_details="SDK mode keeps embeddings in-process within vdms-dataprep; no external HTTP calls are made."
+    else
+        embedding_mode_details="API mode routes embeddings to multimodal-embedding-serving at ${embedding_endpoint_display}."
+    fi
+
+    echo -e "[vdms-dataprep] ${BLUE}Runtime Summary:${NC}"
+    echo -e "   • [vdms-dataprep] Processing Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${processing_scope})."
+    if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
+        echo -e "   • [multimodal-embedding-serving] Embedding Service Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (HTTP mode container)."
+    fi
+    echo -e "   • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC} — ${embedding_mode_details}"
+    echo -e "   • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
 fi
-
-embedding_endpoint_display=${MULTIMODAL_EMBEDDING_ENDPOINT:-"(not configured)"}
-
-if [[ "${EMBEDDING_PROCESSING_MODE}" == "sdk" ]]; then
-    embedding_mode_details="SDK mode keeps embeddings in-process within vdms-dataprep; no external HTTP calls are made."
-else
-    embedding_mode_details="API mode routes embeddings to multimodal-embedding-serving at ${embedding_endpoint_display}."
-fi
-
-echo -e "[vdms-dataprep] ${BLUE}Runtime Summary:${NC}"
-echo -e "   • [vdms-dataprep] Processing Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${processing_scope})."
-if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
-    echo -e "   • [multimodal-embedding-serving] Embedding Service Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (HTTP mode container)."
-fi
-echo -e "   • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC} — ${embedding_mode_details}"
-echo -e "   • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
-
 
 # Frame-to-Video Aggregation Settings for search-ms
 export AGGREGATION_ENABLED=${AGGREGATION_ENABLED:-true}
@@ -481,9 +495,9 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
         echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}"
         return 1
     fi
-    if [ "$1" != "--all" ] && [ -z "$EMBEDDING_MODEL_NAME" ]; then
-        echo -e "${RED}ERROR: EMBEDDING_MODEL_NAME is not set in your shell environment.${NC}"
-        echo -e "${YELLOW}This is required for both SDK and API embedding modes${NC}"
+    if { [ "$1" = "--search" ] || [ "$1" = "--dual" ]; } && [ -z "$MULTIMODAL_EMBEDDING_MODEL" ]; then
+        echo -e "${RED}ERROR: MULTIMODAL_EMBEDDING_MODEL is not set in your shell environment.${NC}"
+        echo -e "${YELLOW}This is required for both SDK and API embedding modes for Video Search.${NC}"
         return 1
     fi
     
@@ -494,10 +508,10 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
         return 1
     fi
 
-    # Enforce dedicated text-embedding selection only for the --all unified mode.
-    if [ "$1" = "--all" ] && [ -z "$TEXT_EMBEDDING_MODEL" ]; then
+    # Enforce dedicated text-embedding selection only for unified mode.
+    if [ "$1" = "--unified" ] && [ -z "$TEXT_EMBEDDING_MODEL" ]; then
         echo -e "${RED}ERROR: TEXT_EMBEDDING_MODEL is not set in your shell environment.${NC}"
-        echo -e "${YELLOW}This is required for --all mode.${NC}"
+        echo -e "${YELLOW}This is required for --unified/--all mode.${NC}"
         return 1
     fi
     
@@ -570,8 +584,8 @@ convert_object_detection_models() {
 export_model_for_ovms() {
     # Create a directory for model, model_export.py script and virtual environment
     curr_dir=$(pwd)
-    mkdir -p ${CONFIG_DIR}/ovms_config
-    cd ${CONFIG_DIR}/ovms_config
+    mkdir -p ${config_dir}/ovms_config
+    cd ${config_dir}/ovms_config
 
     # Download the OVMS model export script
     if [ ! -f export_model.py ]; then
@@ -652,30 +666,60 @@ export_model_for_ovms() {
     cd $curr_dir
 }
 
-if [ "$1" = "--up" ] || [ "$1" = "--all" ]; then
-    export APP_FEATURE_MUX="ATOMIC"
-    export VS_INDEX_NAME="video_frame_embeddings"
-    export NGINX_UI_CONF="dual_ui.conf"
-    DEPLOYMENT_LABEL="Default dual-UI deployment for video summarization and searching"
+if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "$1" = "--unified" ]; then
     BACKEND_PROFILE="vlm-ov"
-    UI_PROFILE="dual_ui"    # For separate summary and search UI instances
+    APP_COMPOSE_FILE="-f docker/compose.base.yaml"
+    export EMBEDDING_MODEL_NAME=${MULTIMODAL_EMBEDDING_MODEL}
 
-    if [ "$1" = "--all" ]; then
-        export EMBEDDING_MODEL_NAME=${TEXT_EMBEDDING_MODEL}
-        export APP_FEATURE_MUX="SUMMARY_SEARCH"
-        export VS_INDEX_NAME="video_summary_embeddings"
-        export NGINX_UI_CONF="unified_ui.conf"
-        UI_PROFILE="unified_ui"     # For unified single UI instance which searches after getting summary texts.
-        DEPLOYMENT_LABEL="Search on Video Summary Texts - Unified UI deployment"
-    fi
+    case "$1" in
+        --summary)
+            unset VS_INDEX_NAME
+            export NGINX_UI_CONFIG="${nginx_config_dir}/singleton_ui.conf"
+            export APP_FEATURE_MUX="ATOMIC"
+            export APP_SUMMARY_FEATURE="FEATURE_ON"
+            export APP_SEARCH_FEATURE="FEATURE_OFF"
+            DEPLOYMENT_LABEL="Summary-only UI deployment. For summarizing video content."
+            UI_PROFILE="singleton_summary_ui"
+            APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.summary.yaml"
+            ;;
+        --search)
+            export VS_INDEX_NAME="video_frame_embeddings"
+            export NGINX_UI_CONFIG="${nginx_config_dir}/singleton_ui.conf"
+            export APP_FEATURE_MUX="ATOMIC"
+            export APP_SUMMARY_FEATURE="FEATURE_OFF"
+            export APP_SEARCH_FEATURE="FEATURE_ON"
+            DEPLOYMENT_LABEL="Search-only UI deployment. For searching over video frame embeddings."
+            UI_PROFILE="singleton_search_ui"
+            APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.search.yaml"
+            ;;
+        --unified)
+            export EMBEDDING_MODEL_NAME=${TEXT_EMBEDDING_MODEL}
+            export VS_INDEX_NAME="video_summary_embeddings"
+            export NGINX_UI_CONFIG="${nginx_config_dir}/singleton_ui.conf"
+            export APP_FEATURE_MUX="SUMMARY_SEARCH"
+            export APP_SUMMARY_FEATURE="FEATURE_ON"
+            export APP_SEARCH_FEATURE="FEATURE_ON"
+            DEPLOYMENT_LABEL="Unified single UI for summarization and searching. For searching over text embeddings of summaries."
+            UI_PROFILE="singleton_unified_ui"
+            APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.summary.yaml -f docker/compose.search.yaml"
+            ;;
+        --dual)
+            export VS_INDEX_NAME="video_frame_embeddings"
+            export NGINX_UI_CONFIG="${nginx_config_dir}/dual_ui.conf"
+            DEPLOYMENT_LABEL="Dual UI (Separate Summary and Search UI) deployment. For summarizing video content and searching over video frame embeddings."
+            UI_PROFILE="dual_ui"
+            APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.summary.yaml -f docker/compose.search.yaml"
+            ;;
+    esac
 
-    APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml"
     APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.ui.yaml"
     mkdir -p ${VS_WATCHER_DIR}
 
     echo -e  "[pipeline-manager] ${GREEN}Setting up: ${DEPLOYMENT_LABEL}${NC}"
-    echo -e  "[video-search] ${GREEN}Using vector-DB index: ${YELLOW}${VS_INDEX_NAME}${NC}"
-    echo -e  "[nginx] ${GREEN}Using UI routing config: ${YELLOW}${NGINX_UI_CONF}${NC}"
+    if [ -n "${VS_INDEX_NAME}" ]; then
+        echo -e  "[video-search] ${GREEN}Using vector-DB index: ${YELLOW}${VS_INDEX_NAME}${NC}"
+    fi
+    echo -e  "[nginx] ${GREEN}Using UI routing config: ${YELLOW}${NGINX_UI_CONFIG}${NC}"
     if [ "$ENABLE_VSS_COLLECTOR" = true ]; then
         APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.telemetry.yaml"
         echo -e  "[telemetry] ${GREEN}vss-collector enabled (set ENABLE_VSS_COLLECTOR=true to keep enabled)${NC}"
@@ -819,12 +863,19 @@ if [ $? -ne 0 ]; then
 fi
 if [ "$2" !=  "config" ]; then
     echo -e "\n${GREEN}Setup completed successfully! 😎"
-    if [ "$1" != "--all" ]; then
+    if [ "$1" = "--dual" ]; then
         echo -e "Two UI instances are now available:"
-        echo -e "  • ${BLUE}Video Summarization UI:${NC} ${YELLOW}http://${HOST_IP}:${APP_HOST_PORT}/summary${NC}"
-        echo -e "  • ${BLUE}Video Search UI:       ${NC} ${YELLOW}http://${HOST_IP}:${APP_HOST_PORT}/search${NC}"
-    elif [ "$1" = "--all" ]; then
-        echo -e "Unified UI is now available at: ${YELLOW}http://${HOST_IP}:${APP_HOST_PORT}${NC}"
-        echo -e "${MAGENTA}For compatibility reasons, the /summary and /search paths are still available and will route to the unified UI.${NC}"
+        echo -e "  • ${BLUE}Video Summarization UI:${NC} ${YELLOW}http://${HOST_IP}:${APP_HOST_PORT}/summary/${NC}"
+        echo -e "  • ${BLUE}Video Search UI:       ${NC} ${YELLOW}http://${HOST_IP}:${APP_HOST_PORT}/search/${NC}"
+        echo -e "${GRAY}Note: Root URL http://${HOST_IP}:${APP_HOST_PORT}/ redirects to Summary UI.${NC}"
+    elif [ "$1" = "--unified" ]; then
+        echo -e "Unified Summarization/Search UI is now available at: ${YELLOW}http://${HOST_IP}:${APP_HOST_PORT}/${NC}"
+    elif [ "$1" = "--summary" ]; then
+        echo -e "Video Summarization UI is now available at: ${YELLOW}http://${HOST_IP}:${APP_HOST_PORT}/${NC}"
+    elif [ "$1" = "--search" ]; then
+        echo -e "Video Search UI is now available at: ${YELLOW}http://${HOST_IP}:${APP_HOST_PORT}/${NC}"
     fi
 fi
+
+# Reset all position arguments overrides
+set --
