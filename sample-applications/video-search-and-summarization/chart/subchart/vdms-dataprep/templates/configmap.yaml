@@ -62,7 +62,7 @@ data:
   EMBEDDING_BATCH_SIZE: {{ .Values.sdkPipeline.embeddingBatchSize | default .Values.global.env.EMBEDDING_BATCH_SIZE | default 32 | quote }}
   MAX_PARALLEL_WORKERS: {{ .Values.sdkPipeline.maxParallelWorkers | default .Values.global.env.MAX_PARALLEL_WORKERS | quote }}
   SDK_VIDEO_SHM_MAX_BLOCKS: {{ .Values.sdkPipeline.videoShmMaxBlocks | default .Values.global.env.SDK_VIDEO_SHM_MAX_BLOCKS | default 512 | quote }}
-  SDK_VIDEO_SHM_BLOCK_SIZE: {{ .Values.sdkPipeline.videoShmBlockSize | default .Values.global.env.SDK_VIDEO_SHM_BLOCK_SIZE | default 6220800 | quote }}
+  SDK_VIDEO_SHM_BLOCK_SIZE: {{ .Values.sdkPipeline.videoShmBlockSize | default .Values.global.env.SDK_VIDEO_SHM_BLOCK_SIZE | default 6220800 | int | quote }}
   SDK_VIDEO_EXTRACTION_BATCH_SIZE: {{ .Values.sdkPipeline.videoExtractionBatchSize | default .Values.global.env.SDK_VIDEO_EXTRACTION_BATCH_SIZE | default 256 | quote }}
   SDK_PIPELINE_QUEUE_MAXSIZE: {{ .Values.sdkPipeline.pipelineQueueMaxsize | default .Values.global.env.SDK_PIPELINE_QUEUE_MAXSIZE | default 16 | quote }}
   SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE: {{ .Values.sdkPipeline.pipelineCompletionQueueMaxsize | default .Values.global.env.SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE | default 1 | quote }}

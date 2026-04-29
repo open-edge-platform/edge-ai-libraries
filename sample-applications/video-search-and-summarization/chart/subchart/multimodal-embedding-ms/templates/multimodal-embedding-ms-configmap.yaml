@@ -36,7 +36,7 @@ data:
   PREPROCESS_WORKERS: {{ .Values.preprocessWorkers | default .Values.global.env.PREPROCESS_WORKERS | default 8 | quote }}
   VIDEO_FRAME_BATCH_SIZE: {{ .Values.videoFrameBatchSize | default .Values.global.env.VIDEO_FRAME_BATCH_SIZE | default 64 | quote }}
   VIDEO_FRAME_QUEUE_SIZE: {{ .Values.videoFrameQueueSize | default .Values.global.env.VIDEO_FRAME_QUEUE_SIZE | default 32 | quote }}
-  VIDEO_FRAME_SHM_POOL_BLOCK_SIZE: {{ .Values.videoFrameShmPoolBlockSize | default .Values.global.env.VIDEO_FRAME_SHM_POOL_BLOCK_SIZE | default 6220800 | quote }}
+  VIDEO_FRAME_SHM_POOL_BLOCK_SIZE: {{ .Values.videoFrameShmPoolBlockSize | default .Values.global.env.VIDEO_FRAME_SHM_POOL_BLOCK_SIZE | default 6220800 | int | quote }}
   VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER: {{ .Values.videoFrameShmPoolBlocksMultiplier | default .Values.global.env.VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER | default 2 | quote }}
   VIDEO_FRAME_LOG_LEVEL: {{ .Values.videoFrameLogLevel | default .Values.global.env.VIDEO_FRAME_LOG_LEVEL | default "INFO" | quote }}
   OV_PERFORMANCE_MODE: {{ .Values.ovPerformanceMode | default .Values.global.env.OV_PERFORMANCE_MODE | default "THROUGHPUT" | quote }}
