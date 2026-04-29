@@ -1,13 +1,10 @@
-/*SPDX-License-Identifier: Apache-2.0*/
-
 import { useTheme } from "next-themes";
-import { Clock, Gauge } from "lucide-react";
+import { Clock } from "lucide-react";
 
 interface LatencySummaryPanelProps {
   avgMs: number;
   minMs: number;
   maxMs: number;
-  fps: number;
   forceDark?: boolean;
 }
 
@@ -15,7 +12,6 @@ export const LatencySummaryPanel = ({
   avgMs,
   minMs,
   maxMs,
-  fps,
   forceDark = false,
 }: LatencySummaryPanelProps) => {
   const { resolvedTheme } = useTheme();
@@ -32,7 +28,6 @@ export const LatencySummaryPanel = ({
     { label: "Avg Latency", value: avgMs, unit: "ms", icon: Clock },
     { label: "Min Latency", value: minMs, unit: "ms", icon: Clock },
     { label: "Max Latency", value: maxMs, unit: "ms", icon: Clock },
-    { label: "FPS", value: fps, unit: "fps", icon: Gauge },
   ];
 
   return (

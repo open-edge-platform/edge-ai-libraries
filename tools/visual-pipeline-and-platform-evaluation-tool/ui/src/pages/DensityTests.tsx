@@ -197,6 +197,7 @@ export const DensityTests = () => {
           execution_config: {
             output_mode: "disabled",
             max_runtime: loopingEnabled ? loopingRuntimeSeconds : 0,
+            enable_latency_metrics: true,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => ({
@@ -483,7 +484,7 @@ export const DensityTests = () => {
                     Running density test...
                   </span>
                 </div>
-                <MetricsDashboard />
+                <MetricsDashboard enableLatencyMetrics={true} />
               </div>
             )}
           </div>
@@ -495,6 +496,7 @@ export const DensityTests = () => {
               Frozen Metrics Snapshot
             </p>
             <MetricsDashboard
+              enableLatencyMetrics={true}
               historyOverride={frozenHistory}
               metricsOverride={frozenSummary}
             />
