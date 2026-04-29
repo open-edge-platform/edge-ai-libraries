@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 
 # Color codes for terminal output
 RED='\033[0;31m'
@@ -423,17 +425,6 @@ export VS_DEBOUNCE_TIME=${VS_DEBOUNCE_TIME:-10}
 export VS_HOST=video-search
 export VS_ENDPOINT=http://$VS_HOST:8000
 
-# env for vss-ui
-# Two UI instances run in parallel (one scoped to Summary, one scoped to Search).
-# Each needs its own direct-access host port in addition to the nginx proxy port.
-# export UI_SUMMARY_HOST_PORT=${UI_SUMMARY_HOST_PORT:-9998}
-# export UI_SEARCH_HOST_PORT=${UI_SEARCH_HOST_PORT:-9999}
-# # export UI_HOST_PORT=${UI_SUMMARY_HOST_PORT}  # legacy alias
-
-# if [ "${UI_SUMMARY_HOST_PORT}" = "${UI_SEARCH_HOST_PORT}" ]; then
-#     echo -e "${RED}ERROR: UI_SUMMARY_HOST_PORT and UI_SEARCH_HOST_PORT cannot be the same (${UI_SUMMARY_HOST_PORT}).${NC}"
-#     return 1
-# fi
 # If nginx not being used, set this in your shell with pipeline manager's complete url with host and port. 
 export UI_PM_ENDPOINT=${UI_PM_ENDPOINT:-/manager}
 # if nginx not being used, set this in your shell with minio's complete url with host and port.
