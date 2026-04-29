@@ -2091,7 +2091,7 @@ optional = false
 python-versions = ">=3.10,<3.14"
 groups = ["main"]
 files = [
-    {file = "multimodal_embedding_serving-2.0.0-py3-none-any.whl", hash = "sha256:610836fc395249c7ce799a712c87530595b9facd75768c61701d2f0835cac0df"},
+    {file = "multimodal_embedding_serving-2.0.0-py3-none-any.whl", hash = "sha256:3330e1a39b2e0d423f12f16f84cf3c79a21c6199e6e80ff01692f49add17471f"},
 ]
 
 [package.dependencies]
