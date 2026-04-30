@@ -1,6 +1,7 @@
 import { useAppSelector } from "@/store/hooks";
 import { selectDevices } from "@/store/reducers/devices";
 import type { Device } from "@/api/api.generated.ts";
+import { cn } from "@/lib/utils";
 
 interface DeviceSelectProps {
   value: string;
@@ -23,7 +24,10 @@ const DeviceSelect = ({ value, onChange, className }: DeviceSelectProps) => {
     <select
       value={formatDeviceName(value)}
       onChange={(e) => onChange(e.target.value)}
-      className={className ?? "w-full text-xs border border-gray-300 px-2 py-1"}
+      className={cn(
+        "w-full text-xs border border-input bg-background px-2 py-1",
+        className,
+      )}
     >
       {devices.map((device) => {
         const formattedName = formatDeviceName(device.device_name);

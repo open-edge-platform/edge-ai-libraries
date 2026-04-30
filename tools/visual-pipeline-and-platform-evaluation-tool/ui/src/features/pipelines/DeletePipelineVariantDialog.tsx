@@ -10,7 +10,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useDeleteVariantMutation } from "@/api/api.generated";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { handleApiError } from "@/lib/apiUtils";
 import { Trash2 } from "lucide-react";
 

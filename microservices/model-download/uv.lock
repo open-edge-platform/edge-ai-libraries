@@ -1021,6 +1021,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },
+    { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "structlog" },
     { name = "uvicorn" },
@@ -1107,6 +1108,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0,<5.0.0" },
     { name = "pytest-env", marker = "extra == 'dev'", specifier = ">=1.1.0,<2.0.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.11.1,<4.0.0" },
+    { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "responses", marker = "extra == 'dev'", specifier = ">=0.25.0,<1.0.0" },
     { name = "sentence-transformers", marker = "extra == 'openvino'", specifier = "==5.1.2" },
@@ -1910,6 +1912,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-multipart"
+version = "0.0.26"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/88/71/b145a380824a960ebd60e1014256dbb7d2253f2316ff2d73dfd8928ec2c3/python_multipart-0.0.26.tar.gz", hash = "sha256:08fadc45918cd615e26846437f50c5d6d23304da32c341f289a617127b081f17", size = 43501, upload-time = "2026-04-10T14:09:59.473Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/22/f1925cdda983ab66fc8ec6ec8014b959262747e58bdca26a4e3d1da29d56/python_multipart-0.0.26-py3-none-any.whl", hash = "sha256:c0b169f8c4484c13b0dcf2ef0ec3a4adb255c4b7d18d8e420477d2b1dd03f185", size = 28847, upload-time = "2026-04-10T14:09:58.131Z" },
+]
+
+[[package]]
 name = "pytz"
 version = "2026.1.post1"
 source = { registry = "https://pypi.org/simple" }
@@ -2390,10 +2401,10 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 wheels = [
-    { url = "https://download.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:3bf9b442a51a2948e41216a76d7ab00f0694cfcaaa51b6f9bcab57b7f89843e6" },
-    { url = "https://download.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:7417d8c565f219d3455654cb431c6d892a3eb40246055e14d645422de13b9ea1" },
-    { url = "https://download.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-win_amd64.whl", hash = "sha256:a4e06b4f441675d26b462123c8a83e77c55f1ec8ebc081203be2db1ea8054add" },
-    { url = "https://download.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-win_arm64.whl", hash = "sha256:1abe31f14b560c1f062699e966cb08ef5b67518a1cfac2d8547a3dbcd8387b06" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:3bf9b442a51a2948e41216a76d7ab00f0694cfcaaa51b6f9bcab57b7f89843e6" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:7417d8c565f219d3455654cb431c6d892a3eb40246055e14d645422de13b9ea1" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-win_amd64.whl", hash = "sha256:a4e06b4f441675d26b462123c8a83e77c55f1ec8ebc081203be2db1ea8054add" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-win_arm64.whl", hash = "sha256:1abe31f14b560c1f062699e966cb08ef5b67518a1cfac2d8547a3dbcd8387b06" },
 ]
 
 [[package]]
@@ -2406,8 +2417,8 @@ dependencies = [
     { name = "torch" },
 ]
 wheels = [
-    { url = "https://download.pytorch.org/whl/cpu/torchvision-0.24.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:48ff40694812292f1f75cddb517f9eef224a2e8388798a0aa191e27bf159fc5d" },
-    { url = "https://download.pytorch.org/whl/cpu/torchvision-0.24.1%2Bcpu-cp312-cp312-win_amd64.whl", hash = "sha256:af904a34b563c302fa4583a4746f3108bafdc5823a67c912d6023a8fe9b01c51" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torchvision-0.24.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:48ff40694812292f1f75cddb517f9eef224a2e8388798a0aa191e27bf159fc5d" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torchvision-0.24.1%2Bcpu-cp312-cp312-win_amd64.whl", hash = "sha256:af904a34b563c302fa4583a4746f3108bafdc5823a67c912d6023a8fe9b01c51" },
 ]
 
 [[package]]
