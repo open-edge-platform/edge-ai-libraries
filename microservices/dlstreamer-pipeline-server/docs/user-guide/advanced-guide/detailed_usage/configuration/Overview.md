@@ -1,7 +1,3 @@
-<!--hide_directive```{eval-rst}
-:orphan:
-```hide_directive-->
-
 # Basic Deep Learning Streamer Pipeline Server Configuration
 
 DL Streamer Pipeline Server exposes multiple application related fields in the config file. The configuration file is present in **[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json** on your host machine.
