@@ -1484,7 +1484,7 @@ const DemoMode = () => {
                                   <p className="text-xs font-semibold text-demo-preview-card-title mb-2 truncate">
                                     {`${pipeline?.name || "Unknown Pipeline"} • LIVE PREVIEW`}
                                   </p>
-                                  <div className="flex-1 flex items-center justify-center bg-black-20 rounded overflow-hidden min-h-[13.75rem]">
+                                  <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden min-h-[13.75rem]">
                                     <div className="w-full h-full">
                                       {streamUrl ? (
                                         <WebRTCVideoPlayer

@@ -92,17 +92,6 @@
   /* Dark-mode page background (slight blue tint) */
   --surface-dark: oklch(0.3053 0.0055 271.23); /* #2E2F32 */
 
-  /* White with alpha — dark-mode border / input */
-  --white-10: oklch(1 0 0 / 10%); /* #FFFFFF1A */
-  --white-15: oklch(1 0 0 / 15%); /* #FFFFFF26 */
-  --white-5: oklch(1 0 0 / 5%); /* #FFFFFF0D */
-  --white-80: oklch(1 0 0 / 80%); /* #FFFFFFCC */
-
-  /* Black with alpha */
-  --black-20: oklch(0 0 0 / 20%); /* #00000033 */
-  --black-50: oklch(0 0 0 / 50%); /* #00000080 */
-  --black-80: oklch(0 0 0 / 80%); /* #000000CC */
-
   /* Destructive / error */
   --red: oklch(0.577 0.245 27.325); /* #E7000B - light mode */
   --red-bright: oklch(0.704 0.191 22.216); /* #FF6467 - dark mode (more visible) */

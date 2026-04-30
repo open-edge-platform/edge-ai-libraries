@@ -288,18 +288,18 @@
   --secondary-foreground: var(--near-white);
   --muted: var(--gray-27);
   --muted-foreground: var(--gray-79);
-  --accent: var(--white-15);
+  --accent: oklch(1 0 0 / 15%);
   --accent-foreground: var(--near-white);
   --destructive: var(--red-bright);
-  --border: var(--white-10);
-  --input: var(--white-15);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
   --ring: var(--gray-56);
 
   /* shadcn/ui sidebar */
   --sidebar: var(--dark-gray-200);
   --sidebar-foreground: var(--near-white);
   --sidebar-accent-foreground: var(--near-white);
-  --sidebar-border: var(--white-10);
+  --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: var(--gray-56);
 
   /* Semantic brand tokens */
