@@ -107,14 +107,32 @@ class ProxyFilterConfig(BaseModel):
         normalized = value.strip().lower().replace("-", "_")
         if not normalized:
             raise ValueError("server_name and prefix must not be empty.")
+        if NAME_PATTERN.fullmatch(normalized) is None:
+            raise ValueError(
+                "server_name and prefix must be valid identifiers "
+                "(letters, numbers, underscores; must start with a letter or underscore)."
+            )
         return normalized
 
     @field_validator("apis")
     @classmethod
     def _normalize_api_keys(cls, value: dict[str, ApiConfig]) -> dict[str, ApiConfig]:
-        """Normalise every API key to canonical ``"METHOD /path"`` form."""
+        """Normalise every API key to canonical ``"METHOD /path"`` form.
 
-        return {_normalize_operation_key(raw_key): cfg for raw_key, cfg in value.items()}
+        Raises ``ValueError`` if two raw keys normalise to the same canonical key
+        (e.g. ``"get /foo"`` and ``"GET /foo"`` in the same file).
+        """
+
+        normalized: dict[str, ApiConfig] = {}
+        for raw_key, cfg in value.items():
+            canonical = _normalize_operation_key(raw_key)
+            if canonical in normalized:
+                raise ValueError(
+                    f'Duplicate API key: "{raw_key}" normalises to "{canonical}", '
+                    f"which is already defined."
+                )
+            normalized[canonical] = cfg
+        return normalized
 
     @model_validator(mode="after")
     def _validate_apis(self) -> "ProxyFilterConfig":

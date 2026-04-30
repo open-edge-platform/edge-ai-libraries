@@ -53,11 +53,11 @@ http://127.0.0.1:8000/mcp
 | Variable                    | Required          | Default            | Description                                           |
 |-----------------------------|-------------------|--------------------|-------------------------------------------------------|
 | `API_SPEC_URL`              | **Yes**           | -                 | URL to the VSS OpenAPI/Swagger JSON document          |
-| `API_BASE_URL`              | **Yes**   | from spec          | Base URL of the running VSS REST service              |
-| `FILTER_FILE_PATH`          | No                | bundled `search.json` | Path to the mounted filter file inside the container  |
-| `DEFAULT_REQUEST_TIMEOUT_SECONDS` | No                | `60`               | Outbound request timeout in seconds                   |
+| `API_BASE_URL`              | **Yes**           | -                  | Base URL of the running VSS REST service              |
+| `FILTER_FILE_PATH`          | **Yes**           | -                  | Path to the filter config file inside the container   |
+| `REQUEST_TIMEOUT`           | No                | `60`               | Outbound request timeout in seconds                   |
 | `LOG_LEVEL`                 | No                | `INFO`             | Python log level (`DEBUG`, `INFO`, `WARNING`, …)      |
-| `MCP_HOST`                  | No                | `127.0.0.1`        | Bind address (use `0.0.0.0` in Docker)                |
+| `MCP_HOST`                  | No                | `0.0.0.0`          | Bind address                                          |
 | `MCP_PORT`                  | No                | `8000`             | Listening port                                        |
 | `MCP_PATH`                  | No                | `/mcp`             | Streamable HTTP endpoint path                         |
 

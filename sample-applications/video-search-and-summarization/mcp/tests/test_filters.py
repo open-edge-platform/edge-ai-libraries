@@ -238,6 +238,38 @@ class FilterConfigTests(unittest.TestCase):
             "demo_get_widget",
         )
 
+    def test_duplicate_api_keys_after_normalisation_are_rejected(self) -> None:
+        # "get /widgets" and "GET /widgets" normalise to the same canonical key.
+        with self.assertRaisesRegex(ValidationError, "Duplicate API key"):
+            ProxyFilterConfig.model_validate(
+                {
+                    "prefix": "demo",
+                    "apis": {
+                        "get /widgets": {"type": "resource", "name": "list_widgets"},
+                        "GET /widgets": {"type": "resource", "name": "list_widgets_2"},
+                    },
+                }
+            )
+
+    def test_invalid_prefix_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValidationError, "valid identifier"):
+            ProxyFilterConfig.model_validate(
+                {
+                    "prefix": "123invalid",
+                    "apis": {},
+                }
+            )
+
+    def test_invalid_server_name_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValidationError, "valid identifier"):
+            ProxyFilterConfig.model_validate(
+                {
+                    "server_name": "!bad name",
+                    "prefix": "demo",
+                    "apis": {},
+                }
+            )
+
     def test_load_filter_config_reports_missing_file(self) -> None:
         with self.assertRaisesRegex(ValueError, "Filter config file not found"):
             load_filter_config("/missing/filter.json")

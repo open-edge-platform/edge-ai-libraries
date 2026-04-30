@@ -20,22 +20,24 @@ DEFAULT_MCP_PATH = "/mcp"
 DEFAULT_FILTER_CONFIG_PATH = "all.json"
 
 
-# Used in long lived singelton.
+# Used in long lived singleton.
 @dataclass(frozen=True, slots=True)
 class Settings:
     """Immutable runtime settings for the MCP proxy server.
 
     Attributes:
-        spec_url: URL of the upstream OpenAPI / Swagger document.
-        filter_config_path: Absolute path to the JSON filter file.
-        target_base_url: Optional explicit backend base URL. When ``None`` the
-            URL is derived from the spec's ``servers`` list.
+        spec_url: URL of the upstream OpenAPI / Swagger document
+            (from ``API_SPEC_URL``).
+        api_base_url: Base URL the proxy forwards REST traffic to
+            (from ``API_BASE_URL``).
+        filter_config_path: Absolute path to the JSON filter file
+            (from ``FILTER_FILE_PATH``).
         request_timeout_seconds: Timeout applied to both the spec download and
-            every proxied request.
+            every proxied request (from ``REQUEST_TIMEOUT``).
         log_level: Python logging level name (e.g. ``"INFO"``, ``"DEBUG"``).
-        mcp_host: Bind address for the MCP HTTP listener.
-        mcp_port: TCP port for the MCP HTTP listener.
-        mcp_path: URL path prefix exposed by the MCP server.
+        mcp_host: Bind address for the MCP HTTP listener (from ``MCP_HOST``).
+        mcp_port: TCP port for the MCP HTTP listener (from ``MCP_PORT``).
+        mcp_path: URL path prefix exposed by the MCP server (from ``MCP_PATH``).
         stateless_http: Whether the MCP HTTP transport runs without sessions.
     """
 
