@@ -9,8 +9,7 @@
 
 ## Configuration
 
-- [Overview](./advanced-guide/detailed_usage/configuration/Overview.md)
-- [Basic](./advanced-guide/detailed_usage/configuration/basic.md)
+- [Basic DL Streamer Pipeline Server Configuration](./advanced-guide/detailed_usage/configuration/Overview.md)
 
 ## Camera
 
