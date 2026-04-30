@@ -18,7 +18,7 @@
 # Configuration:
 #   BACKEND                    - OPENVINO (default) or OLLAMA
 #   DEVICE                     - CPU (default) or GPU (OpenVINO only)
-#   HUGGINGFACEHUB_API_TOKEN   - Required for OpenVINO backend
+#   HUGGINGFACEHUB_API_TOKEN   - Optional for OpenVINO backend (only public models accessible without it)
 #
 # ==============================================================================
 
@@ -165,7 +165,7 @@ deploy:
 	echo "  BACKEND_TAG:  $$BACKEND_TAG_COMPUTED"; \
 	if [ "$(BACKEND_UPPER)" = "OPENVINO" ]; then \
 		if [ -z "$${HUGGINGFACEHUB_API_TOKEN:-}" ]; then \
-			echo "  HF_TOKEN:     ❌ NOT SET"; \
+			echo "  HF_TOKEN:     ⚠️  NOT SET (only public models accessible)"; \
 		else \
 			echo "  HF_TOKEN:     ✅ Set"; \
 		fi; \
@@ -174,13 +174,12 @@ deploy:
 	fi; \
 	echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 	echo ""; \
-	VALIDATION_ERROR=""; \
 	if [ "$(BACKEND_UPPER)" = "OPENVINO" ] && [ -z "$${HUGGINGFACEHUB_API_TOKEN:-}" ]; then \
-		echo "❌ HUGGINGFACEHUB_API_TOKEN is required for OpenVINO backend."; \
-		echo "   export HUGGINGFACEHUB_API_TOKEN=<your-token>"; \
+		echo "⚠️  HUGGINGFACEHUB_API_TOKEN is not set. Only public models accessible."; \
+		echo "   To use private models: export HUGGINGFACEHUB_API_TOKEN=<your-token>"; \
 		echo ""; \
-		VALIDATION_ERROR="true"; \
 	fi; \
+	VALIDATION_ERROR=""; \
 	if [ "$(BACKEND_UPPER)" != "OPENVINO" ] && [ "$(BACKEND_UPPER)" != "OLLAMA" ]; then \
 		echo "❌ Invalid BACKEND '$(BACKEND_UPPER)'. Use OPENVINO or OLLAMA."; \
 		echo ""; \
@@ -239,7 +238,7 @@ deploy-build:
 		fi; \
 		if [ "$(BACKEND_UPPER)" = "OPENVINO" ]; then \
 			if [ -z "$${HUGGINGFACEHUB_API_TOKEN:-}" ]; then \
-				echo "  HF_TOKEN:  ❌ NOT SET"; \
+				echo "  HF_TOKEN:  ⚠️  NOT SET (only public models accessible)"; \
 			else \
 				echo "  HF_TOKEN:  ✅ Set"; \
 			fi; \
@@ -249,11 +248,11 @@ deploy-build:
 		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
 		echo ""; \
 		if [ "$(BACKEND_UPPER)" = "OPENVINO" ] && [ -z "$${HUGGINGFACEHUB_API_TOKEN:-}" ]; then \
-			echo "❌ HUGGINGFACEHUB_API_TOKEN is required for OpenVINO backend."; \
-			echo "   export HUGGINGFACEHUB_API_TOKEN=<your-token>"; \
+			echo "⚠️  HUGGINGFACEHUB_API_TOKEN is not set. Only publicly available models can be downloaded."; \
+			echo "   To use private models: export HUGGINGFACEHUB_API_TOKEN=<your-token>"; \
 			echo ""; \
-			exit 0; \
-		elif [ "$(BACKEND_UPPER)" != "OPENVINO" ] && [ "$(BACKEND_UPPER)" != "OLLAMA" ]; then \
+		fi; \
+		if [ "$(BACKEND_UPPER)" != "OPENVINO" ] && [ "$(BACKEND_UPPER)" != "OLLAMA" ]; then \
 			echo "❌ Invalid BACKEND '\''$(BACKEND_UPPER)'\''. Use OPENVINO or OLLAMA."; \
 			exit 0; \
 		elif [ "$(BACKEND_UPPER)" = "OPENVINO" ] && [ "$(DEVICE_UPPER)" != "CPU" ] && [ "$(DEVICE_UPPER)" != "GPU" ]; then \
@@ -655,7 +654,7 @@ help:
 	@echo "  Environment Variables:"
 	@echo "    BACKEND                    OPENVINO (default) or OLLAMA"
 	@echo "    DEVICE                     CPU (default) or GPU (OpenVINO only)"
-	@echo "    HUGGINGFACEHUB_API_TOKEN   Required for OpenVINO"
+	@echo "    HUGGINGFACEHUB_API_TOKEN   Optional for OpenVINO (only public models accessible without it)"
 	@echo "    REGISTRY                   Image registry (default: $(DEFAULT_REGISTRY))"
 	@echo "    UI_TAG                     UI image tag (default: $(DEFAULT_UI_TAG))"
 	@echo "    BACKEND_TAG                Backend image tag (auto-selected by BACKEND/DEVICE)"
@@ -682,13 +681,15 @@ help:
 	@echo "EXAMPLES"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "  # Deploy with pre-built images (OpenVINO CPU)"
-	@echo "  export HUGGINGFACEHUB_API_TOKEN=<token>"
 	@echo "  make deploy"
+	@echo "  # (set HUGGINGFACEHUB_API_TOKEN for private/gated models)"
+	@echo "  # export HUGGINGFACEHUB_API_TOKEN=<token>"
 	@echo ""
 	@echo "  # Deploy with Ollama"
 	@echo "  BACKEND=OLLAMA make deploy"
 	@echo ""
 	@echo "  # Build and deploy with OpenVINO GPU"
-	@echo "  export HUGGINGFACEHUB_API_TOKEN=<token>"
 	@echo "  DEVICE=GPU make deploy-build"
+	@echo "  # (set HUGGINGFACEHUB_API_TOKEN for private/gated models)"
+	@echo "  # export HUGGINGFACEHUB_API_TOKEN=<token>"
 	@echo ""
