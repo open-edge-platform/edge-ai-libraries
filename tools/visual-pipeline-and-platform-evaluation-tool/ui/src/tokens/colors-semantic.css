@@ -218,12 +218,6 @@
 
   --node-body-text: color-mix(in oklch, var(--foreground) 82%, var(--background));
   --node-separator: color-mix(in oklch, var(--foreground) 35%, var(--background));
-  --node-color: transparent;
-  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
-  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
-  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
-  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
-  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 
   --demo-header-divider: color-mix(in oklch, var(--demo-slate-300) 20%, transparent);
   --demo-header-title: var(--brand-accent);
