@@ -62,7 +62,7 @@ remove_volumes() {
     docker volume rm docker_minio_data docker_pg_data docker_vdms-db docker_audio_analyzer_data docker_data-prep docker_collector_signals 2>/dev/null
     if [ $? -ne 0 ]; then
         echo -e "${YELLOW}Note: Could not remove all volumes. Some volumes may not have existed, were already removed or currently in use. ${NC}"
-        return 1
+        return 0
     fi
     echo -e "${GREEN}All volumes were successfully removed. ${NC}"
     return 0

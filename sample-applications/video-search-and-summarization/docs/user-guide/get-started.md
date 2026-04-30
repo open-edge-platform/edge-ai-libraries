@@ -147,7 +147,7 @@ Before running the application, you need to set several environment variables:
       export VS_WATCHER_DIR="/path/to/your/video/directory"
       ```
 
-   > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). The watcher feeds the Video Search pipeline, which is always part of the unified deployment.
+   > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with `--search` and `--dual` modes.
 
 5. **Control the frame extraction interval (Video Search)**:
 
