@@ -122,6 +122,7 @@ describe('UiService', () => {
       dataStoreUpload: StateActionStatus.COMPLETE,
       summarizing: StateActionStatus.COMPLETE,
       chunking: StateActionStatus.COMPLETE,
+      videoChunking: StateActionStatus.COMPLETE,
     },
   };
 
@@ -233,7 +234,10 @@ describe('UiService', () => {
 
       expect(stateService.fetch).toHaveBeenCalledWith(mockStateId);
       expect(result).toEqual({
+        audioStatus: mockState.audio?.status,
+        audioTranscriptSummaryStatus: mockState.audio?.transcriptSummaryStatus,
         chunkingStatus: mockState.status.chunking,
+        videoChunkingStatus: mockState.status.videoChunking,
         frameSummaryStatus: {
           complete: 1,
           inProgress: 0,

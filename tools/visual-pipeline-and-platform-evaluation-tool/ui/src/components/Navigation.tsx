@@ -3,6 +3,7 @@ import logoDark from "@/assets/app-logo-energy-blue.svg";
 import { useTheme } from "next-themes";
 import { NavLink } from "react-router";
 import { menuItems } from "@/config/navigation.ts";
+import { cn } from "@/lib/utils";
 import { version } from "../../package.json";
 
 import {
@@ -28,7 +29,7 @@ export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton className="h-[60px] group-data-[collapsible=icon]:h-[60px] hover:bg-transparent active:bg-transparent pl-[7px]">
+            <SidebarMenuButton className="h-[3.75rem] group-data-[collapsible=icon]:h-[3.75rem] hover:bg-transparent active:bg-transparent pl-[0.4375rem]">
               <img
                 src={theme === "dark" ? logoDark : logoLight}
                 alt="Intel"
@@ -51,11 +52,10 @@ export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
                       {({ isActive }) => (
                         <SidebarMenuButton
                           tooltip={item.title}
-                          className={
-                            isActive
-                              ? "bg-sidebar-accent border-r-3 border-classic-blue dark:border-energy-blue"
-                              : ""
-                          }
+                          className={cn(
+                            isActive &&
+                              "bg-sidebar-accent border-r-3 border-brand-accent",
+                          )}
                         >
                           {item.icon && <item.icon />}
                           <span className="px-2">{item.title}</span>
@@ -70,9 +70,10 @@ export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
       </SidebarContent>
       <SidebarFooter>
         <div
-          className={`px-2 py-2 text-xs text-muted-foreground whitespace-nowrap transition-opacity ease-linear group-data-[collapsible=icon]:opacity-0 ${
-            state === "collapsed" ? "duration-100" : "duration-200 delay-100"
-          }`}
+          className={cn(
+            "px-2 py-2 text-xs text-muted-foreground whitespace-nowrap transition-opacity ease-linear group-data-[collapsible=icon]:opacity-0",
+            state === "collapsed" ? "duration-100" : "duration-200 delay-100",
+          )}
         >
           Version: {version}
         </div>

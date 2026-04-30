@@ -7,12 +7,12 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # Update huggingfaceToken if access to gated models is required. (This is needed in case OVMS is used for final summarization)
+  # Update huggingfaceToken if access to gated OVMS models is required.
   huggingfaceToken: ""
 
-  # vlmName is Vision-Language Model Name used by VLM Inference Microservice
+  # vlmName is the OVMS or vLLM Vision-Language Model used for captioning.
   vlmName: ""
-  # llmName is Large Language Model Name used by OVMS service
+  # llmName is optional when OVMS serves a separate summarization model.
   llmName: ""
 
   # Update http_proxy and https_proxy with appropriate values if a proxy is required for external access.
@@ -43,19 +43,35 @@ global:
     # Set to true when deploying summary and search together so the text embedding model overrides the default.
     preferTextModel: false
 
-  # Update these values to deploy on GPU. Leave empty if want to keep default deployment on CPU.
-  gpu:
-    vlminferenceEnabled:
-    multimodalembeddingmsEnabled:
-    vdmsdataprepEnabled:
-    ovmsEnabled:
+  # Per-service device configuration
+  # Each service can independently specify its device (CPU | GPU) and K8s resource key.
+  # For OVMS, each model (vlm/llm) can have different device settings.
+  # NOTE: 'key' is REQUIRED when device is not CPU (GPU, NPU, or HETERO).
+  devices:
+    # Multimodal Embedding Microservice
+    multimodalEmbedding:
+      device: CPU # CPU | GPU
+      key: "" # Required when device=GPU (e.g., gpu.intel.com/i915)
 
-    # Set `key` and `device` if anyone of vlminferenceEnabled, multimodalembeddingmsEnabled,
-    # vdmsdataprepEnabled or ovmsEnabled is set to true
-    # Update as per the cluster node label key for GPU assigned by the device plugin
-    key:
-    # Set value to `GPU` to deploy on GPU
-    device:
+    # VDMS Dataprep
+    vdmsDataprep:
+      device: CPU # CPU | GPU
+      key: "" # Required when device=GPU
+
+    # OVMS - per-model device selection
+    ovms:
+      vlm:
+        device: CPU # CPU | GPU | NPU | HETERO:GPU,CPU
+        key: "" # Required when device is GPU/NPU/HETERO (e.g., gpu.intel.com/xe, npu.intel.com/accel)
+      llm:
+        device: CPU # CPU | GPU | NPU | HETERO:GPU,CPU
+        key: "" # Required when device is GPU/NPU/HETERO
+ovms:
+  env:
+    # Override weight format for VLM model conversion (auto-detected by device if not set). Options: int4, int8 etc
+    VLM_WEIGHT_FORMAT: ""
+    # Override weight format for LLM model conversion (auto-detected by device if not set). Options: int4, int8 etc
+    LLM_WEIGHT_FORMAT: ""
 
 videoingestion:
   # odModelName defines the name of Object Detection Model

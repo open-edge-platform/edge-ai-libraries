@@ -1,0 +1,306 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Semantic design tokens
+   Maps roles / components to base palette values from colors-base.css.
+   These are the tokens that components should reference.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Tailwind v4 color aliases — makes every token available as a utility class
+  (e.g. bg-brand-accent, text-summary-title, border-brand-accent-40)         */
+@theme inline {
+  /* shadcn/ui surface tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* shadcn/ui chart tokens */
+
+  /* shadcn/ui sidebar tokens */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Semantic brand tokens */
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-soft: var(--brand-accent-soft);
+  --color-brand-accent-hover: var(--brand-accent-hover);
+  --color-summary-title: var(--summary-title);
+  --color-summary-unit: var(--summary-unit);
+
+  /* Shared opacity-safe semantic tokens */
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-overlay-strong: var(--surface-overlay-strong);
+  --color-surface-overlay-border: var(--surface-overlay-border);
+
+  /* Status semantic tokens */
+  --color-status-bg: var(--status-bg);
+  --color-status-border: var(--status-border);
+  --color-status-fg: var(--status-fg);
+  --color-status-info-accent: var(--status-info-accent);
+  --color-status-neutral-bg: var(--status-neutral-bg);
+  --color-status-neutral-fg: var(--status-neutral-fg);
+  --color-status-link: var(--status-link);
+  --color-status-link-hover: var(--status-link-hover);
+
+  /* Metrics dashboard semantic tokens */
+
+  /* Pipeline editor node semantic tokens */
+  --color-node-body-text: var(--node-body-text);
+  --color-node-separator: var(--node-separator);
+  --color-node-border: var(--node-border);
+  --color-node-surface: var(--node-surface);
+  --color-node-icon: var(--node-icon);
+  --color-node-title: var(--node-title);
+  --color-node-handle: var(--node-handle);
+
+  /* Demo mode semantic tokens */
+  --color-demo-header-divider: var(--demo-header-divider);
+  --color-demo-header-title: var(--demo-header-title);
+  --color-demo-exit-surface: var(--demo-exit-surface);
+  --color-demo-exit-border: var(--demo-exit-border);
+  --color-demo-exit-hover-surface: var(--demo-exit-hover-surface);
+  --color-demo-exit-hover-border: var(--demo-exit-hover-border);
+  --color-demo-exit-fg: var(--demo-exit-fg);
+  --color-demo-panel-border: var(--demo-panel-border);
+  --color-demo-panel-title: var(--demo-panel-title);
+  --color-demo-panel-label: var(--demo-panel-label);
+  --color-demo-panel-input-border: var(--demo-panel-input-border);
+  --color-demo-panel-input-focus-border: var(--demo-panel-input-focus-border);
+  --color-demo-panel-input-focus-ring: var(--demo-panel-input-focus-ring);
+  --color-demo-panel-input-text: var(--demo-panel-input-text);
+  --color-demo-panel-menu-surface: var(--demo-panel-menu-surface);
+  --color-demo-panel-menu-border: var(--demo-panel-menu-border);
+  --color-demo-checkbox-border: var(--demo-checkbox-border);
+  --color-demo-checkbox-active: var(--demo-checkbox-active);
+  --color-demo-primary-button: var(--demo-primary-button);
+  --color-demo-primary-button-hover: var(--demo-primary-button-hover);
+  --color-demo-primary-button-shadow: var(--demo-primary-button-shadow);
+  --color-demo-primary-button-shadow-hover: var(--demo-primary-button-shadow-hover);
+  --color-demo-primary-button-overlay-from: var(--demo-primary-button-overlay-from);
+  --color-demo-primary-button-overlay-to: var(--demo-primary-button-overlay-to);
+  --color-demo-surface-from: var(--demo-surface-from);
+  --color-demo-surface-via: var(--demo-surface-via);
+  --color-demo-surface-to: var(--demo-surface-to);
+  --color-demo-selection-card-border: var(--demo-selection-card-border);
+  --color-demo-selection-card-border-hover: var(--demo-selection-card-border-hover);
+  --color-demo-selection-card-border-active: var(--demo-selection-card-border-active);
+  --color-demo-selection-card-title: var(--demo-selection-card-title);
+  --color-demo-selection-card-description: var(--demo-selection-card-description);
+  --color-demo-selection-count: var(--demo-selection-count);
+  --color-demo-carousel-button-surface: var(--demo-carousel-button-surface);
+  --color-demo-carousel-button-surface-hover: var(--demo-carousel-button-surface-hover);
+  --color-demo-carousel-button-border: var(--demo-carousel-button-border);
+  --color-demo-carousel-button-icon: var(--demo-carousel-button-icon);
+  --color-demo-carousel-dot: var(--demo-carousel-dot);
+  --color-demo-carousel-dot-hover: var(--demo-carousel-dot-hover);
+  --color-demo-carousel-dot-active: var(--demo-carousel-dot-active);
+  --color-demo-preview-panel-border: var(--demo-preview-panel-border);
+  --color-demo-preview-panel-surface: var(--demo-preview-panel-surface);
+  --color-demo-preview-card-border: var(--demo-preview-card-border);
+  --color-demo-preview-card-surface: var(--demo-preview-card-surface);
+  --color-demo-preview-card-title: var(--demo-preview-card-title);
+  --color-demo-preview-empty: var(--demo-preview-empty);
+
+  /* Demo opacity-safe tokens */
+
+  /* Pipeline summary semantic tokens */
+  --color-pipeline-summary-border: var(--pipeline-summary-border);
+  --color-pipeline-summary-glow-from: var(--pipeline-summary-glow-from);
+  --color-pipeline-summary-glow-via: var(--pipeline-summary-glow-via);
+  --color-pipeline-summary-glow-to: var(--pipeline-summary-glow-to);
+  --color-pipeline-summary-title: var(--pipeline-summary-title);
+  --color-pipeline-summary-variant: var(--pipeline-summary-variant);
+
+  /* Base palette forwarded to Tailwind (for occasional direct use / gradients) */
+  --color-classic-blue: var(--classic-blue);
+  --color-energy-blue: var(--energy-blue);
+  --color-energy-blue-tint-2: var(--energy-blue-tint-2);
+  --color-energy-blue-tint-1: var(--energy-blue-tint-1);
+  --color-blue-steel: var(--blue-steel);
+  --color-carbon: var(--carbon);
+  --color-carbon-tint-1: var(--carbon-tint-1);
+  --color-electric-geode: var(--electric-geode);
+  --color-electric-cobalt: var(--electric-cobalt);
+  --color-electric-moss: var(--electric-sky);
+  --color-electric-amethyst: var(--electric-amethyst);
+  --color-electric-fuchsia: var(--electric-fuchsia);
+  --color-electric-teal: var(--electric-teal);
+  --color-electric-emerald: var(--electric-emerald);
+  --color-electric-rust: var(--electric-rust);
+  --color-electric-coral: var(--electric-coral);
+  --color-green-chart: var(--green-chart);
+  --color-purple-chart: var(--purple-chart);
+  --color-geode-chart: var(--geode-chart);
+  --color-red-chart: var(--red-chart);
+  --color-magenta-chart: var(--magenta-chart);
+  --color-yellow-chart: var(--yellow-chart);
+  --color-orange-chart: var(--orange-chart);
+}
+
+/* ── Light mode ─────────────────────────────────────────────────────────────── */
+:root {
+  --radius: 0.625rem;
+
+  /* shadcn/ui surface */
+  --background: var(--white);
+  --foreground: var(--near-black);
+  --card: var(--light-gray-100);
+  --card-foreground: var(--near-black);
+  --popover: var(--light-gray-100);
+  --popover-foreground: var(--near-black);
+  --primary: var(--classic-blue);
+  --primary-foreground: var(--near-white);
+  --secondary: var(--carbon-tint-2);
+  --secondary-foreground: var(--very-dark);
+  --muted: var(--gray-97);
+  --muted-foreground: var(--gray-50);
+  --accent: var(--light-gray-200);
+  --accent-foreground: var(--very-dark);
+  --destructive: var(--red);
+  --border: var(--gray-92);
+  --input: var(--carbon-tint-1);
+  --ring: var(--gray-71);
+
+  /* shadcn/ui chart */
+
+  /* shadcn/ui sidebar */
+  --sidebar: var(--light-gray-100);
+  --sidebar-foreground: var(--near-black);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--very-dark);
+  --sidebar-border: var(--gray-92);
+  --sidebar-ring: var(--gray-71);
+
+  /* Semantic brand tokens */
+  --brand-accent: var(--classic-blue);
+  --brand-accent-soft: var(--classic-blue-tint-1);
+  --brand-accent-hover: var(--classic-blue-hover);
+  --summary-title: var(--classic-blue);
+  --summary-unit: var(--classic-blue);
+
+  --surface-overlay: color-mix(in oklch, var(--surface-dark) 50%, transparent);
+  --surface-overlay-strong: color-mix(in oklch, var(--surface-dark) 60%, transparent);
+  --surface-overlay-border: color-mix(in oklch, var(--dark-gray-200) 50%, transparent);
+
+  --pipeline-summary-border: color-mix(in oklch, var(--demo-blue-300) 60%, transparent);
+  --pipeline-summary-glow-from: color-mix(in oklch, var(--demo-blue-500) 10%, transparent);
+  --pipeline-summary-glow-via: color-mix(in oklch, var(--demo-blue-400) 5%, transparent);
+  --pipeline-summary-glow-to: color-mix(in oklch, var(--demo-cyan-400) 10%, transparent);
+  --pipeline-summary-title: color-mix(in oklch, var(--demo-blue-300) 90%, transparent);
+  --pipeline-summary-variant: color-mix(in oklch, var(--demo-blue-300) 90%, transparent);
+
+  --status-color: transparent;
+  --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
+  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
+  --status-info-accent: var(--brand-accent);
+  --status-neutral-bg: color-mix(in oklch, var(--muted) 65%, var(--background));
+  --status-neutral-fg: color-mix(in oklch, var(--foreground) 75%, var(--background));
+  --status-link: var(--brand-accent);
+  --status-link-hover: var(--brand-accent-hover);
+
+  --node-body-text: color-mix(in oklch, var(--foreground) 82%, var(--background));
+  --node-separator: color-mix(in oklch, var(--foreground) 35%, var(--background));
+
+  --demo-header-divider: color-mix(in oklch, var(--demo-slate-300) 20%, transparent);
+  --demo-header-title: var(--brand-accent);
+  --demo-exit-surface: color-mix(in oklch, var(--demo-slate-800) 50%, transparent);
+  --demo-exit-border: color-mix(in oklch, var(--demo-slate-400) 40%, transparent);
+  --demo-exit-hover-surface: color-mix(in oklch, var(--demo-blue-600) 10%, transparent);
+  --demo-exit-hover-border: color-mix(in oklch, var(--demo-blue-500) 50%, transparent);
+  --demo-exit-fg: var(--brand-accent);
+  --demo-panel-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
+  --demo-panel-title: var(--slate-300);
+  --demo-panel-label: var(--slate-400);
+  --demo-panel-input-border: color-mix(in oklch, var(--demo-slate-400) 40%, transparent);
+  --demo-panel-input-focus-border: var(--blue-500);
+  --demo-panel-input-focus-ring: color-mix(in oklch, var(--demo-blue-500) 30%, transparent);
+  --demo-panel-input-text: var(--demo-slate-200);
+  --demo-panel-menu-surface: color-mix(in oklch, var(--demo-slate-900) 95%, transparent);
+  --demo-panel-menu-border: color-mix(in oklch, var(--demo-slate-400) 40%, transparent);
+  --demo-checkbox-border: color-mix(in oklch, var(--demo-slate-400) 60%, transparent);
+  --demo-checkbox-active: var(--brand-accent);
+  --demo-primary-button: var(--brand-accent);
+  --demo-primary-button-hover: var(--brand-accent-hover);
+  --demo-primary-button-shadow: color-mix(in oklch, var(--demo-blue-500) 50%, transparent);
+  --demo-primary-button-shadow-hover: color-mix(in oklch, var(--demo-blue-500) 60%, transparent);
+  --demo-primary-button-overlay-from: color-mix(in oklch, var(--demo-blue-400) 10%, transparent);
+  --demo-primary-button-overlay-to: color-mix(in oklch, var(--demo-blue-300) 10%, transparent);
+  --demo-surface-from: color-mix(in oklch, var(--demo-slate-900) 90%, transparent);
+  --demo-surface-via: color-mix(in oklch, var(--demo-slate-800) 70%, transparent);
+  --demo-surface-to: color-mix(in oklch, var(--demo-slate-900) 90%, transparent);
+  --demo-selection-card-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
+  --demo-selection-card-border-hover: color-mix(in oklch, var(--demo-blue-500) 50%, transparent);
+  --demo-selection-card-border-active: var(--brand-accent);
+  --demo-selection-card-title: var(--demo-slate-200);
+  --demo-selection-card-description: var(--slate-400);
+  --demo-selection-count: color-mix(in oklch, var(--demo-blue-300) 90%, transparent);
+  --demo-carousel-button-surface: color-mix(in oklch, var(--demo-slate-800) 90%, transparent);
+  --demo-carousel-button-surface-hover: color-mix(in oklch, var(--demo-slate-700) 90%, transparent);
+  --demo-carousel-button-border: color-mix(in oklch, var(--demo-slate-600) 50%, transparent);
+  --demo-carousel-button-icon: var(--demo-slate-200);
+  --demo-carousel-dot: var(--slate-600);
+  --demo-carousel-dot-hover: var(--demo-slate-500);
+  --demo-carousel-dot-active: var(--brand-accent);
+  --demo-preview-panel-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
+  --demo-preview-panel-surface: color-mix(in oklch, var(--demo-slate-950) 30%, transparent);
+  --demo-preview-card-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
+  --demo-preview-card-surface: color-mix(in oklch, var(--demo-slate-950) 40%, transparent);
+  --demo-preview-card-title: var(--slate-300);
+  --demo-preview-empty: var(--slate-400);
+}
+
+/* ── Dark mode ──────────────────────────────────────────────────────────────── */
+.dark {
+  /* shadcn/ui surface */
+  --background: var(--surface-dark);
+  --foreground: var(--near-white);
+  --card: var(--dark-gray-200);
+  --card-foreground: var(--near-white);
+  --popover: var(--dark-gray-200);
+  --popover-foreground: var(--near-white);
+  --primary: var(--energy-blue);
+  --primary-foreground: var(--very-dark);
+  --secondary: var(--carbon-shade-2);
+  --secondary-foreground: var(--near-white);
+  --muted: var(--gray-27);
+  --muted-foreground: var(--gray-79);
+  --accent: oklch(1 0 0 / 15%);
+  --accent-foreground: var(--near-white);
+  --destructive: var(--red-bright);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: var(--gray-56);
+
+  /* shadcn/ui sidebar */
+  --sidebar: var(--dark-gray-200);
+  --sidebar-foreground: var(--near-white);
+  --sidebar-accent-foreground: var(--near-white);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: var(--gray-56);
+
+  /* Semantic brand tokens */
+  --brand-accent: var(--energy-blue);
+  --brand-accent-soft: var(--energy-blue-tint-1);
+  --brand-accent-hover: var(--energy-blue-shade-1);
+  --summary-title: var(--energy-blue-tint-1);
+  --summary-unit: var(--energy-blue-tint-2);
+
+}

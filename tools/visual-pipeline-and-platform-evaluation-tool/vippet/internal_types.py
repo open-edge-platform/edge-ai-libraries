@@ -194,6 +194,46 @@ class InternalVariantCreate:
 
 
 @dataclass
+class InternalStreamInfo:
+    """
+    Internal representation of a single running stream inside a pipeline.
+
+    Every stream started by the pipeline runner has a deterministic,
+    stream-unique GStreamer ``name`` applied to both its main source and
+    main sink element (see ``Graph.apply_stream_identifiers``). These two
+    names together form the stream's stable identifier used for
+    correlating external tracer rows (e.g. DLStreamer ``latency_tracer``)
+    back to a specific stream.
+
+    ``source_name`` and ``sink_name`` are kept as separate fields to
+    match the layout of ``latency_tracer`` output (``source_name=...``,
+    ``sink_name=...`` are emitted as separate tokens). The combined
+    ``stream_id`` is exposed as a computed property rather than stored
+    as a duplicate piece of state.
+
+    Attributes:
+        source_name: GStreamer ``name`` of the main source element
+            (for example ``"src_p0_s0_0_0"``).
+        sink_name: GStreamer ``name`` of the main sink element
+            (for example ``"sink_p0_s0_0_0"``).
+    """
+
+    source_name: str
+    sink_name: str
+
+    @property
+    def stream_id(self) -> str:
+        """
+        Return the composite stream identifier used outside this class.
+
+        The format is ``"{source_name}__{sink_name}"``. It is emitted
+        in API responses and used as the key of the
+        ``latency_tracer_metrics`` map on job status objects.
+        """
+        return f"{self.source_name}__{self.sink_name}"
+
+
+@dataclass
 class InternalPipelineStreamSpec:
     """
     Internal representation of pipeline stream count with pipeline identifier.
@@ -208,10 +248,17 @@ class InternalPipelineStreamSpec:
     Attributes:
         id: Pipeline identifier (variant path or synthetic graph ID).
         streams: Number of streams allocated to this pipeline.
+        streams_ids: Stable, stream-unique identifiers for every stream
+            started by this pipeline, in the order streams are created by
+            the pipeline runner. Each entry has the format
+            ``"{source_name}__{sink_name}"`` and is the same key used in
+            the job's ``latency_tracer_metrics`` map. The length of this
+            list always equals ``streams``.
     """
 
     id: str
     streams: int
+    streams_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -345,6 +392,50 @@ class InternalPipelineRequestOptimize:
 
 
 @dataclass
+class InternalLatencyMetrics:
+    """
+    Internal representation of the last observed latency_tracer sample
+    for a single stream.
+
+    The DLStreamer ``latency_tracer`` emits per-stream interval lines of
+    the form::
+
+        latency_tracer_pipeline_interval, source_name=(string)...,
+        sink_name=(string)..., interval=(double)1000.25,
+        avg=(double)364.31, min=(double)0.004,
+        max=(double)529.26, latency=(double)21.28,
+        fps=(double)46.99;
+
+    Only the fields consumed downstream are stored. ``fps`` is omitted
+    because FPS is already provided by ``gvafpscounter`` via
+    ``PipelineResult.total_fps`` / ``per_stream_fps``; re-reporting it
+    here would duplicate state.
+
+    Only the **last** interval sample per stream is retained; no
+    history is kept.
+
+    All timing fields are in milliseconds (as reported by the tracer).
+
+    Attributes:
+        interval_ms: Length of the measurement window reported by the
+            tracer (``interval`` field, milliseconds).
+        avg_ms: Average frame latency over the window (``avg``, ms).
+        min_ms: Minimum frame latency observed in the window
+            (``min``, ms).
+        max_ms: Maximum frame latency observed in the window
+            (``max``, ms).
+        latency_ms: Current end-to-end latency reported by the tracer
+            (``latency``, ms).
+    """
+
+    interval_ms: float
+    avg_ms: float
+    min_ms: float
+    max_ms: float
+    latency_ms: float
+
+
+@dataclass
 class InternalExecutionConfig:
     """
     Internal representation of execution configuration.
@@ -353,11 +444,15 @@ class InternalExecutionConfig:
         output_mode: Mode for pipeline output generation.
         max_runtime: Maximum runtime in seconds (0 = run until EOS).
         metadata_mode: Mode for metadata publishing via gvametapublish elements.
+        enable_latency_metrics: When True, the GStreamer subprocess runs with
+            the DLStreamer `latency_tracer` active in pipeline-only mode with
+            a 1000 ms interval. Defaults to False (tracer disabled).
     """
 
     output_mode: InternalOutputMode
     max_runtime: float
     metadata_mode: InternalMetadataMode
+    enable_latency_metrics: bool = False
 
 
 @dataclass
@@ -427,6 +522,13 @@ class InternalPerformanceJobStatus:
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
         live_stream_urls: Mapping from pipeline ID to live stream URL.
+        latency_tracer_metrics: Last observed latency_tracer sample per
+            stream, keyed by ``stream_id`` (``"{source_name}__{sink_name}"``).
+            ``None`` when the job was executed with
+            ``execution_config.enable_latency_metrics=False`` (tracer was
+            not started at all); an empty dict means the tracer was
+            active but no samples were produced (e.g. the pipeline
+            exited before the first interval).
     """
 
     id: str
@@ -442,6 +544,7 @@ class InternalPerformanceJobStatus:
     video_output_paths: dict[str, list[str]] | None = None
     live_stream_urls: dict[str, str] | None = None
     metadata_stream_urls: dict[str, list[str]] | None = None
+    latency_tracer_metrics: dict[str, InternalLatencyMetrics] | None = None
 
 
 @dataclass
@@ -475,6 +578,11 @@ class InternalDensityJobStatus:
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
+        latency_tracer_metrics: Last observed latency_tracer sample per
+            stream, keyed by ``stream_id`` (``"{source_name}__{sink_name}"``).
+            ``None`` when the job was executed with
+            ``execution_config.enable_latency_metrics=False``; an empty
+            dict means the tracer was active but produced no samples.
     """
 
     id: str
@@ -488,6 +596,7 @@ class InternalDensityJobStatus:
     total_streams: int | None = None
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
+    latency_tracer_metrics: dict[str, InternalLatencyMetrics] | None = None
 
 
 @dataclass

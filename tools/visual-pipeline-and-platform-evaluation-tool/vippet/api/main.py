@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
 from api.middleware import InitializationMiddleware
-from api.routes import health, metrics
+from api.routes import health
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
 from managers.pipeline_manager import PipelineManager
@@ -87,6 +87,7 @@ def register_routers(app: FastAPI) -> None:
     from api.routes import (
         convert,
         devices,
+        images,
         jobs,
         models,
         pipeline_templates,
@@ -109,6 +110,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(pipelines.router, prefix="/pipelines", tags=["pipelines"])
     app.include_router(tests.router, prefix="/tests", tags=["tests"])
     app.include_router(videos.router, prefix="/videos", tags=["videos"])
+    app.include_router(images.router, prefix="/images", tags=["images"])
     app.include_router(cameras.router, prefix="/cameras", tags=["cameras"])
 
 
@@ -226,5 +228,3 @@ app.add_middleware(InitializationMiddleware)
 
 # Register health router immediately (before initialization) so health checks work while app is initializing
 app.include_router(health.router, tags=["health"])
-# Register metrics router immediately (it does not depend on VideosManager) so collector can connect as soon as possible
-app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])

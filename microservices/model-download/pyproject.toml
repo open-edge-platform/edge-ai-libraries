@@ -10,6 +10,7 @@ requires-python = "==3.12.*"
 dependencies = [
     "fastapi==0.121.3",
     "pydantic==2.12.4",
+    "python-multipart>=0.0.9",
     "structlog==25.1.0",
     "uvicorn==0.38.0",
     "PyYAML==6.0.2",

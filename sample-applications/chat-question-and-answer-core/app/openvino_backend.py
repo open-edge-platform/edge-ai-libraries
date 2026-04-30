@@ -167,8 +167,11 @@ class OpenVINOBackend:
             tuple: A tuple containing the initialized embedding model, LLM model, and reranker model.
         """
 
-        # Login to HuggingFace
-        self.login_to_huggingface(self.huggingface_token)
+        # Login to HuggingFace (only if token is provided)
+        if self.huggingface_token:
+            self.login_to_huggingface(self.huggingface_token)
+        else:
+            logger.info("HF_ACCESS_TOKEN not provided. Skipping Hugging Face login. Only public models will be accessible.")
 
         # Download embedding, LLM, and reranker models from HuggingFace
         self.download_huggingface_model(self.embedding_model_id, self.cache_dir)

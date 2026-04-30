@@ -47,6 +47,7 @@ export class UiService {
     if (state) {
       const statusData: UIStateStatus = {
         chunkingStatus: state.status.chunking,
+        videoChunkingStatus: state.status.videoChunking,
         frameSummaryStatus: Object.values(state.frameSummaries).reduce(
           (acc: CountStatus, frameSummary) => {
             acc[frameSummary.status] += 1;
@@ -55,6 +56,8 @@ export class UiService {
           { complete: 0, inProgress: 0, na: 0, ready: 0 },
         ),
         videoSummaryStatus: state.status.summarizing,
+        audioStatus: state.audio?.status,
+        audioTranscriptSummaryStatus: state.audio?.transcriptSummaryStatus,
       };
 
       return statusData;
@@ -95,14 +98,32 @@ export class UiService {
 
       if (chunk) {
         const chunkFrom = (+chunkId - 1) * userInputs.chunkDuration;
+        const chunkTo = chunkFrom + userInputs.chunkDuration;
 
         const uiChunk: UIChunk = {
           chunkId,
           duration: {
             from: chunkFrom,
-            to: chunkFrom + userInputs.chunkDuration,
+            to: chunkTo,
           },
         };
+
+        if (state.audio && state.audio.transcript.length > 0) {
+          const transcripts = state.audio.transcript
+            .filter(
+              (el) =>
+                (el.startSeconds >= chunkFrom && el.startSeconds <= chunkTo) ||
+                (el.endSeconds >= chunkFrom && el.endSeconds <= chunkTo),
+            )
+            .map((el) =>
+              [el.id, `${el.startTime} --> ${el.endTime}`, el.text].join('\n'),
+            )
+            .join('\n\n');
+
+          if (transcripts) {
+            uiChunk.audioTranscripts = transcripts;
+          }
+        }
 
         return uiChunk;
       }
@@ -184,6 +205,7 @@ export class UiService {
         summary: state.summary ?? '',
         systemConfig: state.systemConfig,
         chunkingStatus: state.status.chunking,
+        videoChunkingStatus: state.status.videoChunking,
         inferenceConfig: this.getInferenceConfig(stateId, state),
         frameSummaryStatus: Object.values(state.frameSummaries).reduce(
           (acc: CountStatus, frameSummary) => {
@@ -193,6 +215,9 @@ export class UiService {
           { complete: 0, inProgress: 0, na: 0, ready: 0 },
         ),
         videoSummaryStatus: state.status.summarizing,
+        audioStatus: state.audio?.status,
+        audioTranscriptSummaryStatus: state.audio?.transcriptSummaryStatus,
+        audioTranscriptSummary: state.audio?.transcriptSummary,
       };
 
       if (state.userInputs) {

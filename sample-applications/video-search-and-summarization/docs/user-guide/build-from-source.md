@@ -53,7 +53,7 @@ This section shows how to build the Video Search and Summary sample application 
 
    **3.2 Building Images**
 
-   The build script provides options to build and push the images. Build script provides option to build only the application microservices or build together with all the dependent microservices. The following microservices are dependent: [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html), [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html), [VDMS based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/vdms), and [VLM microservice](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/vlm-openvino-serving).
+   The build script provides options to build and push the images. Build script provides option to build only the application microservices or build together with all the dependent microservices. The following microservices are dependent: [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html), [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html), and [VDMS based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/vdms). VLM captioning and LLM summarization are handled by [OpenVINO™ Model Server](https://docs.openvino.ai/nightly/model-server/ovms_what_is_openvino_model_server.html) (OVMS) or [vLLM](https://docs.vllm.ai/en/latest/usage/).
 
    ```bash
 

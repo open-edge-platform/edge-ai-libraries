@@ -63,8 +63,8 @@ video-ingestion_CONTEXT_DIR := ./video-ingestion
 video-ingestion_DOCKERFILE := ./video-ingestion/docker/Dockerfile
 video-ingestion_LANG := python
 
-# Dependency microservices (pre-built, pulled from registry via compose)
-# vdms-dataprep, multimodal-embedding-serving, vlm-openvino-serving, audio-analyzer
+# Dependency microservices (pre-built, pulled from registry or official images via compose)
+# vdms-dataprep, multimodal-embedding-serving, ovms-service, audio-analyzer
 
 # ==============================================================================
 # Internal Variables

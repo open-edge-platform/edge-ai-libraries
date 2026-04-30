@@ -1,5 +1,2 @@
-pipelinemanager:
-  env:
-    USE_OVMS: "CONFIG_ON"
 ovms:
   enabled: true

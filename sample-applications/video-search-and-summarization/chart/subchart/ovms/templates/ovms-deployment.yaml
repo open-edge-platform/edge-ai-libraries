@@ -1,3 +1,50 @@
+{{- /* --- 1. ENV OVERRIDES: merge chart-level and parent-level env; parent-level takes precedence --- */ -}}
+{{- /* ovmsAllowedMediaDomains -> init-container args, ovms --allowed_media_domains flag */ -}}
+{{- $ovmsChartEnv := .Values.ovms.env -}}
+{{- $ovmsParentEnv := .Values.env -}}
+{{- $ovmsAllowedMediaDomains := default $ovmsChartEnv.ALLOWED_MEDIA_DOMAINS $ovmsParentEnv.ALLOWED_MEDIA_DOMAINS -}}
+{{- /* --- 2. DEVICE CONFIG: per-model device targets, default CPU --- */ -}}
+{{- /* ovmsVlmDevice/ovmsLlmDevice -> weight format auto-detect, storage name, init-container args */ -}}
+{{- /* ovmsVlmKey/ovmsLlmKey -> K8s resource requests/limits for accelerator scheduling */ -}}
+{{- $ovmsVlmDevice := default "CPU" .Values.global.devices.ovms.vlm.device -}}
+{{- $ovmsLlmDevice := default "CPU" .Values.global.devices.ovms.llm.device -}}
+{{- $ovmsVlmKey := .Values.global.devices.ovms.vlm.key -}}
+{{- $ovmsLlmKey := .Values.global.devices.ovms.llm.key -}}
+{{- /* --- 3. ACCELERATOR KEY VALIDATION --- */ -}}
+{{- /* When device includes GPU/NPU, a K8s device plugin resource key is mandatory */ -}}
+{{- $ovmsVlmNeedsKey := or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice) -}}
+{{- $ovmsLlmNeedsKey := or (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsLlmDevice) -}}
+{{- if and $ovmsVlmNeedsKey (not $ovmsVlmKey) -}}
+{{- fail "global.devices.ovms.vlm.key is required when VLM device is GPU, NPU, or HETERO" -}}
+{{- end -}}
+{{- if and $ovmsLlmNeedsKey (not $ovmsLlmKey) -}}
+{{- fail "global.devices.ovms.llm.key is required when LLM device is GPU, NPU, or HETERO" -}}
+{{- end -}}
+{{- /* --- 4. WEIGHT FORMAT: explicit env value > auto-detect (GPU/NPU->int4, CPU->int8) --- */ -}}
+{{- /* ovmsVlmWeightFormat/ovmsLlmWeightFormat -> storage name generation, init-container args */ -}}
+{{- $ovmsVlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice))) (default $ovmsChartEnv.VLM_WEIGHT_FORMAT $ovmsParentEnv.VLM_WEIGHT_FORMAT) -}}
+{{- $ovmsLlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsLlmDevice))) (default $ovmsChartEnv.LLM_WEIGHT_FORMAT $ovmsParentEnv.LLM_WEIGHT_FORMAT) -}}
+{{- /* --- 5. HARDWARE FLAGS: drive conditional sections throughout the deployment --- */ -}}
+{{- /* ovmsNeedsAccelerator -> resource requests/limits, securityContext (privileged) */ -}}
+{{- /* ovmsNeedsGpu -> GPU image tag, /dev/dri mount | ovmsNeedsNpu -> /dev/accel mount */ -}}
+{{- $ovmsNeedsAccelerator := or (contains "GPU" $ovmsVlmDevice) (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsVlmDevice) (contains "NPU" $ovmsLlmDevice) -}}
+{{- $ovmsNeedsGpu := or (contains "GPU" $ovmsVlmDevice) (contains "GPU" $ovmsLlmDevice) -}}
+{{- $ovmsNeedsNpu := or (contains "NPU" $ovmsVlmDevice) (contains "NPU" $ovmsLlmDevice) -}}
+{{- /* --- 6. STORAGE MODEL NAMES: {sanitized_model}_{device}_{format} --- */ -}}
+{{- /* OpenVINO/ namespace models omit format (pre-converted). Allows same model on CPU_int8 + GPU_int4 to coexist. */ -}}
+{{- /* vlmStorageName/llmStorageName -> init-container script (existence check), init-script.sh (export target) */ -}}
+{{- $vlmSanitized := .Values.global.vlmName | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
+{{- $vlmIsOpenvino := hasPrefix "OpenVINO/" .Values.global.vlmName -}}
+{{- $vlmStorageName := ternary (printf "%s_%s" $vlmSanitized $ovmsVlmDevice) (printf "%s_%s_%s" $vlmSanitized $ovmsVlmDevice $ovmsVlmWeightFormat) $vlmIsOpenvino -}}
+{{- $llmSanitized := .Values.global.llmName | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
+{{- $llmIsOpenvino := hasPrefix "OpenVINO/" .Values.global.llmName -}}
+{{- $llmStorageName := "" -}}
+{{- /* If llmName is set and differs from vlmName, generate separate storage name; otherwise reuse VLM's */ -}}
+{{- if and .Values.global.llmName (ne .Values.global.llmName .Values.global.vlmName) -}}
+{{- $llmStorageName = ternary (printf "%s_%s" $llmSanitized $ovmsLlmDevice) (printf "%s_%s_%s" $llmSanitized $ovmsLlmDevice $ovmsLlmWeightFormat) $llmIsOpenvino -}}
+{{- else -}}
+{{- $llmStorageName = $vlmStorageName -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,6 +68,12 @@ spec:
         nodeAffinity:
           {{- toYaml . | nindent 10 }}
       {{- end }}
+      # --- 7. INIT CONTAINER ---
+      # Checks if models are already exported at expected storage paths on the PVC.
+      # If not, sources /config/init-script.sh (from ConfigMap ovms-configmap.yaml).
+      # Uses sh -c mode, so positional args start at arg0 (not arg1):
+      #   arg0 = vlmName,  arg1 = llmName,  arg2 = vlmWeightFormat,  arg3 = llmWeightFormat,
+      #   arg4 = huggingfaceToken,  arg5 = vlmDevice,  arg6 = llmDevice,  arg7 = allowedMediaDomains
       initContainers:
         - name: init-script
           image: "python:3.10.12"
@@ -28,35 +81,87 @@ spec:
               - /bin/sh
               - -c
               - |
+                # Storage-aware model detection
+                # Models are stored as {model}_{device}_{format} folders
+                vlm_storage_name="{{ $vlmStorageName }}"
+                llm_storage_name="{{ $llmStorageName }}"
+                vlm_model_path="/opt/data/models/${vlm_storage_name}"
+                llm_model_path="/opt/data/models/${llm_storage_name}"
+                
+                config_has_model() {
+                  grep -q "\"name\": \"$1\"" /opt/data/models/config.json 2>/dev/null
+                }
+                
+                needs_init=false
+                
                 if [ -f /opt/data/models/config.json ]; then
-                  echo "Config file found, checking for model conversion."
-                  if grep '"name": "{{ .Values.global.llmName }}"' /opt/data/models/config.json; then
-                    echo "Model already converted, skipping conversion."
-                  else
-                    echo "Model not converted, running init script. /config/init-script.sh "{{ .Values.global.llmName }}" "{{ .Values.ovms.env.WEIGHT_FORMAT }}" "{{ .Values.global.huggingfaceToken }}""
-                    . /config/init-script.sh
+                  echo "Config file found, checking for required OVMS models."
+                  
+                  # Check VLM model folder and config
+                  if [ ! -d "${vlm_model_path}" ] || [ ! -f "${vlm_model_path}/graph.pbtxt" ]; then
+                    echo "VLM storage folder ${vlm_storage_name} not found. Rebuilding OVMS config."
+                    needs_init=true
+                  elif ! config_has_model "${vlm_storage_name}"; then
+                    echo "VLM model ${vlm_storage_name} not in config. Rebuilding OVMS config."
+                    needs_init=true
+                  fi
+                  
+                  {{- if and .Values.global.llmName (ne .Values.global.llmName .Values.global.vlmName) }}
+                  # Check LLM model folder and config (split-model mode)
+                  if [ "${vlm_storage_name}" != "${llm_storage_name}" ]; then
+                    if [ ! -d "${llm_model_path}" ] || [ ! -f "${llm_model_path}/graph.pbtxt" ]; then
+                      echo "LLM storage folder ${llm_storage_name} not found. Rebuilding OVMS config."
+                      needs_init=true
+                    elif ! config_has_model "${llm_storage_name}"; then
+                      echo "LLM model ${llm_storage_name} not in config. Rebuilding OVMS config."
+                      needs_init=true
+                    fi
+                  fi
+                  {{- end }}
+                  
+                  if [ "$needs_init" = false ]; then
+                    echo "Required OVMS models already converted with correct configuration."
+                    echo "VLM: ${vlm_storage_name}"
+                    echo "LLM: ${llm_storage_name}"
                   fi
                 else
-                  echo "No config.json found, running init script. /config/init-script.sh "{{ .Values.global.llmName }}" "{{ .Values.ovms.env.WEIGHT_FORMAT }}" "{{ .Values.global.huggingfaceToken }}""
+                  echo "No config.json found, building OVMS model repository."
+                  needs_init=true
+                fi
+
+                if [ "$needs_init" = true ]; then
                   . /config/init-script.sh
                 fi
-          args: [{{ required "Value for `global.llmName` is required!" .Values.global.llmName | quote }},"{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingfaceToken }}","{{ .Values.global.gpu.ovmsEnabled }}"]
+          args: [{{ required "Value for `global.vlmName` is required!" .Values.global.vlmName | quote }},{{ .Values.global.llmName | quote }},"{{ $ovmsVlmWeightFormat }}","{{ $ovmsLlmWeightFormat }}","{{ .Values.global.huggingfaceToken }}","{{ $ovmsVlmDevice }}","{{ $ovmsLlmDevice }}","{{ $ovmsAllowedMediaDomains }}"]
           env:
             - name: http_proxy
               value: {{ .Values.global.proxy.http_proxy }}
             - name: https_proxy
               value: {{ .Values.global.proxy.https_proxy }}
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+            - name: PIP_TRUSTED_HOST
+              value: "storage.openvinotoolkit.org download.pytorch.org"
           volumeMounts:
             - name: scripts-volume
               mountPath: /config
             - name: workspace
               mountPath: /opt/data
               subPath: ov-models
+            {{- if $ovmsNeedsGpu }}
+            - name: dri-device
+              mountPath: /dev/dri
+            {{- end }}
+            {{- if $ovmsNeedsNpu }}
+            - name: accel-device
+              mountPath: /dev/accel
+            {{- end }}
+      # --- 8. OVMS CONTAINER ---
+      # Uses the GPU-tagged image when any device targets GPU; otherwise the default CPU image.
+      # Mounts the same workspace volume (with exported models) and starts OVMS pointing at config.json.
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{- if .Values.global.gpu.ovmsEnabled -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.Gputag }} {{- else -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }} {{- end -}}"
+          image: "{{- if $ovmsNeedsGpu -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.Gputag }} {{- else -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }} {{- end -}}"
           imagePullPolicy: {{ .Values.ovms.image.pullPolicy }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
@@ -80,31 +185,50 @@ spec:
             - name: https_proxy
               value: {{ .Values.global.proxy.https_proxy }}
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
-            - name: WEIGHT_FORMAT
-              value: {{ .Values.ovms.env.WEIGHT_FORMAT }}
-          args: ["--port", "9300", "--rest_port", "8300", "--log_level", "DEBUG", "--config_path", "/opt/data/models/config.json"]
-      {{- if .Values.global.gpu.ovmsEnabled }}
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+          args: ["--port", "9300", "--rest_port", "8300", "--log_level", "DEBUG", "--config_path", "/opt/data/models/config.json", "--metrics_enable", "--allowed_media_domains", "{{ $ovmsAllowedMediaDomains }}"]
+      # --- 9. ACCELERATOR RESOURCES ---
+      # Only rendered when at least one device targets GPU or NPU.
+      # Requests K8s device plugin resource keys (e.g. gpu.intel.com/i915) for scheduling.
+      # Deduplicates keys when VLM and LLM share the same accelerator.
+      {{- if $ovmsNeedsAccelerator }}
           resources:
             requests:
-              {{ .Values.global.gpu.key }}: 1
+            {{- if $ovmsVlmNeedsKey }}
+              {{ $ovmsVlmKey }}: 1
+            {{- end }}
+            {{- if and $ovmsLlmNeedsKey (or (not $ovmsVlmNeedsKey) (ne $ovmsLlmKey $ovmsVlmKey)) }}
+              {{ $ovmsLlmKey }}: 1
+            {{- end }}
             limits:
-              {{ .Values.global.gpu.key }}: 1
+            {{- if $ovmsVlmNeedsKey }}
+              {{ $ovmsVlmKey }}: 1
+            {{- end }}
+            {{- if and $ovmsLlmNeedsKey (or (not $ovmsVlmNeedsKey) (ne $ovmsLlmKey $ovmsVlmKey)) }}
+              {{ $ovmsLlmKey }}: 1
+            {{- end }}
           securityContext:
             privileged: true
             runAsUser: 0
             runAsGroup: 0
       {{- end }}
+      # --- 10. VOLUMES ---
+      # /dev/dri (GPU) and /dev/accel (NPU) only when needed.
+      # Workspace: PVC / hostPath / emptyDir based on global settings.
+      # scripts-volume: ConfigMap with init-script.sh (from ovms-configmap.yaml).
       volumes:
-      {{- if .Values.global.gpu.ovmsEnabled }}
+      {{- if $ovmsNeedsGpu }}
         - name: dri-device
           hostPath:
             path: /dev/dri
             type: Directory
-        - name: workspace
-          persistentVolumeClaim:
-            claimName: {{ include "ovms.fullname" . }}-gpu-pvc
-      {{- else }}
+      {{- end }}
+      {{- if $ovmsNeedsNpu }}
+        - name: accel-device
+          hostPath:
+            path: /dev/accel
+            type: Directory
+      {{- end }}
         - name: workspace
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
@@ -116,7 +240,6 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
-      {{- end }}
         - name: scripts-volume
           configMap:
             name: {{ .Values.ovms.script.name }}

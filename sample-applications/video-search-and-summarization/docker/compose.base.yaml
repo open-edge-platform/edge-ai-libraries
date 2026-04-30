@@ -8,8 +8,8 @@ services:
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: ${no_proxy},vss-search-ui,vss-summary-ui,vss-singleton-ui,pipeline-manager,minio-service,localhost
-    # Caution: Do not change following file mounts unless you know what you are doing.
+      no_proxy: ${no_proxy},vss-search-ui,vss-summary-ui,vss-singleton-ui,pipeline-manager,minio-service,ovms-service,localhost
+    # CAUTION: Do not change following file mounts unless you know what you are doing.
     volumes:
       - ${NGINX_BASE_CONFIG}:/etc/nginx/nginx.conf:ro
       - ${NGINX_UI_CONFIG}:/etc/nginx/nginx_ui.conf:ro
@@ -57,6 +57,7 @@ services:
       SEARCH_FEATURE: FEATURE_ON
       TICK_INTERVAL_MS: ${TICK_INTERVAL_MS:-5000} # EVAM uses TICK
       FAST_TICK_INTERVAL_MS: ${FAST_TICK_INTERVAL_MS:-2000} # VLM/LLM uses FAST_TICK
+      AUDIO_USE_FULL_TRANSCRIPT_SUMMARY: ${PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY:-true}
       OTLP_TRACE_URL: ${OTLP_TRACE_URL:-}
       DATAPREP_TELEMETRY_URL: ${DATAPREP_TELEMETRY_URL:-http://vdms-dataprep:8000/v1/dataprep/telemetry?limit=1}
       TELEMETRY_SIGNAL_DIR: ${TELEMETRY_SIGNAL_DIR:-/app/.collector-signals}

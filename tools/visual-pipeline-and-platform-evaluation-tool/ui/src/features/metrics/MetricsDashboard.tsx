@@ -1,5 +1,3 @@
-/*SPDX-License-Identifier: Apache-2.0*/
-
 import { useMemo, useState } from "react";
 import { Cpu, Gauge, Gpu } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -134,8 +132,8 @@ export const MetricsDashboard = ({
   const [selectedGpu, setSelectedGpu] = useState<number>(0);
 
   const summaryContainerClassName = isDarkTheme
-    ? "p-4 rounded-xl border-2 border-energy-blue/40 bg-gradient-to-br from-energy-blue/5 to-energy-blue-tint-1/5 shadow-lg shadow-energy-blue/10"
-    : "p-4 rounded-xl border-2 border-classic-blue/40 bg-gradient-to-br from-classic-blue/5 to-classic-blue/10 shadow-lg shadow-classic-blue/10";
+    ? "p-4 border-2 border-energy-blue/40 bg-gradient-to-br from-energy-blue/5 to-energy-blue-tint-1/5 shadow-lg shadow-energy-blue/10"
+    : "p-4 border-2 border-classic-blue/40 bg-gradient-to-br from-classic-blue/5 to-classic-blue/10 shadow-lg shadow-classic-blue/10";
   const summaryCardClassName = isDarkTheme
     ? "border-2 border-energy-blue/60 shadow-energy-blue/20 shadow-lg ring-2 ring-energy-blue/30"
     : "border-2 border-classic-blue/60 shadow-classic-blue/20 shadow-lg ring-2 ring-classic-blue/20";

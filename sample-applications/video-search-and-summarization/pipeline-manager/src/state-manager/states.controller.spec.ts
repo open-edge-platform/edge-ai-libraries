@@ -41,6 +41,7 @@ describe('StatesController', () => {
       dataStoreUpload: StateActionStatus.COMPLETE,
       summarizing: StateActionStatus.IN_PROGRESS,
       chunking: StateActionStatus.COMPLETE,
+      videoChunking: StateActionStatus.COMPLETE,
     },
   };
 

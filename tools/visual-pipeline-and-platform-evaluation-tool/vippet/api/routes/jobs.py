@@ -9,6 +9,7 @@ from graph import Graph
 from internal_types import (
     InternalDensityJobStatus,
     InternalDensityJobSummary,
+    InternalLatencyMetrics,
     InternalOptimizationJobStatus,
     InternalOptimizationJobSummary,
     InternalPerformanceJobStatus,
@@ -1171,6 +1172,10 @@ def _convert_streams_per_pipeline(
     """
     Convert internal stream specs to API PipelineStreamSpec for response.
 
+    Also propagates `streams_ids` (one entry per running stream) so API
+    consumers can correlate the entries in `latency_tracer_metrics`
+    (which is keyed by stream_id) back to a specific pipeline.
+
     Args:
         internal_specs: List of InternalPipelineStreamSpec or None.
 
@@ -1180,9 +1185,46 @@ def _convert_streams_per_pipeline(
     if internal_specs is None:
         return None
     return [
-        schemas.PipelineStreamSpec(id=spec.id, streams=spec.streams)
+        schemas.PipelineStreamSpec(
+            id=spec.id,
+            streams=spec.streams,
+            streams_ids=list(spec.streams_ids),
+        )
         for spec in internal_specs
     ]
+
+
+def _convert_latency_tracer_metrics(
+    internal_metrics: dict[str, InternalLatencyMetrics] | None,
+) -> dict[str, schemas.LatencyMetrics] | None:
+    """
+    Convert the internal latency_tracer map to its API equivalent.
+
+    Preserves the semantic distinction between "tracer disabled"
+    (``None``) and "tracer active but produced no samples" (``{}``): a
+    ``None`` input maps to ``None``, an empty dict maps to ``{}``.
+
+    Args:
+        internal_metrics: Mapping from ``stream_id`` to
+            :class:`InternalLatencyMetrics`, or ``None`` if the tracer
+            was not enabled for this job.
+
+    Returns:
+        Same-shape mapping using API :class:`schemas.LatencyMetrics`,
+        or ``None``.
+    """
+    if internal_metrics is None:
+        return None
+    return {
+        stream_id: schemas.LatencyMetrics(
+            interval_ms=metrics.interval_ms,
+            avg_ms=metrics.avg_ms,
+            min_ms=metrics.min_ms,
+            max_ms=metrics.max_ms,
+            latency_ms=metrics.latency_ms,
+        )
+        for stream_id, metrics in internal_metrics.items()
+    }
 
 
 def _performance_job_to_api_status(
@@ -1217,6 +1259,9 @@ def _performance_job_to_api_status(
         video_output_paths=job.video_output_paths,
         live_stream_urls=job.live_stream_urls,
         metadata_stream_urls=job.metadata_stream_urls,
+        latency_tracer_metrics=_convert_latency_tracer_metrics(
+            job.latency_tracer_metrics
+        ),
     )
 
 
@@ -1253,6 +1298,9 @@ def _density_job_to_api_status(
         total_streams=job.total_streams,
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,
+        latency_tracer_metrics=_convert_latency_tracer_metrics(
+            job.latency_tracer_metrics
+        ),
     )
 
 

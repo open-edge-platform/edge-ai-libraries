@@ -84,8 +84,8 @@ Update or edit the values in YAML file as follows:
 | `global.huggingfaceToken` | Your Hugging Face API token | `<your-huggingface-token>` |
 | `global.proxy.http_proxy` | HTTP proxy if required | `http://proxy-example.com:000` |
 | `global.proxy.https_proxy` | HTTPS proxy if required | `http://proxy-example.com:000` |
-| `global.vlmName` | VLM model to be used by VLM Inference Microservice | `Qwen/Qwen2.5-VL-7B-Instruct` |
-| `global.llmName` | LLM model to be used by OVMS (used only when OVMS is enabled)| `Intel/neural-chat-7b-v3-3` |
+| `global.vlmName` | VLM model to be used by OVMS or vLLM for captioning and summarization | `Qwen/Qwen2.5-VL-3B-Instruct` (CPU) or `OpenVINO/Phi-3.5-vision-instruct-int8-ov` (GPU) |
+| `global.llmName` | Optional separate LLM model for final summarization (OVMS split-model mode). Leave empty for shared-model mode. | `Intel/neural-chat-7b-v3-3` (CPU) or `Intel/neural-chat-7b-v3-3` (GPU) or `OpenVINO/Qwen3-8B-int4-cw-ov` (NPU) |
 | `global.env.POSTGRES_USER` | PostgreSQL user | `<your-postgres-user>` |
 | `global.env.POSTGRES_PASSWORD` | PostgreSQL password | `<your-postgres-password>` |
 | `global.env.MINIO_ROOT_USER` | MinIO server user name | `<your-minio-user>` (at least 3 characters) |
@@ -97,12 +97,21 @@ Update or edit the values in YAML file as follows:
 | `global.env.EMBEDDING_MODEL_NAME` | Default embedding model used by all services when not overridden | `CLIP/clip-vit-b-32` (search) or `QwenText/qwen3-embedding-0.6b` (summary+search) |
 | `global.env.TEXT_EMBEDDING_MODEL_NAME` | Optional text-only embedding model. Required when `global.embedding.preferTextModel` is `true`. | `QwenText/qwen3-embedding-0.6b` |
 | `global.embedding.preferTextModel` | When set to `true`, forces all services to use the text embedding model (for unified summary + search deployments). | `true` or `false` |
-| `global.gpu.vlminferenceEnabled ` | To enable vlm-inference on GPU | true or false |
-| `global.gpu.multimodalembeddingmsEnabled ` | To enable multimodal-embedding on GPU | true or false |
-| `global.gpu.ovmsEnabled ` | To enable OVMS on GPU | true or false |
-| `global.gpu.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node | Your cluster GPU node key |
-| `global.gpu.device` | Set to `GPU` if need to deploy the inference workload on GPU device | GPU |
-| `vllm.enabled` | Enable vLLM as the LLM inference backend (alternative to VLM Microservice or OVMS) | `true` or `false` |
+| `global.devices.multimodalEmbedding.device` | Device for multimodal-embedding service | `CPU` or `GPU` |
+| `global.devices.multimodalEmbedding.key` | K8s resource key for GPU (required when device=GPU) | `gpu.intel.com/i915` or `gpu.intel.com/xe` |
+| `global.devices.vdmsDataprep.device` | Device for vdms-dataprep service | `CPU` or `GPU` |
+| `global.devices.vdmsDataprep.key` | K8s resource key for GPU (required when device=GPU) | `gpu.intel.com/i915` or `gpu.intel.com/xe` |
+| `global.devices.ovms.vlm.device` | Device for OVMS VLM model | `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` |
+| `global.devices.ovms.vlm.key` | K8s resource key (required when device is GPU/NPU/HETERO) | `gpu.intel.com/i915` or `gpu.intel.com/xe` |
+| `global.devices.ovms.llm.device` | Device for OVMS LLM model (split-model mode) | `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` |
+| `global.devices.ovms.llm.key` | K8s resource key (required when device is GPU/NPU/HETERO) | `gpu.intel.com/i915` or `gpu.intel.com/xe` |
+| `ovms.env.VLM_WEIGHT_FORMAT` | Override weight format for VLM model conversion | `int4` or `int8` (auto-detected if not set) |
+| `ovms.env.LLM_WEIGHT_FORMAT` | Override weight format for LLM model conversion | `int4` or `int8` (auto-detected if not set) |
+| `ovms.enabled` | Enable OVMS as the inference backend (default: true in summary mode) | `true` or `false` |
+| `vllm.enabled` | Enable vLLM as the inference backend (alternative to OVMS) | `true` or `false` |
+| `pipelinemanager.env.USE_VLLM` | Set to `CONFIG_ON` when using vLLM backend | `CONFIG_OFF` (default) or `CONFIG_ON` |
+| `pipelinemanager.env.AUDIO_DEVICE` | Device used for audio transcription (Whisper) | `cpu` (default) |
+| `pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | Default for audio transcript summarization. When enabled, the full audio transcript is summarized by the LLM and included in the final video summary. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
 | `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
 | `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
 | `vsscollector.enabled` | Enable the telemetry collector sidecar (telegraf-based) | `true` or `false` |
@@ -111,14 +120,28 @@ Update or edit the values in YAML file as follows:
 
 > **Tip:** Set `global.env.EMBEDDING_MODEL_NAME` to pick the default embedding model for both the multimodal embedding service and DataPrep. When deploying the unified summary + search mode, also set `global.env.TEXT_EMBEDDING_MODEL_NAME` and flip `global.embedding.preferTextModel` to `true` so the chart enforces the text embedding requirement automatically. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
-> **Note:** `multimodal-embedding-ms` and `vdms-dataprep` share the same PVC for model/cache storage. If you enable GPU for one of them, enable it for the other as well (`global.gpu.multimodalembeddingmsEnabled=true` **and** `global.gpu.vdmsdataprepEnabled=true`). Mixing GPU/CPU modes between the two causes the GPU pod to wait forever because the shared PVC can only be attached to a single node at a time. The Helm chart validates this pairing and will fail the install/upgrade when the flags don’t match while both services are enabled.
+> **Note:** `multimodal-embedding-ms` and `vdms-dataprep` share the same PVC for model/cache storage. If you enable GPU for one of them, enable it for the other as well (`global.devices.multimodalEmbedding.device=GPU` **and** `global.devices.vdmsDataprep.device=GPU`). Mixing GPU/CPU modes between the two causes the GPU pod to wait forever because the shared PVC can only be attached to a single node at a time. The Helm chart validates this pairing and will fail the install/upgrade when the devices do not match while both services are enabled.
 
-> **Telemetry (vss-collector):** When `vsscollector.enabled=true`, the chart deploys a telegraf-based collector and wires it to the pipeline-manager websocket at `/metrics/ws/collector`. If your cluster uses a non-default Service port or a custom ingress, set `vsscollector.websocketUrl` explicitly. The collector reads optional dataprep signal files from the shared volume; if `vdms-dataprep` is disabled, those files may remain empty.
+> **Telemetry (vss-collector):** When `vsscollector.enabled=true`, the chart deploys a telegraf-based collector and wires it to the pipeline-manager websocket at `/metrics/ws/collector`. If your cluster uses a non-default Service port or a custom ingress, set `vsscollector.websocketUrl` explicitly. **Note:** The vss-collector is only deployed in **search mode** (using `search_override.yaml`) or **unified summary+search mode** (using `unified_summary_search.yaml`). It is not part of the summary-only stack; setting `vsscollector.enabled=true` in `user_values_override.yaml` has no effect when deploying with `summary_override.yaml` alone.
 
-> **Unified-mode GPU examples:**
-> - VLM search + MME + DataPrep on GPU: set `global.gpu.vlminferenceEnabled=true`, `global.gpu.multimodalembeddingmsEnabled=true`, `global.gpu.vdmsdataprepEnabled=true`.
-> - OVMS summary + MME + DataPrep on GPU: set `global.gpu.ovmsEnabled=true`, `global.gpu.multimodalembeddingmsEnabled=true`, `global.gpu.vdmsdataprepEnabled=true`.
-> In each case MME and DataPrep must share the same GPU setting, otherwise Helm blocks the deployment.
+
+> **Split-device OVMS example (GPU VLM + NPU LLM):**
+>
+> To run VLM on GPU and LLM on NPU, set the following in `user_values_override.yaml`:
+>
+> ```yaml
+> global:
+>   vlmName: "OpenVINO/Phi-3.5-vision-instruct-int8-ov"
+>   llmName: "OpenVINO/Qwen3-8B-int4-cw-ov"
+>   devices:
+>     ovms:
+>       vlm:
+>         device: GPU
+>         key: "gpu.intel.com/i915"
+>       llm:
+>         device: NPU
+>         key: "npu.intel.com/accel"
+> ```
 
 ### 3. Build Helm Dependencies
 
@@ -148,46 +171,139 @@ We will install the helm chart in a new namespace. Create a shell variable to re
 
 ### 5. Deploy the Helm Chart
 
-At present, there are 4 use-cases for **Video Search and Summarization Application**. We will learn how to deploy each use-case using the helm chart.
+At present, there are multiple deployment modes for **Video Search and Summarization Application**. We will learn how to deploy each use-case using the helm chart.
 
 > **Note:** Before switching to a different use-case always stop the current running use-case's application stack (if any) by uninstalling the chart : `helm uninstall vss -n $my_namespace`. This is not required if you are installing the helm chart for the first time.
 
-#### **Use Case 1: Video Summarization Only (Using VLM Microservice)**
+#### **Use Case 1: Video Summarization with OVMS (Default - CPU)**
 
-Deploy the Video Summarization application:
+Deploy the Video Summarization application using OVMS (OpenVINO Model Server) for both VLM captioning and LLM summarization:
 
 ```bash
 helm install vss . -f summary_override.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
-> **Note:** Delete the chart for installing the chart in other modes `helm uninstall vss -n $my_namespace`
+This is the default and recommended deployment mode. OVMS hosts the VLM model specified in `global.vlmName` and uses it for both chunk-wise captioning and final summarization (shared-model mode).
 
-#### **Use Case 2: Video Summarization with OVMS Microservice (OpenVINO Model Serving)**
+> **Note:** When deploying OVMS, the service may take longer to start on first run due to model conversion. Subsequent starts are faster as models are cached.
 
-If you want to use OVMS for LLM Summarization, deploy with the OVMS override values:
+#### **Use Case 1a: OVMS with Separate LLM Model (Split-Model Mode)**
 
-```bash
-helm install vss . -f summary_override.yaml -f ovms_override.yaml -f user_values_override.yaml -n $my_namespace
+To use a separate LLM model for final summarization while using VLM for captioning, set `global.vlmName` and `global.llmName` in `user_values_override.yaml`:
+
+```yaml
+global:
+  vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"
+  llmName: "Intel/neural-chat-7b-v3-3"
 ```
 
-> **Note:** When deploying OVMS, the OVMS service may take more time to start due to model conversion.
+Then deploy:
 
-#### **Use Case 2a: Video Summarization with vLLM (CPU-based LLM Inference)**
+```bash
+helm install vss . -f summary_override.yaml -f user_values_override.yaml -n $my_namespace
+```
 
-If you want to use vLLM as the LLM inference backend for CPU-based deployment, deploy with the vLLM override values:
+This deploys OVMS hosting both models:
+
+- VLM model (from `global.vlmName`) for chunk-wise captioning
+- LLM model (from `global.llmName`) for final summarization
+
+#### **Use Case 1b: OVMS with GPU Acceleration**
+
+To enable GPU acceleration for OVMS, configure the device settings and model in `user_values_override.yaml`:
+
+```yaml
+global:
+  vlmName: "OpenVINO/Phi-3.5-vision-instruct-int8-ov"
+  devices:
+    ovms:
+      vlm:
+        device: GPU
+        key: "gpu.intel.com/i915"
+```
+
+Then deploy:
+
+```bash
+helm install vss . -f summary_override.yaml -f user_values_override.yaml -n $my_namespace
+```
+
+> **Note:** GPU deployment requires the Intel device plugin to be installed on your cluster. Verify your GPU node label with `kubectl describe node <node-name>` and set the appropriate `key` value accordingly.
+
+##### Discovering Available Device Resource Keys
+
+Before configuring GPU or NPU devices, verify what resources are available in your cluster:
+
+**List all allocatable resources across all nodes:**
+
+```bash
+kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name):\n" + (.status.allocatable | to_entries | map(select(.key | test("gpu|npu|vpu|accel";"i"))) | map("  \(.key): \(.value)") | join("\n"))'
+```
+
+**Alternative - inspect a specific node:**
+
+```bash
+kubectl describe node <node-name> | grep -A20 "Allocatable:" | grep -E "gpu|npu|vpu|accel"
+```
+
+**Common Intel device resource keys:**
+
+| Device Type | Common Resource Keys |
+| ----------- | -------------------- |
+| Intel Integrated GPU | `gpu.intel.com/i915` |
+| Intel Discrete GPU (Arc/Flex) | `gpu.intel.com/xe` |
+| Intel NPU (AI Boost) | `npu.intel.com/accel` |
+
+> **Tip:** If no GPU/NPU resources appear, ensure the Intel device plugin is installed. See [Intel Device Plugins for Kubernetes](https://github.com/intel/intel-device-plugins-for-kubernetes).
+>
+> **Split-device note:** When using different devices for VLM and LLM (e.g., GPU + NPU), ensure at least one node in your cluster has **both** resources available. The pod will only schedule on nodes that satisfy all resource requests.
+>
+> **NPU Support:** Not all models support NPU execution. Verify model and hardware compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
+
+##### Model Weight Format
+
+OVMS automatically selects the optimal weight compression format based on the target device:
+
+| Device | Default Weight Format |
+| ------ | -------------------- |
+| CPU | `int8` |
+| GPU | `int4` |
+| NPU | `int4` |
+| HETERO:GPU,CPU | `int4` |
+
+**Overriding Weight Format:**
+
+To explicitly set the weight format for VLM or LLM models, set `ovms.env.VLM_WEIGHT_FORMAT` and/or `ovms.env.LLM_WEIGHT_FORMAT` in `user_values_override.yaml`:
+
+```yaml
+ovms:
+  env:
+    VLM_WEIGHT_FORMAT: "int8"
+    LLM_WEIGHT_FORMAT: "int8"
+```
+
+> **Note:** Models from the `OpenVINO/` namespace (e.g., `OpenVINO/Phi-3.5-vision-instruct-int8-ov`) are pre-converted and do not undergo weight format conversion. The weight format in the model name indicates its native format.
+>
+> **Storage Model Names:** Converted models are stored with device and weight format in the path (e.g., `Qwen_Qwen2.5-VL-3B-Instruct_GPU_int4`). Changing the device or weight format creates a new conversion, preserving existing models.
+
+#### **Use Case 2: Video Summarization with vLLM (CPU-based)**
+
+If you want to use vLLM as the inference backend for CPU-based deployment, deploy with the vLLM override values:
 
 ```bash
 helm install vss . -f summary_override.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
 **vLLM Configuration Details:**
+
 - vLLM provides an OpenAI-compatible API for efficient LLM inference on CPU
 - The `xeon_vllm_values.yaml` override file includes:
   - vLLM service with 16 CPU cores and 128Gi memory allocation
   - Resource configurations for all dependent services (PostgreSQL, RabbitMQ, audio-analyzer, etc.)
-  - Automatic disabling of the VLM Inference Microservice (`vlminference.enabled=false`)
+  - Automatic disabling of OVMS (`ovms.enabled=false`)
 
 **Prerequisites for vLLM:**
+
 - Ensure your Kubernetes node has sufficient CPU resources (minimum 32 logical cores recommended)
 - The vLLM container requires at least 128Gi of memory for typical LLM models
 - Cache storage must be configured (default 80Gi PVC for model cache)
@@ -214,7 +330,7 @@ helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml -
 
 > **Requirement:** Before installing the unified stack, populate `global.env.TEXT_EMBEDDING_MODEL_NAME` and set `global.embedding.preferTextModel=true` (the supplied `unified_summary_search.yaml` does this for you). The chart will raise an error if the text embedding model is omitted while unified mode is enabled. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 >
-> **GPU Tip:** In unified mode the `multimodal-embedding-ms` and `vdms-dataprep` pods always share the same PVC, so either enable GPU for both (`global.gpu.multimodalembeddingmsEnabled=true` and `global.gpu.vdmsdataprepEnabled=true`) or keep both on CPU. Mixing GPU/CPU settings leaves the GPU pod pending because the shared PVC cannot mount on two nodes simultaneously, and the Helm chart blocks such mismatches during install/upgrade.
+> **GPU Tip:** In unified mode the `multimodal-embedding-ms` and `vdms-dataprep` pods always share the same PVC, so either enable GPU for both (`global.devices.multimodalEmbedding.device=GPU` and `global.devices.vdmsDataprep.device=GPU`) or keep both on CPU. Mixing GPU/CPU settings leaves the GPU pod pending because the shared PVC cannot mount on two nodes simultaneously, and the Helm chart blocks such mismatches during install/upgrade.
 
 ### Step 6: Verify the Deployment
 
@@ -361,3 +477,47 @@ If not set while installing the chart, all services will claim a default amount 
 ## Related links
 
 - [How to Build from Source](./build-from-source.md)
+
+## Monitoring and Metrics
+
+### OVMS Prometheus Metrics
+
+When OVMS is enabled, the application exposes Prometheus-compatible metrics at the `/ovms/metrics` endpoint. These metrics provide valuable insights into inference performance and can be used for monitoring and auto-scaling.
+
+**Accessing metrics:**
+
+```bash
+# Port-forward to the nginx service (replace <release-name> with your helm release name, e.g., "vss")
+kubectl port-forward svc/<release-name>-nginx 8081:80 -n $my_namespace
+
+# Fetch metrics
+curl http://localhost:8081/ovms/metrics
+```
+
+**Available metrics:**
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `ovms_streams` | gauge | Number of OpenVINO execution streams |
+| `ovms_current_requests` | gauge | Requests currently being processed |
+| `ovms_requests_success` | counter | Total successful requests |
+| `ovms_requests_fail` | counter | Total failed requests |
+| `ovms_request_time_us` | histogram | Request processing time (microseconds) |
+| `ovms_inference_time_us` | histogram | Inference execution time (microseconds) |
+| `ovms_wait_for_infer_req_time_us` | histogram | Queue wait time (microseconds) |
+
+**Labels:** Metrics include labels for `api` (KServe, TensorFlowServing, V3), `interface` (REST, gRPC), `method`, `name` (model name), and `version`.
+
+**Prometheus integration:**
+
+Add the following scrape configuration to your Prometheus config:
+
+```yaml
+scrape_configs:
+  - job_name: 'vss-ovms'
+    static_configs:
+      - targets: ['<release-name>-nginx.<namespace>.svc.cluster.local:80']
+    metrics_path: '/ovms/metrics'
+```
+
+> **Note:** Metrics are only available when OVMS is enabled (`ovms.enabled=true`). When using vLLM backend, this endpoint is not available.

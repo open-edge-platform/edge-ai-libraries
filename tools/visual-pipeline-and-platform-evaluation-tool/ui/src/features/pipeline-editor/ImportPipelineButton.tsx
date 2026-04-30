@@ -1,6 +1,12 @@
 import { useRef, useState } from "react";
 import { FileJson, Terminal, Upload } from "lucide-react";
 import {
+  PIPELINE_FILE_UPLOAD_INPUT_CLASSNAME,
+  PipelineDialogButton,
+  PipelineMenuOptionButton,
+  PipelineToolbarButton,
+} from "./shared";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -12,7 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover.tsx";
 import { useToGraphMutation } from "@/api/api.generated";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import {
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
@@ -147,41 +153,28 @@ const ImportPipelineButton = ({ onImport }: ImportPipelineButtonProps) => {
 
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
         <PopoverTrigger asChild>
-          <button
-            className="bg-background hover:bg-classic-blue dark:text-energy-blue font-medium dark:hover:text-[#242528] dark:border-energy-blue dark:hover:bg-energy-blue border-2 border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"
+          <PipelineToolbarButton
             title="Import Pipeline"
-          >
-            <Upload className="w-5 h-5" />
-            <span>Import</span>
-          </button>
+            icon={<Upload className="w-5 h-5" />}
+            label={<span>Import</span>}
+            variant="accent-outline"
+          />
         </PopoverTrigger>
         <PopoverContent className="w-64">
           <div className="space-y-2">
             <h3 className="font-semibold text-sm mb-2">Import Pipeline</h3>
-            <button
+            <PipelineMenuOptionButton
               onClick={handleJsonImport}
-              className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 transition-colors text-sm flex items-start gap-2"
-            >
-              <FileJson className="w-4 h-4 mt-0.5 shrink-0" />
-              <div>
-                <div className="font-medium">Import JSON File</div>
-                <div className="text-xs text-gray-500">
-                  Import Pipeline Editor state
-                </div>
-              </div>
-            </button>
-            <button
+              icon={<FileJson className="w-4 h-4 mt-0.5 shrink-0" />}
+              title="Import JSON File"
+              description="Import Pipeline Editor state"
+            />
+            <PipelineMenuOptionButton
               onClick={handleDescriptionImport}
-              className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 transition-colors text-sm flex items-start gap-2"
-            >
-              <Terminal className="w-4 h-4 mt-0.5 shrink-0" />
-              <div>
-                <div className="font-medium">Import GST Description</div>
-                <div className="text-xs text-gray-500">
-                  Import pipeline description
-                </div>
-              </div>
-            </button>
+              icon={<Terminal className="w-4 h-4 mt-0.5 shrink-0" />}
+              title="Import GST Description"
+              description="Import pipeline description"
+            />
           </div>
         </PopoverContent>
       </Popover>
@@ -205,7 +198,7 @@ const ImportPipelineButton = ({ onImport }: ImportPipelineButtonProps) => {
                 type="file"
                 accept=".txt"
                 onChange={handleTxtFileUpload}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                className={PIPELINE_FILE_UPLOAD_INPUT_CLASSNAME}
               />
             </div>
 
@@ -221,27 +214,26 @@ const ImportPipelineButton = ({ onImport }: ImportPipelineButtonProps) => {
                 value={pipelineDescription}
                 onChange={(e) => setPipelineDescription(e.target.value)}
                 placeholder="Paste or upload your pipeline description here..."
-                className="w-full h-64 p-3 border rounded-md resize-none font-mono text-sm"
+                className="w-full h-64 p-3 border border-input bg-background rounded-md resize-none font-mono text-sm"
               />
             </div>
 
             <div className="flex justify-end gap-2">
-              <button
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              <PipelineDialogButton
                 onClick={() => {
                   setDialogOpen(false);
                   setPipelineDescription("");
                 }}
               >
                 Cancel
-              </button>
-              <button
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              </PipelineDialogButton>
+              <PipelineDialogButton
+                variant="primary"
                 onClick={handleConvertAndImport}
                 disabled={isLoading || !pipelineDescription.trim()}
               >
                 {isLoading ? "Importing..." : "Import"}
-              </button>
+              </PipelineDialogButton>
             </div>
           </div>
         </DialogContent>
