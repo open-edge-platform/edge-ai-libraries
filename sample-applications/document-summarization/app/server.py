@@ -254,27 +254,9 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
             combined_summary = '\n\n'.join(all_summaries)
             logger.info("Successfully generated combined summary")
 
-            # Second LLM call: distill a concise summary from chunk summaries
-            logger.info("Running final LLM call to distill a concise summary from chunk summaries")
-            final_doc = LlamaDocument(text=combined_summary, metadata={"file_path": file_location})
-            final_doc.doc_id = f"{file.filename}_final"
-            final_summary_pack = SimpleSummaryPack(
-                [final_doc],
-                query=query,
-                verbose=True,
-                llm=model,
-            )
-            final_doc_id = final_doc.doc_id
-            try:
-                final_summary = final_summary_pack.run(final_doc_id)
-            except Exception as e:
-                logger.error("Error generating final summary: %s", safe_log(str(e), max_len=512))
-                # fallback: yield the combined summary as a single chunk
-                def fallback_gen():
-                    yield combined_summary
-                final_summary = fallback_gen()
-            logger.info("Successfully generated distilled summary")
-            return StreamingResponse(final_summary, media_type="text/event-stream")
+            def summary_gen():
+                yield combined_summary
+            return StreamingResponse(summary_gen(), media_type="text/event-stream")
         except Exception as e:
             logger.error("Error in processing: %s", safe_log(str(e), max_len=512))
             logger.error(traceback.format_exc())
