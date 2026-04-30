@@ -34,18 +34,18 @@ export const PipelineStreamsSummary = ({
         return (
           <div
             key={item.id}
-            className="inline-flex w-fit max-w-full flex-col rounded-lg border border-blue-300/60 bg-neutral-950/50 px-3 py-2 relative overflow-hidden"
+            className="inline-flex w-fit max-w-full flex-col rounded-lg border border-pipeline-summary-border bg-surface-overlay px-3 py-2 relative overflow-hidden"
           >
-            <div className="absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] bg-gradient-to-r from-blue-500/10 via-blue-400/5 to-cyan-400/10" />
+            <div className="absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] bg-gradient-to-r from-pipeline-summary-glow-from via-pipeline-summary-glow-via to-pipeline-summary-glow-to" />
             <div className="relative min-w-0">
               <div className="min-w-0 flex items-center gap-2">
-                <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-blue-200">
+                <span className="truncate text-[0.625rem] font-semibold uppercase tracking-wider text-pipeline-summary-title">
                   {pipelineName}
                 </span>
                 {variantName && (
                   <>
-                    <span className="text-[10px] text-blue-300/90">•</span>
-                    <span className="truncate text-[10px] font-medium uppercase tracking-wider text-blue-300/90">
+                    <span className="text-[0.625rem] text-pipeline-summary-variant">•</span>
+                    <span className="truncate text-[0.625rem] font-medium uppercase tracking-wider text-pipeline-summary-variant">
                       {variantName}
                     </span>
                   </>

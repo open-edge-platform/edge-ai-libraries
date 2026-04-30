@@ -53,6 +53,16 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           ws: false,
+          configure: (proxy) => {
+            // Disable response buffering so SSE events stream through immediately
+            proxy.on("proxyRes", (proxyRes) => {
+              const url = proxyRes.req?.path ?? "";
+              if (url.includes("/stream")) {
+                proxyRes.headers["cache-control"] = "no-cache";
+                proxyRes.headers["x-accel-buffering"] = "no";
+              }
+            });
+          },
         },
         "/metrics/ws": {
           target: env.VITE_METRICS_URL || "http://localhost:9090",

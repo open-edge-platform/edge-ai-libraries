@@ -23,7 +23,7 @@ import { Jobs } from "@/pages/Jobs.tsx";
 import { PerformanceJobDetail } from "@/pages/PerformanceJobDetail.tsx";
 import { DensityJobDetail } from "@/pages/DensityJobDetail.tsx";
 import { OptimizationJobDetail } from "@/pages/OptimizationJobDetail.tsx";
-import { Pipelines2 } from "@/pages/Pipelines2";
+import { PipelineList } from "@/pages/PipelineList";
 import { Cameras } from "@/pages/Cameras";
 
 export type NavigationItem = {
@@ -56,7 +56,7 @@ export const menuItems: Array<NavigationItem> = [
 
 export const routeConfig: Array<RouteObject> = [
   { index: true, path: "", Component: HomePage },
-  { path: "pipelines", Component: Pipelines2 },
+  { path: "pipelines", Component: PipelineList },
   { path: "pipelines/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },

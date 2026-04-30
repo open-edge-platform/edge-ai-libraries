@@ -52,6 +52,10 @@ spec:
               value: "1"
             - name: HF_TOKEN
               value: "{{ .Values.modeldownload.env.HUGGINGFACEHUB_API_TOKEN }}"
+            - name: MAX_UPLOAD_SIZE_MB
+              value: "{{ .Values.modeldownload.env.MAX_UPLOAD_SIZE_MB }}"
+            - name: UPLOAD_CHUNK_SIZE_KB
+              value: "{{ .Values.modeldownload.env.UPLOAD_CHUNK_SIZE_KB }}"
             - name: MODEL_PATH
               value: "/opt/models"
             - name: ENABLED_PLUGINS
