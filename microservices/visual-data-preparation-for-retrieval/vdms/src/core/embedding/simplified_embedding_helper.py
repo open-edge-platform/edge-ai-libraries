@@ -579,64 +579,6 @@ async def generate_video_embedding_from_content(
         logger.error(f"Error in SDK video embedding from content: {ex}")
         raise
 
-async def generate_video_embedding_from_uri(
-    video_uris: list[str],
-    bucket_name: str,
-    video_id: str,
-    filename: str,
-    metadata_temp_path: pathlib.Path,
-    frame_interval: int = 15,
-    enable_object_detection: bool = True,
-    detection_confidence: float = 0.85,
-    tags: List[str] = None,
-    telemetry_context: Optional[Dict[str, Any]] = None,
-    shutdown_event: Optional[threading.Event] = None,
-) -> List[str]:
-
-    """
-    Generate video embeddings directly from video URI (SDK mode only).
-    
-    This function is optimized for SDK mode and processes video content directly
-    from the provided URI, allowing for maximum performance without intermediate storage.
-    
-    Args:
-        video_uri: List of video URIs to process
-        bucket_name: Bucket name where the video is stored
-        video_id: Directory containing the video
-        filename: Video filename
-        metadata_temp_path: Path to store metadata
-        frame_interval: Number of frames between extractions
-        enable_object_detection: Whether to enable object detection
-        detection_confidence: Confidence threshold for object detection
-        tags: Tags for the video
-        
-    Returns:
-        List of IDs of the created embeddings
-
-    """
-
-    logger.info(f"Starting SDK video embedding from URI for {video_id}/{filename}")
-    logger.info(f"Video URI: {video_uris}")
-    logger.info("ID of shutdown_event in generate_video_embedding_from_uri: %s", id(shutdown_event))
-
-    # Create metadata for video (including video URLs for search-ms compatibility)
-
-    generate_rtsp_video_embedding_sdk(
-        video_uris=video_uris,
-        metadata_dict={
-            'bucket_name': "RTSP_BUCKET",
-            'video_id': -1,
-            'filename': "filename",
-            'tags': tags or [],
-            'processing_mode': 'sdk',
-        },
-        frame_interval=frame_interval,
-        enable_object_detection=enable_object_detection,
-        detection_confidence=detection_confidence,
-        shutdown_event=shutdown_event,
-    )
-
-    
 
 async def generate_video_embedding_from_uri(
     video_uris: list[str],

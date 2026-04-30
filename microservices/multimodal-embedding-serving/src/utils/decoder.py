@@ -1,3 +1,6 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Video Frame Extraction Utility for data preparation
 Provides efficient, batched video frame extraction from various sources (files, RTSP streams, bytes) using PyAV.
