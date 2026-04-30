@@ -21,4 +21,4 @@ The parameters applicable for each pipeline are described below.
 
 Refer to [this](../../../how-to-guides/change-dlstreamer-pipeline.md) tutorial to update config file and deploy DL Streamer Pipeline Server with updated configs.
 
-DL Streamer Pipeline Server pipelines are executed by GStreamer, hence to realize any usecase users will have to create their pipeline using GStreamer. Refer [GStreamer Documentation](https://gstreamer.freedesktop.org/documentation/) and [GStreamer Plugins](https://gstreamer.freedesktop.org/documentation/plugins_doc.html?gi-language=c) for detailed guidelines on constructing pipelines.
+DL Streamer Pipeline Server pipelines are executed by GStreamer, hence to realize any usecase users will have to create their pipeline using GStreamer. Refer to [GStreamer Documentation](https://gstreamer.freedesktop.org/documentation/) and [GStreamer Plugins](https://gstreamer.freedesktop.org/documentation/plugins_doc.html?gi-language=c) for detailed guidelines on constructing pipelines.

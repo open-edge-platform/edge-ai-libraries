@@ -9,7 +9,7 @@
 
 ## Configuration
 
-- [Basic DL Streamer Pipeline Server Configuration](./advanced-guide/detailed_usage/configuration/Overview.md)
+- [Basic DL Streamer Pipeline Server Configuration](./advanced-guide/detailed_usage/configuration/dlstreamer-ps-config.md)
 
 ## Camera
 
@@ -59,7 +59,7 @@
 ```{toctree}
 :maxdepth: 5
 :hidden:
-./advanced-guide/detailed_usage/configuration/Overview
+./advanced-guide/detailed_usage/configuration/dlstreamer-ps-config
 ./advanced-guide/detailed_usage/rest_api/Overview
 ./advanced-guide/detailed_usage/camera/Overview
 ./advanced-guide/detailed_usage/file_ingestion/Overview
