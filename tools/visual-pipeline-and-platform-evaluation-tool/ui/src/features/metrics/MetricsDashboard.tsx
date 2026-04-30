@@ -413,59 +413,23 @@ export const MetricsDashboard = ({
           summaryUnitClassName={summaryUnitClassName}
         />
         {showLatencySection && (
-          <>
-            <MetricCard
-              title="Avg Latency"
-              value={
-                hasSummaryLatency
-                  ? metricsOverride!.latencyAvg!
-                  : (latencyData.at(-1)?.avg ?? 0)
-              }
-              unit="ms"
-              icon={<Clock className="h-6 w-6 text-orange-chart" />}
-              isSummary={isSummary}
-              forceDark={forceDark}
-              useDemoStyles={useDemoStyles}
-              summaryCardClassName={summaryCardClassName}
-              summaryIconClassName={summaryIconClassName}
-              summaryTitleClassName={summaryTitleClassName}
-              summaryUnitClassName={summaryUnitClassName}
-            />
-            <MetricCard
-              title="Min Latency"
-              value={
-                hasSummaryLatency
-                  ? metricsOverride!.latencyMin!
-                  : (latencyData.at(-1)?.min ?? 0)
-              }
-              unit="ms"
-              icon={<Clock className="h-6 w-6 text-green-chart" />}
-              isSummary={isSummary}
-              forceDark={forceDark}
-              useDemoStyles={useDemoStyles}
-              summaryCardClassName={summaryCardClassName}
-              summaryIconClassName={summaryIconClassName}
-              summaryTitleClassName={summaryTitleClassName}
-              summaryUnitClassName={summaryUnitClassName}
-            />
-            <MetricCard
-              title="Max Latency"
-              value={
-                hasSummaryLatency
-                  ? metricsOverride!.latencyMax!
-                  : (latencyData.at(-1)?.max ?? 0)
-              }
-              unit="ms"
-              icon={<Clock className="h-6 w-6 text-red-chart" />}
-              isSummary={isSummary}
-              forceDark={forceDark}
-              useDemoStyles={useDemoStyles}
-              summaryCardClassName={summaryCardClassName}
-              summaryIconClassName={summaryIconClassName}
-              summaryTitleClassName={summaryTitleClassName}
-              summaryUnitClassName={summaryUnitClassName}
-            />
-          </>
+          <MetricCard
+            title={isSummary ? "Avg Latency" : "Latency"}
+            value={
+              hasSummaryLatency
+                ? metricsOverride!.latencyAvg!
+                : (latencyData.at(-1)?.avg ?? 0)
+            }
+            unit="ms"
+            icon={<Clock className="h-6 w-6 text-orange-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+            summaryCardClassName={summaryCardClassName}
+            summaryIconClassName={summaryIconClassName}
+            summaryTitleClassName={summaryTitleClassName}
+            summaryUnitClassName={summaryUnitClassName}
+          />
         )}
       </div>
 

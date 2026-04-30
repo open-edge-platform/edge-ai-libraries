@@ -135,6 +135,7 @@ export const Pipelines = () => {
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
   const [livePreviewEnabled, setLivePreviewEnabled] = useState(false);
+  const [latencyMetricsEnabled, setLatencyMetricsEnabled] = useState(false);
   const [loopingEnabled, setLoopingEnabled] = useState(false);
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
@@ -342,7 +343,7 @@ export const Pipelines = () => {
             output_mode: outputMode,
             max_runtime: maxRuntimeSeconds,
             metadata_mode: hasMetadata ? "file" : "disabled",
-            enable_latency_metrics: true,
+            enable_latency_metrics: latencyMetricsEnabled,
           },
         },
       });
@@ -766,6 +767,17 @@ export const Pipelines = () => {
                           }}
                         />
                       </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Timer className="h-4 w-4 text-muted-foreground" />
+                          <span>Latency metrics</span>
+                        </div>
+                        <Switch
+                          checked={latencyMetricsEnabled}
+                          onCheckedChange={setLatencyMetricsEnabled}
+                        />
+                      </div>
                     </div>
                   </div>
                 </PopoverContent>
@@ -846,7 +858,7 @@ export const Pipelines = () => {
                       completedVideoPath={completedVideoPath}
                       livePreviewEnabled={livePreviewEnabled}
                       videoOutputEnabled={videoOutputEnabled}
-                      enableLatencyMetrics={true}
+                      enableLatencyMetrics={latencyMetricsEnabled}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null

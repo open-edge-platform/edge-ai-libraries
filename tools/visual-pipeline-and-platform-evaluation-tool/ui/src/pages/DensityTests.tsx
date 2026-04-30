@@ -66,6 +66,7 @@ export const DensityTests = () => {
   const [loopingRuntimeInput, setLoopingRuntimeInput] = useState(
     String(DEFAULT_LOOPING_RUNTIME_SECONDS),
   );
+  const [latencyMetricsEnabled, setLatencyMetricsEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
@@ -197,7 +198,7 @@ export const DensityTests = () => {
           execution_config: {
             output_mode: "disabled",
             max_runtime: loopingEnabled ? loopingRuntimeSeconds : 0,
-            enable_latency_metrics: true,
+            enable_latency_metrics: latencyMetricsEnabled,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => ({
@@ -388,6 +389,28 @@ export const DensityTests = () => {
               <TooltipTrigger asChild>
                 <label className="flex items-center gap-2 cursor-pointer h-[42px]">
                   <Checkbox
+                    checked={latencyMetricsEnabled}
+                    disabled={isRunning}
+                    onCheckedChange={(checked) =>
+                      setLatencyMetricsEnabled(checked === true)
+                    }
+                  />
+                  <span className="text-sm font-medium">
+                    Enable latency metrics
+                  </span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Collect pipeline latency measurements during the test</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          <div className="flex items-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                  <Checkbox
                     checked={loopingEnabled}
                     disabled={isRunning}
                     onCheckedChange={(checked) => {
@@ -484,7 +507,7 @@ export const DensityTests = () => {
                     Running density test...
                   </span>
                 </div>
-                <MetricsDashboard enableLatencyMetrics={true} />
+                <MetricsDashboard enableLatencyMetrics={latencyMetricsEnabled} />
               </div>
             )}
           </div>
@@ -496,7 +519,7 @@ export const DensityTests = () => {
               Frozen Metrics Snapshot
             </p>
             <MetricsDashboard
-              enableLatencyMetrics={true}
+              enableLatencyMetrics={latencyMetricsEnabled}
               historyOverride={frozenHistory}
               metricsOverride={frozenSummary}
             />
