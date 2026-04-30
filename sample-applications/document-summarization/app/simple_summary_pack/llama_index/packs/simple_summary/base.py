@@ -6,7 +6,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional
 
-from llama_index.core.schema import Document
+from llama_index.core.schema import Document, NodeWithScore
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core import get_response_synthesizer, Settings
 from llama_index.core.llms import LLM
@@ -61,7 +61,9 @@ class SimpleSummaryPack(BaseLlamaPack):
         self.query = query
 
         splitter = SentenceSplitter(chunk_size=config.CHUNK_SIZE or 4096)
-        self.nodes = splitter.get_nodes_from_documents(documents)
+        self.nodes = [
+            NodeWithScore(node=n) for n in splitter.get_nodes_from_documents(documents)
+        ]
         self.response_synthesizer = get_response_synthesizer(
             response_mode="tree_summarize", use_async=False
         )
