@@ -483,17 +483,29 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
         echo -e "${RED}ERROR: RABBITMQ_PASSWORD is not set in your shell environment.${NC}"
         return 1
     fi
-    if [ -z "$VLM_MODEL_NAME" ]; then
-        echo -e "${RED}ERROR: VLM_MODEL_NAME is not set in your shell environment.${NC}"
-        return 1
-    fi
-    if [ -z "$ENABLED_WHISPER_MODELS" ]; then
-        echo -e "${RED}ERROR: ENABLED_WHISPER_MODELS is not set in your shell environment.${NC}"
-        return 1
-    fi
-    if [ -z "$OD_MODEL_NAME" ]; then
-        echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}"
-        return 1
+    if [ "$1" != "--search" ]; then
+        if [ -z "$VLM_MODEL_NAME" ]; then
+            echo -e "${RED}ERROR: VLM_MODEL_NAME is not set in your shell environment.${NC}"
+            echo -e "${YELLOW}This is required for all modes except --search.${NC}"
+            return 1
+        fi
+        if [ -z "$ENABLED_WHISPER_MODELS" ]; then
+            echo -e "${RED}ERROR: ENABLED_WHISPER_MODELS is not set in your shell environment.${NC}"
+            echo -e "${YELLOW}This is required for all modes except --search.${NC}"
+            return 1
+        fi
+        if [ -z "$OD_MODEL_NAME" ]; then
+            echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}"
+            echo -e "${YELLOW}This is required for all modes except --search.${NC}"
+            return 1
+        fi
+        if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
+            if [ -z "$OVMS_LLM_MODEL_NAME" ]; then
+                echo -e "${RED}ERROR: OVMS_LLM_MODEL_NAME is not set in your shell environment.${NC}"
+                echo -e "${YELLOW}This is required for all modes except --search.${NC}"
+                return 1
+            fi
+        fi
     fi
     if { [ "$1" = "--search" ] || [ "$1" = "--dual" ]; } && [ -z "$MULTIMODAL_EMBEDDING_MODEL" ]; then
         echo -e "${RED}ERROR: MULTIMODAL_EMBEDDING_MODEL is not set in your shell environment.${NC}"
@@ -515,12 +527,6 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
         return 1
     fi
     
-    if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
-        if [ -z "$OVMS_LLM_MODEL_NAME" ]; then
-            echo -e "${RED}ERROR: OVMS_LLM_MODEL_NAME is not set in your shell environment.${NC}"
-            return 1
-        fi
-    fi
 fi
 
 # if only base environment variables are to be set without deploying application, exit here
