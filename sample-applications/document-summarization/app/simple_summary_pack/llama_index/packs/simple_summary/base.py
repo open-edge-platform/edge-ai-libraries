@@ -3,18 +3,18 @@
 
 """Simple Summary."""
 
-from abc import ABC, abstractmethod
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, List
 
-from llama_index.core.schema import Document, NodeWithScore
+from abc import ABC, abstractmethod
+from llama_index.core.schema import Document
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.core import get_response_synthesizer, Settings
+from llama_index.core import SimpleDirectoryReader, get_response_synthesizer
+from llama_index.core import DocumentSummaryIndex, Settings
 from llama_index.core.llms import LLM
 
 from app.config import Settings as ConfigSetting
 
 config = ConfigSetting()
-
 
 class BaseLlamaPack(ABC):
     """Minimal base class replacing the removed llama_index.core.llama_pack.BaseLlamaPack."""
@@ -26,27 +26,25 @@ class BaseLlamaPack(ABC):
 
 class SimpleSummaryPack(BaseLlamaPack):
     """
-    Summarizes a list of documents using tree_summarize in a single pass.
-
-    Instead of building a DocumentSummaryIndex (one LLM call per chunk),
-    all document nodes are passed directly to a tree_summarize synthesizer
-    which reduces N sequential calls to O(log N) hierarchical calls.
+    A class used to represent a Simple Summary Pack.
 
     Attributes
     ----------
-    nodes : list
-        Text nodes parsed from the input documents.
     response_synthesizer : BaseSynthesizer
-        Tree-summarize response synthesizer.
-    query : str
-        The summarization query/instruction.
+        A response synthesizer for generating summaries.
+    splitter : SentenceSplitter
+        Node parsers. Parse text with a preference for complete sentences.
+    doc_summary_index : DocumentSummaryIndex
+        The document summary index will extract a summary from each document.
 
     Methods
     -------
-    run() -> str
-        Synthesizes and returns the summary.
+    __init__(documents: List[Document], verbose: bool = False, query: str, llm: Optional[LLM] = None)
+        Initializes the SimpleSummaryPack with the provided documents, query, verbosity, and LLM.
+    run(fileName: str) -> str
+        Generates the summary for the document
     """
-
+    """"""
     def __init__(
         self,
         documents: List[Document],
@@ -55,20 +53,23 @@ class SimpleSummaryPack(BaseLlamaPack):
         llm: Optional[LLM] = None,
     ) -> None:
         """Init params."""
+
         Settings.embed_model = None
         Settings.llm = llm
         self.verbose = verbose
-        self.query = query
+        self.splitter = SentenceSplitter(chunk_size=config.CHUNK_SIZE or 4096)
 
-        splitter = SentenceSplitter(chunk_size=config.CHUNK_SIZE or 4096)
-        self.nodes = [
-            NodeWithScore(node=n) for n in splitter.get_nodes_from_documents(documents)
-        ]
         self.response_synthesizer = get_response_synthesizer(
-            response_mode="tree_summarize", use_async=False
+            response_mode="tree_summarize", use_async=True)
+        self.doc_summary_index = DocumentSummaryIndex.from_documents(
+            documents,
+            summary_query=query,
+            llm=llm,
+            transformations=[self.splitter],
+            response_synthesizer=self.response_synthesizer,
+            show_progress=True,
         )
 
-    def run(self, *args: Any, **kwargs: Any) -> str:
-        """Return the summary by synthesizing all nodes in a single tree_summarize pass."""
-        response = self.response_synthesizer.synthesize(self.query, nodes=self.nodes)
-        return str(response)
+    def run(self, fileName: str) -> str:
+        """Return the summary."""
+        return self.doc_summary_index.get_document_summary(fileName)
