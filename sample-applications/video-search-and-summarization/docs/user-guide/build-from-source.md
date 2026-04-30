@@ -75,18 +75,43 @@ This section shows how to build the Video Search and Summary sample application 
 
 4. **Run the Docker Container**:
 
-    The Video Search and Summary application brings up both the Video Summarization and Video Search UIs in a single deployment. To verify the newly created images, run:
+    The Video Search and Summary application provides multiple deployment scenarios. To verify the newly created images, run any of these:
 
     ```bash
-    source setup.sh --up
+    source setup.sh --dual     # Brings up both Summarization and Search application simultaneously
+    source setup.sh --summary    # Brings up Video Summarization application
+    source setup.sh --search     # Brings up Video Search application
+    source setup.sh --unified    # Brings up unified single UI for Video Summarization and Search
     ```
 
 5. Accessing the Application
 
-    After successfully starting the application, both UIs are available through the nginx proxy:
+    #### `--summary` mode
 
-    - Video Summarization UI: `http://<host-ip>:12345/summary/`
-    - Video Search UI:        `http://<host-ip>:12345/search/`
+   | UI | URL |
+   |----|-----|
+   | Video Summarization | `http://<host-ip>:12345/` |
+
+   #### `--search` mode
+
+   | UI | URL |
+   |----|-----|
+   | Video Search | `http://<host-ip>:12345/` |
+
+   #### `--dual` mode
+
+   | UI | URL |
+   |----|-----|
+   | Video Summarization | `http://<host-ip>:12345/summary/` 
+   | Video Search       | `http://<host-ip>:12345/search/` |
+
+   Visiting the root URL `http://<host-ip>:12345/` redirects to the Video Summarization UI.
+
+   #### `--unified` mode
+
+   | UI | URL |
+   |----|-----|
+   | Unified Summary/Search | `http://<host-ip>:12345/` |
 
 ## Verification
 

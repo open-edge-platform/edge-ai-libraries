@@ -2,13 +2,15 @@
 
 Use the Video Search and Summarization (VSS) sample application to search through your videos, summarize them, and more.
 
-This foundational sample application provides three modes:
+This foundational sample application provides four deployment modes:
 
-| Mode | Use To | Capability |
-|---|---|---|
-| 🔍 Video Search | Find specific content within large video datasets through natural language. | Extract and index visual, audio, and textual features from video frames using the LangChain framework, multimodal embedding models, and agentic reasoning. Query using natural language or multi-modal models. |
-| 📝 Video Summarization | Create concise summaries of long-form videos or live streams, automatically. | Improve searchability. Combine insights from different data types using Generative AI Vision Language Models (VLMs), computer vision, and audio analysis. |
-| 🔗 Combined Video Search and Summarization | Find specific content and create concise summaries of videos - ideal for a comprehensive video analysis. | Search quickly and directly over generated video summaries. Using the summary as a knowledge base makes the search results more relevant and accurate. |
+| Mode | Setup Command | Usage | Capability |
+|---|---|---|---|
+| 📝 Summary | `source setup.sh --summary` | Create concise summaries of long-form videos or live streams, automatically. | Combine insights from different data types using Generative AI Vision Language Models (VLMs), computer vision, and audio analysis. |
+| 🔍 Search | `source setup.sh --search` | Find specific content within large video datasets through natural language. | Extract and index visual, audio, and textual features from video frames using multimodal embedding models. Query using natural language. |
+| 🔀 Dual | `source setup.sh --dual` | Run summarization and search side-by-side with separate UIs. | Both summary and search capabilities via independent UI instances. |
+| 🔗 Unified | `source setup.sh --unified` | Create concise summaries of videos and search for specific content in a single unified UI. | Search over generated video summary's text embeddings for more relevant results. |
+
 
 ## Why Use VSS?
 
