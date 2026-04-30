@@ -1,0 +1,26 @@
+[project]
+name = "mcp-app"
+version = "0.2.0"
+description = "Spec-driven FastMCP proxy for filtered REST APIs"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "fastmcp==3.2.4",
+    "httpx>=0.27.0",
+    "pydantic>=2.0.0",
+]
+
+[project.scripts]
+mcp-app = "src.main:main"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
