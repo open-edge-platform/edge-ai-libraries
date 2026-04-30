@@ -1,0 +1,24 @@
+.navbar {
+    height: 48px;
+    flex-shrink: 0;
+    background: #070d2d;
+    border-bottom: 1px solid #1b2652;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 16px;
+}
+
+.navLeft {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.navTitle {
+    font-size: 15px;
+    font-weight: 500;
+    color: #e8eaf0;
+}

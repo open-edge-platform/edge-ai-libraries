@@ -1,15 +1,83 @@
 // Copyright (C) 2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-@import "../../styles/styles";
-
-.conversationMessage {
-  @include flex(column, nowrap, flex-start, flex-start);
-  margin-top: 16px;
-  padding: 0 32px;
-  width: 100%;
-
-  & > * {
+.messageRow {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
     width: 100%;
-  }
+}
+
+.ai {
+    flex-direction: row;
+}
+
+.user {
+    flex-direction: row-reverse;
+}
+
+.messageIcon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.aiIcon {
+    background: #00a3f6;
+    color: #ffffff;
+}
+
+.userIcon {
+    background: #c442cf;
+    color: #f0d0f5;
+}
+
+.messageContent {
+    max-width: 70%;
+    display: flex;
+    flex-direction: column;
+}
+
+.user .messageContent {
+    align-items: flex-end;
+}
+
+.ai .messageContent {
+    align-items: flex-start;
+}
+
+.bubble {
+    padding: 9px 13px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.aiBubble {
+    background: #141f45;
+    color: #c8d4f0;
+    border: 1px solid #1b2652;
+    border-radius: 4px 12px 12px 12px;
+}
+
+.userBubble {
+    background: #1e2a57;
+    color: #d8e0f0;
+    border-radius: 12px 4px 12px 12px;
+}
+
+.messageDate {
+    margin-top: 4px;
+    font-size: 10px;
+    color: #556080;
 }

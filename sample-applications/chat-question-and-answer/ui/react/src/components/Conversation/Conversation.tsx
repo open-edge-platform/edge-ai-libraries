@@ -3,7 +3,7 @@
 
 import { KeyboardEventHandler, SyntheticEvent, useEffect, useRef, useState } from 'react'
 import styleClasses from "../../styles/components/conversation.module.scss"
-import { ActionIcon, Group, Textarea, Title, rem, Anchor } from '@mantine/core'
+import { ActionIcon, Group, Textarea, rem, Anchor } from '@mantine/core'
 import { IconArrowRight, IconFilePlus, IconMessagePlus } from '@tabler/icons-react'
 import { conversationSelector, doConversation, newConversation, fetchModelName } from '../../redux/Conversation/ConversationSlice'
 import { ConversationMessage } from '../Message/conversationMessage'
@@ -15,7 +15,7 @@ import DataSource from '../Drawer/DataSource'
 import { ConversationSideBar } from './ConversationSideBar'
 
 type ConversationProps = {
-  title:string
+  title: string
 }
 
 const Conversation = ({ title }: ConversationProps) => {
@@ -40,7 +40,7 @@ const Conversation = ({ title }: ConversationProps) => {
     content: "You are helpful assistant",
   };
 
-    // Fetch model name
+  // Fetch model name
   useEffect(() => {
     dispatch(fetchModelName(undefined));
   }, [dispatch]);
@@ -64,12 +64,12 @@ const Conversation = ({ title }: ConversationProps) => {
       time: getCurrentTimeStamp()
     };
     let messages: Partial<Message>[] = [];
-    if(selectedConversation){
-      messages  = selectedConversation.Messages.map((message: any) => {
-        return {role:message.role, content:message.content}
+    if (selectedConversation) {
+      messages = selectedConversation.Messages.map((message: any) => {
+        return { role: message.role, content: message.content }
       })
     }
-    
+
     messages = [systemPrompt, ...messages]
 
     dispatch(doConversation({
@@ -107,18 +107,24 @@ const Conversation = ({ title }: ConversationProps) => {
   }
   return (
     <div className={styleClasses.conversationWrapper}>
-      <ConversationSideBar title={title}/>
+      <ConversationSideBar onNewConversation={handleNewConversation} />
       <div className={styleClasses.conversationContent}>
         <div className={styleClasses.conversationContentMessages}>
-          <div className={styleClasses.conversationTitle}>
-            <Title order={3}>{selectedConversation?.title || ""} </Title>
+          <div className={styleClasses.conversationToolbar}>
             <span className={styleClasses.spacer}></span>
+
             <Group>
               {selectedConversation && selectedConversation?.Messages.length > 0 && (
-                <ActionIcon onClick={handleNewConversation} disabled={!!(onGoingResults?.[selectedConversationId])} size={32} variant="default">
+                <ActionIcon
+                  onClick={handleNewConversation}
+                  disabled={!!(onGoingResults?.[selectedConversationId])}
+                  size={32}
+                  variant="default"
+                >
                   <IconMessagePlus />
                 </ActionIcon>
               )}
+
               <ActionIcon onClick={openFileUpload} size={32} variant="default">
                 <IconFilePlus />
               </ActionIcon>
@@ -150,8 +156,8 @@ const Conversation = ({ title }: ConversationProps) => {
             )}
 
             {hasLLMResponse && (
-              <div style={{textAlign: 'right', paddingTop: '12px'}}>
-                <Anchor href={LLM_MODEL_URL} target="_blank" size="xs" style={{textDecoration: 'underline'}}>
+              <div style={{ textAlign: 'right', paddingTop: '12px' }}>
+                <Anchor href={LLM_MODEL_URL} target="_blank" size="xs" style={{ textDecoration: 'underline' }}>
                   {modelName}
                 </Anchor>
               </div>

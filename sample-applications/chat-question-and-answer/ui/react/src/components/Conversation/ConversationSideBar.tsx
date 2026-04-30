@@ -1,8 +1,8 @@
 // Copyright (C) 2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-import { ScrollAreaAutosize, Title, ActionIcon, TextInput, Loader } from "@mantine/core"
-import { IconEdit, IconTrash, IconCheck, IconX } from "@tabler/icons-react"
+import { ScrollAreaAutosize, ActionIcon, TextInput, Loader, Button } from "@mantine/core"
+import { IconEdit, IconTrash, IconCheck, IconX, IconPlus } from "@tabler/icons-react"
 import { useState } from "react"
 
 import contextStyles from "../../styles/components/context.module.scss"
@@ -10,10 +10,10 @@ import { useAppDispatch, useAppSelector } from "../../redux/store"
 import { conversationSelector, setSelectedConversationId, deleteConversation, updateConversationTitle } from "../../redux/Conversation/ConversationSlice"
 
 export interface ConversationContextProps {
-    title: string
+    onNewConversation: () => void
 }
 
-export function ConversationSideBar({ title }: ConversationContextProps) {
+export function ConversationSideBar({ onNewConversation }: ConversationContextProps) {
     const { conversations, selectedConversationId, isGenerating } = useAppSelector(conversationSelector)
     const dispatch = useAppDispatch()
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -148,16 +148,21 @@ export function ConversationSideBar({ title }: ConversationContextProps) {
     ))
 
     return (
-        <div className={contextStyles.contextWrapper}>
-            <Title order={3} className={contextStyles.contextTitle}>
-                {title}
-            </Title>
-            <div className={contextStyles.chatHistoryTitle}>
-                Chat History
-            </div>
-            <ScrollAreaAutosize type="hover" scrollHideDelay={0}>
-                <div className={contextStyles.contextList}>{conversationList}</div>
-            </ScrollAreaAutosize>
+    <aside className={contextStyles.contextWrapper}>
+        <div className={contextStyles.sidebarHead}>
+            <Button
+                className={contextStyles.newChatButton}
+                leftSection={<IconPlus size={14} />}
+                onClick={onNewConversation}
+                fullWidth
+            >
+                New chat
+            </Button>
         </div>
-    )
+
+        <ScrollAreaAutosize type="hover" scrollHideDelay={0}>
+            <div className={contextStyles.contextList}>{conversationList}</div>
+        </ScrollAreaAutosize>
+    </aside>
+)
 }
