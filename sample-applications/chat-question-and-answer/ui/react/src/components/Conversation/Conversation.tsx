@@ -110,27 +110,6 @@ const Conversation = ({ title }: ConversationProps) => {
       <ConversationSideBar onNewConversation={handleNewConversation} />
       <div className={styleClasses.conversationContent}>
         <div className={styleClasses.conversationContentMessages}>
-          <div className={styleClasses.conversationToolbar}>
-            <span className={styleClasses.spacer}></span>
-
-            <Group>
-              {selectedConversation && selectedConversation?.Messages.length > 0 && (
-                <ActionIcon
-                  onClick={handleNewConversation}
-                  disabled={!!(onGoingResults?.[selectedConversationId])}
-                  size={32}
-                  variant="default"
-                >
-                  <IconMessagePlus />
-                </ActionIcon>
-              )}
-
-              <ActionIcon onClick={openFileUpload} size={32} variant="default">
-                <IconFilePlus />
-              </ActionIcon>
-            </Group>
-          </div>
-
           <div className={styleClasses.historyContainer} ref={scrollViewport}>
 
             {!selectedConversation && (
@@ -139,10 +118,16 @@ const Conversation = ({ title }: ConversationProps) => {
               </>
             )}
 
-            {selectedConversation?.Messages.map((message: any) => {
-              return (<ConversationMessage key={`_ai`} date={message.time * 1000} human={message.role == MessageRole.User} message={message.content} />)
-            })
-            }
+            {selectedConversation?.Messages.map((message: any, index: number) => {
+              return (
+                <ConversationMessage
+                  key={`${message.role}_${message.time}_${index}`}
+                  date={message.time * 1000}
+                  human={message.role == MessageRole.User}
+                  message={message.content}
+                />
+              )
+            })}
 
             {/* Show ongoing AI response with blinking indicator inline with streaming text */}
             {(isGenerating[selectedConversationId] || onGoingResults?.[selectedConversationId]) && (
@@ -166,16 +151,28 @@ const Conversation = ({ title }: ConversationProps) => {
 
           <div className={styleClasses.conversationActions}>
             <Textarea
-              radius="xl"
-              size="md"
-              placeholder="Ask a question"
+              classNames={{
+                root: styleClasses.promptRoot,
+                input: styleClasses.promptInput,
+                section: styleClasses.promptSection,
+              }}
+              placeholder="Ask a question..."
               ref={promptInputRef}
               onKeyDown={handleKeyDown}
               onChange={handleChange}
               value={prompt}
+              autosize
+              minRows={1}
+              maxRows={4}
               rightSectionWidth={42}
               rightSection={
-                <ActionIcon onClick={handleSubmit} size={32} radius="xl" variant="filled">
+                <ActionIcon
+                  className={styleClasses.sendButton}
+                  onClick={handleSubmit}
+                  size={28}
+                  radius={7}
+                  variant="filled"
+                >
                   <IconArrowRight style={{ width: rem(18), height: rem(18) }} stroke={1.5} />
                 </ActionIcon>
               }

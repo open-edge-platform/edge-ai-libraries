@@ -153,7 +153,7 @@ export const ConversationSlice = createSlice({
         message: "Failed to delete all files",
       });
     });
-    
+
     // Link management
     builder.addCase(fetchInitialLinks.fulfilled, (state, action) => {
       state.links = action.payload.data;
@@ -217,7 +217,7 @@ export const ConversationSlice = createSlice({
         message: "Failed to delete all links",
       });
     });
-    
+
     // Model name
     builder.addCase(fetchModelName.fulfilled, (state, action) => {
       state.modelName = action.payload;
@@ -230,7 +230,7 @@ export const ConversationSlice = createSlice({
 
 export const fetchModelName = createAsyncThunkWrapper(
   "conversation/fetchModelName",
-  async (_, {}) => {
+  async (_, { }) => {
     const response = await client.get(MODEL_URL);
     console.log("Fetched model name:", response);
     return response.data.llm_model || "Unknown Model";
@@ -414,7 +414,7 @@ export const removeAllLinks = createAsyncThunk(
 
 export const submitDataSourceURL = createAsyncThunkWrapper(
   "conversation/submitDataSourceURL",
-  async ({ link_list }: { link_list: string[] }, {}) => {
+  async ({ link_list }: { link_list: string[] }, { }) => {
     notifications.show({
       id: "submit-url",
       message: "Submitting URLs...",
@@ -425,7 +425,7 @@ export const submitDataSourceURL = createAsyncThunkWrapper(
   },
 );
 
-export const uploadFile = createAsyncThunkWrapper("conversation/uploadFile", async ({ file }: { file: globalThis.File }, {}) => {
+export const uploadFile = createAsyncThunkWrapper("conversation/uploadFile", async ({ file }: { file: globalThis.File }, { }) => {
   const body = new FormData();
   body.append("files", file);
 
@@ -474,10 +474,10 @@ export const doConversation = createAsyncThunk(
       // New conversation
       const id = uuidv4();
       activeConversationId = id;
-      
+
       // First set the selected conversation ID
       dispatch(setSelectedConversationId(id));
-      
+
       // Then create the new conversation
       dispatch(
         createNewConversation({
@@ -486,7 +486,7 @@ export const doConversation = createAsyncThunk(
           message: userPrompt,
         })
       );
-      
+
       selectedConversation = {
         conversationId: id,
         Messages: [userPrompt],
@@ -522,7 +522,7 @@ export const doConversation = createAsyncThunk(
     let result = "";
     let firstTokenReceived = false;
     try {
-      fetchEventSource(CHAT_QNA_URL, {
+      await fetchEventSource(CHAT_QNA_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -531,14 +531,28 @@ export const doConversation = createAsyncThunk(
         openWhenHidden: true,
         async onopen(response) {
           if (response.ok) {
+            const contentType = response.headers.get("content-type");
+            console.log("Chat stream opened:", response.status, contentType);
             return;
-          } else if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-            const e = await response.json();
-            console.log(e);
-            throw Error(e.error.message);
-          } else {
-            console.log("error", response);
           }
+
+          let errorBody: any = null;
+
+          try {
+            errorBody = await response.json();
+          } catch {
+            errorBody = null;
+          }
+
+          console.error("Chat request failed:", response.status, response.statusText, errorBody);
+
+          const errorMessage =
+            errorBody?.error?.message ||
+            errorBody?.message ||
+            errorBody?.detail ||
+            `${response.status} ${response.statusText}`;
+
+          throw new Error(errorMessage);
         },
         onmessage(msg) {
           if (msg?.data != "[DONE]") {
