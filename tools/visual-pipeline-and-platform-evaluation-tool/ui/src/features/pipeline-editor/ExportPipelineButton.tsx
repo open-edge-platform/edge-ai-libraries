@@ -9,7 +9,8 @@ import { downloadFile, MimeType } from "@/lib/fileUtils";
 import type { Edge, Node, Viewport } from "@xyflow/react";
 import { Download, FileJson, Terminal } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
+import { PipelineMenuOptionButton, PipelineToolbarButton } from "./shared";
 
 type DownloadPipelineButtonProps = {
   nodes: Node[];
@@ -77,44 +78,29 @@ const ExportPipelineButton = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          className="bg-background hover:bg-classic-blue dark:text-energy-blue font-medium dark:hover:text-[#242528] dark:border-energy-blue dark:hover:bg-energy-blue border-2 border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"
+        <PipelineToolbarButton
           title="Export Pipeline"
-        >
-          <Download className="w-5 h-5" />
-          <span>Export</span>
-        </button>
+          icon={<Download className="w-5 h-5" />}
+          label={<span>Export</span>}
+          variant="accent-outline"
+        />
       </PopoverTrigger>
       <PopoverContent className="w-64">
         <div className="space-y-2">
           <h3 className="font-semibold text-sm mb-2">Export Pipeline</h3>
-          <button
+          <PipelineMenuOptionButton
             onClick={handleDownloadJson}
-            className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 transition-colors text-sm flex items-start gap-2"
-          >
-            <FileJson className="w-4 h-4 mt-0.5 shrink-0" />
-            <div>
-              <div className="font-medium">Download JSON File</div>
-              <div className="text-xs text-gray-500">
-                Export Pipeline Editor state
-              </div>
-            </div>
-          </button>
-          <button
+            icon={<FileJson className="w-4 h-4 mt-0.5 shrink-0" />}
+            title="Download JSON File"
+            description="Export Pipeline Editor state"
+          />
+          <PipelineMenuOptionButton
             onClick={handleDownloadDescription}
             disabled={isLoading}
-            className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 transition-colors text-sm disabled:opacity-50 flex items-start gap-2"
-          >
-            <Terminal className="w-4 h-4 mt-0.5 shrink-0" />
-            <div>
-              <div className="font-medium">
-                {isLoading ? "Generating..." : "Download GST Description"}
-              </div>
-              <div className="text-xs text-gray-500">
-                Export pipeline description
-              </div>
-            </div>
-          </button>
+            icon={<Terminal className="w-4 h-4 mt-0.5 shrink-0" />}
+            title={isLoading ? "Generating..." : "Download GST Description"}
+            description="Export pipeline description"
+          />
         </div>
       </PopoverContent>
     </Popover>

@@ -14,7 +14,7 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import { useEffect, useRef, useState } from "react";
-import PipelineEditor, {
+import PipelineEditorCanvas, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
@@ -23,7 +23,7 @@ import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
 import { PipelineActionsMenu } from "@/features/pipeline-editor/PipelineActionsMenu";
 import {
@@ -410,6 +410,8 @@ export const Pipelines = () => {
 
       const target = event.target as HTMLElement;
 
+      if (target.closest("header")) return;
+
       if (
         detailsPanelRef.current &&
         !detailsPanelRef.current.contains(target)
@@ -457,7 +459,7 @@ export const Pipelines = () => {
           className="w-full h-full transition-opacity duration-100"
           style={{ opacity: isTransitioning ? 0 : 1 }}
         >
-          <PipelineEditor
+          <PipelineEditorCanvas
             ref={pipelineEditorRef}
             key={editorKey}
             pipelineData={data}
@@ -480,11 +482,11 @@ export const Pipelines = () => {
 
     return (
       <div className="flex flex-col h-full w-full">
-        <header className="flex h-[60px] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
+        <header className="flex h-[3.75rem] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
           <div className="flex flex-wrap items-center gap-2 px-2">
             <Link
               to={source === "dashboard" ? "/" : "/pipelines"}
-              className="p-2 hover:bg-accent rounded transition-colors"
+              className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent/50 transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
@@ -579,9 +581,9 @@ export const Pipelines = () => {
 
                 <PopoverContent
                   align="start"
-                  className="w-[420px] p-4 rounded-none"
+                  className="w-72 p-3 rounded-none"
                 >
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="space-y-2">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
                         View mode
@@ -614,14 +616,22 @@ export const Pipelines = () => {
                       Pipeline run options
                     </p>
 
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span>Streams</span>
-                      </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 text-sm cursor-default">
+                            <span>Streams</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p>Number of parallel streams to run (1–12)</p>
+                        </TooltipContent>
+                      </Tooltip>
                       <Input
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
+                        maxLength={2}
                         value={streamsInput}
                         onChange={(event) => {
                           const value = event.target.value;
@@ -657,17 +667,24 @@ export const Pipelines = () => {
                           setStreams(normalizedValue);
                           setStreamsInput(String(normalizedValue));
                         }}
-                        className="h-8 w-24 px-2 text-sm bg-background dark:bg-input/60"
+                        className="h-7 w-12 px-2 text-sm text-center bg-background dark:bg-input/60"
                       />
                     </div>
 
                     {!containsCameraInput(currentNodes) && (
                       <>
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 text-sm">
-                            <InfinityIcon className="h-4 w-4 text-muted-foreground" />
-                            <span>Run pipeline in loop</span>
-                          </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-2 text-sm cursor-default">
+                                <InfinityIcon className="h-4 w-4 text-muted-foreground" />
+                                <span>Run pipeline in loop</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                              <p>Continuously restart the pipeline for a set duration</p>
+                            </TooltipContent>
+                          </Tooltip>
                           <Switch
                             checked={loopingEnabled}
                             onCheckedChange={(checked) => {
@@ -721,7 +738,7 @@ export const Pipelines = () => {
                                 setLoopingRuntimeSeconds(normalizedValue);
                                 setLoopingRuntimeInput(String(normalizedValue));
                               }}
-                              className="h-8 w-24 px-2 text-xs bg-background dark:bg-input/60"
+                              className="h-7 w-20 px-2 text-xs bg-background dark:bg-input/60"
                             />
                             <span className="text-xs text-muted-foreground">
                               s
@@ -732,11 +749,18 @@ export const Pipelines = () => {
                     )}
 
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Film className="h-4 w-4 text-muted-foreground" />
-                          <span>Keep pipeline output</span>
-                        </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2 text-sm cursor-default">
+                              <Film className="h-4 w-4 text-muted-foreground" />
+                              <span>Keep pipeline output</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            <p>Save the pipeline output video to disk</p>
+                          </TooltipContent>
+                        </Tooltip>
                         <Switch
                           checked={videoOutputEnabled}
                           onCheckedChange={(checked) => {
@@ -749,11 +773,18 @@ export const Pipelines = () => {
                         />
                       </div>
 
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Eye className="h-4 w-4 text-muted-foreground" />
-                          <span>Enable live preview</span>
-                        </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2 text-sm cursor-default">
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                              <span>Enable live preview</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            <p>Stream live video preview via RTSP</p>
+                          </TooltipContent>
+                        </Tooltip>
                         <Switch
                           checked={livePreviewEnabled}
                           onCheckedChange={(checked) => {

@@ -8,6 +8,7 @@ import {
 import { Gpu } from "lucide-react";
 import { useAppSelector } from "@/store/hooks.ts";
 import { selectDeviceByFamily } from "@/store/reducers/devices.ts";
+import { formatDeviceName } from "@/lib/utils";
 
 export const NpuUsageProgress = () => {
   const deviceName = useAppSelector((state) =>
@@ -20,7 +21,7 @@ export const NpuUsageProgress = () => {
           <ProgressLabel>
             <span className="flex items-center gap-2">
               <Gpu className="h-4 w-4" />
-              NPU: {deviceName?.full_device_name} (coming soon)
+              NPU: {formatDeviceName(deviceName?.full_device_name)} (metrics coming soon)
             </span>
           </ProgressLabel>
           <ProgressValue>
