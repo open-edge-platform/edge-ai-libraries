@@ -1,7 +1,6 @@
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -16,17 +15,16 @@ export const Models = () => {
   if (models.length > 0) {
     return (
       <div className="container pl-16 mx-auto py-10">
-        <div className="mb-6">
+        <div>
           <h1 className="text-3xl font-bold">Models</h1>
           <p className="text-muted-foreground mt-2">
             Ready-to-use models available in the platform
           </p>
         </div>
-        <Table>
-          <TableCaption>A list of loaded models.</TableCaption>
+        <Table className="mb-10">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[33%]">Name</TableHead>
+              <TableHead className="w-[33%] truncate">Name</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Precision</TableHead>
             </TableRow>
@@ -34,8 +32,10 @@ export const Models = () => {
           <TableBody>
             {models.map((model) => (
               <TableRow key={model.name}>
-                <TableCell className="font-medium">
-                  {model.display_name}
+                <TableCell className="font-medium max-w-0">
+                  <div className="truncate" title={model.display_name}>
+                    {model.display_name}
+                  </div>
                 </TableCell>
                 <TableCell>{model.category}</TableCell>
                 <TableCell>{model.precision}</TableCell>

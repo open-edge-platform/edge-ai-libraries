@@ -2,6 +2,8 @@ __pycache__
 .coverage
 .env
 .idea
+shared/images/input/*
+shared/images/output/*
 shared/models/output/*
 shared/videos/input/*
 shared/videos/output/*

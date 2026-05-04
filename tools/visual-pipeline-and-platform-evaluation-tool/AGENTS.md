@@ -176,7 +176,13 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `GST_DEBUG`                      | GStreamer native debug level (integer, 0-9)                  | `1`                                                        |
 | `MODELS_PATH`                    | Path to downloaded models                                    | `/models/output`                                           |
 | `SUPPORTED_MODELS_FILE`          | Path to supported_models.yaml                                | `/models/supported_models.yaml`                            |
-| `INPUT_VIDEO_DIR`                | Path to input videos                                         | `/videos/input`                                            |
+| `AUTO_VIDEO_DIR`                 | Path to auto-downloaded videos                               | `/videos/input/auto`                                       |
+| `UPLOADED_VIDEO_DIR`             | Path to user-uploaded videos                                 | `/videos/input/uploaded`                                   |
+| `DEFAULT_RECORDINGS_FILE`        | Path to the YAML listing recordings to auto-download         | `/videos/default_recordings.yaml`                          |
+| `UPLOAD_ALLOWED_EXTENSIONS`      | Comma-separated allow-list of upload file extensions         | `mp4,mkv,mov,avi,ts,264,avc,h265,hevc`                     |
+| `UPLOAD_ALLOWED_CONTAINERS`      | Comma-separated allow-list of upload container formats       | `mp4,mov,mkv,avi,mpegts,raw`                               |
+| `UPLOAD_ALLOWED_CODECS`          | Comma-separated allow-list of upload video codecs            | `h264,h265`                                                |
+| `UPLOAD_MAX_SIZE_BYTES`          | Maximum accepted upload body size in bytes                   | `2147483648` (2 GiB)                                       |
 | `OUTPUT_VIDEO_DIR`               | Path to output videos                                        | `/videos/output`                                           |
 | `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | Glob patterns for elements shown in simplified pipeline view | `*src,urisourcebin,gva*,*sink,source`                      |
 | `SIMPLE_VIEW_INVISIBLE_ELEMENTS` | Element names hidden from simplified pipeline view           | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` |

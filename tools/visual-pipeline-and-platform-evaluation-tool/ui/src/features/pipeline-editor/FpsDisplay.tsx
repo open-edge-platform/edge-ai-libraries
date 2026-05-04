@@ -1,6 +1,7 @@
 import { Cpu, Gauge, Gpu } from "lucide-react";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
 import { useConnectionStatus } from "@/features/metrics/useConnectionStatus.ts";
+import { cn } from "@/lib/utils";
 
 interface FpsDisplayProps {
   className?: string;
@@ -12,7 +13,10 @@ const FpsDisplay = ({ className = "" }: FpsDisplayProps) => {
 
   return (
     <div
-      className={`bg-background dark:text-white/80 text-black/80 p-2 shadow-lg dark:shadow-[2px_2px_8px_0_rgba(255,255,255,0.08)] text-sm ${className}`}
+      className={cn(
+        "bg-background dark:text-white/80 text-black/80 p-2 shadow-lg dark:shadow-[0.125rem_0.125rem_0.5rem_0_rgba(255,255,255,0.08)] text-sm",
+        className,
+      )}
     >
       <div className="flex flex-row gap-2 font-mono justify-center items-center">
         <span className={statusColor}>{statusIcon}</span>

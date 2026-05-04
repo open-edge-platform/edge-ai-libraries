@@ -28,6 +28,8 @@ This section shows how to build the Model Download microservice from source.
 
       ```bash
       export HUGGINGFACEHUB_API_TOKEN=<your huggingface token>
+      export MAX_UPLOAD_SIZE_MB=<max allowed size for zip file upload> # default is 500MB
+      export UPLOAD_CHUNK_SIZE_KB=<chunk size for streaming uploads in KB> # default is 8KB
       ```
     - To use the Geti™ software, set the following environment variables:
 

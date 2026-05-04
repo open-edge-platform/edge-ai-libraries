@@ -480,6 +480,12 @@ For alternative ways to set up the sample application, see [How to Build from So
 - [Troubleshooting](./troubleshooting.md)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 
+## Connect AI Agents via MCP
+
+Once VSS is running, you can connect AI agents to it using the included MCP server. The MCP server exposes VSS capabilities as typed tools and read-only resources for any MCP-compatible client.
+
+See the [MCP Server guide](./mcp-server.md) for setup instructions.
+
 <!--hide_directive
 :::{toctree}
 :hidden:

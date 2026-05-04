@@ -16,7 +16,7 @@ class OpenVINOValidator(BackendValidator):
     def validate(self):
         self.settings.MODEL_RUNTIME = "openvino"
         if not self.settings.HF_ACCESS_TOKEN:
-            raise ValueError("HF_ACCESS_TOKEN must not be empty for 'openvino' backend.")
+            print("INFO - HF_ACCESS_TOKEN is not set. Only publicly available models can be downloaded.")
 
         for model_name in ["EMBEDDING_MODEL_ID", "RERANKER_MODEL_ID", "LLM_MODEL_ID"]:
             if not getattr(self.settings, model_name):
