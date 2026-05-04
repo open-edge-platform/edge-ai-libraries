@@ -2,13 +2,14 @@ import { useMemo } from "react";
 import { type Pipeline } from "@/api/api.generated";
 
 const TAG_COLORS = [
-  "electric-aqua",
   "electric-cobalt",
+  "electric-teal",
   "electric-coral",
-  "electric-daisy",
   "electric-geode",
-  "electric-moss",
   "electric-rust",
+  "electric-slate",
+  "electric-emerald",
+  "electric-fuchsia",
 ] as const;
 
 export type TagColor = (typeof TAG_COLORS)[number];

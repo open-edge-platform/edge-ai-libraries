@@ -1,7 +1,8 @@
 import type { Edge, Node, Viewport } from "@xyflow/react";
 import { FolderOpen } from "lucide-react";
 import React, { useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
+import { PipelineToolbarButton } from "./shared";
 
 type OpenPipelineButtonProps = {
   onImport: (
@@ -63,14 +64,14 @@ const OpenPipelineButton = ({ onImport }: OpenPipelineButtonProps) => {
         accept=".json"
         onChange={handleFileChange}
       />
-      <button
+      <PipelineToolbarButton
         onClick={handleClick}
-        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg shadow-lg transition-colors disabled:opacity-50 flex items-center gap-2"
         title="Open Pipeline"
-      >
-        <FolderOpen className="w-5 h-5" />
-        <span>Open</span>
-      </button>
+        icon={<FolderOpen className="w-5 h-5" />}
+        label={<span>Open</span>}
+        variant="primary"
+        className="rounded-lg"
+      />
     </>
   );
 };

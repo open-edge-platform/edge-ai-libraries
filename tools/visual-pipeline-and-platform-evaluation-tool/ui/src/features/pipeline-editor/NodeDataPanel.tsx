@@ -206,11 +206,11 @@ const NodeDataPanel = ({
 
   if (!selectedNode) {
     return (
-      <div className="w-full h-full bg-background border-l border-gray-300 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+      <div className="w-full h-full bg-background border-l border-border p-4">
+        <h3 className="text-sm font-semibold text-foreground mb-2">
           Node Data
         </h3>
-        <p className="text-xs text-gray-500 dark:text-gray-300">
+        <p className="text-xs text-muted-foreground">
           Select a node to view its data
         </p>
       </div>
@@ -255,19 +255,19 @@ const NodeDataPanel = ({
   const hasAdditionalParams = dataEntries.length > 0;
 
   return (
-    <div className="w-full h-full bg-background border-l border-gray-300 p-4 overflow-y-auto">
+    <div className="w-full h-full bg-background border-l border-border p-4 overflow-y-auto">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+        <h3 className="text-sm font-semibold text-foreground">
           Node Data
         </h3>
-        <span className="text-xs text-gray-500 bg-gray-100 dark:text-gray-300 dark:bg-gray-700 px-2 py-1">
+        <span className="text-xs text-muted-foreground bg-muted px-2 py-1">
           {selectedNode.type}
         </span>
       </div>
 
       {hasAdditionalParams ? (
         <div className="space-y-3">
-          <h4 className="text-xs font-medium text-gray-600 dark:text-gray-300 border-b pb-1">
+          <h4 className="text-xs font-medium text-muted-foreground border-b border-border pb-1">
             Additional Parameters:
           </h4>
           {dataEntries.map(([key, value]) => {
@@ -285,16 +285,16 @@ const NodeDataPanel = ({
               (typeof value === "object" ? "textarea" : "text");
 
             return (
-              <div key={keyStr} className="border-l-2 border-blue-200 pl-3">
-                <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">
+              <div key={keyStr} className="border-l-2 border-brand-accent/20 pl-3">
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
                   {propConfig?.label ?? keyStr}:
                   {propConfig?.required && (
-                    <span className="text-red-500 ml-1">*</span>
+                    <span className="text-destructive ml-1">*</span>
                   )}
                 </label>
 
                 {propConfig?.description && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 italic">
+                  <div className="text-xs text-muted-foreground mb-1 italic">
                     {propConfig.description}
                   </div>
                 )}
@@ -303,7 +303,7 @@ const NodeDataPanel = ({
                   <select
                     value={String(value ?? "")}
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
-                    className="w-full dark:bg-background text-xs border border-gray-300 px-2 py-1"
+                    className="w-full bg-background text-xs border border-input px-2 py-1"
                   >
                     <option value="">Select {propConfig?.label}</option>
                     {models
@@ -324,14 +324,14 @@ const NodeDataPanel = ({
                   <DeviceSelect
                     value={String(value ?? "")}
                     onChange={(val) => handleInputChange(keyStr, val)}
-                    className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
+                    className="w-full bg-background text-xs border border-input px-2 py-1"
                   />
                 ) : (selectedNode.type === "source" && keyStr === "source") ||
                   (selectedNode.type === "filesrc" && keyStr === "location") ? (
                   <select
                     value={sourceSelectValue}
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
-                    className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
+                    className="w-full bg-background text-xs border border-input px-2 py-1"
                   >
                     {ensureCurrentSourceOption(
                       selectedNode.type === "filesrc"
@@ -347,7 +347,7 @@ const NodeDataPanel = ({
                         disabled={Boolean(option.disabled)}
                         className={
                           option.disabled
-                            ? "text-gray-400 dark:text-gray-500"
+                            ? "text-muted-foreground"
                             : ""
                         }
                       >
@@ -364,7 +364,7 @@ const NodeDataPanel = ({
                         : String(value ?? "")
                     }
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
-                    className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
+                    className="w-full bg-background text-xs border border-input px-2 py-1"
                   >
                     {propConfig?.options?.map((option) => (
                       <option key={option} value={option}>
@@ -395,7 +395,7 @@ const NodeDataPanel = ({
                         e.target.value ? Number(e.target.value) : "",
                       )
                     }
-                    className="w-full text-xs border border-gray-300 px-2 py-1"
+                    className="w-full text-xs border border-input bg-background px-2 py-1"
                     placeholder={`Enter ${propConfig?.label ?? keyStr}`}
                   />
                 ) : inputType === "textarea" ? (
@@ -417,7 +417,7 @@ const NodeDataPanel = ({
                         handleInputChange(keyStr, e.target.value);
                       }
                     }}
-                    className="w-full text-xs border border-gray-300 px-2 py-1 font-mono resize-none"
+                    className="w-full text-xs border border-input bg-background px-2 py-1 font-mono resize-none"
                     rows={3}
                   />
                 ) : (
@@ -425,7 +425,7 @@ const NodeDataPanel = ({
                     type="text"
                     value={String(value ?? "")}
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
-                    className="w-full text-xs border border-gray-300 px-2 py-1"
+                    className="w-full text-xs border border-input bg-background px-2 py-1"
                     placeholder={`Enter ${propConfig?.label ?? keyStr}`}
                   />
                 )}
@@ -435,7 +435,7 @@ const NodeDataPanel = ({
         </div>
       ) : (
         <div className="text-center py-4">
-          <p className="text-xs text-gray-500">Nothing to display</p>
+          <p className="text-xs text-muted-foreground">Nothing to display</p>
         </div>
       )}
     </div>
