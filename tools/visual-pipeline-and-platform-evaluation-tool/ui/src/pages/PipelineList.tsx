@@ -5,7 +5,7 @@ import { useAppSelector } from "@/store/hooks";
 import { compareDesc } from "date-fns";
 import { selectPipelines } from "@/store/reducers/pipelines.ts";
 
-export const Pipelines2 = () => {
+export const PipelineList = () => {
   const { isLoading } = useGetPipelinesQuery();
   const pipelines = useAppSelector(selectPipelines);
 

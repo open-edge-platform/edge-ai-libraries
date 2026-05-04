@@ -288,8 +288,8 @@ const PerformanceTestPanel = ({
 
         const incomingLines = payload
           .split("\n")
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0);
+          .map((line: string) => line.trim())
+          .filter((line: string) => line.length > 0);
 
         if (incomingLines.length === 0) {
           return;

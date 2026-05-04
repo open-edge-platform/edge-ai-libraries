@@ -1,6 +1,6 @@
 # Basic Deep Learning Streamer Pipeline Server Configuration
 
-DL Streamer Pipeline Server exposes multiple application related fields in the config file. The configuration file is present in **[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json** on your host machine.
+DL Streamer Pipeline Server exposes multiple application related fields in the config file. The configuration file is present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` on your host machine.
 
 The following table describes the essential attributes that are supported in the `config` section.
 
@@ -19,6 +19,6 @@ The parameters applicable for each pipeline are described below.
 | `queue_maxsize` | Optional queue size to limit the output buffer from appsink element. |
 | `udfs` | UDF config parameters |
 
-Refer to [this](../../../how-to-guides/change-dlstreamer-pipeline.md) tutorial to update config file and deploy DL Streamer Pipeline Server with updated configs.
+Refer to this [tutorial](../../../how-to-guides/change-dlstreamer-pipeline.md) to update the configuration file and deploy DL Streamer Pipeline Server with updated configs.
 
-DL Streamer Pipeline Server pipelines are executed by GStreamer, hence to realize any usecase users will have to create their pipeline using GStreamer. Refer [GStreamer Documentation](https://gstreamer.freedesktop.org/documentation/) and [GStreamer Plugins](https://gstreamer.freedesktop.org/documentation/plugins_doc.html?gi-language=c) for detailed guidelines on constructing pipelines.
+DL Streamer Pipeline Server pipelines are executed by GStreamer, so users must define their pipelines using GStreamer elements. Refer to the [GStreamer Documentation](https://gstreamer.freedesktop.org/documentation/) and [GStreamer Plugins](https://gstreamer.freedesktop.org/documentation/plugins_doc.html?gi-language=c) for detailed guidelines on constructing pipelines.

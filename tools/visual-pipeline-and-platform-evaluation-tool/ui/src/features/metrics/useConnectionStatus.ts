@@ -11,9 +11,9 @@ export const useConnectionStatus = () => {
   const error = useAppSelector(selectError);
 
   const getStatusColor = () => {
-    if (isConnected) return "text-green-600";
-    if (isConnecting) return "text-yellow-600";
-    return "text-red-600";
+    if (isConnected) return "status-success text-status-fg";
+    if (isConnecting) return "status-accent text-status-fg";
+    return "status-error text-status-fg";
   };
 
   const getStatusIcon = () => (isConnected ? "●" : "○");

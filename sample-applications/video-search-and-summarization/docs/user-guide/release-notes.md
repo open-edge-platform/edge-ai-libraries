@@ -3,10 +3,11 @@
 ## Current Release
 
 **Version**: 1.3.3-rc1 \
-**Release Date**: 23 April 2026  
+**Release Date**: 27 April 2026  
 
 **Features**:
 
+- **Audio transcript summarization**: Added audio transcript summarization support and improved audio transcription accuracy.
 - **OVMS-first architecture**: Replaced the standalone `vlm-openvino-serving` microservice with OpenVINO Model Server (OVMS) as the unified inference backend for both VLM captioning and LLM summarization. This is a **breaking change**; the `vlm-inference` subchart and container have been removed.
 
 **HW used for validation**:
