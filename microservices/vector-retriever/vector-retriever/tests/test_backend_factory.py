@@ -111,7 +111,7 @@ def test_filter_capabilities_advertise_backend_specific_pushdown():
     capabilities = backend_factory.get_filter_capabilities()
     by_backend = {backend.backend: backend for backend in capabilities.backends}
 
-    assert by_backend["vdms"].pushdown_operators == ["gte", "between"]
+    assert by_backend["vdms"].pushdown_operators == ["gte"]
     assert by_backend["milvus"].pushdown_operators == ["eq", "in", "gte", "lte", "between"]
     assert by_backend["pgvector"].pushdown_operators == ["eq", "in", "gte", "lte", "between"]
     assert by_backend["faiss"].pushdown_operators == ["eq", "in", "gte", "lte", "between"]

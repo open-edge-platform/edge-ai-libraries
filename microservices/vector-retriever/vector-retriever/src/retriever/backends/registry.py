@@ -59,7 +59,7 @@ KNOWN_FILTER_FIELDS = {
 # for the primary `where` contract. Other operators remain valid at the API
 # level but are enforced in the fallback path against returned metadata.
 BACKEND_PUSHDOWN_OPERATORS: dict[str, list[str]] = {
-    "vdms": ["gte", "between"],
+    "vdms": ["gte"],
     "milvus": ["eq", "in", "gte", "lte", "between"],
     "pgvector": ["eq", "in", "gte", "lte", "between"],
     "faiss": ["eq", "in", "gte", "lte", "between"],

@@ -10,7 +10,7 @@ This page describes runtime and tooling requirements for the Vector Retriever mi
 
 - Docker 24.x or newer
 - Docker Compose (v2 plugin)
-- Python 3.11 - 3.13 for local development and tests
+- Python 3.11 - 3.12 for local development and tests
 - Poetry 1.8+ for dependency management
 
 ## Runtime Dependencies

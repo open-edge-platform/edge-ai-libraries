@@ -55,7 +55,7 @@ async def readiness_check() -> HealthResponse:
         return HealthResponse(status="ready", timestamp=_utc_timestamp())
     except Exception as exc:
         logger.exception("Readiness check failed")
-        raise HTTPException(status_code=503, detail=f"Service not ready: {exc}")
+        raise HTTPException(status_code=503, detail="Service not ready")
 
 
 @app.post("/query", response_model=BatchQueryResponse)
@@ -83,7 +83,10 @@ async def query_endpoint(request: Request, payload: list[QueryRequest]) -> Batch
         return response
     except Exception as exc:
         logger.exception("Unhandled failure while processing batch request_id=%s", request_id)
-        raise HTTPException(status_code=500, detail=f"Query execution failed: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Query execution failed. Contact support with request_id={request_id}",
+        )
 
 
 @app.get("/capabilities/filters", response_model=FilterCapabilitiesResponse)

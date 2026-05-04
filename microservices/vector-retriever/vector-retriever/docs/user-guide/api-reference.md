@@ -204,7 +204,7 @@ Optional query parameter:
       "top_level_fields": ["query", "top_k", "where"],
       "logical_blocks": ["all", "any", "not"],
       "supported_operators": ["eq", "in", "contains", "starts_with", "gt", "gte", "lt", "lte", "between", "contains_any", "contains_all", "exists", "missing"],
-      "pushdown_operators": ["eq", "in", "gte", "lte", "between", "contains_any"],
+      "pushdown_operators": ["gte"],
       "known_fields": {
         "tags": "array<string>",
         "created_at": "datetime"
