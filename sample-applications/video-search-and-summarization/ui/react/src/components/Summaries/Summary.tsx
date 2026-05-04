@@ -515,19 +515,16 @@ export const Summary: FC = () => {
             {summaryData.audioStatus && summaryData.audioStatus !== StateActionStatus.NA && (
               <StatusTag action={summaryData.audioStatus} label={t('audioTranscriptionLabel')} />
             )}
-            {(frameSummaryStatusCount.inProgress + frameSummaryStatusCount.ready) > 0 ? (
-              <StatusTag
-                action={StateActionStatus.IN_PROGRESS}
-                label={t('chunkingSummaryLabel')}
-                count={frameSummaryStatusCount.inProgress + frameSummaryStatusCount.ready}
-              />
-            ) : frameSummaryStatusCount.complete > 0 ? (
-              <StatusTag
-                action={StateActionStatus.COMPLETE}
-                label={t('chunkingSummaryLabel')}
-                count={frameSummaryStatusCount.complete}
-              />
-            ) : null}
+            {(() => {
+              const pendingCount = frameSummaryStatusCount.inProgress + frameSummaryStatusCount.ready;
+              if (pendingCount > 0) {
+                return <StatusTag action={StateActionStatus.IN_PROGRESS} label={t('chunkingSummaryLabel')} count={pendingCount} />;
+              }
+              if (frameSummaryStatusCount.complete > 0) {
+                return <StatusTag action={StateActionStatus.COMPLETE} label={t('chunkingSummaryLabel')} count={frameSummaryStatusCount.complete} />;
+              }
+              return null;
+            })()}
 
             {summaryData.audioTranscriptSummaryStatus && summaryData.audioTranscriptSummaryStatus !== StateActionStatus.NA && (
               <StatusTag action={summaryData.audioTranscriptSummaryStatus} label={t('audioSummaryLabel')} />
@@ -595,11 +592,12 @@ export const Summary: FC = () => {
 
           <StyledMessage>
             {summaryData.systemConfig?.produceFinalSummary === false ? (
-              frameSummaries.filter(fs => fs.status === StateActionStatus.COMPLETE && fs.summary).length > 0 ? (
-                <>
-                  {frameSummaries
-                    .filter(fs => fs.status === StateActionStatus.COMPLETE && fs.summary)
-                    .map((fs, idx) => (
+              (() => {
+                const completedChunkSummaries = frameSummaries.filter(fs => fs.status === StateActionStatus.COMPLETE && fs.summary);
+                return completedChunkSummaries.length > 0 ? (
+                  <>
+                    {completedChunkSummaries
+                      .map((fs, idx) => (
                       <div key={fs.frameKey} style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--cds-border-subtle)' }}>
                         <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--cds-text-secondary)' }}>
                           {t('chunkLabel', { defaultValue: 'Chunk' })} {idx + 1} — {t('Frames')} [{fs.startFrame}:{fs.endFrame}]
@@ -610,7 +608,8 @@ export const Summary: FC = () => {
                 </>
               ) : (
                 <p style={{ opacity: 0.6, fontStyle: 'italic' }}>{t('chunkSummariesPending', { defaultValue: 'Chunk summaries are being generated...' })}</p>
-              )
+              );
+              })()
             ) : (
               <Markdown>{processMD(summaryData.summary)}</Markdown>
             )}

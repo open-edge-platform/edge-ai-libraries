@@ -10,6 +10,7 @@ import { PipelineEvents, SummaryCompleteRO } from 'src/events/Pipeline.events';
 import { Subject } from 'rxjs';
 import { TemplateService } from 'src/language-model/services/template.service';
 import { InferenceCountService } from 'src/language-model/services/inference-count.service';
+import { StateActionStatus } from '../models/state.model';
 
 describe('SummaryQueueService', () => {
   let service: SummaryQueueService;
@@ -143,7 +144,7 @@ describe('SummaryQueueService', () => {
       stateService.fetch.mockReturnValue({
         ...mockState,
         systemConfig: { ...mockState.systemConfig, produceFinalSummary: false },
-        status: { summarizing: 'na' },
+        status: { summarizing: StateActionStatus.NA },
       } as any);
 
       // Act
@@ -153,7 +154,7 @@ describe('SummaryQueueService', () => {
       expect(service.waiting).toHaveLength(0);
       expect(stateService.updateSummaryStatus).toHaveBeenCalledWith(
         mockStateId,
-        'na',
+        StateActionStatus.NA,
       );
     });
 
@@ -162,7 +163,7 @@ describe('SummaryQueueService', () => {
       stateService.fetch.mockReturnValue({
         ...mockState,
         systemConfig: { ...mockState.systemConfig, produceFinalSummary: true },
-        status: { summarizing: 'na' },
+        status: { summarizing: StateActionStatus.NA },
       } as any);
 
       // Act
@@ -177,7 +178,7 @@ describe('SummaryQueueService', () => {
       // Arrange - no produceFinalSummary set (backward compatibility)
       stateService.fetch.mockReturnValue({
         ...mockState,
-        status: { summarizing: 'na' },
+        status: { summarizing: StateActionStatus.NA },
       } as any);
 
       // Act

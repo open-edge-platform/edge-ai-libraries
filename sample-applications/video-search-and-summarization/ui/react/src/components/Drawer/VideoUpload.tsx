@@ -294,7 +294,7 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
     };
 
     if (audio && systemConfig?.meta.defaultAudioModel) {
-      res.audio = { audioModel: selectedAudioModel || systemConfig.meta.defaultAudioModel, useFullTranscriptSummary: useAudioSummary };
+      res.audio = { audioModel: selectedAudioModel || systemConfig.meta.defaultAudioModel, useFullTranscriptSummary: produceFinalSummary && useAudioSummary };
     }
 
     if (systemConfig) {
@@ -450,7 +450,9 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
               id='produceFinalSummaryCheckbox'
               labelText={t('ProduceFinalSummary')}
               checked={produceFinalSummary}
-              onChange={(_, { checked }) => setProduceFinalSummary(checked)}
+              onChange={(_, { checked }) => {
+                setProduceFinalSummary(checked);
+              }}
             />
             {systemConfig && (
               <StyledAcc>
@@ -501,9 +503,15 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
                         <Checkbox
                           id='useAudioSummaryCheckbox'
                           labelText={t('UseAudioSummary')}
-                          checked={useAudioSummary}
+                          checked={produceFinalSummary ? useAudioSummary : false}
+                          disabled={!produceFinalSummary}
                           onChange={(_, { checked }) => setUseAudioSummary(checked)}
                         />
+                        {!produceFinalSummary && (
+                          <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-helper)', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                            {t('AudioSummaryDisabledHint', { defaultValue: 'Audio transcript summary is not generated when final summary is disabled.' })}
+                          </p>
+                        )}
                       </div>
                     )}
                   </AccordionItem>

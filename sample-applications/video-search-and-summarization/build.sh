@@ -270,7 +270,6 @@ push_images() {
     "${REGISTRY}vss-ui:${TAG}"
   )
 
-  local pids=()
   local pid_image_map=()
   local push_log_dir
   push_log_dir=$(mktemp -d)
@@ -280,7 +279,6 @@ push_images() {
       log_info "Pushing $image..."
       local log_file="${push_log_dir}/${image//\//_}.log"
       docker push "$image" &> "$log_file" &
-      pids+=($!)
       pid_image_map+=("$!|$image|$log_file")
     else
       log_info "${YELLOW}Image $image not found locally, skipping...${NC}"
