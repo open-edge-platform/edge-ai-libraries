@@ -3,7 +3,7 @@
 
 """Simple Summary."""
 
-from typing import Any, Dict, List, Optional, List
+from typing import Any, Dict, List, Optional
 
 from abc import ABC, abstractmethod
 from llama_index.core.schema import Document
