@@ -21,17 +21,33 @@ export RABBITMQ_CONFIG=${config_dir}/rmq.conf
 export NGINX_BASE_CONFIG=${nginx_config_dir}/nginx.conf
 
 # ================================= SETUP ALIASES ======================================
-if [ "$#" -eq 1 ] && [ "$1" = "config" ]; then
+if [ "$#" -eq 1 ] && [ "$1" = "config" ]; then    # config with no args defaults to both summary and search
     set -- "--dual" "config"
-elif [ "$#" -eq 1 ] && [ "$1" = "--down" ]; then
+elif [ "$#" -eq 1 ] && [ "$1" = "--down" ]; then  # --down is an alias for --stop
     set -- "--stop"
-elif [ "$#" -eq 2 ] && [ "$1" = "config" ]; then
+elif [ "$#" -eq 2 ] && [ "$1" = "config" ]; then  # `config [mode]` gets aliased to `[mode] config` (older impl.)
     set -- "$2" "config"
+elif [ "$#" -eq 3 ] && [ "$1" = "config" ]; then  # `[config arg1 arg2]` gets aliased to `[arg1 arg2 config]` (older impl.)
+    set -- "$2" "$3" "config"
 elif [ "$#" -eq 0 ]; then
     set -- "--help"
 fi
-if [ "$1" = "--all" ]; then
-    [ "$#" -eq 1 ] && set -- "--unified" || set -- "--unified" "$2"
+
+# Alias `--search --summary` and `--summary --search` to `--dual` for simplicity, with optional `config` arg.
+if [ "$#" -ge 2 ] && ([ "$1" = "--search" ] && [ "$2" = "--summary" ]) \
+    || ([ "$1" = "--summary" ] && [ "$2" = "--search" ]); then
+    if [ "$3" = "config" ]; then
+        set -- "--dual" "config"
+    elif [ "$#" -eq 2 ]; then
+        set -- "--dual"
+    fi
+# Alias `--summary-and-search` to `--unified` for simplicity, with optional `config` arg.
+elif [ "$#" -ge 1 ] && { [ "$1" = "--summary-and-search" ] || [ "$1" = "--all" ] || [ "$1" = "--search-and-summary" ]; }; then
+    if [ "$#" -eq 2 ] && [ "$2" = "config" ]; then
+        set -- "--unified" "config"
+    elif [ "$#" -eq 1 ]; then
+        set -- "--unified"
+    fi
 fi
 
 # =================== Function Definitions =========================
@@ -76,24 +92,24 @@ if [ "$#" -gt 2 ]; then
 fi
 
 if [ "$#" -eq 1 ] && [ "$1" = "--help" ]; then
-    echo -e "-----------------------------------------------------------------"
-    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[config ${GREEN}[--summary|--search|--dual|--unified|--all]${BLUE} | --summary | --search |"
-    echo -e "       --dual | --unified | --all | --setenv | --down | --stop | --clean-data | --help]"
+    echo -e  "-----------------------------------------------------------------"
+    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[config ${GREEN}[--summary [--search] | --search [--summary] | --search-and-summary]${BLUE} | --summary | --search |"
+    echo -e  "       --search-and-summary | --setenv | --down | --stop | --clean-data | --help]"
     echo -e  "${YELLOW}"
     echo -e  "         (no args), --help:  Shows this help message."
-    echo -e  "                 --summary:  Deploy microservices with single summary UI."
-    echo -e  "                  --search:  Deploy microservices with single search UI."
-    echo -e  "                    --dual:  Deploy microservices with separate summary and search UIs."
-    echo -e  "          --unified, --all:  Deploy microservices with one unified summary+search UI."
+    echo -e  "                 --summary:  Deploy Video Summary Application."
+    echo -e  "                             ${GRAY}Combine with --search to deploy both summary and search applications together.${NC}"
+    echo -e "${YELLOW}                  --search:  Deploy Video Search Application."
+    echo -e  "                             ${GRAY}Combine with --summary to deploy both search and summary applications together.${NC}"
+    echo -e  "${YELLOW}      --summary-and-search:  Deploy a modified Video Search application which does video summarization first and searches on summary content."
     echo -e  "                  --setenv:  Set environment variables without setting up application or starting any containers."
     echo -e  "            --down, --stop:  Bring down all the docker containers for the application."
     echo -e  "              --clean-data:  Bring down all the docker containers and remove all docker volumes for the user data."
-    echo -e  "                    config:  Print the final compose configuration with all variables resolved without"
-    echo -e  "                             starting containers. Mode defaults to --dual when omitted."
-    echo -e  "                             Supported forms: config, config --summary|--search|--dual|--unified|--all"
+    echo -e  "             config [Mode]:  Print the final compose configuration with all variables resolved without"
+    echo -e  "                             starting containers. Mode defaults to --summary --search when omitted."
+    echo -e  "                             Supported forms: config, config --summary [--search], config --search [--summary], config --hybrid"
     echo -e  "-----------------------------------------------------------------"
     return 0
-
 fi
 
 if [ "$#" -ge 1 ] \
@@ -110,9 +126,9 @@ if [ "$#" -ge 1 ] \
 
 elif [ "$#" -eq 2 ] && [ "$1" = "config" ] \
     && [ "$2" != "--summary" ] && [ "$2" != "--search" ] \
-    && [ "$2" != "--dual" ] && [ "$2" != "--unified" ] && [ "$2" != "--all" ]; then
+    && [ "$2" != "--dual" ] && [ "$2" != "--unified" ]; then
     echo -e "${RED}Invalid argument combination: '$1 $2'${NC}"
-    echo -e "${YELLOW}Valid forms: config, config --summary, config --search, config --dual, config --unified, config --all${NC}"
+    echo -e "${YELLOW}Valid forms: config, config --summary, config --search, config --search-and-summary${NC}"
     echo -e "${YELLOW}Use --help for usage information${NC}"
     return 1
 
