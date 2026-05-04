@@ -19,8 +19,7 @@ variants:
       video/x-raw !
       gvafpscounter starting-frame=100 !
       gvadetect
-        model=/models/output/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
-        model-proc=/models/output/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
+        model=/models/output/public/yolo11s/INT8/yolo11s.xml
         model-instance-id=detect0
         pre-process-backend=opencv
         device=CPU
@@ -31,8 +30,8 @@ variants:
       gvatrack tracking-type=short-term-imageless !
       queue !
       gvaclassify
-        model=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
-        model-proc=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
+        model=/models/output/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+        model-proc=/models/output/omz/mobilenet-v2-pytorch/mobilenet-v2.json
         model-instance-id=classify0
         pre-process-backend=opencv
         device=CPU
@@ -61,11 +60,11 @@ variants:
       video/x-raw(memory:VAMemory) !
       gvafpscounter starting-frame=100 !
       gvadetect
-        model=/models/output/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
-        model-proc=/models/output/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
+        model=/models/output/public/yolo11s/INT8/yolo11s.xml
         model-instance-id=detect0
         pre-process-backend=va-surface-sharing
         device=GPU
+        ie-config=GPU_THROUGHPUT_STREAMS=2
         batch-size=0
         inference-interval=3
         nireq=0 !
@@ -73,11 +72,12 @@ variants:
       gvatrack tracking-type=short-term-imageless !
       queue !
       gvaclassify
-        model=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
-        model-proc=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
+        model=/models/output/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+        model-proc=/models/output/omz/mobilenet-v2-pytorch/mobilenet-v2.json
         model-instance-id=classify0
         pre-process-backend=va-surface-sharing
         device=GPU
+        ie-config=GPU_THROUGHPUT_STREAMS=2
         batch-size=0
         inference-interval=3
         nireq=0
@@ -104,26 +104,25 @@ variants:
       video/x-raw\(memory:VAMemory\) !
       gvafpscounter starting-frame=100 !
       gvadetect
-        model=/models/output/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
-        model-proc=/models/output/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
+        model=/models/output/public/yolo11s/INT8/yolo11s.xml
         model-instance-id=detect0
         pre-process-backend=va
         device=NPU
-        batch-size=0
+        batch-size=1
         inference-interval=3
-        nireq=0 !
+        nireq=2 !
       queue !
       gvatrack tracking-type=short-term-imageless !
       queue !
       gvaclassify
-        model=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
-        model-proc=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
+        model=/models/output/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+        model-proc=/models/output/omz/mobilenet-v2-pytorch/mobilenet-v2.json
         model-instance-id=classify0
         pre-process-backend=va
         device=NPU
-        batch-size=0
+        batch-size=1
         inference-interval=3
-        nireq=0
+        nireq=2
         inference-region=roi-list
         reclassify-interval=1 !
       queue !
@@ -146,11 +145,11 @@ variants:
       video/x-raw(memory:VAMemory) !
       gvafpscounter starting-frame=100 !
       gvadetect
-        model=/models/output/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
-        model-proc=/models/output/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
+        model=/models/output/public/yolo11s/INT8/yolo11s.xml
         model-instance-id=detect0-gpu-npu
         pre-process-backend=va-surface-sharing
         device=GPU
+        ie-config=GPU_THROUGHPUT_STREAMS=2
         batch-size=0
         inference-interval=3
         nireq=0 !
@@ -158,11 +157,53 @@ variants:
       gvatrack tracking-type=short-term-imageless !
       queue !
       gvaclassify
-        model=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
-        model-proc=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
+        model=/models/output/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+        model-proc=/models/output/omz/mobilenet-v2-pytorch/mobilenet-v2.json
         model-instance-id=classify0-gpu-npu
         pre-process-backend=va
         device=NPU
+        batch-size=1
+        inference-interval=3
+        nireq=2
+        inference-region=roi-list
+        reclassify-interval=1 !
+      queue !
+      gvawatermark !
+      gvametaconvert format=json !
+      gvametapublish method=file file-path=/dev/null !
+      vapostproc !
+      video/x-raw(memory:VAMemory),width=320,height=240 !
+      fakesink name=default_output_sink
+  - name: NPU_GPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      parsebin !
+      tee name=t0 !
+      queue !
+      splitmuxsink location=/tmp/people-output.mp4
+      t0. !
+      queue !
+      vah264dec !
+      video/x-raw(memory:VAMemory) !
+      gvafpscounter starting-frame=100 !
+      gvadetect
+        model=/models/output/public/yolo11s/INT8/yolo11s.xml
+        model-instance-id=detect0-npu-gpu
+        pre-process-backend=va
+        device=NPU
+        batch-size=1
+        inference-interval=3
+        nireq=2 !
+      queue !
+      gvatrack tracking-type=short-term-imageless !
+      queue !
+      gvaclassify
+        model=/models/output/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+        model-proc=/models/output/omz/mobilenet-v2-pytorch/mobilenet-v2.json
+        model-instance-id=classify0-npu-gpu
+        pre-process-backend=va-surface-sharing
+        device=GPU
+        ie-config=GPU_THROUGHPUT_STREAMS=2
         batch-size=0
         inference-interval=3
         nireq=0

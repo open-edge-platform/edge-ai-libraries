@@ -44,6 +44,36 @@ class OpcuaAlerts:
         self.node_id = None
         self.namespace = None
         self.opcua_server = None
+        self.configured_opcua_server = None
+        
+    def resolve_opcua_server_address(self, opcua_server):
+        """
+        Resolve OPC UA server address if it is a hostname.
+        
+        Args:
+            opcua_server: OPC UA server URL which may contain a hostname
+        Returns:
+            str: Resolved OPC UA server URL with IP address if resolution is successful,
+                 otherwise returns the original URL
+        """
+        try:
+            from urllib.parse import urlparse
+            import socket
+
+            parsed_url = urlparse(opcua_server)
+            hostname = parsed_url.hostname
+            if hostname:
+                ip_address = socket.gethostbyname(hostname)
+                resolved_url = opcua_server.replace(hostname, ip_address)
+                logger.info("Resolved OPC UA server address: %s", opcua_server)
+                return resolved_url
+            else:
+                logger.warning("No hostname found in OPC UA server URL: %s", opcua_server)
+                return opcua_server
+        except Exception as error:
+            logger.error("Failed to resolve OPC UA server address: %s, Error: %s",
+                         opcua_server, error)
+            return opcua_server
 
     def load_opcua_config(self):
         """
@@ -55,7 +85,8 @@ class OpcuaAlerts:
         try:
             self.node_id = self.config["alerts"]["opcua"]["node_id"]
             self.namespace = self.config["alerts"]["opcua"]["namespace"]
-            self.opcua_server = self.config["alerts"]["opcua"]["opcua_server"]
+            self.configured_opcua_server = self.config["alerts"]["opcua"]["opcua_server"]
+            self.opcua_server = self.resolve_opcua_server_address(self.configured_opcua_server)
             return self.node_id, self.namespace, self.opcua_server
         except Exception as error:
             logger.exception("Fetching app configuration failed, Error: %s", error)
@@ -74,7 +105,7 @@ class OpcuaAlerts:
             bool: True if connection successful, False otherwise
         """
         if self.opcua_server:
-            logger.info("Creating OPC UA client for server: %s", self.opcua_server)
+            logger.info("Creating OPC UA client for server")
             self.client = Client(self.opcua_server)
             self.client.application_uri = "urn:opcua:python:server"
         else:
@@ -99,10 +130,10 @@ class OpcuaAlerts:
                     if opcua_server_username:
                         self.client.set_user(opcua_server_username)
                         self.client.set_password(opcua_server_password)
-                logger.info("Attempting to connect to OPC UA server: %s "
-                            "%s (Attempt %s)", self.opcua_server, self.client, attempt + 1)
+                logger.info("Attempting to connect to OPC UA server. "
+                            "(Attempt %s)", attempt + 1)
                 await self.client.connect()
-                logger.info("Connected to OPC UA server: %s successfully.", self.opcua_server)
+                logger.info("Connected to OPC UA server successfully.")
                 return True
             except Exception as error:
                 logger.error("Connection failed: %s", error)
@@ -161,8 +192,21 @@ class OpcuaAlerts:
         Returns True if connected, False otherwise.
         """
         try:
-            node = self.client.get_node(f"ns={self.namespace};i={self.node_id}")
-            await node.read_value()
+            if self.client is None:
+                logger.info("OPC UA client is not initialized; connection state is disconnected.")
+                return False
+
+            protocol = getattr(self.client.uaclient, "protocol", None)
+            if protocol is None:
+                logger.info("OPC UA client has no active protocol; connection state is disconnected.")
+                return False
+
+            if getattr(protocol, "state", None) != "open":
+                logger.info("OPC UA client protocol state is %s; connection state is disconnected.",
+                            getattr(protocol, "state", None))
+                return False
+
+            await self.client.check_connection()
             return True
         except Exception as error:
             logger.error("Error checking OPC UA connection status: %s", error)

@@ -13,6 +13,7 @@ services:
       APP_UI: vss-ui:8080
       APP_MANAGER: ${PM_HOST}:3000
       APP_ASSETS: minio-service
+      APP_OVMS: ${OVMS_HOST}:80
       NGINX_ENVSUBST_TEMPLATE_DIR: /etc/nginx/templates
       NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
     volumes:
@@ -83,6 +84,7 @@ services:
       DB_NAME: ${POSTGRES_DB}
       TICK_INTERVAL_MS: ${TICK_INTERVAL_MS:-5000} # EVAM uses TICK
       FAST_TICK_INTERVAL_MS: ${FAST_TICK_INTERVAL_MS:-2000} # VLM/LLM uses FAST_TICK
+      AUDIO_USE_FULL_TRANSCRIPT_SUMMARY: ${PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY:-true}
       OTLP_TRACE_URL: ${OTLP_TRACE_URL:-}
       DATAPREP_TELEMETRY_URL: ${DATAPREP_TELEMETRY_URL:-http://vdms-dataprep:8000/v1/dataprep/telemetry?limit=1}
       TELEMETRY_SIGNAL_DIR: ${TELEMETRY_SIGNAL_DIR:-/app/.collector-signals}

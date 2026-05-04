@@ -9,16 +9,28 @@ The `va_enablement_node_profile.sh` script provides node profiling capabilities 
 - For ESQ and Metro use cases
 Additional command line parameters are not required.
 ```bash
-./va_enablement_node_profile.sh [OPTIONS]
+./va_enablement_node_profile.sh
 ```
 - Input parameters for TFCC and VPP RI use cases
 ```bash
-"./va_enablement_node_profile.sh tfcc"
-"./va_enablement_node_profile.sh vpp"
+./va_enablement_node_profile.sh tfcc
+./va_enablement_node_profile.sh vpp
+```
+- Input parameter for vPRO platform Enablement
+```bash
+./va_enablement_node_profile.sh vpro
+```
+- Input parameter to configure the prerequisite tools for 'Magic-9' on the target edge node.
+```bash
+./va_enablement_node_profile.sh magic9
+```
+- Input parameters for DevKit set of component installation
+```bash
+./va_enablement_node_profile.sh devkit
 ```
 - Execute it with --help/-h for checking the availability of any additional use case support
 ```bash
-"./va_enablement_node_profile.sh -h"
+./va_enablement_node_profile.sh -h
 ```
 
 ## Features

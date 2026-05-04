@@ -8,6 +8,7 @@ mode, providing unified interface for both production pipeline execution and
 pipeline validation.
 """
 
+import json
 import logging
 import os
 import re
@@ -16,10 +17,52 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from subprocess import PIPE, Popen
 
 import psutil as ps
+
+
+@dataclass
+class LatencyTracerSample:
+    """
+    Last observed DLStreamer ``latency_tracer`` sample for a single stream.
+
+    This is a deliberately runner-local dataclass: it MIRRORS
+    :class:`internal_types.InternalLatencyMetrics` one-to-one in terms
+    of fields and semantics, but lives next to the subprocess parser
+    so ``pipeline_runner`` does not need to import from
+    ``internal_types`` (that would create a circular import:
+    ``pipeline_runner`` → ``internal_types`` → ``graph`` →
+    ``videos`` → ``pipeline_runner``).
+
+    Callers of :meth:`PipelineRunner.run` are expected to map this
+    type onto ``InternalLatencyMetrics`` when copying the result into
+    an internal job-status object — see
+    ``TestsManager._execute_performance_test`` for the canonical
+    conversion site.
+
+    All timing fields are in milliseconds (as reported by the tracer).
+    ``fps`` is intentionally NOT stored because FPS is already exposed
+    via ``gvafpscounter`` on :class:`PipelineResult`, so re-reporting it
+    here would just duplicate state.
+
+    Attributes:
+        interval_ms: Length of the measurement window (``interval``).
+        avg_ms: Average frame latency over the window (``avg``).
+        min_ms: Minimum frame latency observed in the window (``min``).
+        max_ms: Maximum frame latency observed in the window (``max``).
+        latency_ms: Current end-to-end latency reported by the tracer
+            (``latency``).
+    """
+
+    interval_ms: float
+    avg_ms: float
+    min_ms: float
+    max_ms: float
+    latency_ms: float
 
 
 @dataclass
@@ -40,6 +83,19 @@ class PipelineResult:
         stderr: Captured stderr lines from gst_runner.py.
         details: Human-readable description of which FPS metric source was
             selected and for how many streams, or None if not applicable.
+        latency_tracer_metrics: Last observed DLStreamer `latency_tracer`
+            sample per stream, keyed by ``stream_id``
+            (``"{source_name}__{sink_name}"``).
+
+            * ``None`` when the runner was started with
+              ``enable_latency_metrics=False`` — the tracer was not
+              activated at all, so no samples could ever be produced.
+            * Empty ``dict`` when the tracer was active but produced no
+              samples (e.g. the pipeline exited before the first 1000 ms
+              interval closed, or the tracer output was not forwarded).
+            * Non-empty ``dict`` otherwise. Only the latest sample per
+              stream is kept; earlier samples for the same stream are
+              overwritten as new interval lines arrive.
     """
 
     total_fps: float = 0.0
@@ -50,8 +106,17 @@ class PipelineResult:
     stdout: list[str] = field(default_factory=list)
     stderr: list[str] = field(default_factory=list)
     details: str | None = None
+    latency_tracer_metrics: "dict[str, LatencyTracerSample] | None" = None
 
     def __repr__(self):
+        # `latency_tracer_metrics` is reported by its cardinality only so
+        # the repr stays compact even when many streams are running.
+        if self.latency_tracer_metrics is None:
+            latency_repr = "latency_tracer_metrics=None"
+        else:
+            latency_repr = (
+                f"latency_tracer_metrics=<{len(self.latency_tracer_metrics)} stream(s)>"
+            )
         return (
             f"PipelineResult("
             f"total_fps={self.total_fps}, "
@@ -59,7 +124,8 @@ class PipelineResult:
             f"num_streams={self.num_streams}, "
             f"exit_code={self.exit_code}, "
             f"cancelled={self.cancelled}, "
-            f"details={self.details!r}"
+            f"details={self.details!r}, "
+            f"{latency_repr}"
             f")"
         )
 
@@ -78,17 +144,125 @@ class PipelineRunner:
     including timeout enforcement, output parsing, and error handling.
     """
 
-    # Default path to the FPS file
-    DEFAULT_FPS_FILE_PATH = "/home/dlstreamer/vippet/.collector-signals/fps.txt"
+    # Default metrics-service URL for pushing FPS metrics
+    DEFAULT_METRICS_SERVICE_URL = "http://metrics-service:9090"
+
+    # ------------------------------------------------------------------
+    # Shared worker pool for fire-and-forget metric pushes.
+    #
+    # Every metric push (`_push_fps_metric`, `_push_latency_sample`,
+    # `_push_final_latency_metrics`) schedules work through
+    # `_post_metrics_async`. Creating a brand-new `threading.Thread`
+    # per push scales poorly: with N streams the runner emits one FPS
+    # push + one latency push per stream every second, plus N final
+    # latency pushes at shutdown. Under load this would spawn
+    # hundreds of short-lived threads per second.
+    #
+    # A single class-level `ThreadPoolExecutor` caps concurrency at
+    # `_METRICS_EXECUTOR_WORKERS` and reuses threads across pushes.
+    # The executor is declared as a daemon pool — its worker threads
+    # do not keep the Python process alive after the main thread
+    # exits, mirroring the previous `daemon=True` thread behaviour.
+    #
+    # Shared at the class level (not per-instance) on purpose: many
+    # runners may exist in the same process (density `Benchmark`
+    # reuses one, the validation path creates one per job, etc.) and
+    # metrics-service traffic is I/O-bound, so one pool is enough to
+    # absorb all of them and no coordination is needed across
+    # instances. The executor is created lazily on first push so
+    # importing this module stays side-effect free.
+    # ------------------------------------------------------------------
+    _METRICS_EXECUTOR_WORKERS = 4
+    _metrics_executor: "ThreadPoolExecutor | None" = None
+
+    # ------------------------------------------------------------------
+    # latency_tracer configuration
+    #
+    # When `enable_latency_metrics=True`, the GStreamer subprocess is
+    # launched with the DLStreamer `latency_tracer` active in
+    # pipeline-only mode with a 1000 ms aggregation interval. Tracer
+    # samples are emitted by GStreamer at TRACE level and routed through
+    # `gst_runner.py`'s log bridge, which promotes
+    # `latency_tracer_pipeline_interval` messages to INFO so they appear
+    # on the subprocess stdout as `gst_runner - INFO - ...` lines and
+    # are forwarded to our logger by `_is_loggable_gst_runner_line`.
+    # Those lines are then parsed by `_parse_and_record_latency_sample`
+    # to populate `self.latency_tracer_metrics`.
+    # ------------------------------------------------------------------
+    LATENCY_TRACER_GST_DEBUG = "GST_TRACER:7"
+    LATENCY_TRACER_GST_TRACERS = "latency_tracer(flags=pipeline,interval=1000)"
+
+    # ------------------------------------------------------------------
+    # latency_tracer output parser
+    #
+    # Every 1000 ms the tracer emits ONE line per running stream, for
+    # example (single line, reformatted here for readability)::
+    #
+    #   latency_tracer_pipeline_interval,
+    #   source_name=(string)src_p0_s0_0_0,
+    #   sink_name=(string)sink_p0_s0_0_0,
+    #   interval=(double)1000.25, avg=(double)364.31,
+    #   min=(double)0.004, max=(double)529.26,
+    #   latency=(double)21.28, fps=(double)46.99;
+    #
+    # In our stack these lines reach us on the subprocess stdout with the
+    # `gst_runner - INFO - ` prefix (see gst_runner._log_gst_message for
+    # the promotion from GST_TRACER:7 to python INFO).
+    #
+    # The regex below is intentionally ONE compiled `re.Pattern`
+    # instance (built at module-import time) because the parser runs in
+    # the hot stdout-reading loop — one subprocess line per stream per
+    # second. Using named groups + `re.search` with a single pattern
+    # keeps per-line parsing at a single regex operation; there is no
+    # backtracking cost because every field appears at most once.
+    #
+    # Notes on the pattern:
+    #   * We anchor on the literal marker `latency_tracer_pipeline_interval,`
+    #     and match everywhere in the line (no `^` anchor) so any log
+    #     prefix — `gst_runner - INFO - `, a timestamp, etc. — is
+    #     simply ignored.
+    #   * Between the marker and each captured field we allow any
+    #     characters (``.*?``, non-greedy). The tracer optionally emits
+    #     extra leading fields such as ``pipeline_name=(string)pipelineN``
+    #     that we neither need nor want; tolerating arbitrary text keeps
+    #     the parser forward-compatible with future tracer additions.
+    #     Non-greedy quantifiers together with fixed literal field
+    #     anchors (``source_name=(string)``, ``sink_name=(string)``, ...)
+    #     keep the effective match linear in line length.
+    #   * The DLStreamer tracer emits double values as plain decimals
+    #     (`364.31`, `0.004`); no scientific notation, no sign. A strict
+    #     `\d+\.\d+` is enough and cheaper than `[\d.eE+\-]+`.
+    #   * Fields are matched in the exact order emitted by the tracer,
+    #     which avoids the quadratic cost of independent lookups.
+    #   * `fps` is captured but intentionally discarded at the Python
+    #     level — FPS is already reported by `gvafpscounter` on the
+    #     `PipelineResult`, so re-exposing it here would only duplicate
+    #     state. Keeping the group in the regex still documents the
+    #     full tracer layout and lets us drop it without re-parsing
+    #     should the need arise.
+    # ------------------------------------------------------------------
+    _LATENCY_TRACER_INTERVAL_MARKER = "latency_tracer_pipeline_interval,"
+    _LATENCY_TRACER_INTERVAL_PATTERN = re.compile(
+        r"latency_tracer_pipeline_interval,"
+        r".*?source_name=\(string\)(?P<source>[^,]+),"
+        r".*?sink_name=\(string\)(?P<sink>[^,]+),"
+        r".*?interval=\(double\)(?P<interval>\d+\.\d+),"
+        r".*?avg=\(double\)(?P<avg>\d+\.\d+),"
+        r".*?min=\(double\)(?P<min>\d+\.\d+),"
+        r".*?max=\(double\)(?P<max>\d+\.\d+),"
+        r".*?latency=\(double\)(?P<latency>\d+\.\d+),"
+        r".*?fps=\(double\)(?P<fps>\d+\.\d+)"
+    )
 
     def __init__(
         self,
         mode: str = "normal",
         max_runtime: float = 0.0,
         poll_interval: int = 1,
-        fps_file_path: str | None = None,
         inactivity_timeout: int = 120,
         hard_timeout: int | None = None,
+        enable_latency_metrics: bool = False,
+        job_id: str | None = None,
     ):
         """
         Initialize the PipelineRunner.
@@ -102,25 +276,81 @@ class PipelineRunner:
                 - For validation mode: must be >0.
             poll_interval: Interval in seconds to poll the process for metrics
                 (only used in normal mode).
-            fps_file_path: Optional path to write latest FPS values for real-time
-                monitoring (only used in normal mode).
             inactivity_timeout: Max seconds to wait without new stdout/stderr logs
                 before treating the pipeline as hung and terminating it
                 (only used in normal mode).
             hard_timeout: Absolute maximum time in seconds before forcibly killing
                 the subprocess regardless of state (only used in validation mode).
                 If None in validation mode, defaults to max_runtime + 60.
+            enable_latency_metrics: When True, activates the DLStreamer
+                `latency_tracer` in pipeline-only mode with a 1000 ms interval
+                by augmenting the GStreamer subprocess environment with
+                `GST_DEBUG=GST_TRACER:7` (appended to any existing value) and
+                `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)`.
+                When False (default), neither variable is modified.
+            job_id: Identifier of the owning job. When provided, every
+                metric pushed by this runner — both FPS and
+                ``pipeline_latency`` — carries a ``tags.job_id`` field
+                so metrics-service can partition data per job; this is
+                how concurrent jobs are distinguished in the metrics
+                backend. When ``None`` (default), the ``job_id`` tag is
+                omitted from every payload (FPS pushes then carry no
+                ``tags`` field at all; latency pushes still carry
+                ``stream_id``). Used by ad-hoc callers (e.g. video
+                transcoding) that do not belong to any job. Accepted by
+                both ``normal`` and ``validation`` modes for a uniform
+                API, but validation mode never pushes metrics
+                (no ``gvafpscounter`` / tracer is attached), so the
+                value is effectively unused there.
         """
         self.mode = mode
         self.max_runtime = max_runtime
         self.poll_interval = poll_interval
-        self.fps_file_path = fps_file_path or self.DEFAULT_FPS_FILE_PATH
         self.inactivity_timeout = inactivity_timeout
         self.hard_timeout = hard_timeout
+        # Resolve the metrics-service base URL once and pre-compute the
+        # two endpoint URLs used by the push helpers. Trailing slashes
+        # on the configured base are stripped so concatenation with the
+        # fixed paths cannot produce `//api/v1/...`, which some proxies
+        # and routers treat as a distinct (and unmapped) path.
+        #
+        # Two endpoints are used:
+        #   * `/api/v1/metrics/simple` — single {name, value} pair,
+        #     used for FPS pushes (one metric per call).
+        #   * `/api/v1/metrics` — batch endpoint accepting a list of
+        #     {name, fields, tags} entries, used for latency pushes
+        #     so all four tracer fields travel in one request per
+        #     stream sample.
+        self.metrics_service_url = os.environ.get(
+            "METRICS_SERVICE_URL", self.DEFAULT_METRICS_SERVICE_URL
+        ).rstrip("/")
+        self._metrics_service_fps_url = (
+            f"{self.metrics_service_url}/api/v1/metrics/simple"
+        )
+        self._metrics_service_batch_url = f"{self.metrics_service_url}/api/v1/metrics"
+        self.enable_latency_metrics = enable_latency_metrics
+        self.job_id = job_id
         self.logger = logging.getLogger("PipelineRunner")
         self.logger_level = self._get_log_level()
         self.logger.setLevel(self.logger_level)
         self.cancelled = False
+
+        # Map of stream_id -> last observed latency_tracer sample.
+        #
+        # `None` when `enable_latency_metrics=False`: the tracer is not
+        # started, so no mapping can exist. When enabled, the map is
+        # allocated as an empty dict at the start of each run (in
+        # `_run_normal`) and overwritten per stream as new interval
+        # lines arrive. Only the latest sample per stream is retained;
+        # no history is kept.
+        self.latency_tracer_metrics: "dict[str, LatencyTracerSample] | None" = (
+            None if not enable_latency_metrics else {}
+        )
+
+        # Set of stream_ids the latency_tracer parser is allowed to
+        # record. Populated per-run from `PipelineRunner.run()`. `None`
+        # means "no filtering — keep every parsed sample".
+        self._allowed_stream_ids: set[str] | None = None
 
         # Validate mode
         if self.mode not in ("normal", "validation"):
@@ -139,7 +369,12 @@ class PipelineRunner:
             if self.hard_timeout is None:
                 self.hard_timeout = int(self.max_runtime + 60)
 
-    def run(self, pipeline_command: str, total_streams: int = 1) -> PipelineResult:
+    def run(
+        self,
+        pipeline_command: str,
+        total_streams: int = 1,
+        allowed_stream_ids: set[str] | None = None,
+    ) -> PipelineResult:
         """
         Run a GStreamer pipeline and return results.
 
@@ -150,6 +385,18 @@ class PipelineRunner:
             pipeline_command: The complete GStreamer pipeline command string.
             total_streams: Total number of streams to expect in metrics
                 (only used in normal mode for FPS extraction).
+            allowed_stream_ids: Optional set of ``stream_id`` values
+                (``"{source_name}__{sink_name}"``) that identify the
+                user-facing source/sink pairs of the running streams.
+                When provided, the latency_tracer parser only keeps
+                samples whose ``stream_id`` is in this set — every
+                other row (e.g. internal bin sinks named ``sink``, the
+                intermediate ``splitmuxsink`` of a recorder pipeline,
+                etc.) is dropped. When ``None`` (default), all parsed
+                samples are kept; this is intended for ad-hoc tests
+                where the caller does not know the set of stream ids
+                up front. Has no effect when
+                ``enable_latency_metrics=False``.
 
         Returns:
             PipelineResult with FPS metrics, exit code, and captured output.
@@ -157,6 +404,14 @@ class PipelineRunner:
         Raises:
             RuntimeError: If pipeline execution fails in normal mode.
         """
+        # Normalize and store on the instance so the stdout hot loop
+        # can cheaply consult it via `_parse_and_record_latency_sample`.
+        # An empty set is treated as "no streams allowed" and will drop
+        # every sample; that is only correct if the caller actually
+        # passed an empty set, which is a programmer error we do not
+        # try to hide.
+        self._allowed_stream_ids: set[str] | None = allowed_stream_ids
+
         if self.mode == "validation":
             return self._run_validation(pipeline_command)
         else:
@@ -198,7 +453,7 @@ class PipelineRunner:
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env=os.environ.copy(),
+            env=self._build_subprocess_env(),
             text=True,
         )
 
@@ -223,6 +478,12 @@ class PipelineRunner:
                 cancelled=False,
                 stdout=stdout.splitlines() if stdout else [],
                 stderr=errors,
+                # Validation mode does not parse tracer samples. Propagate
+                # the instance map as-is so the API semantics documented on
+                # `PipelineResult.latency_tracer_metrics` hold:
+                # `None` → tracer disabled, `{}` → enabled but no samples
+                # were (or could be) collected.
+                latency_tracer_metrics=self.latency_tracer_metrics,
             )
 
         return PipelineResult(
@@ -230,6 +491,9 @@ class PipelineRunner:
             cancelled=False,
             stdout=stdout.splitlines() if stdout else [],
             stderr=self._parse_validation_stderr(stderr),
+            # See note above: validation mode never populates the map,
+            # so this reflects only whether the tracer was enabled.
+            latency_tracer_metrics=self.latency_tracer_metrics,
         )
 
     def _run_normal(self, pipeline_command: str, total_streams: int) -> PipelineResult:
@@ -307,7 +571,10 @@ class PipelineRunner:
         try:
             # Spawn command in a subprocess
             process = Popen(
-                pipeline_cmd, stdout=PIPE, stderr=PIPE, env=os.environ.copy()
+                pipeline_cmd,
+                stdout=PIPE,
+                stderr=PIPE,
+                env=self._build_subprocess_env(),
             )
 
             exit_code = None
@@ -315,6 +582,16 @@ class PipelineRunner:
             per_stream_fps = None
             num_streams = None
             details: str | None = None
+
+            # Reset the latency_tracer map at the start of each run so
+            # repeated invocations on the same runner instance (e.g. the
+            # density `Benchmark` loop, which reuses a single
+            # `PipelineRunner` across many pipeline runs) only expose
+            # samples from the MOST RECENT run. Stays `None` when the
+            # tracer is disabled — callers can rely on that to detect
+            # "no metrics collected at all".
+            if self.latency_tracer_metrics is not None:
+                self.latency_tracer_metrics = {}
 
             # Storage for parsed metrics collected during the run.
             # - last_fps: most recent "last" metric (any stream count)
@@ -404,8 +681,31 @@ class PipelineRunner:
 
                             latest_fps = result["per_stream_fps"]
 
-                            # Write latest FPS to file
-                            self._write_fps_to_file(latest_fps)
+                            # Push latest FPS to metrics-service
+                            self._push_fps_metric(latest_fps)
+
+                        # ----------------------------------------------------------
+                        # latency_tracer_pipeline_interval parsing
+                        #
+                        # The tracer emits one interval line per running
+                        # stream every 1000 ms. The in-memory map of
+                        # last-seen samples is updated live in this hot
+                        # loop (not post-run) so the map on the runner
+                        # always reflects the most recent sample while
+                        # the pipeline is still running.
+                        #
+                        # A cheap prefix check avoids running the full
+                        # regex on every single line; the match is only
+                        # attempted after the marker substring is
+                        # confirmed to be present. When the tracer is
+                        # disabled, `latency_tracer_metrics is None`
+                        # short-circuits the whole branch.
+                        # ----------------------------------------------------------
+                        if (
+                            self.latency_tracer_metrics is not None
+                            and self._LATENCY_TRACER_INTERVAL_MARKER in line_str
+                        ):
+                            self._parse_and_record_latency_sample(line_str)
 
                     elif r == process.stderr:
                         process_stderr.append(line)
@@ -622,33 +922,357 @@ class PipelineRunner:
                 stdout=stdout_lines,
                 stderr=stderr_lines,
                 details=details,
+                # Stays `None` when the tracer was not enabled (no
+                # sampling happened); otherwise a dict with one entry
+                # per stream that produced at least one interval line.
+                latency_tracer_metrics=self.latency_tracer_metrics,
             )
 
         except Exception as e:
             self.logger.error(f"Pipeline execution error: {e}")
             raise
         finally:
-            # Always write 0.0 to FPS file after pipeline completion (success or failure)
-            self._write_fps_to_file(0.0)
+            # Push 0.0 to metrics-service after pipeline completion (success or failure)
+            self._push_fps_metric(0.0)
+            # Re-push the last observed latency sample per stream so
+            # that at least one final pipeline_latency point per stream
+            # reaches metrics-service even if the last in-flight live
+            # push raced with pipeline teardown. No-op when the tracer
+            # was disabled or produced no samples.
+            self._push_final_latency_metrics()
 
-    def _write_fps_to_file(self, fps: float) -> None:
+    def _post_metrics_async(
+        self,
+        url: str,
+        payload: dict,
+        description: str,
+    ) -> None:
         """
-        Write the given FPS value to the FPS file.
+        Fire-and-forget HTTP POST to metrics-service.
 
-        This method is called:
-        - During pipeline execution to write current FPS metrics for monitoring
-        - After pipeline completion (with 0.0) to signal that pipeline is no longer running
+        Submits the POST to a shared class-level
+        ``ThreadPoolExecutor`` (see ``_get_metrics_executor``) so the
+        pipeline hot loop is never blocked by a slow or unavailable
+        metrics-service. The pool caps concurrency at
+        ``_METRICS_EXECUTOR_WORKERS`` and reuses threads across
+        pushes, which avoids the unbounded-thread-spawn pattern a
+        per-push ``threading.Thread`` would create under load (many
+        streams × 1 Hz FPS + latency + per-stream final pushes).
+        Failures are logged at WARNING level from the worker and
+        never propagate back to the caller.
+
+        This is the single I/O primitive shared by both the FPS push
+        (single-metric endpoint) and the latency push (batch endpoint);
+        the two differ only in the target URL and the JSON body shape,
+        both built by the respective wrappers (``_push_fps_metric``,
+        ``_push_latency_sample``, ``_push_final_latency_metrics``).
 
         Args:
-            fps: FPS value to write to the file.
+            url: Fully qualified endpoint URL. Pre-computed once in
+                ``__init__`` — this method does not touch the base URL.
+            payload: JSON-serializable request body. Encoded as UTF-8
+                before scheduling the POST so the worker thread does
+                not share the dict with the caller.
+            description: Short label used in the WARNING log if the
+                request fails (e.g. ``"fps"`` or ``"latency"``).
+                Kept separate from the URL so logs are readable even
+                when the endpoint path is unfamiliar.
         """
-        try:
-            with open(self.fps_file_path, "w") as f:
-                f.write(f"{fps}\n")
-        except (OSError, IOError) as e:
-            self.logger.warning(
-                "Failed to write FPS to file %s: %s", self.fps_file_path, e
+        # Snapshot everything the worker thread needs so it never
+        # reaches back into `self` on the hot path — keeps the worker
+        # self-contained and avoids any accidental lifetime coupling.
+        logger = self.logger
+        data = json.dumps(payload).encode()
+
+        def _worker() -> None:
+            try:
+                req = urllib.request.Request(
+                    url,
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                )
+                # Context manager releases the socket / file descriptor
+                # deterministically after every POST, instead of
+                # waiting for GC to reclaim the response object.
+                with urllib.request.urlopen(req, timeout=1):
+                    pass
+            except Exception as e:
+                logger.warning(
+                    "Failed to push %s metric to %s: %s", description, url, e
+                )
+
+        # Submit the push to the shared worker pool. The pool caps
+        # concurrency at `_METRICS_EXECUTOR_WORKERS` and reuses
+        # threads, so bursts (many streams emitting latency every
+        # second + per-stream final pushes at shutdown) cannot turn
+        # into an unbounded thread spawn. We do not keep the returned
+        # Future: each push is independent and never joined.
+        self._get_metrics_executor().submit(_worker)
+
+    @classmethod
+    def _get_metrics_executor(cls) -> ThreadPoolExecutor:
+        """
+        Return (and lazily create) the shared metrics-push worker pool.
+
+        The pool is a single class-level ``ThreadPoolExecutor`` used
+        by every runner instance in the process. It is created on
+        first use so importing this module does not spawn any
+        threads, and its worker threads are daemons (via
+        ``thread_name_prefix`` + the executor's own daemon behaviour)
+        so they do not keep the Python process alive after the main
+        thread exits.
+
+        Lazy creation is race-safe enough for our use: the worst case
+        under a tight race is two executors being created and one
+        being immediately garbage-collected. Since the executor is
+        never closed on purpose (metric pushes may continue until
+        process exit), no resource leak results from the lost one.
+        """
+        if cls._metrics_executor is None:
+            cls._metrics_executor = ThreadPoolExecutor(
+                max_workers=cls._METRICS_EXECUTOR_WORKERS,
+                thread_name_prefix="vippet-metrics",
             )
+        return cls._metrics_executor
+
+    def _push_fps_metric(self, fps: float) -> None:
+        """
+        Push the given FPS value to metrics-service.
+
+        Called:
+        - During pipeline execution, every time a new average FPS line
+          is parsed from ``gvafpscounter`` (roughly once per second).
+        - Once at pipeline completion with ``0.0`` to signal that the
+          pipeline is no longer running.
+
+        Uses the ``/api/v1/metrics/simple`` endpoint: one metric name
+        and one scalar value per request. When ``self.job_id`` is set,
+        the payload carries ``tags.job_id`` so metrics-service can
+        partition data per job; otherwise the ``tags`` field is omitted.
+
+        Args:
+            fps: FPS value to push.
+        """
+        payload: dict[str, object] = {"name": "fps", "value": fps}
+        if self.job_id is not None:
+            payload["tags"] = {"job_id": self.job_id}
+
+        self._post_metrics_async(
+            url=self._metrics_service_fps_url,
+            payload=payload,
+            description="fps",
+        )
+
+    def _push_latency_sample(
+        self, stream_id: str, sample: "LatencyTracerSample"
+    ) -> None:
+        """
+        Push a single ``latency_tracer`` sample to metrics-service.
+
+        Called live from the stdout hot loop every time a new
+        ``latency_tracer_pipeline_interval`` line is parsed for an
+        allowed stream (see ``_parse_and_record_latency_sample``). No
+        push is made when ``enable_latency_metrics`` is False, because
+        the caller itself short-circuits on that condition.
+
+        Uses the ``/api/v1/metrics`` batch endpoint with a single
+        entry in the ``metrics`` list. The batch shape is used (even
+        for one entry) so all four tracer fields travel in a single
+        HTTP request — the alternative would be four separate calls
+        to the ``simple`` endpoint per stream per second, which scales
+        poorly with stream count.
+
+        Fields sent: ``avg_ms``, ``min_ms``, ``max_ms``, ``latency_ms``.
+        ``interval_ms`` is intentionally omitted — the emission cadence
+        is fixed at 1000 ms and metrics-service timestamps each sample
+        on receipt, so the field would only add noise. ``fps`` is also
+        intentionally omitted because it is already reported by
+        ``gvafpscounter`` via ``_push_fps_metric`` — re-sending it
+        here would double-count throughput in the dashboard.
+
+        Tags: ``job_id`` (when set) and ``stream_id`` so the dashboard
+        can distinguish concurrent streams on the same job.
+
+        Args:
+            stream_id: Composite ``"{source_name}__{sink_name}"`` used
+                as the ``stream_id`` tag value. Matches the key under
+                which the sample is stored in
+                ``self.latency_tracer_metrics``.
+            sample: The parsed tracer sample to push.
+        """
+        tags: dict[str, str] = {"stream_id": stream_id}
+        if self.job_id is not None:
+            tags["job_id"] = self.job_id
+
+        payload = {
+            "metrics": [
+                {
+                    "name": "pipeline_latency",
+                    "fields": {
+                        "avg_ms": sample.avg_ms,
+                        "min_ms": sample.min_ms,
+                        "max_ms": sample.max_ms,
+                        "latency_ms": sample.latency_ms,
+                    },
+                    "tags": tags,
+                }
+            ]
+        }
+
+        self._post_metrics_async(
+            url=self._metrics_service_batch_url,
+            payload=payload,
+            description="latency",
+        )
+
+    def _push_final_latency_metrics(self) -> None:
+        """
+        Push one final ``pipeline_latency`` sample per stream after
+        the subprocess exits.
+
+        Runs once from the ``finally`` block of ``_run_normal``,
+        iterating the in-memory ``latency_tracer_metrics`` map and
+        re-pushing the last observed sample for every stream. This
+        guarantees that at least one final sample per stream reaches
+        metrics-service even if the last in-flight per-sample push
+        raced with pipeline teardown.
+
+        No-op when ``enable_latency_metrics`` is False (the map stays
+        ``None``) or when the map is empty (tracer was enabled but
+        produced no samples — e.g. the pipeline exited before the
+        first 1000 ms interval closed).
+        """
+        if not self.latency_tracer_metrics:
+            return
+        for stream_id, sample in self.latency_tracer_metrics.items():
+            self._push_latency_sample(stream_id, sample)
+
+    def _parse_and_record_latency_sample(self, line: str) -> None:
+        """
+        Parse a single `latency_tracer_pipeline_interval` line and
+        update ``self.latency_tracer_metrics`` for the reported stream.
+
+        Called from the stdout hot loop; callers are expected to pre-filter
+        with the ``_LATENCY_TRACER_INTERVAL_MARKER`` substring check so the
+        compiled regex only runs on likely matches.
+
+        Silently ignores lines that contain the marker substring but do
+        not match the full pattern, so the runner stays resilient to
+        tracer format variations and to log-line truncation.
+
+        Also silently drops samples whose ``stream_id`` is not in
+        ``self._allowed_stream_ids`` (when that filter is set). This
+        discards tracer rows for internal bin sinks (commonly named
+        ``sink``) and intermediate ``splitmuxsink`` elements that are
+        not part of the user-facing stream surface.
+
+        Only the last sample per stream_id is retained: when a line
+        arrives for a stream already present in the map, the previous
+        entry is overwritten. No history is kept.
+
+        Args:
+            line: Raw stdout line from the subprocess. May include any
+                prefix (e.g. ``"gst_runner - INFO - ..."``); the regex
+                scans without anchoring.
+        """
+        # Defensive: this should not happen when the caller respects
+        # the `is not None` precondition, but re-checking keeps the
+        # method safe to call from anywhere.
+        if self.latency_tracer_metrics is None:
+            return
+
+        match = self._LATENCY_TRACER_INTERVAL_PATTERN.search(line)
+        if match is None:
+            return
+
+        # Build the composite stream_id used as the dict key. This must
+        # match the format produced by `InternalStreamInfo.stream_id`
+        # so downstream code can correlate entries back to streams
+        # declared by `PipelineManager.build_pipeline_command`.
+        source_name = match.group("source")
+        sink_name = match.group("sink")
+        stream_id = f"{source_name}__{sink_name}"
+
+        # Drop samples that refer to elements other than the user-facing
+        # main source/sink pair of a running stream. The DLStreamer
+        # latency_tracer emits one row per GStreamer sink it sees,
+        # which includes internal bin sinks (typically named ``sink``)
+        # and, in recorder pipelines, the intermediate ``splitmuxsink``.
+        # Without this filter the metrics map would contain rows like
+        # ``src_p0_s0_0_0__sink`` or ``src_p0_s0_0_0__splitmuxsink0``
+        # that are not addressable by ViPPET callers.
+        if (
+            self._allowed_stream_ids is not None
+            and stream_id not in self._allowed_stream_ids
+        ):
+            return
+
+        metrics = LatencyTracerSample(
+            interval_ms=float(match.group("interval")),
+            avg_ms=float(match.group("avg")),
+            min_ms=float(match.group("min")),
+            max_ms=float(match.group("max")),
+            latency_ms=float(match.group("latency")),
+        )
+        self.latency_tracer_metrics[stream_id] = metrics
+
+        # Live push: forward every new sample to metrics-service as
+        # soon as it is parsed. The call is fire-and-forget (runs on
+        # a daemon thread in `_post_metrics_async`) so a slow or
+        # unavailable backend can never stall the stdout reader.
+        self._push_latency_sample(stream_id, metrics)
+
+        # Per-sample log is kept at DEBUG level: metrics-service is
+        # now the primary surface for tracer values, so this log is
+        # only useful for local troubleshooting when the backend is
+        # unavailable or the payload shape is under review.
+        self.logger.debug(
+            "latency_tracer sample: stream=%s interval_ms=%.3f avg_ms=%.3f "
+            "min_ms=%.3f max_ms=%.3f latency_ms=%.3f",
+            stream_id,
+            metrics.interval_ms,
+            metrics.avg_ms,
+            metrics.min_ms,
+            metrics.max_ms,
+            metrics.latency_ms,
+        )
+
+    def _build_subprocess_env(self) -> dict[str, str]:
+        """
+        Build the environment for the gst_runner.py subprocess.
+
+        Starts from a copy of the current process environment. When
+        ``enable_latency_metrics`` is True, augments the environment to
+        activate the DLStreamer ``latency_tracer`` in pipeline-only mode
+        with a 1000 ms interval:
+
+        - ``GST_DEBUG``: if already set, ``GST_TRACER:7`` is appended with a
+          comma separator so the existing debug categories are preserved.
+          If unset, it is created with the single value ``GST_TRACER:7``.
+        - ``GST_TRACERS``: set (and overwritten if previously present) to
+          ``latency_tracer(flags=pipeline,interval=1000)``.
+
+        When ``enable_latency_metrics`` is False, the environment is passed
+        through unchanged so neither variable is created nor modified.
+
+        Returns:
+            A new dict suitable for passing as the ``env`` argument to
+            ``subprocess.Popen``.
+        """
+        env = os.environ.copy()
+
+        if not self.enable_latency_metrics:
+            return env
+
+        existing_gst_debug = env.get("GST_DEBUG")
+        if existing_gst_debug:
+            # Preserve existing debug categories, append our tracer category.
+            env["GST_DEBUG"] = f"{existing_gst_debug},{self.LATENCY_TRACER_GST_DEBUG}"
+        else:
+            env["GST_DEBUG"] = self.LATENCY_TRACER_GST_DEBUG
+
+        env["GST_TRACERS"] = self.LATENCY_TRACER_GST_TRACERS
+        return env
 
     def cancel(self):
         """Cancel the currently running pipeline."""

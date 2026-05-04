@@ -17,20 +17,36 @@ global:
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: ""
 
-  # vlmName is Vision-Language Model Name used by VLM Inference Microservice
+  # vlmName is the OVMS or vLLM Vision-Language Model used for captioning.
   vlmName: ""
-  # llmName is Large Language Model Name used by OVMS service
+  # llmName is optional when OVMS serves a separate summarization model.
+  # Leave empty to reuse the VLM model as the shared single OVMS model.
   llmName: ""
 
-  gpu:
-    vlminferenceEnabled: false
-    multimodalembeddingmsEnabled: false
-    vdmsdataprepEnabled: false
-    ovmsEnabled: false
+  # Per-service device configuration
+  # Each service independently configures its accelerator needs
+  devices:
+    # Multimodal Embedding Microservice
+    multimodalEmbedding:
+      device: CPU # CPU | GPU
+      key: "" # K8s resource key (e.g., 'gpu.intel.com/xe')
 
-    key:
-    device:
-    group_add: $(stat -c "%g" /dev/dri/render*)
+    # VDMS Dataprep
+    vdmsDataprep:
+      device: CPU # CPU | GPU
+      key: ""
+
+    # OVMS - per-model device selection (supports split-device configs)
+    ovms:
+      vlm:
+        device: CPU # CPU | GPU | NPU | HETERO:GPU,CPU
+        key: "" # K8s resource key for GPU/NPU
+      llm:
+        device: CPU # CPU | GPU | NPU | HETERO:GPU,CPU
+        key: ""
+
+  # Render group for GPU device access
+  renderGroupId: ""
 
   proxy:
     no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8,.svc.cluster.local"
@@ -99,8 +115,10 @@ pipelinemanager:
   minioBucket: "video-search-summary"
   env:
     LLM_SUMMARIZATION_KEY: ""
+    LLM_SUMMARIZATION_API: ""
     LLM_SUMMARIZATION_DEVICE: "CPU"
     VLM_CAPTIONING_KEY: ""
+    VLM_CAPTIONING_API: ""
     VLM_CAPTIONING_DEVICE: "CPU"
     LLM_CONCURRENT: "2"
     VLM_CONCURRENT: "4"
@@ -110,10 +128,11 @@ pipelinemanager:
     CAPTIONING_MAX_COMPLETION_TOKENS: "1024"
     MAX_CONTEXT_LENGTH: "90000"
     LLM_MODEL_API: "v1/config"
+    VLM_MODEL_API: "v1/config"
     MULTI_FRAME_COUNT: "12"
     AUDIO_DEVICE: "cpu"
+    AUDIO_USE_FULL_TRANSCRIPT_SUMMARY: "true"
     OTLP_TRACE_URL: ""
-    USE_OVMS: "CONFIG_OFF"
     USE_VLLM: "CONFIG_OFF"
     SUMMARY_FEATURE: "FEATURE_ON"
     SEARCH_FEATURE: "FEATURE_OFF"
@@ -150,11 +169,9 @@ ovms:
   claimSize: "6Gi"
   service:
     port: 8300
-
-vlminference:
-  enabled: false
-  name: vlm-inference-microservice
-  claimSize: "40Gi"
+  env:
+    LLM_TARGET_DEVICE: ""
+    VLM_TARGET_DEVICE: ""
 
 vllm:
   enabled: false

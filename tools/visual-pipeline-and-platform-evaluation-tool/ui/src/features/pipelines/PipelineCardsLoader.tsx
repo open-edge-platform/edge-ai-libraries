@@ -9,7 +9,7 @@ export const PipelineCardsLoader = ({
   count = 5,
 }: PipelineCardsLoaderProps) => {
   return (
-    <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
+    <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18.75rem,1fr))]">
       {Array.from({ length: count }).map((_, i) => (
         <Card key={i} className="flex flex-col pt-0 overflow-hidden">
           <Skeleton className="w-full h-48" />

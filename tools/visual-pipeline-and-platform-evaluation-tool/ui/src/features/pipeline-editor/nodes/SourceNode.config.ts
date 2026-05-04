@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: Apache-2.0
-
 type NodePropertyConfig = {
   key: string;
   label: string;

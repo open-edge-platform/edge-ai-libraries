@@ -3,9 +3,9 @@
 
 """Simple Summary."""
 
-from typing import Any, Dict, List, Optional, List
+from typing import Any, Dict, List, Optional
 
-from llama_index.core.llama_pack import BaseLlamaPack
+from abc import ABC, abstractmethod
 from llama_index.core.schema import Document
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core import SimpleDirectoryReader, get_response_synthesizer
@@ -15,6 +15,14 @@ from llama_index.core.llms import LLM
 from app.config import Settings as ConfigSetting
 
 config = ConfigSetting()
+
+class BaseLlamaPack(ABC):
+    """Minimal base class replacing the removed llama_index.core.llama_pack.BaseLlamaPack."""
+
+    @abstractmethod
+    def run(self, *args: Any, **kwargs: Any) -> Any:
+        """Run the pack."""
+
 
 class SimpleSummaryPack(BaseLlamaPack):
     """

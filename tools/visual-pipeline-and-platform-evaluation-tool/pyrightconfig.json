@@ -4,9 +4,6 @@
       "root": "vippet"
     },
     {
-      "root": "collector"
-    },
-    {
       "root": "video_generator"
     }
   ],

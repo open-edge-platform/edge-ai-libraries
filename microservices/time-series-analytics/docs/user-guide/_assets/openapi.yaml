@@ -257,11 +257,11 @@ paths:
     post:
       summary: Adds UDF Deployment Package
       description: |-
-        Upload a zip file containing the UDF deployment package.
+        Upload a tar file containing the UDF deployment package.
 
-        **Request body**: multipart/form-data with a single field named `file` containing the zip archive.
+        **Request body**: multipart/form-data with a single field named `file` containing the tar archive.
 
-        The zip must have the following structure (no wrapping top-level directory):
+        The tar must have the following structure (no wrapping top-level directory):
 
             udfs/
                 <udf_name>.py          (required)
@@ -274,9 +274,9 @@ paths:
         **Extraction destination**:
 
         - If `SAMPLE_APP` env var is set -> `/tmp/<SAMPLE_APP>/`
-        - Otherwise -> `/tmp/<zip_filename_without_extension>/`
+        - Otherwise -> `/tmp/<tar_filename_without_extension>/`
 
-        **Allowed file extensions**: `.py`, `.tick`, `.txt`, `.cb`, `.pkl`,
+        **Allowed file extensions**: `.py`, `.tick`, `.txt`, `.cb`, `.pkl`, `.json`
         `.joblib`, `.xml`, `.bin`, `.onnx`, `.pt`, `.pth`
       operationId: udfs_package_post
       requestBody:
@@ -292,22 +292,22 @@ paths:
             application/json:
               example:
                 status: success
-                message: "UDF deployment package 'my_udf.zip' uploaded successfully."
+                message: "UDF deployment package 'my_udf.tar' uploaded successfully."
         '400':
           description: >-
-            Invalid upload - file is not a .zip, archive is corrupt, failed security
-            scan (path traversal, symlink, encryption, zip-bomb, disallowed extension),
+            Invalid upload - file is not a .tar, archive is corrupt, failed security
+            scan (path traversal, symlink, encrypted payload, tar-bomb expansion),
             or required folders/files are missing
           content:
             application/json:
               example:
-                detail: "Zip archive must contain a 'udfs/' folder with at least one .py file."
+                detail: "Tar archive must contain a 'udfs/' folder with at least one .py file."
         '413':
           description: Uploaded file exceeds the maximum allowed size
           content:
             application/json:
               example:
-                detail: Uploaded file exceeds the maximum allowed size of 500 MB.
+                detail: Uploaded file exceeds the maximum allowed size of 100 MB.
         '422':
           description: Validation Error
           content:

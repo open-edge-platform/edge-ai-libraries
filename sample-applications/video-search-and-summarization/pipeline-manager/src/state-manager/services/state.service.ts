@@ -41,10 +41,15 @@ export class StateService {
       const video = videos.find((v) => v.videoId === state.videoId);
 
       if (video) {
-        this.states.set(state.stateId, {
+        const loadedState: State = {
           ...state,
           video: video,
-        });
+          status: {
+            ...state.status,
+            videoChunking: (state.status as any).videoChunking ?? state.status.chunking,
+          },
+        };
+        this.states.set(state.stateId, loadedState);
       }
     });
     console.log('StateService initialized with', this.states.size, 'states');
@@ -103,6 +108,8 @@ export class StateService {
         model: audioRequest.model_name,
         status: StateActionStatus.IN_PROGRESS,
         transcript: [],
+        transcriptSummary: '',
+        transcriptSummaryStatus: StateActionStatus.NA,
       };
     }
   }
@@ -113,6 +120,24 @@ export class StateService {
       this.states.get(stateId)!.audio!.transcriptPath =
         audioResult.transcriptPath;
       this.states.get(stateId)!.audio!.transcript = audioResult.transcripts;
+      this.syncSocket(stateId);
+    }
+  }
+
+  audioTranscriptSummaryProcessing(stateId: string) {
+    if (this.states.has(stateId) && this.states.get(stateId)!.audio) {
+      this.states.get(stateId)!.audio!.transcriptSummaryStatus =
+        StateActionStatus.IN_PROGRESS;
+      this.syncSocket(stateId);
+    }
+  }
+
+  audioTranscriptSummaryComplete(stateId: string, summary: string) {
+    if (this.states.has(stateId) && this.states.get(stateId)!.audio) {
+      this.states.get(stateId)!.audio!.transcriptSummary = summary;
+      this.states.get(stateId)!.audio!.transcriptSummaryStatus =
+        StateActionStatus.COMPLETE;
+      this.syncSocket(stateId);
     }
   }
 
@@ -197,6 +222,13 @@ export class StateService {
   updateChunkingStatus(stateId: string, status: StateActionStatus) {
     if (this.states.has(stateId)) {
       this.states.get(stateId)!.status.chunking = status;
+      this.statusSync(stateId);
+    }
+  }
+
+  updateVideoChunkingStatus(stateId: string, status: StateActionStatus) {
+    if (this.states.has(stateId)) {
+      this.states.get(stateId)!.status.videoChunking = status;
       this.statusSync(stateId);
     }
   }
@@ -310,6 +342,7 @@ export class StateService {
         summarizing: StateActionStatus.NA,
         dataStoreUpload: StateActionStatus.NA,
         chunking: StateActionStatus.NA,
+        videoChunking: StateActionStatus.NA,
       },
     };
 

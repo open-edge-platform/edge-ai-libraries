@@ -12,7 +12,7 @@ export interface SummaryPipelineSampling {
   frameOverlap: number;
   multiFrame: number;
 }
-class SummaryPipelineSamplingSwagger implements SummaryPipelineSampling {
+export class SummaryPipelineSamplingSwagger implements SummaryPipelineSampling {
   @ApiProperty({
     required: true,
     description: 'Duration for a chunk in seconds',
@@ -21,7 +21,7 @@ class SummaryPipelineSamplingSwagger implements SummaryPipelineSampling {
 
   @ApiProperty({
     required: true,
-    description: 'Start time of the video in seconds',
+    description: 'Number of frames to sample per chunk',
   })
   samplingFrame: number;
 
@@ -33,7 +33,7 @@ class SummaryPipelineSamplingSwagger implements SummaryPipelineSampling {
 
   @ApiProperty({
     required: true,
-    description: 'Multi frame count',
+    description: 'Multi frame count (batch size)',
   })
   multiFrame: number;
 }
@@ -43,6 +43,9 @@ export interface SummaryPipelinePrompts {
   summaryMapPrompt?: string;
   summaryReducePrompt?: string;
   summarySinglePrompt?: string;
+  audioSummaryMapPrompt?: string;
+  audioSummaryReducePrompt?: string;
+  audioSummarySinglePrompt?: string;
 }
 export class SummaryPipelinePromptsSwagger implements SummaryPipelinePrompts {
   @ApiProperty({
@@ -65,10 +68,29 @@ export class SummaryPipelinePromptsSwagger implements SummaryPipelinePrompts {
     description: 'Prompt for single summary processing',
   })
   summarySinglePrompt?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Prompt for full audio transcript summarization (map stage)',
+  })
+  audioSummaryMapPrompt?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Prompt for full audio transcript summarization (reduce stage)',
+  })
+  audioSummaryReducePrompt?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Prompt for full audio transcript summarization (single reduction stage)',
+  })
+  audioSummarySinglePrompt?: string;
 }
 
 export interface SummaryPipelineAudio {
   audioModel: string;
+  useFullTranscriptSummary?: boolean;
 }
 
 export class SummaryPipelineAudioSwagger implements SummaryPipelineAudio {
@@ -77,6 +99,12 @@ export class SummaryPipelineAudioSwagger implements SummaryPipelineAudio {
     description: 'Audio model configuration',
   })
   audioModel: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Enable full transcript summarization for audio-dominant videos',
+  })
+  useFullTranscriptSummary?: boolean;
 }
 
 export interface SummaryPipelineEvam {
@@ -139,5 +167,10 @@ export class SummaryPipelineDTOSwagger implements SummaryPipelineDTO {
 }
 
 export interface SummaryPipelinRO {
+  summaryPipelineId: string;
+}
+
+export class SummaryPipelineROSwagger implements SummaryPipelinRO {
+  @ApiProperty({ description: 'ID of the created summary pipeline state' })
   summaryPipelineId: string;
 }

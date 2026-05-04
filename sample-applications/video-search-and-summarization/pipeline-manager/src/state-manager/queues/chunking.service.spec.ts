@@ -37,6 +37,7 @@ describe('ChunkingService', () => {
       fetch: jest.fn(),
       fetchFrame: jest.fn(),
       addFrameSummary: jest.fn(),
+      updateFrameSummary: jest.fn(),
       addImageInferenceConfig: jest.fn(),
       searchEmbeddingsCreated: jest.fn(),
     };
@@ -406,31 +407,28 @@ describe('ChunkingService', () => {
       );
     });
 
-    it('should handle image inference errors gracefully', () => {
+    it('should requeue frames after image inference errors', () => {
       // Setup
       service['waiting'] = [
         { stateId: mockStateId, frames: mockFrameIds, queueKey: mockQueueKey },
       ];
-      vlmService.imageInference.mockRejectedValue(new Error('Test error'));
-
-      // Create a console.log spy
-      jest.spyOn(console, 'log').mockImplementation();
-
-      // Create a spy on the 'from' function
-      jest.spyOn(from as any, 'call').mockImplementation(() => {
-        return {
-          subscribe: (observer: any) => {
-            observer.error(new Error('Test error'));
-            return { unsubscribe: jest.fn() };
-          },
-        };
-      });
+      vlmService.imageInference.mockReturnValue(
+        throwError(() => new Error('Test error')) as any,
+      );
 
       // Execute
       service.checkProcessing();
 
-      // Assert error is logged (we can't directly check the spy because of the test implementation)
-      // Instead we check that no frame caption complete event is emitted
+      // Assert
+      expect(service['processing']).toHaveLength(0);
+      expect(service['waiting']).toEqual([
+        { stateId: mockStateId, frames: mockFrameIds, queueKey: mockQueueKey },
+      ]);
+      expect(stateService.updateFrameSummary).toHaveBeenCalledWith(
+        mockStateId,
+        mockQueueKey,
+        StateActionStatus.READY,
+      );
       expect(eventEmitter.emit).not.toHaveBeenCalledWith(
         PipelineEvents.FRAME_CAPTION_COMPLETE,
         expect.anything(),

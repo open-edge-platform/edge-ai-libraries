@@ -13,7 +13,7 @@ services:
         KAPACITOR_VERSION: 1.8.3
         TIMESERIES_UID: ${TIMESERIES_UID}
         TIMESERIES_USER_NAME: ${TIMESERIES_USER_NAME}
-        PYTHON_VERSION: "3.10"
+        PYTHON_VERSION: "3.13"
         no_proxy: ${timeseries_no_proxy}
         INSTALL_SOURCES: "no"
     container_name: ia-time-series-analytics-microservice
