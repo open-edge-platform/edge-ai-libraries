@@ -8,6 +8,37 @@ import {
 } from "@/components/ui/table.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
+import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
+import {
+  PRE_UPLOAD_MESSAGES,
+  type PreUploadMessage as PRE_UPLOAD_MESSAGES_TYPE,
+} from "@/features/upload/uploaderMessages";
+import { ENDPOINTS } from "@/api/apiEndpoints";
+import JSZip from "jszip";
+
+const REQUIRED_MODEL_FILES = ["model.bin", "model.xml"];
+
+const validateModelArchive = async (
+  file: File,
+  _fields: Record<string, string>,
+): Promise<PRE_UPLOAD_MESSAGES_TYPE | null> => {
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const fileNames = Object.keys(zip.files).map(
+      (name) => name.split("/").pop()!,
+    );
+    const missing = REQUIRED_MODEL_FILES.filter(
+      (required) => !fileNames.includes(required),
+    );
+    if (missing.length > 0) {
+      return PRE_UPLOAD_MESSAGES.MISSING_REQUIRED_FILES;
+    }
+  } catch {
+    return PRE_UPLOAD_MESSAGES.INVALID_ARCHIVE;
+  }
+
+  return PRE_UPLOAD_MESSAGES.FILE_EXISTS;
+};
 
 export const Models = () => {
   const models = useAppSelector(selectModels);
@@ -21,6 +52,23 @@ export const Models = () => {
             Ready-to-use models available in the platform
           </p>
         </div>
+
+        <MultiFileUploader
+          accept=".zip,application/zip"
+          uploadEndpoint={ENDPOINTS.UPLOAD_MODEL}
+          multiple={false}
+          preUpload={validateModelArchive}
+          formFields={[
+            {
+              name: "name",
+              label: "Model name",
+              placeholder: "Enter model name",
+              required: true,
+            },
+          ]}
+          className="mb-8"
+        />
+
         <Table className="mb-10">
           <TableHeader>
             <TableRow>

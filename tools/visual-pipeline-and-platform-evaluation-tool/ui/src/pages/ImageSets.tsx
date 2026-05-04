@@ -8,7 +8,7 @@ import { useEffect, useCallback } from "react";
 import { useAppDispatch } from "@/store/hooks";
 import { toast } from "sonner";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
-import { MultiFileUploader } from "@/components/shared/MultiFileUploader.tsx";
+import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
 import { Folder } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card.tsx";
 import { Link } from "react-router";

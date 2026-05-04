@@ -28,16 +28,29 @@ type FileUploadJob = FileUploadState & {
   originalIndex: number;
 };
 
+import { type PreUploadMessage } from "./uploaderMessages";
+
 export interface MultiFileUploaderProps {
   accept: string;
   uploadEndpoint: string;
-  checkFileExists: (filename: string) => Promise<{ exists: boolean }>;
+  checkFileExists?: (filename: string) => Promise<{ exists: boolean }>;
   onUploadComplete?: (succeeded: number, failed: number) => void;
   onUploadProgress?: (
     jobs: Array<{ id: string; name: string; progress: number }>,
   ) => void;
   multiple?: boolean;
   maxConcurrentUploads?: number;
+  preUpload?: (
+    file: File,
+    fields: Record<string, string>,
+  ) => Promise<PreUploadMessage | null> | PreUploadMessage | null;
+  additionalFields?: Record<string, string>;
+  formFields?: Array<{
+    name: string;
+    label: string;
+    placeholder?: string;
+    required?: boolean;
+  }>;
   className?: string;
 }
 
@@ -49,6 +62,9 @@ export const MultiFileUploader = ({
   onUploadProgress,
   multiple = true,
   maxConcurrentUploads = 3,
+  preUpload,
+  additionalFields,
+  formFields,
   className,
 }: MultiFileUploaderProps) => {
   const { register, handleSubmit, reset, watch, setValue } =
@@ -63,6 +79,7 @@ export const MultiFileUploader = ({
   const [uploadStates, setUploadStates] = useState<FileUploadState[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isPostUpload, setIsPostUpload] = useState(false);
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedFiles = watch("files");
@@ -103,8 +120,11 @@ export const MultiFileUploader = ({
 
   const checkFilesExistence = async (
     files: File[],
-  ): Promise<Array<{ file: File; exists: boolean }>> =>
-    await Promise.all(
+  ): Promise<Array<{ file: File; exists: boolean }>> => {
+    if (!checkFileExists) {
+      return files.map((file) => ({ file, exists: false }));
+    }
+    return await Promise.all(
       files.map(async (file) => {
         try {
           const result = await checkFileExists(file.name);
@@ -115,14 +135,19 @@ export const MultiFileUploader = ({
         }
       }),
     );
+  };
 
   const uploadFile = async (
     file: File,
     onProgress: (progress: number) => void,
-  ): Promise<void> => {
-    return new Promise((resolve, reject) => {
+  ): Promise<void> =>
+    new Promise((resolve, reject) => {
       const formData = new FormData();
       formData.append("file", file);
+      const allFields = { ...additionalFields, ...fieldValues };
+      for (const [key, value] of Object.entries(allFields)) {
+        formData.append(key, value);
+      }
 
       // Use XMLHttpRequest for progress tracking
       // Note: RTKQuery or fetch() doesn't support upload progress natively
@@ -161,7 +186,6 @@ export const MultiFileUploader = ({
       xhr.open("POST", uploadEndpoint);
       xhr.send(formData);
     });
-  };
 
   const processParallelUploads = async (
     files: FileUploadJob[],
@@ -173,6 +197,7 @@ export const MultiFileUploader = ({
     for (const fileJob of files) {
       const uploadPromise = async () => {
         const { originalIndex } = fileJob;
+
         try {
           setUploadStates((prev) => {
             const newStates = [...prev];
@@ -288,7 +313,8 @@ export const MultiFileUploader = ({
     e.stopPropagation();
     setIsDragging(false);
 
-    const droppedFiles = filterFilesByAccept(Array.from(e.dataTransfer.files));
+    const filtered = filterFilesByAccept(Array.from(e.dataTransfer.files));
+    const droppedFiles = !multiple ? filtered.slice(0, 1) : filtered;
 
     if (droppedFiles.length > 0) {
       await addFiles(droppedFiles);
@@ -305,7 +331,7 @@ export const MultiFileUploader = ({
   };
 
   const addFiles = async (newFilesToAdd: File[]) => {
-    const shouldReplaceList = isPostUpload;
+    const shouldReplaceList = isPostUpload || !multiple;
 
     const baseFiles = shouldReplaceList ? [] : selectedFilesList;
 
@@ -369,16 +395,60 @@ export const MultiFileUploader = ({
       return;
     }
 
-    setIsUploading(true);
+    const missingRequired = formFields?.some(
+      (f) => f.required && !fieldValues[f.name]?.trim(),
+    );
+    if (missingRequired) {
+      return;
+    }
 
-    const filesToUpload: FileUploadJob[] = uploadStates
+    let filesToUpload: FileUploadJob[] = uploadStates
       .map((state, originalIndex) => ({ ...state, originalIndex }))
       .filter((state) => state.status === "pending");
 
     if (filesToUpload.length === 0) {
-      setIsUploading(false);
       return;
     }
+
+    if (preUpload) {
+      const results = await Promise.all(
+        filesToUpload.map(async (fileJob) => ({
+          fileJob,
+          message: await preUpload(fileJob.file, {
+            ...additionalFields,
+            ...fieldValues,
+          }),
+        })),
+      );
+
+      const failures = results.filter((r) => r.message !== null);
+      if (failures.length > 0) {
+        setUploadStates((prev) => {
+          const newStates = [...prev];
+          failures.forEach(({ fileJob, message }) => {
+            if (newStates[fileJob.originalIndex]) {
+              newStates[fileJob.originalIndex] = {
+                ...newStates[fileJob.originalIndex],
+                status: "failed",
+                error: message!,
+              };
+            }
+          });
+          return newStates;
+        });
+        filesToUpload = filesToUpload.filter(
+          (fj) =>
+            !failures.some((f) => f.fileJob.originalIndex === fj.originalIndex),
+        );
+      }
+
+      if (filesToUpload.length === 0) {
+        setIsPostUpload(true);
+        return;
+      }
+    }
+
+    setIsUploading(true);
 
     try {
       const { succeeded, failed } = await processParallelUploads(filesToUpload);
@@ -480,6 +550,36 @@ export const MultiFileUploader = ({
             />
           </div>
 
+          {formFields &&
+            formFields.length > 0 &&
+            selectedFilesList.length > 0 && (
+              <div className="space-y-3">
+                {formFields.map((field) => (
+                  <div key={field.name}>
+                    <Label htmlFor={`field-${field.name}`}>
+                      {field.label}
+                      {field.required && (
+                        <span className="text-destructive ml-1">*</span>
+                      )}
+                    </Label>
+                    <Input
+                      id={`field-${field.name}`}
+                      value={fieldValues[field.name] ?? ""}
+                      onChange={(e) =>
+                        setFieldValues((prev) => ({
+                          ...prev,
+                          [field.name]: e.target.value,
+                        }))
+                      }
+                      placeholder={field.placeholder}
+                      required={field.required}
+                      className="mt-1"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
           {selectedFilesList.length > 0 && (
             <div
               className="space-y-2"
@@ -562,7 +662,7 @@ export const MultiFileUploader = ({
                           {status === "failed" && isExistingFile && (
                             <AlertTriangle
                               className="h-4 w-4"
-                              aria-label="File already exists"
+                              aria-label="Upload blocked"
                             />
                           )}
                           {status === "failed" && !isExistingFile && (
