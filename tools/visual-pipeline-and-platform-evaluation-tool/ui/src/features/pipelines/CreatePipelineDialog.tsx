@@ -27,7 +27,7 @@ import {
   type Pipeline,
   type PipelineGraph,
 } from "@/api/api.generated.ts";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import {
   handleApiError,
   handleAsyncJobError,
@@ -72,6 +72,7 @@ import {
 } from "./pipelineSchemas";
 import { PipelineTagsCombobox } from "./PipelineTagsCombobox";
 import { isSupportedVideoFilename } from "@/lib/videoUtils.ts";
+import { cn } from "@/lib/utils";
 
 type CreatePipelineDialogProps = {
   children: ReactNode;
@@ -421,7 +422,7 @@ export const CreatePipelineDialog = ({
                 id="pipeline-description"
                 {...register("pipelineDescription")}
                 placeholder="Paste or upload your pipeline description here..."
-                className="h-64 resize-none"
+                className="h-33 resize-none"
               />
               <FieldError
                 errors={
@@ -559,11 +560,11 @@ export const CreatePipelineDialog = ({
                                   className="cursor-pointer"
                                 >
                                   <Card
-                                    className={`p-4 transition-colors hover:border-primary ${
-                                      selectedTemplate?.id === template.id
-                                        ? "border-primary bg-accent"
-                                        : ""
-                                    }`}
+                                    className={cn(
+                                      "p-4 transition-colors hover:border-primary",
+                                      selectedTemplate?.id === template.id &&
+                                        "border-primary bg-accent",
+                                    )}
                                   >
                                     <div className="flex items-start gap-3">
                                       <RadioGroupItem

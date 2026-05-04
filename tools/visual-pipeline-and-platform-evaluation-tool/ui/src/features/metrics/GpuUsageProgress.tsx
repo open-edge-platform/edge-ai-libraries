@@ -9,6 +9,7 @@ import {
 import { Gpu } from "lucide-react";
 import { useAppSelector } from "@/store/hooks.ts";
 import { selectGpuDevices } from "@/store/reducers/devices.ts";
+import { formatDeviceName } from "@/lib/utils";
 
 export const GpuUsageProgress = () => {
   const { gpus } = useMetrics();
@@ -39,7 +40,7 @@ export const GpuUsageProgress = () => {
                 <ProgressLabel>
                   <span className="flex items-center gap-2">
                     <Gpu className="h-4 w-4 shrink-0" />
-                    {deviceLabel}: {deviceFullName}
+                    {deviceLabel}: {formatDeviceName(deviceFullName)}
                   </span>
                 </ProgressLabel>
                 <ProgressValue>

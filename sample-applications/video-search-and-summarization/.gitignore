@@ -15,6 +15,7 @@ workspace
 **/ov_models
 *.lock
 !poetry.lock
+!uv.lock
 .env
 .coverage
 ov_model_venv

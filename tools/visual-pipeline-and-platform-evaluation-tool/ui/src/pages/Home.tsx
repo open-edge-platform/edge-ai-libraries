@@ -14,7 +14,7 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 
 /**
  * Calculates how many cards can fit in one row based on the container width.
- * Takes into account the grid's auto-fit behavior with minmax(300px, 1fr) and accounts
+ * Takes into account the grid's auto-fit behavior with minmax(18.75rem, 1fr) and accounts
  * for the "Create" card. Uses ResizeObserver to recalculate on container resize.
  */
 const useVisibleCardsCount = (
@@ -116,12 +116,12 @@ export const Home = () => {
         <h1 className="font-medium text-2xl mt-4">Learning and support</h1>
 
         <div className="flex gap-3">
-          <BookOpen className="w-6 h-6 text-classic-blue dark:text-energy-blue shrink-0" />
+          <BookOpen className="w-6 h-6 text-brand-accent shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
+            href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/get-started.html"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-classic-blue dark:hover:text-energy-blue transition-colors"
+            className="hover:text-brand-accent transition-colors"
           >
             <h3 className="font-semibold text-base mb-1">Getting Started</h3>
             <p className="text-sm text-muted-foreground">
@@ -131,12 +131,12 @@ export const Home = () => {
         </div>
 
         <div className="flex gap-3">
-          <Sparkles className="w-6 h-6 text-classic-blue dark:text-energy-blue shrink-0" />
+          <Sparkles className="w-6 h-6 text-brand-accent shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
+            href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/release-notes.html"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-classic-blue dark:hover:text-energy-blue transition-colors"
+            className="hover:text-brand-accent transition-colors"
           >
             <h3 className="font-semibold text-base mb-1">What's new?</h3>
             <p className="text-sm text-muted-foreground">
@@ -146,12 +146,12 @@ export const Home = () => {
         </div>
 
         <div className="flex gap-3">
-          <Code className="w-6 h-6 text-classic-blue dark:text-energy-blue shrink-0" />
+          <Code className="w-6 h-6 text-brand-accent shrink-0" />
           <a
-            href="/api/v1/redoc"
+            href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/api-reference.html"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-classic-blue dark:hover:text-energy-blue transition-colors"
+            className="hover:text-brand-accent transition-colors"
           >
             <h3 className="font-semibold text-base mb-1">REST API</h3>
             <p className="text-sm text-muted-foreground">

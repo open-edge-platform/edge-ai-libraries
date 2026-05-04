@@ -1,6 +1,6 @@
 import type { MessageResponse } from "@/api/api.generated";
 import type { AsyncJobStatus } from "@/hooks/useAsyncJob";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { formatErrorMessage } from "@/lib/utils.ts";
 
 type RTKQueryError = {
