@@ -6,7 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.tsx";
-import { useAppSelector } from "@/store/hooks";
+import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
 import {
@@ -14,7 +14,11 @@ import {
   type PreUploadMessage as PRE_UPLOAD_MESSAGES_TYPE,
 } from "@/features/upload/uploaderMessages";
 import { ENDPOINTS } from "@/api/apiEndpoints";
+import { api } from "@/api/api.generated.ts";
 import JSZip from "jszip";
+import { useEffect, useCallback } from "react";
+import { toast } from "sonner";
+import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 
 const REQUIRED_MODEL_FILES = ["model.bin", "model.xml"];
 
@@ -42,6 +46,40 @@ const validateModelArchive = async (
 
 export const Models = () => {
   const models = useAppSelector(selectModels);
+  const dispatch = useAppDispatch();
+  const { registerJobGroup, unregisterJobGroup, updateJobs } =
+    useBackgroundJobs();
+
+  useEffect(() => {
+    registerJobGroup("models", "Model Uploads", ["/models"]);
+    return () => {
+      unregisterJobGroup("models");
+    };
+  }, [registerJobGroup, unregisterJobGroup]);
+
+  const handleUploadProgress = useCallback(
+    (jobs: Array<{ id: string; name: string; progress: number }>) => {
+      updateJobs("models", jobs);
+    },
+    [updateJobs],
+  );
+
+  const handleUploadComplete = useCallback(
+    (succeeded: number, failed: number) => {
+      if (failed === 0 && succeeded > 0) {
+        dispatch(api.util.invalidateTags(["models"]));
+        toast.success("Upload completed.");
+      } else if (succeeded > 0 && failed > 0) {
+        toast.warning(
+          `${succeeded} file(s) uploaded successfully. ${failed} failed.`,
+        );
+        dispatch(api.util.invalidateTags(["models"]));
+      } else if (failed > 0) {
+        toast.error(`Upload failed for ${failed} file(s).`);
+      }
+    },
+    [dispatch],
+  );
 
   if (models.length > 0) {
     return (
@@ -58,6 +96,8 @@ export const Models = () => {
           uploadEndpoint={ENDPOINTS.UPLOAD_MODEL}
           multiple={false}
           preUpload={validateModelArchive}
+          onUploadProgress={handleUploadProgress}
+          onUploadComplete={handleUploadComplete}
           formFields={[
             {
               name: "model_name",
