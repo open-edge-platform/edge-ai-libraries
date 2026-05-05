@@ -60,7 +60,7 @@ export const Models = () => {
           preUpload={validateModelArchive}
           formFields={[
             {
-              name: "name",
+              name: "model_name",
               label: "Model name",
               placeholder: "Enter model name",
               required: true,
