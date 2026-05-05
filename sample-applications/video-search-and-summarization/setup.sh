@@ -29,11 +29,11 @@ elif [ "$#" -eq 2 ] && [ "$1" = "config" ]; then  # `config [mode]` gets aliased
     set -- "$2" "config"
 elif [ "$#" -eq 3 ] && [ "$1" = "config" ]; then  # `[config arg1 arg2]` gets aliased to `[arg1 arg2 config]` (older impl.)
     set -- "$2" "$3" "config"
-elif [ "$#" -eq 0 ]; then
+elif [ "$#" -eq 1 ] && [ "$1" = "-h" ]; then 
     set -- "--help"
 fi
 
-# Alias `--search --summary` and `--summary --search` to `--dual` for simplicity, with optional `config` arg.
+# Alias `--search --summary` and `--summary --search` to `--dual`, with optional `config` arg.
 if [ "$#" -ge 2 ] && ([ "$1" = "--search" ] && [ "$2" = "--summary" ]) \
     || ([ "$1" = "--summary" ] && [ "$2" = "--search" ]); then
     if [ "$3" = "config" ]; then
@@ -41,7 +41,7 @@ if [ "$#" -ge 2 ] && ([ "$1" = "--search" ] && [ "$2" = "--summary" ]) \
     elif [ "$#" -eq 2 ]; then
         set -- "--dual"
     fi
-# Alias `--summary-and-search` to `--unified` for simplicity, with optional `config` arg.
+# Alias `--summary-and-search` to `--unified`, with optional `config` arg.
 elif [ "$#" -ge 1 ] && { [ "$1" = "--summary-and-search" ] || [ "$1" = "--all" ] || [ "$1" = "--search-and-summary" ]; }; then
     if [ "$#" -eq 2 ] && [ "$2" = "config" ]; then
         set -- "--unified" "config"
@@ -66,7 +66,7 @@ stop_containers() {
         --profile singleton_search_ui \
         down
     if [ $? -ne 0 ]; then
-        echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
+        echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}" >&2
         return 1
     fi
     echo -e "${GREEN}All containers were successfully stopped and removed. ${NC}"
@@ -84,32 +84,48 @@ remove_volumes() {
     return 0
 }
 
-# =================== Argument Parsing and Handling =========================
-if [ "$#" -gt 2 ]; then
-    echo -e "${RED}ERROR: Too many arguments provided.${NC}"
-    echo -e "${YELLOW}Use --help for usage information${NC}"
-    return 1
-fi
+show_concise_help() {
+    echo -e "Video Search and Summarization Application setup script v1.0"
+    echo -e "Copyright (C) 2026 Intel Corporation"
+    echo -e "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}--summary [--search] | --search [--summary] | --search-and-summary | --stop | --clean-data | config ${NC}"
+    echo -e "${YELLOW}EXAMPLES:"
+    echo -e "${GRAY}source setup.sh --summary"
+    echo -e "source setup.sh --search"
+    echo -e "source setup.sh --summary --search${NC}"
+    echo -e  "${MAGENTA}Use ${YELLOW}--help${NC}${MAGENTA} for detailed usage information and options.${NC}"
+}
 
-if [ "$#" -eq 1 ] && [ "$1" = "--help" ]; then
+show_full_help() {
     echo -e  "-----------------------------------------------------------------"
-    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[config ${GREEN}[--summary [--search] | --search [--summary] | --search-and-summary]${BLUE} | --summary | --search |"
-    echo -e  "       --search-and-summary | --setenv | --down | --stop | --clean-data | --help]"
+    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[ --summary [--search] [config] | --search [--summary] [config] | --search-and-summary [config] |"
+    echo -e  "                         --stop | --clean-data | --set-env | --help ]"
     echo -e  "${YELLOW}"
-    echo -e  "         (no args), --help:  Shows this help message."
+    echo -e  "                -h, --help:  Shows this help message."
     echo -e  "                 --summary:  Deploy Video Summary Application."
-    echo -e  "                             ${GRAY}Combine with --search to deploy both summary and search applications together.${NC}"
+    echo -e  "                             ${GRAY}Use with ${GREEN}--search${GRAY} option to deploy both summary and search applications together.${NC}"
     echo -e "${YELLOW}                  --search:  Deploy Video Search Application."
-    echo -e  "                             ${GRAY}Combine with --summary to deploy both search and summary applications together.${NC}"
+    echo -e  "                             ${GRAY}Use with ${GREEN}--summary${GRAY} option to deploy both search and summary applications together.${NC}"
     echo -e  "${YELLOW}      --summary-and-search:  Deploy a modified Video Search application which does video summarization first and searches on summary content."
     echo -e  "                  --setenv:  Set environment variables without setting up application or starting any containers."
     echo -e  "            --down, --stop:  Bring down all the docker containers for the application."
     echo -e  "              --clean-data:  Bring down all the docker containers and remove all docker volumes for the user data."
-    echo -e  "             config [Mode]:  Print the final compose configuration with all variables resolved without"
-    echo -e  "                             starting containers. Mode defaults to --summary --search when omitted."
-    echo -e  "                             Supported forms: config, config --summary [--search], config --search [--summary], config --hybrid"
+    echo -e  "             [Mode] config:  Print the final compose configuration with all environment variables resolved without"
+    echo -e  "                             starting containers."
+    echo -e  "                             ${GRAY}Mode defaults to ${GREEN}--summary --search${GRAY} when omitted."
+    echo -e  "                             Supported Modes: ${GREEN}--summary [--search], --search [--summary], --summary-and-search${NC}"
     echo -e  "-----------------------------------------------------------------"
-    return 0
+}
+
+# =================== Argument Parsing and Handling =========================
+if [ "$#" -eq 0 ]; then
+    show_concise_help && return 0
+elif [ "$#" -eq 1 ] && [ "$1" = "--help" ]; then
+    show_full_help && set -- && return 0
+elif [ "$#" -gt 2 ]; then
+    echo -e "${RED}ERROR: Too many arguments provided.${NC}" >&2
+    echo -e "${YELLOW}Use --help for usage information${NC}" >&2
+    set --
+    return 1
 fi
 
 if [ "$#" -ge 1 ] \
@@ -119,23 +135,25 @@ if [ "$#" -ge 1 ] \
      && [ "$1" != "--setenv" ] && [ "$1" != "config" ] \
      && [ "$1" != "--help" ]; then
     # Default case for unrecognized first option
-    echo -e "${RED}Unknown option: $1 ${NC}"
-    echo -e "${YELLOW}Use --help for usage information${NC}"
+    echo -e "${RED}Unknown option: $1 ${NC}" >&2
+    echo -e "${YELLOW}Use --help for usage information${NC}" >&2
     set --
     return 1
 
 elif [ "$#" -eq 2 ] && [ "$1" = "config" ] \
     && [ "$2" != "--summary" ] && [ "$2" != "--search" ] \
     && [ "$2" != "--dual" ] && [ "$2" != "--unified" ]; then
-    echo -e "${RED}Invalid argument combination: '$1 $2'${NC}"
-    echo -e "${YELLOW}Valid forms: config, config --summary, config --search, config --search-and-summary${NC}"
-    echo -e "${YELLOW}Use --help for usage information${NC}"
+    echo -e "${RED}Invalid argument combination: '$1 $2'${NC}" >&2
+    echo -e "${YELLOW}Valid forms: config, config --summary, config --search, config --search-and-summary${NC}" >&2
+    echo -e "${YELLOW}Use --help for usage information${NC}" >&2
+    set --
     return 1
 
 elif [ "$#" -eq 2 ] && [ "$1" != "config" ] && [ "$2" != "config" ]; then
-    echo -e "${RED}Invalid argument combination: '$1 $2'${NC}"
-    echo -e "${YELLOW}Valid two-argument forms are '<mode> config' or 'config <mode>'${NC}"
-    echo -e "${YELLOW}Use --help for usage information${NC}"
+    echo -e "${RED}Invalid argument combination: '$1 $2'${NC}" >&2
+    echo -e "${YELLOW}Valid two-argument forms are '<mode> config' or 'config <mode>'${NC}" >&2
+    echo -e "${YELLOW}Use --help for usage information${NC}" >&2
+    set --
     return 1
 
 elif [ "$1" = "--stop" ] || [ "$1" = "--clean-data" ]; then
@@ -328,14 +346,14 @@ configure_device() {
         
         # Check if Intel GPU is available
         if ! lspci | grep -i "vga.*intel" > /dev/null 2>&1; then
-            echo -e "${RED}Warning: No Intel GPU detected. GPU mode may not work properly.${NC}"
+            echo -e "${RED}Warning: No Intel GPU detected. GPU mode may not work properly.${NC}" >&2
         else
             echo -e "${GREEN}Intel GPU detected${NC}"
         fi
         
         # Check if /dev/dri exists for GPU access
         if [[ ! -d "/dev/dri" ]]; then
-            echo -e "${RED}Warning: /dev/dri not found. GPU acceleration may not be available.${NC}"
+            echo -e "${RED}Warning: /dev/dri not found. GPU acceleration may not be available.${NC}" >&2
         else
             echo -e "${GREEN}DRI devices found for GPU acceleration${NC}"
         fi
@@ -435,70 +453,70 @@ echo -e "[video-ingestion] ${GREEN}Output directory for object detection model: 
 # Verify if required environment variables are set in current shell, only when container down or clean is not requested.
 if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] && [ "$2" != "config" ]; then
     if [ -z "$MINIO_ROOT_USER" ]; then
-        echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in your shell environment.${NC}"
+        echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in your shell environment.${NC}" >&2
         return 1
     fi
     if [ -z "$MINIO_ROOT_PASSWORD" ]; then
-        echo -e "${RED}ERROR: MINIO_ROOT_PASSWORD is not set in your shell environment.${NC}"
+        echo -e "${RED}ERROR: MINIO_ROOT_PASSWORD is not set in your shell environment.${NC}" >&2
         return 1
     fi
     if [ -z "$POSTGRES_USER" ]; then
-        echo -e "${RED}ERROR: POSTGRES_USER is not set in your shell environment.${NC}"
+        echo -e "${RED}ERROR: POSTGRES_USER is not set in your shell environment.${NC}" >&2
         return 1
     fi
     if [ -z "$POSTGRES_PASSWORD" ]; then
-        echo -e "${RED}ERROR: POSTGRES_PASSWORD is not set in your shell environment.${NC}"
+        echo -e "${RED}ERROR: POSTGRES_PASSWORD is not set in your shell environment.${NC}" >&2
         return 1
     fi
     if [ -z "$RABBITMQ_USER" ]; then
-        echo -e "${RED}ERROR: RABBITMQ_USER is not set in your shell environment.${NC}"
+        echo -e "${RED}ERROR: RABBITMQ_USER is not set in your shell environment.${NC}" >&2
         return 1
     fi
     if [ -z "$RABBITMQ_PASSWORD" ]; then
-        echo -e "${RED}ERROR: RABBITMQ_PASSWORD is not set in your shell environment.${NC}"
+        echo -e "${RED}ERROR: RABBITMQ_PASSWORD is not set in your shell environment.${NC}" >&2
         return 1
     fi
     if [ "$1" != "--search" ]; then
         if [ -z "$VLM_MODEL_NAME" ]; then
-            echo -e "${RED}ERROR: VLM_MODEL_NAME is not set in your shell environment.${NC}"
-            echo -e "${YELLOW}This is required for all modes except --search.${NC}"
+            echo -e "${RED}ERROR: VLM_MODEL_NAME is not set in your shell environment.${NC}" >&2
+            echo -e "${YELLOW}This is required for all modes except --search.${NC}" >&2
             return 1
         fi
         if [ -z "$ENABLED_WHISPER_MODELS" ]; then
-            echo -e "${RED}ERROR: ENABLED_WHISPER_MODELS is not set in your shell environment.${NC}"
-            echo -e "${YELLOW}This is required for all modes except --search.${NC}"
+            echo -e "${RED}ERROR: ENABLED_WHISPER_MODELS is not set in your shell environment.${NC}" >&2
+            echo -e "${YELLOW}This is required for all modes except --search.${NC}" >&2
             return 1
         fi
         if [ -z "$OD_MODEL_NAME" ]; then
-            echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}"
-            echo -e "${YELLOW}This is required for all modes except --search.${NC}"
+            echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}" >&2
+            echo -e "${YELLOW}This is required for all modes except --search.${NC}" >&2
             return 1
         fi
         if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
             if [ -z "$OVMS_LLM_MODEL_NAME" ]; then
-                echo -e "${RED}ERROR: OVMS_LLM_MODEL_NAME is not set in your shell environment.${NC}"
-                echo -e "${YELLOW}This is required for all modes except --search.${NC}"
+                echo -e "${RED}ERROR: OVMS_LLM_MODEL_NAME is not set in your shell environment.${NC}" >&2
+                echo -e "${YELLOW}This is required for all modes except --search.${NC}" >&2
                 return 1
             fi
         fi
     fi
     if { [ "$1" = "--search" ] || [ "$1" = "--dual" ]; } && [ -z "$MULTIMODAL_EMBEDDING_MODEL" ]; then
-        echo -e "${RED}ERROR: MULTIMODAL_EMBEDDING_MODEL is not set in your shell environment.${NC}"
-        echo -e "${YELLOW}This is required for both SDK and API embedding modes for Video Search.${NC}"
+        echo -e "${RED}ERROR: MULTIMODAL_EMBEDDING_MODEL is not set in your shell environment.${NC}" >&2
+        echo -e "${YELLOW}This is required for both SDK and API embedding modes for Video Search.${NC}" >&2
         return 1
     fi
     
     # Validate embedding processing mode
     if [[ "$EMBEDDING_PROCESSING_MODE" != "api" && "$EMBEDDING_PROCESSING_MODE" != "sdk" ]]; then
-        echo -e "${RED}Invalid EMBEDDING_PROCESSING_MODE: $EMBEDDING_PROCESSING_MODE${NC}"
-        echo -e "${YELLOW}Valid options are: 'api' or 'sdk'${NC}"
+        echo -e "${RED}Invalid EMBEDDING_PROCESSING_MODE: $EMBEDDING_PROCESSING_MODE${NC}" >&2
+        echo -e "${YELLOW}Valid options are: 'api' or 'sdk'${NC}" >&2
         return 1
     fi
 
     # Enforce dedicated text-embedding selection only for unified mode.
     if [ "$1" = "--unified" ] && [ -z "$TEXT_EMBEDDING_MODEL" ]; then
-        echo -e "${RED}ERROR: TEXT_EMBEDDING_MODEL is not set in your shell environment.${NC}"
-        echo -e "${YELLOW}This is required for --unified/--all mode.${NC}"
+        echo -e "${RED}ERROR: TEXT_EMBEDDING_MODEL is not set in your shell environment.${NC}" >&2
+        echo -e "${YELLOW}This is required for --unified/--all mode.${NC}" >&2
         return 1
     fi
     
@@ -560,7 +578,7 @@ convert_object_detection_models() {
     echo -e  "Converting object detection model: ${OD_MODEL_NAME} (${OD_MODEL_TYPE})..."
     python3 video-ingestion/resources/scripts/converter.py --model-name "${OD_MODEL_NAME}" --model-type "${OD_MODEL_TYPE}" --output-dir "${OD_MODEL_OUTPUT_DIR}"
     if [ $? -ne 0 ]; then
-        echo -e "${RED}ERROR: Model conversion failed for ${OD_MODEL_NAME}.${NC}"
+        echo -e "${RED}ERROR: Model conversion failed for ${OD_MODEL_NAME}.${NC}" >&2
     else
         echo -e "${GREEN}Model conversion succeeded for ${OD_MODEL_NAME}.${NC}"
         echo -e  "${BLUE}Object detection model ${OD_MODEL_NAME} has been successfully converted and saved to ${OD_MODEL_OUTPUT_DIR}${NC}"
@@ -709,7 +727,7 @@ export_model_for_ovms() {
     local storage_model_name
 
     if [ -z "$source_model" ]; then
-        echo -e "${RED}ERROR: Missing source model for OVMS export.${NC}"
+        echo -e "${RED}ERROR: Missing source model for OVMS export.${NC}" >&2
         return 1
     fi
 
@@ -752,7 +770,7 @@ export_model_for_ovms() {
             # Lightweight dependencies: huggingface_hub (<0.27 for huggingface-cli support) and jinja2 (for graph.pbtxt)
             # Note: huggingface_hub 0.27+ deprecated huggingface-cli in favor of 'hf' command
             if ! pip install --no-cache-dir 'huggingface_hub<0.27' jinja2; then
-                echo -e "${RED}ERROR: Failed to install minimal dependencies for OpenVINO model.${NC}"
+                echo -e "${RED}ERROR: Failed to install minimal dependencies for OpenVINO model.${NC}" >&2
                 deactivate
                 rm -rf ovms_venv
                 exit 1
@@ -764,7 +782,7 @@ export_model_for_ovms() {
             tmp_requirements=$(mktemp)
 
             if ! curl -fsSL "$ovms_requirements_url" -o "$tmp_requirements"; then
-                echo -e "${RED}ERROR: Failed to download OVMS requirements from ${ovms_requirements_url}.${NC}"
+                echo -e "${RED}ERROR: Failed to download OVMS requirements from ${ovms_requirements_url}.${NC}" >&2
                 rm -f "$tmp_requirements"
                 deactivate
                 rm -rf ovms_venv
@@ -772,7 +790,7 @@ export_model_for_ovms() {
             fi
 
             if ! pip install --no-cache-dir -r "$tmp_requirements"; then
-                echo -e "${RED}ERROR: Failed to install OVMS requirements.${NC}"
+                echo -e "${RED}ERROR: Failed to install OVMS requirements.${NC}" >&2
                 rm -f "$tmp_requirements"
                 deactivate
                 rm -rf ovms_venv
@@ -801,7 +819,7 @@ export_model_for_ovms() {
             --target_device "$target_device" \
             --cache_size "$cache_size" \
             "${extra_args[@]}"; then
-            echo -e "${RED}ERROR: Failed to export the model '${source_model}' for OVMS.${NC}"
+            echo -e "${RED}ERROR: Failed to export the model '${source_model}' for OVMS.${NC}" >&2
             deactivate
             rm -rf ovms_venv
             exit 1
@@ -1095,7 +1113,7 @@ else
     echo -e  "No valid setup command provided. Please run with --help option to see available commands."
 fi
 if [ $? -ne 0 ]; then
-    echo -e "\n${RED}Failed: Some error occured while setting up one or more containers.${NC}"
+    echo -e "\n${RED}Failed: Some error occured while setting up one or more containers.${NC}" >&2
     return 1
 fi
 if [ "$2" !=  "config" ]; then
