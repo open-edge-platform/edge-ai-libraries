@@ -23,6 +23,7 @@ services:
             SEARCH_DATAPREP_ENDPOINT: ${VDMS_DATAPREP_ENDPOINT}
             SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_OFF}
             SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_ON}
+            SEARCH_DATAPREP_TIMEOUT_MS: ${SEARCH_DATAPREP_TIMEOUT_MS:-600000}
 
     video-search:
         image: ${REGISTRY:-}video-search:${TAG:-latest}
@@ -145,6 +146,11 @@ services:
             ALLOW_ORIGINS: ${ALLOW_ORIGINS:-*}
             ALLOW_METHODS: ${ALLOW_METHODS:-*}
             ALLOW_HEADERS: ${ALLOW_HEADERS:-*}
+        ulimits:
+            nofile:
+                soft: 32768
+                hard: 65535
+        ipc: host
         ports:
             - '${VDMS_DATAPREP_HOST_PORT}:8000'
         depends_on:

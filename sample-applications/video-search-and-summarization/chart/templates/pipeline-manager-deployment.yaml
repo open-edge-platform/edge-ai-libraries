@@ -215,6 +215,8 @@ spec:
               value: "http://{{ .Values.videosearch.name }}:{{ .Values.videosearch.service.port }}"
             - name: SEARCH_DATAPREP_ENDPOINT
               value: "http://{{ .Values.vdmsdataprep.name }}:{{ .Values.vdmsdataprep.service.port }}"
+            - name: SEARCH_DATAPREP_TIMEOUT_MS
+              value: "{{ .Values.pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS }}"
             {{- end }}
             - name: USE_VLLM
               value: "{{ .Values.pipelinemanager.env.USE_VLLM }}"

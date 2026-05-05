@@ -158,6 +158,40 @@ scipy = ["scipy"]
 test = ["pytest", "pytest-cov", "pytest-xdist"]
 
 [[package]]
+name = "av"
+version = "17.0.0"
+description = "Pythonic bindings for FFmpeg's libraries."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "av-17.0.0-cp310-cp310-macosx_11_0_x86_64.whl", hash = "sha256:4b21bcff4144acae658c0efb011fa8668c7a9638384f3ae7f5add33f35b907c6"},
+    {file = "av-17.0.0-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:17cd518fc88dc449ce9dcfd0b40e9b3530266927375a743efc80d510adfb188b"},
+    {file = "av-17.0.0-cp310-cp310-manylinux_2_28_aarch64.whl", hash = "sha256:9a8b7b63a92d8dc7cbe5000546e4684176124ddd49fdd9c12570e3aa6dadf11a"},
+    {file = "av-17.0.0-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:8706ce9b5d8d087d093b46a9781e7532c4a9e13874bca1da468be78efc56cecc"},
+    {file = "av-17.0.0-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:3a074835ce807434451086993fedfb3b223dacedb2119ab9d7a72480f2d77f32"},
+    {file = "av-17.0.0-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:f8ef8e8f1a0cbb2e0ad49266015e2277801a916e2186ac9451b493ff6dfdec27"},
+    {file = "av-17.0.0-cp310-cp310-win_amd64.whl", hash = "sha256:a795e153ff31a6430e974b4e6ad0d0fab695b78e3f17812293a0a34cd03ee6a9"},
+    {file = "av-17.0.0-cp311-abi3-macosx_11_0_x86_64.whl", hash = "sha256:ed4013fac77c309a4a68141dcf6148f1821bb1073a36d4289379762a6372f711"},
+    {file = "av-17.0.0-cp311-abi3-macosx_14_0_arm64.whl", hash = "sha256:e44b6c83e9f3be9f79ee87d0b77a27cea9a9cd67bd630362c86b7e56a748dfbb"},
+    {file = "av-17.0.0-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:b440da6ac47da0629d509316f24bcd858f33158dbdd0f1b7293d71e99beb26de"},
+    {file = "av-17.0.0-cp311-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:1060cba85f97f4a337311169d92c0b5e143452cfa5ca0e65fa499d7955e8592e"},
+    {file = "av-17.0.0-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:deda202e6021cfc7ba3e816897760ec5431309d59a4da1f75df3c0e9413d71e7"},
+    {file = "av-17.0.0-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:ffaf266a1a9c2148072de0a4b5ae98061465178d2cfaa69ee089761149342974"},
+    {file = "av-17.0.0-cp311-abi3-win_amd64.whl", hash = "sha256:45a35a40b2875bf2f98de7c952d74d960f92f319734e6d28e03b4c62a49e6f49"},
+    {file = "av-17.0.0-cp311-abi3-win_arm64.whl", hash = "sha256:3d32e9b5c5bbcb872a0b6917b352a1db8a42142237826c9b49a36d5dbd9e9c26"},
+    {file = "av-17.0.0-cp314-cp314t-macosx_11_0_x86_64.whl", hash = "sha256:d13250fb4b4522e9a6bec32da082556d5f257110ea223758151375748d9bbe25"},
+    {file = "av-17.0.0-cp314-cp314t-macosx_14_0_arm64.whl", hash = "sha256:dbb56aa3b7ae72451d1bf6e9d37c7d83d39b97af712f73583ff419fbf08fc237"},
+    {file = "av-17.0.0-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:a213ac9e83b7ab12c2e9f277a09cac8e9d85cf0883efdab7a87a60e2e4e48879"},
+    {file = "av-17.0.0-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:e15c88bb0921f9435bcc5a27a0863dba571a80ad5e1389c4fcf2073833bb4a74"},
+    {file = "av-17.0.0-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:096cfd1e9fc896506726c7c42aaf9b370e78c2f257cde4d6ddb6c889bfcc49ec"},
+    {file = "av-17.0.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:3649ab3d2c7f58049ded1a36e100c0d8fd529cf258f41dd88678ba824034d8c9"},
+    {file = "av-17.0.0-cp314-cp314t-win_amd64.whl", hash = "sha256:e5002271ab2135b551d980c2db8f3299d452e3b9d3633f24f6bb57fffe91cd10"},
+    {file = "av-17.0.0-cp314-cp314t-win_arm64.whl", hash = "sha256:dba98603fc4665b4f750de86fbaf6c0cfaece970671a9b529e0e3d1711e8367e"},
+    {file = "av-17.0.0.tar.gz", hash = "sha256:c53685df73775a8763c375c7b2d62a6cb149d992a26a4b098204da42ade8c3df"},
+]
+
+[[package]]
 name = "black"
 version = "24.10.0"
 description = "The uncompromising code formatter."
@@ -2051,16 +2085,17 @@ tests = ["pytest (>=4.6)"]
 
 [[package]]
 name = "multimodal-embedding-serving"
-version = "0.1.1"
+version = "2.0.0"
 description = "The MultiModal Embedding serving is designed to generate embeddings for text, image URLs, base64 encoded images, video URLs, and base64 encoded videos. It leverages the CLIP (Contrastive Language-Image Pretraining) model to create these embeddings."
 optional = false
 python-versions = ">=3.10,<3.14"
 groups = ["main"]
 files = [
-    {file = "multimodal_embedding_serving-0.1.1-py3-none-any.whl", hash = "sha256:312503067021611ffb146a794955e57565e4f22e9b0ae870b11572b014e1db79"},
+    {file = "multimodal_embedding_serving-2.0.0-py3-none-any.whl", hash = "sha256:d046a1e96fdac88d509489a7b59fa99a1304e9017b60245e92f3130bc2181125"},
 ]
 
 [package.dependencies]
+av = ">=17.0.0"
 cn-clip = "1.6.0"
 decord = ">=0.6.0,<0.7.0"
 einops = ">=0.8.1,<0.9.0"
@@ -2090,7 +2125,7 @@ wheel = ">=0.46.3,<0.47.0"
 
 [package.source]
 type = "file"
-url = "wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl"
+url = "wheels/multimodal_embedding_serving-2.0.0-py3-none-any.whl"
 
 [[package]]
 name = "mypy-extensions"
@@ -5129,4 +5164,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.14"
-content-hash = "eab1f1951f65d8c564ce03e6f9f28ab7b0f7088266df13642430e2846b85ffbf"
+content-hash = "2d88e235c771e0826fb41dad508e2d4a06990b729334d9bb72829f12d4f06167"

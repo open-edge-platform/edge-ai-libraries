@@ -96,6 +96,25 @@ class Settings(BaseSettings):
     DEFAULT_CLIP_DURATION: int = Field(default=-1, env="DEFAULT_CLIP_DURATION")
     DEFAULT_NUM_FRAMES: int = Field(default=64, env="DEFAULT_NUM_FRAMES")
 
+    INFER_BATCH_SIZE: int = Field(default=64, env="INFER_BATCH_SIZE")
+    PREPROCESS_WORKERS: int = Field(
+        default=min(16, (os.cpu_count() or 4) * 2),
+        env="PREPROCESS_WORKERS",
+    )
+
+    # Video frame extraction configuration
+    VIDEO_FRAME_BATCH_SIZE: int = Field(default=64, env="VIDEO_FRAME_BATCH_SIZE")
+    VIDEO_FRAME_QUEUE_SIZE: int = Field(default=32, env="VIDEO_FRAME_QUEUE_SIZE")
+    VIDEO_FRAME_DECODER_WORKERS: int = Field(default=8, env="VIDEO_FRAME_DECODER_WORKERS")
+    VIDEO_FRAME_SHM_POOL_BLOCK_SIZE: int = Field(
+        default=1920 * 1080 * 3,  # 1080p RGB frame in bytes
+        env="VIDEO_FRAME_SHM_POOL_BLOCK_SIZE",
+    )
+    VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER: int = Field(
+        default=2, env="VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER"
+    )
+    VIDEO_FRAME_LOG_LEVEL: str = Field(default="INFO", env="VIDEO_FRAME_LOG_LEVEL")
+
     @field_validator("EMBEDDING_USE_OV", mode="before")
     @classmethod
     def validate_embedding_use_ov(cls, v):
@@ -121,6 +140,95 @@ class Settings(BaseSettings):
         if v == "" or v is None:
             return 64
         return int(v)
+
+    @field_validator("INFER_BATCH_SIZE", mode="before")
+    @classmethod
+    def validate_infer_batch_size(cls, v):
+        """Handle empty or invalid infer batch size values."""
+        if v == "" or v is None:
+            return 64
+        value = int(v)
+        if value <= 0:
+            raise ValueError("INFER_BATCH_SIZE must be greater than 0")
+        return value
+
+    @field_validator("PREPROCESS_WORKERS", mode="before")
+    @classmethod
+    def validate_preprocess_workers(cls, v):
+        """Handle empty or invalid preprocess worker values."""
+        if v == "" or v is None:
+            return min(16, (os.cpu_count() or 4) * 2)
+        value = int(v)
+        if value <= 0:
+            raise ValueError("PREPROCESS_WORKERS must be greater than 0")
+        return value
+
+    @field_validator("VIDEO_FRAME_BATCH_SIZE", mode="before")
+    @classmethod
+    def validate_video_frame_batch_size(cls, v):
+        """Handle empty or invalid video frame batch size."""
+        if v == "" or v is None:
+            return 64
+        value = int(v)
+        if value <= 0:
+            raise ValueError("VIDEO_FRAME_BATCH_SIZE must be greater than 0")
+        return value
+
+    @field_validator("VIDEO_FRAME_QUEUE_SIZE", mode="before")
+    @classmethod
+    def validate_video_frame_queue_size(cls, v):
+        """Handle empty or invalid video frame queue size."""
+        if v == "" or v is None:
+            return 32
+        value = int(v)
+        if value <= 0:
+            raise ValueError("VIDEO_FRAME_QUEUE_SIZE must be greater than 0")
+        return value
+
+    @field_validator("VIDEO_FRAME_DECODER_WORKERS", mode="before")
+    @classmethod
+    def validate_video_frame_decoder_workers(cls, v):
+        """Handle empty or invalid video frame decoder workers."""
+        if v == "" or v is None:
+            return 8
+        value = int(v)
+        if value <= 0:
+            raise ValueError("VIDEO_FRAME_DECODER_WORKERS must be greater than 0")
+        return value
+
+    @field_validator("VIDEO_FRAME_SHM_POOL_BLOCK_SIZE", mode="before")
+    @classmethod
+    def validate_video_frame_shm_pool_block_size(cls, v):
+        """Handle empty or invalid shared memory block size."""
+        if v == "" or v is None:
+            return 1920 * 1080 * 3
+        value = int(v)
+        if value <= 0:
+            raise ValueError("VIDEO_FRAME_SHM_POOL_BLOCK_SIZE must be greater than 0")
+        return value
+
+    @field_validator("VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER", mode="before")
+    @classmethod
+    def validate_video_frame_shm_pool_blocks_multiplier(cls, v):
+        """Handle empty or invalid shared memory blocks multiplier."""
+        if v == "" or v is None:
+            return 2
+        value = int(v)
+        if value <= 0:
+            raise ValueError("VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER must be greater than 0")
+        return value
+
+    @field_validator("VIDEO_FRAME_LOG_LEVEL", mode="before")
+    @classmethod
+    def validate_video_frame_log_level(cls, v):
+        """Validate log level is one of the standard logging levels."""
+        if v == "" or v is None:
+            return "DEBUG"
+        valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        v_upper = str(v).upper()
+        if v_upper not in valid_levels:
+            raise ValueError(f"VIDEO_FRAME_LOG_LEVEL must be one of {valid_levels}")
+        return v_upper
 
     @field_validator("http_proxy", "https_proxy", mode="before")
     @classmethod

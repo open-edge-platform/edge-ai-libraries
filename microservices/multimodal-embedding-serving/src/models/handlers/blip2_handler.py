@@ -5,8 +5,11 @@
 BLIP-2 model handler implementation.
 """
 
+import os
 from pathlib import Path
-from typing import List, Union, Dict, Any
+import time
+from typing import List, Optional, Union, Dict, Any
+import numpy as np
 import torch
 import torch.nn.functional as F
 import types
@@ -15,10 +18,11 @@ import openvino as ov
 from PIL import Image
 
 from ..base import BaseEmbeddingModel
-from ...utils import logger
+from ...utils import logger, ParallelImagePreprocessor
 from ..utils import (
     check_and_convert_openvino_models,
     load_openvino_models,
+    AsyncBatchInference
 )
 
 
@@ -84,10 +88,15 @@ class BLIP2Handler(BaseEmbeddingModel):
         self.use_openvino = model_config.get("use_openvino", False)
         self.device = model_config.get("device", "CPU")
         self.ov_models_dir = model_config.get("ov_models_dir", "ov-models")
-        
         # OpenVINO models
         self.ov_image_encoder = None
         self.ov_text_encoder = None
+        self._embedding_dim: Optional[int] = None
+        infer_batch_size = model_config.get("infer_batch_size", os.getenv("INFER_BATCH_SIZE", 64))
+        self.preprocess_shape = (infer_batch_size, 3, self.image_size, self.image_size)  # Default shape for CLIP image encoder input
+        self._preprocess_workers = model_config.get("preprocess_workers", os.getenv("PREPROCESS_WORKERS", min(8, (os.cpu_count() or 4) * 2)))
+        self.async_infer = None
+        self.parallel_preprocessor: Optional[ParallelImagePreprocessor] = None
         
     def load_model(self) -> None:
         """Load BLIP-2 model using lavis."""
@@ -140,11 +149,22 @@ class BLIP2Handler(BaseEmbeddingModel):
             ov_models_dir=self.ov_models_dir
         )
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
-            image_encoder_path, text_encoder_path, self.device
+            image_encoder_path, text_encoder_path, self.device, self.preprocess_shape
         )
         # Always load preprocessing and tokenizer for OpenVINO inference
         model, vis_processors, _ = self._load_lavis_model_and_preprocess()
         self.preprocess = vis_processors["eval"]
+        self.parallel_preprocessor = ParallelImagePreprocessor(
+            preprocess_fn=self.preprocess,
+            max_workers=self._preprocess_workers
+        )
+        embedding_dim = int(self.ov_image_encoder.output().get_partial_shape()[-1].to_string())
+        logger.info(f"Encoder o/p dimension: {embedding_dim}")
+        self.async_infer = AsyncBatchInference(
+            compiled_model=self.ov_image_encoder,
+            embedding_dim=embedding_dim,
+            preprocess_shape=self.preprocess_shape
+        )
         self.tokenizer = lambda texts: {
             "input_ids": model.tokenizer(texts, return_tensors="pt", padding=True).input_ids,
             "attention_mask": model.tokenizer(texts, return_tensors="pt", padding=True).attention_mask
@@ -188,23 +208,36 @@ class BLIP2Handler(BaseEmbeddingModel):
         text_features = F.normalize(text_features, dim=-1)
         return text_features
     
-    def encode_image(self, images: Union[Image.Image, List[Image.Image], torch.Tensor]) -> torch.Tensor:
-        """Encode images using BLIP-2 image encoder."""
-        if isinstance(images, torch.Tensor):
-            image_tensor = images
-        elif isinstance(images, Image.Image):
-            image_tensor = self.preprocess(images).unsqueeze(0)
-        else:  # List of images
-            image_tensor = torch.stack([self.preprocess(img) for img in images])
-        
+    def encode_image(self, images: Union[Image.Image, List[Image.Image]], metrics_out: bool = False) -> Union[Dict[str, Any], np.ndarray]:
+        """Encode images using SigLIP image encoder."""
+
+        if isinstance(images, Image.Image):
+            images = [images]
+        total_images = len(images)
         if self.use_openvino and self.ov_image_encoder is not None:
             # Use OpenVINO inference with infer_new_request for thread safety
-            result = self.ov_image_encoder.infer_new_request({self.ov_image_encoder.inputs[0]: image_tensor})
-            image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
+            logger.info(f"====AsyncInferQueue====")
+            preprocess_stream = self.parallel_preprocessor.preprocess_stream(images)
+            try:
+                infer_start = time.perf_counter()
+                embeddings = self.async_infer.infer_stream(batch_generator=preprocess_stream, total_images=total_images)
+                infer_end = time.perf_counter()
+            finally:
+                preprocess_stream.close()
+                del images
+
+            logger.info(f"Inference time for batch of {total_images} images: {infer_end - infer_start:.4f} seconds")
+
+            if metrics_out:
+                return {
+                    "embeddings": embeddings,
+                    "inference_time_s": infer_end - infer_start,
+                    "processed_images": total_images
+                }
         else:
             # Use PyTorch model
             with torch.no_grad():
-                image_features = self.model.encode_image(image_tensor)
+                image_features = self.model.encode_image(torch.from_numpy(np.stack([np.array(img) for img in images])))
         
         image_features = F.normalize(image_features, dim=-1)
         return image_features

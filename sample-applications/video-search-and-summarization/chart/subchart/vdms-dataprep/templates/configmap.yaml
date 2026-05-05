@@ -61,6 +61,20 @@ data:
   DETECTION_CONFIDENCE: {{ .Values.frameProcessing.detectionConfidence | default 0.85 | quote }}
   DETECTION_MODEL_DIR: {{ .Values.frameProcessing.detectionModelDir | default "/app/models/yolox" | quote }}
   FRAMES_TEMP_DIR: {{ .Values.frameProcessing.framesTempDir | default "/tmp/dataprep" | quote }}
+  EMBEDDING_BATCH_SIZE: {{ .Values.sdkPipeline.embeddingBatchSize | default .Values.global.env.EMBEDDING_BATCH_SIZE | default 32 | quote }}
+  MAX_PARALLEL_WORKERS: {{ .Values.sdkPipeline.maxParallelWorkers | default .Values.global.env.MAX_PARALLEL_WORKERS | quote }}
+  SDK_VIDEO_SHM_MAX_BLOCKS: {{ .Values.sdkPipeline.videoShmMaxBlocks | default .Values.global.env.SDK_VIDEO_SHM_MAX_BLOCKS | default 512 | quote }}
+  SDK_VIDEO_SHM_BLOCK_SIZE: {{ .Values.sdkPipeline.videoShmBlockSize | default .Values.global.env.SDK_VIDEO_SHM_BLOCK_SIZE | default 6220800 | int | quote }}
+  SDK_VIDEO_EXTRACTION_BATCH_SIZE: {{ .Values.sdkPipeline.videoExtractionBatchSize | default .Values.global.env.SDK_VIDEO_EXTRACTION_BATCH_SIZE | default 256 | quote }}
+  SDK_PIPELINE_QUEUE_MAXSIZE: {{ .Values.sdkPipeline.pipelineQueueMaxsize | default .Values.global.env.SDK_PIPELINE_QUEUE_MAXSIZE | default 16 | quote }}
+  SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE: {{ .Values.sdkPipeline.pipelineCompletionQueueMaxsize | default .Values.global.env.SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE | default 1 | quote }}
+  SDK_DETECTION_WORKER_THREADS: {{ .Values.sdkPipeline.detectionWorkerThreads | default .Values.global.env.SDK_DETECTION_WORKER_THREADS | default 2 | quote }}
+  SDK_EMBED_WORKER_THREADS: {{ .Values.sdkPipeline.embedWorkerThreads | default .Values.global.env.SDK_EMBED_WORKER_THREADS | default 2 | quote }}
+  SDK_PIPELINE_QUEUE_GET_TIMEOUT_S: {{ .Values.sdkPipeline.pipelineQueueGetTimeoutS | default .Values.global.env.SDK_PIPELINE_QUEUE_GET_TIMEOUT_S | default 1.0 | quote }}
+  SAVE_RUNTIME_PIPELINE_STATS: {{ .Values.sdkPipeline.saveRuntimePipelineStats | default .Values.global.env.SAVE_RUNTIME_PIPELINE_STATS | default false | quote }}
+  SDK_ENABLE_TRACING: {{ .Values.sdkPipeline.enableTracing | default .Values.global.env.SDK_ENABLE_TRACING | default false | quote }}
+  VIDEO_FRAME_DECODER_WORKERS: {{ .Values.sdkPipeline.videoFrameDecoderWorkers | default .Values.global.env.VIDEO_FRAME_DECODER_WORKERS | default 2 | quote }}
+  VIDEO_FRAME_LOG_LEVEL: {{ .Values.sdkPipeline.videoFrameLogLevel | default .Values.global.env.VIDEO_FRAME_LOG_LEVEL | default "INFO" | quote }}
   HF_HOME: "/home/appuser/.cache/huggingface"
   TRANSFORMERS_CACHE: "/home/appuser/.cache/huggingface"
   HUGGINGFACE_HUB_CACHE: "/home/appuser/.cache/huggingface"

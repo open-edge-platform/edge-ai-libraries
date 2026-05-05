@@ -1,8 +1,8 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 services:
     minio-server:
-        image: chainguard/minio@sha256:cb84dfa704c648c4b14858aa288576bb1cf756a9b326112a0934db00e87d0bb8
+        image: coollabsio/minio:RELEASE.2025-10-15T17-29-55Z
         environment:
             - MINIO_ROOT_USER=${MINIO_ROOT_USER}
             - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
@@ -17,7 +17,7 @@ services:
             --console-address ":9001"
 
     vdms-vector-db:
-        image: intellabs/vdms:v2.10.0
+        image: intellabs/vdms:v2.12.0
         environment:
             - OVERRIDE_db_root_path=/db
             - OVERRIDE_images_path=/db/images
@@ -30,69 +30,71 @@ services:
             - minio-server
 
     vdms-dataprep:
+        hostname: vdms-dataprep
         build:
             context: ..
             dockerfile: docker/Dockerfile
             target: prod
         image: ${REGISTRY}vdms-dataprep:${TAG:-latest}
         environment:
-            - http_proxy
-            - https_proxy
-            - no_proxy
-            # Basic app settings
-            - APP_HOST=vdms-dataprep # Same as service name. Helps store a URL for video download in metadata.
-
-            # VDMS Vector Database settings
-            - VDMS_VDB_HOST
-            - VDMS_VDB_PORT=55555
-
-            # MinIO settings
-            - MINIO_ENDPOINT=${MINIO_HOST}:9000
-            - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
-            - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
-            - MINIO_SECURE=false
-            - DEFAULT_BUCKET_NAME
-
-            # Database settings
-            - DB_COLLECTION=${INDEX_NAME}
-
-            # Embedding service settings
-            - MULTIMODAL_EMBEDDING_ENDPOINT
-            - MULTIMODAL_EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME:-} # Used for both SDK and API modes
-            - OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-LATENCY}
-
-            # Embedding processing mode settings (SDK vs API)
-            - EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-sdk}
-            - SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
-            - VDMS_DATAPREP_DEVICE=${VDMS_DATAPREP_DEVICE:-CPU}
-            - OV_MODELS_DIR=${OV_MODELS_DIR:-/app/ov_models}
-            - EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
-            - MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-}
-
-            # Frame processing settings
-            - FRAME_INTERVAL=${FRAME_INTERVAL:-15}
-            - ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
-            - DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.85}
-            - FRAMES_TEMP_DIR=${FRAMES_TEMP_DIR:-/tmp/vdms_frames}
-
-            # Object detection model directory
-            - DETECTION_MODEL_DIR=${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
-
-            # ROI consolidation settings
-            - ROI_CONSOLIDATION_ENABLED=${ROI_CONSOLIDATION_ENABLED:-false}
-            - ROI_CONSOLIDATION_IOU_THRESHOLD=${ROI_CONSOLIDATION_IOU_THRESHOLD:-0.2}
-            - ROI_CONSOLIDATION_CLASS_AWARE=${ROI_CONSOLIDATION_CLASS_AWARE:-false}
-            - ROI_CONSOLIDATION_CONTEXT_SCALE=${ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
-
-            # Application configuration
-            - LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
-
-            # CORS settings
-            - ALLOW_ORIGINS=${ALLOW_ORIGINS:-*}
-            - ALLOW_METHODS=${ALLOW_METHODS:-*}
-            - ALLOW_HEADERS=${ALLOW_HEADERS:-*}
+            no_proxy: ${no_proxy},${VDMS_VDB_HOST},${MULTIMODAL_EMBEDDING_HOST},${MINIO_HOST},localhost
+            http_proxy: ${http_proxy}
+            https_proxy: ${https_proxy}
+            APP_HOST: vdms-dataprep
+            VDMS_VDB_HOST: ${VDMS_VDB_HOST}
+            VDMS_VDB_PORT: 55555
+            MINIO_ENDPOINT: ${MINIO_HOST}:${MINIO_API_HOST_PORT:-4001}
+            MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+            MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+            MINIO_SECURE: false
+            DEFAULT_BUCKET_NAME: ${DEFAULT_BUCKET_NAME}
+            DB_COLLECTION: ${VS_INDEX_NAME}
+            MULTIMODAL_EMBEDDING_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT}
+            MULTIMODAL_EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
+            EMBEDDING_PROCESSING_MODE: ${EMBEDDING_PROCESSING_MODE:-sdk}
+            SDK_USE_OPENVINO: ${SDK_USE_OPENVINO:-true}
+            VDMS_DATAPREP_DEVICE: ${VDMS_DATAPREP_DEVICE:-CPU}
+            OV_MODELS_DIR: ${OV_MODELS_DIR:-/app/ov_models}
+            OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
+            EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
+            MAX_PARALLEL_WORKERS: ${MAX_PARALLEL_WORKERS:-}
+            SDK_VIDEO_SHM_MAX_BLOCKS: ${SDK_VIDEO_SHM_MAX_BLOCKS:-512}
+            SDK_VIDEO_SHM_BLOCK_SIZE: ${SDK_VIDEO_SHM_BLOCK_SIZE:-6220800}
+            SDK_VIDEO_EXTRACTION_BATCH_SIZE: ${SDK_VIDEO_EXTRACTION_BATCH_SIZE:-256}
+            SDK_PIPELINE_QUEUE_MAXSIZE: ${SDK_PIPELINE_QUEUE_MAXSIZE:-16}
+            SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE: ${SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE:-1}
+            SDK_DETECTION_WORKER_THREADS: ${SDK_DETECTION_WORKER_THREADS:-2}
+            SDK_EMBED_WORKER_THREADS: ${SDK_EMBED_WORKER_THREADS:-2}
+            SDK_PIPELINE_QUEUE_GET_TIMEOUT_S: ${SDK_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
+            SAVE_RUNTIME_PIPELINE_STATS: ${SAVE_RUNTIME_PIPELINE_STATS:-false}
+            SDK_ENABLE_TRACING: ${SDK_ENABLE_TRACING:-false}
+            VIDEO_FRAME_DECODER_WORKERS: ${VIDEO_FRAME_DECODER_WORKERS:-2}
+            VIDEO_FRAME_LOG_LEVEL: ${VIDEO_FRAME_LOG_LEVEL:-INFO}
+            FRAME_INTERVAL: ${FRAME_INTERVAL:-15}
+            ENABLE_OBJECT_DETECTION: ${ENABLE_OBJECT_DETECTION:-true}
+            DETECTION_CONFIDENCE: ${DETECTION_CONFIDENCE:-0.85}
+            ROI_CONSOLIDATION_ENABLED: ${ROI_CONSOLIDATION_ENABLED:-false}
+            ROI_CONSOLIDATION_IOU_THRESHOLD: ${ROI_CONSOLIDATION_IOU_THRESHOLD:-0.2}
+            ROI_CONSOLIDATION_CLASS_AWARE: ${ROI_CONSOLIDATION_CLASS_AWARE:-false}
+            ROI_CONSOLIDATION_CONTEXT_SCALE: ${ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
+            FRAMES_TEMP_DIR: ${FRAMES_TEMP_DIR:-/tmp/dataprep}
+            DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH}
+            LOG_LEVEL: ${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+            ALLOW_ORIGINS: ${ALLOW_ORIGINS:-*}
+            ALLOW_METHODS: ${ALLOW_METHODS:-*}
+            ALLOW_HEADERS: ${ALLOW_HEADERS:-*}
         ports:
-            - '${VDMS_DATAPREP_HOST_PORT:-6007}:8000'
+            - "${VDMS_DATAPREP_HOST_PORT}:8000"
+        healthcheck:
+            test:
+                [
+                "CMD-SHELL",
+                "curl -f http://localhost:8000/v1/dataprep/health || exit 1",
+                ]
+            interval: 10s
+            timeout: 10s
+            retries: 40
+            start_period: 5s
         volumes:
             - '${YOLOX_MODELS_VOLUME_NAME:-vdms-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
             - data-prep:/tmp/dataprep
@@ -100,6 +102,15 @@ services:
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
         devices:
             - /dev/dri:/dev/dri # Intel GPU device access for OpenVINO GPU acceleration
+        ulimits:
+            nofile:
+                soft: 32768
+                hard: 65535
+        ipc: host
+        group_add:
+            - ${USER_GROUP_ID:-1000}
+            - ${VIDEO_GROUP_ID:-44}
+            - ${RENDER_GROUP_ID:-1002}
         depends_on:
             - minio-server
 
