@@ -101,6 +101,8 @@ spec:
               value: {{ .Values.videosearch.env.AGGREGATION_INITIAL_K | quote }}
             - name: AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS
               value: {{ .Values.videosearch.env.AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS | quote }}
+            - name: SEARCH_DATAPREP_TIMEOUT_MS
+              value: {{ .Values.videosearch.env.SEARCH_DATAPREP_TIMEOUT_MS | quote }}
             - name: AGGREGATION_QUAL_MAX_WEIGHT
               value: {{ .Values.videosearch.env.AGGREGATION_QUAL_MAX_WEIGHT | quote }}
             - name: AGGREGATION_QUAL_TOP_WEIGHT
