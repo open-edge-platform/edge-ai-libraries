@@ -2337,3 +2337,168 @@ class CameraAuthResponse(BaseModel):
         ...,
         description="Camera object with populated ONVIF profiles after successful authentication.",
     )
+
+
+# # Server/Machine Management Schemas
+
+
+class ServerCreate(BaseModel):
+    """
+    **Request model for creating a new server/machine record.**
+
+    ## Attributes
+    - `uuid` - Unique identifier for the server
+    - `ip_address` - IP address of the server
+    - `cpu_sku` - CPU SKU/model identifier
+    - `ram_size` - RAM size in GB
+    - `kernel_version` - Ubuntu kernel version
+
+    ### Example
+    ```json
+    {
+      "uuid": "550e8400-e29b-41d4-a716-446655440000",
+      "ip_address": "192.168.1.100",
+      "cpu_sku": "Intel Core i7-12700K",
+      "ram_size": 32,
+      "kernel_version": "5.15.0-56-generic"
+    }
+    ```
+    """
+
+    uuid: str = Field(
+        ...,
+        min_length=1,
+        description="Unique identifier for the server",
+        examples=["550e8400-e29b-41d4-a716-446655440000"],
+    )
+    ip_address: str = Field(
+        ...,
+        min_length=1,
+        description="IP address of the server",
+        examples=["192.168.1.100"],
+    )
+    cpu_sku: str = Field(
+        ...,
+        min_length=1,
+        description="CPU SKU/model identifier",
+        examples=["Intel Core i7-12700K"],
+    )
+    ram_size: int = Field(
+        ...,
+        gt=0,
+        description="RAM size in GB",
+        examples=[32],
+    )
+    kernel_version: str = Field(
+        ...,
+        min_length=1,
+        description="Ubuntu kernel version",
+        examples=["5.15.0-56-generic"],
+    )
+
+
+class ServerUpdate(BaseModel):
+    """
+    **Request model for updating server/machine details.**
+
+    All fields are optional - only provided fields will be updated.
+
+    ## Attributes
+    - `ip_address` - IP address of the server (optional)
+    - `cpu_sku` - CPU SKU/model identifier (optional)
+    - `ram_size` - RAM size in GB (optional)
+    - `kernel_version` - Ubuntu kernel version (optional)
+
+    ### Example
+    ```json
+    {
+      "ip_address": "192.168.1.101",
+      "ram_size": 64
+    }
+    ```
+    """
+
+    ip_address: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="IP address of the server",
+        examples=["192.168.1.101"],
+    )
+    cpu_sku: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="CPU SKU/model identifier",
+        examples=["Intel Core i9-12900K"],
+    )
+    ram_size: Optional[int] = Field(
+        None,
+        gt=0,
+        description="RAM size in GB",
+        examples=[64],
+    )
+    kernel_version: Optional[str] = Field(
+        None,
+        min_length=1,
+        description="Ubuntu kernel version",
+        examples=["5.19.0-50-generic"],
+    )
+
+
+class ServerResponse(BaseModel):
+    """
+    **Response model for server/machine information.**
+
+    ## Attributes
+    - `uuid` - Unique identifier for the server
+    - `ip_address` - IP address of the server
+    - `cpu_sku` - CPU SKU/model identifier
+    - `ram_size` - RAM size in GB
+    - `kernel_version` - Ubuntu kernel version
+
+    ### Example
+    ```json
+    {
+      "uuid": "550e8400-e29b-41d4-a716-446655440000",
+      "ip_address": "192.168.1.100",
+      "cpu_sku": "Intel Core i7-12700K",
+      "ram_size": 32,
+      "kernel_version": "5.15.0-56-generic"
+    }
+    ```
+    """
+
+    uuid: str
+    ip_address: str
+    cpu_sku: str
+    ram_size: int
+    kernel_version: str
+
+
+class ServerListResponse(BaseModel):
+    """
+    **Response model for listing all servers.**
+
+    ## Attributes
+    - `servers` - List of all server records
+
+    ### Example
+    ```json
+    {
+      "servers": [
+        {
+          "uuid": "550e8400-e29b-41d4-a716-446655440000",
+          "ip_address": "192.168.1.100",
+          "cpu_sku": "Intel Core i7-12700K",
+          "ram_size": 32,
+          "kernel_version": "5.15.0-56-generic"
+        }
+      ]
+    }
+    ```
+    """
+
+    servers: List[ServerResponse] = Field(
+        ...,
+        description="List of all server records",
+    )
+

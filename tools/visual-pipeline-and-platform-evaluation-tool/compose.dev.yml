@@ -5,3 +5,55 @@ services:
       - ./vippet:/home/dlstreamer/vippet
     healthcheck:
       test: ["CMD", "true"]
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./vippet
+          target: /home/dlstreamer/vippet
+          ignore:
+            - vippet/__pycache__/
+            - vippet/**/__pycache__/
+            - vippet/**/*.pyc
+            - vippet/**/*.pyo
+            - vippet/tests/
+  
+  vippet-ui:
+    develop:
+      watch:
+        - action: sync
+          path: ./ui/src
+          target: /app/src
+        - action: sync
+          path: ./ui/public
+          target: /app/public
+        - action: rebuild
+          path: ./ui/package.json
+        - action: rebuild
+          path: ./ui/package-lock.json
+  
+  onvif-discovery:
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./onvif_discovery/onvif_discovery_agent.py
+          target: /app/onvif_discovery_agent.py
+  
+  videogenerator:
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./video_generator
+          target: /usr/src/app
+          ignore:
+            - video_generator/__pycache__/
+            - video_generator/**/__pycache__/
+            - video_generator/**/*.pyc
+            - video_generator/**/*.pyo
+            - video_generator/output/
+  
+  models:
+    develop:
+      watch:
+        - action: sync
+          path: ./models/model_manager.sh
+          target: /app/model_manager.sh

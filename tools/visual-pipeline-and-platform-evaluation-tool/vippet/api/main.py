@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 
 from api.middleware import InitializationMiddleware
 from api.routes import health
+from database import init_db
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
 from managers.pipeline_manager import PipelineManager
@@ -53,6 +54,9 @@ def _initialize_in_background(app: FastAPI) -> None:
             InternalAppStatus.INITIALIZING, "Downloading videos and loading metadata..."
         )
 
+        # Initialize database - create tables if needed
+        init_db()
+
         # Initialize VideosManager - downloads videos, scans files,
         # extracts metadata, and converts to TS format
         VideosManager()
@@ -92,6 +96,7 @@ def register_routers(app: FastAPI) -> None:
         models,
         pipeline_templates,
         pipelines,
+        servers,
         tests,
         videos,
         cameras,
@@ -108,6 +113,7 @@ def register_routers(app: FastAPI) -> None:
         tags=["pipeline-templates"],
     )
     app.include_router(pipelines.router, prefix="/pipelines", tags=["pipelines"])
+    app.include_router(servers.router, prefix="/servers", tags=["servers"])
     app.include_router(tests.router, prefix="/tests", tags=["tests"])
     app.include_router(videos.router, prefix="/videos", tags=["videos"])
     app.include_router(images.router, prefix="/images", tags=["images"])

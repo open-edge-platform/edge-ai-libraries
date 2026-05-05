@@ -76,6 +76,7 @@ env-setup: ## Environment setup target: always run before build/run targets that
 	mkdir -p shared/videos/input && chmod o+w shared/videos/input
 	mkdir -p shared/videos/output && chmod o+w shared/videos/output
 	mkdir -p shared/videos/video-generator && chmod o+w shared/videos/video-generator
+	mkdir -p shared/database && chmod o+w shared/database
 	./setup_env.sh
 
 build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery)

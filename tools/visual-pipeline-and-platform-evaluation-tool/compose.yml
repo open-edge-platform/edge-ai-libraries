@@ -45,6 +45,7 @@ x-vippet: &vippet
     UPLOAD_ALLOWED_CODECS: "h264,h265"
     UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
     METADATA_DIR: /metadata
+    DB_DIR: /database
     SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
@@ -66,6 +67,7 @@ x-vippet: &vippet
     - ./shared/scripts/:/scripts
     - ./shared/onvif/:/onvif
     - ./shared/metadata/:/metadata
+    - ./shared/database/:/database
 
 services:
   vippet-ui:
