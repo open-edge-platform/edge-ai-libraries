@@ -17,7 +17,7 @@ type GVAGenAINodeProps = {
 
 const GVAGenAINode = ({ data }: GVAGenAINodeProps) => {
   const { simpleGraph } = usePipelineEditorContext();
-  const modelValue = data.model || "";
+  const modelValue = data.model ?? "";
 
   return (
     <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-teal-400 min-w-[280px]">

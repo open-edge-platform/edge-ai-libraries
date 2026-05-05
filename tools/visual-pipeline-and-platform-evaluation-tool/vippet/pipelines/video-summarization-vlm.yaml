@@ -2,7 +2,7 @@ name: Video Summarization VLM
 definition: >
   Video summarization pipeline using gvagenai with a vision-language model to generate concise scene-level summaries from sampled frames.
 tags:
-  - genAi
+  - GenAi
 thumbnail: images/video-summary.png
 variants:
   - name: CPU
