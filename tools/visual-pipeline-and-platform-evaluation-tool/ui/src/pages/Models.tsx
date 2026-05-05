@@ -37,7 +37,7 @@ const validateModelArchive = async (
     return PRE_UPLOAD_MESSAGES.INVALID_ARCHIVE;
   }
 
-  return PRE_UPLOAD_MESSAGES.FILE_EXISTS;
+  return null; //PRE_UPLOAD_MESSAGES.FILE_EXISTS;
 };
 
 export const Models = () => {
