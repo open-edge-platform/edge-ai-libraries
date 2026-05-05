@@ -19,12 +19,12 @@ import JSZip from "jszip";
 import { useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
+import { useLazyGetModelJobsQuery } from "@/api/api.model-download.generated.ts";
 
 const REQUIRED_MODEL_FILES = ["model.bin", "model.xml"];
 
 const validateModelArchive = async (
   file: File,
-  _fields: Record<string, string>,
 ): Promise<PRE_UPLOAD_MESSAGES_TYPE | null> => {
   try {
     const zip = await JSZip.loadAsync(file);
@@ -41,7 +41,7 @@ const validateModelArchive = async (
     return PRE_UPLOAD_MESSAGES.INVALID_ARCHIVE;
   }
 
-  return null; //PRE_UPLOAD_MESSAGES.FILE_EXISTS;
+  return null;
 };
 
 export const Models = () => {
@@ -56,6 +56,32 @@ export const Models = () => {
       unregisterJobGroup("models");
     };
   }, [registerJobGroup, unregisterJobGroup]);
+
+  const [getModelJobs] = useLazyGetModelJobsQuery();
+
+  const handlePreUpload = useCallback(
+    async (
+      file: File,
+      fields: Record<string, string>,
+    ): Promise<PRE_UPLOAD_MESSAGES_TYPE | null> => {
+      const archiveError = await validateModelArchive(file);
+      if (archiveError !== null) return archiveError;
+
+      const modelName = fields.model_name?.trim();
+      if (modelName) {
+        try {
+          const result = await getModelJobs({ modelName }).unwrap();
+          const exists = result.jobs?.some((job) => job.status === "completed");
+          if (exists) return PRE_UPLOAD_MESSAGES.FILE_EXISTS;
+        } catch {
+          // cannot reach server — allow upload to proceed
+        }
+      }
+
+      return null;
+    },
+    [getModelJobs],
+  );
 
   const handleUploadProgress = useCallback(
     (jobs: Array<{ id: string; name: string; progress: number }>) => {
@@ -95,7 +121,7 @@ export const Models = () => {
           accept=".zip,application/zip"
           uploadEndpoint={ENDPOINTS.UPLOAD_MODEL}
           multiple={false}
-          preUpload={validateModelArchive}
+          preUpload={handlePreUpload}
           onUploadProgress={handleUploadProgress}
           onUploadComplete={handleUploadComplete}
           formFields={[
