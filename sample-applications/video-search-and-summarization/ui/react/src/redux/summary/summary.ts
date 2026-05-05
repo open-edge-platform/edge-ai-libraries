@@ -126,6 +126,7 @@ export interface SystemConfig {
 
   audioModel?: string;
   audioUseFullTranscriptSummary?: boolean;
+  produceFinalSummary?: boolean;
 
   framePrompt: string;
   summaryMapPrompt: string;

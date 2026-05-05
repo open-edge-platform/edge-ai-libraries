@@ -138,6 +138,11 @@ services:
             ALLOW_ORIGINS: ${ALLOW_ORIGINS:-*}
             ALLOW_METHODS: ${ALLOW_METHODS:-*}
             ALLOW_HEADERS: ${ALLOW_HEADERS:-*}
+        ulimits:
+            nofile:
+                soft: 32768
+                hard: 65535
+        ipc: host
         ports:
             - '${VDMS_DATAPREP_HOST_PORT}:8000'
         depends_on:

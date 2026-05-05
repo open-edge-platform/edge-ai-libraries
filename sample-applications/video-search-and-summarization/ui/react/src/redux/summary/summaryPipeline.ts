@@ -32,6 +32,7 @@ export interface SummaryPipelineDTO {
   videoId: string;
   video?: Video;
   title: string;
+  produceFinalSummary?: boolean;
   sampling: SummaryPipelineSampling;
   evam: SummaryPipelineEvam;
   prompts?: SummaryPipelinePrompts;

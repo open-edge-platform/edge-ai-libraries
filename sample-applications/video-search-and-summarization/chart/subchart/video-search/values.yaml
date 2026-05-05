@@ -33,6 +33,7 @@ videosearch:
     AGGREGATION_QUAL_TOP_MAX_COUNT: "6"
     AGGREGATION_CONTEXT_SIGMA_SECONDS: "40.0"
     AGGREGATION_CONTEXT_BOOST_STRENGTH: "0.5"
+    SEARCH_DATAPREP_TIMEOUT_MS: "600000"
   
   containerPort: 8000  # Port on which container application listens internally
   containerPortName: vs-port  # Optional name to refer containerPort

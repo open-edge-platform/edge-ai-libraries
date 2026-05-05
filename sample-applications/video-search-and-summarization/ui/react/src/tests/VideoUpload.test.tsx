@@ -1,10 +1,11 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { I18nextProvider } from 'react-i18next';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom';
+import axios from 'axios';
 import { configureStore } from '@reduxjs/toolkit';
 import { VideoUpload, VideoUploadProps } from '../components/Drawer/VideoUpload';
 import { SummarySlice } from '../redux/summary/summarySlice';
@@ -36,12 +37,14 @@ vi.mock('@carbon/react', () => ({
       </button>
     );
   },
-  Checkbox: ({ onChange, labelText, defaultChecked, id }: any) => (
+  Checkbox: ({ onChange, labelText, defaultChecked, checked, id }: any) => (
     <input
       type="checkbox"
       data-testid={`checkbox-${id}`}
       onChange={(e) => onChange && onChange(e, { checked: e.target.checked })}
       defaultChecked={defaultChecked}
+      checked={checked}
+      readOnly={checked !== undefined && !onChange}
       aria-label={labelText}
     />
   ),
@@ -1537,6 +1540,66 @@ describe('VideoUpload Component - Additional Coverage', () => {
       }
       
       expect(selectButton).toBeInTheDocument();
+    });
+  });
+
+  describe('Produce Final Summary Checkbox', () => {
+    const mockConfig = {
+      multiFrame: 5,
+      frameOverlap: 0,
+      framePrompt: 'frame prompt',
+      summaryMapPrompt: 'map prompt',
+      summaryReducePrompt: 'reduce prompt',
+      summarySinglePrompt: 'single prompt',
+      evamPipeline: 'object_detection',
+      meta: {
+        evamPipelines: [],
+        audioModels: [],
+      },
+    };
+
+    it('should default produceFinalSummary to true from config', async () => {
+      vi.mocked(axios.get).mockResolvedValue({
+        data: { ...mockConfig, produceFinalSummary: true },
+      });
+
+      const store = createMockStore();
+      renderWithProviders(<VideoUpload {...defaultProps} />, store);
+
+      const fileInput = document.querySelector('input[type="file"]');
+      const file = new File(['test'], 'summary-test.mp4', { type: 'video/mp4' });
+
+      if (fileInput) {
+        fireEvent.change(fileInput, { target: { files: [file] } });
+      }
+
+      await waitFor(() => {
+        const checkbox = screen.getByTestId('checkbox-produceFinalSummaryCheckbox');
+        expect(checkbox).toBeInTheDocument();
+        expect(checkbox).toBeChecked();
+      });
+    });
+
+    it('should respect produceFinalSummary: false from config', async () => {
+      vi.mocked(axios.get).mockResolvedValue({
+        data: { ...mockConfig, produceFinalSummary: false },
+      });
+
+      const store = createMockStore();
+      renderWithProviders(<VideoUpload {...defaultProps} />, store);
+
+      const fileInput = document.querySelector('input[type="file"]');
+      const file = new File(['test'], 'summary-false-test.mp4', { type: 'video/mp4' });
+
+      if (fileInput) {
+        fireEvent.change(fileInput, { target: { files: [file] } });
+      }
+
+      await waitFor(() => {
+        const checkbox = screen.getByTestId('checkbox-produceFinalSummaryCheckbox');
+        expect(checkbox).toBeInTheDocument();
+        expect(checkbox).not.toBeChecked();
+      });
     });
   });
 });

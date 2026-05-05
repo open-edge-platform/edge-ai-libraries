@@ -34,6 +34,9 @@ export class AppConfigService {
     const audioUseFullTranscriptSummary = this.parseBoolean(
       this.$config.get<string>('audio.useFullTranscriptSummary'),
     );
+    const produceFinalSummary = this.parseBoolean(
+      this.$config.get<string>('summary.produceFinalSummary'),
+    );
 
     const systemConfig: SystemConfig = {
       frameOverlap: this.$config.get<number>(
@@ -42,6 +45,7 @@ export class AppConfigService {
       evamPipeline: EVAMPipelines.OBJECT_DETECTION,
       multiFrame: this.$config.get<number>('openai.vlmCaptioning.multiFrame')!,
       audioUseFullTranscriptSummary,
+      produceFinalSummary,
       framePrompt: this.$template.getTemplate(`${useCase}Frames`),
       summaryMapPrompt: this.$template.getTemplate(`${useCase}Summary`),
       summaryReducePrompt: this.$template.getTemplate(`${useCase}Reduce`),

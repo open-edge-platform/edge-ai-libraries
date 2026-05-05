@@ -114,7 +114,7 @@ class BaseEmbeddingModel(ABC):
         pass
 
     @abstractmethod
-    def encode_image(self, images: Union[Image.Image, List[Image.Image], torch.Tensor]) -> torch.Tensor:
+    def encode_image(self, images: Union[Image.Image, List[Image.Image], torch.Tensor], metrics_out: bool = False) -> Union[Dict[str, Any], torch.Tensor]:
         """
         Encode images into embeddings.
         
@@ -129,9 +129,10 @@ class BaseEmbeddingModel(ABC):
                 - Preprocessed tensor with shape [batch_size, channels, height, width]
             
         Returns:
-            Normalized image embeddings as torch.Tensor with shape:
-            - [embedding_dim] for single image
-            - [batch_size, embedding_dim] for multiple images
+            Dictionary containing normalized image embeddings with keys:
+            - "embeddings": torch.Tensor with shape:
+                - [embedding_dim] for single image
+                - [batch_size, embedding_dim] for multiple images
             
         Note:
             The implementation should handle image preprocessing if needed

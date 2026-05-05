@@ -151,7 +151,7 @@ Before running the application, you need to set several environment variables:
 
       > **Note**: Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model names.
 
-4. **Configure final summarization to use audio transcript (Summary and Dual UI mode):**
+4. **Configure summarization to use audio transcript (Summary and Dual UI mode):**
 
    Used in `--summary` and `--summary --search` mode:
 

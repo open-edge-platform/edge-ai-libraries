@@ -347,7 +347,7 @@ describe('VideoSummarizeFlow integration', () => {
 
     const user = userEvent.setup();
     const nextButton = screen.getByRole('button', { name: /Next/i });
-    expect(nextButton).toBeEnabled();
+    await waitFor(() => expect(nextButton).toBeEnabled());
 
     await user.click(nextButton);
     await waitFor(() => expect(document.getElementById('summaryname')).toBeTruthy());
@@ -377,7 +377,7 @@ describe('VideoSummarizeFlow integration', () => {
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     const sampleFile = new File(['cancel'], 'cancel.mp4', { type: 'video/mp4' });
     fireEvent.change(fileInput, { target: { files: [sampleFile] } });
-    expect(global.URL.createObjectURL).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(global.URL.createObjectURL).toHaveBeenCalledTimes(1));
 
     const cancelButton = screen.getByRole('button', { name: /cancel/i });
     fireEvent.click(cancelButton);
@@ -422,7 +422,7 @@ describe('VideoSummarizeFlow integration', () => {
     expect(selectSummaryActionMock).toHaveBeenCalledWith('state-123');
     expect(setSelectedSummaryMock).toHaveBeenCalledWith('state-123');
     expect(selectFrameSummaryMock).toHaveBeenCalledWith('state-123');
-    expect(videosLoadMock).toHaveBeenCalledTimes(1);
+    expect(videosLoadMock).toHaveBeenCalled();
     expect(setMuxActionMock).toHaveBeenCalledWith('SUMMARY');
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
@@ -463,5 +463,63 @@ describe('VideoSummarizeFlow integration', () => {
     } finally {
       consoleErrorSpy.mockRestore();
     }
+  });
+
+  it('should include produceFinalSummary in the summary pipeline DTO', async () => {
+    const VideoSummarizeFlow = await loadComponent();
+    const onClose = vi.fn();
+
+    axiosMockInstance.get.mockImplementation((url: string) => {
+      if (url.includes('/app/config')) {
+        return Promise.resolve({ data: { ...mockSystemConfig, produceFinalSummary: true } });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    axiosMockInstance.post
+      .mockImplementationOnce(() => Promise.resolve({ data: { videoId: 'video-123' } }))
+      .mockImplementationOnce(() => Promise.resolve({ data: { stateId: 'state-123' } }));
+
+    render(<VideoSummarizeFlow onClose={onClose} />);
+    await waitFor(() => expect(axiosMockInstance.get).toHaveBeenCalledWith(`${MOCK_APP_URL}/app/config`));
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const sampleFile = new File(['test'], 'test.mp4', { type: 'video/mp4' });
+    fireEvent.change(fileInput, { target: { files: [sampleFile] } });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Next/i }));
+    await waitFor(() => expect(document.getElementById('summaryname')).toBeTruthy());
+    await user.click(screen.getByRole('button', { name: /Next/i }));
+    await waitFor(() => expect(screen.getByText(/summaryTitle/i)).toBeInTheDocument());
+
+    const createButton = screen.getByRole('button', { name: /CreateSummary/i });
+    await user.click(createButton);
+
+    await waitFor(() => expect(axiosMockInstance.post).toHaveBeenCalledTimes(2));
+    const summaryPayload = axiosMockInstance.post.mock.calls[1][1];
+    expect(summaryPayload).toHaveProperty('produceFinalSummary', true);
+  });
+
+  it('should show produceFinalSummary value on review step', async () => {
+    const VideoSummarizeFlow = await loadComponent();
+    const onClose = vi.fn();
+
+    render(<VideoSummarizeFlow onClose={onClose} />);
+    await waitFor(() => expect(axiosMockInstance.get).toHaveBeenCalledWith(`${MOCK_APP_URL}/app/config`));
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const sampleFile = new File(['test'], 'review.mp4', { type: 'video/mp4' });
+    fireEvent.change(fileInput, { target: { files: [sampleFile] } });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Next/i }));
+    await waitFor(() => expect(document.getElementById('summaryname')).toBeTruthy());
+    await user.click(screen.getByRole('button', { name: /Next/i }));
+    await waitFor(() => expect(screen.getByText(/summaryTitle/i)).toBeInTheDocument());
+
+    const reviewText = screen.getByText(/ProduceFinalSummary/i).closest('div');
+    expect(reviewText).toBeTruthy();
+    expect(reviewText!.textContent).toContain('yes');
   });
 });

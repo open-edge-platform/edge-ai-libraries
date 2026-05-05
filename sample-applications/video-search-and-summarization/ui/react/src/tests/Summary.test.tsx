@@ -75,6 +75,7 @@ vi.mock('axios', () => ({
 // Mock config
 vi.mock('../config', () => ({
   APP_URL: 'http://localhost:3000',
+  ASSETS_ENDPOINT: 'http://localhost:3000/assets',
   FEATURE_SEARCH: 'ON',
   FEATURE_SUMMARY: 'ON',
   FEATURE_STATE: {
@@ -92,6 +93,8 @@ vi.mock('@carbon/react', () => ({
       {children}
     </button>
   ),
+  Modal: ({ children, open }: any) => open ? <div data-testid="modal">{children}</div> : null,
+  ModalBody: ({ children }: any) => <div data-testid="modal-body">{children}</div>,
   Tag: ({ children, type, size }: any) => (
     <span data-testid="tag" data-type={type} data-size={size}>
       {children}
@@ -102,6 +105,8 @@ vi.mock('@carbon/react', () => ({
 // Mock icons
 vi.mock('@carbon/icons-react', () => ({
   Renew: () => <span data-testid="renew-icon">↻</span>,
+  Download: () => <span data-testid="download-icon">⬇</span>,
+  Headphones: () => <span data-testid="headphones-icon">🎧</span>,
 }));
 
 // Mock child components
@@ -192,7 +197,8 @@ const createMockStore = (initialState: any = {}) => {
         ...initialState.videoChunks,
       },
       videoFrames: {
-        frames: [],
+        frames: {},
+        frameSummaries: {},
         selectedSummary: null,
         ...initialState.videoFrames,
       },
@@ -252,7 +258,7 @@ const mockSummary = {
 };
 
 describe('Summary Component', () => {
-  const renderComponent = (summaryData: any = null) => {
+  const renderComponent = (summaryData: any = null, extraState: any = {}) => {
     const storeWithData = createMockStore({
       summaries: {
         selectedSummary: summaryData ? 'test-summary-1' : null,
@@ -269,6 +275,7 @@ describe('Summary Component', () => {
           }
         ] : [],
       },
+      ...extraState,
     });
 
     let result: any;
@@ -371,6 +378,55 @@ describe('Summary Component', () => {
     it('should handle empty summary text', () => {
       const summaryWithEmptyText = { ...mockSummary, videoSummary: '' };
       expect(() => renderComponent(summaryWithEmptyText)).not.toThrow();
+    });
+  });
+
+  describe('Produce Final Summary Flag', () => {
+    it('should hide video summary status tag when produceFinalSummary is false', () => {
+      const summaryData = {
+        ...mockSummary,
+        systemConfig: { ...mockSummary.systemConfig, produceFinalSummary: false },
+        videoSummaryStatus: StateActionStatus.COMPLETE,
+        frameSummaries: {
+          'frame-1': { frameKey: 'frame-1', startFrame: 0, endFrame: 10, status: 'complete', summary: 'chunk 1 summary' },
+        },
+      };
+      renderComponent(summaryData);
+
+      const statusTags = screen.getAllByTestId('status-tag');
+      const summaryTag = statusTags.find((tag) => tag.getAttribute('data-label') === 'summaryLabel');
+      expect(summaryTag).toBeUndefined();
+
+      expect(screen.getByText('chunkSummariesHeading')).toBeInTheDocument();
+    });
+
+    it('should render chunk summaries when produceFinalSummary is false and chunks are available', () => {
+      const summaryData = {
+        ...mockSummary,
+        systemConfig: { ...mockSummary.systemConfig, produceFinalSummary: false },
+        videoSummaryStatus: StateActionStatus.COMPLETE,
+        frameSummaryStatus: { complete: 2, inProgress: 0, na: 0, ready: 0 },
+      };
+      renderComponent(summaryData, {
+        videoFrames: {
+          frames: {},
+          selectedSummary: 'test-summary-1',
+          frameSummaries: {
+            'frame-1': { frameKey: 'frame-1', stateId: 'test-summary-1', startFrame: '0', endFrame: '10', status: StateActionStatus.COMPLETE, summary: 'chunk 1 summary', frames: [] },
+            'frame-2': { frameKey: 'frame-2', stateId: 'test-summary-1', startFrame: '10', endFrame: '20', status: StateActionStatus.COMPLETE, summary: 'chunk 2 summary', frames: [] },
+          },
+        },
+      });
+
+      expect(screen.getAllByText(/chunkLabel/).length).toBeGreaterThan(0);
+    });
+
+    it('should show video summary status tag when produceFinalSummary is true (default)', () => {
+      renderComponent(mockSummary);
+
+      const statusTags = screen.getAllByTestId('status-tag');
+      const summaryTag = statusTags.find((tag) => tag.getAttribute('data-label') === 'summaryLabel');
+      expect(summaryTag).toBeDefined();
     });
   });
 });
