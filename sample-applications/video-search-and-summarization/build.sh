@@ -142,8 +142,18 @@ build_dependencies() {
     
     # Print built images
     log_info "${GREEN}Built images:${NC}"
-    echo "Retrieving Docker images related to microservice dependencies..."
-    docker images | grep -E "${REGISTRY}.*(vdms|multimodal|audio).*${TAG}"
+    local dep_images=(
+      "${REGISTRY}vdms-dataprep:${TAG}"
+      "${REGISTRY}multimodal-embedding-serving:${TAG}"
+      "${REGISTRY}audio-analyzer:${TAG}"
+    )
+    for img in "${dep_images[@]}"; do
+      if docker image inspect "$img" &> /dev/null; then
+        # Strip default docker.io/ prefix since Docker stores names without it
+        local filter_img="${img#docker.io/}"
+        docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}' "$filter_img"
+      fi
+    done
     
     return 0
   else
@@ -216,8 +226,19 @@ build_sample_app() {
     
     # Print built images
     log_info "${GREEN}Built sample application images:${NC}"
-    echo "Retrieving Docker images related to sample applications..."
-    docker images | grep -E "${REGISTRY}.*(vss-ui|video-search|pipeline-manager|video-ingestion).*$TAG"
+    local app_images=(
+      "${REGISTRY}video-ingestion:${TAG}"
+      "${REGISTRY}pipeline-manager:${TAG}"
+      "${REGISTRY}video-search:${TAG}"
+      "${REGISTRY}vss-ui:${TAG}"
+    )
+    for img in "${app_images[@]}"; do
+      if docker image inspect "$img" &> /dev/null; then
+        # Strip default docker.io/ prefix since Docker stores names without it
+        local filter_img="${img#docker.io/}"
+        docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}' "$filter_img"
+      fi
+    done
     
     return 0
   else
@@ -231,35 +252,55 @@ build_sample_app() {
 # ================================================================================
 push_images() {
   log_info "Pushing Docker images to registry..."
-  
-  # Save current directory
-  local current_dir=$(pwd)
+
+  if [ -z "$REGISTRY" ]; then
+    log_info "${YELLOW}Warning: No registry prefix set. Images will be pushed to the default Docker registry (docker.io).${NC}"
+  fi
+
   local push_success=true
 
-  # Get list of dependency images to push
-  log_info "Pushing dependency images..."
-  dependency_images=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E "${REGISTRY}.*(vdms|multimodal|vlm|audio).*${TAG}")
-  
-  # Push dependency images
-  for image in $dependency_images; do
-    log_info "Pushing $image..."
-    docker push $image || {
-      log_info "${RED}Failed to push $image${NC}";
-      push_success=false;
-    }
+  # Exact image references matching what build_dependencies and build_sample_app produce
+  local all_images=(
+    "${REGISTRY}vdms-dataprep:${TAG}"
+    "${REGISTRY}multimodal-embedding-serving:${TAG}"
+    "${REGISTRY}audio-analyzer:${TAG}"
+    "${REGISTRY}video-ingestion:${TAG}"
+    "${REGISTRY}pipeline-manager:${TAG}"
+    "${REGISTRY}video-search:${TAG}"
+    "${REGISTRY}vss-ui:${TAG}"
+  )
+
+  local pid_image_map=()
+  local push_log_dir
+  push_log_dir=$(mktemp -d)
+
+  for image in "${all_images[@]}"; do
+    if docker image inspect "$image" &> /dev/null; then
+      log_info "Pushing $image..."
+      local log_file="${push_log_dir}/${image//\//_}.log"
+      docker push "$image" &> "$log_file" &
+      pid_image_map+=("$!|$image|$log_file")
+    else
+      log_info "${YELLOW}Image $image not found locally, skipping...${NC}"
+    fi
   done
 
-  # Push sample application images
-  log_info "Pushing sample application images..."
-  app_images=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E "${REGISTRY}.*(pipeline-manager|video-search|video-ingestion|vss-ui).*${TAG}")
-  
-  for image in $app_images; do
-    log_info "Pushing $image..."
-    docker push $image || {
-      log_info "${RED}Failed to push $image${NC}";
-      push_success=false;
-    }
+  # Wait for all pushes and print per-image logs sequentially
+  for entry in "${pid_image_map[@]}"; do
+    local pid="${entry%%|*}"
+    local rest="${entry#*|}"
+    local image="${rest%%|*}"
+    local log_file="${rest#*|}"
+    if ! wait "$pid"; then
+      log_info "${RED}Failed to push $image${NC}"
+      cat "$log_file"
+      push_success=false
+    else
+      log_info "${GREEN}Successfully pushed $image${NC}"
+    fi
+    rm -f "$log_file"
   done
+  rm -rf "$push_log_dir"
 
   if [ "$push_success" = true ]; then
     log_info "${GREEN}All images pushed successfully${NC}"

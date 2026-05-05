@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "vdms-dataprep"
-version = "0.1.0"
+version = "2.0.0"
 description = "A microservice based on VDMS VectorDB for data preparation for text, video and images sources"
 authors = []
 readme = "README.md"
@@ -32,9 +32,10 @@ urllib3 = "^2.6.3"
 fonttools = "^4.61.1"
 filelock = "^3.20.3"
 orjson = "^3.11.7"
+av = "^17.0.0"
 
 # Multimodal Embedding Service as wheel dependency
-multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl"}
+multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-2.0.0-py3-none-any.whl"}
 
 [tool.poetry.group.dev]
 optional = true

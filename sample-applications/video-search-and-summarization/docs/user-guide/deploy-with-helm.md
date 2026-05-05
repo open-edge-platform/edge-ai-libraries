@@ -112,6 +112,7 @@ Update or edit the values in YAML file as follows:
 | `pipelinemanager.env.USE_VLLM` | Set to `CONFIG_ON` when using vLLM backend | `CONFIG_OFF` (default) or `CONFIG_ON` |
 | `pipelinemanager.env.AUDIO_DEVICE` | Device used for audio transcription (Whisper) | `cpu` (default) |
 | `pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | Default for audio transcript summarization. When enabled, the full audio transcript is summarized by the LLM and included in the final video summary. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
+| `pipelinemanager.env.PRODUCE_FINAL_SUMMARY` | Default for producing a final video summary. When enabled, chunk summaries are consolidated into a single video summary via map-reduce. When disabled, only per-chunk summaries are generated. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
 | `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
 | `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
 | `vsscollector.enabled` | Enable the telemetry collector sidecar (telegraf-based) | `true` or `false` |

@@ -3,7 +3,7 @@
 
 [tool.poetry]
 name = "multimodal-embedding-serving"
-version = "0.1.1"
+version = "2.0.0"
 description = "The MultiModal Embedding serving is designed to generate embeddings for text, image URLs, base64 encoded images, video URLs, and base64 encoded videos. It leverages the CLIP (Contrastive Language-Image Pretraining) model to create these embeddings."
 authors = []
 readme = "README.md"
@@ -19,6 +19,7 @@ pydantic-settings = "^2.10.1"
 opencv-python-headless = "^4.11.0.86"
 einops = "^0.8.1"
 decord = "^0.6.0"
+av = ">=17.0.0"
 transformers = "^4.53.3"
 openvino = "^2025.3.0"
 optimum-intel = "^1.26.0"

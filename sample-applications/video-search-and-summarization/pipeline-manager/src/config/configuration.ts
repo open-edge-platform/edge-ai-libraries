@@ -62,6 +62,11 @@ export default () => ({
     apiModels: 'models',
   },
 
+  summary: {
+    produceFinalSummary:
+      process.env.PRODUCE_FINAL_SUMMARY ?? 'true',
+  },
+
   rmq: {
     host: process.env.RABBITMQ_HOST,
     amqpPort: process.env.RABBITMQ_AMQP_PORT,

@@ -12,6 +12,18 @@ management for various model architectures and their parameters.
 import os
 
 
+def _get_env_int(name: str, default: int) -> int:
+    """Parse an integer environment variable with a safe fallback."""
+    value = os.getenv(name)
+    if value in (None, ""):
+        return default
+    try:
+        parsed = int(value)
+        return parsed if parsed > 0 else default
+    except ValueError:
+        return default
+
+
 def default_image_probs(image_features, text_features):
     """
     Default similarity calculation for CLIP-style models.
@@ -253,12 +265,17 @@ def get_model_config(model_id: str, device=None, ov_models_dir=None, use_openvin
         "device": device or os.getenv("EMBEDDING_DEVICE", "CPU"),
         "ov_models_dir": ov_models_dir or os.getenv("EMBEDDING_OV_MODELS_DIR", "ov-models"),
         "use_openvino": (
-            use_openvino 
-            if use_openvino is not None 
+            use_openvino
+            if use_openvino is not None
             else os.getenv("EMBEDDING_USE_OV", "false").lower() == "true"
         ),
+        "infer_batch_size": _get_env_int("INFER_BATCH_SIZE", 64),
     })
-    
+
+    preprocess_workers = os.getenv("PREPROCESS_WORKERS")
+    if preprocess_workers not in (None, ""):
+        config["preprocess_workers"] = _get_env_int("PREPROCESS_WORKERS", 4)
+
     return config
 
 

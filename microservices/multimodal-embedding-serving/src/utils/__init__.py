@@ -29,10 +29,13 @@ from .utils import (
     download_video,
     decode_base64_video,
     extract_video_frames,
+    ParallelImagePreprocessor,
     sanitize_for_log,
     resolve_safe_local_path,
     validate_remote_media_url,
 )
+
+from .decoder import extract_batched_frames
 
 __all__ = [
     "Settings",
@@ -47,6 +50,8 @@ __all__ = [
     "download_video",
     "decode_base64_video",
     "extract_video_frames",
+    "ParallelImagePreprocessor",
+    "extract_batched_frames",
     "sanitize_for_log",
     "resolve_safe_local_path",
     "validate_remote_media_url",

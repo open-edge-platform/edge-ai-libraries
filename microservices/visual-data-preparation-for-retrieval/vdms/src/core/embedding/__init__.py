@@ -7,6 +7,7 @@ from .simplified_embedding_helper import (
     generate_video_embedding,
     generate_video_embedding_from_content,
     generate_text_embedding,
+    generate_video_embedding_from_uri
 )
 from .sdk_embedding_helper import generate_video_embedding_sdk
 from .sdk_client import SDKVDMSClient
@@ -17,5 +18,6 @@ __all__ = [
     "generate_video_embedding", 
     "generate_video_embedding_from_content",
     "generate_video_embedding_sdk",
+    "generate_video_embedding_from_uri",
     "SDKVDMSClient",
 ]

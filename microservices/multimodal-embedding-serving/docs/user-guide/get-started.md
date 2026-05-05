@@ -11,7 +11,42 @@ Before you begin, confirm the following:
 
 This guide assumes basic familiarity with Docker commands and terminal usage.
 
+
+## Environment Variables Reference
+
+### Model Configuration
+
+- **EMBEDDING_MODEL_NAME** - The model to use (e.g., "CLIP/clip-vit-b-16"). Refer to the [Supported Models](./supported-models.md) list for additional choices.
+- **EMBEDDING_DEVICE** - Device for inference (CPU/GPU, default: CPU)
+- **EMBEDDING_USE_OV** - Enable OpenVINO optimization (true/false, default: false)
+- **EMBEDDING_OV_MODELS_DIR** - Directory for OpenVINO models (default: ./ov-models)
+
+### Model Handler Performance
+
+- **INFER_BATCH_SIZE** - Batch size for inference (default: 64). Compiles model to accept fixed batch input. Padding or split is done to accommodate dynamic input sizes.
+- **PREPROCESS_WORKERS** - Number of parallel preprocessing workers (default: min(16, cpu_count * 2)). Higher is better but yields diminishing returns if > number of CPU cores.
+
+### Video Frame Extraction
+
+These variables control the video frame extraction pipeline performance and memory usage.
+
+#### Extraction Performance
+- **VIDEO_FRAME_BATCH_SIZE** - Batch size for video frame extraction (default: 64)
+- **VIDEO_FRAME_DECODER_WORKERS** - Number of workers for video frame decoding (default: 8)
+- **VIDEO_FRAME_QUEUE_SIZE** - Queue size for frame extraction pipeline (default: 32)
+
+#### Shared Memory Configuration
+- **VIDEO_FRAME_SHM_POOL_BLOCK_SIZE** - Shared memory block size in bytes (default: 1920*1080*3 = 6,220,800 bytes for 1080p RGB)
+- **VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER** - Multiplier for total shared memory blocks (default: 2)
+  - Total blocks = VIDEO_FRAME_BATCH_SIZE × VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER
+
+#### Logging
+- **VIDEO_FRAME_LOG_LEVEL** - Logging level for video frame extraction (DEBUG/INFO/WARNING/ERROR/CRITICAL, default: INFO)
+
+
 ## Set Environment Values
+
+### Basic Setup
 
 Set the required environment variables before launching the service.
 
@@ -23,38 +58,78 @@ Refer to the [Supported Models](./supported-models.md) list for additional choic
 
 > **_NOTE:_** You can change the model, OpenVINO conversion, device, or tokenization parameters by editing `setup.sh`.
 
-### Configure the registry
+### Configure the Registry
 
 ```bash
 export REGISTRY_URL=intel
 export TAG=latest
 ```
 
-### Optional Environment Variables
+### Configuration Examples
 
-The microservice supports several optional variables to customize performance and logging. For the full list and examples, see the [Environment Variables section in the examples guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/examples/README.md#environment-variables).
-
-**Quick Configuration Examples**:
-
+**Basic CPU setup (default)**:
 ```bash
-# Basic CPU setup (default)
 export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
+```
 
-# GPU acceleration with OpenVINO
+**GPU acceleration with OpenVINO**:
+```bash
 export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
 export EMBEDDING_DEVICE=GPU
 export EMBEDDING_USE_OV=true
-
-# Custom OpenVINO cache directory
-export EMBEDDING_MODEL_NAME=MobileCLIP/mobileclip_s0
-export EMBEDDING_OV_MODELS_DIR=/app/ov_models
 ```
 
-**Key Environment Variables**:
+**High Performance Video Processing**:
+```bash
+export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
+export VIDEO_FRAME_BATCH_SIZE=256
+export VIDEO_FRAME_DECODER_WORKERS=8
+export VIDEO_FRAME_SHM_POOL_BLOCK_SIZE=$((1920 * 1080 * 3))  # 6MB for 1080p
+export VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER=2
+export INFER_BATCH_SIZE=64
+export PREPROCESS_WORKERS=16
+```
 
-- **EMBEDDING_DEVICE**: `CPU` (default) or `GPU`.
-- **EMBEDDING_USE_OV**: Enable OpenVINO optimizations (`true`/`false`).
-- **EMBEDDING_OV_MODELS_DIR**: Persistent directory for converted models.
+**Memory-Constrained Environment**:
+```bash
+export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
+export VIDEO_FRAME_BATCH_SIZE=64
+export VIDEO_FRAME_DECODER_WORKERS=4
+export VIDEO_FRAME_SHM_POOL_BLOCK_SIZE=$((1280 * 720 * 3))  # 2.8MB for 720p
+export VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER=2
+```
+
+**With OpenVINO Optimization on GPU**:
+```bash
+export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-16
+export EMBEDDING_USE_OV=true
+export EMBEDDING_DEVICE=GPU
+export INFER_BATCH_SIZE=64
+export PREPROCESS_WORKERS=16
+```
+
+**Debug Mode with Detailed Logging**:
+```bash
+export VIDEO_FRAME_LOG_LEVEL=INFO
+export EMBEDDING_DEVICE=CPU
+```
+
+### Performance Tuning Guide
+
+#### For Video Processing Bottlenecks
+1. Increase `VIDEO_FRAME_BATCH_SIZE` (trades memory for throughput)
+2. Increase `VIDEO_FRAME_DECODER_WORKERS` (limited by CPU cores)
+3. Increase `VIDEO_FRAME_QUEUE_SIZE` if frames are being dropped
+
+#### For Memory Constraints
+1. Decrease `VIDEO_FRAME_BATCH_SIZE`
+2. Decrease `VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER`
+3. Reduce `VIDEO_FRAME_SHM_POOL_BLOCK_SIZE` if processing lower resolutions
+
+#### For Inference Performance
+1. Increase `INFER_BATCH_SIZE` and `PREPROCESS_WORKERS`
+2. Enable OpenVINO: `EMBEDDING_USE_OV=true`
+3. Use GPU if available: `EMBEDDING_DEVICE=GPU`
 
 ### Set the environment variables
 
