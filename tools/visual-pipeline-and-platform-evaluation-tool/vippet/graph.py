@@ -3106,6 +3106,27 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
     for node in nodes:
         # Check for file sources
         if node.type in {"filesrc", "multifilesrc"}:
+            # Image-set multifilesrc nodes carry an internal marker
+            # placed by ``apply_simple_view_changes``. Round-trip them
+            # back to ``kind=image_set`` with the set name derived
+            # from the location pattern's parent directory, so the
+            # simple view stays stable across save/load cycles.
+            if node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data:
+                location = str(node.data.get("location", ""))
+                set_name = ""
+                if location:
+                    # ``/images/input/uploaded/<set>/<set>_%0Nd.<ext>``
+                    # -> ``<set>``.
+                    set_name = os.path.basename(os.path.dirname(location))
+                node.data.clear()
+                node.type = "source"
+                node.data["kind"] = InputKind.IMAGE_SET
+                node.data["source"] = set_name
+                logger.debug(
+                    f"Converted image-set multifilesrc to generic source: {set_name}"
+                )
+                continue
+
             source_name = node.data.get("location", "")
             node.data.clear()
             node.type = "source"

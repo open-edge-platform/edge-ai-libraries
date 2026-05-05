@@ -12,6 +12,8 @@ cleanup behaviour as well.
 
 import io
 import os
+import shutil
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -200,6 +202,20 @@ class TestUploadValidationRejections(_BaseImagesAPITest):
 
 
 class TestUploadStreaming(_BaseImagesAPITest):
+    def setUp(self) -> None:
+        # The route writes the incoming archive to a temp file under
+        # ``UPLOADED_IMAGES_DIR``. On CI that path (``/images/...``)
+        # does not exist, so point the route at a per-test temp dir.
+        self._tmpdir = tempfile.mkdtemp(prefix="vippet-upload-test-")
+        self._uploads_patch = patch.object(
+            images_route, "UPLOADED_IMAGES_DIR", self._tmpdir
+        )
+        self._uploads_patch.start()
+
+    def tearDown(self) -> None:
+        self._uploads_patch.stop()
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
     def _post(self, filename: str, content: bytes) -> httpx.Response:
         files = {"file": (filename, io.BytesIO(content), "application/zip")}
         return self.client.post("/images/upload", files=files)

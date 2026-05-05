@@ -6529,5 +6529,60 @@ class TestInputVideoNameToPathAbsoluteBypass(unittest.TestCase):
         self.assertEqual(nodes[0].data["location"], "/videos/input/uploaded/foo.mp4")
 
 
+# --------------------------------------------------------------------------- #
+# _prepare_generic_input: image-set multifilesrc round-trip back to source.
+# --------------------------------------------------------------------------- #
+
+
+class TestPrepareGenericInputImageSet(unittest.TestCase):
+    """
+    Verify that ``_prepare_generic_input`` (advanced -> simple) emits a
+    ``source`` node with ``kind=image_set`` for ``multifilesrc`` nodes
+    that were originally produced from an image-set source. Without
+    this, the simple view would lose the image-set kind on round-trip
+    and reload the pipeline as a regular file source.
+    """
+
+    def test_image_set_multifilesrc_becomes_image_set_source(self) -> None:
+        from graph import _IMAGE_SET_NODE_FLAG, InputKind, _prepare_generic_input
+
+        node = Node(
+            id="0",
+            type="multifilesrc",
+            data={
+                "location": "/images/input/uploaded/dorota/dorota_%02d.jpg",
+                "index": "1",
+                "stop-index": "40",
+                "loop": "false",
+                "caps": "image/jpeg,framerate=30/1",
+                _IMAGE_SET_NODE_FLAG: "jpg",
+            },
+        )
+
+        _prepare_generic_input([node])
+
+        self.assertEqual(node.type, "source")
+        self.assertEqual(node.data["kind"], InputKind.IMAGE_SET)
+        self.assertEqual(node.data["source"], "dorota")
+        # Internal marker must not leak into the simple view.
+        self.assertNotIn(_IMAGE_SET_NODE_FLAG, node.data)
+        self.assertNotIn("location", node.data)
+
+    def test_plain_multifilesrc_still_becomes_file_source(self) -> None:
+        from graph import InputKind, _prepare_generic_input
+
+        node = Node(
+            id="0",
+            type="multifilesrc",
+            data={"location": "loop.mp4"},
+        )
+
+        _prepare_generic_input([node])
+
+        self.assertEqual(node.type, "source")
+        self.assertEqual(node.data["kind"], InputKind.FILE)
+        self.assertEqual(node.data["source"], "loop.mp4")
+
+
 if __name__ == "__main__":
     unittest.main()
