@@ -8,8 +8,8 @@ This foundational sample application provides four deployment modes:
 |---|---|---|---|
 | 📝 Summary | `source setup.sh --summary` | Create concise summaries of long-form videos or live streams, automatically. | Combine insights from different data types using Generative AI Vision Language Models (VLMs), computer vision, and audio analysis. |
 | 🔍 Search | `source setup.sh --search` | Find specific content within large video datasets through natural language. | Extract and index visual, audio, and textual features from video frames using multimodal embedding models. Query using natural language. |
-| 🔀 Dual | `source setup.sh --dual` | Run summarization and search side-by-side with separate UIs. | Both summary and search capabilities via independent UI instances. |
-| 🔗 Unified | `source setup.sh --unified` | Create concise summaries of videos and search for specific content in a single unified UI. | Search over generated video summary's text embeddings for more relevant results. |
+| 🔀 Dual UI | `source setup.sh --summary --search` | Run summarization and search side-by-side with separate UIs. | Both summary and search capabilities with independent UI instances. |
+| 🔗 Unified UI | `source setup.sh --summary-and-search` | Create summaries of videos and search for specific content in a single unified UI. | Search over video summary's text embeddings for more relevant results. |
 
 
 ## Why Use VSS?

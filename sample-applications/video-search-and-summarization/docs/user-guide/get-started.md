@@ -12,13 +12,14 @@ This guide shows how to:
 
 The application supports **four** deployment modes. Each mode deploys only the services and UI(s) relevant to the selected functionality:
 
-| Mode | Features | UI Layout | Description |
-|------|-------------|-----------|----------------------------|
-| **Summary** | Video summarization only | Summary UI available at `/` (root URL) | Microservices dependencies required for Video Summarization are deployed. |
-| **Search** | Video Search only | Search UI available at `/` (root URL). | **Search is done on video frame embeddings**. Microservices required for Video Search are deployed. |
-| **Dual** | Both Video Summarization and Search available. | Two separate UIs available for Summarization and Search respectively at `/summary/` and `/search/` URI. |  **Search is done on video frame embeddings**. All microservices components are deployed. |
-| **Unified** | Both Video Summarization and Search available | A single unified UI containing both summarization and search features available at `/` (root URL). | **Search is done on video summary's text embeddings**. All microservices components are deployed. |
+| Mode | Features | UI Layout | Description | Command Option |
+|------|----|-------|-----------------------|---------|
+| **Summary** | Video summarization only | Summary UI available at `/` (root URI) | Summarize a given video with several tunable parameters. | `--summary` |
+| **Search** | Video Search only | Search UI available at `/` (root URI). | Search for entities in a given video. **Embedding used for search:** Video frame embeddings | `--search` |
+| **Dual UI** | Video Summarization and Video Search | Two separate UIs available at `/summary/` and `/search/` URI. | **Embedding used for search:** Video frame embeddings | `--summary --search` |
+| **Unified UI** | Video Summarization and **Modified** Video Search | A single unified UI available at `/` (root URI). | **Embedding used for search:** Summarized content text embeddings  | `--summary-and-search` |
 
+> **NOTE :** The video search in **Unified UI** mode is modified for creating the embeddings of video summary texts and searching over them, rather than creating and using video frame embeddings. Hence, this mode includes video summarization feature, as well, in the same UI.
 
 ## Prerequisites
 
@@ -92,23 +93,23 @@ Before running the application, you need to set several environment variables:
    export RABBITMQ_PASSWORD=<your-rabbitmq-password>
    ```
 
-3. **Set environment variables for model selection and other configurations**:
+3. **Set environment variables for model selection**:
 
-   You **must** set these environment variables on your current shell. Setting these variables is **mandatory** unless mentioned as **optional**.
+   You **must** set these environment variables on your current shell. Setting these variables is **mandatory** as they **do not** have any default values.
 
-   - **Mode-specific environment variables:**
+   - **Mode-specific environment variables to set Models:**
 
       | Variable | Mode | Purpose |
       |----------|-------------|---------|
-      | `VLM_MODEL_NAME` | `--summary`, `--dual`, `--unified` | VLM model for video captioning and summarization. |
-      | `ENABLED_WHISPER_MODELS` | `--summary`, `--dual`, `--unified` | Whisper model(s) for audio analysis. |
-      | `OD_MODEL_NAME` | `--summary`, `--dual`, `--unified` | YOLO model for object detection during video ingestion. |
-      | `MULTIMODAL_EMBEDDING_MODEL` | `--search`, `--dual` | Multimodal model for generating video frame embeddings. |
-      | `TEXT_EMBEDDING_MODEL` | `--unified` | Text embedding model for generating summary text embeddings. |
-      | `OVMS_LLM_MODEL_NAME` | _(Optional)_ Any of `--summary`, `--dual` or `--unified` mode with `ENABLE_OVMS_LLM_SUMMARY=true` | LLM for OVMS-based final summary generation. |
-      | `PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | _(Optional)_ `--summary`, `--dual` | Enables condensed transcript summary injection in the prompt to generate video summary. |
+      | `VLM_MODEL_NAME` | Summary, Dual UI, Unified UI | VLM model for video captioning and summarization. |
+      | `ENABLED_WHISPER_MODELS` | Summary, Dual UI, Unified UI | Whisper model(s) for audio analysis. |
+      | `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | YOLO model for object detection during video ingestion. |
+      | `MULTIMODAL_EMBEDDING_MODEL` | Search, Dual UI | Multimodal model for generating video frame embeddings. |
+      | `TEXT_EMBEDDING_MODEL` | Unified UI | Text embedding model for generating summary text embeddings. |
+      | `OVMS_LLM_MODEL_NAME` | _(Optional)_ Any of Summary, Dual UI or Unified UI mode with `ENABLE_OVMS_LLM_SUMMARY=true` | LLM for OVMS-based final summary generation. |
+      | `PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | _(Optional)_ Summary, Dual UI | Enables condensed transcript summary injection in the prompt to generate video summary. |
 
-   - **Common to all modes except `--search`:**
+     **Common to all modes except `--search`:**
 
       ```bash
       # For VLM-based chunk captioning and video summarization on CPU
@@ -134,47 +135,49 @@ Before running the application, you need to set several environment variables:
       export OD_MODEL_NAME="yolov8l-worldv2"
       ```
 
-   - **Required in `--search` and `--dual` mode:**
+     **Required in `--search` and `--summary --search` mode:**
 
       ```bash
       # Required for searching on video frame embeddings
       export MULTIMODAL_EMBEDDING_MODEL="CLIP/clip-vit-b-32"
       ```
 
-   - **Required in `--unified` mode:**
+     **Required in `--summary-and-search` mode:**
 
       ```bash
       # Required for searching on video summary text embeddings
       export TEXT_EMBEDDING_MODEL="QwenText/qwen3-embedding-0.6b"
       ```
 
-   > **Note**: Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model names.
+      > **Note**: Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model names.
 
-   - **Used in `--summary` and `--dual` mode:**
+4. **Configure final summarization to use audio transcript (Summary and Dual UI mode):**
 
-   ```bash
-   # (OPTIONAL) Default value is true. Users can override this per-video in the upload modal.
-   export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false
-   ```
+   Used in `--summary` and `--summary --search` mode:
 
-   > **Audio Transcript Summarization (`PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY`)**:
-   > When enabled (the default), the pipeline runs a separate LLM-based map-reduce summarization pass over the complete audio transcript *before* generating the final video summary. The condensed transcript summary is then injected into the video summary prompt via the `%audio_summary%` placeholder, giving the LLM a coherent, high-quality representation of spoken content rather than raw subtitle fragments. This significantly improves accuracy for dialogue-heavy or narration-heavy videos. When disabled, audio transcripts are only used at the chunk captioning level — each chunk's VLM prompt includes its time-matched portion of the transcript — but no audio content is included in the final map-reduce video summary.
-   >
-   > This environment variable sets the **default** value. Users can override it per-video using the **"Use Audio in Summary"** checkbox in the Audio Settings section of the video upload modal.
+      ```bash
+      # (OPTIONAL) Default value is true. Users can override this per-video in the upload modal.
+      export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false
+      ```
+
+      > **Audio Transcript Summarization (`PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY`)**:
+      > When enabled (the default), the pipeline runs a separate LLM-based map-reduce summarization pass over the complete audio transcript *before* generating the final video summary. The condensed transcript summary is then injected into the video summary prompt via the `%audio_summary%` placeholder, giving the LLM a coherent, high-quality representation of spoken content rather than raw subtitle fragments. This significantly improves accuracy for dialogue-heavy or narration-heavy videos. When disabled, audio transcripts are only used at the chunk captioning level — each chunk's VLM prompt includes its time-matched portion of the transcript — but no audio content is included in the final map-reduce video summary.
+      >
+      > This environment variable sets the **default** value. Users can override it per-video using the **"Use Audio in Summary"** checkbox in the Audio Settings section of the video upload modal.
 
 
-4. **Configure Directory Watcher (Video Search)**:
+5. **Configure Directory Watcher (Search and Dual UI mode)**:
 
-   For automated video ingestion into the search pipeline (available only  in `--search` and `--dual` modes), you can use the directory watcher service:
+   For automated video ingestion into the search pipeline (available only  in `--search` and `--summary --search` modes), you can use the directory watcher service:
 
       ```bash
       # Path to the directory to watch on the host system. Default: "edge-ai-libraries/sample-applications/video-search-and-summarization/data"
       export VS_WATCHER_DIR="/path/to/your/video/directory"
       ```
 
-   > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with `--search` and `--dual` modes.
+   > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with `--search` and `--summary --search` modes.
 
-5. **Control the frame extraction interval (Video Search)**:
+6. **Control the frame extraction interval (Search and Dual UI mode)**:
 
    The DataPrep microservice samples frames from uploaded videos according to the `FRAME_INTERVAL` environment variable. Set this variable before running `source setup.sh` to control how often frames are selected for processing.
 
@@ -184,7 +187,7 @@ Before running the application, you need to set several environment variables:
 
    In the example above, DataPrep processes every fifteenth frame: each selected frame (optionally after object detection) is converted into embeddings and stored in the vector database. Lower values improve recall at the cost of higher compute and storage usage, while higher values reduce processing load but may skip important frames. If you do not set this variable, the service falls back to its configured default.
 
-6. **Enable ROI consolidation (Video Search)**:
+7. **Enable ROI consolidation (Search and Dual UI mode)**:
 
    ROI consolidation groups overlapping object detections into merged regions of interest (ROIs) before cropping for embeddings. Enable this feature and tune it with the following environment variables:
 
@@ -210,9 +213,9 @@ Before running the application, you need to set several environment variables:
 
    > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
 
-7. **(Optional) Telemetry collection (--search and --dual modes only)**:
+8. **(Optional) Telemetry collection (Search and Dual UI mode)**:
 
-   The deployment can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI. Telemetry is only applicable in `--search` and `--dual` modes.
+   The deployment can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI. Telemetry is only applicable in `--search` and `--summary --search` modes.
 
    ```bash
    # Disabled by default
@@ -222,7 +225,7 @@ Before running the application, you need to set several environment variables:
    export ENABLE_VSS_COLLECTOR=true
    ```
 
-8. **Tune Inference Concurrency (Video Summarization Mode)**:
+9. **Tune Inference Concurrency (Summary and Dual UI mode)**:
 
    Control how many concurrent inference requests the pipeline manager sends to OVMS or vLLM. These values affect throughput and resource utilization:
 
@@ -236,7 +239,7 @@ Before running the application, you need to set several environment variables:
 
    > **Note**: For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
 
-9. **Override OVMS Model Weight Compression Format (Video Summarization Mode)**:
+10. **Override OVMS Model Weight Compression Format (Summary and Dual UI mode)**:
 
     When using OVMS for inference, the setup script auto-selects the model weight compression format based on the target device (`int8` for CPU, `int4` for GPU/NPU). You can override this auto-detection by setting these variables before running the setup script:
 
@@ -250,7 +253,7 @@ Before running the application, you need to set several environment variables:
 
     > **Note**: Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
 
-10. **Configure Embedding Processing Mode (Video Search Mode)**:
+11. **Configure Embedding Processing Mode (Search and Dual UI mode)**:
 
     Control how the embedding model is loaded and invoked during video search indexing:
 
@@ -286,22 +289,22 @@ The Video Search and Summarization application supports multiple deployment mode
 
 > **NOTE:** The application runs on port 12345 by default. You can change this by setting `APP_HOST_PORT` environment variable to another port number.
 
-| Mode | UI Instances | Default URL(s) |
-|------|-------------|----------------|
-| `--summary` | Single Summary UI | `http://<host-ip>:12345/` |
-| `--search` | Single Search UI | `http://<host-ip>:12345/` |
-| `--dual` | Separate Summary and Search UIs | `http://<host-ip>:12345/summary/` and `http://<host-ip>:12345/search/` |
-| `--unified` | Single unified UI (summary + search) | `http://<host-ip>:12345/` |
+| Mode | Command Option | UI Instances | Default URL(s) |
+|------|--------|-------------|----------------|
+| Summary | `--summary` | Single Summary UI | `http://<host-ip>:12345/` |
+| Search | `--search` | Single Search UI | `http://<host-ip>:12345/` |
+| Dual UI | `--summary --search` | Separate Summary and Search UIs | `http://<host-ip>:12345/summary/` and `http://<host-ip>:12345/search/` |
+| Unified UI | `--summary-and-search` | Single unified UI (summary + search) | `http://<host-ip>:12345/` |
 
-> **NOTE:** In `--dual` mode, visiting `http://<host-ip>:12345/` redirects to the Video Summarization UI.
+> **NOTE:** In `--summary --search` mode, visiting `http://<host-ip>:12345/` redirects to the Video Summarization UI.
 
-In modes where Video Search is available (--search, --dual and --unified mode), the DB index, modality of input being used for creating embeddings and the embedding models would differ with modes.
+In modes, where Video Search is available (Search, Dual UI and Unified UI mode), the Vector DB index, the modality of input being used for creating embeddings and the embedding models would differ with modes.
 
 | Mode | Vector-DB Index | Search Modality | Environment Variable Used |
 |------|-----------------|-----------------|--------------------|
-| `--search` | `video_frame_embeddings` | Multimodal embeddings of video frames | `MULTIMODAL_EMBEDDING_MODEL` |
-| `--dual` | `video_frame_embeddings` | Multimodal embeddings of video frames | `MULTIMODAL_EMBEDDING_MODEL` |
-| `--unified` | `video_summary_embeddings` | Text embeddings of generated summaries | `TEXT_EMBEDDING_MODEL` |
+| Search | `video_frame_embeddings` | Multimodal embeddings of video frames | `MULTIMODAL_EMBEDDING_MODEL` |
+| Dual UI | `video_frame_embeddings` | Multimodal embeddings of video frames | `MULTIMODAL_EMBEDDING_MODEL` |
+| Unified UI | `video_summary_embeddings` | Text embeddings of generated summaries | `TEXT_EMBEDDING_MODEL` |
 
 > **Automated Video Ingestion**: The Video Search pipeline includes an optional Directory Watcher service for automated video processing. See the [Directory Watcher Service Guide](./directory-watcher-guide.md) for details.
 
@@ -368,71 +371,73 @@ Follow these steps to run the application:
 
 3. Run the setup script with the desired deployment mode:
 
-   > **Note:** To bring down a running deployment before starting again, run:
+   - First, bring down any running deployment before starting:
 
-   ```bash
-   source setup.sh --stop    # or, `source setup.sh --down`
-   ```
+      ```bash
+      source setup.sh --stop    # or, `source setup.sh --down`
+      ```
 
-   > **💡 Clean-up Tip**: If you encounter issues or want to completely reset the application data, use `source setup.sh --clean-data` to stop all containers and remove all Docker volumes including user data. This provides a fresh start for troubleshooting.
+      > **IMPORTANT :** You should always run the above command before changing modes _(for example: changing from --summary mode to --search mode)_.
 
-   - **Summary-only mode: Setup only video summarization.:**
+      > **💡 Clean-up Tip**: If you encounter issues or want to completely reset the application data, use `source setup.sh --clean-data` to stop all containers and remove all Docker volumes including user data. This provides a fresh start for troubleshooting.
+
+   - **Summary mode: Setup only video summarization:**
 
      ```bash
-     source setup.sh --summary      # Note: Vision-Language Model used for captioning is used for final summary generation as well.
+     source setup.sh --summary
      ```
 
-   - **Search-only mode: Setup only video search:**
+   - **Search mode: Setup only video search:**
 
      ```bash
      source setup.sh --search
      ```
 
-   - **Dual mode: Setup both summarization and search application with separate UIs:**
+   - **Dual UI mode: Setup both video summarization and video search application with separate UIs:**
 
      ```bash
-     source setup.sh --dual
+     source setup.sh --summary --search      # or, `source setup.sh --search --summary`
      ```
 
      When the script finishes, it prints the URLs for the both summary and search UI.
 
-   - **Unified mode: single UI containing summarization and search features:**
+   - **Unified UI mode: Single UI containing video summarization and modified video search:**
 
      ```bash
-     source setup.sh --unified    # or, `source setup.sh --all`
+     source setup.sh --summary-and-search    # or, `source setup.sh --search-and-summary`
      ```
 
-   > **Telemetry** (applicable to `--search` and `--dual` modes only): The telemetry collector is disabled by default. Enable it with:
-   >
-   > ```bash
-   > ENABLE_VSS_COLLECTOR=true source setup.sh --search
-   > # or
-   > ENABLE_VSS_COLLECTOR=true source setup.sh --dual
-   > ```
+      > **Telemetry** (applicable to `--search` and `--summary --search` modes only): The telemetry collector is disabled by default. Enable it with:
+      >
+      > ```bash
+      > ENABLE_VSS_COLLECTOR=true source setup.sh --search
+      > # or
+      > ENABLE_VSS_COLLECTOR=true source setup.sh --summary --search
+      > ```
 
-   > **📁 Directory Watcher**: For automated video ingestion into the Search pipeline, see the [Directory Watcher Service Guide](./directory-watcher-guide.md).
+      > **📁 Directory Watcher**: For automated video ingestion into the Search pipeline, see the [Directory Watcher Service Guide](./directory-watcher-guide.md).
 
    - **To run Video Summarization with OVMS using a dedicated LLM for final summary:**
 
       ```bash
       # Note: If OVMS_LLM_MODEL_NAME variable is not set, captioning and final summary both are done by a VLM.
 
-      # For summary only mode
+      # For Summary mode
       OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3" source setup.sh --summary
 
-      # For dual mode
-      OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3" source setup.sh --dual
+      # For Dual UI mode
+      OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3" source setup.sh --summary --search
 
-      # For unified mode
-      OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3" source setup.sh --unified
+      # For Unified UI mode
+      OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3" source setup.sh --summary-and-search
       ```
 
    - **Use vLLM as the only inference backend:**
 
       ```bash
-      ENABLE_VLLM=true source setup.sh --summary      # for summary only mode
-      ENABLE_VLLM=true source setup.sh --dual         # for dual mode
-      ENABLE_VLLM=true source setup.sh --unified      # for unified mode
+      ENABLE_VLLM=true source setup.sh --summary                 # for Summary mode
+      ENABLE_VLLM=true source setup.sh --summary --search        # for Dual UI mode
+      ENABLE_VLLM=true source setup.sh --summary-and-search      # for Unified UI mode
       ```
 
     > **Note:**
@@ -445,20 +450,22 @@ Follow these steps to run the application:
       # To just set environment variables without starting containers
       source setup.sh --setenv
 
-      # To see the fully resolved compose configuration (defaults to --dual mode)
+      # To see the fully resolved compose configuration (defaults to Dual UI mode)
       source setup.sh config
 
       # To see resolved config for a specific mode
-      source setup.sh config --summary
-      source setup.sh config --search
-      source setup.sh config --unified    # or, source setup.sh config --all
-      source setup.sh config --dual
+      source setup.sh --summary config                # for Summary mode
+      source setup.sh --search config                 # for Search Mode
+      source setup.sh --summary --search config       # for Dual UI Mode
+      source setup.sh --search-and-summary config     # for Unified UI Mode
 
-      # To see resolved configurations for OVMS split-model summarization without starting containers
-      OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3" source setup.sh config --summary    # replace --summary with --dual or --unified to check in other modes.
+      # To see resolved configurations for OVMS split-model summarization without starting containers.
+      # (for other modes, combine --summary with --search option or replace all options with --summary-and-search)
+      OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3" source setup.sh --summary config
 
-      # To see resolved configurations for summarization services with vLLM enabled without starting containers
-      ENABLE_VLLM=true source setup.sh config --summary     # replace --summary with --dual or --unified to check in other modes.
+      # To see resolved configurations for summarization services with vLLM enabled without starting containers.
+      # (for other modes, combine --summary with --search option or replace all options with --summary-and-search)
+      ENABLE_VLLM=true source setup.sh --summary config
       ```
 
 ### Use GPU/NPU Acceleration
@@ -467,7 +474,7 @@ Follow these steps to run the application:
 >
 > **⚠️ NPU Support is Experimental:** Running VLM/LLM models on NPU is experimental and may not work with all models or configurations. Not all model architectures are supported on NPU. If you encounter issues, verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page and consider falling back to CPU or GPU.
 
-> **Note:** To bring down a running deployment before re-running with different flags, run:
+> **Note:** To bring down a running deployment before re-running with different options, run:
 >
 > ```bash
 > source setup.sh --stop    # or, `source setup.sh --down`
@@ -476,50 +483,50 @@ Follow these steps to run the application:
 #### Use GPU acceleration for VLM inference:
 
    ```bash
-   # for summary only mode
+   # for Summary mode
    VLM_TARGET_DEVICE=GPU source setup.sh --summary
    
-   # for dual mode
-   VLM_TARGET_DEVICE=GPU source setup.sh --dual
+   # for Dual UI mode
+   VLM_TARGET_DEVICE=GPU source setup.sh --summary --search
    
-   # for unified mode
-   VLM_TARGET_DEVICE=GPU source setup.sh --unified
+   # for Unified UI mode
+   VLM_TARGET_DEVICE=GPU source setup.sh --summary-and-search
    ```
 
 #### Use GPU acceleration for the OVMS final-summary LLM:
 
    ```bash
-   # for summary only mode
+   # for Summary mode
    LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Intel/neural-chat-7b-v3-3 source setup.sh --summary
 
-   # for dual mode
-   LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Intel/neural-chat-7b-v3-3 source setup.sh --dual
+   # for Dual UI mode
+   LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Intel/neural-chat-7b-v3-3 source setup.sh --summary --search
 
-   # for unified mode
-   LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Intel/neural-chat-7b-v3-3 source setup.sh --unified
+   # for Unified UI mode
+   LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Intel/neural-chat-7b-v3-3 source setup.sh --summary-and-search
    ```
 
 #### Use NPU acceleration for the final-summary LLM (split-model mode):
 
    ```bash
-   # for summary only mode
+   # for Summary mode
    LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary
 
-   # for dual mode
-   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --dual
+   # for Dual UI mode
+   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary --search
 
-   # for unified mode
-   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary
+   # for Unified UI mode
+   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary-and-search
    ```
 
 #### Use GPU acceleration for the multimodal embedding service used by search:
 
    ```bash
-   # for search only mode
+   # for Search mode
    ENABLE_EMBEDDING_GPU=true source setup.sh --search
 
-   # for dual mode
-   ENABLE_EMBEDDING_GPU=true source setup.sh --dual
+   # for Dual UI mode
+   ENABLE_EMBEDDING_GPU=true source setup.sh --summary --search
    ```
 
 #### Verify the configuration and resolved environment variables:
@@ -528,22 +535,22 @@ Follow these steps to run the application:
 
    ```bash
    # For VLM inference on GPU
-   VLM_TARGET_DEVICE=GPU source setup.sh config --summary      # for summary only mode
-   VLM_TARGET_DEVICE=GPU source setup.sh config --dual         # for dual mode
-   VLM_TARGET_DEVICE=GPU source setup.sh config --unified      # for unified mode
+   VLM_TARGET_DEVICE=GPU source setup.sh config --summary                             # for Summary mode
+   VLM_TARGET_DEVICE=GPU source setup.sh config --summary --search                    # for Dual UI mode
+   VLM_TARGET_DEVICE=GPU source setup.sh config --summary-and-search                  # for Unified UI mode
    ```
 
    ```bash
    # For LLM on NPU (split-model mode)
-   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh config --summary     # for summary only mode
-   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh config --dual        # for dual mode
-   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh config --unified     # for unified mode
+   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh config --summary                 # for Summary mode
+   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh config --summary --search        # for Dual UI mode
+   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh config --summary-and-search     # for Unified UI mode
    ```
 
    ```bash
    # For embedding service on GPU
-   ENABLE_EMBEDDING_GPU=true source setup.sh config --search      # for search mode
-   ENABLE_EMBEDDING_GPU=true source setup.sh config --dual        # for dual mode
+   ENABLE_EMBEDDING_GPU=true source setup.sh config --search                  # for Search mode
+   ENABLE_EMBEDDING_GPU=true source setup.sh config --search --summary        # for Dual UI mode
    ```
 
 > **Tip:** `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU` (default), `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution with fallback.
@@ -564,7 +571,7 @@ After successfully starting the application, access the application UI on follow
 |----|-----|
 | Video Search | `http://<host-ip>:12345/` |
 
-### `--dual` mode
+### `--summary --search` mode
 
 | UI | URL |
 |----|-----|
@@ -573,7 +580,7 @@ After successfully starting the application, access the application UI on follow
 
 Visiting the root URL `http://<host-ip>:12345/` redirects to the Video Summarization UI.
 
-### `--unified` mode
+### `--summary-and-search` mode
 
 | UI | URL |
 |----|-----|

@@ -78,10 +78,10 @@ This section shows how to build the Video Search and Summary sample application 
     The Video Search and Summary application provides multiple deployment scenarios. To verify the newly created images, run any of these:
 
     ```bash
-    source setup.sh --dual     # Brings up both Summarization and Search application simultaneously
-    source setup.sh --summary    # Brings up Video Summarization application
-    source setup.sh --search     # Brings up Video Search application
-    source setup.sh --unified    # Brings up unified single UI for Video Summarization and Search
+    source setup.sh --summary              # Brings up Video Summarization application
+    source setup.sh --search               # Brings up Video Search application
+    source setup.sh --summary --search     # Brings up both Summarization and Search with separate UIs
+    source setup.sh --summary-and-search   # Brings up unified single UI for Video Summarization and Search
     ```
 
 5. Accessing the Application
@@ -98,16 +98,16 @@ This section shows how to build the Video Search and Summary sample application 
    |----|-----|
    | Video Search | `http://<host-ip>:12345/` |
 
-   #### `--dual` mode
+   #### `--summary --search` mode
 
    | UI | URL |
    |----|-----|
-   | Video Summarization | `http://<host-ip>:12345/summary/` 
+   | Video Summarization | `http://<host-ip>:12345/summary/` |
    | Video Search       | `http://<host-ip>:12345/search/` |
 
    Visiting the root URL `http://<host-ip>:12345/` redirects to the Video Summarization UI.
 
-   #### `--unified` mode
+   #### `--summary-and-search` mode
 
    | UI | URL |
    |----|-----|
