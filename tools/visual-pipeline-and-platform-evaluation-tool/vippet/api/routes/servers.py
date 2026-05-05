@@ -7,9 +7,15 @@ Provides REST endpoints for managing server/machine records in the database.
 """
 
 import logging
+import os
+import platform
+import socket
+import subprocess
+import uuid
+from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, Path
+from fastapi import APIRouter, Path as PathParam
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
@@ -17,6 +23,200 @@ from managers.server_manager import ServerManager
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.servers")
+
+
+def _get_machine_id() -> str:
+    """Get machine ID from /etc/machine-id or generate one."""
+    try:
+        machine_id_path = Path("/etc/machine-id")
+        if machine_id_path.exists():
+            return machine_id_path.read_text().strip()
+    except Exception:
+        pass
+    # Fallback to generated UUID based on hostname
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, socket.gethostname()))
+
+
+def _get_ip_address() -> str:
+    """Get host IP address (not container IP)."""
+    # First, try to get from environment variable (if passed from host)
+    host_ip = os.environ.get("HOST_IP")
+    if host_ip:
+        return host_ip
+    
+    try:
+        # Try to get the default gateway IP from /proc/net/route
+        with open("/proc/net/route", "r") as f:
+            for line in f:
+                fields = line.strip().split()
+                if fields[1] == "00000000":  # Default route
+                    # Get interface name
+                    iface = fields[0]
+                    # Read IP address from that interface
+                    result = subprocess.run(
+                        ["ip", "addr", "show", iface],
+                        capture_output=True,
+                        text=True,
+                        timeout=2,
+                    )
+                    if result.returncode == 0:
+                        for line in result.stdout.split("\n"):
+                            if "inet " in line and "127.0.0.1" not in line:
+                                # Extract IP address
+                                ip = line.strip().split()[1].split("/")[0]
+                                # Filter out Docker bridge IPs (172.x.x.x)
+                                if not ip.startswith("172."):
+                                    return ip
+    except Exception as e:
+        logger.debug(f"Failed to get IP from /proc/net/route: {e}")
+    
+    try:
+        # Fallback: try hostname -I to get all IPs
+        result = subprocess.run(
+            ["hostname", "-I"], capture_output=True, text=True, timeout=2
+        )
+        if result.returncode == 0:
+            ips = result.stdout.strip().split()
+            # Filter out localhost and Docker IPs
+            for ip in ips:
+                if not ip.startswith("127.") and not ip.startswith("172."):
+                    return ip
+    except Exception as e:
+        logger.debug(f"Failed to get IP from hostname -I: {e}")
+    
+    try:
+        # Last resort: connect to external server to determine interface IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        # Only return if it's not a Docker bridge IP
+        if not ip.startswith("172."):
+            return ip
+    except Exception:
+        pass
+    
+    return "127.0.0.1"
+
+
+def _get_cpu_info() -> str:
+    """Get CPU model information."""
+    try:
+        # Try lscpu first
+        result = subprocess.run(
+            ["lscpu"], capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            for line in result.stdout.split("\n"):
+                if "Model name:" in line:
+                    return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+
+    try:
+        # Fallback to /proc/cpuinfo
+        with open("/proc/cpuinfo", "r") as f:
+            for line in f:
+                if "model name" in line.lower():
+                    return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+
+    return platform.processor() or "Unknown CPU"
+
+
+def _get_ram_size() -> int:
+    """Get total RAM size in GB."""
+    try:
+        # Read from /proc/meminfo
+        with open("/proc/meminfo", "r") as f:
+            for line in f:
+                if "MemTotal:" in line:
+                    # MemTotal is in kB
+                    kb = int(line.split()[1])
+                    gb = round(kb / (1024 * 1024))
+                    return max(1, gb)  # At least 1 GB
+    except Exception:
+        pass
+    return 1  # Default fallback
+
+
+def _get_kernel_version() -> str:
+    """Get kernel version."""
+    try:
+        return platform.release()
+    except Exception:
+        return "Unknown"
+
+
+@router.get(
+    "/system-info",
+    operation_id="get_system_info",
+    summary="Get System Information",
+    responses={
+        200: {
+            "description": "System information retrieved successfully",
+            "model": schemas.ServerResponse,
+        },
+        500: {
+            "description": "Internal server error",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+async def get_system_info():
+    """
+    **Get current system/machine information.**
+
+    ## Operation
+    Automatically collects system information from the current machine:
+    1. Machine ID from /etc/machine-id
+    2. Primary IP address
+    3. CPU model from lscpu or /proc/cpuinfo
+    4. Total RAM size from /proc/meminfo
+    5. Kernel version from platform.release()
+
+    ## Response Codes
+
+    | Code | Description |
+    |------|-------------|
+    | 200 | `ServerResponse` with system information |
+    | 500 | `MessageResponse` - Unexpected error |
+
+    ## Examples
+
+    ### Success Response (200)
+    ```json
+    {
+      "uuid": "a3c4f6e8b2d1c5a7b9e0f3a1c2d4e5f6",
+      "ip_address": "192.168.1.100",
+      "cpu_sku": "Intel(R) Core(TM) i7-12700K CPU @ 3.60GHz",
+      "ram_size": 32,
+      "kernel_version": "5.15.0-56-generic"
+    }
+    ```
+    """
+    try:
+        system_info = schemas.ServerResponse(
+            uuid=_get_machine_id(),
+            ip_address=_get_ip_address(),
+            cpu_sku=_get_cpu_info(),
+            ram_size=_get_ram_size(),
+            kernel_version=_get_kernel_version(),
+        )
+
+        return JSONResponse(
+            content=system_info.model_dump(),
+            status_code=200,
+        )
+    except Exception as e:
+        logger.error("Unexpected error while getting system info", exc_info=True)
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Failed to get system info: {str(e)}"
+            ).model_dump(),
+            status_code=500,
+        )
 
 
 @router.post(
@@ -249,7 +449,7 @@ async def list_servers():
     },
 )
 async def update_server(
-    uuid: str = Path(..., description="UUID of the server to update"),
+    uuid: str = PathParam(..., description="UUID of the server to update"),
     body: schemas.ServerUpdate = ...,
 ):
     """
@@ -382,7 +582,7 @@ async def update_server(
     },
 )
 async def delete_server(
-    uuid: str = Path(..., description="UUID of the server to delete")
+    uuid: str = PathParam(..., description="UUID of the server to delete")
 ):
     """
     **Delete a server/machine from the database.**

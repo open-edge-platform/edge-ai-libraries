@@ -5,6 +5,7 @@ import { useModelsLoader } from "@/hooks/useModels.ts";
 import { useDevicesLoader } from "@/hooks/useDevices.ts";
 import { Navigation } from "@/components/Navigation.tsx";
 import { PageTitle } from "@/components/PageTitle.tsx";
+import { AddServerDialog } from "@/components/AddServerDialog.tsx";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button.tsx";
@@ -43,6 +44,7 @@ const Layout = () => {
                 </h1>
               </div>
               <div className="flex items-center gap-2 px-4">
+                <AddServerDialog />
                 <Button
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                   aria-label="Toggle theme"
