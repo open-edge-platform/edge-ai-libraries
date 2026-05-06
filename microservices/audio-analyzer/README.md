@@ -12,7 +12,7 @@ It supports:
 - Streaming transcription API at `POST /v1/audio/transcriptions/stream`
 - Health check at `GET /health`
 - ALSA input device listing at `GET /devices`
-- ASR backends: `openai`, `openvino`, `whispercpp`
+- ASR backends: `openai`, `openvino`. (`whispercpp` to be added)
 - Optional sentiment analysis with `openvino` or `pytorch`
 - Session continuation by reusing `session_id`
 
@@ -23,7 +23,7 @@ Session data is stored under `storage/<session_id>/`.
 - Run with Docker Compose: [docs/run-container.md](docs/run-container.md)
 - Run directly without Docker: [docs/run-standalone.md](docs/run-standalone.md)
 - Configuration reference: [docs/configuration.md](docs/configuration.md)
-- API reference: [docs/api.md](docs/api.md)
+- API use cases, examples, and endpoint reference: [docs/api.md](docs/api.md)
 
 ## Requirements
 
@@ -33,13 +33,6 @@ Minimum runtime requirements:
 - `ffmpeg`
 - `libsndfile`
 - Enough disk space for model exports and session storage
-
-For direct host execution, install the same system dependencies used by the container:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y ffmpeg alsa-utils libsndfile1
-```
 
 ## Storage Layout
 

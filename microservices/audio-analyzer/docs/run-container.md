@@ -23,7 +23,9 @@ docker compose ps
 curl --noproxy '*' http://127.0.0.1:8000/health
 ```
 
-For endpoint details and request examples, see [api.md](api.md).
+## API Use Cases and Examples
+
+For API use cases, request examples, and endpoint details, see [api.md](api.md).
 
 ## Follow Logs
 

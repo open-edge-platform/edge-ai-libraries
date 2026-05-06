@@ -1,4 +1,4 @@
-# API Reference
+# API Use Cases, Examples, and Reference
 
 ## `GET /health`
 
@@ -17,7 +17,7 @@ Returns detected ALSA capture devices in `hw:<card>,<device>` format.
 Form fields:
 
 - `file`: required audio upload
-- `model`: optional, accepted values are `whisper-1`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe`
+- `model`: optional, accepted value is `whisper-1`
 - `session_id`: optional, reuse to continue an existing session
 - `language`: optional language hint
 - `prompt`: accepted but currently ignored

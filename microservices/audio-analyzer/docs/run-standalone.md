@@ -11,6 +11,8 @@ sudo apt-get update
 sudo apt-get install -y ffmpeg alsa-utils libsndfile1
 ```
 
+These host packages are required for standalone execution on the machine.
+
 ## Python Setup
 
 From the `audio_analyzer/` directory:
@@ -66,7 +68,9 @@ uvicorn main:app --host 127.0.0.1 --port 8000
 curl --noproxy '*' http://127.0.0.1:8000/health
 ```
 
-For endpoint details and request examples, see [api.md](api.md).
+## API Use Cases and Examples
+
+For API use cases, request examples, and endpoint details, see [api.md](api.md).
 
 ## Notes
 
