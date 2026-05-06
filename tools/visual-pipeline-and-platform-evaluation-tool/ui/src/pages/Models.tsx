@@ -110,7 +110,7 @@ export const Models = () => {
   if (models.length > 0) {
     return (
       <div className="container pl-16 mx-auto py-10">
-        <div>
+        <div className="mb-6">
           <h1 className="text-3xl font-bold">Models</h1>
           <p className="text-muted-foreground mt-2">
             Ready-to-use models available in the platform
