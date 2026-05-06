@@ -74,7 +74,7 @@ export const Models = () => {
           const exists = result.jobs?.some((job) => job.status === "completed");
           if (exists) return PRE_UPLOAD_MESSAGES.FILE_EXISTS;
         } catch {
-          // cannot reach server — allow upload to proceed
+          // if local check failed by any reason — proceed to upload
         }
       }
 

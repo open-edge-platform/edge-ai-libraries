@@ -685,7 +685,7 @@ export const MultiFileUploader = ({
                           {status === "failed" && isExistingFile && (
                             <AlertTriangle
                               className="h-4 w-4"
-                              aria-label="Upload blocked"
+                              aria-label="File already exists"
                             />
                           )}
                           {status === "failed" && !isExistingFile && (
