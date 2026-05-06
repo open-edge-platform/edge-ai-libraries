@@ -113,6 +113,22 @@ export const MultiFileUploader = ({
   ).length;
 
   useEffect(() => {
+    if (!formFields?.length) return;
+    const subscription = watch((_, { name }) => {
+      if (name?.startsWith("fields.")) {
+        setUploadStates((prev) =>
+          prev.map((s) =>
+            s.status === "failed"
+              ? { ...s, status: "pending", error: undefined, progress: 0 }
+              : s,
+          ),
+        );
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [formFields, watch]);
+
+  useEffect(() => {
     if (onUploadProgress) {
       const jobs = uploadStates
         .filter((state) => state.error !== "File already exists on server")
