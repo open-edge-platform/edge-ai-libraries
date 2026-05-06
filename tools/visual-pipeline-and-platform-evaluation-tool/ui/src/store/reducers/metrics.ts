@@ -15,9 +15,24 @@ export interface MetricData {
   timestamp: number;
 }
 
+/**
+ * Successful SSE payload emitted by metrics-service `/metrics/stream`.
+ */
 export interface MetricsMessage {
   timestamp: number;
   metrics: MetricData[];
+}
+
+/**
+ * Error payload emitted by metrics-service `/metrics/stream` when its
+ * upstream Telegraf scrape fails (e.g. while metrics-service itself is
+ * still alive but cannot reach Telegraf). The SSE connection stays open
+ * and the service keeps retrying, sending one of these envelopes per
+ * failed poll cycle.
+ */
+export interface MetricsErrorMessage {
+  error: string;
+  timestamp: number;
 }
 
 export interface MetricsState {
@@ -53,18 +68,50 @@ export const metrics = createSlice({
     streamDisconnected: (state) => {
       state.isConnected = false;
       state.isConnecting = false;
+      state.metrics = [];
+    },
+    streamReconnecting: (state, action: PayloadAction<string>) => {
+      // Transport hiccup: the browser's EventSource is auto-reconnecting.
+      // Treat this as "connecting" so the UI does not flip to a red error
+      // state while the connection is being re-established. Drop the
+      // last-known metrics so widgets and the history hook stop showing
+      // stale data while we are not receiving fresh samples.
+      state.isConnected = false;
+      state.isConnecting = true;
+      state.error = action.payload;
+      state.metrics = [];
     },
     streamError: (state, action: PayloadAction<string>) => {
       state.error = action.payload;
       state.isConnected = false;
       state.isConnecting = false;
+      state.metrics = [];
     },
     messageReceived: (state, action: PayloadAction<string>) => {
       state.lastMessage = action.payload;
       try {
-        const parsed = JSON.parse(action.payload) as MetricsMessage;
-        if (parsed.metrics && Array.isArray(parsed.metrics)) {
+        const parsed = JSON.parse(action.payload) as
+          | MetricsMessage
+          | MetricsErrorMessage;
+        if ("error" in parsed && typeof parsed.error === "string") {
+          // metrics-service is up but cannot reach its upstream right now.
+          // Surface the error and clear stale metrics so the UI does not
+          // pretend to be live; the connection itself is still open.
+          state.error = parsed.error;
+          state.isConnected = false;
+          state.isConnecting = true;
+          state.metrics = [];
+          return;
+        }
+        if (
+          "metrics" in parsed &&
+          parsed.metrics &&
+          Array.isArray(parsed.metrics)
+        ) {
           state.metrics = parsed.metrics;
+          state.isConnected = true;
+          state.isConnecting = false;
+          state.error = null;
         }
       } catch (error) {
         console.error("Failed to parse metrics message:", error);
@@ -77,6 +124,7 @@ export const {
   streamConnecting,
   streamConnected,
   streamDisconnected,
+  streamReconnecting,
   streamError,
   messageReceived,
 } = metrics.actions;

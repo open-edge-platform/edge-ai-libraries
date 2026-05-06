@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMetrics } from "@/features/metrics/useMetrics";
+import { useAppSelector } from "@/store/hooks.ts";
+import { selectIsConnected } from "@/store/reducers/metrics.ts";
 
 export interface GpuMetrics {
   compute?: number;
@@ -29,10 +31,18 @@ const MAX_HISTORY_POINTS = 60; // save last 60 data points
 
 export const useMetricHistory = () => {
   const metrics = useMetrics();
+  const isConnected = useAppSelector(selectIsConnected);
   const [history, setHistory] = useState<MetricHistoryPoint[]>([]);
   const lastUpdateRef = useRef<number>(0);
 
   useEffect(() => {
+    // Do not append synthetic zero/stale points to the history while the
+    // metrics stream is not delivering fresh samples (transport error,
+    // metrics-service upstream failure, intentional disconnect, ...).
+    if (!isConnected) {
+      return;
+    }
+
     const now = Date.now();
 
     // update once per second
@@ -79,6 +89,7 @@ export const useMetricHistory = () => {
       return updated;
     });
   }, [
+    isConnected,
     metrics.fps,
     metrics.cpu,
     metrics.cpuDetailed.user,
