@@ -2,7 +2,16 @@
 
 FastAPI service for audio transcription and optional voice-sentiment analysis.
 
-## Overview
+## Start Here
+
+This page is intentionally brief. Use the links below for the actual run steps, configuration details, and API examples.
+
+- Run in Docker: [docs/run-container.md](docs/run-container.md)
+- Run on the host: [docs/run-standalone.md](docs/run-standalone.md)
+- Change configuration: [docs/configuration.md](docs/configuration.md)
+- API use cases and examples: [docs/api.md](docs/api.md)
+
+## What It Does
 
 The service accepts an uploaded audio file, chunks it with FFmpeg, runs ASR on each chunk, and returns either a single transcription response or a streaming NDJSON event stream. When sentiment is enabled, it also returns a session-level sentiment summary.
 
@@ -18,41 +27,8 @@ It supports:
 
 Session data is stored under `storage/<session_id>/`.
 
-## Docs
-
-- Run with Docker Compose: [docs/run-container.md](docs/run-container.md)
-- Run directly without Docker: [docs/run-standalone.md](docs/run-standalone.md)
-- Configuration reference: [docs/configuration.md](docs/configuration.md)
-- API use cases, examples, and endpoint reference: [docs/api.md](docs/api.md)
-
-## Requirements
-
-Minimum runtime requirements:
-
-- Python 3.12
-- `ffmpeg`
-- `libsndfile`
-- Enough disk space for model exports and session storage
-
-## Storage Layout
-
-Important runtime directories:
-
-- `models/`: downloaded and exported model artifacts
-- `chunks/`: temporary FFmpeg chunk files
-- `storage/<session_id>/`: per-session uploads and outputs
-
-Typical session files:
-
-- uploaded audio files
-- `transcription.txt`
-- `timestamped_transcription.txt`
-- `session_state.json`
-
 ## Notes
 
-- First startup can be slow because model download/export happens during startup.
-- The current container and direct-run paths are both supported and validated.
-- The service exposes `X-Session-ID`; make sure your client reads it if you want multi-upload sessions.
-- OpenVINO ASR is working, but short-clip quality can still vary by input and model choice.
+- Do not use this page as the run guide; use the linked docs above.
+- The service exposes `X-Session-ID`; clients should read it if they want multi-upload sessions.
 
