@@ -3,12 +3,20 @@
 ## Current Release
 
 **Version**: 1.3.3-rc1 \
-**Release Date**: 27 April 2026  
+**Release Date**: 05 May 2026  
 
 **Features**:
 
+- **Configurable final video summary**: Added PM_PRODUCE_FINAL_SUMMARY feature flag to make the final LLM map-reduce video summary optional. When disabled, chunk-wise summaries are displayed chronologically instead. A per-video UI override checkbox is available in both upload flows. Audio transcript summarization is automatically skipped when the final summary is turned off.
 - **Audio transcript summarization**: Added audio transcript summarization support and improved audio transcription accuracy.
 - **OVMS-first architecture**: Replaced the standalone `vlm-openvino-serving` microservice with OpenVINO Model Server (OVMS) as the unified inference backend for both VLM captioning and LLM summarization. This is a **breaking change**; the `vlm-inference` subchart and container have been removed.
+- **Performance Optimizations (MME & VDMS-Data-Prep)**:
+  - Refactored pre-processing and inference with `AsyncInferQueue` based OpenVINO inference and static shape model compilation for iGPU.
+  - Added ThreadPool for parallel open_clip image pre-processing with support for input tensor batching and padding for optimal OpenVINO inference paths.
+  - Introduced PyAV-based video decode abstraction supporting keyframes and uniform sampled frames extraction with producer-consumer pattern for parallel decode and frame translation to PIL.
+  - Enabled multiple/parallel decoder instances for file, RTSP stream, and bytes input sources.
+  - Implemented frame batching for pipelined pre-processing and inference with integrated PyAV decoder in VDMS data-prep.
+- **Search Timeout and Resource Management**: Added `SEARCH_DATAPREP_TIMEOUT_MS` configuration to prevent VSS-UI timing out during embedding creation. Added ulimit constraints with soft and hard limits to enable shared memory creation and define memory block allocation boundaries.
 
 **HW used for validation**:
 

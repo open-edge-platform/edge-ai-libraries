@@ -16,7 +16,7 @@ import { APP_URL } from '../../config';
 import StatusTag, { statusClassLabel, statusClassName } from './StatusTag';
 import Markdown from 'react-markdown';
 import { VideoChunkActions } from '../../redux/summary/videoChunkSlice';
-import { VideoFramesAction } from '../../redux/summary/videoFrameSlice';
+import { VideoFramesAction, VideoFrameSelector } from '../../redux/summary/videoFrameSlice';
 import SummariesContainer from './SummariesContainer';
 import { processMD, downloadTextFile, formatDateForFilename, sanitizeFilename } from '../../utils/util';
 import { videosSelector } from '../../redux/video/videoSlice';
@@ -213,6 +213,7 @@ export const Summary: FC = () => {
   const dispatch = useAppDispatch();
   const { selectedSummary, sidebarSummaries } = useAppSelector(SummarySelector);
   const { getVideoUrl, videos } = useAppSelector(videosSelector);
+  const { frameSummaries, frameSummaryStatusCount } = useAppSelector(VideoFrameSelector);
 
   const [systemConfig, setSystemConfig] = useState<SystemConfigWithMeta>();
   const [showAudioSummaryModal, setShowAudioSummaryModal] = useState(false);
@@ -310,7 +311,7 @@ export const Summary: FC = () => {
   };
 
   const handleDownloadFinalSummary = () => {
-    if (!selectedSummary) return;
+    if (!selectedSummary || !selectedSummary.summary?.trim()) return;
     
     try {
       const now = new Date();
@@ -514,27 +515,24 @@ export const Summary: FC = () => {
             {summaryData.audioStatus && summaryData.audioStatus !== StateActionStatus.NA && (
               <StatusTag action={summaryData.audioStatus} label={t('audioTranscriptionLabel')} />
             )}
-            {(summaryData.frameSummaryStatus.inProgress + summaryData.frameSummaryStatus.ready) > 0 && (
-              <StatusTag
-                action={StateActionStatus.IN_PROGRESS}
-                label={t('chunkingSummaryLabel')}
-                count={summaryData.frameSummaryStatus.inProgress + summaryData.frameSummaryStatus.ready}
-              />
-            )}
-
-            {summaryData.frameSummaryStatus.complete > 0 && (
-              <StatusTag
-                action={StateActionStatus.COMPLETE}
-                label={t('chunkingSummaryLabel')}
-                count={summaryData.frameSummaryStatus.complete}
-              />
-            )}
+            {(() => {
+              const pendingCount = frameSummaryStatusCount.inProgress + frameSummaryStatusCount.ready;
+              if (pendingCount > 0) {
+                return <StatusTag action={StateActionStatus.IN_PROGRESS} label={t('chunkingSummaryLabel')} count={pendingCount} />;
+              }
+              if (frameSummaryStatusCount.complete > 0) {
+                return <StatusTag action={StateActionStatus.COMPLETE} label={t('chunkingSummaryLabel')} count={frameSummaryStatusCount.complete} />;
+              }
+              return null;
+            })()}
 
             {summaryData.audioTranscriptSummaryStatus && summaryData.audioTranscriptSummaryStatus !== StateActionStatus.NA && (
               <StatusTag action={summaryData.audioTranscriptSummaryStatus} label={t('audioSummaryLabel')} />
             )}
 
-            <StatusTag action={summaryData.videoSummaryStatus} label={t('summaryLabel')} />
+            {summaryData.systemConfig?.produceFinalSummary !== false && (
+              <StatusTag action={summaryData.videoSummaryStatus} label={t('summaryLabel')} />
+            )}
           </div>
         </div>
       </SummaryTitle>
@@ -565,10 +563,12 @@ export const Summary: FC = () => {
         <SummaryContainer>
           <section>
             <div className="left-section">
-              <h3>Summary</h3>
-              <Tag size='md' type={statusClassName[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA] as any}>
-                {t(statusClassLabel[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA])}
-              </Tag>
+              <h3>{summaryData.systemConfig?.produceFinalSummary === false ? t('chunkSummariesHeading', { defaultValue: 'Chunk Summaries' }) : 'Summary'}</h3>
+              {summaryData.systemConfig?.produceFinalSummary !== false && (
+                <Tag size='md' type={statusClassName[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA] as any}>
+                  {t(statusClassLabel[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA])}
+                </Tag>
+              )}
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               {summaryData.audioTranscriptSummary && summaryData.audioTranscriptSummary.trim() !== '' && (
@@ -591,7 +591,28 @@ export const Summary: FC = () => {
           </section>
 
           <StyledMessage>
-            <Markdown>{processMD(summaryData.summary)}</Markdown>
+            {summaryData.systemConfig?.produceFinalSummary === false ? (
+              (() => {
+                const completedChunkSummaries = frameSummaries.filter(fs => fs.status === StateActionStatus.COMPLETE && fs.summary);
+                return completedChunkSummaries.length > 0 ? (
+                  <>
+                    {completedChunkSummaries
+                      .map((fs, idx) => (
+                      <div key={fs.frameKey} style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                        <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--cds-text-secondary)' }}>
+                          {t('chunkLabel', { defaultValue: 'Chunk' })} {idx + 1} — {t('Frames')} [{fs.startFrame}:{fs.endFrame}]
+                        </h4>
+                        <Markdown>{processMD(fs.summary)}</Markdown>
+                      </div>
+                    ))}
+                </>
+              ) : (
+                <p style={{ opacity: 0.6, fontStyle: 'italic' }}>{t('chunkSummariesPending', { defaultValue: 'Chunk summaries are being generated...' })}</p>
+              );
+              })()
+            ) : (
+              <Markdown>{processMD(summaryData.summary)}</Markdown>
+            )}
           </StyledMessage>
         </SummaryContainer>
         {/* <ChunksContainer /> */}

@@ -128,6 +128,7 @@ export interface SummaryPipelineDTO {
   evam: SummaryPipelineEvam;
   prompts?: SummaryPipelinePrompts;
   audio?: SummaryPipelineAudio;
+  produceFinalSummary?: boolean;
 }
 
 export class SummaryPipelineDTOSwagger implements SummaryPipelineDTO {
@@ -164,6 +165,12 @@ export class SummaryPipelineDTOSwagger implements SummaryPipelineDTO {
     type: SummaryPipelineAudioSwagger,
   })
   audio?: SummaryPipelineAudio | undefined;
+
+  @ApiProperty({
+    required: false,
+    description: 'When true, chunk-level summaries are combined into a final video summary via LLM map-reduce. When false, only individual chunk summaries are kept.',
+  })
+  produceFinalSummary?: boolean;
 }
 
 export interface SummaryPipelinRO {

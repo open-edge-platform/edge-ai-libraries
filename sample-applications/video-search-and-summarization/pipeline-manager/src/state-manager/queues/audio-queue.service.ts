@@ -39,7 +39,7 @@ export class AudioQueueService {
       try {
         const transcripts = await this.$audio.parseTranscript(minioPath);
         this.$state.audioComplete(stateId, { transcriptPath, transcripts });
-        if (state.systemConfig.audioUseFullTranscriptSummary) {
+        if (state.systemConfig.audioUseFullTranscriptSummary && state.systemConfig.produceFinalSummary !== false) {
           this.$emitter.emit(PipelineEvents.AUDIO_SUMMARY_TRIGGER, {
             stateId,
           });
