@@ -47,27 +47,9 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 
 ## Common Values
 
-- `models.asr.provider`: `openai` | `openvino` | `whispercpp`
+- `models.asr.provider`: `openai` | `openvino`
 - `models.asr.device`: typically `CPU`; `GPU` also works for supported OpenVINO paths
 - `models.asr.weight_format`: optional OpenVINO export precision such as `int8`, `fp16`, or `null`
 - `sentiment.enabled`: `true` or `false`
 - `sentiment.provider`: `openvino` or `pytorch`
 - `sentiment.weight_format`: optional OpenVINO export precision such as `int8`, `fp16`, or `null`
-
-## Linux iGPU / OpenVINO GPU
-
-If you want to use the Intel iGPU on Linux:
-
-- on a new machine, first install the required Intel/OpenVINO host GPU runtime or oneAPI toolkit; `setvars.sh` is not present on a default Ubuntu install
-- set `models.asr.device: GPU` for OpenVINO ASR
-- set `sentiment.device: GPU` if you also want OpenVINO sentiment on GPU
-- on systems that provide a oneAPI environment script, source the Intel environment before starting the service
-
-Example:
-
-```bash
-source /opt/intel/oneapi/setvars.sh
-python main.py
-```
-
-This GPU path was validated on the Linux host setup. The container path now uses an Intel OpenVINO runtime base image plus `/dev/dri` passthrough, but it still depends on the host having working Intel GPU support. The exact installation path can vary; `/opt/intel/oneapi/setvars.sh` is a common location, not a guaranteed one.
