@@ -121,6 +121,8 @@ services:
   model-download:
     image: docker.io/intel/model-download:2026.1.0-20260428-weekly
     container_name: model-download
+    ports:
+      - "8000:8000"
     command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-openvino,huggingface,ultralytics,geti}
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:8000/api/v1/health"]
