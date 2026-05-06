@@ -1,4 +1,4 @@
-import { useWebSocketConnection } from "@/hooks/useWebSocketConnection.ts";
+import { useMetricsStream } from "@/hooks/useMetricsStream.ts";
 import type { ReactNode } from "react";
 
 interface MetricsProviderProps {
@@ -6,7 +6,7 @@ interface MetricsProviderProps {
 }
 
 export const MetricsProvider = ({ children }: MetricsProviderProps) => {
-  useWebSocketConnection();
+  useMetricsStream();
 
   return <>{children}</>;
 };

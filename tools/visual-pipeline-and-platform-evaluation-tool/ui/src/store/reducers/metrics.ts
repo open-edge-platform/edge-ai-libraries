@@ -1,15 +1,25 @@
 import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { RootState } from "@/store";
+
+/**
+ * A single metric sample as emitted by metrics-service `/metrics/stream`
+ * (SSE). The shape mirrors the flat Prometheus exposition that Telegraf
+ * exposes on `:9273/metrics`, e.g.:
+ *   `cpu_usage_user{cpu="cpu-total",host="..."} 0.12 <ts_ms>`.
+ */
 export interface MetricData {
   name: string;
-  fields: Record<string, number | string>;
-  tags?: Record<string, string>;
-  timestamp?: string;
+  labels: Record<string, string>;
+  value: number;
+  timestamp: number;
 }
+
 export interface MetricsMessage {
+  timestamp: number;
   metrics: MetricData[];
 }
+
 export interface MetricsState {
   isConnected: boolean;
   isConnecting: boolean;
@@ -17,6 +27,7 @@ export interface MetricsState {
   metrics: MetricData[];
   error: string | null;
 }
+
 const initialState: MetricsState = {
   isConnected: false,
   isConnecting: false,
@@ -24,25 +35,26 @@ const initialState: MetricsState = {
   metrics: [],
   error: null,
 };
+
 export const metrics = createSlice({
   name: "metrics",
   initialState,
   reducers: {
-    wsConnecting: (state) => {
+    streamConnecting: (state) => {
       state.isConnecting = true;
       state.isConnected = false;
       state.error = null;
     },
-    wsConnected: (state) => {
+    streamConnected: (state) => {
       state.isConnected = true;
       state.isConnecting = false;
       state.error = null;
     },
-    wsDisconnected: (state) => {
+    streamDisconnected: (state) => {
       state.isConnected = false;
       state.isConnecting = false;
     },
-    wsError: (state, action: PayloadAction<string>) => {
+    streamError: (state, action: PayloadAction<string>) => {
       state.error = action.payload;
       state.isConnected = false;
       state.isConnecting = false;
@@ -60,13 +72,15 @@ export const metrics = createSlice({
     },
   },
 });
+
 export const {
-  wsConnecting,
-  wsConnected,
-  wsDisconnected,
-  wsError,
+  streamConnecting,
+  streamConnected,
+  streamDisconnected,
+  streamError,
   messageReceived,
 } = metrics.actions;
+
 export const selectMetricsState = (state: RootState) => state.metrics;
 export const selectIsConnected = (state: RootState) =>
   state.metrics.isConnected;
@@ -76,51 +90,87 @@ export const selectMetrics = (state: RootState) => state.metrics.metrics;
 export const selectLastMessage = (state: RootState) =>
   state.metrics.lastMessage;
 export const selectError = (state: RootState) => state.metrics.error;
+
+const findMetric = (
+  metrics: MetricData[],
+  name: string,
+  labelMatcher?: (labels: Record<string, string>) => boolean,
+) =>
+  metrics.find(
+    (m) => m.name === name && (labelMatcher ? labelMatcher(m.labels) : true),
+  );
+
+const filterMetrics = (
+  metrics: MetricData[],
+  name: string,
+  labelMatcher?: (labels: Record<string, string>) => boolean,
+) =>
+  metrics.filter(
+    (m) => m.name === name && (labelMatcher ? labelMatcher(m.labels) : true),
+  );
+
 export const selectFpsMetric = (state: RootState) =>
-  state.metrics.metrics.find((m) => m.name === "fps")?.fields?.value as
-    | number
-    | undefined;
+  findMetric(state.metrics.metrics, "fps")?.value;
+
 export const selectCpuMetric = (state: RootState) =>
-  state.metrics.metrics.find((m) => m.name === "cpu")?.fields?.usage_user as
-    | number
-    | undefined;
+  findMetric(
+    state.metrics.metrics,
+    "cpu_usage_user",
+    (l) => l.cpu === "cpu-total",
+  )?.value;
 
 export const selectMemoryMetric = (state: RootState) =>
-  state.metrics.metrics.find((m) => m.name === "mem")?.fields?.used_percent as
-    | number
-    | undefined;
+  findMetric(state.metrics.metrics, "mem_used_percent")?.value;
 
 export const selectCpuMetrics = (state: RootState) => {
-  const cpuMetric = state.metrics.metrics.find((m) => m.name === "cpu");
-  const cpuFrequencyMetric = state.metrics.metrics.find(
-    (m) => m.name === "cpu_frequency_avg",
+  const userMetric = findMetric(
+    state.metrics.metrics,
+    "cpu_usage_user",
+    (l) => l.cpu === "cpu-total",
   );
-  const cpuTempMetric = state.metrics.metrics.find(
-    (m) => m.name === "temp" && m.tags?.sensor?.includes("coretemp_package_id"),
+  const idleMetric = findMetric(
+    state.metrics.metrics,
+    "cpu_usage_idle",
+    (l) => l.cpu === "cpu-total",
+  );
+  const cpuFrequencyMetric = findMetric(
+    state.metrics.metrics,
+    "cpu_frequency_avg_frequency",
+  );
+  const cpuTempMetric = findMetric(
+    state.metrics.metrics,
+    "temp_temp",
+    (l) => l.sensor?.includes("coretemp_package_id") ?? false,
   );
   return {
-    user: (cpuMetric?.fields?.usage_user as number) ?? 0,
-    idle: (cpuMetric?.fields?.usage_idle as number) ?? 0,
-    avgFrequency:
-      ((cpuFrequencyMetric?.fields?.frequency as number) ?? 0) / 1000000, // Convert kHz to GHz
-    temp: cpuTempMetric?.fields?.temp as number | undefined,
+    user: userMetric?.value ?? 0,
+    idle: idleMetric?.value ?? 0,
+    // Telegraf exposes the value in kHz; convert to GHz for display.
+    avgFrequency: (cpuFrequencyMetric?.value ?? 0) / 1_000_000,
+    temp: cpuTempMetric?.value,
   };
 };
 
 export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
-  const gpuMetrics = state.metrics.metrics.filter(
-    (m) => m.name === "gpu_engine_usage" && m.tags?.gpu_id === gpuId,
+  const gpuEngineMetrics = filterMetrics(
+    state.metrics.metrics,
+    "gpu_engine_usage_usage",
+    (l) => l.gpu_id === gpuId,
   );
 
-  const gpuFrequencyMetric = state.metrics.metrics.find(
-    (m) => m.name === "gpu_frequency" && m.tags?.gpu_id === gpuId,
+  const gpuFrequencyMetric = findMetric(
+    state.metrics.metrics,
+    "gpu_frequency",
+    (l) => l.gpu_id === gpuId && l.type === "cur_freq",
   );
 
-  const gpuPowerMetrics = state.metrics.metrics.filter(
-    (m) => m.name === "gpu_power" && m.tags?.gpu_id === gpuId,
+  const gpuPowerMetrics = filterMetrics(
+    state.metrics.metrics,
+    "gpu_power",
+    (l) => l.gpu_id === gpuId,
   );
 
-  // map short engine names to long names
+  // Map short engine names to long names emitted by qmassa.
   const engineNameMap: Record<string, string> = {
     rcs: "render",
     bcs: "copy",
@@ -130,19 +180,19 @@ export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
   };
 
   const findEngineUsage = (engineNames: string[]) => {
-    const metric = gpuMetrics.find((m) => {
-      const engine = m.tags?.engine ?? "";
+    const metric = gpuEngineMetrics.find((m) => {
+      const engine = m.labels.engine ?? "";
       return (
         engineNames.includes(engine) ||
         engineNames.includes(engineNameMap[engine] ?? engine)
       );
     });
-    return metric ? (metric.fields?.usage as number | undefined) : undefined;
+    return metric?.value;
   };
 
   const findPowerValue = (powerType: string) => {
-    const metric = gpuPowerMetrics.find((m) => m.tags?.type === powerType);
-    return metric ? (metric.fields?.value as number | undefined) : undefined;
+    const metric = gpuPowerMetrics.find((m) => m.labels.type === powerType);
+    return metric?.value;
   };
 
   return {
@@ -151,9 +201,11 @@ export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
     copy: findEngineUsage(["copy", "bcs"]),
     video: findEngineUsage(["video", "vcs"]),
     videoEnhance: findEngineUsage(["video-enhance", "vecs"]),
-    frequency: gpuFrequencyMetric?.fields?.value
-      ? (gpuFrequencyMetric.fields.value as number) / 1000
-      : undefined,
+    // qmassa emits frequency in MHz; convert to GHz for display.
+    frequency:
+      gpuFrequencyMetric?.value !== undefined
+        ? gpuFrequencyMetric.value / 1000
+        : undefined,
     gpuPower: findPowerValue("gpu_cur_power"),
     pkgPower: findPowerValue("pkg_cur_power"),
   };

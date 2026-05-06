@@ -64,11 +64,18 @@ export default defineConfig(({ mode }) => {
             });
           },
         },
-        "/metrics/ws": {
+        "/metrics/stream": {
           target: env.VITE_METRICS_URL || "http://localhost:9090",
           changeOrigin: true,
           secure: false,
-          ws: true,
+          ws: false,
+          configure: (proxy) => {
+            // Disable response buffering so SSE events stream through immediately
+            proxy.on("proxyRes", (proxyRes) => {
+              proxyRes.headers["cache-control"] = "no-cache";
+              proxyRes.headers["x-accel-buffering"] = "no";
+            });
+          },
         },
       },
     },
