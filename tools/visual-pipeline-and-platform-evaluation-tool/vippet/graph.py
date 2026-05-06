@@ -24,6 +24,16 @@ OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
 RTSP_URL_PREFIX = "rtsp://"
 USB_DEVICE_PREFIX = "/dev/video"
 
+# Element types whose presence marks a pipeline as metadata-only (no video output).
+# Such pipelines are allowed to keep an unnamed fakesink as-is (used for metadata
+# delivery) instead of having it converted to OUTPUT_PLACEHOLDER.
+METADATA_ONLY_NODE_TYPES: frozenset[str] = frozenset({"gvagenai"})
+
+
+def graph_is_metadata_only(nodes: list["Node"]) -> bool:
+    """Return True if the pipeline produces only metadata (no video output)."""
+    return any(node.type in METADATA_ONLY_NODE_TYPES for node in nodes)
+
 logger = logging.getLogger(__name__)
 labels_manager = get_labels_manager()
 scripts_manager = get_scripts_manager()
@@ -591,10 +601,10 @@ class Graph:
             placeholder_created = True
             logger.debug(f"Converted node {node.id} to OUTPUT_PLACEHOLDER")
 
-        # If no named default sink, check if there's exactly one fakesink in the graph
-        # Skip auto-selection for gvagenai pipelines (metadata-only, no video output needed)
+        # If no named default sink, check if there's exactly one fakesink in the graph.
+        # Skip auto-selection for metadata-only pipelines (no video output needed).
         if not placeholder_created:
-            has_gvagenai = any(node.type == "gvagenai" for node in modified_graph.nodes)
+            is_metadata_only = graph_is_metadata_only(modified_graph.nodes)
 
             fakesink_nodes = [
                 node for node in modified_graph.nodes if node.type == "fakesink"
@@ -606,18 +616,19 @@ class Graph:
                     "Please add 'fakesink' or 'fakesink name=default_output_sink' "
                     "at the end of your pipeline to specify where the output should be placed."
                 )
-            elif len(fakesink_nodes) == 1 and not has_gvagenai:
-                # Exactly one fakesink and NOT a gvagenai pipeline - use it automatically
+            elif is_metadata_only:
+                # Keep unnamed fakesink as-is (used for metadata delivery). This condition must
+                # precede the single-fakesink condition, to avoid converting to OUTPUT_PLACEHOLDER.
+                logger.debug(
+                    "Metadata-only pipeline detected. Keeping unnamed fakesink as-is."
+                )
+            elif len(fakesink_nodes) == 1:
+                # Exactly one fakesink in a video pipeline - convert it to OUTPUT_PLACEHOLDER.
                 node = fakesink_nodes[0]
                 node.data.clear()
                 node.type = OUTPUT_PLACEHOLDER
                 placeholder_created = True
                 logger.debug(f"Converted node {node.id} to OUTPUT_PLACEHOLDER")
-            elif has_gvagenai:
-                # gvagenai pipeline - metadata-only, keep unnamed fakesink as-is
-                logger.debug(
-                    "gvagenai pipeline detected. Keeping unnamed fakesink for metadata output."
-                )
             else:
                 # Multiple fakesinks - need explicit naming
                 raise ValueError(

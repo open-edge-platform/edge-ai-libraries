@@ -150,15 +150,15 @@ class ModelCategory(str, Enum):
     """
     **Model category for classification, detection, or GenAI tasks.**
 
-      ## Values
-      - `CLASSIFICATION` - Classification model
-      - `DETECTION` - Detection model
+    ## Values
+    - `CLASSIFICATION` - Classification model
+    - `DETECTION` - Detection model
     - `GENAI` - Generative AI model (for example VLM)
 
-      ### Example
-      ```json
-      "detection"
-      ```
+    ### Example
+    ```json
+    "detection"
+    ```
     """
 
     CLASSIFICATION = "classification"

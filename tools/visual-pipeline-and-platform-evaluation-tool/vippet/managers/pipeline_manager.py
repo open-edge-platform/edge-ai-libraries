@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
 
-from graph import Graph, OUTPUT_PLACEHOLDER
+from graph import Graph, OUTPUT_PLACEHOLDER, graph_is_metadata_only
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
@@ -682,19 +682,16 @@ class PipelineManager:
                 unique_pipeline_str = graph_instance.to_pipeline_description()
 
                 if output_mode != InternalOutputMode.DISABLED and stream_index == 0:
-                    # Replace the main output placeholder with the actual output subpipeline (file or live stream)
-                    # For gvagenai pipelines, there may be no placeholder (unnamed fakesink for metadata-only)
+                    # Replace the main output placeholder with the actual output subpipeline (file or live stream).
+                    # For metadata-only pipelines, there may be no placeholder (unnamed fakesink for metadata delivery).
                     if OUTPUT_PLACEHOLDER not in unique_pipeline_str:
-                        has_gvagenai = any(
-                            n.type == "gvagenai" for n in graph_instance.nodes
-                        )
-                        if not has_gvagenai:
+                        if not graph_is_metadata_only(graph_instance.nodes):
                             raise ValueError(
                                 f"Pipeline '{pipeline_name}' (id: {pipeline_id}) is missing required output sink. "
                                 f"Please add 'fakesink name=default_output_sink' at the end of the pipeline definition."
                             )
                         logger.debug(
-                            "gvagenai pipeline detected with unnamed fakesink. Skipping output injection."
+                            "Metadata-only pipeline detected with unnamed fakesink. Skipping output injection."
                         )
                     else:
                         if output_subpipeline is None:
