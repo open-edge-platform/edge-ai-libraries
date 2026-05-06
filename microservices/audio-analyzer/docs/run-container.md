@@ -6,6 +6,7 @@ Use this path when you want the service to run in a container and expose the API
 
 - Edit `config.container.yaml` with the settings you want. For configuration details and override behavior, see [configuration.md](configuration.md).
 - The Compose setup mounts `config.container.yaml`, `models/`, `chunks/`, `storage/`, and Hugging Face cache into the container.
+- The container now uses an Intel OpenVINO runtime base image and passes `/dev/dri` through by default for host Intel iGPU access.
 
 ## Start
 
@@ -63,5 +64,5 @@ docker compose down
 - The service loads `config.container.yaml` through `AUDIO_ANALYZER_CONFIG_OVERRIDE_PATHS`
 - First startup can take longer because model download or export may happen during startup
 - If you need host microphone access, uncomment the `/dev/snd` device mapping in `docker-compose.yml`
-- Linux iGPU/OpenVINO GPU is not enabled by default in this Compose setup; the validated GPU path was host-side standalone execution
-- On a new machine, installing Intel/OpenVINO host GPU support is a separate prerequisite from Python dependency installation
+- Linux iGPU access now depends on the host exposing `/dev/dri` and having Intel/OpenVINO host GPU support installed
+- On a new machine, Intel/OpenVINO host GPU support is still a separate prerequisite from Python dependency installation

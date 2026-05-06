@@ -6,6 +6,10 @@ services:
     container_name: audio-analyzer
     ports:
       - "8000:8000"
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
     environment:
       AUDIO_ANALYZER_CONFIG_OVERRIDE_PATHS: /app/audio_analyzer/config.container.yaml
     volumes:
@@ -15,6 +19,6 @@ services:
       - ./storage:/app/audio_analyzer/storage
       - ./.cache/huggingface:/root/.cache/huggingface
     restart: unless-stopped
-    # Uncomment the next lines if you need microphone capture from the host.
+    # Uncomment the next lines if you also need microphone capture from the host.
     # devices:
     #   - /dev/snd:/dev/snd

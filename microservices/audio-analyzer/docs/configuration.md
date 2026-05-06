@@ -70,4 +70,4 @@ source /opt/intel/oneapi/setvars.sh
 python main.py
 ```
 
-This GPU path was validated on the Linux host setup. The default Docker Compose setup does not automatically expose or configure iGPU access inside the container. The exact installation path can vary; `/opt/intel/oneapi/setvars.sh` is a common location, not a guaranteed one.
+This GPU path was validated on the Linux host setup. The container path now uses an Intel OpenVINO runtime base image plus `/dev/dri` passthrough, but it still depends on the host having working Intel GPU support. The exact installation path can vary; `/opt/intel/oneapi/setvars.sh` is a common location, not a guaranteed one.
