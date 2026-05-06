@@ -83,6 +83,7 @@ export const MultiFileUploader = ({
   });
 
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingInvalid, setIsDraggingInvalid] = useState(false);
   const [selectedFilesList, setSelectedFilesList] = useState<File[]>([]);
   const [uploadStates, setUploadStates] = useState<FileUploadState[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -274,9 +275,34 @@ export const MultiFileUploader = ({
     return { succeeded, failed };
   };
 
+  const isMimeTypeAccepted = (mimeType: string): boolean => {
+    if (!mimeType || accept === "*" || accept === "*/*") return true;
+
+    const acceptedTypes = accept.split(",").map((t) => t.trim().toLowerCase());
+    const hasMimeEntries = acceptedTypes.some((t) => !t.startsWith("."));
+
+    for (const accepted of acceptedTypes) {
+      if (accepted.startsWith(".")) continue;
+      if (accepted.endsWith("/*")) {
+        if (mimeType.toLowerCase().startsWith(`${accepted.split("/")[0]}/`))
+          return true;
+      } else if (accepted === mimeType.toLowerCase()) {
+        return true;
+      }
+    }
+
+    return !hasMimeEntries;
+  };
+
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const items = Array.from(e.dataTransfer.items).filter(
+      (item) => item.kind === "file",
+    );
+    const hasInvalid =
+      items.length > 0 && items.every((item) => !isMimeTypeAccepted(item.type));
+    setIsDraggingInvalid(hasInvalid);
     setIsDragging(true);
   };
 
@@ -284,11 +310,20 @@ export const MultiFileUploader = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    setIsDraggingInvalid(false);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const items = Array.from(e.dataTransfer.items).filter(
+      (item) => item.kind === "file",
+    );
+    if (items.length > 0) {
+      setIsDraggingInvalid(
+        items.every((item) => !isMimeTypeAccepted(item.type)),
+      );
+    }
   };
 
   const filterFilesByAccept = (files: File[]): File[] => {
@@ -319,6 +354,7 @@ export const MultiFileUploader = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    setIsDraggingInvalid(false);
 
     const filtered = filterFilesByAccept(Array.from(e.dataTransfer.files));
     const droppedFiles = !multiple ? filtered.slice(0, 1) : filtered;
@@ -520,24 +556,34 @@ export const MultiFileUploader = ({
               flex flex-col items-center justify-center gap-3
               focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2
               ${
-                isDragging
-                  ? "border-primary bg-primary/5 scale-[1.02]"
-                  : "border-muted-foreground/25 hover:border-primary/50 hover:bg-background/50"
+                isDraggingInvalid
+                  ? "border-destructive bg-destructive/5 scale-[1.02]"
+                  : isDragging
+                    ? "border-primary bg-primary/5 scale-[1.02]"
+                    : "border-muted-foreground/25 hover:border-primary/50 hover:bg-background/50"
               }
             `}
           >
             <Upload
               className={`w-12 h-12 ${
-                isDragging ? "text-primary" : "text-muted-foreground"
+                isDraggingInvalid
+                  ? "text-destructive"
+                  : isDragging
+                    ? "text-primary"
+                    : "text-muted-foreground"
               }`}
               aria-hidden="true"
             />
             <div className="text-center">
               <p id="upload-instructions" className="text-lg font-medium">
-                {isDragging ? "Drop your files here" : "Drag & drop files here"}
+                {isDraggingInvalid
+                  ? "File type not accepted"
+                  : isDragging
+                    ? "Drop your files here"
+                    : "Drag & drop files here"}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                or click to browse your computer
+                {!isDraggingInvalid && "or click to browse your computer"}
               </p>
             </div>
             <Input
