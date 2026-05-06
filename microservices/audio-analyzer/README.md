@@ -1,30 +1,65 @@
-# Audio Analyzer Microservice
+# Audio Analyzer
 
-This repository provides a FastAPI-based microservice for analyzing audio including speech
-transcription from video files using pywhispercpp or OpenVINO with openvino-genai.
+FastAPI service for audio transcription and optional voice-sentiment analysis.
 
-Below, you will find links to detailed documentation to help you get started, configure, and
-deploy the microservice.
+## Overview
 
-## Documentation
+The service accepts an uploaded audio file, chunks it with FFmpeg, runs ASR on each chunk, and returns either a single transcription response or a streaming NDJSON event stream. When sentiment is enabled, it also returns a session-level sentiment summary.
 
-- **Overview**
-  - [Overview](./docs/user-guide/index.md): A high-level introduction to the microservice.
-  - [How It Works](./docs/user-guide/how-it-works.md): An overview of the architecture.
+It supports:
 
-- **Getting Started**
-  - [Get Started](./docs/user-guide/get-started.md): Step-by-step guide to getting started with the microservice.
-  - [System Requirements](./docs/user-guide/get-started/system-requirements.md): Hardware and software requirements for running the microservice.
+- OpenAI-style transcription API at `POST /v1/audio/transcriptions`
+- Streaming transcription API at `POST /v1/audio/transcriptions/stream`
+- Health check at `GET /health`
+- ALSA input device listing at `GET /devices`
+- ASR backends: `openai`, `openvino`, `whispercpp`
+- Optional sentiment analysis with `openvino` or `pytorch`
+- Session continuation by reusing `session_id`
 
-- **Deployment**
-  - [How to Build from Source](./docs/user-guide/get-started/build-from-source.md): Instructions for building the microservice from source code.
+Session data is stored under `storage/<session_id>/`.
 
-- **API Reference**
-  - [API Reference](./docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.
+## Docs
 
-- **Troubleshooting**
-  - [Troubleshooting](./docs/user-guide/troubleshooting.md): Known issues and troubleshooting
-  steps.
+- Run with Docker Compose: [docs/run-container.md](docs/run-container.md)
+- Run directly without Docker: [docs/run-standalone.md](docs/run-standalone.md)
+- Configuration reference: [docs/configuration.md](docs/configuration.md)
+- API reference: [docs/api.md](docs/api.md)
 
-- **Release Notes**
-  - [Release Notes](./docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.
+## Requirements
+
+Minimum runtime requirements:
+
+- Python 3.12
+- `ffmpeg`
+- `libsndfile`
+- Enough disk space for model exports and session storage
+
+For direct host execution, install the same system dependencies used by the container:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ffmpeg alsa-utils libsndfile1
+```
+
+## Storage Layout
+
+Important runtime directories:
+
+- `models/`: downloaded and exported model artifacts
+- `chunks/`: temporary FFmpeg chunk files
+- `storage/<session_id>/`: per-session uploads and outputs
+
+Typical session files:
+
+- uploaded audio files
+- `transcription.txt`
+- `timestamped_transcription.txt`
+- `session_state.json`
+
+## Notes
+
+- First startup can be slow because model download/export happens during startup.
+- The current container and direct-run paths are both supported and validated.
+- The service exposes `X-Session-ID`; make sure your client reads it if you want multi-upload sessions.
+- OpenVINO ASR is working, but short-clip quality can still vary by input and model choice.
+
