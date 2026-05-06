@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { Progress } from "@/components/ui/progress.tsx";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field.tsx";
 import React, { useRef, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import {
@@ -15,6 +16,7 @@ import {
 
 type UploadFormData = {
   files: FileList | null;
+  fields: Record<string, string>;
 };
 
 type FileUploadState = {
@@ -44,7 +46,6 @@ export interface MultiFileUploaderProps {
     file: File,
     fields: Record<string, string>,
   ) => Promise<PreUploadMessage | null> | PreUploadMessage | null;
-  additionalFields?: Record<string, string>;
   formFields?: Array<{
     name: string;
     label: string;
@@ -63,23 +64,29 @@ export const MultiFileUploader = ({
   multiple = true,
   maxConcurrentUploads = 3,
   preUpload,
-  additionalFields,
   formFields,
   className,
 }: MultiFileUploaderProps) => {
-  const { register, handleSubmit, reset, watch, setValue } =
-    useForm<UploadFormData>({
-      defaultValues: {
-        files: null,
-      },
-    });
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    getValues,
+    formState: { errors },
+  } = useForm<UploadFormData>({
+    defaultValues: {
+      files: null,
+      fields: {},
+    },
+  });
 
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFilesList, setSelectedFilesList] = useState<File[]>([]);
   const [uploadStates, setUploadStates] = useState<FileUploadState[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isPostUpload, setIsPostUpload] = useState(false);
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedFiles = watch("files");
@@ -144,7 +151,7 @@ export const MultiFileUploader = ({
     new Promise((resolve, reject) => {
       const formData = new FormData();
       formData.append("file", file);
-      const allFields = { ...additionalFields, ...fieldValues };
+      const allFields = { ...getValues("fields") };
       for (const [key, value] of Object.entries(allFields)) {
         formData.append(key, value);
       }
@@ -396,7 +403,9 @@ export const MultiFileUploader = ({
     }
 
     const missingRequired = formFields?.some(
-      (f) => f.required && !fieldValues[f.name]?.trim(),
+      (f) =>
+        f.required &&
+        !getValues(`fields.${f.name}` as `fields.${string}`)?.trim(),
     );
     if (missingRequired) {
       return;
@@ -415,8 +424,7 @@ export const MultiFileUploader = ({
         filesToUpload.map(async (fileJob) => ({
           fileJob,
           message: await preUpload(fileJob.file, {
-            ...additionalFields,
-            ...fieldValues,
+            ...getValues("fields"),
           }),
         })),
       );
@@ -555,27 +563,42 @@ export const MultiFileUploader = ({
             selectedFilesList.length > 0 && (
               <div className="space-y-3">
                 {formFields.map((field) => (
-                  <div key={field.name}>
-                    <Label htmlFor={`field-${field.name}`}>
+                  <Field key={field.name}>
+                    <FieldLabel htmlFor={`field-${field.name}`}>
                       {field.label}
-                      {field.required && (
-                        <span className="text-destructive ml-1">*</span>
-                      )}
-                    </Label>
+                    </FieldLabel>
                     <Input
                       id={`field-${field.name}`}
-                      value={fieldValues[field.name] ?? ""}
-                      onChange={(e) =>
-                        setFieldValues((prev) => ({
-                          ...prev,
-                          [field.name]: e.target.value,
-                        }))
-                      }
+                      {...register(
+                        `fields.${field.name}` as `fields.${string}`,
+                        {
+                          required: field.required
+                            ? "This field is required"
+                            : false,
+                        },
+                      )}
                       placeholder={field.placeholder}
-                      required={field.required}
                       className="mt-1"
                     />
-                  </div>
+                    <FieldError
+                      errors={
+                        (
+                          errors.fields as
+                            | Record<string, { message?: string }>
+                            | undefined
+                        )?.[field.name]
+                          ? [
+                              (
+                                errors.fields as Record<
+                                  string,
+                                  { message?: string }
+                                >
+                              )[field.name],
+                            ]
+                          : undefined
+                      }
+                    />
+                  </Field>
                 ))}
               </div>
             )}
