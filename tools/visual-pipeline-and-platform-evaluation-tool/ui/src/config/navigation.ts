@@ -9,6 +9,7 @@ import {
   GitFork,
   Camera,
   Image,
+  Server,
 } from "lucide-react";
 import { redirect, type RouteObject } from "react-router";
 import { Home as HomePage } from "@/pages/Home.tsx";
@@ -19,6 +20,7 @@ import { ImageSets } from "@/pages/ImageSets.tsx";
 import { ImagesInSet } from "@/pages/ImagesInSet.tsx";
 import { PerformanceTests } from "@/pages/PerformanceTests.tsx";
 import { DensityTests } from "@/pages/DensityTests.tsx";
+import { Remote } from "@/pages/Remote.tsx";
 import { Jobs } from "@/pages/Jobs.tsx";
 import { PerformanceJobDetail } from "@/pages/PerformanceJobDetail.tsx";
 import { DensityJobDetail } from "@/pages/DensityJobDetail.tsx";
@@ -51,6 +53,7 @@ export const menuItems: Array<NavigationItem> = [
     icon: Gauge,
   },
   { url: "/tests/density", title: "Density", icon: Grid3x3 },
+  { url: "/remote", title: "Remote", icon: Server },
   { url: "/jobs", title: "Jobs", icon: ListTodo },
 ];
 
@@ -65,6 +68,7 @@ export const routeConfig: Array<RouteObject> = [
   { path: "cameras", Component: Cameras },
   { path: "tests/performance", Component: PerformanceTests },
   { path: "tests/density", Component: DensityTests },
+  { path: "remote", Component: Remote },
   {
     path: "jobs",
     Component: Jobs,

@@ -118,10 +118,14 @@ make format      # Auto-format with ruff
 
 ## API
 
-- **Backend API**: `http://localhost:7860/api/v1/` (FastAPI, auto-documented at `/docs`)
-- **UI**: `http://localhost:80`
-- **RTSP live streams**: `rtsp://localhost:8554/{stream_name}` (via mediamtx)
-- **WebSocket metrics**: `ws://localhost:7860/metrics/ws`
+Services are accessible both locally and from external networks:
+
+- **Backend API**: `http://localhost:7860/api/v1/` or `http://<HOST-IP>:7860/api/v1/` (FastAPI, auto-documented at `/docs`)
+- **UI**: `http://localhost:80` or `http://<HOST-IP>:80`
+- **RTSP live streams**: `rtsp://localhost:8554/{stream_name}` or `rtsp://<HOST-IP>:8554/{stream_name}` (via mediamtx)
+- **WebSocket metrics**: `ws://localhost:7860/metrics/ws` or `ws://<HOST-IP>:7860/metrics/ws`
+
+All services bind to `0.0.0.0` (all network interfaces) to enable external access. Ensure firewall rules allow connections to required ports.
 
 The OpenAPI schema can be regenerated with:
 
@@ -131,15 +135,17 @@ make generate_openapi
 
 ## Docker Compose Services
 
-| Service           | Description                               | Port |
-|-------------------|-------------------------------------------|------|
-| `vippet`          | Backend (FastAPI)                         | 7860 |
-| `vippet-ui`       | Frontend (Nginx)                          | 80   |
-| `mediamtx`        | RTSP server                               | 8554 |
-| `models`          | Model installer (profile: `do-not-start`) | -    |
-| `metrics-service` | Metrics collector                         | 9090 |
+| Service           | Description                               | Port(s)           | External Access |
+|-------------------|-------------------------------------------|-------------------|-----------------|
+| `vippet`          | Backend (FastAPI)                         | 7860              | 0.0.0.0:7860    |
+| `vippet-ui`       | Frontend (Nginx)                          | 80                | 0.0.0.0:80      |
+| `mediamtx`        | RTSP server                               | 8554, 8889, 8189  | 0.0.0.0:*       |
+| `models`          | Model installer (profile: `do-not-start`) | -                 | N/A             |
+| `metrics-service` | Metrics collector                         | 9090, 9273        | 0.0.0.0:*       |
 
 Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automatically by `setup_env.sh`.
+
+**Note**: All services bind to `0.0.0.0` (all network interfaces), enabling access from external networks. Configure firewall rules as needed.
 
 ## Coding Standards
 

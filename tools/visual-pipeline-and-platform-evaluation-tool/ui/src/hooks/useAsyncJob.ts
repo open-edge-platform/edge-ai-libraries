@@ -92,6 +92,7 @@ export function useAsyncJob<
   onFinally,
 }: UseAsyncJobOptions<TMutationArgs, TMutationResponse, TStatus, TResult>) {
   const [jobId, setJobId] = useState<string | null>(null);
+  const [statusCheckArgs, setStatusCheckArgs] = useState<Record<string, unknown>>({});
   const lastJobIdRef = useRef<string | null>(null);
 
   const jobResolveRef = useRef<((status: TStatus) => void) | null>(null);
@@ -114,7 +115,7 @@ export function useAsyncJob<
   });
 
   const { data: jobStatus } = statusCheckHook(
-    { jobId: jobId! },
+    { jobId: jobId!, ...statusCheckArgs } as any,
     {
       skip: !jobId,
       pollingInterval,
@@ -165,6 +166,12 @@ export function useAsyncJob<
   }, [jobStatus, jobId, isJobCancelled]);
 
   const execute = async (args: TMutationArgs): Promise<TStatus> => {
+    // Extract serverIp if present (for remote hooks)
+    const { serverIp } = args as any;
+    if (serverIp) {
+      setStatusCheckArgs({ serverIp });
+    }
+
     const response = await triggerMutation(args).unwrap();
 
     if ("job_id" in response) {
@@ -182,6 +189,7 @@ export function useAsyncJob<
   const reset = () => {
     lastJobIdRef.current = null;
     setJobId(null);
+    setStatusCheckArgs({});
   };
 
   const isPolling =
