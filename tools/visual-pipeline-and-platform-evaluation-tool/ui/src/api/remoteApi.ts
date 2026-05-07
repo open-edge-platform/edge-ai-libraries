@@ -32,16 +32,13 @@ export const remoteApiSlice = apiSlice.injectEndpoints({
       RunPerformanceTestApiResponse,
       RunPerformanceTestApiArg & { serverIp?: string }
     >({
-      queryFn: async ({ performanceTestSpec, serverIp }, api, extraOptions, baseQuery) => {
-        const result = await baseQuery(
-          {
-            url: `/tests/performance`,
-            method: "POST",
-            body: performanceTestSpec,
-          },
-          api,
-          { ...extraOptions, serverIp },
-        );
+      queryFn: async ({ performanceTestSpec, serverIp }, _api, _extraOptions, baseQuery) => {
+        const result = await baseQuery({
+          url: `/tests/performance`,
+          method: "POST",
+          body: performanceTestSpec,
+          _serverIp: serverIp,
+        });
         return result.error ? { error: result.error } : { data: result.data };
       },
       invalidatesTags: ["tests"],
@@ -52,14 +49,11 @@ export const remoteApiSlice = apiSlice.injectEndpoints({
       GetPerformanceJobStatusApiResponse,
       GetPerformanceJobStatusApiArg & { serverIp?: string }
     >({
-      queryFn: async ({ jobId, serverIp }, api, extraOptions, baseQuery) => {
-        const result = await baseQuery(
-          {
-            url: `/jobs/tests/performance/${jobId}/status`,
-          },
-          api,
-          { ...extraOptions, serverIp },
-        );
+      queryFn: async ({ jobId, serverIp }, _api, _extraOptions, baseQuery) => {
+        const result = await baseQuery({
+          url: `/jobs/tests/performance/${jobId}/status`,
+          _serverIp: serverIp,
+        });
         return result.error ? { error: result.error } : { data: result.data };
       },
       providesTags: ["jobs"],
@@ -70,15 +64,12 @@ export const remoteApiSlice = apiSlice.injectEndpoints({
       StopPerformanceTestJobApiResponse,
       StopPerformanceTestJobApiArg & { serverIp?: string }
     >({
-      queryFn: async ({ jobId, serverIp }, api, extraOptions, baseQuery) => {
-        const result = await baseQuery(
-          {
-            url: `/jobs/tests/performance/${jobId}`,
-            method: "DELETE",
-          },
-          api,
-          { ...extraOptions, serverIp },
-        );
+      queryFn: async ({ jobId, serverIp }, _api, _extraOptions, baseQuery) => {
+        const result = await baseQuery({
+          url: `/jobs/tests/performance/${jobId}`,
+          method: "DELETE",
+          _serverIp: serverIp,
+        });
         return result.error ? { error: result.error } : { data: result.data };
       },
       invalidatesTags: ["jobs"],
@@ -89,16 +80,13 @@ export const remoteApiSlice = apiSlice.injectEndpoints({
       RunDensityTestApiResponse,
       RunDensityTestApiArg & { serverIp?: string }
     >({
-      queryFn: async ({ densityTestSpec, serverIp }, api, extraOptions, baseQuery) => {
-        const result = await baseQuery(
-          {
-            url: `/tests/density`,
-            method: "POST",
-            body: densityTestSpec,
-          },
-          api,
-          { ...extraOptions, serverIp },
-        );
+      queryFn: async ({ densityTestSpec, serverIp }, _api, _extraOptions, baseQuery) => {
+        const result = await baseQuery({
+          url: `/tests/density`,
+          method: "POST",
+          body: densityTestSpec,
+          _serverIp: serverIp,
+        });
         return result.error ? { error: result.error } : { data: result.data };
       },
       invalidatesTags: ["tests"],
@@ -109,14 +97,11 @@ export const remoteApiSlice = apiSlice.injectEndpoints({
       GetDensityJobStatusApiResponse,
       GetDensityJobStatusApiArg & { serverIp?: string }
     >({
-      queryFn: async ({ jobId, serverIp }, api, extraOptions, baseQuery) => {
-        const result = await baseQuery(
-          {
-            url: `/jobs/tests/density/${jobId}/status`,
-          },
-          api,
-          { ...extraOptions, serverIp },
-        );
+      queryFn: async ({ jobId, serverIp }, _api, _extraOptions, baseQuery) => {
+        const result = await baseQuery({
+          url: `/jobs/tests/density/${jobId}/status`,
+          _serverIp: serverIp,
+        });
         return result.error ? { error: result.error } : { data: result.data };
       },
       providesTags: ["jobs"],
@@ -127,15 +112,12 @@ export const remoteApiSlice = apiSlice.injectEndpoints({
       StopDensityTestJobApiResponse,
       StopDensityTestJobApiArg & { serverIp?: string }
     >({
-      queryFn: async ({ jobId, serverIp }, api, extraOptions, baseQuery) => {
-        const result = await baseQuery(
-          {
-            url: `/jobs/tests/density/${jobId}`,
-            method: "DELETE",
-          },
-          api,
-          { ...extraOptions, serverIp },
-        );
+      queryFn: async ({ jobId, serverIp }, _api, _extraOptions, baseQuery) => {
+        const result = await baseQuery({
+          url: `/jobs/tests/density/${jobId}`,
+          method: "DELETE",
+          _serverIp: serverIp,
+        });
         return result.error ? { error: result.error } : { data: result.data };
       },
       invalidatesTags: ["jobs"],
