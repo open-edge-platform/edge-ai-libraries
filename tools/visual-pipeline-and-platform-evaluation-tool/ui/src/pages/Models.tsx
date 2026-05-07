@@ -132,6 +132,9 @@ export const Models = () => {
               label: "Model name",
               placeholder: "Enter model name",
               required: true,
+              regex: /^[a-zA-Z0-9_-\s]+$/,
+              regexMessage:
+                "Only alphanumeric characters, spaces, underscores, and hyphens are allowed.",
             },
           ]}
           className="mb-8"

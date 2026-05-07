@@ -53,6 +53,8 @@ export interface MultiFileUploaderProps {
     label: string;
     placeholder?: string;
     required?: boolean;
+    regex?: RegExp | string;
+    regexMessage?: string;
   }>;
   className?: string;
 }
@@ -532,9 +534,7 @@ export const MultiFileUploader = ({
     }
 
     if (maxSize !== undefined) {
-      const sizeFailures = filesToUpload.filter(
-        (fj) => fj.file.size > maxSize,
-      );
+      const sizeFailures = filesToUpload.filter((fj) => fj.file.size > maxSize);
       if (sizeFailures.length > 0) {
         setUploadStates((prev) => {
           const newStates = [...prev];
@@ -543,9 +543,10 @@ export const MultiFileUploader = ({
               newStates[originalIndex] = {
                 ...newStates[originalIndex],
                 status: "failed",
-                error: `File exceeds maximum size of ${
-                  (maxSize / (1024 * 1024)).toFixed(0)
-                } MB`,
+                error: `File exceeds maximum size of ${(
+                  maxSize /
+                  (1024 * 1024)
+                ).toFixed(0)} MB`,
               };
             }
           });
@@ -724,6 +725,17 @@ export const MultiFileUploader = ({
                           required: field.required
                             ? "This field is required"
                             : false,
+                          pattern: field.regex
+                            ? {
+                                value:
+                                  field.regex instanceof RegExp
+                                    ? field.regex
+                                    : new RegExp(field.regex),
+                                message:
+                                  field.regexMessage ??
+                                  "Value does not match the required format",
+                              }
+                            : undefined,
                         },
                       )}
                       placeholder={field.placeholder}
