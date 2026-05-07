@@ -27,7 +27,7 @@ export interface MetricHistoryPoint {
   gpus: Record<string, GpuMetrics>;
 }
 
-const MAX_HISTORY_POINTS = 60; // save last 60 data points
+const MAX_HISTORY_POINTS = 60;
 
 export const useMetricHistory = () => {
   const metrics = useMetrics();
@@ -36,16 +36,12 @@ export const useMetricHistory = () => {
   const lastUpdateRef = useRef<number>(0);
 
   useEffect(() => {
-    // Do not append synthetic zero/stale points to the history while the
-    // metrics stream is not delivering fresh samples (transport error,
-    // metrics-service upstream failure, intentional disconnect, ...).
     if (!isConnected) {
       return;
     }
 
     const now = Date.now();
 
-    // update once per second
     if (now - lastUpdateRef.current < 1000) {
       return;
     }

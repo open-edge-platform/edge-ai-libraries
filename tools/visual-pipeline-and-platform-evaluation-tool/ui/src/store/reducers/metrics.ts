@@ -2,12 +2,6 @@ import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { RootState } from "@/store";
 
-/**
- * A single metric sample as emitted by metrics-service `/metrics/stream`
- * (SSE). The shape mirrors the flat Prometheus exposition that Telegraf
- * exposes on `:9273/metrics`, e.g.:
- *   `cpu_usage_user{cpu="cpu-total",host="..."} 0.12 <ts_ms>`.
- */
 export interface MetricData {
   name: string;
   labels: Record<string, string>;
@@ -15,21 +9,11 @@ export interface MetricData {
   timestamp: number;
 }
 
-/**
- * Successful SSE payload emitted by metrics-service `/metrics/stream`.
- */
 export interface MetricsMessage {
   timestamp: number;
   metrics: MetricData[];
 }
 
-/**
- * Error payload emitted by metrics-service `/metrics/stream` when its
- * upstream Telegraf scrape fails (e.g. while metrics-service itself is
- * still alive but cannot reach Telegraf). The SSE connection stays open
- * and the service keeps retrying, sending one of these envelopes per
- * failed poll cycle.
- */
 export interface MetricsErrorMessage {
   error: string;
   timestamp: number;
@@ -71,11 +55,6 @@ export const metrics = createSlice({
       state.metrics = [];
     },
     streamReconnecting: (state, action: PayloadAction<string>) => {
-      // Transport hiccup: the browser's EventSource is auto-reconnecting.
-      // Treat this as "connecting" so the UI does not flip to a red error
-      // state while the connection is being re-established. Drop the
-      // last-known metrics so widgets and the history hook stop showing
-      // stale data while we are not receiving fresh samples.
       state.isConnected = false;
       state.isConnecting = true;
       state.error = action.payload;
@@ -93,10 +72,7 @@ export const metrics = createSlice({
         const parsed = JSON.parse(action.payload) as
           | MetricsMessage
           | MetricsErrorMessage;
-        if ("error" in parsed && typeof parsed.error === "string") {
-          // metrics-service is up but cannot reach its upstream right now.
-          // Surface the error and clear stale metrics so the UI does not
-          // pretend to be live; the connection itself is still open.
+        if ("error" in parsed) {
           state.error = parsed.error;
           state.isConnected = false;
           state.isConnecting = true;
@@ -193,7 +169,6 @@ export const selectCpuMetrics = (state: RootState) => {
   return {
     user: userMetric?.value ?? 0,
     idle: idleMetric?.value ?? 0,
-    // Telegraf exposes the value in kHz; convert to GHz for display.
     avgFrequency: (cpuFrequencyMetric?.value ?? 0) / 1_000_000,
     temp: cpuTempMetric?.value,
   };
@@ -249,7 +224,6 @@ export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
     copy: findEngineUsage(["copy", "bcs"]),
     video: findEngineUsage(["video", "vcs"]),
     videoEnhance: findEngineUsage(["video-enhance", "vecs"]),
-    // qmassa emits frequency in MHz; convert to GHz for display.
     frequency:
       gpuFrequencyMetric?.value !== undefined
         ? gpuFrequencyMetric.value / 1000
