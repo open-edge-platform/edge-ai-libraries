@@ -19,8 +19,8 @@ variants:
         frame-rate=1
         chunk-size=4
         metrics=false !
-      gvafpscounter starting-frame=100 !
-      gvametapublish method=file file-format=json-lines file-path=/videos/output/summary.jsonl !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=10 !
       fakesink sync=false async=false
   - name: GPU
     pipeline_description: >-
@@ -36,8 +36,8 @@ variants:
         frame-rate=1
         chunk-size=4
         metrics=false !
-      gvafpscounter starting-frame=100 !
-      gvametapublish method=file file-format=json-lines file-path=/videos/output/summary.jsonl !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=10 !
       fakesink sync=false async=false
   - name: NPU
     pipeline_description: >-
@@ -53,6 +53,6 @@ variants:
         frame-rate=1
         chunk-size=4
         metrics=false !
-      gvafpscounter starting-frame=100 !
-      gvametapublish method=file file-format=json-lines file-path=/videos/output/summary.jsonl !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=10 !
       fakesink sync=false async=false
