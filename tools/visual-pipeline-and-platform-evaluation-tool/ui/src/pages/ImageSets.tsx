@@ -87,6 +87,7 @@ export const ImageSets = () => {
 
       <MultiFileUploader
         accept=".zip,.tar,.tar.gz,.tgz,application/zip,application/x-tar,application/gzip,application/x-gzip"
+        maxSize={2 * 1024 * 1024 * 1024} // 2 GB
         uploadEndpoint={ENDPOINTS.UPLOAD_IMAGE_ARCHIVE}
         checkFileExists={handleCheckFileExists}
         onUploadProgress={handleUploadProgress}

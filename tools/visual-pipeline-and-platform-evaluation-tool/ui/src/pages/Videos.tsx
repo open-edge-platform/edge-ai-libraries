@@ -95,6 +95,7 @@ export const Videos = () => {
 
       <MultiFileUploader
         accept="video/*"
+        maxSize={2 * 1024 * 1024 * 1024} // 2 GB
         uploadEndpoint={ENDPOINTS.UPLOAD_VIDEO}
         checkFileExists={handleCheckFileExists}
         onUploadProgress={handleUploadProgress}

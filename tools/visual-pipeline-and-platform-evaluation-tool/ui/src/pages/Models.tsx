@@ -121,6 +121,7 @@ export const Models = () => {
           accept=".zip,application/zip"
           uploadEndpoint={ENDPOINTS.UPLOAD_MODEL}
           multiple={false}
+          maxSize={500 * 1024 * 1024} // 500 MB
           preUpload={handlePreUpload}
           preUploadImmediate
           onUploadProgress={handleUploadProgress}

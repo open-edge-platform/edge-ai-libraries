@@ -41,6 +41,7 @@ export interface MultiFileUploaderProps {
     jobs: Array<{ id: string; name: string; progress: number }>,
   ) => void;
   multiple?: boolean;
+  maxSize?: number;
   maxConcurrentUploads?: number;
   preUpload?: (
     file: File,
@@ -63,6 +64,7 @@ export const MultiFileUploader = ({
   onUploadComplete,
   onUploadProgress,
   multiple = true,
+  maxSize,
   maxConcurrentUploads = 3,
   preUpload,
   preUploadImmediate,
@@ -119,11 +121,15 @@ export const MultiFileUploader = ({
     const subscription = watch((_, { name }) => {
       if (name?.startsWith("fields.")) {
         setUploadStates((prev) =>
-          prev.map((s) =>
-            s.status === "failed"
-              ? { ...s, status: "pending", error: undefined, progress: 0 }
-              : s,
-          ),
+          prev.map((s) => {
+            if (s.status !== "failed") return s;
+            if (
+              s.error === "File already exists on server" ||
+              (maxSize !== undefined && s.file.size > maxSize)
+            )
+              return s;
+            return { ...s, status: "pending", error: undefined, progress: 0 };
+          }),
         );
       }
     });
@@ -442,12 +448,22 @@ export const MultiFileUploader = ({
     setValue("files", dataTransfer.files);
 
     let newUploadStates: FileUploadState[] = fileChecks.map(
-      ({ file, exists }) => ({
-        file,
-        status: exists ? "failed" : "pending",
-        progress: 0,
-        error: exists ? "File already exists on server" : undefined,
-      }),
+      ({ file, exists }) => {
+        if (maxSize !== undefined && file.size > maxSize) {
+          return {
+            file,
+            status: "failed" as const,
+            progress: 0,
+            error: `File exceeds maximum size of ${(maxSize / (1024 * 1024)).toFixed(0)} MB`,
+          };
+        }
+        return {
+          file,
+          status: exists ? ("failed" as const) : ("pending" as const),
+          progress: 0,
+          error: exists ? "File already exists on server" : undefined,
+        };
+      },
     );
 
     if (preUploadImmediate && preUpload) {
@@ -517,6 +533,33 @@ export const MultiFileUploader = ({
 
     if (filesToUpload.length === 0) {
       return;
+    }
+
+    if (maxSize !== undefined) {
+      const sizeFailures = filesToUpload.filter(
+        (fj) => fj.file.size > maxSize,
+      );
+      if (sizeFailures.length > 0) {
+        setUploadStates((prev) => {
+          const newStates = [...prev];
+          sizeFailures.forEach(({ originalIndex }) => {
+            if (newStates[originalIndex]) {
+              newStates[originalIndex] = {
+                ...newStates[originalIndex],
+                status: "failed",
+                error: `File exceeds maximum size of ${
+                  (maxSize / (1024 * 1024)).toFixed(0)
+                } MB`,
+              };
+            }
+          });
+          return newStates;
+        });
+        filesToUpload = filesToUpload.filter((fj) => fj.file.size <= maxSize);
+      }
+      if (filesToUpload.length === 0) {
+        return;
+      }
     }
 
     if (preUpload) {
