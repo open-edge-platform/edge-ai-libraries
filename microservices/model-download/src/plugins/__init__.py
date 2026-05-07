@@ -8,6 +8,7 @@ import sys
 
 PLUGINS = {
     'ultralytics': ('src.plugins.ultralytics_plugin', 'UltralyticsDownloader'),
+    'pipeline-zoo-models': ('src.plugins.pipeline_zoo_models_plugin', 'PipelineZooModelsPlugin'),
     'ollama': ('src.plugins.ollama_plugin', 'OllamaPlugin'),
     'huggingface': ('src.plugins.huggingface_plugin', 'HuggingFacePlugin'),
     'openvino': ('src.plugins.openvino_plugin', 'OpenVINOConverter'),

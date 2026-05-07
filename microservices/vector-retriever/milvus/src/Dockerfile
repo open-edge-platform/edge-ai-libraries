@@ -1,11 +1,20 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.12.12-slim
+# Use latest Python 3.12 slim image with security patches
+FROM python:3.12-slim
 
 ENV LANG=C.UTF-8
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing curl
+# Update system packages and install curl with latest security patches
+# Clean up apt cache to reduce image size
+RUN apt-get update -y && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends --fix-missing \
+        curl \
+        ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/bash user && \
 mkdir -p /home/user && \
