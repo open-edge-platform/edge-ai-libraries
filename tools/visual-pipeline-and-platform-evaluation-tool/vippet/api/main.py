@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.middleware import InitializationMiddleware
 from api.routes import health
@@ -228,6 +229,15 @@ async def redoc_html():
     </html>
     """)
 
+
+# Add CORS middleware to allow cross-origin requests from other servers
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for remote server testing
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 # Add middleware to block requests during initialization
 app.add_middleware(InitializationMiddleware)
