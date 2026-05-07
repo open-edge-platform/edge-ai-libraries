@@ -168,6 +168,7 @@ services:
     volumes:
       - /sys:/sys:ro
       - /run:/run:ro
+      - ./vippet-telegraf.conf:/etc/telegraf/telegraf.conf:ro
     environment:
       METRICS_PORT: 9090
       LOG_LEVEL: INFO
