@@ -123,11 +123,7 @@ export const MultiFileUploader = ({
         setUploadStates((prev) =>
           prev.map((s) => {
             if (s.status !== "failed") return s;
-            if (
-              s.error === "File already exists on server" ||
-              (maxSize !== undefined && s.file.size > maxSize)
-            )
-              return s;
+            if (maxSize !== undefined && s.file.size > maxSize) return s;
             return { ...s, status: "pending", error: undefined, progress: 0 };
           }),
         );
