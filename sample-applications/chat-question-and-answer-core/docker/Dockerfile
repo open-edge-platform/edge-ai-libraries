@@ -64,8 +64,8 @@ RUN curl -sSL https://install.python-poetry.org | python -
 WORKDIR $SETUP_PATH
 COPY poetry.lock pyproject.toml ./
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
-RUN poetry install --with openvino --without dev --without ollama
-
+RUN poetry install --with openvino --without dev --without ollama && \
+    $VENV_PATH/bin/pip install --upgrade --no-cache-dir pip setuptools wheel
 
 # `dev` image is used during development / testing
 FROM python-base AS dev
