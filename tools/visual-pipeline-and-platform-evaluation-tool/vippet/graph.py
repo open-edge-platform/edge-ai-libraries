@@ -34,6 +34,7 @@ def graph_is_metadata_only(nodes: list["Node"]) -> bool:
     """Return True if the pipeline produces only metadata (no video output)."""
     return any(node.type in METADATA_ONLY_NODE_TYPES for node in nodes)
 
+
 logger = logging.getLogger(__name__)
 labels_manager = get_labels_manager()
 scripts_manager = get_scripts_manager()
