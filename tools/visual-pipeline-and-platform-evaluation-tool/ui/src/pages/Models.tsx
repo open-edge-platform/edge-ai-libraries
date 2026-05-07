@@ -122,6 +122,7 @@ export const Models = () => {
           uploadEndpoint={ENDPOINTS.UPLOAD_MODEL}
           multiple={false}
           preUpload={handlePreUpload}
+          preUploadImmediate
           onUploadProgress={handleUploadProgress}
           onUploadComplete={handleUploadComplete}
           formFields={[

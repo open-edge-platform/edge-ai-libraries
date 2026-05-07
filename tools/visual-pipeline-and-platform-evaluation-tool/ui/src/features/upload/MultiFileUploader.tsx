@@ -46,6 +46,7 @@ export interface MultiFileUploaderProps {
     file: File,
     fields: Record<string, string>,
   ) => Promise<PreUploadMessage | null> | PreUploadMessage | null;
+  preUploadImmediate?: boolean;
   formFields?: Array<{
     name: string;
     label: string;
@@ -64,6 +65,7 @@ export const MultiFileUploader = ({
   multiple = true,
   maxConcurrentUploads = 3,
   preUpload,
+  preUploadImmediate,
   formFields,
   className,
 }: MultiFileUploaderProps) => {
@@ -297,13 +299,10 @@ export const MultiFileUploader = ({
     const acceptedTypes = accept.split(",").map((t) => t.trim().toLowerCase());
     const mime = mimeType.toLowerCase();
 
-    // Generic binary type — browser couldn't determine the file type.
-    // Defer to extension filtering on drop.
     if (mime === "application/octet-stream") {
       return acceptedTypes.some((t) => t.startsWith("."));
     }
 
-    // Check explicit MIME matches (including wildcard groups like image/*)
     for (const accepted of acceptedTypes) {
       if (accepted.startsWith(".")) continue;
       if (accepted.endsWith("/*")) {
@@ -313,8 +312,6 @@ export const MultiFileUploader = ({
       }
     }
 
-    // Browsers may report non-standard MIME types for common file formats.
-    // Check if the dragged MIME is a known alias for any accepted extension.
     const EXTENSION_MIME_ALIASES: Record<string, string[]> = {
       ".zip": [
         "application/zip",
@@ -333,11 +330,9 @@ export const MultiFileUploader = ({
       if (aliases?.includes(mime)) return true;
     }
 
-    // No MIME entries in accept — defer to extension check on drop.
     const hasMimeEntries = acceptedTypes.some((t) => !t.startsWith("."));
     if (!hasMimeEntries) return true;
 
-    // MIME entries exist but none matched — reject.
     return false;
   };
 
@@ -446,7 +441,7 @@ export const MultiFileUploader = ({
     allFiles.forEach((file) => dataTransfer.items.add(file));
     setValue("files", dataTransfer.files);
 
-    const newUploadStates: FileUploadState[] = fileChecks.map(
+    let newUploadStates: FileUploadState[] = fileChecks.map(
       ({ file, exists }) => ({
         file,
         status: exists ? "failed" : "pending",
@@ -454,6 +449,28 @@ export const MultiFileUploader = ({
         error: exists ? "File already exists on server" : undefined,
       }),
     );
+
+    if (preUploadImmediate && preUpload) {
+      const currentFields = getValues("fields");
+      const preUploadResults = await Promise.all(
+        newUploadStates.map((state) =>
+          state.status === "pending"
+            ? preUpload(state.file, { ...currentFields })
+            : null,
+        ),
+      );
+      newUploadStates = newUploadStates.map((state, i) => {
+        const message = preUploadResults[i];
+        if (
+          message !== null &&
+          message !== undefined &&
+          state.status === "pending"
+        ) {
+          return { ...state, status: "failed", error: message };
+        }
+        return state;
+      });
+    }
 
     setUploadStates(
       shouldReplaceList
