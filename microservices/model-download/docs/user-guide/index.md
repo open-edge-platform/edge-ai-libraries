@@ -57,6 +57,7 @@ The Plugin System extends the service's functionality by handling interactions w
 - **HuggingFace Hub Plugin**: Downloads models from the Hugging Face hub, including handling authentication for private or gated models.
 - **Ollama Hub Plugin**: Interfaces with Ollama tool to pull and manage models from the Ollama model library.
 - **Ultralytics Hub Plugin**: Downloads computer vision models, such as YOLO, from the Ultralytics framework.
+- **Pipeline Zoo Models Plugin**: Downloads prepackaged vision model artifacts from the `dlstreamer/pipeline-zoo-models` storage repository.
 - **Geti™ Plugin**: Downloads models optimized through the Geti™ platform.
 - **HLS Plugin**: Download pre-configured Health AI suite models from Github.
 
@@ -74,7 +75,7 @@ The Plugin System extends the service's functionality by handling interactions w
 
 ## Key Features
 
-- **Multi-Hub Support**: Download models from multiple sources (Hugging Face model hub, Ollama model library, Ultralytics library, OpenVINO Model Hub, and Geti platform)
+- **Multi-Hub Support**: Download models from multiple sources (Hugging Face model hub, Ollama model library, Ultralytics library, Pipeline Zoo Models repository, OpenVINO Model Hub, Geti platform, and HLS assets)
 - **Format Conversion**: Convert models to OpenVINO format for optimization
 - **Parallel Downloads**: Optional concurrent model downloads
 - **Custom Upload API**: Upload Custom Model ZIP artifacts via `POST /models/upload`
