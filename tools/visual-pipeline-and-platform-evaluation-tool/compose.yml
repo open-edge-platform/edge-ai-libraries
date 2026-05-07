@@ -50,10 +50,10 @@ x-vippet: &vippet
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
     RTSPSRC_DEFAULT_LATENCY_MS: ${RTSPSRC_DEFAULT_LATENCY_MS:-100}
-    METRICS_SERVICE_URL: ${METRICS_SERVICE_URL:-http://metrics-service:9090}
+    METRICS_MANAGER_URL: ${METRICS_MANAGER_URL:-http://metrics-manager:9090}
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
-    no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-service"
+    no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager"
   device_cgroup_rules:
     # Broad access to USB devices is required to support a wide range of USB cameras.
     - 'c 189:* rmw'
@@ -84,12 +84,12 @@ services:
     depends_on:
       vippet:
         condition: service_healthy
-      metrics-service:
+      metrics-manager:
         condition: service_healthy
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-service"
+      no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager"
     volumes:
       - ./shared/images/:/images
       - ./shared/videos/:/videos
@@ -153,9 +153,9 @@ services:
     container_name: vippet
     ports:
       - "7860:7860"
-  metrics-service:
-    image: docker.io/intel/metrics-service:2026.1.0-20260506-weekly.1
-    container_name: metrics-service
+  metrics-manager:
+    image: docker.io/intel/metrics-manager:2026.1.0-20260507-weekly
+    container_name: metrics-manager
     ports:
       - "9090:9090"
       - "9273:9273"
