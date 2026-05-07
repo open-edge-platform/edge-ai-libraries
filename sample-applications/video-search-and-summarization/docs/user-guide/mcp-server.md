@@ -11,10 +11,8 @@ The server is controlled by a **filter file**, a small JSON document that lists 
 ## Prerequisites
 
 - The **VSS application must be running and reachable** before starting this server.
-- Docker installed ([Installation Guide](https://docs.docker.com/get-docker/)).
+- Docker and Docker Compose installed ([Installation Guide](https://docs.docker.com/get-docker/)).
 - Network access from the machine running this container to the VSS host.
-- The VSS OpenAPI spec URL, for example `http://<VSS_IP>:12345/manager/swagger/json`.
-
 
 ## Quick Start
 
@@ -24,28 +22,47 @@ Navigate to the `mcp/` directory first, all commands below assume you are there:
 cd sample-applications/video-search-and-summarization/mcp
 ```
 
-**Build the Docker image:**
+Docker Compose builds the MCP server and starts [MCP Inspector](https://github.com/modelcontextprotocol/inspector) alongside it for interactive testing and debugging.
 
-```bash
-docker build -t vss-mcp .
-```
+1. **Create your `.env` file:**
 
-**Run against a VSS Search backend:**
+   ```bash
+   cp .env.example .env
+   ```
 
-```bash
-docker run --rm -p 8000:8000 \
-  -v "$(pwd)/search.json:/app/search.json:ro" \
-  -e API_SPEC_URL=http://<VSS_IP>:12345/manager/swagger/json \
-  -e API_BASE_URL=http://<VSS_IP>:12345/manager \
-  -e FILTER_FILE_PATH=/app/search.json \
-  vss-mcp
-```
+2. **Edit `.env`** — set the VSS backend IP and HOST IP:
 
-The MCP server is then reachable at:
+   ```dotenv
+   VSS_IP=<your-vss-ip>
+   HOST_IP=<your-host-ip>
+   ```
 
-```
-http://127.0.0.1:8000/mcp
-```
+   > **Note:** The `VSS_IP` variable is automatically appended to `no_proxy` inside the containers by `compose.yaml`, so the MCP server can always reach the VSS backend directly without going through the proxy.
+
+3. **Build and start:**
+
+   ```bash
+   docker compose up --build -d
+   ```
+
+4. **Access the services:**
+
+   | Service        | URL                              | Description                        |
+   |----------------|----------------------------------|------------------------------------|
+   | MCP Server     | `http://<HOST_IP>:8000/mcp`      | Streamable HTTP MCP endpoint       |
+   | MCP Inspector  | `http://<HOST_IP>:6274`          | Web UI for testing the MCP server  |
+
+5. **Connect Inspector to MCP Server:**
+   - Open `http://<HOST_IP>:6274` in your browser.
+   - Select **Streamable HTTP** transport.
+   - Enter `http://<HOST_IP>:8000/mcp` as the URL.
+   - Click **Connect**.
+
+6. **Stop:**
+
+   ```bash
+   docker compose down
+   ```
 
 
 ## Runtime Configuration
@@ -89,15 +106,3 @@ resource://vss_app_features
 ## Video Upload
 
 `POST /videos` is intentionally **not** exposed. Video upload is a long-running multipart operation better handled directly via the VSS REST API. Use the MCP server for discovery, search and status workflows only.
-
-## Connecting with MCP Inspector
-
-```bash
-npx -y @modelcontextprotocol/inspector
-```
-
-1. Select **Streamable HTTP** transport.
-2. Enter `http://<HOST_IP>:8000/mcp`.
-3. Click **Connect**.
-
-Inspector lists all tools and resources registered for the active filter. Use the **Run tool** button to call a tool and confirm the MCP server can reach the VSS backend.

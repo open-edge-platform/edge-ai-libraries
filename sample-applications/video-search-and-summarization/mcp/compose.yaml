@@ -1,0 +1,49 @@
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vss-mcp-server
+    network_mode: host
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - API_SPEC_URL=${API_SPEC_URL}
+      - API_BASE_URL=${API_BASE_URL}
+      - FILTER_FILE_PATH=${FILTER_FILE_PATH:-/app/search.json}
+      - MCP_HOST=${MCP_HOST:-0.0.0.0}
+      - MCP_PORT=${MCP_PORT:-8000}
+      - MCP_PATH=${MCP_PATH:-/mcp}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - http_proxy=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      - no_proxy=${no_proxy:-},${VSS_IP:-}
+      - HTTP_PROXY=${http_proxy:-}
+      - HTTPS_PROXY=${https_proxy:-}
+      - NO_PROXY=${no_proxy:-},${VSS_IP:-}
+    volumes:
+      - ./search.json:/app/search.json:ro
+    restart: unless-stopped
+
+  mcp-inspector:
+    image: ghcr.io/modelcontextprotocol/inspector:latest
+    container_name: vss-mcp-inspector
+    network_mode: host
+    environment:
+      - HOST=0.0.0.0
+      - PORT=${INSPECTOR_CLIENT_PORT:-6274}
+      - MCP_AUTO_OPEN_ENABLED=false
+      - DANGEROUSLY_OMIT_AUTH=${DANGEROUSLY_OMIT_AUTH:-true}
+      - MCP_PROXY_AUTH_TOKEN=${MCP_PROXY_AUTH_TOKEN:-}
+      - ALLOWED_ORIGINS=http://${HOST_IP}:${INSPECTOR_CLIENT_PORT:-6274}
+      - http_proxy=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      - no_proxy=${no_proxy:-},${VSS_IP:-}
+      - HTTP_PROXY=${http_proxy:-}
+      - HTTPS_PROXY=${https_proxy:-}
+      - NO_PROXY=${no_proxy:-},${VSS_IP:-}
+    depends_on:
+      - mcp-server
+    restart: unless-stopped
