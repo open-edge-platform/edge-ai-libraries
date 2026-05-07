@@ -295,19 +295,50 @@ export const MultiFileUploader = ({
     if (!mimeType || accept === "*" || accept === "*/*") return true;
 
     const acceptedTypes = accept.split(",").map((t) => t.trim().toLowerCase());
-    const hasMimeEntries = acceptedTypes.some((t) => !t.startsWith("."));
+    const mime = mimeType.toLowerCase();
 
+    // Generic binary type — browser couldn't determine the file type.
+    // Defer to extension filtering on drop.
+    if (mime === "application/octet-stream") {
+      return acceptedTypes.some((t) => t.startsWith("."));
+    }
+
+    // Check explicit MIME matches (including wildcard groups like image/*)
     for (const accepted of acceptedTypes) {
       if (accepted.startsWith(".")) continue;
       if (accepted.endsWith("/*")) {
-        if (mimeType.toLowerCase().startsWith(`${accepted.split("/")[0]}/`))
-          return true;
-      } else if (accepted === mimeType.toLowerCase()) {
+        if (mime.startsWith(`${accepted.split("/")[0]}/`)) return true;
+      } else if (accepted === mime) {
         return true;
       }
     }
 
-    return !hasMimeEntries;
+    // Browsers may report non-standard MIME types for common file formats.
+    // Check if the dragged MIME is a known alias for any accepted extension.
+    const EXTENSION_MIME_ALIASES: Record<string, string[]> = {
+      ".zip": [
+        "application/zip",
+        "application/x-zip",
+        "application/x-zip-compressed",
+        "application/x-compressed",
+      ],
+      ".tar": ["application/x-tar", "application/tar"],
+      ".gz": ["application/gzip", "application/x-gzip"],
+      ".tgz": ["application/gzip", "application/x-gzip"],
+      ".tar.gz": ["application/gzip", "application/x-gzip"],
+    };
+    for (const accepted of acceptedTypes) {
+      if (!accepted.startsWith(".")) continue;
+      const aliases = EXTENSION_MIME_ALIASES[accepted];
+      if (aliases?.includes(mime)) return true;
+    }
+
+    // No MIME entries in accept — defer to extension check on drop.
+    const hasMimeEntries = acceptedTypes.some((t) => !t.startsWith("."));
+    if (!hasMimeEntries) return true;
+
+    // MIME entries exist but none matched — reject.
+    return false;
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
