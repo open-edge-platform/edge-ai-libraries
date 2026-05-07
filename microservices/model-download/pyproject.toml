@@ -82,6 +82,12 @@ hls = [
     "tqdm>=4.67",
 ]
 
+pipeline-zoo-models = [
+    # Intentionally empty: plugin uses Python stdlib only.
+    # Keep this extra so uv sync --extra pipeline-zoo-models works
+    # when ENABLED_PLUGINS is set to pipeline-zoo-models.
+]
+
 [tool.uv]
 index-url = "https://pypi.org/simple"
 required-environments = [

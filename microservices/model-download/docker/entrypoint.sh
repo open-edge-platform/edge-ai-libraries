@@ -171,6 +171,10 @@ install_dependencies() {
             print_info "HLS plugin dependencies will be installed via uv sync"
             echo "0" > "${status_file}"
             ;;
+        pipeline-zoo-models)
+            print_info "Pipeline-zoo-models plugin has no additional dependencies"
+            echo "0" > "${status_file}"
+            ;;
         *)
             echo -e "${RED} ERROR:${NC} Unknown plugin: $plugin"
             echo "1" > "${status_file}"
@@ -252,7 +256,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Define all available plugins in the application
-AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "geti" "hls")
+AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "pipeline-zoo-models" "geti" "hls")
 
 # Install plugin-specific dependencies (in parallel)
 if [ "$PLUGINS" = "all" ]; then
