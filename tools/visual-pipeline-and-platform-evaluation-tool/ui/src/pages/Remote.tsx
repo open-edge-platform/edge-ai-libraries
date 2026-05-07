@@ -241,16 +241,30 @@ export const Remote = () => {
       
       if (availablePipeline) {
         const firstVariant = availablePipeline.variants[0];
-        setPipelineSelections((prev) => [
-          ...prev,
-          {
-            pipelineId: availablePipeline.id,
-            variantId: firstVariant.id,
-            streams: testType === "performance" ? 8 : undefined,
-            stream_rate: testType === "density" ? 100 : undefined,
-            isNew: true,
-          },
-        ]);
+        setPipelineSelections((prev) => {
+          const next = [
+            ...prev,
+            {
+              pipelineId: availablePipeline.id,
+              variantId: firstVariant.id,
+              streams: testType === "performance" ? 8 : undefined,
+              stream_rate: testType === "density" ? 0 : undefined,
+              isNew: true,
+            },
+          ];
+
+          if (testType === "density") {
+            const count = next.length;
+            const baseRate = Math.floor(100 / count);
+            const remainder = 100 - baseRate * count;
+            return next.map((sel, idx) => ({
+              ...sel,
+              stream_rate: idx === 0 ? baseRate + remainder : baseRate,
+            }));
+          }
+
+          return next;
+        });
         setTimeout(() => {
           setPipelineSelections((prev) =>
             prev.map((sel, idx) =>
@@ -270,7 +284,21 @@ export const Remote = () => {
         ),
       );
       setTimeout(() => {
-        setPipelineSelections((prev) => prev.filter((_, idx) => idx !== index));
+        setPipelineSelections((prev) => {
+          const filtered = prev.filter((_, idx) => idx !== index);
+
+          if (testType === "density" && filtered.length > 0) {
+            const count = filtered.length;
+            const baseRate = Math.floor(100 / count);
+            const remainder = 100 - baseRate * count;
+            return filtered.map((sel, idx) => ({
+              ...sel,
+              stream_rate: idx === 0 ? baseRate + remainder : baseRate,
+            }));
+          }
+
+          return filtered;
+        });
       }, 300);
     }
   };
@@ -736,7 +764,7 @@ export const Remote = () => {
                   ) : (
                     <>
                       <label className="block text-sm font-medium mb-1">
-                        Participation
+                        Participation Rate
                       </label>
                       <ParticipationSlider
                         value={selection.stream_rate || 100}
