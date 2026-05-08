@@ -248,3 +248,81 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
+
+  ia-timeseries-ingestion:
+    build:
+      context: $PWD/timeseries-ingestion
+      dockerfile: $PWD/timeseries-ingestion/Dockerfile
+      args:
+        TIMESERIES_USER_NAME: timeseries_user
+        TIMESERIES_UID: 2999
+    container_name: ia-timeseries-ingestion
+    image: ${DOCKER_REGISTRY}intel/ia-timeseries-ingestion:2026.1.0
+    read_only: true
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges
+    environment:
+      HOST: ia-time-series-analytics-microservice
+      PORT: 5000
+      TOPIC: point_data
+      no_proxy: "ia-time-series-analytics-microservice,${no_proxy}"
+      NO_PROXY: "ia-time-series-analytics-microservice,${no_proxy}"
+      PYTHONUNBUFFERED: 1
+    volumes:
+    - ./timeseries-ingestion/ingestion-data.csv:/app/ingestion-data.csv:ro
+  ia-time-series-analytics-microservice:
+    container_name: ia-time-series-analytics-microservice
+    hostname: ia-time-series-analytics-microservice
+    image: ${DOCKER_REGISTRY}intel/ia-time-series-analytics-microservice:2026.1.0
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges
+    read_only: true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9092/kapacitor/v1/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    environment:
+      no_proxy: "ia-time-series-analytics-microservice,ia-influxdb,ia-mqtt-broker,ia-opcua-server,localhost"
+      NO_PROXY: "ia-time-series-analytics-microservice,ia-influxdb,ia-mqtt-broker,ia-opcua-server,localhost"
+      KAPACITOR_PORT: 9092
+      INFLUX_SERVER: ""
+      KAPACITOR_INFLUXDB_0_USERNAME: ""
+      KAPACITOR_INFLUXDB_0_PASSWORD: ""
+      PROFILING_MODE: "false"
+      KAPACITOR_URL: http://ia-time-series-analytics-microservice:9092/
+      KAPACITOR_UNSAFE_SSL: "true"
+      KAPACITOR_INFLUXDB_0_URLS_0: ""
+      INFLUXDB_PORT: 8086
+      KAPACITOR_LOGGING_LEVEL: INFO
+      INFLUXDB_DBNAME: datain
+      PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
+      UDF_MAX_FILE_SIZE_MB: 100
+      SSL_CERT_FILE: /run/secrets/ca_certificate.pem
+      MODEL_REGISTRY_URL: http://model-registry:8111
+    ports:
+    - 5000:5000
+    volumes:
+    - "vol_temp_time_series_analytics_microservice:/tmp/"
+    - /dev/dri:/dev/dri:ro
+    - "/run/udev:/run/udev:ro"
+    devices:
+      # Following devices under /dev filesystem will be needed based on usecase
+      # dri - GPU
+    - "/dev/dri:/dev/dri"
+    group_add:
+    # render group ID for ubuntu 20.04 host OS
+    - "109"
+    # render group ID for ubuntu 22.04 host OS
+    - "110"
+    # render group ID for ubuntu 24.04 host OS
+    - "992"
+
+volumes:
+  vol_temp_time_series_analytics_microservice:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
