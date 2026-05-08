@@ -45,7 +45,7 @@ x-vippet: &vippet
     UPLOAD_ALLOWED_CODECS: "h264,h265"
     UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
     METADATA_DIR: /metadata
-    DB_DIR: /database
+    DATABASE_URL: ${DATABASE_URL:-postgresql://vippet:Intel123@10.158.108.69:5432/vippet_db}
     HOST_IP: ${HOST_IP:-}
     SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
@@ -68,7 +68,6 @@ x-vippet: &vippet
     - ./shared/scripts/:/scripts
     - ./shared/onvif/:/onvif
     - ./shared/metadata/:/metadata
-    - ./shared/database/:/database
 
 services:
   vippet-ui:

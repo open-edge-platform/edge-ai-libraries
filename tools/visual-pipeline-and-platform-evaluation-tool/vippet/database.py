@@ -8,23 +8,25 @@ Provides SQLAlchemy ORM models and database session management.
 
 import logging
 import os
-from pathlib import Path
 from sqlalchemy import create_engine, Column, String, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
 logger = logging.getLogger("database")
 
-# Database file path - directory will be created in init_db()
-DB_DIR = Path(os.environ.get("DB_DIR", "/shared/database"))
-DB_PATH = DB_DIR / "vippet.db"
+# PostgreSQL connection URL from environment variable
+# Format: postgresql://user:password@host:5432/dbname
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://vippet:Intel123@10.158.108.69:5432/vippet_db",
+)
 
-# Create SQLite database engine
-DATABASE_URL = f"sqlite:///{DB_PATH}"
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},  # Required for SQLite
     echo=False,  # Set to True for SQL query logging
+    pool_pre_ping=True,  # Verify connections before use
+    pool_size=5,
+    max_overflow=10,
 )
 
 # Session factory
@@ -65,14 +67,10 @@ def init_db() -> None:
     Initialize the database by creating all tables.
     
     This should be called once at application startup.
-    Creates the database directory if it doesn't exist.
+    Connects to the PostgreSQL database and creates tables if they don't exist.
     """
-    # Create database directory if it doesn't exist
-    DB_DIR.mkdir(parents=True, exist_ok=True)
-    
-    # Create all tables
     Base.metadata.create_all(bind=engine)
-    logger.info(f"Database initialized at {DB_PATH}")
+    logger.info("Database initialized (PostgreSQL)")
 
 
 def get_db() -> Session:
