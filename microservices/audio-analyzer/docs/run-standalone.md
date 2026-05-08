@@ -41,12 +41,12 @@ python main.py
 Default bind address:
 
 - host: `127.0.0.1`
-- port: `8000`
+- port: `8010`
 
 To change host or port:
 
 ```bash
-AUDIO_ANALYZER_SERVER_HOST=0.0.0.0 AUDIO_ANALYZER_SERVER_PORT=8000 python main.py
+AUDIO_ANALYZER_SERVER_HOST=0.0.0.0 AUDIO_ANALYZER_SERVER_PORT=8010 python main.py
 ```
 
 If your Linux iGPU setup provides an Intel oneAPI environment script, source it before starting the service:
@@ -59,13 +59,13 @@ python main.py
 Equivalent `uvicorn` command:
 
 ```bash
-uvicorn main:app --host 127.0.0.1 --port 8000
+uvicorn main:app --host 127.0.0.1 --port 8010
 ```
 
 ## Verify
 
 ```bash
-curl --noproxy '*' http://127.0.0.1:8000/health
+curl --noproxy '*' http://127.0.0.1:8010/health
 ```
 
 ## API Use Cases and Examples

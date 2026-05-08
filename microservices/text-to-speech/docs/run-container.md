@@ -1,6 +1,6 @@
 # Run With Docker Compose
 
-Use this path when you want the service to run in a container and expose the API on port `8000`.
+Use this path when you want the service to run in a container and expose the API on port `8011`.
 
 ## Before You Start
 
@@ -20,7 +20,7 @@ docker compose up -d --build
 
 ```bash
 docker compose ps
-curl --noproxy '*' http://127.0.0.1:8000/health
+curl --noproxy '*' http://127.0.0.1:8011/health
 ```
 
 ## API Use Cases and Examples
@@ -62,7 +62,7 @@ docker compose down
 
 ## Notes
 
-- Container host port: `8000`
+- Container host port: `8011`
 - The service loads `config.container.yaml` through `TEXT_TO_SPEECH_CONFIG_OVERRIDE_PATHS`
 - First startup can take longer because model download or conversion may happen during startup
 - Linux iGPU access depends on the host exposing `/dev/dri` and having Intel/OpenVINO host GPU support installed

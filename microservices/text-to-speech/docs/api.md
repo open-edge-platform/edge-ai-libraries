@@ -15,7 +15,7 @@ Returns the configured model metadata plus supported speakers and languages.
 Example:
 
 ```bash
-curl --noproxy '*' http://127.0.0.1:8000/v1/audio/voices
+curl --noproxy '*' http://127.0.0.1:8011/v1/audio/voices
 ```
 
 ## `POST /v1/audio/speech`
@@ -35,7 +35,7 @@ Example:
 
 ```bash
 curl --noproxy '*' \
-  -X POST http://127.0.0.1:8000/v1/audio/speech \
+  -X POST http://127.0.0.1:8011/v1/audio/speech \
   -H 'Content-Type: application/json' \
   -d '{
     "model": "qwen-tts",

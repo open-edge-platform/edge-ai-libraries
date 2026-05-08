@@ -37,5 +37,5 @@ if __name__ == "__main__":
     import uvicorn
     logger.info("App started, Starting Server...")
     host = os.environ.get("AUDIO_ANALYZER_SERVER_HOST", "127.0.0.1")
-    port = int(os.environ.get("AUDIO_ANALYZER_SERVER_PORT", "8000"))
+    port = int(os.environ.get("AUDIO_ANALYZER_SERVER_PORT", "8010"))
     uvicorn.run("main:app", host=host, port=port, reload=False)

@@ -24,7 +24,7 @@ runs = [
     ('fp32', 'float32'),
 ]
 
-url = 'http://127.0.0.1:8000/v1/audio/speech'
+url = 'http://127.0.0.1:8011/v1/audio/speech'
 results = []
 
 

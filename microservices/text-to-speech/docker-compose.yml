@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: text-to-speech
     ports:
-      - "8000:8000"
+      - "8011:8011"
     devices:
       - /dev/dri:/dev/dri
     group_add:

@@ -32,7 +32,7 @@ Example:
 curl --noproxy '*' \
   -F file=@question_store_hours.wav \
   -F response_format=verbose_json \
-  http://127.0.0.1:8000/v1/audio/transcriptions
+  http://127.0.0.1:8010/v1/audio/transcriptions
 ```
 
 If `session_id` is omitted, the service creates one and returns it in `X-Session-ID`. Reusing that value with another upload continues the same session and appends transcript state.
@@ -56,5 +56,5 @@ Example:
 ```bash
 curl --noproxy '*' \
   -F file=@question_store_hours.wav \
-  http://127.0.0.1:8000/v1/audio/transcriptions/stream
+  http://127.0.0.1:8010/v1/audio/transcriptions/stream
 ```

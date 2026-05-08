@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: audio-analyzer
     ports:
-      - "8000:8000"
+      - "8010:8010"
     devices:
       - /dev/dri:/dev/dri
     group_add:

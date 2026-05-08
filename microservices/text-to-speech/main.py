@@ -65,5 +65,5 @@ if __name__ == "__main__":
     import uvicorn
     logger.info("App started, Starting Server...")
     host = __import__("os").getenv("TEXT_TO_SPEECH_SERVER_HOST", "127.0.0.1")
-    port = int(__import__("os").getenv("TEXT_TO_SPEECH_SERVER_PORT", "8000"))
+    port = int(__import__("os").getenv("TEXT_TO_SPEECH_SERVER_PORT", "8011"))
     uvicorn.run("main:app", host=host, port=port, reload=False)
