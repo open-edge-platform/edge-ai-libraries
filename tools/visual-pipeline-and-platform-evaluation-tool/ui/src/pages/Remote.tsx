@@ -1040,7 +1040,6 @@ export const Remote = () => {
       {/* Server Job Comparison Table */}
       {Object.keys(serverJobs).length > 0 && (
         <div className="my-6">
-          {console.log("serverJobs:", serverJobs)}
           <h3 className="text-xl font-semibold mb-4">Server Test Comparison</h3>
           <Table>
             <TableHeader>
@@ -1063,7 +1062,6 @@ export const Remote = () => {
                     <TableHead>FPS Floor</TableHead>
                   </>
                 )}
-                <TableHead>Error</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1111,23 +1109,32 @@ export const Remote = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded ${
-                          job.error
-                            ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                            : job.status?.state === "RUNNING"
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                              : job.status?.state === "COMPLETED"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                : job.status?.state === "FAILED"
-                                  ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                  : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
-                        }`}
-                      >
-                        {job.error
-                          ? "FAILED"
-                          : job.status?.state || "-"}
-                      </span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded cursor-default ${
+                              job.error
+                                ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                : job.status?.state === "RUNNING"
+                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                  : job.status?.state === "COMPLETED"
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                    : job.status?.state === "FAILED"
+                                      ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                      : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
+                            }`}
+                          >
+                            {job.error
+                              ? "FAILED"
+                              : job.status?.state || "-"}
+                          </span>
+                        </TooltipTrigger>
+                        {job.status?.details?.[0] && (
+                          <TooltipContent side="top">
+                            <p className="max-w-[300px] text-xs">{job.status.details[0]}</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
                     </TableCell>
                     <TableCell>
                       {job.status?.elapsed_time !== undefined
@@ -1165,15 +1172,6 @@ export const Remote = () => {
                         </TableCell>
                       </>
                     )}
-                    <TableCell className="max-w-[200px]">
-                      {job.error ? (
-                        <span className="text-xs text-red-700 dark:text-red-300 truncate block">
-                          {job.error}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
                   </TableRow>
                 );
               })}
