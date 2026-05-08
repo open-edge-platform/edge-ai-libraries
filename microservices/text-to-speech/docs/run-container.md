@@ -6,7 +6,7 @@ Use this path when you want the service to run in a container and expose the API
 
 - Edit `config.container.yaml` with the settings you want. For configuration details and override behavior, see [configuration.md](configuration.md).
 - The Compose setup mounts `config.container.yaml`, `models/`, `storage/`, and Hugging Face cache into the container.
-- The container uses the Intel OpenVINO runtime base image and passes `/dev/dri` through by default for host Intel iGPU access.
+- `/dev/dri` is passed through by default for host Intel iGPU access.
 
 ## Start
 

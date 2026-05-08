@@ -8,7 +8,6 @@ from fastapi.responses import JSONResponse, Response
 
 from dto.speech_dto import SpeechRequest
 from pipeline import Pipeline
-from utils.config_loader import config
 from utils.session_manager import generate_session_id
 
 
@@ -16,26 +15,10 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _build_supported_model_names() -> set[str]:
-    configured_model = config.models.tts.name
-    supported = {configured_model, configured_model.strip().lower()}
-    normalized = configured_model.strip().lower()
-    if "qwen" in normalized:
-        supported.add("qwen-tts")
-    if "parler" in normalized:
-        supported.add("parler-tts")
-    if "speecht5" in normalized or normalized == "speech":
-        supported.update({"speecht5", "speech-t5"})
-    return supported
-
-
-_SUPPORTED_MODELS = _build_supported_model_names()
-
-
 @router.post("/v1/audio/speech")
 def generate_speech(request: SpeechRequest):
-    if request.model not in _SUPPORTED_MODELS:
-        raise HTTPException(status_code=400, detail=f"Unsupported model: {request.model}")
+    # request.model is accepted for OpenAI API compatibility but the loaded model
+    # is always the one defined in config; it cannot be switched via the request.
 
     try:
         pipeline = Pipeline(session_id=generate_session_id())
