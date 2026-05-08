@@ -10,18 +10,17 @@
 .app-shell {
   display: flex;
   flex-direction: column;
-  width: 100%;
   height: 100vh;
+  min-height: 0;
   background: #070d2d;
   overflow: hidden;
 }
 
 .chat-container {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  width: 100%;
+  display: flex;
+  overflow: hidden;
 }
 
 /* ===== Scrollbar CSS ===== */

@@ -15,7 +15,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, 
 
 type MetricCardProps = {
     label: string
-    value: number
+    value: string
     color: string
     data: number[]
 }
@@ -73,7 +73,7 @@ export function MetricCard({ label, value, color, data }: MetricCardProps) {
             <div className={classes.chartCardHead}>
                 <span className={classes.chartCardLabel}>{label}</span>
                 <span className={classes.chartCardValue} style={{ color }}>
-                    {value}%
+                    {value}
                 </span>
             </div>
 

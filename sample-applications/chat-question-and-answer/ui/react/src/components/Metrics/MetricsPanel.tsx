@@ -1,45 +1,68 @@
 import { MetricCard } from "./MetricCard"
 import classes from "./MetricsPanel.module.scss"
+import { useMetricsStream, MetricsPoint } from "./UseMetricsStream"
 
-const makePoints = (base: number, noise: number) =>
-    Array.from({ length: 20 }, (_, i) =>
-        Math.min(
-            99,
-            Math.max(5, base + Math.sin(i * 0.7) * noise + (Math.random() - 0.5) * noise * 0.8)
-        )
-    ).map(Math.round)
+const getNumericData = (
+  points: MetricsPoint[],
+  key: "cpu" | "gpu" | "npu" | "ram"
+) => points.map((p) => p[key]).filter((v): v is number => typeof v === "number")
 
-const metrics = [
-    { label: "CPU", color: "#00A3F6", base: 67, noise: 18 },
-    { label: "NPU", color: "#C442CF", base: 43, noise: 14 },
-    { label: "RAM", color: "#F3AD26", base: 78, noise: 8 },
-    { label: "GPU", color: "#62CE58", base: 94, noise: 5 },
-]
+const latestValue = (
+  points: MetricsPoint[],
+  key: "cpu" | "gpu" | "npu" | "ram"
+) => {
+  const value = points.at(-1)?.[key]
+  return typeof value === "number" ? `${value.toFixed(1)}%` : "N/A"
+}
 
 export function MetricsPanel() {
-    return (
-        <section className={classes.chartsPanel}>
-            <div className={classes.chartsHeader}>
-                <div className={classes.liveDot} />
-                <span className={classes.chartsTitle}>Live system metrics</span>
-            </div>
+  const { points, isConnected } = useMetricsStream("percent")
 
-            <div className={classes.chartsGrid}>
-                {metrics.map((metric) => {
-                    const data = makePoints(metric.base, metric.noise)
-                    const value = data[data.length - 1]
+  const metrics = [
+    {
+      label: "CPU",
+      color: "#00A3F6",
+      data: getNumericData(points, "cpu"),
+      value: latestValue(points, "cpu"),
+    },
+    {
+      label: "NPU",
+      color: "#C442CF",
+      data: getNumericData(points, "npu"),
+      value: latestValue(points, "npu"),
+    },
+    {
+      label: "RAM",
+      color: "#F3AD26",
+      data: getNumericData(points, "ram"),
+      value: latestValue(points, "ram"),
+    },
+    {
+      label: "GPU",
+      color: "#62CE58",
+      data: getNumericData(points, "gpu"),
+      value: latestValue(points, "gpu"),
+    },
+  ]
 
-                    return (
-                        <MetricCard
-                            key={metric.label}
-                            label={metric.label}
-                            value={value}
-                            color={metric.color}
-                            data={data}
-                        />
-                    )
-                })}
-            </div>
-        </section>
-    )
+  return (
+    <section className={classes.chartsPanel}>
+      <div className={classes.chartsHeader}>
+        <div className={isConnected ? classes.liveDot : classes.offlineDot} />
+        <span className={classes.chartsTitle}>Live system metrics</span>
+      </div>
+
+      <div className={classes.chartsGrid}>
+        {metrics.map((metric) => (
+          <MetricCard
+            key={metric.label}
+            label={metric.label}
+            value={metric.value}
+            color={metric.color}
+            data={metric.data}
+          />
+        ))}
+      </div>
+    </section>
+  )
 }
