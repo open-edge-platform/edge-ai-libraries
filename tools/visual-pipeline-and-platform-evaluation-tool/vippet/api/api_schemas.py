@@ -148,11 +148,12 @@ class DeviceFamily(str, Enum):
 
 class ModelCategory(str, Enum):
     """
-    **Model category for classification or detection tasks.**
+    **Model category for classification, detection, or GenAI tasks.**
 
     ## Values
     - `CLASSIFICATION` - Classification model
     - `DETECTION` - Detection model
+    - `GENAI` - Generative AI model (for example VLM)
 
     ### Example
     ```json
@@ -162,6 +163,7 @@ class ModelCategory(str, Enum):
 
     CLASSIFICATION = "classification"
     DETECTION = "detection"
+    GENAI = "genai"
 
 
 class OptimizationType(str, Enum):

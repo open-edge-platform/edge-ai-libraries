@@ -86,6 +86,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
         | `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions|
         | `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                           |
         | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,pipeline-zoo-models,hls or geti`) or `all` to enable all available plugins |
+        | `--ovms-release-tag <tag>` | Set OVMS release tag (e.g., `v2025.4.1`) (default: `v2025.4.1`)                                |
         | `--help`                 | Shows this help message                                                                           |
 
    ```bash
@@ -107,6 +108,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
    | `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions                      |
    | `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                                                                         |
   | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,pipeline-zoo-models, or geti`) or `all` to enable all available plugins |
+   | `--ovms-release-tag <tag>` | Set OVMS release tag (e.g., `v2025.4.1`) (default: `v2025.4.1`)                                                                             |
    | `--help`                 | Shows this help message                                                                                                                       |
 
    **Examples**:

@@ -24,6 +24,17 @@ OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
 RTSP_URL_PREFIX = "rtsp://"
 USB_DEVICE_PREFIX = "/dev/video"
 
+# Element types whose presence marks a pipeline as metadata-only (no video output).
+# Such pipelines are allowed to keep an unnamed fakesink as-is (used for metadata
+# delivery) instead of having it converted to OUTPUT_PLACEHOLDER.
+METADATA_ONLY_NODE_TYPES: frozenset[str] = frozenset({"gvagenai"})
+
+
+def graph_is_metadata_only(nodes: list["Node"]) -> bool:
+    """Return True if the pipeline produces only metadata (no video output)."""
+    return any(node.type in METADATA_ONLY_NODE_TYPES for node in nodes)
+
+
 logger = logging.getLogger(__name__)
 labels_manager = get_labels_manager()
 scripts_manager = get_scripts_manager()
@@ -591,8 +602,11 @@ class Graph:
             placeholder_created = True
             logger.debug(f"Converted node {node.id} to OUTPUT_PLACEHOLDER")
 
-        # If no named default sink, check if there's exactly one fakesink in the graph
+        # If no named default sink, check if there's exactly one fakesink in the graph.
+        # Skip auto-selection for metadata-only pipelines (no video output needed).
         if not placeholder_created:
+            is_metadata_only = graph_is_metadata_only(modified_graph.nodes)
+
             fakesink_nodes = [
                 node for node in modified_graph.nodes if node.type == "fakesink"
             ]
@@ -603,8 +617,14 @@ class Graph:
                     "Please add 'fakesink' or 'fakesink name=default_output_sink' "
                     "at the end of your pipeline to specify where the output should be placed."
                 )
+            elif is_metadata_only:
+                # Keep unnamed fakesink as-is (used for metadata delivery). This condition must
+                # precede the single-fakesink condition, to avoid converting to OUTPUT_PLACEHOLDER.
+                logger.debug(
+                    "Metadata-only pipeline detected. Keeping unnamed fakesink as-is."
+                )
             elif len(fakesink_nodes) == 1:
-                # Exactly one fakesink - use it automatically
+                # Exactly one fakesink in a video pipeline - convert it to OUTPUT_PLACEHOLDER.
                 node = fakesink_nodes[0]
                 node.data.clear()
                 node.type = OUTPUT_PLACEHOLDER
@@ -2256,8 +2276,9 @@ def _tokenize(element: str) -> Iterator[_Token]:
         Output: [Token(TYPE, "filesrc"), Token(PROPERTY, "location=/tmp/foo.mp4")]
     """
     token_specification = [
-        # Property in key=value format (no commas here; caps are handled separately)
-        ("PROPERTY", r"\S+\s*=\s*\S+"),
+        # Property in key=value format, with support for quoted values containing spaces
+        # Matches: key=value, key="quoted value", key='quoted value'
+        ("PROPERTY", r'\S+\s*=\s*(?:"[^"]*"|\'[^\']*\'|\S+)'),
         # End of tee branch: "t." where t is the tee name
         ("TEE_END", r"\S+\.(?:\s|\Z)"),
         # Type of element (catch-all for non-property tokens)
@@ -2568,7 +2589,10 @@ def _build_chain(
             # Regular element: type followed by space-separated properties.
             result_parts.append(node.type)
             for key, value in node.data.items():
-                result_parts.append(f"{key}={value}")
+                output_key = (
+                    "model-path" if node.type == "gvagenai" and key == "model" else key
+                )
+                result_parts.append(f"{output_key}={value}")
 
         targets = edges_from.get(current_id, [])
         if not targets:
@@ -2626,7 +2650,8 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
         Output: node.data["model"] = "YOLOv8 License Plate Detector"
     """
     for node in nodes:
-        model_path = node.data.get("model")
+        model_key = "model-path" if node.type == "gvagenai" else "model"
+        model_path = node.data.get(model_key)
         if model_path is None:
             continue
 
@@ -2642,12 +2667,17 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
         )
 
         if model is not None:
+            # Use "model" as canonical key in graph/UI for all node types.
             node.data["model"] = model.display_name
+            if model_key != "model":
+                node.data.pop(model_key, None)
             logger.debug(
                 f"Converted model path to display name: {model_path} -> {model.display_name}"
             )
         else:
             node.data["model"] = ""
+            if model_key != "model":
+                node.data.pop(model_key, None)
             logger.debug(
                 f"Model not found in installed models: model_path='{model_path}', model_proc_path='{model_proc_path}'"
             )
@@ -2697,7 +2727,7 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
 
         node.data["model"] = model.model_path_full
 
-        if model.model_proc_full:
+        if node.type != "gvagenai" and model.model_proc_full:
             _insert_model_proc_after_model(node, model.model_proc_full)
 
         logger.debug(

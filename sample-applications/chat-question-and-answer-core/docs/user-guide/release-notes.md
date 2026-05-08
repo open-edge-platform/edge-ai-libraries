@@ -2,14 +2,21 @@
 
 ## Current Release
 
+**Version**: 1.3.3 \
+**Release Date**: WW19 2026
+
+- Making HF token as an optional. Only required when user downloading gated models.
+- Upgrade OLLAMA binary version.
+- Dependency Upgrades. Upgraded application dependencies flagged by Dependabot for known vulnerabilities.
+
+## Previous Releases
+
 **Version**: 1.3.2 \
 **Release Date**: WW09 2026
 
 -  Upgrade Ollama binary to latest version 0.17.0.
 -  Upgrade GPU drivers for PTL support.
 -  Dependency Upgrades. Upgraded application dependencies flagged by Dependabot for known vulnerabilities.
-
-## Previous Releases
 
 **Version**: 1.3.1 \
 **Release Date**: WW48 2025

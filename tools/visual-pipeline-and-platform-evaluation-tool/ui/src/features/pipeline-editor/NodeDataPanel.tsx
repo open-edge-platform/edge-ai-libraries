@@ -4,6 +4,7 @@ import { gvaMetaConvertConfig } from "./nodes/GVAMetaConvertNode.config.ts";
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
+import { gvaGenAIConfig } from "@/features/pipeline-editor/nodes/GVAGenAINode.config.ts";
 import { gvaMotionDetectConfig } from "@/features/pipeline-editor/nodes/GVAMotionDetectNode.config.ts";
 import { sourceNodeConfig } from "./nodes/SourceNode.config.ts";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -228,6 +229,8 @@ const NodeDataPanel = ({
         return gvaClassifyConfig;
       case "gvadetect":
         return gvaDetectConfig;
+      case "gvagenai":
+        return gvaGenAIConfig;
       case "gvamotiondetect":
         return gvaMotionDetectConfig;
       case "source":
@@ -308,8 +311,12 @@ const NodeDataPanel = ({
                     <option value="">Select {propConfig?.label}</option>
                     {models
                       .filter(
-                        (model) =>
-                          model.category === propConfig?.params?.filter,
+                        (model) => {
+                          const expectedCategory = propConfig?.params?.filter;
+                          return expectedCategory
+                            ? model.category === expectedCategory
+                            : true;
+                        },
                       )
                       .map((model) => (
                         <option
