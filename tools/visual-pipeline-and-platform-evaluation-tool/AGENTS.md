@@ -11,7 +11,7 @@ of AI inference pipelines (GStreamer + OpenVINO™ + DLStreamer), collecting har
 ```text
 tools/visual-pipeline-and-platform-evaluation-tool/
 ├── vippet/               # Backend: Python/FastAPI application
-│   ├── api/              # REST + WebSocket API (FastAPI, port 7860)
+│   ├── api/              # REST API (FastAPI, port 7860)
 │   │   ├── main.py       # App entrypoint, router registration
 │   │   ├── api_schemas.py # Pydantic request/response models
 │   │   └── routes/       # API route handlers (pipelines, models, jobs, etc.)
@@ -121,7 +121,7 @@ make format      # Auto-format with ruff
 - **Backend API**: `http://localhost:7860/api/v1/` (FastAPI, auto-documented at `/docs`)
 - **UI**: `http://localhost:80`
 - **RTSP live streams**: `rtsp://localhost:8554/{stream_name}` (via mediamtx)
-- **WebSocket metrics**: `ws://localhost:7860/metrics/ws`
+- **SSE metrics stream**: `http://localhost/metrics/stream` (proxied by nginx to metrics-service)
 
 The OpenAPI schema can be regenerated with:
 

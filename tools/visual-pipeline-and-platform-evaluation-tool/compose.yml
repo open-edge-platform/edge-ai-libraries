@@ -119,7 +119,7 @@ services:
       - no_proxy=${no_proxy}
     command: './model_manager.sh'
   model-download:
-    image: docker.io/intel/model-download:2026.1.0-20260331-weekly
+    image: docker.io/intel/model-download:2026.1.0-20260428-weekly
     container_name: model-download
     command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-openvino,huggingface,ultralytics,geti}
     healthcheck:
@@ -154,7 +154,7 @@ services:
     ports:
       - "7860:7860"
   metrics-service:
-    image: docker.io/intel/metrics-service:2026.1.0-20260417-weekly
+    image: docker.io/intel/metrics-service:2026.1.0-20260506-weekly.1
     container_name: metrics-service
     ports:
       - "9090:9090"
@@ -168,8 +168,7 @@ services:
     volumes:
       - /sys:/sys:ro
       - /run:/run:ro
-      # TODO: Temporary, to have websocket output plugin available. Remove this mount and file from repo after metrics-service enables the plugin by default.
-      - ./my-telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - ./vippet-telegraf.conf:/etc/telegraf/telegraf.conf:ro
     environment:
       METRICS_PORT: 9090
       LOG_LEVEL: INFO

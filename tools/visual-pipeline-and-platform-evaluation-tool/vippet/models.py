@@ -52,7 +52,7 @@ class SupportedModel:
         self.display_name: str = display_name
         self.source: str = source
         self.model_type: str = model_type
-        self.model_path: str = model_path
+        self.model_path: str = os.path.normpath(model_path)
         self.model_proc: str | None = model_proc
         self.unsupported_devices: str | None = unsupported_devices
         self.precision: str | None = precision
@@ -74,9 +74,19 @@ class SupportedModel:
         """
         Checks if the model exists on disk.
 
+        For `genai` models, `model_path` is expected to be a directory.
+
         Returns:
             bool: True if the model exists, False otherwise.
         """
+        if self.model_type == "genai":
+            exists = os.path.isdir(self.model_path_full)
+            if not exists:
+                logger.debug(
+                    f"GenAI model directory not found for '{self.display_name}' at path '{self.model_path_full}'"
+                )
+            return exists
+
         return os.path.isfile(self.model_path_full)
 
 
@@ -343,6 +353,22 @@ class SupportedModelsManager:
         """
         return self._filter_models(model_names, default_model, "classification")
 
+    def filter_genai_models(
+        self, model_names: list[str], default_model: str
+    ) -> tuple[list[str], str | None]:
+        """
+        Filters GenAI models based on availability and input arguments.
+
+        Args:
+            model_names (list[str]): List of GenAI model display names to consider.
+            default_model (str): The default GenAI model's display name.
+
+        Returns:
+            tuple[list[str], str | None]: A tuple containing the filtered list of GenAI model display names
+                                          and the selected default model name (or None).
+        """
+        return self._filter_models(model_names, default_model, "genai")
+
     def get_all_installed_models(self) -> list[SupportedModel]:
         """
         Returns a list of SupportedModel instances that are available on disk.
@@ -426,11 +452,22 @@ class SupportedModelsManager:
         Returns:
             Optional[SupportedModel]: The installed SupportedModel instance if found, otherwise None.
         """
+        normalized_model_path = os.path.normpath(model_path)
+        # Compare with trailing-slash stripped (pipeline descriptions may omit the slash).
+        for model in self._models:
+            if (
+                model.model_type == "genai"
+                and model.exists_on_disk()
+                and os.path.normpath(model.model_path_full).rstrip("/")
+                == normalized_model_path.rstrip("/")
+            ):
+                return model
+
         # Extract the model filename and precision directory from the provided path.
         # Model paths follow the pattern: .../precision_dir/filename.xml
         # e.g. /models/output/public/yolov10s/INT8/yolov10s.xml  -> precision_dir = 'INT8'
-        model_filename = os.path.basename(model_path)
-        model_precision_dir = os.path.basename(os.path.dirname(model_path))
+        model_filename = os.path.basename(normalized_model_path)
+        model_precision_dir = os.path.basename(os.path.dirname(normalized_model_path))
 
         # Step 1: find all installed models matching the filename
         matching_models = [

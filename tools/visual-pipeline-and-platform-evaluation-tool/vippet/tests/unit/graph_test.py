@@ -5234,6 +5234,30 @@ class TestPrepareMainOutputPlaceholder(unittest.TestCase):
         # Check that all properties are cleared
         self.assertEqual(result.nodes[2].data, {})
 
+    def test_gvagenai_single_unnamed_fakesink_is_not_converted(self):
+        """Test that gvagenai pipelines keep a single unnamed fakesink as metadata-only sink."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="videoconvert", data={}),
+                Node(id="3", type="gvagenai", data={"model-path": "model.xml"}),
+                Node(id="4", type="fakesink", data={"sync": "false"}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+            ],
+        )
+
+        result = graph.prepare_main_output_placeholder()
+
+        # For gvagenai metadata-only pipelines, unnamed fakesink should remain unchanged.
+        self.assertEqual(result.nodes[4].type, "fakesink")
+        self.assertEqual(result.nodes[4].data, {"sync": "false"})
+
     def test_single_named_non_default_fakesink_is_auto_selected(self):
         """Test that single fakesink with non-default name is automatically selected."""
         graph = Graph(
