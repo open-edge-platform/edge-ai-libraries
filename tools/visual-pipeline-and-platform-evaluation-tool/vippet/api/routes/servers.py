@@ -26,15 +26,18 @@ logger = logging.getLogger("api.routes.servers")
 
 
 def _get_machine_id() -> str:
-    """Get machine ID from /etc/machine-id or generate one."""
-    try:
-        machine_id_path = Path("/etc/machine-id")
-        if machine_id_path.exists():
-            return machine_id_path.read_text().strip()
-    except Exception:
-        pass
-    # Fallback to generated UUID based on hostname
-    return str(uuid.uuid5(uuid.NAMESPACE_DNS, socket.gethostname()))
+    """Get a stable unique ID for this physical machine.
+
+    /etc/machine-id is NOT used because it is baked into the Docker image and
+    is therefore identical across all containers. Instead we derive a uuid5
+    from HOST_IP + CPU + RAM, which uniquely identifies each physical host.
+    """
+    host_ip = _get_ip_address()
+    cpu = _get_cpu_info()
+    ram = str(_get_ram_size())
+
+    fingerprint = f"{host_ip}|{cpu}|{ram}"
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, fingerprint))
 
 
 def _get_ip_address() -> str:
