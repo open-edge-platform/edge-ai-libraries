@@ -236,6 +236,61 @@ class VideoUploadErrorKind(str, Enum):
     FILE_EXISTS = "file_exists"
 
 
+class ImageUploadErrorKind(str, Enum):
+    """
+    **Machine-readable reason why an image archive upload was rejected.**
+
+    Returned in the `error` field of the `ImageUploadError` response body
+    together with a human-readable `detail` message. Mirrors the
+    `VideoUploadErrorKind` enum used for video uploads.
+
+    ## Values
+    - `MISSING_FILENAME` - The multipart part did not carry a filename.
+    - `UNSUPPORTED_ARCHIVE_FORMAT` - Archive extension is not in the
+      allow-list.
+    - `INVALID_ARCHIVE_NAME` - Archive filename sanitizes to an empty
+      value or carries no supported archive extension.
+    - `ARCHIVE_TOO_LARGE` - Archive request body exceeds the size cap.
+    - `ARCHIVE_CORRUPTED` - Archive could not be opened or one image
+      could not be decoded.
+    - `ARCHIVE_CONTAINS_SUBDIRECTORIES` - Archive must contain only
+      top-level files.
+    - `ARCHIVE_CONTAINS_NO_IMAGES` - Archive does not contain any
+      supported image files.
+    - `ARCHIVE_MIXED_IMAGE_EXTENSIONS` - Archive contains images of
+      more than one extension family.
+    - `ARCHIVE_DISALLOWED_IMAGE_EXTENSION` - Archive contains a file
+      with an extension outside the allow-list.
+    - `ARCHIVE_MIXED_IMAGE_RESOLUTIONS` - Archive contains images that
+      do not all share the same resolution.
+    - `ARCHIVE_UNCOMPRESSED_TOO_LARGE` - Total uncompressed size of the
+      archive exceeds the configured zip-bomb guard.
+    - `IMAGE_SET_ALREADY_EXISTS` - An image set with the derived name
+      already exists.
+    - `UNSAFE_ARCHIVE_PATH` - Archive contains a member with a
+      path-traversal attempt or a non-regular file entry.
+
+    ### Example
+    ```json
+    "archive_contains_subdirectories"
+    ```
+    """
+
+    MISSING_FILENAME = "missing_filename"
+    UNSUPPORTED_ARCHIVE_FORMAT = "unsupported_archive_format"
+    INVALID_ARCHIVE_NAME = "invalid_archive_name"
+    ARCHIVE_TOO_LARGE = "archive_too_large"
+    ARCHIVE_CORRUPTED = "archive_corrupted"
+    ARCHIVE_CONTAINS_SUBDIRECTORIES = "archive_contains_subdirectories"
+    ARCHIVE_CONTAINS_NO_IMAGES = "archive_contains_no_images"
+    ARCHIVE_MIXED_IMAGE_EXTENSIONS = "archive_mixed_image_extensions"
+    ARCHIVE_DISALLOWED_IMAGE_EXTENSION = "archive_disallowed_image_extension"
+    ARCHIVE_MIXED_IMAGE_RESOLUTIONS = "archive_mixed_image_resolutions"
+    ARCHIVE_UNCOMPRESSED_TOO_LARGE = "archive_uncompressed_too_large"
+    IMAGE_SET_ALREADY_EXISTS = "image_set_already_exists"
+    UNSAFE_ARCHIVE_PATH = "unsafe_archive_path"
+
+
 class CameraType(str, Enum):
     """
     **Type of camera device.**
@@ -1968,6 +2023,65 @@ class VideoUploadError(BaseModel):
     )
 
 
+class ImageUploadError(BaseModel):
+    """
+    **Structured error body returned when an image archive upload is rejected.**
+
+    Returned with HTTP 422 by `POST /images/upload` when the submitted
+    archive fails any validation step (extension, size, layout, content,
+    duplicate name, ...). Mirrors the shape of `VideoUploadError`: a
+    human-readable `detail` plus a machine-readable `error` /
+    `found` / `allowed` triple. The `found` and `allowed` fields are
+    typed loosely (`Any` / `list[Any]`) because some checks return
+    composite values such as a list of detected extensions or a pair of
+    resolutions.
+
+    ## Attributes
+    - `detail` - Human-readable error message suitable for direct UI
+      display.
+    - `error` - Machine-readable error kind (see `ImageUploadErrorKind`).
+    - `found` - Optional value that actually failed validation.
+    - `allowed` - Optional list of accepted values for the failed check.
+
+    ### Example (mixed image extensions)
+    ```json
+    {
+      "detail": "Archive must contain images of exactly one type. Found multiple: ['jpg', 'png'].",
+      "error": "archive_mixed_image_extensions",
+      "found": ["jpg", "png"],
+      "allowed": null
+    }
+    ```
+
+    ### Example (subdirectories not allowed)
+    ```json
+    {
+      "detail": "Archive must contain only files at the top level. Found nested entry 'subdir/foo.jpg'.",
+      "error": "archive_contains_subdirectories",
+      "found": "subdir/foo.jpg",
+      "allowed": null
+    }
+    ```
+    """
+
+    detail: str = Field(
+        ...,
+        description="Human-readable error message suitable for UI display.",
+    )
+    error: ImageUploadErrorKind = Field(
+        ...,
+        description="Machine-readable error kind.",
+    )
+    found: Optional[Any] = Field(
+        default=None,
+        description="Value that actually failed validation, or null.",
+    )
+    allowed: Optional[List[Any]] = Field(
+        default=None,
+        description="List of accepted values for the failed check, or null.",
+    )
+
+
 class VideoExistsResponse(BaseModel):
     """
     **Response indicating whether a video file exists.**
@@ -2001,20 +2115,55 @@ class ImageSet(BaseModel):
     **Metadata for a single image set (directory of images).**
 
     ## Attributes
-    - `name` - Name of the image set (directory name under INPUT_IMAGES_DIR)
-    - `image_count` - Number of image files in the directory
+    - `name` - Name of the image set (directory name under
+      `UPLOADED_IMAGES_DIR`; identical to the sanitized archive trunk).
+    - `source_archive` - Original uploaded archive filename.
+    - `image_count` - Number of image files in the set.
+    - `extension` - Lowercase canonical extension shared by every image
+      (`jpg`, `png`, `bmp` or `tif`).
+    - `width` - Common image width in pixels.
+    - `height` - Common image height in pixels.
+    - `uploaded_at` - ISO-8601 UTC timestamp of when the set was created.
 
     ### Example
     ```json
     {
       "name": "traffic_dataset",
-      "image_count": 120
+      "source_archive": "traffic_dataset.zip",
+      "image_count": 120,
+      "extension": "png",
+      "width": 1920,
+      "height": 1080,
+      "uploaded_at": "2026-04-27T10:00:00Z"
     }
     ```
     """
 
     name: str = Field(..., description="Name of the image set directory.")
-    image_count: int = Field(..., description="Number of image files in the directory.")
+    source_archive: str = Field(
+        default="",
+        description="Original uploaded archive filename.",
+    )
+    image_count: int = Field(
+        ...,
+        description="Number of image files in the set.",
+    )
+    extension: str = Field(
+        default="",
+        description="Lowercase canonical image extension shared by every image.",
+    )
+    width: int = Field(
+        default=0,
+        description="Common image width in pixels.",
+    )
+    height: int = Field(
+        default=0,
+        description="Common image height in pixels.",
+    )
+    uploaded_at: str = Field(
+        default="",
+        description="ISO-8601 UTC timestamp of when the set was created.",
+    )
 
 
 class ImageSetExistsResponse(BaseModel):

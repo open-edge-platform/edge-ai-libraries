@@ -28,8 +28,10 @@ x-vippet: &vippet
     WEB_SERVER_LOG_LEVEL: WARNING
     MODELS_PATH: /models/output
     SUPPORTED_MODELS_FILE: /models/supported_models.yaml
-    INPUT_IMAGES_DIR: /images/input
-    OUTPUT_IMAGES_DIR: /images/output
+    # Image-set uploads. Image sets are extracted into per-set
+    # subdirectories of UPLOADED_IMAGES_DIR; no auto-downloaded image
+    # content exists today, so only the 'uploaded' tree is mounted.
+    UPLOADED_IMAGES_DIR: /images/input/uploaded
     # 'auto' holds recordings downloaded from default_recordings.yaml;
     # 'uploaded' holds user uploads. Each is created on startup if missing.
     AUTO_VIDEO_DIR: /videos/input/auto

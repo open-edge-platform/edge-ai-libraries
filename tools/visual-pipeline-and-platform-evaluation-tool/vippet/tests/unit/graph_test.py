@@ -6157,5 +6157,456 @@ class TestApplyStreamIdentifiers(unittest.TestCase):
         self.assertNotIn("name", splitmux.data)
 
 
+# --------------------------------------------------------------------------- #
+# Image-set source mapping (simple -> advanced).
+# --------------------------------------------------------------------------- #
+
+
+def _make_image_set_mock(
+    name: str = "dorota",
+    extension: str = "jpg",
+    image_count: int = 40,
+    width: int = 2,
+):
+    """
+    Build a mock for ``ImagesManager().get_image_set`` / ``get_location_pattern``.
+    ``width`` is the zero-padding width that the location pattern carries
+    (``len(str(image_count))``).
+    """
+    image_set = MagicMock()
+    image_set.name = name
+    image_set.extension = extension
+    image_set.image_count = image_count
+    image_set.width = 1280
+    image_set.height = 720
+    location = f"/images/input/uploaded/{name}/{name}_%0{width}d.{extension}"
+    return image_set, location
+
+
+class TestImageSetSourceMapping(unittest.TestCase):
+    """
+    Verify that ``apply_simple_view_changes`` rewrites a generic
+    ``source`` node with ``kind=image_set`` into a concrete
+    ``multifilesrc`` + decoder pair, with the right caps, stop-index and
+    edges. The downstream ``apply_looping_modifications`` and
+    ``determine_input_codec`` behaviours that depend on the marker flag
+    are covered in their own classes below.
+    """
+
+    def _make_simple(self, kind, source: str) -> Graph:
+        return Graph(
+            nodes=[
+                Node(id="0", type="source", data={"kind": kind, "source": source}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="12", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="11", source="2", target="12"),
+            ],
+        )
+
+    def _make_advanced_with_filesrc(self) -> Graph:
+        # Mirrors the kind of advanced graph that ``from_simple_view``
+        # produces for a file source (filesrc + decodebin3 + ...).
+        return Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "x.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="12", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="11", source="2", target="12"),
+            ],
+        )
+
+    @patch("graph.ImagesManager")
+    def test_jpg_image_set_replaces_filesrc_with_multifilesrc_and_jpegdec(
+        self, mock_cls
+    ):
+        image_set, location = _make_image_set_mock("dorota", "jpg", 40, 2)
+        instance = MagicMock()
+        instance.get_image_set.return_value = image_set
+        instance.get_location_pattern.return_value = location
+        mock_cls.return_value = instance
+
+        original_simple = self._make_simple(InputKind.FILE, "x.mp4")
+        modified_simple = self._make_simple(InputKind.IMAGE_SET, "dorota")
+        original_advanced = self._make_advanced_with_filesrc()
+
+        result = Graph.apply_simple_view_changes(
+            modified_simple=modified_simple,
+            original_simple=original_simple,
+            original_advanced=original_advanced,
+        )
+
+        # The original source node has been retyped to multifilesrc.
+        src = next(n for n in result.nodes if n.id == "0")
+        self.assertEqual(src.type, "multifilesrc")
+        self.assertEqual(src.data["location"], location)
+        self.assertEqual(src.data["index"], "1")
+        self.assertEqual(src.data["stop-index"], "40")
+        # ``loop`` starts off; ``apply_looping_modifications`` flips it.
+        self.assertEqual(src.data["loop"], "false")
+        self.assertIn("caps", src.data)
+        self.assertTrue(src.data["caps"].startswith("image/jpeg"))
+        # Internal marker is present (carries the canonical extension).
+        self.assertIn("__image_set", src.data)
+        self.assertEqual(src.data["__image_set"], "jpg")
+
+        # A jpegdec node has been inserted right after the source.
+        decoder_nodes = [n for n in result.nodes if n.type == "jpegdec"]
+        self.assertEqual(len(decoder_nodes), 1)
+        decoder = decoder_nodes[0]
+
+        # Edges are rewired so the source flows through the decoder.
+        edges_from_source = [e for e in result.edges if e.source == "0"]
+        self.assertEqual(len(edges_from_source), 1)
+        self.assertEqual(edges_from_source[0].target, decoder.id)
+
+        # The original ``0->1`` edge into decodebin3 has been retargeted
+        # to flow out of the new decoder.
+        edges_from_decoder = [e for e in result.edges if e.source == decoder.id]
+        # The decoder fans out to whatever was downstream of the original source.
+        self.assertGreaterEqual(len(edges_from_decoder), 1)
+
+    @patch("graph.ImagesManager")
+    def test_png_uses_pngdec_and_image_png_caps(self, mock_cls):
+        image_set, location = _make_image_set_mock("imgs", "png", 5, 1)
+        instance = MagicMock()
+        instance.get_image_set.return_value = image_set
+        instance.get_location_pattern.return_value = location
+        mock_cls.return_value = instance
+
+        result = Graph.apply_simple_view_changes(
+            modified_simple=self._make_simple(InputKind.IMAGE_SET, "imgs"),
+            original_simple=self._make_simple(InputKind.FILE, "x.mp4"),
+            original_advanced=self._make_advanced_with_filesrc(),
+        )
+
+        src = next(n for n in result.nodes if n.id == "0")
+        self.assertTrue(src.data["caps"].startswith("image/png"))
+        self.assertEqual(src.data["__image_set"], "png")
+        self.assertTrue(any(n.type == "pngdec" for n in result.nodes))
+
+    @patch("graph.ImagesManager")
+    def test_bmp_uses_avdec_bmp(self, mock_cls):
+        image_set, location = _make_image_set_mock("b", "bmp", 3, 1)
+        instance = MagicMock()
+        instance.get_image_set.return_value = image_set
+        instance.get_location_pattern.return_value = location
+        mock_cls.return_value = instance
+
+        result = Graph.apply_simple_view_changes(
+            modified_simple=self._make_simple(InputKind.IMAGE_SET, "b"),
+            original_simple=self._make_simple(InputKind.FILE, "x.mp4"),
+            original_advanced=self._make_advanced_with_filesrc(),
+        )
+        self.assertTrue(any(n.type == "avdec_bmp" for n in result.nodes))
+        src = next(n for n in result.nodes if n.id == "0")
+        self.assertTrue(src.data["caps"].startswith("image/bmp"))
+
+    @patch("graph.ImagesManager")
+    def test_tif_uses_avdec_tiff(self, mock_cls):
+        image_set, location = _make_image_set_mock("t", "tif", 3, 1)
+        instance = MagicMock()
+        instance.get_image_set.return_value = image_set
+        instance.get_location_pattern.return_value = location
+        mock_cls.return_value = instance
+
+        result = Graph.apply_simple_view_changes(
+            modified_simple=self._make_simple(InputKind.IMAGE_SET, "t"),
+            original_simple=self._make_simple(InputKind.FILE, "x.mp4"),
+            original_advanced=self._make_advanced_with_filesrc(),
+        )
+        self.assertTrue(any(n.type == "avdec_tiff" for n in result.nodes))
+        src = next(n for n in result.nodes if n.id == "0")
+        self.assertTrue(src.data["caps"].startswith("image/tiff"))
+
+    @patch("graph.ImagesManager")
+    def test_unknown_image_set_raises(self, mock_cls):
+        instance = MagicMock()
+        instance.get_image_set.return_value = None
+        mock_cls.return_value = instance
+
+        with self.assertRaises(ValueError) as cm:
+            Graph.apply_simple_view_changes(
+                modified_simple=self._make_simple(InputKind.IMAGE_SET, "missing"),
+                original_simple=self._make_simple(InputKind.FILE, "x.mp4"),
+                original_advanced=self._make_advanced_with_filesrc(),
+            )
+        self.assertIn("Unknown image set", str(cm.exception))
+
+    @patch("graph.ImagesManager")
+    def test_missing_location_pattern_raises(self, mock_cls):
+        image_set, _ = _make_image_set_mock("dorota", "jpg", 40, 2)
+        instance = MagicMock()
+        instance.get_image_set.return_value = image_set
+        instance.get_location_pattern.return_value = None
+        mock_cls.return_value = instance
+
+        with self.assertRaises(ValueError) as cm:
+            Graph.apply_simple_view_changes(
+                modified_simple=self._make_simple(InputKind.IMAGE_SET, "dorota"),
+                original_simple=self._make_simple(InputKind.FILE, "x.mp4"),
+                original_advanced=self._make_advanced_with_filesrc(),
+            )
+        self.assertIn("location pattern", str(cm.exception))
+
+
+# --------------------------------------------------------------------------- #
+# Looping behaviour for image-set sources.
+# --------------------------------------------------------------------------- #
+
+
+class TestApplyLoopingImageSet(unittest.TestCase):
+    """
+    Image-set ``multifilesrc`` nodes only need ``loop=true``; the TS
+    dance and demuxer rewrites that apply to file sources must be
+    skipped. Marker flag presence (``__image_set``) is what selects
+    the lightweight branch.
+    """
+
+    def test_image_set_node_only_flips_loop_to_true(self):
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/images/input/uploaded/x/x_%01d.jpg",
+                        "index": "1",
+                        "stop-index": "5",
+                        "loop": "false",
+                        "caps": "image/jpeg,framerate=30/1",
+                        "__image_set": "jpg",
+                    },
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        # ``apply_looping_modifications`` instantiates VideosManager
+        # eagerly even though the image-set branch does not use it. We
+        # mock the class to keep the test independent of the videos
+        # filesystem layout.
+        with patch("graph.VideosManager"):
+            result = graph.apply_looping_modifications()
+
+        src = result.nodes[0]
+        self.assertEqual(src.type, "multifilesrc")
+        self.assertEqual(src.data["loop"], "true")
+        # Location pattern must stay intact - no TS conversion.
+        self.assertEqual(src.data["location"], "/images/input/uploaded/x/x_%01d.jpg")
+        self.assertEqual(src.data["stop-index"], "5")
+        # No TS demuxer was inserted - the decoder is preserved as-is.
+        self.assertEqual(result.nodes[1].type, "jpegdec")
+
+    def test_image_set_node_skips_ts_resolution(self):
+        """
+        For an image-set ``multifilesrc`` node, no per-node ``get_ts_path``
+        call is issued - the marker flag short-circuits the pass before
+        the TS dance kicks in. Other VideosManager methods may still be
+        touched at construction time, so we only assert the per-node
+        helpers are not invoked.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/images/input/uploaded/x/x_%01d.png",
+                        "index": "1",
+                        "stop-index": "3",
+                        "loop": "false",
+                        "caps": "image/png,framerate=30/1",
+                        "__image_set": "png",
+                    },
+                ),
+                Node(id="1", type="pngdec", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        with patch("graph.VideosManager") as mock_videos_cls:
+            instance = MagicMock()
+            mock_videos_cls.return_value = instance
+            result = graph.apply_looping_modifications()
+
+        # The image-set branch must NOT consult per-node TS helpers.
+        instance.get_ts_path.assert_not_called()
+        instance.ensure_ts_file.assert_not_called()
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+
+
+# --------------------------------------------------------------------------- #
+# determine_input_codec for image-set sources.
+# --------------------------------------------------------------------------- #
+
+
+class TestDetermineInputCodecImageSet(unittest.TestCase):
+    def _graph_with(self, ext: str) -> Graph:
+        return Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": f"/images/input/uploaded/x/x_%01d.{ext}",
+                        "index": "1",
+                        "stop-index": "1",
+                        "loop": "false",
+                        "caps": f"image/{ext},framerate=30/1",
+                        "__image_set": ext,
+                    },
+                ),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+
+    def test_jpg(self):
+        self.assertEqual(self._graph_with("jpg").determine_input_codec(), "jpg")
+
+    def test_png(self):
+        self.assertEqual(self._graph_with("png").determine_input_codec(), "png")
+
+    def test_empty_marker_returns_none(self):
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/foo/bar_%01d.jpg",
+                        "__image_set": "",
+                    },
+                ),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+        self.assertIsNone(graph.determine_input_codec())
+
+
+# --------------------------------------------------------------------------- #
+# _input_video_name_to_path: absolute paths bypass.
+# --------------------------------------------------------------------------- #
+
+
+class TestInputVideoNameToPathAbsoluteBypass(unittest.TestCase):
+    """
+    Image-set ``multifilesrc`` nodes carry an absolute location pattern
+    (``/images/input/uploaded/.../x_%02d.jpg``) that must be passed to
+    GStreamer untouched. The video-name → path mapping has to detect
+    absolute paths and skip them; any other behaviour breaks the
+    image-set pipeline.
+    """
+
+    @patch("graph.VideosManager")
+    def test_absolute_location_is_left_untouched(self, mock_videos_cls):
+        from graph import _input_video_name_to_path
+
+        nodes = [
+            Node(
+                id="0",
+                type="multifilesrc",
+                data={"location": "/images/input/uploaded/dorota/dorota_%02d.jpg"},
+            )
+        ]
+        _input_video_name_to_path(nodes)
+
+        # The mapping must not be invoked for absolute paths.
+        mock_videos_cls.assert_not_called()
+        self.assertEqual(
+            nodes[0].data["location"],
+            "/images/input/uploaded/dorota/dorota_%02d.jpg",
+        )
+
+    @patch("graph.VideosManager")
+    def test_relative_filename_still_resolved_through_videos_manager(
+        self, mock_videos_cls
+    ):
+        from graph import _input_video_name_to_path
+
+        instance = MagicMock()
+        instance.get_video_path.return_value = "/videos/input/uploaded/foo.mp4"
+        mock_videos_cls.return_value = instance
+
+        nodes = [Node(id="0", type="filesrc", data={"location": "foo.mp4"})]
+        _input_video_name_to_path(nodes)
+
+        instance.get_video_path.assert_called_once_with("foo.mp4")
+        self.assertEqual(nodes[0].data["location"], "/videos/input/uploaded/foo.mp4")
+
+
+# --------------------------------------------------------------------------- #
+# _prepare_generic_input: image-set multifilesrc round-trip back to source.
+# --------------------------------------------------------------------------- #
+
+
+class TestPrepareGenericInputImageSet(unittest.TestCase):
+    """
+    Verify that ``_prepare_generic_input`` (advanced -> simple) emits a
+    ``source`` node with ``kind=image_set`` for ``multifilesrc`` nodes
+    that were originally produced from an image-set source. Without
+    this, the simple view would lose the image-set kind on round-trip
+    and reload the pipeline as a regular file source.
+    """
+
+    def test_image_set_multifilesrc_becomes_image_set_source(self) -> None:
+        from graph import _IMAGE_SET_NODE_FLAG, InputKind, _prepare_generic_input
+
+        node = Node(
+            id="0",
+            type="multifilesrc",
+            data={
+                "location": "/images/input/uploaded/dorota/dorota_%02d.jpg",
+                "index": "1",
+                "stop-index": "40",
+                "loop": "false",
+                "caps": "image/jpeg,framerate=30/1",
+                _IMAGE_SET_NODE_FLAG: "jpg",
+            },
+        )
+
+        _prepare_generic_input([node])
+
+        self.assertEqual(node.type, "source")
+        self.assertEqual(node.data["kind"], InputKind.IMAGE_SET)
+        self.assertEqual(node.data["source"], "dorota")
+        # Internal marker must not leak into the simple view.
+        self.assertNotIn(_IMAGE_SET_NODE_FLAG, node.data)
+        self.assertNotIn("location", node.data)
+
+    def test_plain_multifilesrc_still_becomes_file_source(self) -> None:
+        from graph import InputKind, _prepare_generic_input
+
+        node = Node(
+            id="0",
+            type="multifilesrc",
+            data={"location": "loop.mp4"},
+        )
+
+        _prepare_generic_input([node])
+
+        self.assertEqual(node.type, "source")
+        self.assertEqual(node.data["kind"], InputKind.FILE)
+        self.assertEqual(node.data["source"], "loop.mp4")
+
+
 if __name__ == "__main__":
     unittest.main()

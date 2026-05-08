@@ -18,6 +18,7 @@ from resources import (
 from utils import slugify_text
 from video_decoder import VideoDecoder
 from videos import VideosManager
+from images import ImagesManager
 
 # Internal constant used as a placeholder type for the main output sink in the graph.
 OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
@@ -111,6 +112,64 @@ class InputKind(str, Enum):
 
     FILE = "file"
     CAMERA = "camera"
+    IMAGE_SET = "image_set"
+
+
+# Default frame rate (numerator/denominator) used in the caps that follow
+# the ``multifilesrc`` element when the source is an image set. Image
+# sets do not carry a native frame rate, so a fixed cadence is required
+# to drive the downstream pipeline. Kept conservative; can be overridden
+# in the future by extending the source-node ``data`` payload.
+IMAGE_SET_DEFAULT_FRAMERATE = "30/1"
+
+# Internal flag stored in ``Node.data`` to mark a ``multifilesrc`` node
+# that originated from an image-set source. Used by the looping
+# transformation and codec detection to handle these nodes specially
+# without having to reparse the location pattern.
+_IMAGE_SET_NODE_FLAG = "__image_set"
+
+
+def _image_set_decoder_for_extension(extension: str) -> str:
+    """
+    Return the GStreamer decoder element name that pairs with the given
+    canonical image extension. Every extension accepted by the upload
+    validator is guaranteed to have a software decoder available in the
+    runtime environment.
+    """
+    table = {
+        "jpg": "jpegdec",
+        "jpeg": "jpegdec",
+        "png": "pngdec",
+        "bmp": "avdec_bmp",
+        "tif": "avdec_tiff",
+        "tiff": "avdec_tiff",
+    }
+    decoder = table.get(extension.lower())
+    if decoder is None:
+        # Should never happen - the upload validator already enforces
+        # the allow-list. Falling back to ``decodebin3`` keeps the
+        # pipeline runnable in case a directory was created out of
+        # band.
+        return "decodebin3"
+    return decoder
+
+
+def _image_set_caps_for_extension(extension: str) -> str:
+    """
+    Return the caps string that pairs with the chosen image decoder.
+    The caps mime type matches the extension (jpg/jpeg -> ``image/jpeg``)
+    and pins a fixed frame rate so the downstream chain can negotiate.
+    """
+    mime_table = {
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "bmp": "image/bmp",
+        "tif": "image/tiff",
+        "tiff": "image/tiff",
+    }
+    mime = mime_table.get(extension.lower(), "image/jpeg")
+    return f"{mime},framerate={IMAGE_SET_DEFAULT_FRAMERATE}"
 
 
 @dataclass
@@ -452,6 +511,17 @@ class Graph:
                     f"Looping playback is not supported for live sources like {node.type}. "
                     f"Please disable looping, remove, or replace the {node.type} element in your pipeline."
                 )
+
+            # Image-set sources are already represented as
+            # ``multifilesrc`` and do not need a TS companion. Just
+            # toggle ``loop`` so the runner can rely on a wallclock
+            # timer to terminate the pipeline.
+            if node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data:
+                node.data["loop"] = "true"
+                logger.debug(
+                    "Enabled looping on image-set multifilesrc (node %s)", node.id
+                )
+                continue
 
             # Replace filesrc with multifilesrc loop=true
             if node.type == "filesrc":
@@ -852,7 +922,7 @@ class Graph:
         #       while an intermediate recorder sink sits on the inline
         #       branch.
         #
-        #   (c) If there is exactly one fakesink in the graph and it has
+        #   (c) If there is exactly one fakesink in the graph, and it has
         #       no explicit name, that fakesink is the main sink (mirrors
         #       the auto-pick rule of `prepare_main_output_placeholder`).
         #
@@ -875,7 +945,7 @@ class Graph:
 
         sink_node: Optional[Node] = None
 
-        # (a) OUTPUT_PLACEHOLDER has highest priority.
+        # (a) OUTPUT_PLACEHOLDER has the highest priority.
         if len(placeholder_nodes) == 1:
             sink_node = placeholder_nodes[0]
 
@@ -1465,10 +1535,105 @@ class Graph:
                             f"Unsupported camera source '{source}' for node {node_id}. "
                             f"Camera sources must start with '{RTSP_URL_PREFIX}' for network cameras or '{USB_DEVICE_PREFIX}' for USB cameras."
                         )
+
+                elif kind == InputKind.IMAGE_SET:
+                    # Image-set source: resolve the set name to a
+                    # ``multifilesrc`` location pattern and inject a
+                    # decoder + caps node right after it. The looping
+                    # transformation flips ``loop`` to ``true`` later
+                    # if the run requires it; here we always emit a
+                    # single-pass configuration with ``stop-index`` so
+                    # the pipeline terminates cleanly when the set is
+                    # exhausted.
+                    image_set = ImagesManager().get_image_set(source)
+                    if image_set is None:
+                        raise ValueError(
+                            f"Unknown image set '{source}' for node {node_id}."
+                        )
+                    location_pattern = ImagesManager().get_location_pattern(source)
+                    if location_pattern is None:
+                        raise ValueError(
+                            f"Failed to resolve location pattern for image set '{source}'."
+                        )
+
+                    if node_id not in advanced_nodes_by_id:
+                        # Should not happen - the simple-to-advanced
+                        # mapping is bijective for source nodes - but
+                        # guard against drift instead of crashing in
+                        # the rewiring loop below.
+                        raise ValueError(
+                            f"Internal error: image-set source node {node_id} missing in advanced view."
+                        )
+
+                    advanced_node = advanced_nodes_by_id[node_id]
+                    advanced_node.type = "multifilesrc"
+                    advanced_node.data.clear()
+                    advanced_node.data.update(
+                        {
+                            "location": location_pattern,
+                            "index": "1",
+                            "stop-index": str(image_set.image_count),
+                            "loop": "false",
+                            "caps": _image_set_caps_for_extension(image_set.extension),
+                            # Internal marker used by looping and codec
+                            # detection to recognize this node as part
+                            # of an image-set pipeline.
+                            _IMAGE_SET_NODE_FLAG: image_set.extension,
+                        }
+                    )
+
+                    # Allocate fresh IDs for the decoder and caps nodes.
+                    existing_ids = [
+                        int(n.id) for n in result_advanced.nodes if n.id.isdigit()
+                    ] + [int(e.id) for e in result_advanced.edges if e.id.isdigit()]
+                    next_id = (max(existing_ids) + 1) if existing_ids else 0
+
+                    decoder_id = str(next_id)
+                    next_id += 1
+                    decoder_node = Node(
+                        id=decoder_id,
+                        type=_image_set_decoder_for_extension(image_set.extension),
+                        data={},
+                    )
+
+                    edge_src_to_decoder = Edge(
+                        id=str(next_id),
+                        source=node_id,
+                        target=decoder_id,
+                    )
+                    next_id += 1
+
+                    # Insert the decoder right after the multifilesrc
+                    # node in the nodes list to preserve the visual
+                    # order in any debug dump.
+                    for i, n in enumerate(result_advanced.nodes):
+                        if n.id == node_id:
+                            result_advanced.nodes.insert(i + 1, decoder_node)
+                            break
+
+                    # Rewire: every edge that previously left the
+                    # source node now leaves the decoder, and we add
+                    # one fresh edge ``source -> decoder``.
+                    for edge in result_advanced.edges:
+                        if edge.source == node_id:
+                            edge.source = decoder_id
+                    result_advanced.edges.append(edge_src_to_decoder)
+
+                    logger.debug(
+                        f"Transformed source node {node_id} into multifilesrc + "
+                        f"{decoder_node.type} for image set '{source}' "
+                        f"({image_set.image_count} images, {image_set.extension})"
+                    )
+                    # The standard "set type/data" code path below is
+                    # bypassed for image sets because we already mutated
+                    # the advanced node above. ``continue`` to the next
+                    # source node.
+                    continue
                 else:
                     raise ValueError(
                         f"Unsupported source kind '{kind}' for node {node_id}. "
-                        f"Supported kinds: '{InputKind.FILE.value}', '{InputKind.CAMERA.value}'"
+                        f"Supported kinds: '{InputKind.FILE.value}', "
+                        f"'{InputKind.CAMERA.value}', '{InputKind.IMAGE_SET.value}'"
                     )
 
                 # Update the node in advanced view (overwriting any properties copied earlier)
@@ -1571,6 +1736,19 @@ class Graph:
         # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
 
         for node in self.nodes:
+            # Image-set sources carry their canonical extension on the
+            # multifilesrc node. Returning that string here lets logging
+            # and downstream device-selection code treat it like any
+            # other codec value.
+            if node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data:
+                ext = str(node.data.get(_IMAGE_SET_NODE_FLAG, "")).lower()
+                if ext:
+                    logger.debug(
+                        f"Determined codec '{ext}' from image-set multifilesrc"
+                    )
+                    return ext
+                return None
+
             if node.type == "filesrc":
                 location = node.data.get("location")
                 if not location:
@@ -2906,6 +3084,14 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
             if name is None:
                 continue
 
+            # Already-absolute paths (e.g. image-set ``multifilesrc``
+            # location patterns like ``/images/input/uploaded/.../foo_%02d.jpg``)
+            # bypass the video-name → path mapping; they are taken
+            # as-is by GStreamer.
+            if name.startswith("/"):
+                logger.debug(f"Leaving absolute {node.type} {key} unchanged: {name}")
+                continue
+
             path = VideosManager().get_video_path(name)
             if not path:
                 raise ValueError(
@@ -2950,6 +3136,27 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
     for node in nodes:
         # Check for file sources
         if node.type in {"filesrc", "multifilesrc"}:
+            # Image-set multifilesrc nodes carry an internal marker
+            # placed by ``apply_simple_view_changes``. Round-trip them
+            # back to ``kind=image_set`` with the set name derived
+            # from the location pattern's parent directory, so the
+            # simple view stays stable across save/load cycles.
+            if node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data:
+                location = str(node.data.get("location", ""))
+                set_name = ""
+                if location:
+                    # ``/images/input/uploaded/<set>/<set>_%0Nd.<ext>``
+                    # -> ``<set>``.
+                    set_name = os.path.basename(os.path.dirname(location))
+                node.data.clear()
+                node.type = "source"
+                node.data["kind"] = InputKind.IMAGE_SET
+                node.data["source"] = set_name
+                logger.debug(
+                    f"Converted image-set multifilesrc to generic source: {set_name}"
+                )
+                continue
+
             source_name = node.data.get("location", "")
             node.data.clear()
             node.type = "source"
