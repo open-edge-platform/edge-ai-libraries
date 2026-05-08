@@ -32,7 +32,7 @@ Docker Compose builds the MCP server and starts [MCP Inspector](https://github.c
 
 2. **Edit `.env`** — set the VSS backend IP and HOST IP:
 
-   ```dotenv
+   ```
    VSS_IP=<your-vss-ip>
    HOST_IP=<your-host-ip>
    ```
