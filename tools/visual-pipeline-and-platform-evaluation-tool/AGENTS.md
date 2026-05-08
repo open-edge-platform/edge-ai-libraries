@@ -121,7 +121,7 @@ make format      # Auto-format with ruff
 - **Backend API**: `http://localhost:7860/api/v1/` (FastAPI, auto-documented at `/docs`)
 - **UI**: `http://localhost:80`
 - **RTSP live streams**: `rtsp://localhost:8554/{stream_name}` (via mediamtx)
-- **SSE metrics stream**: `http://localhost/metrics/stream` (proxied by nginx to metrics-service)
+- **SSE metrics stream**: `http://localhost/metrics/stream` (proxied by nginx to metrics-manager)
 
 The OpenAPI schema can be regenerated with:
 
@@ -137,7 +137,7 @@ make generate_openapi
 | `vippet-ui`       | Frontend (Nginx)                          | 80   |
 | `mediamtx`        | RTSP server                               | 8554 |
 | `models`          | Model installer (profile: `do-not-start`) | -    |
-| `metrics-service` | Metrics collector                         | 9090 |
+| `metrics-manager` | Metrics collector                         | 9090 |
 
 Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automatically by `setup_env.sh`.
 

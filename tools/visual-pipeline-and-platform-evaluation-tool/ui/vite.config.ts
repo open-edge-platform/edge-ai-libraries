@@ -45,8 +45,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           ws: false,
-          rewrite: (path: string) =>
-            path.replace(/^\/model-download/, "/api/v1"),
         },
         "/api": {
           target: env.VITE_API_URL || "http://localhost:7860",
