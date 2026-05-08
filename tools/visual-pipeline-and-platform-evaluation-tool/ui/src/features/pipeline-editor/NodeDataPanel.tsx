@@ -270,10 +270,9 @@ const NodeDataPanel = ({
 
   // TODO: maybe it should only display defined fields
   const dataEntries = nodeConfig
-    ? editableProperties.map((prop) => [
-        prop.key,
-        editableData[prop.key] ?? prop.defaultValue,
-      ])
+    ? editableProperties
+        .filter((prop) => !prop.key.startsWith("__"))
+        .map((prop) => [prop.key, editableData[prop.key] ?? prop.defaultValue])
     : Object.entries(editableData ?? {}).filter(
         // Keys starting with '__' are internal/private properties and should not be displayed to users.
         ([key]) => !["label"].includes(key) && !key.startsWith("__"),
@@ -284,9 +283,7 @@ const NodeDataPanel = ({
   return (
     <div className="w-full h-full bg-background border-l border-border p-4 overflow-y-auto">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-foreground">
-          Node Data
-        </h3>
+        <h3 className="text-sm font-semibold text-foreground">Node Data</h3>
         <span className="text-xs text-muted-foreground bg-muted px-2 py-1">
           {selectedNode.type}
         </span>
@@ -312,7 +309,10 @@ const NodeDataPanel = ({
               (typeof value === "object" ? "textarea" : "text");
 
             return (
-              <div key={keyStr} className="border-l-2 border-brand-accent/20 pl-3">
+              <div
+                key={keyStr}
+                className="border-l-2 border-brand-accent/20 pl-3"
+              >
                 <label className="text-xs font-medium text-muted-foreground block mb-1">
                   {propConfig?.label ?? keyStr}:
                   {propConfig?.required && (
@@ -334,14 +334,12 @@ const NodeDataPanel = ({
                   >
                     <option value="">Select {propConfig?.label}</option>
                     {models
-                      .filter(
-                        (model) => {
-                          const expectedCategory = propConfig?.params?.filter;
-                          return expectedCategory
-                            ? model.category === expectedCategory
-                            : true;
-                        },
-                      )
+                      .filter((model) => {
+                        const expectedCategory = propConfig?.params?.filter;
+                        return expectedCategory
+                          ? model.category === expectedCategory
+                          : true;
+                      })
                       .map((model) => (
                         <option
                           key={model.name}
@@ -375,9 +373,7 @@ const NodeDataPanel = ({
                         value={option.value}
                         disabled={Boolean(option.disabled)}
                         className={
-                          option.disabled
-                            ? "text-muted-foreground"
-                            : ""
+                          option.disabled ? "text-muted-foreground" : ""
                         }
                       >
                         {option.label}
