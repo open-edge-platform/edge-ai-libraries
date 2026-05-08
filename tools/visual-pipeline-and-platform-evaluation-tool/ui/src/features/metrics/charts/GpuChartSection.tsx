@@ -1,5 +1,3 @@
-/*SPDX-License-Identifier: Apache-2.0*/
-
 import { MetricChart } from "@/features/metrics/MetricChart";
 import { GpuSelector } from "@/features/metrics/GpuSelector";
 import {
@@ -67,7 +65,7 @@ export const GpuChartSection = ({
             ? `text-[10px] font-semibold uppercase tracking-widest mb-6 ${
                 isSummary ? summaryTitleClassName : "text-neutral-400"
               }`
-            : "text-sm font-medium text-foreground mb-5"
+            : "text-sm font-medium text-foreground mb-5 min-h-[2.5rem]"
         }`}
       >
         {title}

@@ -13,6 +13,7 @@ import GVAMetaConvertNode, {
 import GVAMetaPublishNode, {
   GVAMetaPublishNodeWidth,
 } from "./GVAMetaPublishNode.tsx";
+import GVAGenAINode, { GVAGenAINodeWidth } from "./GVAGenAINode.tsx";
 import GVAMotionDetectNode, {
   GVAMotionDetectNodeWidth,
 } from "./GVAMotionDetectNode.tsx";
@@ -56,6 +57,7 @@ export const nodeTypes = {
   gvawatermark: GVAWatermarkNode,
   gvametaconvert: GVAMetaConvertNode,
   gvametapublish: GVAMetaPublishNode,
+  gvagenai: GVAGenAINode,
   gvamotiondetect: GVAMotionDetectNode,
   fakesink: FakeSinkNode,
   "video/x-raw(memory:VAMemory)": VideoXRawNode,
@@ -82,6 +84,7 @@ export const nodeWidths: Record<string, number> = {
   gvaclassify: GVAClassifyNodeWidth,
   gvametaconvert: GVAMetaConvertNodeWidth,
   gvametapublish: GVAMetaPublishNodeWidth,
+  gvagenai: GVAGenAINodeWidth,
   gvamotiondetect: GVAMotionDetectNodeWidth,
   gvafpscounter: GVAFpsCounterNodeWidth,
   gvawatermark: GVAWatermarkNodeWidth,

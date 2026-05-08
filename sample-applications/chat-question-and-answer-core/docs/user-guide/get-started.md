@@ -13,6 +13,7 @@ By following this guide, you will learn how to:
 - Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
+- HF Token is mandatory if the model used is a private or gated model. Else, it is optional.
 
 ## Running the application using Docker Compose
 
@@ -43,17 +44,17 @@ By following this guide, you will learn how to:
 
    ```bash
    export REGISTRY="intel/"
-   export UI_TAG=core_1.3.2
+   export UI_TAG=core_1.3.3
 
    # If you prefer to use the default CPU device, set the following:
-   export BACKEND_TAG=core_1.3.2
+   export BACKEND_TAG=core_1.3.3
 
    # If you want to utilize GPU device for inferencing, set the following:
    # Note: This image also supports CPU devices.
-   export BACKEND_TAG=core_gpu_1.3.2
+   export BACKEND_TAG=core_gpu_1.3.3
 
    # For those who prefer Ollama framework, set the following:
-   export BACKEND_TAG=core_ollama_1.3.2
+   export BACKEND_TAG=core_ollama_1.3.3
    ```
 
    Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
@@ -67,6 +68,7 @@ By following this guide, you will learn how to:
      - CPU-only setup (Default):
 
        ```bash
+       # HF Token is mandatory for gated or private model. Else, it can be skipped.
        export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
        source scripts/setup_env.sh
        ```
@@ -74,6 +76,7 @@ By following this guide, you will learn how to:
      - GPU-enabled setup:
 
        ```bash
+       # HF Token is mandatory for gated or private model. Else, it can be skipped.
        export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
        source scripts/setup_env.sh -d gpu
        ```

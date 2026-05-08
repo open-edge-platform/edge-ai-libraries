@@ -12,6 +12,9 @@ NC='\033[0m' # No Color
 # Store which plugins are activated for runtime checks
 PLUGINS_ENV_FILE="/opt/activated_plugins.env"
 
+# File that maps each plugin name to its dedicated venv path
+PLUGIN_VENVS_FILE="/opt/plugin_venvs.env"
+
 # Temporary directory for parallel job coordination
 PARALLEL_TMP_DIR=$(mktemp -d)
 # Cleanup temp dir on exit
@@ -60,21 +63,33 @@ install_dependencies() {
             DEFAULT_OVMS_TAG="v2025.4.1"
             echo -e "${BLUE}INFO:${NC} Input OVMS release tag: ${OVMS_RELEASE_TAG}"
 
-            # Check if using default version - skip downloads and use pyproject.toml pinned versions
+            # Check if using default version - download export_model.py + matching requirements.txt
             if [[ "${OVMS_RELEASE_TAG}" == "${DEFAULT_OVMS_TAG}" ]]; then
-                echo -e "${BLUE}INFO:${NC} Using default OVMS version (${OVMS_RELEASE_TAG}). Skipping downloads."
-                echo -e "${BLUE}INFO:${NC} Dependencies from pyproject.toml will be used (pre-pinned for OVMS 2025.4.1)"
-                EXPORT_SCRIPT_URL="https://raw.githubusercontent.com/openvinotoolkit/model_server/v2026.0/demos/common/export_models/export_model.py"
+                echo -e "${BLUE}INFO:${NC} Using default OVMS version (${OVMS_RELEASE_TAG})."
+                EXPORT_SCRIPT_URL="https://raw.githubusercontent.com/openvinotoolkit/model_server/${DEFAULT_OVMS_TAG}/demos/common/export_models/export_model.py"
                 mkdir -p /opt/scripts
                 if curl -fsSL -o /opt/scripts/export_model.py "${EXPORT_SCRIPT_URL}"; then
-                    echo -e "${GREEN} SUCCESS:${NC} export_model.py downloaded for OVMS ${OVMS_RELEASE_TAG}"
+                    echo -e "${GREEN} SUCCESS:${NC} export_model.py downloaded from ${DEFAULT_OVMS_TAG}"
                 else
                     echo -e "${YELLOW} WARNING:${NC} Failed to download export_model.py. Falling back to bundled script."
                 fi
-                echo "OVMS_REQUIREMENTS_FILE=" >> "${env_file}"
-                echo "OVMS_CUSTOM_TAG=false" >> "${env_file}"
-            # Only process non-default versions if tag is in vYYYY.M.P format
-            elif [[ "${OVMS_RELEASE_TAG}" =~ ^v[0-9]{4}\.[0-9]+\.[0-9]+$ ]]; then
+
+                # Download requirements.txt from the same tag so transformers and other deps match the script
+                REQUIREMENTS_URL="https://raw.githubusercontent.com/openvinotoolkit/model_server/${DEFAULT_OVMS_TAG}/demos/common/export_models/requirements.txt"
+                REQUIREMENTS_FILE="/tmp/openvino_requirements_${DEFAULT_OVMS_TAG//[\.\/ ]/_}.txt"
+                if curl -fsSL -o "${REQUIREMENTS_FILE}" "${REQUIREMENTS_URL}"; then
+                    echo -e "${GREEN} SUCCESS:${NC} OVMS requirements.txt downloaded from ${DEFAULT_OVMS_TAG}"
+                    # Pin transformers to 4.55 for compatibility
+                    sed -i 's/^transformers[>=<~!].*/transformers==4.55/' "${REQUIREMENTS_FILE}"
+                    echo "OVMS_REQUIREMENTS_FILE=${REQUIREMENTS_FILE}" >> "${env_file}"
+                    echo "OVMS_CUSTOM_TAG=false" >> "${env_file}"
+                else
+                    echo -e "${YELLOW} WARNING:${NC} Failed to download requirements.txt from ${DEFAULT_OVMS_TAG}. Falling back to pyproject.toml defaults."
+                    echo "OVMS_REQUIREMENTS_FILE=" >> "${env_file}"
+                    echo "OVMS_CUSTOM_TAG=false" >> "${env_file}"
+                fi
+            # Only process non-default versions if tag is in vYYYY.M* format
+            elif [[ "${OVMS_RELEASE_TAG}" =~ ^v[0-9]{4}\.[0-9]+ ]]; then
                 echo -e "${BLUE}INFO:${NC} Custom OVMS version detected. Downloading version-specific files for: ${OVMS_RELEASE_TAG}"
 
                 # Use tag directly in URL (v2025.4.1 -> releases/2025/4)
@@ -171,6 +186,10 @@ install_dependencies() {
             print_info "HLS plugin dependencies will be installed via uv sync"
             echo "0" > "${status_file}"
             ;;
+        pipeline-zoo-models)
+            print_info "Pipeline-zoo-models plugin has no additional dependencies"
+            echo "0" > "${status_file}"
+            ;;
         *)
             echo -e "${RED} ERROR:${NC} Unknown plugin: $plugin"
             echo "1" > "${status_file}"
@@ -231,7 +250,6 @@ run_plugins_parallel() {
 # Parse arguments
 PLUGINS=""
 START_SERVICE=true
-EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -252,78 +270,91 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Define all available plugins in the application
-AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "geti" "hls")
+AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "pipeline-zoo-models" "geti" "hls")
 
 # Install plugin-specific dependencies (in parallel)
 if [ "$PLUGINS" = "all" ]; then
     print_info "Installing ALL plugins"
     run_plugins_parallel "${AVAILABLE_PLUGINS[@]}"
-    for plugin in "${AVAILABLE_PLUGINS[@]}"; do
-        if [[ "$plugin" == "openvino" && "${OVMS_CUSTOM_TAG}" == "true" ]]; then
-            print_info "Skipping openvino uv extra — dependencies will be installed from openvino model server requirements.txt"
-        elif [[ "$plugin" == "hls" ]]; then
-            print_info "Skipping hls uv extra — HLS dependencies are installed in an isolated venv at first request"
-        else
-            EXTRA_ARGS+=("--extra" "$plugin")
-        fi
-    done
+    ACTIVATED_PLUGIN_LIST=("${AVAILABLE_PLUGINS[@]}")
     echo "ACTIVATED_PLUGINS=all" > "$PLUGINS_ENV_FILE"
     print_success "All plugins are activated"
 else
     # Split comma-separated plugins and run them in parallel
     IFS=',' read -ra PLUGIN_LIST <<< "$PLUGINS"
     # Trim whitespace from each plugin name
-    TRIMMED_PLUGINS=()
+    ACTIVATED_PLUGIN_LIST=()
     for plugin in "${PLUGIN_LIST[@]}"; do
-        TRIMMED_PLUGINS+=("$(echo "$plugin" | xargs)")
+        ACTIVATED_PLUGIN_LIST+=("$(echo "$plugin" | xargs)")
     done
 
-    run_plugins_parallel "${TRIMMED_PLUGINS[@]}"
-
-    for plugin in "${TRIMMED_PLUGINS[@]}"; do
-        if [[ "$plugin" == "openvino" && "${OVMS_CUSTOM_TAG}" == "true" ]]; then
-            print_info "Skipping openvino uv extra — dependencies will be installed from OpenVINO model server requirements.txt"
-        elif [[ "$plugin" == "hls" ]]; then
-            print_info "Skipping hls uv extra — HLS dependencies are installed in an isolated venv at first request"
-        else
-            EXTRA_ARGS+=("--extra" "$plugin")
-        fi
-    done
+    run_plugins_parallel "${ACTIVATED_PLUGIN_LIST[@]}"
 
     echo "ACTIVATED_PLUGINS=$PLUGINS" > "$PLUGINS_ENV_FILE"
     print_success "Activated plugins: $PLUGINS"
 fi
 
-# Sync dependencies using UV
-print_header "Syncing dependencies with UV"
+# Sync base dependencies (core app only, no plugin extras)
+print_header "Syncing base dependencies with UV"
 cd /opt
-print_info "Installing dependencies from pyproject.toml..."
 
 # ollama to PATH if it's not already there
 export PATH="/opt/bin/:$PATH"
 
-if uv sync "${EXTRA_ARGS[@]}"; then
-    print_success "Dependencies synced successfully"
-    
-    # If OpenVINO was installed and we have a requirements file, install OpenVINO-specific pins
-    if [ -n "${OVMS_REQUIREMENTS_FILE}" ] && [ -f "${OVMS_REQUIREMENTS_FILE}" ]; then
-        print_header "Installing OpenVINO dependencies"
-        print_info "Installing from: ${OVMS_REQUIREMENTS_FILE}"
-        if uv pip install -r "${OVMS_REQUIREMENTS_FILE}"; then
-            print_success "OpenVINO dependencies installed successfully"
-        else
-            print_warning "Failed to install OpenVINO dependencies, continuing with base versions"
-        fi
-    fi
-    
-    # Activate the virtual environment created by uv sync
-    if [ -d "/opt/.venv" ]; then
-        print_info "Activating virtual environment"
-        source /opt/.venv/bin/activate
-    fi
-else
-    print_error "Failed to sync dependencies"
+# Generate a comprehensive lockfile that includes ALL extras so that per-plugin
+# venv syncs below can resolve extra packages from the lockfile.
+print_info "Generating lockfile with all extras..."
+if ! uv lock --all-extras; then
+    print_warning "Failed to generate all-extras lockfile; plugin venvs may be incomplete"
+fi
+
+print_info "Installing core dependencies from pyproject.toml..."
+if ! uv sync --no-dev; then
+    print_error "Failed to sync base dependencies"
     exit 1
+fi
+print_success "Base dependencies synced successfully"
+
+# Create a dedicated venv for each activated plugin
+print_header "Creating per-plugin virtual environments"
+echo "# Plugin venv paths — written by entrypoint.sh" > "${PLUGIN_VENVS_FILE}"
+
+for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
+    if [[ "$plugin" == "ollama" ]]; then
+        print_info "ollama: binary-only plugin, no Python venv needed"
+        continue
+    fi
+
+    PLUGIN_VENV="/opt/.venv-${plugin}"
+    print_info "Creating venv for plugin '${plugin}' at ${PLUGIN_VENV} ..."
+
+    if UV_PROJECT_ENVIRONMENT="${PLUGIN_VENV}" uv sync --extra "${plugin}" --no-dev; then
+        print_success "Plugin venv created: ${plugin}"
+
+        # For openvino with a custom OVMS release tag, also install the
+        # version-specific requirements on top of the plugin venv.
+        if [[ "$plugin" == "openvino" && -n "${OVMS_REQUIREMENTS_FILE}" && -f "${OVMS_REQUIREMENTS_FILE}" ]]; then
+            print_info "Installing custom OVMS requirements into openvino venv: ${OVMS_REQUIREMENTS_FILE}"
+            if uv pip install --python "${PLUGIN_VENV}/bin/python" -r "${OVMS_REQUIREMENTS_FILE}"; then
+                print_success "Custom OVMS requirements installed in openvino venv"
+            else
+                print_warning "Failed to install custom OVMS requirements, continuing with base openvino versions"
+            fi
+        fi
+
+        echo "PLUGIN_VENV_${plugin^^}=${PLUGIN_VENV}" >> "${PLUGIN_VENVS_FILE}"
+    else
+        print_error "Failed to create venv for plugin: ${plugin}"
+        exit 1
+    fi
+done
+
+print_success "All plugin venvs created"
+
+# Activate the base virtual environment for the app process
+if [ -d "/opt/.venv" ]; then
+    print_info "Activating base virtual environment"
+    source /opt/.venv/bin/activate
 fi
 
 # Start the service if requested

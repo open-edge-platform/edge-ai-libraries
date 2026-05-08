@@ -10,7 +10,7 @@ import {
   type Pipeline,
   useCreatePipelineMutation,
 } from "@/api/api.generated.ts";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { handleApiError } from "@/lib/apiUtils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";

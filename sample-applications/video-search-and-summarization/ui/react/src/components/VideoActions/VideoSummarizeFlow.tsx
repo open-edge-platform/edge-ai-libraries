@@ -410,12 +410,13 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
       },
       videoId,
       title,
+      produceFinalSummary,
     };
 
     if (audio && systemConfig?.meta.defaultAudioModel) {
       pipelineData.audio = {
         audioModel: selectedAudioModel || systemConfig.meta.defaultAudioModel,
-        useFullTranscriptSummary: useAudioSummary,
+        useFullTranscriptSummary: produceFinalSummary && useAudioSummary,
       };
     }
 
@@ -672,10 +673,11 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
   // Configuration State
   const [chunkDuration, setChunkDuration] = useState(8);
   const [sampleFrame, setSampleFrame] = useState(8);
-  const [frameOverlap, setFrameOverlap] = useState(4);
+  const [frameOverlap, setFrameOverlap] = useState(0);
   const [audio, setAudio] = useState(true);
   const [selectedAudioModel, setSelectedAudioModel] = useState<string>('');
   const [useAudioSummary, setUseAudioSummary] = useState(false);
+  const [produceFinalSummary, setProduceFinalSummary] = useState(true);
   const [systemConfig, setSystemConfig] = useState<SystemConfigWithMeta>();
 
   // Prompt State
@@ -735,7 +737,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     setSummaryName('');
     setSampleFrame(8);
     setChunkDuration(8);
-    setFrameOverlap(4);
+    setFrameOverlap(0);
     setProgressText('');
     setUploadProgress(0);
     setUploading(false);
@@ -759,6 +761,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
         setSystemConfig(res.data);
         setSelectedAudioModel(res.data.meta?.defaultAudioModel ?? '');
         setUseAudioSummary(res.data.audioUseFullTranscriptSummary ?? false);
+        setProduceFinalSummary(res.data.produceFinalSummary ?? true);
       }
     } catch (error) {
       console.error('Failed to load system config:', error);
@@ -1188,6 +1191,14 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                   label={createLabelWithTooltip(t('FramePerChunkLabel'), t('FramePerChunkInfo'))}
                   id='sampleFrame'
                 />
+                <Checkbox
+                  id='produceFinalSummaryCheckbox'
+                  labelText={createLabelWithTooltip(t('ProduceFinalSummary'), t('ProduceFinalSummaryInfo'))}
+                  checked={produceFinalSummary}
+                  onChange={(_, { checked }) => {
+                    setProduceFinalSummary(checked);
+                  }}
+                />
                 {systemConfig && (
                   <Accordion align="start">
                     <AccordionItem 
@@ -1253,9 +1264,15 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                             <Checkbox
                               id='useAudioSummaryCheckbox'
                               labelText={createLabelWithTooltip(t('UseAudioSummary'), t('UseAudioSummaryInfo'))}
-                              checked={useAudioSummary}
+                              checked={produceFinalSummary ? useAudioSummary : false}
+                              disabled={!produceFinalSummary}
                               onChange={(_, { checked }) => setUseAudioSummary(checked)}
                             />
+                            {!produceFinalSummary && (
+                              <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-helper)', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                                {t('AudioSummaryDisabledHint', { defaultValue: 'Audio transcript summary is not generated when final summary is disabled.' })}
+                              </p>
+                            )}
                           </div>
                         )}
                       </AccordionItem>
@@ -1375,9 +1392,10 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                             <div style={{ marginTop: '1rem', fontWeight: 600 }}>{t('AudioSettings')}</div>
                             <div><strong>{t('UseAudio')}:</strong> {audio ? t('yes') : t('no')}</div>
                             <div><strong>{t('AudioModels')}:</strong> {selectedAudioModel || systemConfig.meta.defaultAudioModel}</div>
-                            {audio && <div><strong>{t('UseAudioSummary')}:</strong> {useAudioSummary ? t('yes') : t('no')}</div>}
+                            {audio && <div><strong>{t('UseAudioSummary')}:</strong> {(produceFinalSummary && useAudioSummary) ? t('yes') : t('no')}</div>}
                           </>
                         )}
+                            <div><strong>{t('ProduceFinalSummary')}:</strong> {produceFinalSummary ? t('yes') : t('no')}</div>
                         {(framePrompt !== systemConfig.framePrompt || 
                           mapPrompt !== systemConfig.summaryMapPrompt || 
                           reducePrompt !== systemConfig.summaryReducePrompt || 

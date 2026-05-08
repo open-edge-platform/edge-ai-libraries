@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pathlib
+import threading
 import time
 import uuid
 from typing import Any, Dict, List, Optional
@@ -13,7 +14,11 @@ from src.common.schema import TelemetryRecord
 from src.core.utils.metadata_utils import store_enhanced_video_metadata
 
 # Import SDK-based embedding helper for optimized processing
-from .sdk_embedding_helper import generate_video_embedding_sdk, get_sdk_client
+from .sdk_embedding_helper import (
+    generate_rtsp_video_embedding_sdk,
+    generate_video_embedding_sdk,
+    get_sdk_client,
+)
 
 # Cache to store VDMS client instances for different use cases
 _client_cache: dict[str, SimpleVDMSClient] = {}
@@ -66,14 +71,6 @@ def _log_telemetry_record(record: TelemetryRecord | None) -> None:
         return
 
     try:
-        counts = record.counts
-        throughput = record.throughput
-        stage_summary = ", ".join(
-            f"{stage.name}={stage.seconds:.3f}s ({stage.percent_of_total:.1f}%)"
-            for stage in record.stages
-        )
-        if not stage_summary:
-            stage_summary = "no stage timings"
 
         if record.batches:
             total_batches = len(record.batches)
@@ -85,24 +82,44 @@ def _log_telemetry_record(record: TelemetryRecord | None) -> None:
             batch_summary = "no batch telemetry"
 
         logger.info(
-            "Telemetry captured [request_id=%s, source=%s, mode=%s, video=%s]: "
-            "frames=%d -> items=%d -> embeddings=%d | wall=%.3fs | throughput: %.2f eps "
-            "(embedding stage %.2f eps, wall %.2f eps, frames %.2f fps) | stages: %s | batches: %s",
+            "Telemetry captured [request_id=%s, source=%s, mode=%s, video=%s]: batches: %s",
             record.request_id or "<unknown>",
             record.source or "<unknown>",
             record.processing_mode,
             record.video.video_id if record.video else "<unknown>",
-            counts.frames_extracted,
-            counts.items_after_detection,
-            counts.embeddings_stored,
-            record.timestamps.wall_time_seconds,
-            throughput.embeddings_per_second,
-            throughput.embedding_stage_embeddings_per_second,
-            throughput.wall_time_embeddings_per_second,
-            throughput.frames_per_second,
-            stage_summary,
             batch_summary,
         )
+
+        logger.info(
+            "Pipeline Summary | "
+            "stream_id=%s | frames=%d | detections=%d | embeddings=%d | "
+            "total_time=%.2fs | fps=%.2f | concurrency=%.2f | efficiency=%.1f%%",
+            record.counts.frames_extracted,
+            record.counts.frames_extracted,
+            record.counts.items_after_detection,
+            record.counts.embeddings_stored,
+            record.stage_duration["total_wall_seconds"],
+            record.pipeline_stats["pipeline_throughput_fps"],
+            record.pipeline_stats["pipeline_concurrency_factor"],
+            record.pipeline_stats["pipeline_efficiency_pct"],
+        )
+
+        logger.info(
+            "Stage Timing | decode=%.2fs | detect=%.2fs | embed=%.2fs | store=%.2fs",
+            record.stage_duration["frame_extraction_seconds"],
+            record.stage_duration["detection_seconds"],
+            record.stage_duration["embedding_seconds_total"],
+            record.stage_duration["storage_seconds_total"],
+        )
+
+        logger.info(
+            "Throughput | pipeline=%.2f fps | detect=%.2f | embed=%.2f | store=%.2f",
+            record.stage_throughput["pipeline_throughput"],
+            record.stage_throughput["detect_throughput"],
+            record.stage_throughput["embeddings_throughput"],
+            record.stage_throughput["store_throughput"],
+        )
+
     except Exception as exc:  # pragma: no cover - logging should not fail pipeline
         logger.debug("Unable to summarize telemetry record %s: %s", record.request_id, exc)
 
@@ -121,22 +138,74 @@ def _record_sdk_pipeline(
     sdk_result: Dict[str, Any],
 ) -> None:
     try:
-        stage_breakdown = sdk_result.get("timing", {}).get("stage_breakdown", {})
-        stage_detection = stage_breakdown.get("detection", {})
-        stage_embedding = stage_breakdown.get("embedding", {})
-        stage_storage = stage_breakdown.get("storage", {})
-        video_props = sdk_result.get("video_properties", {})
+        video_props = sdk_result.get("video_metadata", {})
 
         pipeline_stats = {
-            "frames_extracted": sdk_result.get("frame_counts", {}).get("extracted_frames", 0),
-            "items_after_detection": sdk_result.get("frame_counts", {}).get("post_detection_items", 0),
-            "embeddings_stored": len(sdk_result.get("stored_ids", [])),
-            "frame_extraction_seconds": sdk_result.get("timing", {}).get("frame_extraction_time", 0.0),
-            "detection_seconds": stage_detection.get("total_s", 0.0),
-            "embedding_seconds_total": stage_embedding.get("total_s", 0.0),
-            "storage_seconds_total": stage_storage.get("total_s", 0.0),
-            "total_wall_seconds": sdk_result.get("timing", {}).get("pipeline_wall_time", 0.0),
+            "properties": {
+                "stream_id": sdk_result.get("stream_id", -1),
+                "frames_extracted": sdk_result.get("total_frames_processed", 0),
+                "items_after_detection": sdk_result.get("total_detected_crops", 0),
+                "embeddings_stored": sdk_result.get("total_stored_ids", 0),
+            },
+            "stage_duration": {
+                "frame_extraction_seconds": sdk_result.get("metrics", {})
+                .get("decode", {})
+                .get("total", 0.0),
+                "detection_seconds": sdk_result.get("metrics", {})
+                .get("detect", {})
+                .get("total", 0.0),
+                "embedding_seconds_total": sdk_result.get("metrics", {})
+                .get("embed", {})
+                .get("total", 0.0),
+                "embed_inference_time": sdk_result.get("metrics", {})
+                .get("embed_inference_time", {})
+                .get("total", 0.0),
+                "storage_seconds_total": sdk_result.get("metrics", {})
+                .get("store", {})
+                .get("total", 0.0),
+                "total_wall_seconds": sdk_result.get("pipeline_wall_duration_s", 0.0),
+            },
             "batches": sdk_result.get("batch_details", []),
+            "pipeline_metrics": {
+                "pipeline_wall_duration": sdk_result.get("pipeline_wall_duration_s", -1),
+                # "pipeline_throughput_fps": sdk_result.get("pipeline_throughput_fps", -1),
+                "pipeline_throughput_fps": sdk_result.get(
+                    "pipeline_throughput_fps_with_OD", -1
+                ),
+                "pipeline_concurrency_factor": sdk_result.get("pipeline_concurrency_factor", -1),
+                "pipeline_efficiency_pct": sdk_result.get("pipeline_efficiency_pct", -1),
+                "parallel_efficiency_pct": sdk_result.get("parallel_efficiency_pct", -1),
+                "decode_pipeline_efficiency_pct": sdk_result.get(
+                    "decode_pipeline_efficiency_pct", -1
+                ),
+                "detect_pipeline_efficiency_pct": sdk_result.get(
+                    "detect_pipeline_efficiency_pct", -1
+                ),
+                "embed_store_pipeline_efficiency_pct": sdk_result.get(
+                    "embed_store_pipeline_efficiency_pct", -1
+                ),
+            },
+            "stage_throughput": {
+                "decode_throughput": sdk_result.get("metrics", {})
+                .get("decode", {})
+                .get("throughput", 0.0),
+                "embedding_infer_throughput": sdk_result.get("metrics", {})
+                .get("embed_inference_time", {})
+                .get("throughput", 0.0),
+                "embeddings_throughput": sdk_result.get("metrics", {})
+                .get("embed", {})
+                .get("throughput", 0.0),
+                # "pipeline_throughput": sdk_result.get("pipeline_throughput_fps", 0.0),
+                "pipeline_throughput": sdk_result.get(
+                    "pipeline_throughput_fps_with_OD", 0.0
+                ),
+                "store_throughput": sdk_result.get("metrics", {})
+                .get("store", {})
+                .get("throughput", 0.0),
+                "detect_throughput": sdk_result.get("metrics", {})
+                .get("detect", {})
+                .get("throughput", 0.0),
+            },
         }
 
         video_metadata = _prepare_video_metadata_payload(
@@ -149,7 +218,14 @@ def _record_sdk_pipeline(
             video_rel_url=metadata_dict.get("video_rel_url"),
             fps=video_props.get("fps"),
             total_frames=video_props.get("total_frames"),
-            video_duration_seconds=video_props.get("video_duration_seconds"),
+            video_duration_seconds=video_props.get(
+                "video_duration_seconds",
+                (
+                    video_props.get("total_frames") / video_props.get("fps")
+                    if video_props.get("fps")
+                    else 0.0
+                ),
+            ),
             processing_mode=metadata_dict.get("processing_mode"),
         )
 
@@ -227,7 +303,10 @@ def _record_api_pipeline(
             video_rel_url=summary.get("video_rel_url"),
             fps=summary.get("fps"),
             total_frames=summary.get("total_frames"),
-            video_duration_seconds=summary.get("video_duration_seconds"),
+            video_duration_seconds=summary.get(
+                "video_duration_seconds",
+                summary.get("total_frames") / summary.get("fps") if summary.get("fps") else 0.0,
+            ),
             processing_mode="api",
         )
 
@@ -300,7 +379,7 @@ def _get_cached_vdms_client(use_case: str = "default") -> SimpleVDMSClient:
             collection_name=settings.DB_COLLECTION,
             embedding_dimensions=None,  # Auto-detect from multimodal API
             multimodal_api_url=settings.MULTIMODAL_EMBEDDING_ENDPOINT,
-            model_name=settings.MULTIMODAL_EMBEDDING_MODEL_NAME  # Must be explicitly set - no default
+            model_name=settings.MULTIMODAL_EMBEDDING_MODEL_NAME,  # Must be explicitly set - no default
         )
         _client_cache[cache_key] = client
         logger.debug(f"VDMS client cached with key: {cache_key}")
@@ -332,7 +411,7 @@ async def generate_video_embedding(
     Args:
         bucket_name: Bucket name where the video is stored
         video_id: Directory containing the video
-        filename: Video filename  
+        filename: Video filename
         temp_video_path: Temporary path to the video file
         metadata_temp_path: Path to store metadata
         frame_interval: Number of frames between extractions
@@ -465,30 +544,97 @@ async def generate_video_embedding_from_content(
             metadata_dict=metadata_dict,
             frame_interval=frame_interval,
             enable_object_detection=enable_object_detection,
-            detection_confidence=detection_confidence
-        )
-        
-        logger.info(
-            "SDK processing completed: %s frames processed",
-            sanitize_for_log(results['total_frames_processed'], max_length=32),
-        )
-        _record_sdk_pipeline(
-            context=telemetry_context,
-            bucket_name=bucket_name,
-            video_id=video_id,
-            filename=filename,
-            frame_interval=frame_interval,
-            tags=tags,
-            enable_object_detection=enable_object_detection,
             detection_confidence=detection_confidence,
-            metadata_dict=metadata_dict,
-            sdk_result=results,
         )
-        return results['stored_ids']
+
+        stored_ids = []
+        for stream_id, stream_result in results.items():
+
+            bucket_name = stream_result["video_metadata"]["_bucket_name"]
+            video_id = stream_result["video_metadata"]["_video_id"]
+            filename = stream_result["video_metadata"]["_filename"]
+
+            _record_sdk_pipeline(
+                context=telemetry_context,
+                bucket_name=bucket_name,
+                video_id=video_id,
+                filename=filename,
+                frame_interval=frame_interval,
+                tags=tags,
+                enable_object_detection=enable_object_detection,
+                detection_confidence=detection_confidence,
+                metadata_dict=metadata_dict,
+                sdk_result=stream_result,
+            )
+
+            logger.info(
+                f"SDK processing from content | Stream ID: {stream_id} completed. {sanitize_for_log(stream_result['total_frames_processed'], max_length=32)} frames processed",
+            )
+
+            stored_ids.extend(stream_result["stored_ids"])
+
+        return stored_ids
 
     except Exception as ex:
         logger.error(f"Error in SDK video embedding from content: {ex}")
         raise
+
+
+async def generate_video_embedding_from_uri(
+    video_uris: list[str],
+    bucket_name: str,
+    video_id: str,
+    filename: str,
+    metadata_temp_path: pathlib.Path,
+    frame_interval: int = 15,
+    enable_object_detection: bool = True,
+    detection_confidence: float = 0.85,
+    tags: List[str] = None,
+    telemetry_context: Optional[Dict[str, Any]] = None,
+    shutdown_event: Optional[threading.Event] = None,
+) -> List[str]:
+    """
+    Generate video embeddings directly from video URI (SDK mode only).
+
+    This function is optimized for SDK mode and processes video content directly
+    from the provided URI, allowing for maximum performance without intermediate storage.
+
+    Args:
+        video_uri: List of video URIs to process
+        bucket_name: Bucket name where the video is stored
+        video_id: Directory containing the video
+        filename: Video filename
+        metadata_temp_path: Path to store metadata
+        frame_interval: Number of frames between extractions
+        enable_object_detection: Whether to enable object detection
+        detection_confidence: Confidence threshold for object detection
+        tags: Tags for the video
+
+    Returns:
+        List of IDs of the created embeddings
+
+    """
+
+    logger.info(f"Starting SDK video embedding from URI for {video_id}/{filename}")
+    logger.info(f"Video URI: {video_uris}")
+    logger.info("ID of shutdown_event in generate_video_embedding_from_uri: %s", id(shutdown_event))
+
+    # Create metadata for video (including video URLs for search-ms compatibility)
+
+    generate_rtsp_video_embedding_sdk(
+        video_uris=video_uris,
+        metadata_dict={
+            "bucket_name": "RTSP_BUCKET",
+            "video_id": -1,
+            "filename": "filename",
+            "tags": tags or [],
+            "processing_mode": "sdk",
+        },
+        frame_interval=frame_interval,
+        enable_object_detection=enable_object_detection,
+        detection_confidence=detection_confidence,
+        shutdown_event=shutdown_event,
+    )
 
 
 async def _generate_video_embedding_api_mode(
@@ -641,26 +787,38 @@ async def _generate_video_embedding_sdk_mode(
         metadata_dict=metadata_dict,
         frame_interval=frame_interval,
         enable_object_detection=enable_object_detection,
-        detection_confidence=detection_confidence
-    )
-    
-    logger.info(
-        "SDK processing completed: %s frames processed",
-        sanitize_for_log(results['total_frames_processed'], max_length=32),
-    )
-    _record_sdk_pipeline(
-        context=telemetry_context or {},
-        bucket_name=bucket_name,
-        video_id=video_id,
-        filename=filename,
-        frame_interval=frame_interval,
-        tags=tags,
-        enable_object_detection=enable_object_detection,
         detection_confidence=detection_confidence,
-        metadata_dict=metadata_dict,
-        sdk_result=results,
     )
-    return results['stored_ids']
+
+    stored_ids = []
+    for stream_id, stream_result in results.items():
+
+        bucket_name = stream_result["video_metadata"]["_bucket_name"]
+        video_id = stream_result["video_metadata"]["_video_id"]
+        filename = stream_result["video_metadata"]["_filename"]
+
+        _record_sdk_pipeline(
+            context=telemetry_context or {},
+            bucket_name=bucket_name,
+            video_id=video_id,
+            filename=filename,
+            frame_interval=frame_interval,
+            tags=tags,
+            enable_object_detection=enable_object_detection,
+            detection_confidence=detection_confidence,
+            metadata_dict=metadata_dict,
+            sdk_result=stream_result,
+        )
+
+        logger.info(
+            f"SDK Mode processing | Stream ID: {stream_id} completed. {sanitize_for_log(stream_result['total_frames_processed'], max_length=32)} frames processed",
+        )
+
+        stored_ids.extend(stream_result["stored_ids"])
+
+    return stored_ids
+
+
 async def generate_text_embedding(
     text: str, 
     text_metadata: dict = {}, 

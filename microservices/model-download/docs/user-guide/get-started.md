@@ -1,12 +1,12 @@
 # Get Started
 
-The Model Download is a microservice that downloads models from multiple hubs as follows: Hugging Face, Ollama, Geti™ software, and Ultralytics. It supports conversion to OpenVINO™ model server format for Hugging Face models, and exposes a RESTful API for managing model downloads and conversions.
+The Model Download is a microservice that downloads models from multiple hubs as follows: Hugging Face, Ollama, Geti™ software, Ultralytics, and Pipeline Zoo Models. It supports conversion to OpenVINO™ model server format for Hugging Face models, supports uploading custom model ZIP artifacts, and exposes a RESTful API for managing model downloads, uploads, and conversions.
 
 > **Note:** Model Download replaces Model Registry, which will be deprecated soon. See [Migrate from Model Registry to Model Download](./get-started/migration.md) for the migration guidelines.
 
 ## Features
 
-- Downloads models from Hugging Face, Ollama, Geti software, and Ultralytics model hubs
+- Downloads models from Hugging Face, Ollama, Geti software, Ultralytics, and Pipeline Zoo Models hubs
 - Converts Hugging Face models to OpenVINO model server format
 - Supports multiple model precisions (INT4, INT8, FP16, and FP32)
 - Supports various device targets (CPU, GPU, and NPU)
@@ -14,6 +14,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
 - Models supported for health AI suites(AI-ECG, rPPG and 3D Pose) with HLS plugin.
 - Supports parallel download
 - Supports configurable model caching
+- Supports custom model upload through `POST /models/upload`
 - Exposes a REST API with OpenAPI documentation
 
 ## Prerequisites
@@ -84,7 +85,8 @@ The Model Download is a microservice that downloads models from multiple hubs as
         | `--build`                | Builds the Docker image before running                                                            |
         | `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions|
         | `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                           |
-        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,hls or geti`) or `all` to enable all available plugins |
+        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,pipeline-zoo-models,hls or geti`) or `all` to enable all available plugins |
+        | `--ovms-release-tag <tag>` | Set OVMS release tag (e.g., `v2025.4.1`) (default: `v2025.4.1`)                                |
         | `--help`                 | Shows this help message                                                                           |
 
    ```bash
@@ -105,7 +107,8 @@ The Model Download is a microservice that downloads models from multiple hubs as
    | `--build`                | Builds the Docker image before running                                                                                                        |
    | `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions                      |
    | `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                                                                         |
-   | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics, or geti`) or `all` to enable all available plugins |
+  | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,pipeline-zoo-models, or geti`) or `all` to enable all available plugins |
+   | `--ovms-release-tag <tag>` | Set OVMS release tag (e.g., `v2025.4.1`) (default: `v2025.4.1`)                                                                             |
    | `--help`                 | Shows this help message                                                                                                                       |
 
    **Examples**:
@@ -113,7 +116,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
    - Start the service with default settings: `source scripts/run_service.sh up`
    - Stop the service: `source scripts/run_service.sh down`
    - Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
-   - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,geti`
+  - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,pipeline-zoo-models,geti`
    - Use a custom model storage: `source scripts/run_service.sh up --model-path /data/my-models`
    - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
    - Display usage information: `source scripts/run_service.sh --help`
@@ -271,7 +274,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
   - Boolean flags are emitted only when they evaluate to true. Leave them unset or false to skip the corresponding CLI switch.
   - Hugging Face authentication is still required for OVMS exports; provide `HUGGINGFACEHUB_API_TOKEN` (or pass the token via the API) before invoking these parameters.
 
-**Download models from GETI software, which are optimized through OpenVINO toolkit's optimization tool:**
+**Download models from Geti™ software, which are optimized through OpenVINO toolkit's optimization tool:**
 
 ```bash
 curl -X POST 'http://<host-ip>:8200/api/v1/models/download?download_path=geti_folder' \
@@ -292,6 +295,24 @@ curl -X POST 'http://<host-ip>:8200/api/v1/models/download?download_path=geti_fo
 ```
 
 > **Note:** The default precision is FP16.
+
+**Download a Pipeline Zoo model:**
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=pipeline_zoo_models" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "dbnet",
+        "hub": "pipeline-zoo-models"
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+> **Note:** You can pass `"name": "all"` to download all available models from the Pipeline Zoo `storage` directory.
 
 **Download fixed HLS models (3D pose, rPPG, AI-ECG):**
 ```bash
@@ -357,6 +378,44 @@ curl -X GET "http://<host-ip>:8200/api/v1/jobs/<job_id>"
 }
 ```
 
+**Upload a custom model ZIP:**
+
+Use this endpoint when user (or another client app) needs to upload a local model directly to model-download.
+The ZIP must contain at least one `.xml` and one `.bin` file.
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/upload" \
+  -F "file=@/path/to/my_model.zip" \
+  -F "model_name=my_custom_model" \
+  -F "provider=geti" \
+  -F "framework=openvino" \
+  -F "precision=FP16"
+```
+
+Upload storage path format:
+
+```text
+/opt/models/custom_uploaded_models/{provider}/{framework}/{model_name}/[{precision}/]
+```
+
+On successful upload, the model is registered as a completed operation and is visible in:
+
+```bash
+curl -X GET "http://<host-ip>:8200/api/v1/models/results"
+```
+
+**Sample Response (when the upload is completed):**
+
+```json
+{
+  "status": "success",
+  "message": "Model 'my_custom_model' uploaded successfully.",
+  "job_id": "a1b2c3d4-1234-5678-9abc-def012345678",
+  "model_name": "my_custom_model",
+  "model_path": "/opt/models/custom_uploaded_models/geti/openvino/my_custom_model/FP16"
+}
+```
+
 - For details, see the [API reference](./api-reference.md).
 
 ## Configuration
@@ -367,6 +426,8 @@ Environment Variables:
 
 - `HF_HUB_ENABLE_HF_TRANSFER`: Enable Hugging Face transfer (default: 1)
 - `HUGGINGFACEHUB_API_TOKEN`: Hugging Face token (only required for gated models or conversion)
+- `MAX_UPLOAD_SIZE_MB`: Maximum allowed upload ZIP size in MB (default: 500)
+- `UPLOAD_CHUNK_SIZE_KB`: Chunk size for streaming file uploads in KB (default: 8). Larger values improve throughput, smaller values reduce memory usage for concurrent uploads
 
 Volumes:
 

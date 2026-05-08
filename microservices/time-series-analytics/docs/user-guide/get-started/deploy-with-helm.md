@@ -98,7 +98,6 @@ python3 simulator/temperature_input.py --port 30002
 
 Run following commands to see the filtered temperature results:
 
-
 ``` bash
 POD_NAME=$(kubectl get pods -n apps -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep deployment-time-series-analytics-microservice | head -n 1)
 kubectl logs -f $POD_NAME -n apps

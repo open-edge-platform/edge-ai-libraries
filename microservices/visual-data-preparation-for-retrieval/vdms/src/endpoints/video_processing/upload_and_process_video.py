@@ -5,16 +5,18 @@ import datetime
 import pathlib
 import shutil
 import io
+import asyncio
+import threading
 import time
 import uuid
 from http import HTTPStatus
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 
 from src.common import DataPrepException, Strings, logger, sanitize_for_log, settings
 from src.common.schema import DataPrepResponse
-from src.core.embedding import generate_video_embedding, generate_video_embedding_from_content
+from src.core.embedding import generate_video_embedding, generate_video_embedding_from_content, generate_video_embedding_from_uri
 from src.core.utils.common_utils import get_minio_client
 from src.core.utils.config_utils import read_config
 from src.core.validation import validate_params
@@ -231,3 +233,137 @@ async def upload_and_process_video(
                 shutil.rmtree(metadata_temp_dir, ignore_errors=True)
         except Exception as ex:
             logger.error(f"Error cleaning up temporary directories: {ex}")
+
+
+@router.post(
+    "/videos/rtsp",
+    summary="Provide list of RTSP Stream URLs to process and generate embeddings.",
+    status_code=HTTPStatus.OK,
+    response_model_exclude_none=True,
+)
+@validate_params
+async def process_rtsp_streams(
+    request: Request,
+    rtsp_urls: Annotated[
+        List[str],
+        Query(
+            description="List of RTSP stream URLs to process. Each URL will be validated and processed for embedding generation."
+        ),
+    ],
+    frame_interval: Annotated[
+        Optional[int],
+        Query(ge=1, le=60, description="Extract every Nth frame for processing (default: 15)"),
+    ] = None,
+    enable_object_detection: Annotated[
+        Optional[bool],
+        Query(description="Enable object detection and crop extraction (default: True)"),
+    ] = None,
+    detection_confidence: Annotated[
+        Optional[float],
+        Query(ge=0.1, le=1.0, description="Confidence threshold for object detection (default: 0.85)"),
+    ] = None,
+    tags: Annotated[
+        Optional[List[str]],
+        Query(
+            default_factory=list,
+            description="List of tags to be associated with the videos. Useful for filtering the search.",
+        ),
+    ] = None,
+) -> DataPrepResponse:
+    """
+    ### Process RTSP stream URLs for frame-based embedding generation.
+
+    This endpoint accepts a list of RTSP stream URLs, validates them, and generates embeddings
+    using frame-based processing with optional object detection.
+
+    Each RTSP stream is processed by extracting individual frames at regular intervals (every Nth frame).
+    Each frame generates its own embedding. When object detection is enabled and suppose 3 objects are detected per frame on average, this results in approximately 240 embeddings
+    (60 frames + 180 object crops) per video. The generated embeddings are stored in the vector database with associated metadata and tags.
+
+    #### Query Params:
+    - **rtsp_urls (list(str), required) :** List of RTSP stream URLs to process. Each URL will be validated and processed for embedding generation.
+    - **frame_interval (int, optional) :** Extract every Nth frame for processing (default: 15, range: 1-60)
+    - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (default: True)
+    - **detection_confidence (float, optional) :** Confidence threshold for object detection (default: 0.85, range: 0.1-1.0)
+    - **tags (list(str), optional) :** A list of tags to be associated with the videos. Useful for filtering the search.
+
+    #### Raises:
+    - **400 Bad Request :** If any of the RTSP URLs are invalid or fail validation.
+    - **502 Bad Gateway :** When something unpleasant happens at Minio storage or during stream access.
+    - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
+
+    Returns:
+    - **response (json) :** A response JSON containing status and message.
+    """
+    # Sanitize and validate RTSP URLs
+    valid_rtsp_urls = []
+    for url in rtsp_urls:
+        url = url.strip()
+        if not url.lower().startswith("rtsp://"):
+            logger.warning(f"Invalid RTSP URL skipped: {url}")
+            continue
+        valid_rtsp_urls.append(url)
+    
+    if not valid_rtsp_urls:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="No valid RTSP URLs provided. Each URL must start with 'rtsp://'.")
+    
+    logger.info(f"Processing {valid_rtsp_urls} valid RTSP URLs for embedding generation")
+
+    # Create shutdown event for graceful termination
+    shutdown_event = threading.Event()
+    shutdown_event.clear()
+
+    # Monitor for client disconnect in background
+    async def monitor_disconnect():
+        logger.info("Monitor disconnect task started")
+        try:
+            while not shutdown_event.is_set():
+                try:
+                    is_disconnected = await request.is_disconnected()
+                    if is_disconnected:
+                        logger.info("Client disconnected, triggering graceful shutdown...")
+                        shutdown_event.set()
+                        break
+                    else:
+                        logger.debug("Client still connected")
+                except Exception as e:
+                    logger.warning(f"Error checking disconnect status: {e}")
+                await asyncio.sleep(0.5)
+        finally:
+            logger.info("Monitor disconnect task exiting")
+
+    monitor_task = asyncio.create_task(monitor_disconnect())
+    logger.info("ID of shutdown_event in process_rtsp_streams: %s", id(shutdown_event))
+    telemetry_context = {
+            "request_id": str(uuid.uuid4()),
+            "source": "/videos/rtsp",
+            "requested_at": time.time(),
+        }
+
+    try:
+        ids = await generate_video_embedding_from_uri(
+                    video_uris=valid_rtsp_urls,
+                    bucket_name=None,
+                    video_id=None,
+                    filename=None,
+                    metadata_temp_path=None,
+                    frame_interval=frame_interval,
+                    enable_object_detection=enable_object_detection,
+                    detection_confidence=detection_confidence,
+                    tags=tags or [],
+                    telemetry_context=telemetry_context,
+                    shutdown_event=shutdown_event,
+                )
+        logger.info(f"SDK mode: {len(ids) if ids else 0} embeddings created with optimized memory usage")
+        
+        return DataPrepResponse(
+            message=f"{Strings.embedding_success} for RTSP streams (Mode: {settings.EMBEDDING_PROCESSING_MODE})"
+        )
+    finally:
+        # Stop the monitor task
+        shutdown_event.set()
+        monitor_task.cancel()
+        try:
+            await monitor_task
+        except asyncio.CancelledError:
+            pass

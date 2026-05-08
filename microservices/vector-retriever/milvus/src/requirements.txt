@@ -1,7 +1,7 @@
-fastapi==0.121.1
-pydantic==2.9.1
+fastapi==0.121.3
+pydantic==2.10.6
 pymilvus==2.5.8
 pytest==8.3.5
 PyYAML==6.0.2
 requests==2.32.4
-uvicorn==0.30.6
+uvicorn[standard]==0.34.0

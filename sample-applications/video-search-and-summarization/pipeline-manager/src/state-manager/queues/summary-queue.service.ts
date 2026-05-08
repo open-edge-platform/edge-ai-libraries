@@ -57,6 +57,12 @@ export class SummaryQueueService {
       return;
     }
 
+    // Skip final summary if produceFinalSummary is disabled
+    if (state?.systemConfig.produceFinalSummary === false) {
+      this.$state.updateSummaryStatus(stateId, StateActionStatus.NA);
+      return;
+    }
+
     this.waiting.push({ stateId, taskType: 'videoSummary' });
   }
 

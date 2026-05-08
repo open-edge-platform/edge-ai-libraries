@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: Apache-2.0
-
 type SelectOptionConfig = string | readonly [string, string];
 
 type NodePropertyConfig = {
