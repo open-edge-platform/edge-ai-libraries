@@ -23,6 +23,8 @@ Disclaimer: The utilization percentage is a calculated metric, based on the diff
 
 ### Prometheus/Grafana Dashboard
 
+Note: Python package listed in [requirements.txt](requirements.txt) is only required for Prometheus/Grafana.
+
 Please read [docs/npu-metrics-exporter](docs/npu-metrics-exporter.md) for details.
 
 ### Supported Platforms
