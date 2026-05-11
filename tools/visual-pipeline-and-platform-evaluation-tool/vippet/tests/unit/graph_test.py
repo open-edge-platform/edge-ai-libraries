@@ -6614,27 +6614,40 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
     (``jpegdec``/``pngdec``/...) right after ``multifilesrc``. The codec
     string returned by ``determine_input_codec`` is the image extension
     (e.g. ``"jpg"``), which is intentionally not a known video codec.
-    ``apply_decodebin3_replacement`` must short-circuit for these graphs
-    so it does not emit spurious "Unknown codec" / "Cannot find decoder"
-    warnings, and must leave the graph structurally unchanged.
+    ``apply_decodebin3_replacement`` must:
+
+    * never emit "Unknown codec" / "Cannot find decoder" warnings for
+      these graphs;
+    * prune a redundant ``decodebin3`` sitting after the image decoder
+      (it is a no-op once a dedicated image decoder is in place);
+    * for GPU/NPU targets, ensure frames reach inference plugins in VA
+      memory - either by swapping the software decoder for a VA decoder
+      (``vajpegdec``) if available, or by inserting a ``vapostproc``
+      element after the software decoder otherwise.
     """
 
-    def _build_graph(self) -> Graph:
+    def _build_graph(self, extension: str = "jpg") -> Graph:
+        decoder_type = {
+            "jpg": "jpegdec",
+            "png": "pngdec",
+            "bmp": "avdec_bmp",
+            "tif": "avdec_tiff",
+        }[extension]
         return Graph(
             nodes=[
                 Node(
                     id="0",
                     type="multifilesrc",
                     data={
-                        "location": "/images/input/uploaded/x/x_%02d.jpg",
+                        "location": f"/images/input/uploaded/x/x_%02d.{extension}",
                         "index": "1",
                         "stop-index": "5",
                         "loop": "false",
-                        "caps": "image/jpeg,framerate=30/1",
-                        "__image_set": "jpg",
+                        "caps": f"image/{extension},framerate=30/1",
+                        "__image_set": extension,
                     },
                 ),
-                Node(id="13", type="jpegdec", data={}),
+                Node(id="13", type=decoder_type, data={}),
                 Node(id="1", type="decodebin3", data={}),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -6645,12 +6658,13 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
             ],
         )
 
-    def test_returns_unmodified_graph_without_warnings(self) -> None:
+    def _capture_warnings(self):
+        return self.assertLogs("graph", level="WARNING")
+
+    def test_cpu_target_prunes_decodebin3_and_emits_no_warnings(self) -> None:
         graph = self._build_graph()
 
-        with self.assertLogs("graph", level="WARNING") as cm:
-            # Emit a sentinel warning so assertLogs has something to
-            # capture even when the code under test is silent.
+        with self._capture_warnings() as cm:
             import logging as _logging
 
             _logging.getLogger("graph").warning("sentinel")
@@ -6658,21 +6672,333 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
                 codec="jpg", target_device="CPU"
             )
 
-        # No warnings beyond the sentinel - in particular no
-        # "Cannot find decoder for codec 'jpg'" message.
         warnings_emitted = [
             r.getMessage() for r in cm.records if r.levelname == "WARNING"
         ]
         self.assertEqual(warnings_emitted, ["sentinel"])
 
-        # Graph is structurally identical.
+        # decodebin3 must be gone; the chain is multifilesrc -> jpegdec -> fakesink.
+        types_in_order = [n.type for n in result.nodes]
+        self.assertNotIn("decodebin3", types_in_order)
+        self.assertEqual(types_in_order, ["multifilesrc", "jpegdec", "fakesink"])
+
+        # The edge that used to leave decodebin3 now leaves jpegdec.
+        edges = [(e.source, e.target) for e in result.edges]
+        self.assertIn(("0", "13"), edges)
+        self.assertIn(("13", "2"), edges)
+        self.assertNotIn(("13", "1"), edges)
+        self.assertNotIn(("1", "2"), edges)
+
+    def test_gpu_target_swaps_jpegdec_for_vajpegdec_when_available(self) -> None:
+        graph = self._build_graph("jpg")
+
+        # Pretend the runtime has vajpegdec available.
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vajpegdec", "VA-API JPEG Decoder"),
+            ("jpeg", "jpegdec", "JPEG image decoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            result = graph.apply_decodebin3_replacement(
+                codec="jpg", target_device="GPU"
+            )
+
+        types_in_order = [n.type for n in result.nodes]
+        # Software decoder replaced by VA decoder; no vapostproc needed.
+        self.assertIn("vajpegdec", types_in_order)
+        self.assertNotIn("jpegdec", types_in_order)
+        self.assertNotIn("vapostproc", types_in_order)
+        # decodebin3 still pruned.
+        self.assertNotIn("decodebin3", types_in_order)
+
+    def test_gpu_target_inserts_vapostproc_when_no_va_decoder(self) -> None:
+        # PNG has no VA decoder in stock GStreamer, so the upgrade path
+        # must fall back to inserting vapostproc.
+        graph = self._build_graph("png")
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("png", "pngdec", "PNG image decoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            result = graph.apply_decodebin3_replacement(
+                codec="png", target_device="GPU"
+            )
+
+        types_in_order = [n.type for n in result.nodes]
+        # Software pngdec kept (no VA replacement available).
+        self.assertIn("pngdec", types_in_order)
+        # vapostproc inserted right after the decoder.
+        self.assertIn("vapostproc", types_in_order)
+        idx_pngdec = types_in_order.index("pngdec")
+        idx_vapostproc = types_in_order.index("vapostproc")
+        self.assertEqual(idx_vapostproc, idx_pngdec + 1)
+        # decodebin3 pruned.
+        self.assertNotIn("decodebin3", types_in_order)
+
+        # Connectivity: pngdec -> vapostproc -> fakesink.
+        edges = [(e.source, e.target) for e in result.edges]
+        pngdec_id = next(n.id for n in result.nodes if n.type == "pngdec")
+        vapostproc_id = next(n.id for n in result.nodes if n.type == "vapostproc")
+        fakesink_id = next(n.id for n in result.nodes if n.type == "fakesink")
+        self.assertIn((pngdec_id, vapostproc_id), edges)
+        self.assertIn((vapostproc_id, fakesink_id), edges)
+
+    def test_npu_target_is_treated_like_gpu(self) -> None:
+        graph = self._build_graph("jpg")
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vajpegdec", "VA-API JPEG Decoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            result = graph.apply_decodebin3_replacement(
+                codec="jpg", target_device="NPU"
+            )
+
+        types_in_order = [n.type for n in result.nodes]
+        self.assertIn("vajpegdec", types_in_order)
+        self.assertNotIn("jpegdec", types_in_order)
+
+
+class TestAdaptImageSetVideoPipeline(unittest.TestCase):
+    """
+    Verify that video-centric template elements (parsebin, video
+    decoders, container sinks) are rewritten into raw-video-friendly
+    form when the source is an image-set (multifilesrc + image
+    decoder), so that templates such as Smart NVR can run with
+    image-set inputs.
+    """
+
+    def _smart_nvr_like_graph(self) -> Graph:
+        """
+        Build a minimal graph that mimics the Smart NVR CPU template
+        after image-set source substitution:
+
+            multifilesrc -> jpegdec -> parsebin -> tee
+                            tee. -> queue -> splitmuxsink (recorder)
+                            tee. -> queue -> avdec_h264 -> capsfilter
+                                  -> gvafpscounter -> fakesink (inference)
+        """
+        return Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="parsebin", data={}),
+                Node(id="3", type="tee", data={"name": "t0"}),
+                Node(id="4", type="queue", data={}),
+                Node(
+                    id="5",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/out_%03d.mp4"},
+                ),
+                Node(id="6", type="queue", data={}),
+                Node(id="7", type="avdec_h264", data={}),
+                Node(id="8", type="capsfilter", data={"caps": "video/x-raw"}),
+                Node(id="9", type="gvafpscounter", data={}),
+                Node(id="10", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+                Edge(id="e5", source="3", target="6"),
+                Edge(id="e6", source="6", target="7"),
+                Edge(id="e7", source="7", target="8"),
+                Edge(id="e8", source="8", target="9"),
+                Edge(id="e9", source="9", target="10"),
+            ],
+        )
+
+    def test_parsebin_and_avdec_h264_replaced_by_identity(self) -> None:
+        graph = self._smart_nvr_like_graph()
+
+        # No encoder available in this test environment - we only
+        # care about the parser/decoder rewriting here.
+        with patch(
+            "video_encoder.VideoEncoder._select_element", return_value=None
+        ):
+            graph._adapt_image_set_video_pipeline()
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # parsebin and avdec_h264 are no-ops for raw video and must
+        # become identity to keep the topology intact.
+        self.assertEqual(types_by_id["2"], "identity")
+        self.assertEqual(types_by_id["7"], "identity")
+        # The image decoder itself must be preserved.
+        self.assertEqual(types_by_id["1"], "jpegdec")
+        # No new nodes were added (encoder was unavailable).
+        self.assertEqual(len(graph.nodes), 11)
+
+    def test_encoder_chain_inserted_before_splitmuxsink(self) -> None:
+        graph = self._smart_nvr_like_graph()
+
+        with patch(
+            "video_encoder.VideoEncoder._select_element",
+            return_value="openh264enc bitrate=16000000 complexity=low",
+        ):
+            graph._adapt_image_set_video_pipeline()
+
+        types_in_order = [n.type for n in graph.nodes]
+        # The injected chain must end with h264parse right before the
+        # container sink and contain a videoconvert + an h264 encoder.
+        self.assertIn("videoconvert", types_in_order)
+        self.assertIn("h264parse", types_in_order)
+        self.assertTrue(
+            any("openh264enc" in t for t in types_in_order),
+            f"expected an openh264enc element in {types_in_order}",
+        )
+
+        # Connectivity check: queue(4) -> videoconvert -> encoder ->
+        # h264parse -> splitmuxsink(5).
+        edges = [(e.source, e.target) for e in graph.edges]
+        videoconvert_id = next(
+            n.id for n in graph.nodes if n.type == "videoconvert"
+        )
+        encoder_id = next(
+            n.id for n in graph.nodes if "openh264enc" in n.type
+        )
+        h264parse_id = next(n.id for n in graph.nodes if n.type == "h264parse")
+
+        self.assertIn(("4", videoconvert_id), edges)
+        self.assertIn((videoconvert_id, encoder_id), edges)
+        self.assertIn((encoder_id, h264parse_id), edges)
+        self.assertIn((h264parse_id, "5"), edges)
+        # The original direct queue->splitmuxsink edge must be gone.
+        self.assertNotIn(("4", "5"), edges)
+
+    def test_no_op_when_no_image_set_source(self) -> None:
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "v.mp4"}),
+                Node(id="1", type="parsebin", data={}),
+                Node(id="2", type="avdec_h264", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+            ],
+        )
+
+        graph._adapt_image_set_video_pipeline()
+
+        types_in_order = [n.type for n in graph.nodes]
+        # Without an image-set source the adapter must leave the
+        # video-centric pipeline untouched.
         self.assertEqual(
-            [(n.id, n.type) for n in result.nodes],
-            [(n.id, n.type) for n in graph.nodes],
+            types_in_order, ["filesrc", "parsebin", "avdec_h264", "fakesink"]
+        )
+
+    def test_nv12_caps_injected_before_gvamotiondetect(self) -> None:
+        """
+        ``gvamotiondetect`` only accepts NV12 raw video. Image
+        decoders such as ``jpegdec`` produce I420 by default, so the
+        link fails at parse time. The adapter must inject
+        ``videoconvert ! video/x-raw,format=NV12`` between the image
+        decoder and the motion-detect element.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="gvamotiondetect", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+            ],
+        )
+
+        with patch(
+            "video_encoder.VideoEncoder._select_element", return_value=None
+        ):
+            graph._adapt_image_set_video_pipeline()
+
+        # A videoconvert and an NV12 caps node must have been
+        # inserted in front of gvamotiondetect.
+        videoconvert_nodes = [n for n in graph.nodes if n.type == "videoconvert"]
+        self.assertEqual(len(videoconvert_nodes), 1)
+        nv12_caps_nodes = [
+            n
+            for n in graph.nodes
+            if n.type == "video/x-raw"
+            and str(n.data.get("format", "")).upper() == "NV12"
+        ]
+        self.assertEqual(len(nv12_caps_nodes), 1)
+
+        videoconvert_id = videoconvert_nodes[0].id
+        caps_id = nv12_caps_nodes[0].id
+
+        edges = [(e.source, e.target) for e in graph.edges]
+        # jpegdec(1) -> videoconvert -> caps -> gvamotiondetect(2)
+        self.assertIn(("1", videoconvert_id), edges)
+        self.assertIn((videoconvert_id, caps_id), edges)
+        self.assertIn((caps_id, "2"), edges)
+        # The original direct jpegdec -> gvamotiondetect edge is gone.
+        self.assertNotIn(("1", "2"), edges)
+
+    def test_nv12_caps_not_reinjected_when_already_present(self) -> None:
+        """
+        If the user/template already supplies NV12 caps upstream of
+        ``gvamotiondetect``, the adapter must not insert a redundant
+        videoconvert/caps pair.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="videoconvert", data={}),
+                Node(id="3", type="video/x-raw", data={"format": "NV12"}),
+                Node(id="4", type="gvamotiondetect", data={}),
+                Node(id="5", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+            ],
+        )
+
+        with patch(
+            "video_encoder.VideoEncoder._select_element", return_value=None
+        ):
+            graph._adapt_image_set_video_pipeline()
+
+        # Exactly one videoconvert and one NV12 caps node - the
+        # originals; no extras injected.
+        self.assertEqual(
+            len([n for n in graph.nodes if n.type == "videoconvert"]), 1
         )
         self.assertEqual(
-            [(e.id, e.source, e.target) for e in result.edges],
-            [(e.id, e.source, e.target) for e in graph.edges],
+            len(
+                [
+                    n
+                    for n in graph.nodes
+                    if n.type == "video/x-raw"
+                    and str(n.data.get("format", "")).upper() == "NV12"
+                ]
+            ),
+            1,
         )
 
 

@@ -154,6 +154,25 @@ def _image_set_decoder_for_extension(extension: str) -> str:
     return decoder
 
 
+# Preferred VA-accelerated decoder for each image extension, in order of
+# preference. The first element that is actually available in the
+# current GStreamer installation is selected at runtime via
+# ``GstInspector``. Image formats without a VA decoder rely on a
+# ``vapostproc`` stage to lift the software-decoded frames into VA
+# memory; that is handled separately by
+# ``Graph._upgrade_image_set_for_va_memory``.
+_IMAGE_SET_VA_DECODERS: dict[str, list[str]] = {
+    "jpg": ["vajpegdec", "vaapijpegdec", "qsvjpegdec"],
+    "jpeg": ["vajpegdec", "vaapijpegdec", "qsvjpegdec"],
+    # No VA decoder ships for PNG / BMP / TIFF in stock GStreamer; the
+    # ``vapostproc`` fallback path handles these.
+    "png": [],
+    "bmp": [],
+    "tif": [],
+    "tiff": [],
+}
+
+
 def _image_set_caps_for_extension(extension: str) -> str:
     """
     Return the caps string that pairs with the chosen image decoder.
@@ -1720,6 +1739,21 @@ class Graph:
         """Check whether the graph contains a decodebin3 element."""
         return any(node.type == "decodebin3" for node in self.nodes)
 
+    def has_image_set_source(self) -> bool:
+        """Check whether the graph contains an image-set ``multifilesrc`` source.
+
+        Image-set sources require the same post-processing pass as graphs
+        with ``decodebin3`` (see ``apply_decodebin3_replacement``): the
+        downstream chain may contain video-centric elements
+        (``parsebin``, ``avdec_h264``, container muxers, ...) that need
+        to be adapted to a raw-video stream produced by the dedicated
+        image decoder.
+        """
+        return any(
+            node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data
+            for node in self.nodes
+        )
+
     def determine_input_codec(self) -> Optional[str]:
         """Determine the input codec for this pipeline graph.
 
@@ -1859,19 +1893,30 @@ class Graph:
         # ``codec`` reported by ``determine_input_codec`` for these
         # graphs is the image extension (e.g. ``"jpg"``), which is not a
         # video codec and is intentionally absent from
-        # ``FOURCC_TO_CODEC``. Skip the entire decodebin3-replacement
-        # pass to avoid spurious "Unknown codec" / "Cannot find decoder"
-        # warnings; any ``decodebin3`` left in the graph (for example
-        # one carried over from the legacy default pipeline) will simply
-        # pass the already-decoded raw video frames through.
+        # ``FOURCC_TO_CODEC``. The generic decodebin3-replacement pass
+        # does not apply; instead we run an image-set-specific upgrade
+        # that handles VA-memory hand-off for GPU/NPU targets and prunes
+        # any leftover ``decodebin3`` node that the simple-view
+        # transformation may have carried over.
         if any(
             node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data
             for node in modified_graph.nodes
         ):
             logger.debug(
-                "Image-set source detected; skipping decodebin3 replacement "
-                "(dedicated image decoder already present in graph)"
+                "Image-set source detected; adapting video-centric pipeline "
+                "elements and running decoder upgrade (target device: %s)",
+                target_device,
             )
+            # Step 1: rewrite video-centric pipeline elements that
+            # assume a compressed input stream (parsebin, video
+            # decoders, mp4 muxers without an encoder upstream). For
+            # image-set sources the stream is already raw video right
+            # after the image decoder, so these elements either need
+            # to be removed, replaced with ``identity``, or paired
+            # with a fresh encoder.
+            modified_graph._adapt_image_set_video_pipeline()
+            # Step 2: VA memory hand-off / redundant decodebin3 prune.
+            modified_graph._upgrade_image_set_for_va_memory(target_device)
             return modified_graph
 
         if codec is None:
@@ -2135,6 +2180,537 @@ class Graph:
                 )
 
         return modified_graph
+
+    def _adapt_image_set_video_pipeline(self) -> None:
+        """
+        In-place adaptation of a video-centric pipeline (e.g. Smart NVR
+        templates) to make it compatible with image-set sources.
+
+        Image-set graphs feed *raw* video into the pipeline right after
+        the dedicated image decoder (jpegdec / pngdec / ...). However,
+        many built-in templates were authored for compressed video
+        sources and contain elements that assume a compressed input
+        stream:
+
+            * ``parsebin`` / ``h264parse`` / ``h265parse`` etc.
+              parse a compressed bitstream that no longer exists.
+            * ``avdec_h264`` / ``vah264dec`` / ``vah265dec`` /
+              ``vaapidecodebin`` etc. decode a compressed bitstream
+              that no longer exists.
+            * ``splitmuxsink`` / ``mp4mux`` containers in a "recorder"
+              tee branch require an encoded H264 stream.
+
+        This pass walks the graph forward from each image-set source
+        and:
+
+            1. Replaces redundant parsers / video decoders with
+               ``identity`` so the downstream chain stays linked.
+            2. Inserts ``videoconvert ! <h264 encoder> ! h264parse``
+               in front of any container/recorder sink
+               (``splitmuxsink``, ``mp4mux``, or ``filesink`` whose
+               ``location`` ends with a known mux extension) that does
+               not already have an H264 encoder upstream.
+
+        The substitutions are deliberately structural (no edge
+        rewiring) so that tee branches and downstream caps negotiation
+        keep working as in the original template.
+        """
+        # Elements that should become a no-op for raw video input.
+        REDUNDANT_PARSERS = {
+            "parsebin",
+            "h264parse",
+            "h265parse",
+            "h264parser",
+            "h265parser",
+            "mpegvideoparse",
+            "mpeg4videoparse",
+            "vp8parse",
+            "vp9parse",
+            "av1parse",
+        }
+        REDUNDANT_VIDEO_DECODERS = {
+            # Note: ``decodebin`` / ``decodebin3`` are intentionally
+            # NOT in this set. They are pruned (with edge rewiring)
+            # later by ``_upgrade_image_set_for_va_memory`` so the
+            # final graph has one fewer node, which keeps debug dumps
+            # compact and matches the long-standing behaviour for
+            # image-set graphs.
+            "vaapidecodebin",
+            "avdec_h264",
+            "avdec_h265",
+            "avdec_mpeg2video",
+            "avdec_mpeg4",
+            "avdec_vp8",
+            "avdec_vp9",
+            "avdec_av1",
+            "vah264dec",
+            "vah265dec",
+            "vavp8dec",
+            "vavp9dec",
+            "vaav1dec",
+            "qsvh264dec",
+            "qsvh265dec",
+        }
+        REDUNDANT = REDUNDANT_PARSERS | REDUNDANT_VIDEO_DECODERS
+
+        # Container sinks that require compressed H264 in front of them.
+        CONTAINER_SINK_TYPES = {"splitmuxsink", "mp4mux"}
+        MUX_EXTENSIONS = {".mp4", ".mkv", ".mov", ".avi"}
+
+        # Only act if the graph actually contains an image-set source.
+        image_set_sources = [
+            n
+            for n in self.nodes
+            if n.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in n.data
+        ]
+        if not image_set_sources:
+            return
+
+        # Collect the set of node ids that are reachable forward from
+        # any image-set source. Only those nodes are candidates for
+        # rewriting; the rest of the graph (e.g. an unrelated branch)
+        # is left alone.
+        edges_from: dict[str, list[str]] = {}
+        for edge in self.edges:
+            edges_from.setdefault(edge.source, []).append(edge.target)
+        nodes_by_id = {n.id: n for n in self.nodes}
+
+        reachable: set[str] = set()
+        stack = [src.id for src in image_set_sources]
+        while stack:
+            current = stack.pop()
+            if current in reachable:
+                continue
+            reachable.add(current)
+            for nxt in edges_from.get(current, []):
+                if nxt not in reachable:
+                    stack.append(nxt)
+
+        # Step 1: replace redundant parsers / video decoders with
+        # identity. Skip the image decoder itself (it is the immediate
+        # successor of the multifilesrc and is required).
+        image_decoder_ids: set[str] = set()
+        for src in image_set_sources:
+            for tgt in edges_from.get(src.id, []):
+                # The image decoder is always the very first downstream
+                # node from the multifilesrc.
+                image_decoder_ids.add(tgt)
+
+        for node in self.nodes:
+            if node.id not in reachable:
+                continue
+            if node.id in image_decoder_ids:
+                continue
+            if node.type in REDUNDANT:
+                logger.debug(
+                    "Image-set adaptation: replacing redundant '%s' "
+                    "(node %s) with 'identity'",
+                    node.type,
+                    node.id,
+                )
+                node.type = "identity"
+                node.data.clear()
+
+        # Step 2: container/recorder sinks need a compressed stream.
+        # Walk each one and check whether an H264 encoder is reachable
+        # backwards within the same connected sub-graph; if not,
+        # synthesise ``videoconvert ! <encoder> ! h264parse`` in front
+        # of it.
+        edges_to: dict[str, list[str]] = {}
+        for edge in self.edges:
+            edges_to.setdefault(edge.target, []).append(edge.source)
+
+        def _is_container_sink(n: Node) -> bool:
+            if n.type in CONTAINER_SINK_TYPES:
+                return True
+            if n.type == "filesink":
+                location = str(n.data.get("location", "")).lower()
+                return any(location.endswith(ext) for ext in MUX_EXTENSIONS)
+            return False
+
+        def _has_h264_encoder_upstream(start_id: str) -> bool:
+            """Backwards BFS from ``start_id`` looking for an h264 encoder."""
+            seen: set[str] = set()
+            queue = list(edges_to.get(start_id, []))
+            while queue:
+                cur = queue.pop()
+                if cur in seen:
+                    continue
+                seen.add(cur)
+                cur_node = nodes_by_id.get(cur)
+                if cur_node is None:
+                    continue
+                # Encoder element names typically contain "264enc"
+                # (openh264enc, x264enc, vah264enc, vah264lpenc,
+                # qsvh264enc, ...). This is robust to the exact
+                # element-string form returned by VideoEncoder.
+                cur_type_first_word = cur_node.type.split()[0] if cur_node.type else ""
+                if "264enc" in cur_type_first_word:
+                    return True
+                queue.extend(edges_to.get(cur, []))
+            return False
+
+        # Pick an encoder element string once. CPU encoder
+        # (openh264enc) is a safe default for image-set pipelines: the
+        # raw video produced by jpegdec/pngdec is already in system
+        # memory, and forcing a VA encoder would require an extra
+        # ``vapostproc`` upload that brings no benefit. The encoder
+        # device selection is decoupled from the inference device on
+        # purpose.
+        from video_encoder import ENCODER_DEVICE_CPU, VideoEncoder
+
+        encoder_element_str = VideoEncoder()._select_element(
+            ENCODER_DEVICE_CPU, streaming=False
+        )
+
+        # Snapshot container sinks before mutating the edge list.
+        container_sinks = [
+            n
+            for n in self.nodes
+            if n.id in reachable and _is_container_sink(n)
+        ]
+
+        for sink in container_sinks:
+            if _has_h264_encoder_upstream(sink.id):
+                continue
+            if encoder_element_str is None:
+                logger.warning(
+                    "Image-set adaptation: container sink '%s' (node %s) "
+                    "needs an H264 encoder upstream, but none is available "
+                    "in the runtime; the recorder branch may fail.",
+                    sink.type,
+                    sink.id,
+                )
+                continue
+
+            logger.debug(
+                "Image-set adaptation: injecting 'videoconvert ! %s ! "
+                "h264parse' in front of container sink '%s' (node %s)",
+                encoder_element_str,
+                sink.type,
+                sink.id,
+            )
+
+            # Allocate three fresh node ids and matching edge ids.
+            existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
+                int(e.id) for e in self.edges if e.id.isdigit()
+            ]
+            next_int = (max(existing_ids) + 1) if existing_ids else 0
+
+            videoconvert_id = str(next_int)
+            next_int += 1
+            encoder_id = str(next_int)
+            next_int += 1
+            h264parse_id = str(next_int)
+            next_int += 1
+
+            videoconvert_node = Node(id=videoconvert_id, type="videoconvert", data={})
+            # ``encoder_element_str`` already contains properties (e.g.
+            # "openh264enc bitrate=16000000 complexity=low"); render it
+            # as a single token via ``node.type`` with empty data so
+            # ``_build_chain`` outputs it verbatim.
+            encoder_node = Node(id=encoder_id, type=encoder_element_str, data={})
+            h264parse_node = Node(id=h264parse_id, type="h264parse", data={})
+
+            # Insert the new chain before the sink in the node list to
+            # keep debug dumps readable.
+            insert_at = next(
+                (i for i, n in enumerate(self.nodes) if n.id == sink.id), len(self.nodes)
+            )
+            self.nodes[insert_at:insert_at] = [
+                videoconvert_node,
+                encoder_node,
+                h264parse_node,
+            ]
+
+            # Rewire: every edge that previously targeted the sink now
+            # targets ``videoconvert`` instead, and we add the new
+            # chain ``videoconvert -> encoder -> h264parse -> sink``.
+            for edge in self.edges:
+                if edge.target == sink.id:
+                    edge.target = videoconvert_id
+            self.edges.append(
+                Edge(id=str(next_int), source=videoconvert_id, target=encoder_id)
+            )
+            next_int += 1
+            self.edges.append(
+                Edge(id=str(next_int), source=encoder_id, target=h264parse_id)
+            )
+            next_int += 1
+            self.edges.append(
+                Edge(id=str(next_int), source=h264parse_id, target=sink.id)
+            )
+
+            # Refresh adjacency for subsequent iterations.
+            edges_to = {}
+            for edge in self.edges:
+                edges_to.setdefault(edge.target, []).append(edge.source)
+            nodes_by_id = {n.id: n for n in self.nodes}
+
+        # Step 3: some downstream elements only accept NV12 raw video
+        # (notably ``gvamotiondetect``). Image decoders such as
+        # ``jpegdec`` / ``pngdec`` produce I420 (or RGB) by default, so
+        # the link to such an element fails at parse time with
+        # "could not link jpegdec0 to gvamotiondetect0". Inject
+        # ``videoconvert ! video/x-raw,format=NV12`` right in front of
+        # every reachable NV12-only consumer that does not already have
+        # NV12 caps upstream within its connected sub-graph.
+        NV12_ONLY_CONSUMERS = {"gvamotiondetect"}
+
+        def _has_nv12_caps_upstream(start_id: str) -> bool:
+            """Backwards BFS from ``start_id`` looking for an NV12 caps node."""
+            seen: set[str] = set()
+            queue = list(edges_to.get(start_id, []))
+            while queue:
+                cur = queue.pop()
+                if cur in seen:
+                    continue
+                seen.add(cur)
+                cur_node = nodes_by_id.get(cur)
+                if cur_node is None:
+                    continue
+                if cur_node.type.startswith("video/x-raw"):
+                    fmt = str(cur_node.data.get("format", "")).upper()
+                    if fmt == "NV12":
+                        return True
+                    # A different explicit format already locks the
+                    # caps; do not walk further past it.
+                    if fmt:
+                        continue
+                queue.extend(edges_to.get(cur, []))
+            return False
+
+        nv12_consumers = [
+            n
+            for n in self.nodes
+            if n.id in reachable and n.type in NV12_ONLY_CONSUMERS
+        ]
+
+        for consumer in nv12_consumers:
+            if _has_nv12_caps_upstream(consumer.id):
+                continue
+
+            logger.debug(
+                "Image-set adaptation: injecting 'videoconvert ! "
+                "video/x-raw,format=NV12' in front of NV12-only "
+                "consumer '%s' (node %s)",
+                consumer.type,
+                consumer.id,
+            )
+
+            existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
+                int(e.id) for e in self.edges if e.id.isdigit()
+            ]
+            next_int = (max(existing_ids) + 1) if existing_ids else 0
+
+            videoconvert_id = str(next_int)
+            next_int += 1
+            caps_id = str(next_int)
+            next_int += 1
+
+            videoconvert_node = Node(id=videoconvert_id, type="videoconvert", data={})
+            caps_node = Node(
+                id=caps_id,
+                type="video/x-raw",
+                data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "NV12"},
+            )
+
+            insert_at = next(
+                (i for i, n in enumerate(self.nodes) if n.id == consumer.id),
+                len(self.nodes),
+            )
+            self.nodes[insert_at:insert_at] = [videoconvert_node, caps_node]
+
+            # Rewire: every edge that previously targeted the consumer
+            # now targets ``videoconvert`` instead, and we add the new
+            # chain ``videoconvert -> caps -> consumer``.
+            for edge in self.edges:
+                if edge.target == consumer.id:
+                    edge.target = videoconvert_id
+            self.edges.append(
+                Edge(id=str(next_int), source=videoconvert_id, target=caps_id)
+            )
+            next_int += 1
+            self.edges.append(
+                Edge(id=str(next_int), source=caps_id, target=consumer.id)
+            )
+
+            # Refresh adjacency for subsequent iterations.
+            edges_to = {}
+            for edge in self.edges:
+                edges_to.setdefault(edge.target, []).append(edge.source)
+            nodes_by_id = {n.id: n for n in self.nodes}
+
+    def _upgrade_image_set_for_va_memory(self, target_device: str) -> None:
+        """
+        In-place upgrade of an image-set graph so that the downstream
+        inference plugins can run with a VA-memory pre-process backend.
+
+        The simple-view-to-advanced transformation injects a software
+        image decoder (jpegdec / pngdec / avdec_bmp / avdec_tiff) right
+        after the ``multifilesrc`` source. That software decoder produces
+        ``video/x-raw`` in system memory, which is incompatible with
+        ``pre-process-backend=va-surface-sharing`` on ``gvadetect`` /
+        ``gvaclassify`` (DLStreamer rejects the pipeline at runtime with
+        "For system memory only supports ie, opencv image preprocessors").
+
+        For GPU/NPU targets we therefore either:
+            - swap the software decoder for a VA decoder (e.g.
+              ``vajpegdec``) if one is available, which produces VA
+              memory directly; or
+            - insert a ``vapostproc`` element after the software decoder
+              to lift the frames into VA memory.
+
+        Any leftover ``decodebin3`` immediately downstream of the image
+        decoder (carried over from a legacy template) is removed in both
+        the CPU and GPU paths to keep the pipeline tidy; this is safe
+        because the dedicated image decoder already produces raw frames.
+
+        Args:
+            target_device: Target inference device (``"CPU"``, ``"GPU"``,
+                ``"NPU"``). NPU is treated like GPU for the purpose of
+                memory hand-off (the VA-API stack handles both).
+        """
+        device = (target_device or "").upper()
+        wants_va_memory = device in {"GPU", "NPU"}
+
+        # Map software decoder name -> image-set node id (the
+        # multifilesrc itself).
+        sw_image_decoders = {"jpegdec", "pngdec", "avdec_bmp", "avdec_tiff"}
+
+        # Build adjacency: node_id -> [(edge_index, target_id)] for fast
+        # lookups and rewiring.
+        edges_from: dict[str, list[int]] = {}
+        for idx, edge in enumerate(self.edges):
+            edges_from.setdefault(edge.source, []).append(idx)
+
+        nodes_by_id = {n.id: n for n in self.nodes}
+
+        # Find each image-set multifilesrc node and its immediate
+        # successor (the software image decoder injected by
+        # apply_simple_view_changes).
+        for src_node in list(self.nodes):
+            if src_node.type != "multifilesrc":
+                continue
+            if _IMAGE_SET_NODE_FLAG not in src_node.data:
+                continue
+
+            outgoing = edges_from.get(src_node.id, [])
+            if not outgoing:
+                continue
+
+            decoder_edge_idx = outgoing[0]
+            decoder_id = self.edges[decoder_edge_idx].target
+            decoder_node = nodes_by_id.get(decoder_id)
+            if decoder_node is None or decoder_node.type not in sw_image_decoders:
+                # Unexpected layout - bail out rather than mutate
+                # something we do not understand.
+                continue
+
+            extension = str(src_node.data.get(_IMAGE_SET_NODE_FLAG, "")).lower()
+
+            # Step 1: optionally replace the software decoder with a
+            # VA-accelerated counterpart on GPU/NPU.
+            replaced_with_va_decoder = False
+            if wants_va_memory:
+                from explore import GstInspector
+
+                available = {e[1] for e in GstInspector().elements}
+                for candidate in _IMAGE_SET_VA_DECODERS.get(extension, []):
+                    if candidate in available:
+                        logger.debug(
+                            "Replacing software image decoder '%s' with VA "
+                            "decoder '%s' for image-set node %s (extension %s)",
+                            decoder_node.type,
+                            candidate,
+                            src_node.id,
+                            extension,
+                        )
+                        decoder_node.type = candidate
+                        replaced_with_va_decoder = True
+                        break
+
+            # Step 2: prune a redundant decodebin3 sitting right after
+            # the image decoder, regardless of target device. The
+            # dedicated image decoder already produces raw frames, so
+            # decodebin3 here is a no-op that confuses caps negotiation.
+            decoder_outgoing = edges_from.get(decoder_id, [])
+            removed_decodebin3_id: Optional[str] = None
+            if decoder_outgoing:
+                first_after_decoder_edge_idx = decoder_outgoing[0]
+                next_id = self.edges[first_after_decoder_edge_idx].target
+                next_node = nodes_by_id.get(next_id)
+                if next_node is not None and next_node.type == "decodebin3":
+                    removed_decodebin3_id = next_id
+                    # Rewire: every edge that previously left the
+                    # decodebin3 now leaves the decoder.
+                    for edge in self.edges:
+                        if edge.source == next_id:
+                            edge.source = decoder_id
+                    # Drop the edge decoder->decodebin3 and the
+                    # decodebin3 node itself.
+                    self.edges = [
+                        e
+                        for e in self.edges
+                        if not (e.source == decoder_id and e.target == next_id)
+                    ]
+                    self.nodes = [n for n in self.nodes if n.id != next_id]
+                    logger.debug(
+                        "Pruned redundant decodebin3 (node %s) after image "
+                        "decoder (node %s)",
+                        next_id,
+                        decoder_id,
+                    )
+                    # Rebuild fast lookups after structural change.
+                    edges_from = {}
+                    for idx, edge in enumerate(self.edges):
+                        edges_from.setdefault(edge.source, []).append(idx)
+                    nodes_by_id = {n.id: n for n in self.nodes}
+
+            # Step 3: if we still need VA memory and the decoder is
+            # software-only, insert a vapostproc node to lift frames
+            # into VA memory before they reach gvadetect/gvaclassify.
+            if wants_va_memory and not replaced_with_va_decoder:
+                # Allocate a fresh node id.
+                existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
+                    int(e.id) for e in self.edges if e.id.isdigit()
+                ]
+                next_id_int = (max(existing_ids) + 1) if existing_ids else 0
+
+                vapostproc_id = str(next_id_int)
+                next_id_int += 1
+                vapostproc_node = Node(id=vapostproc_id, type="vapostproc", data={})
+
+                edge_decoder_to_vapostproc = Edge(
+                    id=str(next_id_int),
+                    source=decoder_id,
+                    target=vapostproc_id,
+                )
+                next_id_int += 1
+
+                # Insert vapostproc right after the decoder for
+                # readability in any debug dump.
+                for i, n in enumerate(self.nodes):
+                    if n.id == decoder_id:
+                        self.nodes.insert(i + 1, vapostproc_node)
+                        break
+
+                # Rewire: every edge that previously left the decoder
+                # now leaves vapostproc (after we add the new bridging
+                # edge below).
+                for edge in self.edges:
+                    if edge.source == decoder_id:
+                        edge.source = vapostproc_id
+                self.edges.append(edge_decoder_to_vapostproc)
+
+                logger.debug(
+                    "Inserted vapostproc (node %s) after software image "
+                    "decoder (node %s) to lift frames into VA memory",
+                    vapostproc_id,
+                    decoder_id,
+                )
+
+            _ = removed_decodebin3_id  # currently unused beyond logging
 
     def validate_camera_sources_followed_by_decodebin3(self) -> None:
         """
