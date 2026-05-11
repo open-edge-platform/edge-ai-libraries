@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.12.12-slim AS build
+FROM python:3.12-slim AS build
 
 RUN pip install --upgrade --no-cache-dir pip setuptools
 
@@ -13,7 +13,7 @@ COPY pyproject.toml poetry.lock /app/
 
 RUN poetry config virtualenvs.create false && poetry install --no-root --only=main
 
-FROM python:3.12.12-slim
+FROM python:3.12-slim
 
 ARG INSTALL_DRIVER_VERSION="25.48.36300"
 ARG USER_ID=1000

@@ -44,17 +44,17 @@ By following this guide, you will learn how to:
 
    ```bash
    export REGISTRY="intel/"
-   export UI_TAG=core_1.3.2
+   export UI_TAG=core_1.3.3
 
    # If you prefer to use the default CPU device, set the following:
-   export BACKEND_TAG=core_1.3.2
+   export BACKEND_TAG=core_1.3.3
 
    # If you want to utilize GPU device for inferencing, set the following:
    # Note: This image also supports CPU devices.
-   export BACKEND_TAG=core_gpu_1.3.2
+   export BACKEND_TAG=core_gpu_1.3.3
 
    # For those who prefer Ollama framework, set the following:
-   export BACKEND_TAG=core_ollama_1.3.2
+   export BACKEND_TAG=core_ollama_1.3.3
    ```
 
    Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.

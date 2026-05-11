@@ -1,5 +1,28 @@
 # Release Notes: Model Download
 
+## Version 1.1.0-r2-rc2
+
+**May 5, 2026**
+
+**New**
+
+- Added a new Pipeline Zoo Models plugin for downloading models from the `dlstreamer/pipeline-zoo-models` repository.
+- Isolated Python virtual environments per plugin to prevent dependency conflicts.
+- Out-of-the-box support for the latest OpenVINO release (any version above 2025.4.1).
+- Enabled TTS, STT, and image generation model types in the OpenVINO plugin.
+- Introduced `--ovms-release-tag` option in `run_service.sh` to configure the OVMS release version (default: `v2025.4.1`).
+- Resolved `Qwen/Qwen3-VL-8B` conversion failure when using a newer OpenVINO release tag.
+
+**Improved**
+
+- API hub names are now accepted case-insensitively (e.g. `Geti`, `GETI`, and `HuggingFace` all map to their canonical lowercase identifier).
+- `microsoft/Phi3.5-mini-instruct` model conversion requires the default OpenVINO version (`v2025.4.1`); newer versions with `transformers>4.55` are not yet compatible.
+
+**Known Issues**:
+- Intel does not support Edge Manageability Framework deployment currently.
+- Due to a limitation in the DL Streamer public model download script, all supported precision artifacts (for example, FP32 and FP16) are downloaded by default even when not requested. When INT8 is specifically requested by user, the other supported precision artifacts are still downloaded along with INT8.
+
+
 ## Version 1.1.0-r2-rc1
 
 **April 17, 2026**

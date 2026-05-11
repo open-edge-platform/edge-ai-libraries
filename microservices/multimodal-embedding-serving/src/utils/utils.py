@@ -24,24 +24,18 @@ import os
 import re
 import socket
 import tempfile
-from typing import Callable, Dict, List, Optional
+from typing import Callable, List, Optional
 import uuid
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse
 
-import decord
 import av
 import httpx
 import numpy as np
-from decord import VideoReader, cpu
 from PIL import Image
-from torchvision.transforms import ToPILImage
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .common import ErrorMessages, logger, settings
-
-decord.bridge.set_bridge("torch")
-toPIL = ToPILImage()
 
 # Only include proxies if they are defined
 proxies = {}
@@ -540,129 +534,3 @@ def decode_base64_video(video_base64: str) -> str:
     except Exception as e:
         logger.error(f"Error decoding base64 video: {e}")
         raise RuntimeError(f"{ErrorMessages.DECODE_BASE64_VIDEO_ERROR}: {e}")
-
-
-def extract_video_frames(video_path: str, segment_config: dict = None) -> list:
-    """
-    Extracts frames from a video with configurable extraction modes.
-
-    Supports multiple frame extraction strategies with flexible configuration
-    options. The function can extract specific frames by index, sample at
-    a given frame rate, or uniformly sample a specified number of frames.
-
-    Args:
-        video_path: Path to the video file to process
-        segment_config: Configuration dictionary for video segmentation with options:
-            - startOffsetSec: Starting offset in seconds (default: 0)
-            - clip_duration: Duration of clip to extract from (-1 for full video)
-            - frame_indexes: Array of specific frame indices (highest priority)
-            - fps: Frames per second for uniform sampling (can be fractional)
-            - num_frames: Number of frames for uniform sampling (lowest priority)
-
-    Returns:
-        List of extracted video frames as PIL Image objects
-
-    Raises:
-        RuntimeError: If there is an error during the frame extraction process,
-            including invalid video files or unsupported formats
-
-    Note:
-        Priority order: frame_indexes > fps > num_frames. If multiple extraction
-        methods are specified, the highest priority method will be used.
-    """
-    try:
-        logger.debug("Extracting frames from video input")
-        if segment_config is None:
-            segment_config = {}
-
-        start_offset_sec = segment_config.get(
-            "startOffsetSec", settings.DEFAULT_START_OFFSET_SEC
-        )
-        clip_duration = segment_config.get(
-            "clip_duration", settings.DEFAULT_CLIP_DURATION
-        )
-        num_frames = segment_config.get("num_frames", settings.DEFAULT_NUM_FRAMES)
-        extraction_fps = segment_config.get("extraction_fps")
-        frame_indexes = segment_config.get("frame_indexes")
-        
-        logger.debug("Video frame extraction configuration prepared")
-
-        vr = VideoReader(video_path, ctx=cpu(0))
-        vlen = len(vr)
-        video_fps = vr.get_avg_fps()
-        start_idx = int(video_fps * start_offset_sec)
-        end_idx = (
-            min(vlen, start_idx + int(video_fps * clip_duration))
-            if clip_duration != -1
-            else vlen
-        )
-        logger.debug(f"Video FPS: {video_fps}, Total frames: {vlen}")
-        # Priority 1: frame_indexes - specific frame indices (highest priority)
-        if frame_indexes is not None:
-            if not isinstance(frame_indexes, (list, tuple, np.ndarray)):
-                raise ValueError("frame_indexes must be a list, tuple, or numpy array")
-            
-            # Convert to numpy array and ensure valid indices
-            frame_indexes = np.array(frame_indexes, dtype=int)
-            
-            # Filter indices to be within the video segment bounds
-            valid_indices = frame_indexes[(frame_indexes >= start_idx) & (frame_indexes <= end_idx)]
-            
-            if len(valid_indices) == 0:
-                logger.warning(
-                    "No valid frame indices found within segment bounds [%s, %s)",
-                    start_idx,
-                    end_idx,
-                )
-                # Fall back to default uniform sampling
-                frame_idx = np.linspace(
-                    start_idx, end_idx, num=settings.DEFAULT_NUM_FRAMES, endpoint=False, dtype=int
-                )
-            else:
-                frame_idx = valid_indices
-            
-            logger.debug(f"Using frame_indexes with {len(frame_idx)} valid indices")
-        
-        # Priority 2: fps - uniform sampling at specified rate
-        elif extraction_fps is not None:
-            if not isinstance(extraction_fps, (int, float)) or extraction_fps <= 0:
-                raise ValueError("fps must be a positive number")
-            
-            # Calculate frame interval based on user fps (float to preserve precision)
-            frame_interval = float(video_fps) / float(extraction_fps)
-            
-            # Generate frame indices at the specified fps rate
-            frame_indices = []
-            current_frame = float(start_idx)
-            
-            while current_frame <= end_idx:
-                frame_indices.append(int(current_frame))
-                current_frame += frame_interval
-            
-            frame_idx = np.array(frame_indices, dtype=int)
-            logger.debug(f"Using fps={extraction_fps} for sampling, generated {len(frame_idx)} frames")
-        
-        # Priority 3: num_frames - use explicit value if provided, otherwise use default
-        # Default: use DEFAULT_NUM_FRAMES for uniform sampling (lowest priority)
-        else:
-            frame_idx = np.linspace(
-                start_idx, end_idx, num=num_frames, endpoint=False, dtype=int
-            )
-            logger.debug(f"Using default num_frames={num_frames} for uniform sampling")
-
-        video_frames = []
-
-        # read images
-        temp_frms = vr.get_batch(frame_idx.astype(int).tolist())
-        for idx in range(temp_frms.shape[0]):
-            im = temp_frms[idx]  # H W C
-            video_frames.append(toPIL(im.permute(2, 0, 1)))
-        logger.info(
-            "%s Frames extracted successfully from video: %s",
-            len(video_frames),
-            sanitize_for_log(video_path),
-        )
-        return video_frames
-    except Exception as e:
-        logger.error("Error extracting video frames: %s", sanitize_for_log(e))
-        raise RuntimeError(f"{ErrorMessages.EXTRACT_VIDEO_FRAMES_ERROR}: {e}")

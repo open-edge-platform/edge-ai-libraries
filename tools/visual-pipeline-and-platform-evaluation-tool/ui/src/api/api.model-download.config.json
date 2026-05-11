@@ -1,0 +1,9 @@
+{
+  "schemaFile": "../../../../../microservices/model-download/docs/user-guide/_assets/openapi.yaml",
+  "apiFile": "./apiModelDownloadSlice.ts",
+  "apiImport": "apiModelDownloadSlice",
+  "outputFile": "./api.model-download.generated.ts",
+  "exportName": "apiModelDownload",
+  "hooks": { "queries": true, "lazyQueries": true, "mutations": true },
+  "tag": true
+}

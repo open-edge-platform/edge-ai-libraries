@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 
 from api.middleware import InitializationMiddleware
 from api.routes import health
+from images import ImagesManager
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
 from managers.pipeline_manager import PipelineManager
@@ -56,6 +57,11 @@ def _initialize_in_background(app: FastAPI) -> None:
         # Initialize VideosManager - downloads videos, scans files,
         # extracts metadata, and converts to TS format
         VideosManager()
+
+        # Initialize ImagesManager - ensures the uploaded image-set
+        # root directory exists with the right permissions before any
+        # request hits POST /images/upload.
+        ImagesManager()
 
         # Initialize PipelineManager - loads predefined pipelines
         PipelineManager()
