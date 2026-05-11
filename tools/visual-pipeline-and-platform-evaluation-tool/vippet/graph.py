@@ -2857,6 +2857,89 @@ class Graph:
                     # adapter pair to fix up; leave the graph alone.
                     break
 
+            # Step 5: when targeting VA memory, swap any reachable
+            # software H264 encoder (``openh264enc`` / ``x264enc``)
+            # for a VA-API counterpart (``vah264lpenc`` / ``vah264enc``
+            # / ``vaapih264enc`` / ``vaapih264lpenc``). Software H264
+            # encoders cannot accept ``video/x-raw(memory:VAMemory)``
+            # nor NV12 in system memory, which makes them
+            # incompatible with the all-VA inference chain we just
+            # built; on real GPUs this manifests at parse time as
+            # ``could not link ... openh264enc can't handle caps`` or
+            # at runtime as ``not-negotiated``. Fallback: if no VA
+            # encoder is registered we leave the encoder alone (the
+            # pipeline may still fail, but we do not make things
+            # worse than they already are). Property strings already
+            # set on the sw encoder node (e.g. ``bitrate``) are
+            # discarded because the VA encoders use a different
+            # property surface (``rate-control``, ``target-usage``,
+            # ...) and would be rejected by GStreamer.
+            if wants_va_memory:
+                from explore import GstInspector
+
+                available_elements = {e[1] for e in GstInspector().elements}
+                # Order matters: low-power encoder first (more
+                # efficient on Intel iGPUs), then full-power, then
+                # legacy vaapi naming.
+                VA_H264_ENCODER_PREFERENCE = [
+                    "vah264lpenc",
+                    "vah264enc",
+                    "vaapih264lpenc",
+                    "vaapih264enc",
+                ]
+                SW_H264_ENCODERS = {"openh264enc", "x264enc"}
+
+                va_encoder = next(
+                    (
+                        cand
+                        for cand in VA_H264_ENCODER_PREFERENCE
+                        if cand in available_elements
+                    ),
+                    None,
+                )
+
+                if va_encoder is not None:
+                    # Compute reachability from the current image-set
+                    # source so we only touch encoders that belong to
+                    # this branch.
+                    edges_from_reach: dict[str, list[str]] = {}
+                    for edge in self.edges:
+                        edges_from_reach.setdefault(edge.source, []).append(
+                            edge.target
+                        )
+                    reachable_from_src: set[str] = set()
+                    stack = [src_node.id]
+                    while stack:
+                        cur = stack.pop()
+                        if cur in reachable_from_src:
+                            continue
+                        reachable_from_src.add(cur)
+                        for nxt in edges_from_reach.get(cur, []):
+                            if nxt not in reachable_from_src:
+                                stack.append(nxt)
+
+                    for node in self.nodes:
+                        if node.id not in reachable_from_src:
+                            continue
+                        # ``node.type`` for an encoder may carry
+                        # inline properties (e.g. "openh264enc
+                        # bitrate=16000000 complexity=low"). Compare
+                        # only the first whitespace-separated token.
+                        first_token = node.type.split()[0] if node.type else ""
+                        if first_token in SW_H264_ENCODERS:
+                            logger.debug(
+                                "Replacing software H264 encoder '%s' "
+                                "(node %s) with VA encoder '%s' for "
+                                "image-set source %s on target %s",
+                                node.type,
+                                node.id,
+                                va_encoder,
+                                src_node.id,
+                                device,
+                            )
+                            node.type = va_encoder
+                            node.data.clear()
+
             _ = removed_decodebin3_id  # currently unused beyond logging
 
     def validate_camera_sources_followed_by_decodebin3(self) -> None:

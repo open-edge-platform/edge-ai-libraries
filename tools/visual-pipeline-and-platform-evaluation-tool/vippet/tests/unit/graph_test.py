@@ -6963,6 +6963,132 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         # Caps node promoted to VAMemory.
         self.assertEqual(types_by_id["4"], "video/x-raw(memory:VAMemory)")
 
+    def test_gpu_target_swaps_software_h264_encoder_for_va_encoder(self) -> None:
+        """
+        Software H264 encoders (``openh264enc``/``x264enc``) cannot
+        accept ``video/x-raw(memory:VAMemory)`` nor NV12 in system
+        memory, which makes them incompatible with the all-VA
+        inference chain we build for image-set + GPU. The upgrade
+        path must swap them for an available VA H264 encoder.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(
+                    id="2",
+                    type="openh264enc bitrate=16000000 complexity=low",
+                    data={},
+                ),
+                Node(id="3", type="h264parse", data={}),
+                Node(id="4", type="mp4mux", data={}),
+                Node(
+                    id="5",
+                    type="filesink",
+                    data={"location": "/tmp/out.mp4"},
+                ),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+            ],
+        )
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vah264lpenc", "VA-API low-power H264 encoder"),
+            ("va", "vah264enc", "VA-API H264 encoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            graph._upgrade_image_set_for_va_memory("GPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # Low-power VA encoder preferred; inline properties dropped
+        # because the VA encoders use a different property surface.
+        self.assertEqual(types_by_id["2"], "vah264lpenc")
+        encoder_node = next(n for n in graph.nodes if n.id == "2")
+        self.assertEqual(encoder_node.data, {})
+
+    def test_cpu_target_keeps_software_h264_encoder(self) -> None:
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(
+                    id="2",
+                    type="openh264enc bitrate=16000000 complexity=low",
+                    data={},
+                ),
+                Node(
+                    id="3",
+                    type="filesink",
+                    data={"location": "/tmp/out.mp4"},
+                ),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+            ],
+        )
+
+        graph._upgrade_image_set_for_va_memory("CPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # On CPU we keep the software encoder unchanged.
+        self.assertEqual(
+            types_by_id["2"], "openh264enc bitrate=16000000 complexity=low"
+        )
+
+    def test_gpu_target_keeps_software_h264_encoder_when_no_va_encoder_available(
+        self,
+    ) -> None:
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="openh264enc", data={}),
+                Node(
+                    id="3",
+                    type="filesink",
+                    data={"location": "/tmp/out.mp4"},
+                ),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+            ],
+        )
+
+        # No VA encoder registered.
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("openh264", "openh264enc", "OpenH264 encoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            graph._upgrade_image_set_for_va_memory("GPU")
+
+        # Encoder unchanged - we never break a working pipeline by
+        # removing the only available encoder.
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        self.assertEqual(types_by_id["2"], "openh264enc")
+
 
 class TestAdaptImageSetVideoPipeline(unittest.TestCase):
     """
