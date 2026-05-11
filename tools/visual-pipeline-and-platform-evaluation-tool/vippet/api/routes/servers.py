@@ -164,16 +164,25 @@ def _get_kernel_version() -> str:
 )
 async def get_db_status():
     """
-    **Check whether the database is reachable.**
+    **Check whether the database is reachable and return the connected role.**
 
-    Returns 200 if DATABASE_URL is set and the database accepts connections,
-    or 503 with an error message otherwise. The UI uses this endpoint to
-    decide whether to show the server registration dialog.
+    Returns 200 with ``role`` if DATABASE_URL is set and the database accepts
+    connections, or 503 with an error message otherwise.
+
+    The ``role`` field reflects the PostgreSQL ``current_user``:
+    - ``vippet_server`` — full access; UI shows server registration dialog.
+    - ``vippet_user``   — read-only access; UI hides server registration dialog.
     """
-    available, reason = check_db_connection()
+    available, reason, db_role = check_db_connection()
     if available:
-        return JSONResponse(content={"available": True, "message": reason}, status_code=200)
-    return JSONResponse(content={"available": False, "message": reason}, status_code=503)
+        return JSONResponse(
+            content={"available": True, "message": reason, "role": db_role},
+            status_code=200,
+        )
+    return JSONResponse(
+        content={"available": False, "message": reason, "role": None},
+        status_code=503,
+    )
 
 
 @router.get(

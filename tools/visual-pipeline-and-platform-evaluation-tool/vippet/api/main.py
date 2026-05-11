@@ -55,8 +55,16 @@ def _initialize_in_background(app: FastAPI) -> None:
             InternalAppStatus.INITIALIZING, "Downloading videos and loading metadata..."
         )
 
-        # Initialize database - create tables if needed
-        init_db()
+        # Initialize database - create tables if needed.
+        # This is intentionally non-fatal: if the database is unreachable
+        # (e.g. DATABASE_URL is wrong), all other API endpoints remain
+        # available. The /servers/db-status endpoint will report the failure.
+        try:
+            init_db()
+        except Exception as db_err:
+            logger.warning(
+                f"Database initialization failed (server registration will be unavailable): {db_err}"
+            )
 
         # Initialize VideosManager - downloads videos, scans files,
         # extracts metadata, and converts to TS format

@@ -27,13 +27,13 @@ const Layout = () => {
   useDevicesLoader();
   const { theme, setTheme } = useTheme();
   const location = useLocation();
-  const [dbAvailable, setDbAvailable] = useState(false);
+  const [isServerRole, setIsServerRole] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/servers/db-status`)
-      .then((res) => res.ok)
-      .then(setDbAvailable)
-      .catch(() => setDbAvailable(false));
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setIsServerRole(data?.role === "vippet_server"))
+      .catch(() => setIsServerRole(false));
   }, []);
 
   return (
@@ -54,7 +54,7 @@ const Layout = () => {
                 </h1>
               </div>
               <div className="flex items-center gap-2 px-4">
-                {dbAvailable && <AddServerDialog />}
+                {isServerRole && <AddServerDialog />}
                 <Button
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                   aria-label="Toggle theme"
