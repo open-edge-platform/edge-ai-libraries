@@ -6802,26 +6802,21 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         self,
     ) -> None:
         """
-        When the image-set adapter has injected a
-        ``videoconvert ! video/x-raw,format=NV12`` pair in front of an
-        NV12-only consumer (e.g. ``gvamotiondetect``), the upgrade
-        path must:
-            * keep the software image decoder (the VA decoder swap is
-              skipped because some VA image decoders fail on common
-              JPEGs and ``vapostproc`` downstream already covers the
-              memory hand-off),
-            * not insert a redundant standalone ``vapostproc`` after
-              the decoder (the existing pair already does the job),
-            * promote the injected pair to
-              ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
-              so the chain stays in VA memory end-to-end.
-        Otherwise plain ``videoconvert`` would reject VAMemory caps at
-        runtime with "not-negotiated".
+        On GPU/NPU, ``_adapt_image_set_video_pipeline`` no longer
+        injects a CPU-only ``videoconvert ! NV12`` pair, so the
+        upgrade path always inserts a fresh
+        ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
+        pair right after the software image decoder. Any pre-existing
+        ``videoconvert ! NV12`` pair downstream is left untouched
+        (NV12-only DLStreamer consumers like ``gvamotiondetect`` accept
+        VAMemory NV12 directly, so the conversion is a harmless
+        no-op).
         """
-        # Build a graph that mimics the post-adaptation state for an
-        # image-set + gvamotiondetect pipeline:
-        #   multifilesrc -> jpegdec -> videoconvert -> caps NV12 ->
-        #   gvamotiondetect -> fakesink
+        # Build a graph that pretends a legacy adapter produced
+        # ``multifilesrc -> jpegdec -> videoconvert -> caps NV12 ->
+        # gvamotiondetect -> fakesink``. The new upgrade path should
+        # insert ``vapostproc ! VAMemory NV12`` between jpegdec and
+        # videoconvert.
         graph = Graph(
             nodes=[
                 Node(
@@ -6863,27 +6858,36 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
             graph._upgrade_image_set_for_va_memory("GPU")
 
         types_by_id = {n.id: n.type for n in graph.nodes}
-        # Software decoder kept (VA swap intentionally skipped).
+        # Software decoder kept (VA decoder swap is intentionally not
+        # performed any more - empirically broken on real Intel GPUs).
         self.assertEqual(types_by_id["1"], "jpegdec")
-        # The injected videoconvert was promoted to vapostproc.
-        self.assertEqual(types_by_id["2"], "vapostproc")
-        # The injected NV12 caps base was promoted to VAMemory.
-        self.assertEqual(types_by_id["3"], "video/x-raw(memory:VAMemory)")
-        # The format value is preserved.
-        nv12_caps = next(n for n in graph.nodes if n.id == "3")
-        self.assertEqual(nv12_caps.data.get("format"), "NV12")
-        # No redundant standalone vapostproc was injected after the
-        # decoder - the only vapostproc in the graph is the promoted
-        # one (originally the videoconvert at id "2").
+        # Pre-existing legacy videoconvert + NV12 caps are NOT
+        # promoted - the new model only promotes caps directly behind
+        # a ``vapostproc``. They stay as they are.
+        self.assertEqual(types_by_id["2"], "videoconvert")
+        self.assertEqual(types_by_id["3"], "video/x-raw")
+        # Exactly one fresh vapostproc was inserted right after jpegdec
+        # by step 3 of the upgrade.
         vapostproc_nodes = [n for n in graph.nodes if n.type == "vapostproc"]
         self.assertEqual(len(vapostproc_nodes), 1)
-        self.assertEqual(vapostproc_nodes[0].id, "2")
+        # The new vapostproc is followed by a VAMemory NV12 caps node.
+        edges_from = {}
+        for e in graph.edges:
+            edges_from.setdefault(e.source, []).append(e.target)
+        vp_id = vapostproc_nodes[0].id
+        nxt = edges_from[vp_id][0]
+        nxt_node = next(n for n in graph.nodes if n.id == nxt)
+        self.assertEqual(nxt_node.type, "video/x-raw(memory:VAMemory)")
+        self.assertEqual(nxt_node.data.get("format"), "NV12")
+        # And the new pair sits between jpegdec and videoconvert.
+        self.assertEqual(edges_from["1"], [vp_id])
+        self.assertEqual(edges_from[nxt], ["2"])
 
     def test_cpu_target_does_not_promote_injected_nv12_pair(self) -> None:
         """
-        On CPU we do not want VA memory; the injected
+        On CPU we do not want VA memory; the legacy
         ``videoconvert ! video/x-raw,format=NV12`` pair must be left
-        untouched so the chain stays in system memory.
+        untouched and no ``vapostproc`` may be inserted.
         """
         graph = Graph(
             nodes=[
@@ -6924,8 +6928,9 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         self.assertEqual(types_by_id["1"], "jpegdec")
         self.assertEqual(types_by_id["2"], "videoconvert")
         self.assertEqual(types_by_id["3"], "video/x-raw")
+        self.assertNotIn("vapostproc", [n.type for n in graph.nodes])
 
-    def test_gpu_target_skips_va_swap_when_decodebin3_sits_between_decoder_and_pair(
+    def test_gpu_target_inserts_vapostproc_even_when_decodebin3_sits_between_decoder_and_pair(
         self,
     ) -> None:
         """
@@ -6935,14 +6940,14 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
             multifilesrc -> jpegdec -> decodebin3 -> videoconvert ->
             video/x-raw,format=NV12 -> gvamotiondetect -> ...
 
-        because ``decodebin3`` is intentionally not rewritten by the
-        adapter (step 2 of the upgrade prunes it later). The
-        VA-swap/standalone-vapostproc skip in
-        ``_upgrade_image_set_for_va_memory`` must therefore see past
-        ``decodebin3`` when looking for the injected NV12 adapter pair;
-        otherwise the swap to ``vajpegdec`` happens and the pipeline
-        crashes at runtime with "subclass failed to handle new picture"
-        on GPUs that cannot decode the JPEG variant.
+        The upgrade path must:
+            * keep the software image decoder (VA decoder swap is no
+              longer attempted - empirically broken on real Intel
+              GPUs),
+            * prune the redundant ``decodebin3`` (step 2),
+            * insert a fresh ``vapostproc ! VAMemory NV12`` pair right
+              after the decoder (step 3), regardless of any leftover
+              ``videoconvert ! NV12`` further downstream.
         """
         graph = Graph(
             nodes=[
@@ -6987,19 +6992,25 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
             graph._upgrade_image_set_for_va_memory("GPU")
 
         types_by_id = {n.id: n.type for n in graph.nodes}
-        # VA decoder swap must NOT happen because the injected pair is
-        # already in place (even though decodebin3 sits between the
-        # decoder and the pair).
+        # VA decoder swap is no longer attempted.
         self.assertEqual(types_by_id["1"], "jpegdec")
         # decodebin3 was pruned by step 2.
         self.assertNotIn("decodebin3", [n.type for n in graph.nodes])
-        # No standalone vapostproc inserted by step 3 - the only
-        # vapostproc is the promoted videoconvert.
+        # Exactly one fresh vapostproc was inserted right after jpegdec.
         vapostproc_nodes = [n for n in graph.nodes if n.type == "vapostproc"]
         self.assertEqual(len(vapostproc_nodes), 1)
-        self.assertEqual(vapostproc_nodes[0].id, "3")
-        # Caps node promoted to VAMemory.
-        self.assertEqual(types_by_id["4"], "video/x-raw(memory:VAMemory)")
+        # The new vapostproc is followed by a VAMemory NV12 caps node.
+        edges_from = {}
+        for e in graph.edges:
+            edges_from.setdefault(e.source, []).append(e.target)
+        vp_id = vapostproc_nodes[0].id
+        nxt = edges_from[vp_id][0]
+        nxt_node = next(n for n in graph.nodes if n.id == nxt)
+        self.assertEqual(nxt_node.type, "video/x-raw(memory:VAMemory)")
+        self.assertEqual(nxt_node.data.get("format"), "NV12")
+        # The legacy videoconvert + NV12 caps stay as-is downstream.
+        self.assertEqual(types_by_id["3"], "videoconvert")
+        self.assertEqual(types_by_id["4"], "video/x-raw")
 
     def test_gpu_target_swaps_software_h264_encoder_for_va_encoder(self) -> None:
         """

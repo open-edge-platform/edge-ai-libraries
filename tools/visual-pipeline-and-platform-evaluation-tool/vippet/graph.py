@@ -1914,7 +1914,7 @@ class Graph:
             # after the image decoder, so these elements either need
             # to be removed, replaced with ``identity``, or paired
             # with a fresh encoder.
-            modified_graph._adapt_image_set_video_pipeline()
+            modified_graph._adapt_image_set_video_pipeline(target_device)
             # Step 2: VA memory hand-off / redundant decodebin3 prune.
             modified_graph._upgrade_image_set_for_va_memory(target_device)
             return modified_graph
@@ -2181,7 +2181,7 @@ class Graph:
 
         return modified_graph
 
-    def _adapt_image_set_video_pipeline(self) -> None:
+    def _adapt_image_set_video_pipeline(self, target_device: str = "CPU") -> None:
         """
         In-place adaptation of a video-centric pipeline (e.g. Smart NVR
         templates) to make it compatible with image-set sources.
@@ -2205,15 +2205,42 @@ class Graph:
 
             1. Replaces redundant parsers / video decoders with
                ``identity`` so the downstream chain stays linked.
-            2. Inserts ``videoconvert ! <h264 encoder> ! h264parse``
-               in front of any container/recorder sink
-               (``splitmuxsink``, ``mp4mux``, or ``filesink`` whose
-               ``location`` ends with a known mux extension) that does
-               not already have an H264 encoder upstream.
+            1b. Degrades any leftover ``video/x-raw(memory:VAMemory)``
+                capsfilter (originally paired with the now-replaced VA
+                video decoder) to plain ``video/x-raw`` so the
+                ``identity`` substitute can negotiate it. For GPU/NPU
+                targets, ``_upgrade_image_set_for_va_memory`` later
+                promotes selected caps back to VAMemory where it is
+                actually beneficial.
+            2. Inserts ``[videoconvert !] <h264 encoder> ! h264parse``
+                in front of any container/recorder sink
+                (``splitmuxsink``, ``mp4mux``, or ``filesink`` whose
+                ``location`` ends with a known mux extension) that does
+                not already have an H264 encoder upstream. The encoder
+                is target-aware: ``openh264enc`` for CPU, ``vah264lpenc``
+                (or ``vah264enc``) for GPU/NPU. The leading
+                ``videoconvert`` is only emitted for the CPU path -
+                ``vah264lpenc`` accepts NV12 frames in either system or
+                VA memory, so the extra conversion is unnecessary on
+                GPU/NPU.
+            3. (CPU only) injects ``videoconvert ! video/x-raw,format=NV12``
+                in front of any reachable NV12-only consumer (such as
+                ``gvamotiondetect``) that does not already have NV12 caps
+                upstream. For GPU/NPU targets this step is a no-op
+                because ``_upgrade_image_set_for_va_memory`` lifts the
+                whole chain into ``video/x-raw(memory:VAMemory),format=NV12``,
+                which every NV12-only DLStreamer consumer also accepts.
 
         The substitutions are deliberately structural (no edge
-        rewiring) so that tee branches and downstream caps negotiation
-        keep working as in the original template.
+        rewiring) for steps 1 / 1b so that tee branches and downstream
+        caps negotiation keep working as in the original template.
+
+        Args:
+            target_device: Inference target (``"CPU"``, ``"GPU"``,
+                ``"NPU"``). NPU is treated like GPU for the purpose of
+                encoder selection. Defaults to ``"CPU"`` for backwards
+                compatibility with callers that did not pass an explicit
+                device.
         """
         # Elements that should become a no-op for raw video input.
         REDUNDANT_PARSERS = {
@@ -2393,18 +2420,46 @@ class Graph:
                 queue.extend(edges_to.get(cur, []))
             return False
 
-        # Pick an encoder element string once. CPU encoder
-        # (openh264enc) is a safe default for image-set pipelines: the
-        # raw video produced by jpegdec/pngdec is already in system
-        # memory, and forcing a VA encoder would require an extra
-        # ``vapostproc`` upload that brings no benefit. The encoder
-        # device selection is decoupled from the inference device on
-        # purpose.
-        from video_encoder import ENCODER_DEVICE_CPU, VideoEncoder
-
-        encoder_element_str = VideoEncoder()._select_element(
-            ENCODER_DEVICE_CPU, streaming=False
+        # Pick an encoder element string once, target-aware.
+        # GPU/NPU pipelines benefit from a VA encoder
+        # (``vah264lpenc`` / ``vah264enc``) because the inference
+        # branch has already lifted frames into VA memory; a software
+        # encoder would force a sysmem download with no benefit and
+        # would in fact break caps negotiation for an all-VA chain.
+        # The CPU path keeps the historical ``openh264enc`` selection.
+        from video_encoder import (
+            ENCODER_DEVICE_CPU,
+            ENCODER_DEVICE_GPU,
+            VideoEncoder,
         )
+
+        device_norm = (target_device or "").upper()
+        wants_va_encoder = device_norm in {"GPU", "NPU"}
+        encoder_device = ENCODER_DEVICE_GPU if wants_va_encoder else ENCODER_DEVICE_CPU
+        encoder_element_str = VideoEncoder()._select_element(
+            encoder_device, streaming=False
+        )
+        # Fallback: if the requested device has no available encoder
+        # (e.g. running on a CPU-only host that still requested GPU),
+        # try the other device so the recorder branch is still usable.
+        if encoder_element_str is None and wants_va_encoder:
+            encoder_element_str = VideoEncoder()._select_element(
+                ENCODER_DEVICE_CPU, streaming=False
+            )
+            if encoder_element_str is not None:
+                logger.debug(
+                    "Image-set adaptation: no VA H264 encoder available, "
+                    "falling back to CPU encoder '%s' for container sinks",
+                    encoder_element_str,
+                )
+                wants_va_encoder = False
+
+        # ``videoconvert`` is only needed for the CPU path:
+        # ``openh264enc`` / ``x264enc`` accept a narrow set of formats
+        # (typically I420). VA encoders happily negotiate NV12 in
+        # either system or VA memory, which the upstream chain already
+        # produces, so the extra element is wasteful.
+        emit_videoconvert_before_encoder = not wants_va_encoder
 
         # Snapshot container sinks before mutating the edge list.
         container_sinks = [
@@ -2425,33 +2480,43 @@ class Graph:
                 continue
 
             logger.debug(
-                "Image-set adaptation: injecting 'videoconvert ! %s ! "
-                "h264parse' in front of container sink '%s' (node %s)",
+                "Image-set adaptation: injecting '%s%s ! h264parse' in "
+                "front of container sink '%s' (node %s)",
+                "videoconvert ! " if emit_videoconvert_before_encoder else "",
                 encoder_element_str,
                 sink.type,
                 sink.id,
             )
 
-            # Allocate three fresh node ids and matching edge ids.
+            # Allocate fresh node ids for the new chain. ``videoconvert``
+            # is optional (CPU-only).
             existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
                 int(e.id) for e in self.edges if e.id.isdigit()
             ]
             next_int = (max(existing_ids) + 1) if existing_ids else 0
 
-            videoconvert_id = str(next_int)
-            next_int += 1
+            new_chain_nodes: list[Node] = []
+            videoconvert_id: Optional[str] = None
+            if emit_videoconvert_before_encoder:
+                videoconvert_id = str(next_int)
+                next_int += 1
+                new_chain_nodes.append(
+                    Node(id=videoconvert_id, type="videoconvert", data={})
+                )
+
             encoder_id = str(next_int)
             next_int += 1
             h264parse_id = str(next_int)
             next_int += 1
 
-            videoconvert_node = Node(id=videoconvert_id, type="videoconvert", data={})
             # ``encoder_element_str`` already contains properties (e.g.
             # "openh264enc bitrate=16000000 complexity=low"); render it
             # as a single token via ``node.type`` with empty data so
             # ``_build_chain`` outputs it verbatim.
-            encoder_node = Node(id=encoder_id, type=encoder_element_str, data={})
-            h264parse_node = Node(id=h264parse_id, type="h264parse", data={})
+            new_chain_nodes.append(
+                Node(id=encoder_id, type=encoder_element_str, data={})
+            )
+            new_chain_nodes.append(Node(id=h264parse_id, type="h264parse", data={}))
 
             # Insert the new chain before the sink in the node list to
             # keep debug dumps readable.
@@ -2459,22 +2524,21 @@ class Graph:
                 (i for i, n in enumerate(self.nodes) if n.id == sink.id),
                 len(self.nodes),
             )
-            self.nodes[insert_at:insert_at] = [
-                videoconvert_node,
-                encoder_node,
-                h264parse_node,
-            ]
+            self.nodes[insert_at:insert_at] = new_chain_nodes
 
             # Rewire: every edge that previously targeted the sink now
-            # targets ``videoconvert`` instead, and we add the new
-            # chain ``videoconvert -> encoder -> h264parse -> sink``.
+            # targets the head of the new chain instead, and we add
+            # the new chain ``[videoconvert ->] encoder -> h264parse
+            # -> sink``.
+            chain_head_id = videoconvert_id if videoconvert_id is not None else encoder_id
             for edge in self.edges:
                 if edge.target == sink.id:
-                    edge.target = videoconvert_id
-            self.edges.append(
-                Edge(id=str(next_int), source=videoconvert_id, target=encoder_id)
-            )
-            next_int += 1
+                    edge.target = chain_head_id
+            if videoconvert_id is not None:
+                self.edges.append(
+                    Edge(id=str(next_int), source=videoconvert_id, target=encoder_id)
+                )
+                next_int += 1
             self.edges.append(
                 Edge(id=str(next_int), source=encoder_id, target=h264parse_id)
             )
@@ -2497,6 +2561,15 @@ class Graph:
         # ``videoconvert ! video/x-raw,format=NV12`` right in front of
         # every reachable NV12-only consumer that does not already have
         # NV12 caps upstream within its connected sub-graph.
+        #
+        # This step only applies to the CPU path. For GPU/NPU,
+        # ``_upgrade_image_set_for_va_memory`` lifts the whole chain
+        # into ``video/x-raw(memory:VAMemory),format=NV12`` which every
+        # NV12-only DLStreamer consumer also accepts (verified
+        # empirically with ``gvamotiondetect`` on real Intel GPUs).
+        if wants_va_encoder:
+            return
+
         NV12_ONLY_CONSUMERS = {"gvamotiondetect"}
 
         def _has_nv12_caps_upstream(start_id: str) -> bool:
@@ -2594,17 +2667,45 @@ class Graph:
         ``gvaclassify`` (DLStreamer rejects the pipeline at runtime with
         "For system memory only supports ie, opencv image preprocessors").
 
-        For GPU/NPU targets we therefore either:
-            - swap the software decoder for a VA decoder (e.g.
-              ``vajpegdec``) if one is available, which produces VA
-              memory directly; or
-            - insert a ``vapostproc`` element after the software decoder
-              to lift the frames into VA memory.
+        For GPU/NPU targets this method applies four pipeline-agnostic
+        transformations, in order:
 
-        Any leftover ``decodebin3`` immediately downstream of the image
-        decoder (carried over from a legacy template) is removed in both
-        the CPU and GPU paths to keep the pipeline tidy; this is safe
-        because the dedicated image decoder already produces raw frames.
+            2. Prune any ``decodebin3`` immediately downstream of the
+               image decoder (it is a no-op once the dedicated image
+               decoder is in place and only confuses caps negotiation).
+               Runs for both CPU and GPU/NPU.
+            3. Insert ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
+               right after the software image decoder. This single
+               element pair lifts every downstream consumer
+               (``gvadetect``, ``gvaclassify``, ``gvamotiondetect``,
+               ``gvafpscounter``, ``gvawatermark``, ...) into VA memory
+               with the canonical NV12 format that every VA-aware
+               DLStreamer plugin understands. GPU/NPU only.
+            5. Swap any reachable software H264 encoder
+               (``openh264enc`` / ``x264enc``) for a VA-API counterpart
+               (``vah264lpenc`` / ``vah264enc`` / ``vaapih264lpenc`` /
+               ``vaapih264enc``). Software H264 encoders cannot accept
+               ``video/x-raw(memory:VAMemory)`` and would break the
+               all-VA chain we just built. GPU/NPU only.
+            6. Promote any ``vapostproc ! video/x-raw[,...]`` (system
+               memory caps) pair reachable in the same branch to
+               ``vapostproc ! video/x-raw(memory:VAMemory)[,...]``. Such
+               pairs typically appear in built-in templates as a
+               downscale step before the file-output encoder
+               (e.g. ``vapostproc ! video/x-raw,width=320,height=240``);
+               keeping them in VA memory matches the VA encoder
+               selected in step 5 and avoids a needless sysmem
+               round-trip. GPU/NPU only.
+
+        Note: a previous revision also tried to swap ``jpegdec`` for
+        ``vajpegdec`` (former "step 1") and to promote a CPU-only
+        ``videoconvert ! NV12`` adapter pair injected by
+        ``_adapt_image_set_video_pipeline`` (former "step 4"). Both
+        steps were removed: ``vajpegdec`` rejects perfectly valid
+        JPEGs at runtime on real Intel GPUs (Battlemage / Arc) with
+        ``subclass failed to handle new picture``, and the CPU-only
+        adapter pair is no longer emitted on GPU/NPU paths because
+        step 3 here lifts everything into VA NV12 unconditionally.
 
         Args:
             target_device: Target inference device (``"CPU"``, ``"GPU"``,
@@ -2647,97 +2748,16 @@ class Graph:
                 # something we do not understand.
                 continue
 
-            extension = str(src_node.data.get(_IMAGE_SET_NODE_FLAG, "")).lower()
-
-            # Detect whether ``_adapt_image_set_video_pipeline`` already
-            # injected a ``videoconvert ! video/x-raw,format=NV12`` pair
-            # downstream (because an NV12-only consumer such as
-            # ``gvamotiondetect`` is present). When that pair exists,
-            # both the VA decoder swap (step 1) and the standalone
-            # ``vapostproc`` insertion (step 3) become harmful:
-            #   * Some VA image decoders (notably ``vajpegdec`` on
-            #     newer GPUs) reject perfectly valid JPEGs at runtime
-            #     with ``subclass failed to handle new picture`` ->
-            #     ``not-negotiated``. Keeping the software decoder is
-            #     more compatible.
-            #   * A standalone ``vapostproc`` placed in front of an
-            #     un-promoted ``videoconvert`` would lift frames into
-            #     VA memory, which ``videoconvert`` then refuses with
-            #     ``not-negotiated``.
-            # Step 4 promotes the existing pair to
-            # ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``,
-            # which already covers the memory hand-off and the format
-            # conversion to NV12. So when the pair is present we skip
-            # steps 1 and 3 entirely.
-            def _has_injected_nv12_adapter_pair(start_id: str) -> bool:
-                """Walk the single-successor chain looking for the pair."""
-                cursor: Optional[str] = start_id
-                seen: set[str] = set()
-                while cursor is not None and cursor not in seen:
-                    seen.add(cursor)
-                    out = edges_from.get(cursor, [])
-                    if len(out) != 1:
-                        return False
-                    nxt_id = self.edges[out[0]].target
-                    nxt = nodes_by_id.get(nxt_id)
-                    if nxt is None:
-                        return False
-                    if nxt.type == "videoconvert":
-                        vc_out = edges_from.get(nxt_id, [])
-                        if len(vc_out) != 1:
-                            return False
-                        caps_id = self.edges[vc_out[0]].target
-                        caps = nodes_by_id.get(caps_id)
-                        return (
-                            caps is not None
-                            and caps.type == "video/x-raw"
-                            and str(caps.data.get("format", "")).upper() == "NV12"
-                            and caps.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
-                        )
-                    # Skip transparent passthroughs and keep walking.
-                    # Skip transparent passthroughs (identity, queue,
-                    # caps nodes) and ``decodebin3``, which step 2
-                    # below will prune.
-                    PASSTHROUGH = {"identity", "queue", "decodebin3"}
-                    if (
-                        nxt.type in PASSTHROUGH
-                        or nxt.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
-                    ):
-                        cursor = nxt_id
-                        continue
-                    return False
-                return False
-
-            has_injected_nv12_pair = _has_injected_nv12_adapter_pair(decoder_id)
-
-            # Step 1: VA image decoders (``vajpegdec`` and friends)
-            # are deliberately NOT swapped in here. Empirical testing
-            # on real Intel GPUs (Battlemage / Arc) showed that
-            # ``vajpegdec`` rejects perfectly valid JPEGs at runtime
-            # with ``subclass failed to handle new picture`` ->
-            # ``not-negotiated``, regardless of whether the rest of
-            # the pipeline expects VA memory. The software decoder
-            # combined with ``vapostproc`` (step 3) is both more
-            # compatible (handles every JPEG variant) and gives the
-            # same end-to-end VA memory delivery to ``gvadetect`` /
-            # ``gvaclassify``. The historical swap branch is kept as
-            # a stub so the rest of the function (decodebin3 prune,
-            # NV12 promotion, encoder swap) can keep its
-            # ``replaced_with_va_decoder`` invariant unchanged.
-            replaced_with_va_decoder = False
-
             # Step 2: prune a redundant decodebin3 sitting right after
             # the image decoder, regardless of target device. The
             # dedicated image decoder already produces raw frames, so
             # decodebin3 here is a no-op that confuses caps negotiation.
             decoder_outgoing = edges_from.get(decoder_id, [])
-            removed_decodebin3_id: Optional[str] = None
             if decoder_outgoing:
                 first_after_decoder_edge_idx = decoder_outgoing[0]
                 next_id = self.edges[first_after_decoder_edge_idx].target
                 next_node = nodes_by_id.get(next_id)
                 if next_node is not None and next_node.type == "decodebin3":
-                    removed_decodebin3_id = next_id
                     # Rewire: every edge that previously left the
                     # decodebin3 now leaves the decoder.
                     for edge in self.edges:
@@ -2763,250 +2783,207 @@ class Graph:
                         edges_from.setdefault(edge.source, []).append(idx)
                     nodes_by_id = {n.id: n for n in self.nodes}
 
-            # Step 3: if we still need VA memory and the decoder is
-            # software-only, insert ``vapostproc ! video/x-raw
-            # (memory:VAMemory),format=NV12`` after the decoder so
-            # the downstream chain stays in VA memory and the format
-            # is pinned to NV12 (the format every VA-aware DLStreamer
-            # plugin understands). A standalone ``vapostproc`` is not
-            # enough: without an explicit caps filter behind it, the
-            # element would happily forward system-memory I420 frames
-            # downstream, which ``gvadetect`` with
+            if not wants_va_memory:
+                # CPU path: nothing else to do for this source.
+                continue
+
+            # Step 3: lift every downstream consumer into VA memory by
+            # inserting ``vapostproc ! video/x-raw(memory:VAMemory),
+            # format=NV12`` after the software decoder. A standalone
+            # ``vapostproc`` is not enough - without an explicit caps
+            # filter behind it, the element forwards system-memory
+            # I420 frames downstream, which ``gvadetect`` with
             # ``pre-process-backend=va-surface-sharing`` rejects with
             # "For system memory only supports ie, opencv image
             # preprocessors".
-            #
-            # When an injected ``videoconvert ! NV12 caps`` pair is
-            # already present downstream, step 4 promotes it to a
-            # VA-aware equivalent which already covers the memory
-            # hand-off; adding another standalone vapostproc here
-            # would only force the immediately-following plain
-            # ``videoconvert`` to negotiate VA memory and fail.
-            if (
-                wants_va_memory
-                and not replaced_with_va_decoder
-                and not has_injected_nv12_pair
-            ):
-                # Allocate fresh node and edge ids.
-                existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
-                    int(e.id) for e in self.edges if e.id.isdigit()
-                ]
-                next_id_int = (max(existing_ids) + 1) if existing_ids else 0
+            existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
+                int(e.id) for e in self.edges if e.id.isdigit()
+            ]
+            next_id_int = (max(existing_ids) + 1) if existing_ids else 0
 
-                vapostproc_id = str(next_id_int)
-                next_id_int += 1
-                vapostproc_node = Node(id=vapostproc_id, type="vapostproc", data={})
+            vapostproc_id = str(next_id_int)
+            next_id_int += 1
+            vapostproc_node = Node(id=vapostproc_id, type="vapostproc", data={})
 
-                caps_id = str(next_id_int)
-                next_id_int += 1
-                caps_node = Node(
-                    id=caps_id,
-                    type="video/x-raw(memory:VAMemory)",
-                    data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "NV12"},
-                )
+            caps_id = str(next_id_int)
+            next_id_int += 1
+            caps_node = Node(
+                id=caps_id,
+                type="video/x-raw(memory:VAMemory)",
+                data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "NV12"},
+            )
 
-                edge_decoder_to_vapostproc = Edge(
-                    id=str(next_id_int),
-                    source=decoder_id,
-                    target=vapostproc_id,
-                )
-                next_id_int += 1
-                edge_vapostproc_to_caps = Edge(
-                    id=str(next_id_int),
-                    source=vapostproc_id,
-                    target=caps_id,
-                )
-                next_id_int += 1
+            edge_decoder_to_vapostproc = Edge(
+                id=str(next_id_int),
+                source=decoder_id,
+                target=vapostproc_id,
+            )
+            next_id_int += 1
+            edge_vapostproc_to_caps = Edge(
+                id=str(next_id_int),
+                source=vapostproc_id,
+                target=caps_id,
+            )
+            next_id_int += 1
 
-                # Insert vapostproc + caps right after the decoder
-                # for readability in any debug dump.
-                for i, n in enumerate(self.nodes):
-                    if n.id == decoder_id:
-                        self.nodes[i + 1 : i + 1] = [vapostproc_node, caps_node]
-                        break
-
-                # Rewire: every edge that previously left the decoder
-                # now leaves the caps node (after we add the new
-                # bridging edges below).
-                for edge in self.edges:
-                    if edge.source == decoder_id:
-                        edge.source = caps_id
-                self.edges.append(edge_decoder_to_vapostproc)
-                self.edges.append(edge_vapostproc_to_caps)
-
-                logger.debug(
-                    "Inserted 'vapostproc ! video/x-raw"
-                    "(memory:VAMemory),format=NV12' (nodes %s, %s) "
-                    "after software image decoder (node %s) to lift "
-                    "frames into VA memory",
-                    vapostproc_id,
-                    caps_id,
-                    decoder_id,
-                )
-
-            # Step 4: when frames now live in VA memory (either because
-            # the decoder was swapped for a VA counterpart in step 1, or
-            # because we just inserted a ``vapostproc`` in step 3), any
-            # plain ``videoconvert ! video/x-raw,format=NV12`` pair
-            # injected by ``_adapt_image_set_video_pipeline`` for an
-            # NV12-only consumer (e.g. ``gvamotiondetect``) becomes a
-            # caps-negotiation hazard: ``videoconvert`` does not accept
-            # ``video/x-raw(memory:VAMemory)``, which crashes the
-            # pipeline at runtime with ``not-negotiated``. Promote that
-            # pair to a VA-aware equivalent:
-            #     videoconvert -> vapostproc
-            #     video/x-raw,format=NV12 -> video/x-raw(memory:VAMemory),format=NV12
-            # so the chain stays entirely in VA memory.
-            if wants_va_memory:
-                # Rebuild adjacency to account for any earlier mutation.
-                edges_from_local: dict[str, list[int]] = {}
-                for idx, edge in enumerate(self.edges):
-                    edges_from_local.setdefault(edge.source, []).append(idx)
-                nodes_by_id_local = {n.id: n for n in self.nodes}
-
-                # Walk forward from the decoder following the single
-                # outgoing edge until we either find the videoconvert
-                # /caps pair or hit a branching point.
-                cursor_id: Optional[str] = decoder_id
-                visited_local: set[str] = set()
-                while cursor_id is not None and cursor_id not in visited_local:
-                    visited_local.add(cursor_id)
-                    out_edges = edges_from_local.get(cursor_id, [])
-                    if len(out_edges) != 1:
-                        break
-                    next_id = self.edges[out_edges[0]].target
-                    next_node = nodes_by_id_local.get(next_id)
-                    if next_node is None:
-                        break
-                    if next_node.type == "videoconvert":
-                        # Inspect the node right after - it must be the
-                        # injected NV12 caps node for us to safely
-                        # promote the pair.
-                        vc_out = edges_from_local.get(next_id, [])
-                        if len(vc_out) == 1:
-                            caps_id = self.edges[vc_out[0]].target
-                            caps_node = nodes_by_id_local.get(caps_id)
-                            if (
-                                caps_node is not None
-                                and caps_node.type == "video/x-raw"
-                                and str(caps_node.data.get("format", "")).upper()
-                                == "NV12"
-                                and caps_node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
-                            ):
-                                logger.debug(
-                                    "Promoting injected 'videoconvert ! "
-                                    "video/x-raw,format=NV12' (nodes %s, %s) "
-                                    "to VA-aware 'vapostproc ! "
-                                    "video/x-raw(memory:VAMemory),format=NV12' "
-                                    "after VA decoder/vapostproc upstream",
-                                    next_id,
-                                    caps_id,
-                                )
-                                next_node.type = "vapostproc"
-                                caps_node.type = "video/x-raw(memory:VAMemory)"
-                        break
-                    # Skip transparent passthroughs (identity, queue,
-                    # caps nodes, vapostproc, decodebin3) and keep walking.
-                    PASSTHROUGH = {
-                        "identity",
-                        "queue",
-                        "vapostproc",
-                        "decodebin3",
-                    }
-                    if (
-                        next_node.type in PASSTHROUGH
-                        or next_node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
-                    ):
-                        cursor_id = next_id
-                        continue
-                    # Anything else means there is no injected NV12
-                    # adapter pair to fix up; leave the graph alone.
+            # Insert vapostproc + caps right after the decoder for
+            # readability in any debug dump.
+            for i, n in enumerate(self.nodes):
+                if n.id == decoder_id:
+                    self.nodes[i + 1 : i + 1] = [vapostproc_node, caps_node]
                     break
 
-            # Step 5: when targeting VA memory, swap any reachable
-            # software H264 encoder (``openh264enc`` / ``x264enc``)
-            # for a VA-API counterpart (``vah264lpenc`` / ``vah264enc``
-            # / ``vaapih264enc`` / ``vaapih264lpenc``). Software H264
-            # encoders cannot accept ``video/x-raw(memory:VAMemory)``
-            # nor NV12 in system memory, which makes them
+            # Rewire: every edge that previously left the decoder now
+            # leaves the caps node (after we add the new bridging
+            # edges below).
+            for edge in self.edges:
+                if edge.source == decoder_id:
+                    edge.source = caps_id
+            self.edges.append(edge_decoder_to_vapostproc)
+            self.edges.append(edge_vapostproc_to_caps)
+
+            logger.debug(
+                "Inserted 'vapostproc ! video/x-raw"
+                "(memory:VAMemory),format=NV12' (nodes %s, %s) "
+                "after software image decoder (node %s) to lift "
+                "frames into VA memory",
+                vapostproc_id,
+                caps_id,
+                decoder_id,
+            )
+
+            # Refresh adjacency for steps 5 / 6.
+            edges_from = {}
+            for idx, edge in enumerate(self.edges):
+                edges_from.setdefault(edge.source, []).append(idx)
+            nodes_by_id = {n.id: n for n in self.nodes}
+
+            # Compute reachability from the current image-set source
+            # so steps 5 and 6 only touch nodes in this branch.
+            edges_from_reach: dict[str, list[str]] = {}
+            for edge in self.edges:
+                edges_from_reach.setdefault(edge.source, []).append(edge.target)
+            reachable_from_src: set[str] = set()
+            stack = [src_node.id]
+            while stack:
+                cur = stack.pop()
+                if cur in reachable_from_src:
+                    continue
+                reachable_from_src.add(cur)
+                for nxt in edges_from_reach.get(cur, []):
+                    if nxt not in reachable_from_src:
+                        stack.append(nxt)
+
+            # Step 5: swap any reachable software H264 encoder
+            # (``openh264enc`` / ``x264enc``) for a VA-API counterpart.
+            # Software H264 encoders cannot accept
+            # ``video/x-raw(memory:VAMemory)``, which makes them
             # incompatible with the all-VA inference chain we just
-            # built; on real GPUs this manifests at parse time as
-            # ``could not link ... openh264enc can't handle caps`` or
-            # at runtime as ``not-negotiated``. Fallback: if no VA
-            # encoder is registered we leave the encoder alone (the
-            # pipeline may still fail, but we do not make things
-            # worse than they already are). Property strings already
-            # set on the sw encoder node (e.g. ``bitrate``) are
-            # discarded because the VA encoders use a different
-            # property surface (``rate-control``, ``target-usage``,
-            # ...) and would be rejected by GStreamer.
-            if wants_va_memory:
-                from explore import GstInspector
+            # built. Property strings already set on the sw encoder
+            # node (e.g. ``bitrate``) are discarded because the VA
+            # encoders use a different property surface
+            # (``rate-control``, ``target-usage``, ...) and would be
+            # rejected by GStreamer. Fallback: if no VA encoder is
+            # registered we leave the encoder alone (the pipeline may
+            # still fail, but we do not make things worse).
+            from explore import GstInspector
 
-                available_elements = {e[1] for e in GstInspector().elements}
-                # Order matters: low-power encoder first (more
-                # efficient on Intel iGPUs), then full-power, then
-                # legacy vaapi naming.
-                VA_H264_ENCODER_PREFERENCE = [
-                    "vah264lpenc",
-                    "vah264enc",
-                    "vaapih264lpenc",
-                    "vaapih264enc",
-                ]
-                SW_H264_ENCODERS = {"openh264enc", "x264enc"}
+            available_elements = {e[1] for e in GstInspector().elements}
+            # Order matters: low-power encoder first (more efficient
+            # on Intel iGPUs), then full-power, then legacy vaapi
+            # naming.
+            VA_H264_ENCODER_PREFERENCE = [
+                "vah264lpenc",
+                "vah264enc",
+                "vaapih264lpenc",
+                "vaapih264enc",
+            ]
+            SW_H264_ENCODERS = {"openh264enc", "x264enc"}
 
-                va_encoder = next(
-                    (
-                        cand
-                        for cand in VA_H264_ENCODER_PREFERENCE
-                        if cand in available_elements
-                    ),
-                    None,
-                )
+            va_encoder = next(
+                (
+                    cand
+                    for cand in VA_H264_ENCODER_PREFERENCE
+                    if cand in available_elements
+                ),
+                None,
+            )
 
-                if va_encoder is not None:
-                    # Compute reachability from the current image-set
-                    # source so we only touch encoders that belong to
-                    # this branch.
-                    edges_from_reach: dict[str, list[str]] = {}
-                    for edge in self.edges:
-                        edges_from_reach.setdefault(edge.source, []).append(
-                            edge.target
+            if va_encoder is not None:
+                for node in self.nodes:
+                    if node.id not in reachable_from_src:
+                        continue
+                    # ``node.type`` for an encoder may carry inline
+                    # properties (e.g. "openh264enc bitrate=16000000
+                    # complexity=low"). Compare only the first
+                    # whitespace-separated token.
+                    first_token = node.type.split()[0] if node.type else ""
+                    if first_token in SW_H264_ENCODERS:
+                        logger.debug(
+                            "Replacing software H264 encoder '%s' "
+                            "(node %s) with VA encoder '%s' for "
+                            "image-set source %s on target %s",
+                            node.type,
+                            node.id,
+                            va_encoder,
+                            src_node.id,
+                            device,
                         )
-                    reachable_from_src: set[str] = set()
-                    stack = [src_node.id]
-                    while stack:
-                        cur = stack.pop()
-                        if cur in reachable_from_src:
-                            continue
-                        reachable_from_src.add(cur)
-                        for nxt in edges_from_reach.get(cur, []):
-                            if nxt not in reachable_from_src:
-                                stack.append(nxt)
+                        node.type = va_encoder
+                        node.data.clear()
 
-                    for node in self.nodes:
-                        if node.id not in reachable_from_src:
-                            continue
-                        # ``node.type`` for an encoder may carry
-                        # inline properties (e.g. "openh264enc
-                        # bitrate=16000000 complexity=low"). Compare
-                        # only the first whitespace-separated token.
-                        first_token = node.type.split()[0] if node.type else ""
-                        if first_token in SW_H264_ENCODERS:
-                            logger.debug(
-                                "Replacing software H264 encoder '%s' "
-                                "(node %s) with VA encoder '%s' for "
-                                "image-set source %s on target %s",
-                                node.type,
-                                node.id,
-                                va_encoder,
-                                src_node.id,
-                                device,
-                            )
-                            node.type = va_encoder
-                            node.data.clear()
-
-            _ = removed_decodebin3_id  # currently unused beyond logging
+            # Step 6: promote every reachable
+            # ``vapostproc ! video/x-raw[,props]`` pair (sysmem caps)
+            # to ``vapostproc ! video/x-raw(memory:VAMemory)[,props]``.
+            # This typically catches the downscale step that templates
+            # place before the main file-output encoder
+            # (e.g. ``vapostproc ! video/x-raw,width=320,height=240 !
+            # vah264lpenc ! ...``); keeping it in VA memory avoids a
+            # needless sysmem round-trip and matches the VA encoder
+            # selected in step 5. The newly inserted pair from step 3
+            # is already VA-aware so it is safe to skip.
+            for node in self.nodes:
+                if node.id not in reachable_from_src:
+                    continue
+                if node.type != "vapostproc":
+                    continue
+                if node.id == vapostproc_id:
+                    # Pair we just inserted in step 3 - already VA.
+                    continue
+                vp_outgoing = edges_from.get(node.id, [])
+                if len(vp_outgoing) != 1:
+                    continue
+                caps_target_id = self.edges[vp_outgoing[0]].target
+                caps_target = nodes_by_id.get(caps_target_id)
+                if caps_target is None:
+                    continue
+                # Match either an explicit caps node (``__node_kind=caps``)
+                # or a bare ``video/x-raw[(...)]`` segment that the
+                # YAML parser left unmarked. Skip anything that is
+                # already a VAMemory caps.
+                is_caps = (
+                    caps_target.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
+                    or caps_target.type.startswith("video/x-raw")
+                )
+                if not is_caps:
+                    continue
+                if "(memory:VAMemory)" in caps_target.type:
+                    continue
+                if not caps_target.type.startswith("video/x-raw"):
+                    continue
+                new_type = caps_target.type.replace(
+                    "video/x-raw", "video/x-raw(memory:VAMemory)", 1
+                )
+                logger.debug(
+                    "Promoting sysmem caps '%s' (node %s) downstream of "
+                    "vapostproc (node %s) to '%s' for image-set source %s",
+                    caps_target.type,
+                    caps_target.id,
+                    node.id,
+                    new_type,
+                    src_node.id,
+                )
+                caps_target.type = new_type
 
     def validate_camera_sources_followed_by_decodebin3(self) -> None:
         """
