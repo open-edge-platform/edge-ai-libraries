@@ -2606,10 +2606,68 @@ class Graph:
 
             extension = str(src_node.data.get(_IMAGE_SET_NODE_FLAG, "")).lower()
 
+            # Detect whether ``_adapt_image_set_video_pipeline`` already
+            # injected a ``videoconvert ! video/x-raw,format=NV12`` pair
+            # downstream (because an NV12-only consumer such as
+            # ``gvamotiondetect`` is present). When that pair exists,
+            # both the VA decoder swap (step 1) and the standalone
+            # ``vapostproc`` insertion (step 3) become harmful:
+            #   * Some VA image decoders (notably ``vajpegdec`` on
+            #     newer GPUs) reject perfectly valid JPEGs at runtime
+            #     with ``subclass failed to handle new picture`` ->
+            #     ``not-negotiated``. Keeping the software decoder is
+            #     more compatible.
+            #   * A standalone ``vapostproc`` placed in front of an
+            #     un-promoted ``videoconvert`` would lift frames into
+            #     VA memory, which ``videoconvert`` then refuses with
+            #     ``not-negotiated``.
+            # Step 4 promotes the existing pair to
+            # ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``,
+            # which already covers the memory hand-off and the format
+            # conversion to NV12. So when the pair is present we skip
+            # steps 1 and 3 entirely.
+            def _has_injected_nv12_adapter_pair(start_id: str) -> bool:
+                """Walk the single-successor chain looking for the pair."""
+                cursor: Optional[str] = start_id
+                seen: set[str] = set()
+                while cursor is not None and cursor not in seen:
+                    seen.add(cursor)
+                    out = edges_from.get(cursor, [])
+                    if len(out) != 1:
+                        return False
+                    nxt_id = self.edges[out[0]].target
+                    nxt = nodes_by_id.get(nxt_id)
+                    if nxt is None:
+                        return False
+                    if nxt.type == "videoconvert":
+                        vc_out = edges_from.get(nxt_id, [])
+                        if len(vc_out) != 1:
+                            return False
+                        caps_id = self.edges[vc_out[0]].target
+                        caps = nodes_by_id.get(caps_id)
+                        return (
+                            caps is not None
+                            and caps.type == "video/x-raw"
+                            and str(caps.data.get("format", "")).upper() == "NV12"
+                            and caps.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
+                        )
+                    # Skip transparent passthroughs and keep walking.
+                    PASSTHROUGH = {"identity", "queue"}
+                    if (
+                        nxt.type in PASSTHROUGH
+                        or nxt.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
+                    ):
+                        cursor = nxt_id
+                        continue
+                    return False
+                return False
+
+            has_injected_nv12_pair = _has_injected_nv12_adapter_pair(decoder_id)
+
             # Step 1: optionally replace the software decoder with a
             # VA-accelerated counterpart on GPU/NPU.
             replaced_with_va_decoder = False
-            if wants_va_memory:
+            if wants_va_memory and not has_injected_nv12_pair:
                 from explore import GstInspector
 
                 available = {e[1] for e in GstInspector().elements}
@@ -2667,7 +2725,17 @@ class Graph:
             # Step 3: if we still need VA memory and the decoder is
             # software-only, insert a vapostproc node to lift frames
             # into VA memory before they reach gvadetect/gvaclassify.
-            if wants_va_memory and not replaced_with_va_decoder:
+            # When an injected ``videoconvert ! NV12 caps`` pair is
+            # already present downstream, step 4 promotes it to a
+            # VA-aware equivalent which already covers the memory
+            # hand-off; adding another standalone vapostproc here
+            # would only force the immediately-following plain
+            # ``videoconvert`` to negotiate VA memory and fail.
+            if (
+                wants_va_memory
+                and not replaced_with_va_decoder
+                and not has_injected_nv12_pair
+            ):
                 # Allocate a fresh node id.
                 existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
                     int(e.id) for e in self.edges if e.id.isdigit()

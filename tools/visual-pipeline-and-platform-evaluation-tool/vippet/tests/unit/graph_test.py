@@ -6766,12 +6766,19 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         """
         When the image-set adapter has injected a
         ``videoconvert ! video/x-raw,format=NV12`` pair in front of an
-        NV12-only consumer (e.g. ``gvamotiondetect``), and the upgrade
-        to VA memory either swaps the decoder for a VA decoder or
-        inserts a ``vapostproc`` upstream, the injected pair must be
-        promoted to ``vapostproc ! video/x-raw(memory:VAMemory),
-        format=NV12`` - otherwise plain ``videoconvert`` rejects
-        VAMemory caps at runtime with "not-negotiated".
+        NV12-only consumer (e.g. ``gvamotiondetect``), the upgrade
+        path must:
+            * keep the software image decoder (the VA decoder swap is
+              skipped because some VA image decoders fail on common
+              JPEGs and ``vapostproc`` downstream already covers the
+              memory hand-off),
+            * not insert a redundant standalone ``vapostproc`` after
+              the decoder (the existing pair already does the job),
+            * promote the injected pair to
+              ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
+              so the chain stays in VA memory end-to-end.
+        Otherwise plain ``videoconvert`` would reject VAMemory caps at
+        runtime with "not-negotiated".
         """
         # Build a graph that mimics the post-adaptation state for an
         # image-set + gvamotiondetect pipeline:
@@ -6818,8 +6825,8 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
             graph._upgrade_image_set_for_va_memory("GPU")
 
         types_by_id = {n.id: n.type for n in graph.nodes}
-        # The decoder was swapped to VA.
-        self.assertEqual(types_by_id["1"], "vajpegdec")
+        # Software decoder kept (VA swap intentionally skipped).
+        self.assertEqual(types_by_id["1"], "jpegdec")
         # The injected videoconvert was promoted to vapostproc.
         self.assertEqual(types_by_id["2"], "vapostproc")
         # The injected NV12 caps base was promoted to VAMemory.
@@ -6827,6 +6834,12 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         # The format value is preserved.
         nv12_caps = next(n for n in graph.nodes if n.id == "3")
         self.assertEqual(nv12_caps.data.get("format"), "NV12")
+        # No redundant standalone vapostproc was injected after the
+        # decoder - the only vapostproc in the graph is the promoted
+        # one (originally the videoconvert at id "2").
+        vapostproc_nodes = [n for n in graph.nodes if n.type == "vapostproc"]
+        self.assertEqual(len(vapostproc_nodes), 1)
+        self.assertEqual(vapostproc_nodes[0].id, "2")
 
     def test_cpu_target_does_not_promote_injected_nv12_pair(self) -> None:
         """
