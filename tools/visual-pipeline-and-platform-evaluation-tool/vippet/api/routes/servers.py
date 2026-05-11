@@ -19,6 +19,7 @@ from fastapi import APIRouter, Path as PathParam
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
+from database import check_db_connection
 from managers.server_manager import ServerManager
 
 router = APIRouter()
@@ -150,6 +151,29 @@ def _get_kernel_version() -> str:
         return platform.release()
     except Exception:
         return "Unknown"
+
+
+@router.get(
+    "/db-status",
+    operation_id="get_db_status",
+    summary="Get Database Status",
+    responses={
+        200: {"description": "Database is reachable"},
+        503: {"description": "Database is not reachable"},
+    },
+)
+async def get_db_status():
+    """
+    **Check whether the database is reachable.**
+
+    Returns 200 if DATABASE_URL is set and the database accepts connections,
+    or 503 with an error message otherwise. The UI uses this endpoint to
+    decide whether to show the server registration dialog.
+    """
+    available, reason = check_db_connection()
+    if available:
+        return JSONResponse(content={"available": True, "message": reason}, status_code=200)
+    return JSONResponse(content={"available": False, "message": reason}, status_code=503)
 
 
 @router.get(

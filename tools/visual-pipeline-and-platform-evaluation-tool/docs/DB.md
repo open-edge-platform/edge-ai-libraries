@@ -12,8 +12,8 @@ other machines on the network.
 ```
 docker run -d \
   --name vippet-postgres \
-  -e POSTGRES_USER=vippet \
-  -e POSTGRES_PASSWORD=<your_secure_password> \
+  -e POSTGRES_USER=<username> \
+  -e POSTGRES_PASSWORD=<password> \
   -e POSTGRES_DB=vippet_db \
   -p 0.0.0.0:5432:5432 \
   --restart unless-stopped \
@@ -31,7 +31,7 @@ Set the ``DATABASE_URL`` environment variable before starting ViPPET,
 either in your shell or in the ``.env`` file at the project root:
 
 ```
-DATABASE_URL=postgresql://vippet:<your_secure_password>@<DB_HOST_IP>:5432/vippet_db
+DATABASE_URL=postgresql://<username>:<password>@<DB_HOST_IP>:5432/vippet_db
 ```
 The variable is forwarded into the ``vippet`` container via ``compose.yml``.
 

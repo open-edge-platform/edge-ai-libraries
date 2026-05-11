@@ -18,7 +18,7 @@ logger = logging.getLogger("database")
 # Format: postgresql://user:password@host:5432/dbname
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql://vippet:Intel123@10.158.108.69:5432/vippet_db",
+    "postgresql://user:password@host:5432/vippet_db",
 )
 
 engine = create_engine(
@@ -60,6 +60,25 @@ class Server(Base):
             f"<Server(uuid={self.uuid}, ip={self.ip_address}, "
             f"cpu={self.cpu_sku}, ram={self.ram_size}GB)>"
         )
+
+
+def check_db_connection() -> tuple[bool, str]:
+    """
+    Check whether the database is reachable and DATABASE_URL is configured.
+
+    Returns:
+        Tuple of (is_available: bool, reason: str).
+    """
+    raw_url = os.environ.get("DATABASE_URL", "")
+    if not raw_url:
+        return False, "DATABASE_URL environment variable is not set"
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(__import__("sqlalchemy").text("SELECT 1"))
+        return True, "Database connection successful"
+    except Exception as e:
+        return False, f"Cannot connect to database: {e}"
 
 
 def init_db() -> None:

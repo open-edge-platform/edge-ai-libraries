@@ -18,6 +18,8 @@ import { Separator } from "@/components/ui/separator.tsx";
 import { routeConfig, keepAliveRoutes } from "@/config/navigation.ts";
 import { BackgroundJobsProvider } from "@/contexts/BackgroundJobsContext";
 import { BackgroundJobsWidget } from "@/components/BackgroundJobsWidget";
+import { useEffect, useState } from "react";
+import { API_BASE_URL } from "@/api/apiSlice.ts";
 
 const Layout = () => {
   usePipelinesLoader();
@@ -25,6 +27,14 @@ const Layout = () => {
   useDevicesLoader();
   const { theme, setTheme } = useTheme();
   const location = useLocation();
+  const [dbAvailable, setDbAvailable] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/servers/db-status`)
+      .then((res) => res.ok)
+      .then(setDbAvailable)
+      .catch(() => setDbAvailable(false));
+  }, []);
 
   return (
     <BackgroundJobsProvider>
@@ -44,7 +54,7 @@ const Layout = () => {
                 </h1>
               </div>
               <div className="flex items-center gap-2 px-4">
-                <AddServerDialog />
+                {dbAvailable && <AddServerDialog />}
                 <Button
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                   aria-label="Toggle theme"
