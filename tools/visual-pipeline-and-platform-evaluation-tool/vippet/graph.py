@@ -2311,6 +2311,36 @@ class Graph:
                 node.type = "identity"
                 node.data.clear()
 
+        # Step 1b: degrade any pre-existing
+        # ``video/x-raw(memory:VAMemory)*`` capsfilter that survived
+        # the parser/decoder rewrite to plain ``video/x-raw*``. The
+        # original VA capsfilters were paired with a VA video decoder
+        # (``vah264dec`` etc.) in the YAML template; that decoder has
+        # just been replaced with ``identity`` (which cannot
+        # negotiate VAMemory caps), and the new image-set source
+        # produces system-memory frames, not VAMemory. Without this
+        # downgrade, the Smart NVR GPU template fails at parse time
+        # with ``can't handle caps video/x-raw(memory:VAMemory)``.
+        # The actual VA hand-off needed for inference is set up
+        # later by ``_upgrade_image_set_for_va_memory``.
+        for node in self.nodes:
+            if node.id not in reachable:
+                continue
+            if node.data.get(NODE_KIND_KEY) != NODE_KIND_CAPS:
+                continue
+            if "(memory:VAMemory)" not in node.type:
+                continue
+            new_type = node.type.replace("(memory:VAMemory)", "")
+            logger.debug(
+                "Image-set adaptation: degrading VAMemory capsfilter "
+                "'%s' (node %s) to '%s' because the upstream decoder "
+                "is now software / identity",
+                node.type,
+                node.id,
+                new_type,
+            )
+            node.type = new_type
+
         # Step 2: container/recorder sinks need a compressed stream.
         # Walk each one and check whether an H264 encoder is reachable
         # backwards within the same connected sub-graph; if not,

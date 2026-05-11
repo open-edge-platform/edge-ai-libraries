@@ -7127,6 +7127,57 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         types_by_id = {n.id: n.type for n in graph.nodes}
         self.assertEqual(types_by_id["2"], "openh264enc")
 
+    def test_gpu_target_swaps_software_h264_encoders_in_both_tee_branches(
+        self,
+    ) -> None:
+        """
+        Smart NVR has a tee that fans out to two branches, each
+        ending with an ``openh264enc``. Both must be swapped to a
+        VA encoder when the target is GPU.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="tee", data={"name": "t0"}),
+                Node(id="3", type="queue", data={}),
+                Node(
+                    id="4",
+                    type="openh264enc bitrate=16000000 complexity=low",
+                    data={},
+                ),
+                Node(id="5", type="filesink", data={"location": "/tmp/a.mp4"}),
+                Node(id="6", type="queue", data={}),
+                Node(id="7", type="openh264enc", data={}),
+                Node(id="8", type="filesink", data={"location": "/tmp/b.mp4"}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+                Edge(id="e5", source="2", target="6"),
+                Edge(id="e6", source="6", target="7"),
+                Edge(id="e7", source="7", target="8"),
+            ],
+        )
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vah264lpenc", "VA-API low-power H264 encoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            graph._upgrade_image_set_for_va_memory("GPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        self.assertEqual(types_by_id["4"], "vah264lpenc")
+        self.assertEqual(types_by_id["7"], "vah264lpenc")
+
 
 class TestAdaptImageSetVideoPipeline(unittest.TestCase):
     """
@@ -7257,6 +7308,102 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
         self.assertEqual(
             types_in_order, ["filesrc", "parsebin", "avdec_h264", "fakesink"]
         )
+
+    def test_vamemory_capsfilter_degraded_to_plain_video_x_raw(self) -> None:
+        """
+        Smart NVR GPU template ships with
+        ``video/x-raw(memory:VAMemory)`` capsfilters paired with VA
+        video decoders (``vah264dec``). After image-set adaptation
+        the VA decoder becomes ``identity`` (which cannot negotiate
+        VAMemory) and the upstream chain produces system memory.
+        The leftover VAMemory capsfilters must therefore be degraded
+        to plain ``video/x-raw`` capsfilters; otherwise the pipeline
+        fails at parse time with ``can't handle caps
+        video/x-raw(memory:VAMemory)``.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="vah264dec", data={}),
+                Node(
+                    id="3",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="4", type="gvafpscounter", data={}),
+                Node(
+                    id="5",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps", "width": "320", "height": "240"},
+                ),
+                Node(id="6", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+                Edge(id="e5", source="5", target="6"),
+            ],
+        )
+
+        with patch(
+            "video_encoder.VideoEncoder._select_element", return_value=None
+        ):
+            graph._adapt_image_set_video_pipeline()
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # vah264dec replaced with identity (Step 1).
+        self.assertEqual(types_by_id["2"], "identity")
+        # Both VAMemory capsfilters degraded to plain video/x-raw
+        # (Step 1b). Their data fields (width/height markers) are
+        # preserved because only the type prefix is rewritten.
+        self.assertEqual(types_by_id["3"], "video/x-raw")
+        self.assertEqual(types_by_id["5"], "video/x-raw")
+        caps5 = next(n for n in graph.nodes if n.id == "5")
+        self.assertEqual(caps5.data.get("width"), "320")
+        self.assertEqual(caps5.data.get("height"), "240")
+
+    def test_vamemory_capsfilter_left_alone_for_non_image_set_pipeline(
+        self,
+    ) -> None:
+        """
+        The VAMemory capsfilter degrade must only run for image-set
+        pipelines; regular video pipelines (filesrc + parsebin +
+        vah264dec) must keep their VAMemory capsfilters intact.
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "v.mp4"}),
+                Node(id="1", type="parsebin", data={}),
+                Node(id="2", type="vah264dec", data={}),
+                Node(
+                    id="3",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+            ],
+        )
+
+        graph._adapt_image_set_video_pipeline()
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # No image-set source -> no rewriting at all.
+        self.assertEqual(types_by_id["2"], "vah264dec")
+        self.assertEqual(types_by_id["3"], "video/x-raw(memory:VAMemory)")
 
     def test_nv12_caps_injected_before_gvamotiondetect(self) -> None:
         """
