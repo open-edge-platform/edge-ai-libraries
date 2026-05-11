@@ -66,8 +66,14 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_METRICS_URL || "http://localhost:9090",
           changeOrigin: true,
           secure: false,
-          ws: true,
-          rewrite: (path: string) => path.replace(/^\/metrics\/ws/, "/ws"),
+          ws: false,
+          configure: (proxy) => {
+            // Disable response buffering so SSE events stream through immediately
+            proxy.on("proxyRes", (proxyRes) => {
+              proxyRes.headers["cache-control"] = "no-cache";
+              proxyRes.headers["x-accel-buffering"] = "no";
+            });
+          },
         },
       },
     },
