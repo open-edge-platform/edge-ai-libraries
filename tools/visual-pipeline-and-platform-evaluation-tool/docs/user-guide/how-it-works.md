@@ -3,7 +3,7 @@
 The Visual Pipeline and Platform Evaluation Tool integrates with AI-based video processing
 pipelines to support hardware performance evaluation.
 
-![System Architecture Diagram](./_assets/architecture.png)
+![System Architecture Diagram](./_assets/NEW-Architecture.svg)
 
 ## Workflow
 
