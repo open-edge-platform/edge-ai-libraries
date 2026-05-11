@@ -6764,13 +6764,9 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         # Connectivity: pngdec -> vapostproc -> caps -> fakesink.
         edges = [(e.source, e.target) for e in result.edges]
         pngdec_id = next(n.id for n in result.nodes if n.type == "pngdec")
-        vapostproc_id = next(
-            n.id for n in result.nodes if n.type == "vapostproc"
-        )
+        vapostproc_id = next(n.id for n in result.nodes if n.type == "vapostproc")
         caps_id = next(
-            n.id
-            for n in result.nodes
-            if n.type == "video/x-raw(memory:VAMemory)"
+            n.id for n in result.nodes if n.type == "video/x-raw(memory:VAMemory)"
         )
         fakesink_id = next(n.id for n in result.nodes if n.type == "fakesink")
         self.assertIn((pngdec_id, vapostproc_id), edges)
@@ -7364,9 +7360,7 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
             ],
         )
 
-        with patch(
-            "video_encoder.VideoEncoder._select_element", return_value=None
-        ):
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
             graph._adapt_image_set_video_pipeline()
 
         types_by_id = {n.id: n.type for n in graph.nodes}

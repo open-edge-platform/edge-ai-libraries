@@ -2554,7 +2554,9 @@ class Graph:
             # targets the head of the new chain instead, and we add
             # the new chain ``[videoconvert ->] encoder -> h264parse
             # -> sink``.
-            chain_head_id = videoconvert_id if videoconvert_id is not None else encoder_id
+            chain_head_id = (
+                videoconvert_id if videoconvert_id is not None else encoder_id
+            )
             for edge in self.edges:
                 if edge.target == sink.id:
                     edge.target = chain_head_id
@@ -2985,10 +2987,9 @@ class Graph:
                 # or a bare ``video/x-raw[(...)]`` segment that the
                 # YAML parser left unmarked. Skip anything that is
                 # already a VAMemory caps.
-                is_caps = (
-                    caps_target.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
-                    or caps_target.type.startswith("video/x-raw")
-                )
+                is_caps = caps_target.data.get(
+                    NODE_KIND_KEY
+                ) == NODE_KIND_CAPS or caps_target.type.startswith("video/x-raw")
                 if not is_caps:
                     continue
                 if "(memory:VAMemory)" in caps_target.type:
