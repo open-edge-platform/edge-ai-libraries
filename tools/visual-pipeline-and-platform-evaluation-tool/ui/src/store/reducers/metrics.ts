@@ -5,7 +5,7 @@ export interface MetricData {
   name: string;
   fields: Record<string, number | string>;
   tags?: Record<string, string>;
-  timestamp?: string;
+  timestamp?: number;
 }
 export interface MetricsMessage {
   metrics: MetricData[];
