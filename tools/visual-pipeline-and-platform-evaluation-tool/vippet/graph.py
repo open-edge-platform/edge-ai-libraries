@@ -2323,10 +2323,23 @@ class Graph:
         # with ``can't handle caps video/x-raw(memory:VAMemory)``.
         # The actual VA hand-off needed for inference is set up
         # later by ``_upgrade_image_set_for_va_memory``.
+        # Note: ``Graph.from_pipeline_description`` only marks a caps
+        # node with ``NODE_KIND_CAPS`` when the YAML segment carries
+        # at least one ``key=value`` pair (e.g.
+        # ``video/x-raw(memory:VAMemory),width=320``). A bare caps
+        # segment such as ``video/x-raw(memory:VAMemory)`` is parsed
+        # as a regular element node with empty ``data``. Both forms
+        # appear in built-in templates (Simple NVR uses both), so we
+        # match either: an explicit caps node, or any node whose
+        # ``type`` literally starts with ``video/x-raw(memory:`` —
+        # there is no GStreamer element with such a name, so this
+        # cannot misfire on a real element.
         for node in self.nodes:
             if node.id not in reachable:
                 continue
-            if node.data.get(NODE_KIND_KEY) != NODE_KIND_CAPS:
+            is_caps_node = node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
+            looks_like_va_caps = node.type.startswith("video/x-raw(memory:")
+            if not (is_caps_node or looks_like_va_caps):
                 continue
             if "(memory:VAMemory)" not in node.type:
                 continue

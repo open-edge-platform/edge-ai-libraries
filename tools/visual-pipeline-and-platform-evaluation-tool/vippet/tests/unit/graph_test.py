@@ -7370,6 +7370,52 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
         self.assertEqual(caps5.data.get("width"), "320")
         self.assertEqual(caps5.data.get("height"), "240")
 
+    def test_vamemory_capsfilter_without_kind_marker_is_also_degraded(
+        self,
+    ) -> None:
+        """
+        Regression test for Simple NVR GPU + image-set: the YAML
+        parser only marks a caps node with ``__node_kind=caps`` when
+        the segment carries at least one ``key=value`` pair. A bare
+        ``video/x-raw(memory:VAMemory)`` segment is therefore loaded
+        as a node with empty ``data`` (no kind marker). Step 1b must
+        still degrade that node, otherwise the leftover VAMemory caps
+        breaks the pipeline at parse time with
+        ``identity can't handle caps video/x-raw(memory:VAMemory)``.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="vah264dec", data={}),
+                # NOTE: no ``__node_kind`` marker - this mirrors how
+                # ``Graph.from_pipeline_description`` parses a bare
+                # ``video/x-raw(memory:VAMemory)`` segment.
+                Node(id="3", type="video/x-raw(memory:VAMemory)", data={}),
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+            ],
+        )
+
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
+            graph._adapt_image_set_video_pipeline()
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # vah264dec replaced with identity (Step 1).
+        self.assertEqual(types_by_id["2"], "identity")
+        # Bare VAMemory capsfilter degraded to plain video/x-raw
+        # (Step 1b heuristic on type prefix).
+        self.assertEqual(types_by_id["3"], "video/x-raw")
+
     def test_vamemory_capsfilter_left_alone_for_non_image_set_pipeline(
         self,
     ) -> None:
