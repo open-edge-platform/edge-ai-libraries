@@ -319,7 +319,7 @@ const NodeDataPanel = ({
                       })
                       .map((model) => (
                         <option
-                          key={model.name}
+                          key={model.display_name ?? model.name}
                           value={model.display_name ?? model.name}
                         >
                           {model.display_name ?? model.name}
