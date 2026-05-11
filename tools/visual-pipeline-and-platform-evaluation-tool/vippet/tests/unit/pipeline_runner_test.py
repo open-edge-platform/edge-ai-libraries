@@ -79,7 +79,7 @@ def _extract_pushed_fps_values(mock_urlopen: MagicMock) -> list[float]:
 
 
 def _extract_latency_payloads(mock_urlopen: MagicMock) -> list[dict]:
-    """Extract every batch-endpoint payload sent to metrics-service.
+    """Extract every batch-endpoint payload sent to metrics-manager.
 
     Returns each JSON body as a dict, filtered to calls targeting the
     ``/api/v1/metrics`` batch endpoint used by `_push_latency_sample`
@@ -262,7 +262,7 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
     def test_run_pipeline_pushes_zero_fps_on_completion(
         self, mock_urlopen, mock_select, mock_ps, mock_popen
     ):
-        """PipelineRunner should push 0.0 to metrics-service after successful completion."""
+        """PipelineRunner should push 0.0 to metrics-manager after successful completion."""
         process_mock = _make_process_mock(
             [
                 "FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps",
@@ -290,7 +290,7 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         # Last push should be 0.0 (from finally block).
         self.assertEqual(pushed[-1], 0.0, "Last FPS push should be 0.0")
 
-        # Every request targets the metrics-service `/api/v1/metrics/simple` endpoint.
+        # Every request targets the metrics-manager `/api/v1/metrics/simple` endpoint.
         for call in mock_urlopen.call_args_list:
             req = call[0][0]
             self.assertTrue(req.full_url.endswith("/api/v1/metrics/simple"))
@@ -302,7 +302,7 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
     def test_run_pipeline_pushes_zero_fps_on_error(
         self, mock_urlopen, mock_select, mock_popen
     ):
-        """PipelineRunner should push 0.0 to metrics-service after pipeline failure."""
+        """PipelineRunner should push 0.0 to metrics-manager after pipeline failure."""
         process_mock = _make_process_mock([], exit_code=1)
         process_mock.stderr.readline.side_effect = itertools.repeat(b"")
         mock_select.return_value = ([], [], [])
@@ -318,7 +318,7 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertEqual(
             pushed.count(0.0),
             1,
-            "0.0 should be pushed exactly once to metrics-service after pipeline error",
+            "0.0 should be pushed exactly once to metrics-manager after pipeline error",
         )
 
     @patch("pipeline_runner.Popen")
@@ -327,7 +327,7 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
     def test_pipeline_hang_pushes_zero_fps_before_raising(
         self, mock_urlopen, mock_select, mock_popen
     ):
-        """PipelineRunner should push 0.0 to metrics-service when raising inactivity timeout error."""
+        """PipelineRunner should push 0.0 to metrics-manager when raising inactivity timeout error."""
         runner = PipelineRunner(
             mode="normal",
             max_runtime=0,
@@ -355,13 +355,13 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertEqual(
             pushed.count(0.0),
             1,
-            "0.0 should be pushed exactly once to metrics-service after timeout error",
+            "0.0 should be pushed exactly once to metrics-manager after timeout error",
         )
 
     @patch("pipeline_runner.Popen")
     @patch("pipeline_runner.urllib.request.urlopen")
     def test_stop_pipeline_pushes_zero_fps(self, mock_urlopen, mock_popen):
-        """PipelineRunner should push 0.0 to metrics-service when cancelled."""
+        """PipelineRunner should push 0.0 to metrics-manager when cancelled."""
         process_mock = MagicMock()
         # First poll() returns None (main loop: process running),
         # second poll() returns None (_graceful_terminate: still running).
@@ -388,14 +388,14 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertEqual(
             pushed.count(0.0),
             1,
-            "0.0 should be pushed exactly once to metrics-service after cancellation",
+            "0.0 should be pushed exactly once to metrics-manager after cancellation",
         )
 
     @patch("pipeline_runner.urllib.request.urlopen")
     def test_push_fps_metric_uses_configured_url(self, mock_urlopen):
-        """`_push_fps_metric` must POST JSON to `{METRICS_SERVICE_URL}/api/v1/metrics/simple`."""
+        """`_push_fps_metric` must POST JSON to `{METRICS_MANAGER_URL}/api/v1/metrics/simple`."""
         with patch.dict(
-            "os.environ", {"METRICS_SERVICE_URL": "http://example:1234"}, clear=False
+            "os.environ", {"METRICS_MANAGER_URL": "http://example:1234"}, clear=False
         ):
             runner = PipelineRunner(mode="normal", max_runtime=0)
 
@@ -1200,7 +1200,7 @@ class TestLatencyTracerIntervalParser(unittest.TestCase):
 
 @_patch_sync_metrics_executor
 class TestLatencyMetricsPush(unittest.TestCase):
-    """Tests for the live + final latency push to metrics-service.
+    """Tests for the live + final latency push to metrics-manager.
 
     Covers the runner behaviour introduced by ITEP-89980:
     ``_push_latency_sample`` fires on every parsed interval line, and
@@ -1245,7 +1245,7 @@ class TestLatencyMetricsPush(unittest.TestCase):
         """Latency pushes target the batch `/api/v1/metrics` endpoint (NOT `/simple`)."""
         with patch.dict(
             "os.environ",
-            {"METRICS_SERVICE_URL": "http://example:1234"},
+            {"METRICS_MANAGER_URL": "http://example:1234"},
             clear=False,
         ):
             runner = PipelineRunner(

@@ -35,18 +35,3 @@ variants:
       vapostproc !
       video/x-raw(memory:VAMemory),width=320,height=240 !
       fakesink name=default_output_sink
-  - name: NPU
-    pipeline_description: >-
-      filesrc location=/videos/input/people.mp4 !
-      parsebin !
-      tee name=t1 !
-      queue !
-      splitmuxsink location=/tmp/people-output.mp4
-      t1. !
-      queue !
-      vah264dec !
-      video/x-raw !
-      gvafpscounter starting-frame=100 !
-      vapostproc !
-      video/x-raw,width=320,height=240 !
-      fakesink name=default_output_sink

@@ -11,7 +11,7 @@ of AI inference pipelines (GStreamer + OpenVINO™ + DLStreamer), collecting har
 ```text
 tools/visual-pipeline-and-platform-evaluation-tool/
 ├── vippet/               # Backend: Python/FastAPI application
-│   ├── api/              # REST + WebSocket API (FastAPI, port 7860)
+│   ├── api/              # REST API (FastAPI, port 7860)
 │   │   ├── main.py       # App entrypoint, router registration
 │   │   ├── api_schemas.py # Pydantic request/response models
 │   │   └── routes/       # API route handlers (pipelines, models, jobs, etc.)
@@ -121,7 +121,7 @@ make format      # Auto-format with ruff
 - **Backend API**: `http://localhost:7860/api/v1/` (FastAPI, auto-documented at `/docs`)
 - **UI**: `http://localhost:80`
 - **RTSP live streams**: `rtsp://localhost:8554/{stream_name}` (via mediamtx)
-- **WebSocket metrics**: `ws://localhost:7860/metrics/ws`
+- **SSE metrics stream**: `http://localhost/metrics/stream` (proxied by nginx to metrics-manager)
 
 The OpenAPI schema can be regenerated with:
 
@@ -137,7 +137,7 @@ make generate_openapi
 | `vippet-ui`       | Frontend (Nginx)                          | 80   |
 | `mediamtx`        | RTSP server                               | 8554 |
 | `models`          | Model installer (profile: `do-not-start`) | -    |
-| `metrics-service` | Metrics collector                         | 9090 |
+| `metrics-manager` | Metrics collector                         | 9090 |
 
 Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automatically by `setup_env.sh`.
 
@@ -184,6 +184,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `UPLOAD_ALLOWED_CODECS`          | Comma-separated allow-list of upload video codecs            | `h264,h265`                                                |
 | `UPLOAD_MAX_SIZE_BYTES`          | Maximum accepted upload body size in bytes                   | `2147483648` (2 GiB)                                       |
 | `OUTPUT_VIDEO_DIR`               | Path to output videos                                        | `/videos/output`                                           |
+| `UPLOADED_IMAGES_DIR`            | Path to user-uploaded image sets                             | `/images/input/uploaded`                                   |
 | `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | Glob patterns for elements shown in simplified pipeline view | `*src,urisourcebin,gva*,*sink,source`                      |
 | `SIMPLE_VIEW_INVISIBLE_ELEMENTS` | Element names hidden from simplified pipeline view           | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` |
 | `LIVE_STREAM_SERVER_HOST`        | RTSP server hostname                                         | `mediamtx`                                                 |
