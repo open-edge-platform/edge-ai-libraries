@@ -7427,6 +7427,58 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
         # (Step 1b heuristic on type prefix).
         self.assertEqual(types_by_id["3"], "video/x-raw")
 
+    def test_vamemory_capsfilter_preserved_on_gpu_target(self) -> None:
+        """
+        Regression for Smart NVR GPU + image-set:
+        ``_adapt_image_set_video_pipeline(target_device='GPU')`` must
+        NOT degrade ``video/x-raw(memory:VAMemory)`` capsfilters. On
+        GPU/NPU, ``_upgrade_image_set_for_va_memory`` later inserts
+        ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
+        right after the image decoder, so a leftover VAMemory caps
+        node further downstream (here mimicking the post-tee branch
+        of Smart NVR: ``identity ! video/x-raw(memory:VAMemory) !
+        gvafpscounter``) is fed VA frames and must stay intact.
+        Degrading it would yield ``identity can't handle caps
+        video/x-raw`` at parse time, which is exactly the failure
+        observed in the field.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="vah264dec", data={}),
+                Node(
+                    id="3",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="4", type="gvafpscounter", data={}),
+                Node(id="5", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+            ],
+        )
+
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
+            graph._adapt_image_set_video_pipeline(target_device="GPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # vah264dec is still replaced with identity (Step 1).
+        self.assertEqual(types_by_id["2"], "identity")
+        # Step 1b is a no-op on GPU: the VAMemory capsfilter survives
+        # untouched so that the VA frames produced upstream (by the
+        # vapostproc bridge inserted later) can pass through.
+        self.assertEqual(types_by_id["3"], "video/x-raw(memory:VAMemory)")
+
     def test_vamemory_capsfilter_left_alone_for_non_image_set_pipeline(
         self,
     ) -> None:

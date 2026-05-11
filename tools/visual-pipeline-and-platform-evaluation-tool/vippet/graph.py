@@ -2205,13 +2205,21 @@ class Graph:
 
             1. Replaces redundant parsers / video decoders with
                ``identity`` so the downstream chain stays linked.
-            1b. Degrades any leftover ``video/x-raw(memory:VAMemory)``
-                capsfilter (originally paired with the now-replaced VA
-                video decoder) to plain ``video/x-raw`` so the
-                ``identity`` substitute can negotiate it. For GPU/NPU
-                targets, ``_upgrade_image_set_for_va_memory`` later
-                promotes selected caps back to VAMemory where it is
-                actually beneficial.
+            1b. (CPU only) Degrades any leftover
+                ``video/x-raw(memory:VAMemory)`` capsfilter (originally
+                paired with the now-replaced VA video decoder) to plain
+                ``video/x-raw`` so the ``identity`` substitute can
+                negotiate it. For GPU/NPU targets this downgrade must
+                NOT happen: ``_upgrade_image_set_for_va_memory`` lifts
+                every frame into VA memory by inserting
+                ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
+                right after the image decoder, so a leftover VAMemory
+                capsfilter further downstream (e.g. inside a ``tee``
+                branch in Smart NVR GPU) is already compatible with the
+                actual frames and must stay intact - degrading it would
+                force ``identity`` to negotiate sysmem against an
+                upstream VA producer and break the pipeline at parse
+                time.
             2. Inserts ``[videoconvert !] <h264 encoder> ! h264parse``
                 in front of any container/recorder sink
                 (``splitmuxsink``, ``mp4mux``, or ``filesink`` whose
@@ -2338,18 +2346,30 @@ class Graph:
                 node.type = "identity"
                 node.data.clear()
 
-        # Step 1b: degrade any pre-existing
+        # Step 1b (CPU only): degrade any pre-existing
         # ``video/x-raw(memory:VAMemory)*`` capsfilter that survived
         # the parser/decoder rewrite to plain ``video/x-raw*``. The
         # original VA capsfilters were paired with a VA video decoder
-        # (``vah264dec`` etc.) in the YAML template; that decoder has
-        # just been replaced with ``identity`` (which cannot
-        # negotiate VAMemory caps), and the new image-set source
-        # produces system-memory frames, not VAMemory. Without this
-        # downgrade, the Smart NVR GPU template fails at parse time
-        # with ``can't handle caps video/x-raw(memory:VAMemory)``.
-        # The actual VA hand-off needed for inference is set up
-        # later by ``_upgrade_image_set_for_va_memory``.
+        # (``vah264dec`` etc.) in the YAML template; on a CPU target
+        # that decoder has just been replaced with ``identity`` and
+        # there is no upstream VA producer, so the VAMemory caps
+        # filter would fail at parse time with ``can't handle caps
+        # video/x-raw(memory:VAMemory)``.
+        #
+        # On GPU/NPU targets the downgrade must NOT happen:
+        # ``_upgrade_image_set_for_va_memory`` (step 3) inserts a
+        # ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
+        # bridge right after the software image decoder, so every
+        # frame downstream is already in VA memory. A pre-existing
+        # ``video/x-raw(memory:VAMemory)`` capsfilter sitting further
+        # down the chain (typically inside a ``tee`` branch, e.g.
+        # ``tee ! queue ! identity ! video/x-raw(memory:VAMemory) !
+        # gvafpscounter ...`` in the Smart NVR GPU template) is then
+        # perfectly compatible with what flows through it, and
+        # ``identity`` passes VA memory through untouched. Degrading
+        # it to plain ``video/x-raw`` would instead force a sysmem
+        # negotiation that the upstream VA producer cannot satisfy
+        # ("identity can't handle caps video/x-raw").
         # Note: ``Graph.from_pipeline_description`` only marks a caps
         # node with ``NODE_KIND_CAPS`` when the YAML segment carries
         # at least one ``key=value`` pair (e.g.
@@ -2361,7 +2381,11 @@ class Graph:
         # ``type`` literally starts with ``video/x-raw(memory:`` —
         # there is no GStreamer element with such a name, so this
         # cannot misfire on a real element.
+        _device_norm_step1b = (target_device or "").upper()
+        _skip_va_downgrade = _device_norm_step1b in {"GPU", "NPU"}
         for node in self.nodes:
+            if _skip_va_downgrade:
+                break
             if node.id not in reachable:
                 continue
             is_caps_node = node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
