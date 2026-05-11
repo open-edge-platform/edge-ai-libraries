@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { Progress } from "@/components/ui/progress.tsx";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field.tsx";
 import React, { useRef, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import {
@@ -15,6 +16,7 @@ import {
 
 type UploadFormData = {
   files: FileList | null;
+  fields: Record<string, string>;
 };
 
 type FileUploadState = {
@@ -28,16 +30,32 @@ type FileUploadJob = FileUploadState & {
   originalIndex: number;
 };
 
+import { type PreUploadMessage } from "./uploaderMessages";
+
 export interface MultiFileUploaderProps {
   accept: string;
   uploadEndpoint: string;
-  checkFileExists: (filename: string) => Promise<{ exists: boolean }>;
+  checkFileExists?: (filename: string) => Promise<{ exists: boolean }>;
   onUploadComplete?: (succeeded: number, failed: number) => void;
   onUploadProgress?: (
     jobs: Array<{ id: string; name: string; progress: number }>,
   ) => void;
   multiple?: boolean;
+  maxSize?: number;
   maxConcurrentUploads?: number;
+  preUpload?: (
+    file: File,
+    fields: Record<string, string>,
+  ) => Promise<PreUploadMessage | null> | PreUploadMessage | null;
+  preUploadImmediate?: boolean;
+  formFields?: Array<{
+    name: string;
+    label: string;
+    placeholder?: string;
+    required?: boolean;
+    regex?: RegExp | string;
+    regexMessage?: string;
+  }>;
   className?: string;
 }
 
@@ -48,17 +66,30 @@ export const MultiFileUploader = ({
   onUploadComplete,
   onUploadProgress,
   multiple = true,
+  maxSize,
   maxConcurrentUploads = 3,
+  preUpload,
+  preUploadImmediate,
+  formFields,
   className,
 }: MultiFileUploaderProps) => {
-  const { register, handleSubmit, reset, watch, setValue } =
-    useForm<UploadFormData>({
-      defaultValues: {
-        files: null,
-      },
-    });
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    getValues,
+    formState: { errors },
+  } = useForm<UploadFormData>({
+    defaultValues: {
+      files: null,
+      fields: {},
+    },
+  });
 
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingInvalid, setIsDraggingInvalid] = useState(false);
   const [selectedFilesList, setSelectedFilesList] = useState<File[]>([]);
   const [uploadStates, setUploadStates] = useState<FileUploadState[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -88,6 +119,22 @@ export const MultiFileUploader = ({
   ).length;
 
   useEffect(() => {
+    if (!formFields?.length) return;
+    const subscription = watch((_, { name }) => {
+      if (name?.startsWith("fields.")) {
+        setUploadStates((prev) =>
+          prev.map((s) => {
+            if (s.status !== "failed") return s;
+            if (maxSize !== undefined && s.file.size > maxSize) return s;
+            return { ...s, status: "pending", error: undefined, progress: 0 };
+          }),
+        );
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [formFields, watch]);
+
+  useEffect(() => {
     if (onUploadProgress) {
       const jobs = uploadStates
         .filter((state) => state.error !== "File already exists on server")
@@ -103,8 +150,11 @@ export const MultiFileUploader = ({
 
   const checkFilesExistence = async (
     files: File[],
-  ): Promise<Array<{ file: File; exists: boolean }>> =>
-    await Promise.all(
+  ): Promise<Array<{ file: File; exists: boolean }>> => {
+    if (!checkFileExists) {
+      return files.map((file) => ({ file, exists: false }));
+    }
+    return await Promise.all(
       files.map(async (file) => {
         try {
           const result = await checkFileExists(file.name);
@@ -115,14 +165,19 @@ export const MultiFileUploader = ({
         }
       }),
     );
+  };
 
   const uploadFile = async (
     file: File,
     onProgress: (progress: number) => void,
-  ): Promise<void> => {
-    return new Promise((resolve, reject) => {
+  ): Promise<void> =>
+    new Promise((resolve, reject) => {
       const formData = new FormData();
       formData.append("file", file);
+      const allFields = { ...getValues("fields") };
+      for (const [key, value] of Object.entries(allFields)) {
+        formData.append(key, value);
+      }
 
       // Use XMLHttpRequest for progress tracking
       // Note: RTKQuery or fetch() doesn't support upload progress natively
@@ -161,7 +216,6 @@ export const MultiFileUploader = ({
       xhr.open("POST", uploadEndpoint);
       xhr.send(formData);
     });
-  };
 
   const processParallelUploads = async (
     files: FileUploadJob[],
@@ -173,6 +227,7 @@ export const MultiFileUploader = ({
     for (const fileJob of files) {
       const uploadPromise = async () => {
         const { originalIndex } = fileJob;
+
         try {
           setUploadStates((prev) => {
             const newStates = [...prev];
@@ -242,9 +297,58 @@ export const MultiFileUploader = ({
     return { succeeded, failed };
   };
 
+  const isMimeTypeAccepted = (mimeType: string): boolean => {
+    if (!mimeType || accept === "*" || accept === "*/*") return true;
+
+    const acceptedTypes = accept.split(",").map((t) => t.trim().toLowerCase());
+    const mime = mimeType.toLowerCase();
+
+    if (mime === "application/octet-stream") {
+      return acceptedTypes.some((t) => t.startsWith("."));
+    }
+
+    for (const accepted of acceptedTypes) {
+      if (accepted.startsWith(".")) continue;
+      if (accepted.endsWith("/*")) {
+        if (mime.startsWith(`${accepted.split("/")[0]}/`)) return true;
+      } else if (accepted === mime) {
+        return true;
+      }
+    }
+
+    const EXTENSION_MIME_ALIASES: Record<string, string[]> = {
+      ".zip": [
+        "application/zip",
+        "application/x-zip",
+        "application/x-zip-compressed",
+        "application/x-compressed",
+      ],
+      ".tar": ["application/x-tar", "application/tar"],
+      ".gz": ["application/gzip", "application/x-gzip"],
+      ".tgz": ["application/gzip", "application/x-gzip"],
+      ".tar.gz": ["application/gzip", "application/x-gzip"],
+    };
+    for (const accepted of acceptedTypes) {
+      if (!accepted.startsWith(".")) continue;
+      const aliases = EXTENSION_MIME_ALIASES[accepted];
+      if (aliases?.includes(mime)) return true;
+    }
+
+    const hasMimeEntries = acceptedTypes.some((t) => !t.startsWith("."));
+    if (!hasMimeEntries) return true;
+
+    return false;
+  };
+
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const items = Array.from(e.dataTransfer.items).filter(
+      (item) => item.kind === "file",
+    );
+    const hasInvalid =
+      items.length > 0 && items.every((item) => !isMimeTypeAccepted(item.type));
+    setIsDraggingInvalid(hasInvalid);
     setIsDragging(true);
   };
 
@@ -252,11 +356,20 @@ export const MultiFileUploader = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    setIsDraggingInvalid(false);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const items = Array.from(e.dataTransfer.items).filter(
+      (item) => item.kind === "file",
+    );
+    if (items.length > 0) {
+      setIsDraggingInvalid(
+        items.every((item) => !isMimeTypeAccepted(item.type)),
+      );
+    }
   };
 
   const filterFilesByAccept = (files: File[]): File[] => {
@@ -287,8 +400,10 @@ export const MultiFileUploader = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    setIsDraggingInvalid(false);
 
-    const droppedFiles = filterFilesByAccept(Array.from(e.dataTransfer.files));
+    const filtered = filterFilesByAccept(Array.from(e.dataTransfer.files));
+    const droppedFiles = !multiple ? filtered.slice(0, 1) : filtered;
 
     if (droppedFiles.length > 0) {
       await addFiles(droppedFiles);
@@ -305,7 +420,7 @@ export const MultiFileUploader = ({
   };
 
   const addFiles = async (newFilesToAdd: File[]) => {
-    const shouldReplaceList = isPostUpload;
+    const shouldReplaceList = isPostUpload || !multiple;
 
     const baseFiles = shouldReplaceList ? [] : selectedFilesList;
 
@@ -330,14 +445,46 @@ export const MultiFileUploader = ({
     allFiles.forEach((file) => dataTransfer.items.add(file));
     setValue("files", dataTransfer.files);
 
-    const newUploadStates: FileUploadState[] = fileChecks.map(
-      ({ file, exists }) => ({
-        file,
-        status: exists ? "failed" : "pending",
-        progress: 0,
-        error: exists ? "File already exists on server" : undefined,
-      }),
+    let newUploadStates: FileUploadState[] = fileChecks.map(
+      ({ file, exists }) => {
+        if (maxSize !== undefined && file.size > maxSize) {
+          return {
+            file,
+            status: "failed" as const,
+            progress: 0,
+            error: `File exceeds maximum size of ${(maxSize / (1024 * 1024)).toFixed(0)} MB`,
+          };
+        }
+        return {
+          file,
+          status: exists ? ("failed" as const) : ("pending" as const),
+          progress: 0,
+          error: exists ? "File already exists on server" : undefined,
+        };
+      },
     );
+
+    if (preUploadImmediate && preUpload) {
+      const currentFields = getValues("fields");
+      const preUploadResults = await Promise.all(
+        newUploadStates.map((state) =>
+          state.status === "pending"
+            ? preUpload(state.file, { ...currentFields })
+            : null,
+        ),
+      );
+      newUploadStates = newUploadStates.map((state, i) => {
+        const message = preUploadResults[i];
+        if (
+          message !== null &&
+          message !== undefined &&
+          state.status === "pending"
+        ) {
+          return { ...state, status: "failed", error: message };
+        }
+        return state;
+      });
+    }
 
     setUploadStates(
       shouldReplaceList
@@ -369,16 +516,87 @@ export const MultiFileUploader = ({
       return;
     }
 
-    setIsUploading(true);
+    const missingRequired = formFields?.some(
+      (f) =>
+        f.required &&
+        !getValues(`fields.${f.name}` as `fields.${string}`)?.trim(),
+    );
+    if (missingRequired) {
+      return;
+    }
 
-    const filesToUpload: FileUploadJob[] = uploadStates
+    let filesToUpload: FileUploadJob[] = uploadStates
       .map((state, originalIndex) => ({ ...state, originalIndex }))
       .filter((state) => state.status === "pending");
 
     if (filesToUpload.length === 0) {
-      setIsUploading(false);
       return;
     }
+
+    if (maxSize !== undefined) {
+      const sizeFailures = filesToUpload.filter((fj) => fj.file.size > maxSize);
+      if (sizeFailures.length > 0) {
+        setUploadStates((prev) => {
+          const newStates = [...prev];
+          sizeFailures.forEach(({ originalIndex }) => {
+            if (newStates[originalIndex]) {
+              newStates[originalIndex] = {
+                ...newStates[originalIndex],
+                status: "failed",
+                error: `File exceeds maximum size of ${(
+                  maxSize /
+                  (1024 * 1024)
+                ).toFixed(0)} MB`,
+              };
+            }
+          });
+          return newStates;
+        });
+        filesToUpload = filesToUpload.filter((fj) => fj.file.size <= maxSize);
+      }
+      if (filesToUpload.length === 0) {
+        return;
+      }
+    }
+
+    if (preUpload) {
+      const results = await Promise.all(
+        filesToUpload.map(async (fileJob) => ({
+          fileJob,
+          message: await preUpload(fileJob.file, {
+            ...getValues("fields"),
+          }),
+        })),
+      );
+
+      const failures = results.filter((r) => r.message !== null);
+      if (failures.length > 0) {
+        setUploadStates((prev) => {
+          const newStates = [...prev];
+          failures.forEach(({ fileJob, message }) => {
+            if (newStates[fileJob.originalIndex]) {
+              newStates[fileJob.originalIndex] = {
+                ...newStates[fileJob.originalIndex],
+                status: "failed",
+                error: message!,
+              };
+            }
+          });
+          return newStates;
+        });
+        filesToUpload = filesToUpload.filter(
+          (fj) =>
+            !failures.some((f) => f.fileJob.originalIndex === fj.originalIndex),
+        );
+      }
+
+      if (filesToUpload.length === 0) {
+        setIsPostUpload(true);
+        return;
+      }
+    }
+
+    setIsUploading(true);
 
     try {
       const { succeeded, failed } = await processParallelUploads(filesToUpload);
@@ -442,24 +660,34 @@ export const MultiFileUploader = ({
               flex flex-col items-center justify-center gap-3
               focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2
               ${
-                isDragging
-                  ? "border-primary bg-primary/5 scale-[1.02]"
-                  : "border-muted-foreground/25 hover:border-primary/50 hover:bg-background/50"
+                isDraggingInvalid
+                  ? "border-destructive bg-destructive/5 scale-[1.02]"
+                  : isDragging
+                    ? "border-primary bg-primary/5 scale-[1.02]"
+                    : "border-muted-foreground/25 hover:border-primary/50 hover:bg-background/50"
               }
             `}
           >
             <Upload
               className={`w-12 h-12 ${
-                isDragging ? "text-primary" : "text-muted-foreground"
+                isDraggingInvalid
+                  ? "text-destructive"
+                  : isDragging
+                    ? "text-primary"
+                    : "text-muted-foreground"
               }`}
               aria-hidden="true"
             />
             <div className="text-center">
               <p id="upload-instructions" className="text-lg font-medium">
-                {isDragging ? "Drop your files here" : "Drag & drop files here"}
+                {isDraggingInvalid
+                  ? "File type not accepted"
+                  : isDragging
+                    ? "Drop your files here"
+                    : "Drag & drop files here"}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                or click to browse your computer
+                {!isDraggingInvalid && "or click to browse your computer"}
               </p>
             </div>
             <Input
@@ -479,6 +707,62 @@ export const MultiFileUploader = ({
               tabIndex={-1}
             />
           </div>
+
+          {formFields &&
+            formFields.length > 0 &&
+            selectedFilesList.length > 0 && (
+              <div className="space-y-3">
+                {formFields.map((field) => (
+                  <Field key={field.name}>
+                    <FieldLabel htmlFor={`field-${field.name}`}>
+                      {field.label}
+                    </FieldLabel>
+                    <Input
+                      id={`field-${field.name}`}
+                      {...register(
+                        `fields.${field.name}` as `fields.${string}`,
+                        {
+                          required: field.required
+                            ? "This field is required"
+                            : false,
+                          pattern: field.regex
+                            ? {
+                                value:
+                                  field.regex instanceof RegExp
+                                    ? field.regex
+                                    : new RegExp(field.regex),
+                                message:
+                                  field.regexMessage ??
+                                  "Value does not match the required format",
+                              }
+                            : undefined,
+                        },
+                      )}
+                      placeholder={field.placeholder}
+                      className="mt-1"
+                    />
+                    <FieldError
+                      errors={
+                        (
+                          errors.fields as
+                            | Record<string, { message?: string }>
+                            | undefined
+                        )?.[field.name]
+                          ? [
+                              (
+                                errors.fields as Record<
+                                  string,
+                                  { message?: string }
+                                >
+                              )[field.name],
+                            ]
+                          : undefined
+                      }
+                    />
+                  </Field>
+                ))}
+              </div>
+            )}
 
           {selectedFilesList.length > 0 && (
             <div

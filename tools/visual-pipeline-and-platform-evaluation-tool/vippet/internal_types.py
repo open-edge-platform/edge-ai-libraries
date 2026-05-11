@@ -325,6 +325,8 @@ class InternalPipeline:
         tags: List of tags for categorizing the pipeline.
         variants: List of InternalVariant objects.
         thumbnail: Base64-encoded image for pipeline preview (PREDEFINED only).
+            Excluded from ``repr()`` (and therefore from log output) because
+            the base64 payload can be very large.
         created_at: Creation timestamp as UTC datetime.
         modified_at: Last modification timestamp as UTC datetime.
     """
@@ -335,9 +337,9 @@ class InternalPipeline:
     source: InternalPipelineSource
     tags: List[str]
     variants: List[InternalVariant]
-    thumbnail: Optional[str]
-    created_at: datetime
-    modified_at: datetime
+    thumbnail: Optional[str] = field(repr=False)
+    created_at: datetime = field(repr=True)
+    modified_at: datetime = field(repr=True)
 
 
 @dataclass

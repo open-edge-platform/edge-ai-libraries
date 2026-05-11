@@ -34,13 +34,14 @@ class TestAPIMain:
             "downloader": {
                 "huggingface": MagicMock(),
                 "ollama": MagicMock(),
-                "ultralytics": MagicMock()
+                "ultralytics": MagicMock(),
+                "pipeline-zoo-models": MagicMock()
             },
             "converter": {
                 "openvino": MagicMock()
             }
         }
-        mock_registry.get_plugin_names.return_value = ["huggingface", "ollama", "ultralytics", "openvino"]
+        mock_registry.get_plugin_names.return_value = ["huggingface", "ollama", "ultralytics", "pipeline-zoo-models", "openvino"]
         mock_registry.check_plugin_dependencies.return_value = (True, None)
         return mock_registry
 
@@ -163,6 +164,39 @@ class TestAPIMain:
         data = response.json()
         assert "Started processing 1 model(s)" in data["message"]
         assert data["job_ids"] == ["job-789"]
+
+    @patch('src.api.main.model_manager')
+    @patch('src.api.main.plugin_registry')
+    @patch('os.getenv')
+    def test_download_pipeline_zoo_model_success(self, mock_getenv, mock_registry, mock_manager, client):
+        """Test successful pipeline-zoo model download"""
+        mock_getenv.side_effect = lambda key, default=None: {
+            "MODELS_DIR": "/opt/models"
+        }.get(key, default)
+
+        mock_registry.plugins = {"downloader": {"pipeline-zoo-models": MagicMock()}}
+        mock_registry.get_plugin_names.return_value = ["pipeline-zoo-models"]
+        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_manager.register_job.return_value = "job-pz-001"
+        mock_manager.process_download = AsyncMock()
+
+        request_data = {
+            "models": [
+                {
+                    "name": "dbnet",
+                    "hub": "pipeline-zoo-models",
+                    "type": "vision",
+                    "is_ovms": False
+                }
+            ]
+        }
+
+        response = client.post("/models/download?download_path=pipeline_zoo_models", json=request_data)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "Started processing 1 model(s)" in data["message"]
+        assert data["job_ids"] == ["job-pz-001"]
 
     @patch('src.api.main.model_manager')
     @patch('src.api.main.plugin_registry')

@@ -19,7 +19,7 @@ import { useEffect, useCallback } from "react";
 import { useAppDispatch } from "@/store/hooks";
 import { toast } from "sonner";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
-import { MultiFileUploader } from "@/components/shared/MultiFileUploader.tsx";
+import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
 
 export const Videos = () => {
   const { data: videos, isSuccess, isLoading } = useGetVideosQuery();
@@ -95,6 +95,7 @@ export const Videos = () => {
 
       <MultiFileUploader
         accept="video/*"
+        maxSize={2 * 1024 * 1024 * 1024} // 2 GB
         uploadEndpoint={ENDPOINTS.UPLOAD_VIDEO}
         checkFileExists={handleCheckFileExists}
         onUploadProgress={handleUploadProgress}
