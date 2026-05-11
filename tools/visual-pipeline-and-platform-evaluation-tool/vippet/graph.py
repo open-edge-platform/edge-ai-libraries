@@ -2365,9 +2365,7 @@ class Graph:
 
         # Snapshot container sinks before mutating the edge list.
         container_sinks = [
-            n
-            for n in self.nodes
-            if n.id in reachable and _is_container_sink(n)
+            n for n in self.nodes if n.id in reachable and _is_container_sink(n)
         ]
 
         for sink in container_sinks:
@@ -2415,7 +2413,8 @@ class Graph:
             # Insert the new chain before the sink in the node list to
             # keep debug dumps readable.
             insert_at = next(
-                (i for i, n in enumerate(self.nodes) if n.id == sink.id), len(self.nodes)
+                (i for i, n in enumerate(self.nodes) if n.id == sink.id),
+                len(self.nodes),
             )
             self.nodes[insert_at:insert_at] = [
                 videoconvert_node,
@@ -2481,9 +2480,7 @@ class Graph:
             return False
 
         nv12_consumers = [
-            n
-            for n in self.nodes
-            if n.id in reachable and n.type in NV12_ONLY_CONSUMERS
+            n for n in self.nodes if n.id in reachable and n.type in NV12_ONLY_CONSUMERS
         ]
 
         for consumer in nv12_consumers:
@@ -2709,6 +2706,80 @@ class Graph:
                     vapostproc_id,
                     decoder_id,
                 )
+
+            # Step 4: when frames now live in VA memory (either because
+            # the decoder was swapped for a VA counterpart in step 1, or
+            # because we just inserted a ``vapostproc`` in step 3), any
+            # plain ``videoconvert ! video/x-raw,format=NV12`` pair
+            # injected by ``_adapt_image_set_video_pipeline`` for an
+            # NV12-only consumer (e.g. ``gvamotiondetect``) becomes a
+            # caps-negotiation hazard: ``videoconvert`` does not accept
+            # ``video/x-raw(memory:VAMemory)``, which crashes the
+            # pipeline at runtime with ``not-negotiated``. Promote that
+            # pair to a VA-aware equivalent:
+            #     videoconvert -> vapostproc
+            #     video/x-raw,format=NV12 -> video/x-raw(memory:VAMemory),format=NV12
+            # so the chain stays entirely in VA memory.
+            if wants_va_memory:
+                # Rebuild adjacency to account for any earlier mutation.
+                edges_from_local: dict[str, list[int]] = {}
+                for idx, edge in enumerate(self.edges):
+                    edges_from_local.setdefault(edge.source, []).append(idx)
+                nodes_by_id_local = {n.id: n for n in self.nodes}
+
+                # Walk forward from the decoder following the single
+                # outgoing edge until we either find the videoconvert
+                # /caps pair or hit a branching point.
+                cursor_id: Optional[str] = decoder_id
+                visited_local: set[str] = set()
+                while cursor_id is not None and cursor_id not in visited_local:
+                    visited_local.add(cursor_id)
+                    out_edges = edges_from_local.get(cursor_id, [])
+                    if len(out_edges) != 1:
+                        break
+                    next_id = self.edges[out_edges[0]].target
+                    next_node = nodes_by_id_local.get(next_id)
+                    if next_node is None:
+                        break
+                    if next_node.type == "videoconvert":
+                        # Inspect the node right after - it must be the
+                        # injected NV12 caps node for us to safely
+                        # promote the pair.
+                        vc_out = edges_from_local.get(next_id, [])
+                        if len(vc_out) == 1:
+                            caps_id = self.edges[vc_out[0]].target
+                            caps_node = nodes_by_id_local.get(caps_id)
+                            if (
+                                caps_node is not None
+                                and caps_node.type == "video/x-raw"
+                                and str(caps_node.data.get("format", "")).upper()
+                                == "NV12"
+                                and caps_node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
+                            ):
+                                logger.debug(
+                                    "Promoting injected 'videoconvert ! "
+                                    "video/x-raw,format=NV12' (nodes %s, %s) "
+                                    "to VA-aware 'vapostproc ! "
+                                    "video/x-raw(memory:VAMemory),format=NV12' "
+                                    "after VA decoder/vapostproc upstream",
+                                    next_id,
+                                    caps_id,
+                                )
+                                next_node.type = "vapostproc"
+                                caps_node.type = "video/x-raw(memory:VAMemory)"
+                        break
+                    # Skip transparent passthroughs (identity, queue,
+                    # caps nodes, vapostproc) and keep walking.
+                    PASSTHROUGH = {"identity", "queue", "vapostproc"}
+                    if (
+                        next_node.type in PASSTHROUGH
+                        or next_node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
+                    ):
+                        cursor_id = next_id
+                        continue
+                    # Anything else means there is no injected NV12
+                    # adapter pair to fix up; leave the graph alone.
+                    break
 
             _ = removed_decodebin3_id  # currently unused beyond logging
 

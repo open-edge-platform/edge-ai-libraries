@@ -6760,6 +6760,120 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         self.assertIn("vajpegdec", types_in_order)
         self.assertNotIn("jpegdec", types_in_order)
 
+    def test_gpu_target_promotes_injected_videoconvert_nv12_pair_to_va_aware(
+        self,
+    ) -> None:
+        """
+        When the image-set adapter has injected a
+        ``videoconvert ! video/x-raw,format=NV12`` pair in front of an
+        NV12-only consumer (e.g. ``gvamotiondetect``), and the upgrade
+        to VA memory either swaps the decoder for a VA decoder or
+        inserts a ``vapostproc`` upstream, the injected pair must be
+        promoted to ``vapostproc ! video/x-raw(memory:VAMemory),
+        format=NV12`` - otherwise plain ``videoconvert`` rejects
+        VAMemory caps at runtime with "not-negotiated".
+        """
+        # Build a graph that mimics the post-adaptation state for an
+        # image-set + gvamotiondetect pipeline:
+        #   multifilesrc -> jpegdec -> videoconvert -> caps NV12 ->
+        #   gvamotiondetect -> fakesink
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/images/input/uploaded/x/x_%02d.jpg",
+                        "index": "1",
+                        "stop-index": "5",
+                        "loop": "false",
+                        "caps": "image/jpeg,framerate=30/1",
+                        "__image_set": "jpg",
+                    },
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="videoconvert", data={}),
+                Node(
+                    id="3",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "format": "NV12"},
+                ),
+                Node(id="4", type="gvamotiondetect", data={}),
+                Node(id="5", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+            ],
+        )
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vajpegdec", "VA-API JPEG Decoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            graph._upgrade_image_set_for_va_memory("GPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # The decoder was swapped to VA.
+        self.assertEqual(types_by_id["1"], "vajpegdec")
+        # The injected videoconvert was promoted to vapostproc.
+        self.assertEqual(types_by_id["2"], "vapostproc")
+        # The injected NV12 caps base was promoted to VAMemory.
+        self.assertEqual(types_by_id["3"], "video/x-raw(memory:VAMemory)")
+        # The format value is preserved.
+        nv12_caps = next(n for n in graph.nodes if n.id == "3")
+        self.assertEqual(nv12_caps.data.get("format"), "NV12")
+
+    def test_cpu_target_does_not_promote_injected_nv12_pair(self) -> None:
+        """
+        On CPU we do not want VA memory; the injected
+        ``videoconvert ! video/x-raw,format=NV12`` pair must be left
+        untouched so the chain stays in system memory.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/images/input/uploaded/x/x_%02d.jpg",
+                        "index": "1",
+                        "stop-index": "5",
+                        "loop": "false",
+                        "caps": "image/jpeg,framerate=30/1",
+                        "__image_set": "jpg",
+                    },
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="videoconvert", data={}),
+                Node(
+                    id="3",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "format": "NV12"},
+                ),
+                Node(id="4", type="gvamotiondetect", data={}),
+                Node(id="5", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+            ],
+        )
+
+        graph._upgrade_image_set_for_va_memory("CPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        self.assertEqual(types_by_id["1"], "jpegdec")
+        self.assertEqual(types_by_id["2"], "videoconvert")
+        self.assertEqual(types_by_id["3"], "video/x-raw")
+
 
 class TestAdaptImageSetVideoPipeline(unittest.TestCase):
     """
@@ -6821,9 +6935,7 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
 
         # No encoder available in this test environment - we only
         # care about the parser/decoder rewriting here.
-        with patch(
-            "video_encoder.VideoEncoder._select_element", return_value=None
-        ):
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
             graph._adapt_image_set_video_pipeline()
 
         types_by_id = {n.id: n.type for n in graph.nodes}
@@ -6858,12 +6970,8 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
         # Connectivity check: queue(4) -> videoconvert -> encoder ->
         # h264parse -> splitmuxsink(5).
         edges = [(e.source, e.target) for e in graph.edges]
-        videoconvert_id = next(
-            n.id for n in graph.nodes if n.type == "videoconvert"
-        )
-        encoder_id = next(
-            n.id for n in graph.nodes if "openh264enc" in n.type
-        )
+        videoconvert_id = next(n.id for n in graph.nodes if n.type == "videoconvert")
+        encoder_id = next(n.id for n in graph.nodes if "openh264enc" in n.type)
         h264parse_id = next(n.id for n in graph.nodes if n.type == "h264parse")
 
         self.assertIn(("4", videoconvert_id), edges)
@@ -6923,9 +7031,7 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
             ],
         )
 
-        with patch(
-            "video_encoder.VideoEncoder._select_element", return_value=None
-        ):
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
             graph._adapt_image_set_video_pipeline()
 
         # A videoconvert and an NV12 caps node must have been
@@ -6979,16 +7085,12 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
             ],
         )
 
-        with patch(
-            "video_encoder.VideoEncoder._select_element", return_value=None
-        ):
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
             graph._adapt_image_set_video_pipeline()
 
         # Exactly one videoconvert and one NV12 caps node - the
         # originals; no extras injected.
-        self.assertEqual(
-            len([n for n in graph.nodes if n.type == "videoconvert"]), 1
-        )
+        self.assertEqual(len([n for n in graph.nodes if n.type == "videoconvert"]), 1)
         self.assertEqual(
             len(
                 [
