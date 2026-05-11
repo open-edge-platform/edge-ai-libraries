@@ -26,48 +26,19 @@ ENV PYTHONUNBUFFERED=1 \
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
 
-RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
+RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/sh -u ${USER_ID} -g ${USER_GROUP_ID} appuser
 
 # Add poetry and venv to path
 ENV PATH="$PATH:$POETRY_HOME/bin:$VENV_PATH/bin"
 ENV HOME=/home/appuser
 
-# Install curl to be used for health checks in final stages
-RUN apt-get update -y && apt-get install --no-install-recommends -y curl && rm -rf /var/lib/apt/lists/*
 # Upgrade pip to the latest version
-RUN pip install --upgrade pip 
-
-# Commenting out the packages used for GPU drivers installations - as something is not right here
-#============================================================================
-# RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
-#     wget \
-#     gnupg2 \
-#     apt-transport-https \
-#     ca-certificates \
-#     && apt-get clean \
-#     && rm -rf /var/lib/apt/lists/*
-
-# # Set up Intel APT repository with proper key handling
-# RUN wget -qO - https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | \
-#     apt-key add - && \
-#     echo "deb https://apt.repos.intel.com/oneapi all main" > \
-#     /etc/apt/sources.list.d/oneAPI.list
-
-# # Install Intel oneAPI and OpenVINO runtime dependencies
-# RUN apt-get update && apt-get install -y --no-install-recommends --fix-missing \
-#     intel-oneapi-runtime-opencl \
-#     intel-oneapi-runtime-compilers \
-#     intel-oneapi-runtime-libs \
-#     intel-oneapi-runtime-dpcpp-cpp \
-#     intel-oneapi-python \
-#     && apt-get clean \
-#     && rm -rf /var/lib/apt/lists/*
-# ============================================================================
+RUN pip install --upgrade pip==26.1
 
 # Common environment variables
 ENV INTEL_OPENVINO_DIR=/opt/intel/openvino
-ENV LD_LIBRARY_PATH=/opt/intel/openvino/runtime/lib/intel64:/opt/intel/openvino/runtime/3rdparty/tbb/lib:/opt/intel/openvino/runtime/3rdparty/hddl/lib:$LD_LIBRARY_PATH
-ENV PYTHONPATH=/opt/intel/openvino/python:$PYTHONPATH
+# ENV LD_LIBRARY_PATH=/opt/intel/openvino/runtime/lib/intel64:/opt/intel/openvino/runtime/3rdparty/tbb/lib:/opt/intel/openvino/runtime/3rdparty/hddl/lib:$LD_LIBRARY_PATH
+# ENV PYTHONPATH=/opt/intel/openvino/python:$PYTHONPATH
 ENV OUTPUT_DIR=/data
 ENV UPLOAD_DIR=/data/upload
 ENV AUDIO_DIR=/data/audio
@@ -79,6 +50,7 @@ FROM python-base AS builder-base
 
 # Install system dependencies
 RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
+    curl \
     git \
     build-essential \
     && apt-get clean \
@@ -157,6 +129,16 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
 ENV FASTAPI_ENV=production
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
+# Remove unnecessary vulnerable Debian packages
+RUN dpkg --force-depends -r libncursesw6 2>/dev/null || true && \
+    dpkg --force-remove-essential --force-depends -r ncurses-bin 2>/dev/null || true && \
+    dpkg --force-remove-essential --force-depends --purge ncurses-base 2>/dev/null || true && \
+    dpkg --force-depends -r libsystemd0 2>/dev/null || true && \
+    dpkg --force-depends -r libudev1 2>/dev/null || true && \
+    dpkg --force-depends -r libcap2 2>/dev/null || true && \
+    dpkg --force-depends -r libtinfo6 2>/dev/null || true
+
+
 RUN mkdir -p $OUTPUT_DIR /app && chown -R appuser:appuser $OUTPUT_DIR /app
 
 WORKDIR /app
@@ -165,19 +147,15 @@ COPY . .
 
 USER appuser
 
-# Create a mini script on-the-fly to run Gunicorn with Uvicorn worker
-RUN echo '#!/bin/bash\n\
-exec gunicorn audio_analyzer.main:app \
---workers=4 \
---worker-class=uvicorn.workers.UvicornWorker \
---bind=0.0.0.0:8000 \
---timeout=200 \
---keep-alive=200 \
---log-level=${LOG_LEVEL:-info} \
---forwarded-allow-ips="*" \
---access-logfile=- \
---error-logfile=-\n' > /app/gunicorn_start.sh && chmod +x /app/gunicorn_start.sh
-
 EXPOSE 8000
 # Run Gunicorn with Uvicorn workers for production
-CMD ["/app/gunicorn_start.sh"]
+CMD ["gunicorn", "audio_analyzer.main:app", \
+     "--workers=4", \
+     "--worker-class=uvicorn.workers.UvicornWorker", \
+     "--bind=0.0.0.0:8000", \
+     "--timeout=200", \
+     "--keep-alive=200", \
+     "--log-level=info", \
+     "--forwarded-allow-ips=*", \
+     "--access-logfile=-", \
+     "--error-logfile=-"]
