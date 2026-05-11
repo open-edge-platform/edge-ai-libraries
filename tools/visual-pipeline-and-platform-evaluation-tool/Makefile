@@ -154,7 +154,7 @@ shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop the docker compose services
-	docker compose down models model-download metrics-manager videogenerator mediamtx vippet-ui vippet onvif-discovery
+	docker compose down models model-download metrics-manager videogenerator mediamtx vippet-ui vippet onvif-discovery ia-timeseries-ingestion ia-time-series-analytics-microservice
 
 clean: ## Clean all build artifacts
 	rm -rf shared/models/output/ shared/model-download/ shared/onvif/onvif_cameras.json shared/videos/input shared/videos/output shared/videos/video-generator

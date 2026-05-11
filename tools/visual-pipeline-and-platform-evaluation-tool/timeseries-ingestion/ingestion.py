@@ -9,7 +9,6 @@ import os
 import requests
 import time
 import socket
-import argparse
 
 host = os.getenv("HOST", "ia-time-series-analytics-microservice")
 port = os.getenv("PORT", "5000")
@@ -37,7 +36,25 @@ if not is_port_open(host, port):
     print(f"Port {port} on {host} is not accessible.")
     exit(1)
 else:
-    print(f"Port {port} on {host} is accessible.") 
+    print(f"Port {port} on {host} is accessible.")
+
+def wait_for_health(host, port, delay=5):
+    health_url = f"http://{host}:{port}/health"
+    attempt = 1
+    while True:
+        try:
+            response = requests.get(health_url, timeout=5)
+            if response.status_code in (200, 204):
+                print(f"Health check passed (HTTP {response.status_code}).")
+                return
+            else:
+                print(f"Health check attempt {attempt}: status {response.status_code}. Retrying in {delay}s...")
+        except requests.exceptions.RequestException as e:
+            print(f"Health check attempt {attempt} failed: {e}. Retrying in {delay}s...")
+        time.sleep(delay)
+        attempt += 1
+
+wait_for_health(host, port)
 
 url = f"http://{host}:{port}/input"
 
@@ -46,7 +63,7 @@ headers = {
         "Accept": "application/json",
 }
 
-csv_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ingestion-data.csv")
+csv_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "input", "input.csv")
 
 def send_data(filepath):
     while True:

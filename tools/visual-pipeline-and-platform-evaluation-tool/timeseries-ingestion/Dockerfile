@@ -18,7 +18,6 @@ RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY ingestion-data.csv .
 COPY ingestion.py .
 
 # Set environment variables
@@ -43,8 +42,8 @@ RUN  if [ "$COPYLEFT_SOURCES" = "true" ]; then \
 # Expose any necessary ports (if needed for debugging/monitoring)
 EXPOSE 8080
 
-ARG TIMESERIES_UID
-ARG TIMESERIES_USER_NAME
+ARG TIMESERIES_UID=2999
+ARG TIMESERIES_USER_NAME=timeseries_user
 
 RUN groupadd $TIMESERIES_USER_NAME -g $TIMESERIES_UID && \
     useradd -r -u $TIMESERIES_UID -g $TIMESERIES_USER_NAME $TIMESERIES_USER_NAME
