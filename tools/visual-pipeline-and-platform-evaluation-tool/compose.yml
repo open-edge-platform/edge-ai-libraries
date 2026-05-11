@@ -312,6 +312,7 @@ services:
       UDF_MAX_FILE_SIZE_MB: 100
       SSL_CERT_FILE: /run/secrets/ca_certificate.pem
       MODEL_REGISTRY_URL: http://model-registry:8111
+      SAMPLE_APP: "wind-turbine-anomaly-detection"
     ports:
       - 5000:5000
     volumes:
