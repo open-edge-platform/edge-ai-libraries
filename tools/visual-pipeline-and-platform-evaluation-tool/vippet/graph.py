@@ -2652,7 +2652,10 @@ class Graph:
                             and caps.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
                         )
                     # Skip transparent passthroughs and keep walking.
-                    PASSTHROUGH = {"identity", "queue"}
+                    # Skip transparent passthroughs (identity, queue,
+                    # caps nodes) and ``decodebin3``, which step 2
+                    # below will prune.
+                    PASSTHROUGH = {"identity", "queue", "decodebin3"}
                     if (
                         nxt.type in PASSTHROUGH
                         or nxt.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
@@ -2837,8 +2840,13 @@ class Graph:
                                 caps_node.type = "video/x-raw(memory:VAMemory)"
                         break
                     # Skip transparent passthroughs (identity, queue,
-                    # caps nodes, vapostproc) and keep walking.
-                    PASSTHROUGH = {"identity", "queue", "vapostproc"}
+                    # caps nodes, vapostproc, decodebin3) and keep walking.
+                    PASSTHROUGH = {
+                        "identity",
+                        "queue",
+                        "vapostproc",
+                        "decodebin3",
+                    }
                     if (
                         next_node.type in PASSTHROUGH
                         or next_node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS

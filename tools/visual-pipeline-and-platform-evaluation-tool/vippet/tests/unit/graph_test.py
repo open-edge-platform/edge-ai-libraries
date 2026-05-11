@@ -6887,6 +6887,82 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         self.assertEqual(types_by_id["2"], "videoconvert")
         self.assertEqual(types_by_id["3"], "video/x-raw")
 
+    def test_gpu_target_skips_va_swap_when_decodebin3_sits_between_decoder_and_pair(
+        self,
+    ) -> None:
+        """
+        Regression: in real graphs coming from the UI the chain after
+        ``_adapt_image_set_video_pipeline`` may look like
+
+            multifilesrc -> jpegdec -> decodebin3 -> videoconvert ->
+            video/x-raw,format=NV12 -> gvamotiondetect -> ...
+
+        because ``decodebin3`` is intentionally not rewritten by the
+        adapter (step 2 of the upgrade prunes it later). The
+        VA-swap/standalone-vapostproc skip in
+        ``_upgrade_image_set_for_va_memory`` must therefore see past
+        ``decodebin3`` when looking for the injected NV12 adapter pair;
+        otherwise the swap to ``vajpegdec`` happens and the pipeline
+        crashes at runtime with "subclass failed to handle new picture"
+        on GPUs that cannot decode the JPEG variant.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/images/input/uploaded/x/x_%02d.jpg",
+                        "index": "1",
+                        "stop-index": "5",
+                        "loop": "false",
+                        "caps": "image/jpeg,framerate=30/1",
+                        "__image_set": "jpg",
+                    },
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="decodebin3", data={}),
+                Node(id="3", type="videoconvert", data={}),
+                Node(
+                    id="4",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "format": "NV12"},
+                ),
+                Node(id="5", type="gvamotiondetect", data={}),
+                Node(id="6", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+                Edge(id="e5", source="5", target="6"),
+            ],
+        )
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vajpegdec", "VA-API JPEG Decoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            graph._upgrade_image_set_for_va_memory("GPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # VA decoder swap must NOT happen because the injected pair is
+        # already in place (even though decodebin3 sits between the
+        # decoder and the pair).
+        self.assertEqual(types_by_id["1"], "jpegdec")
+        # decodebin3 was pruned by step 2.
+        self.assertNotIn("decodebin3", [n.type for n in graph.nodes])
+        # No standalone vapostproc inserted by step 3 - the only
+        # vapostproc is the promoted videoconvert.
+        vapostproc_nodes = [n for n in graph.nodes if n.type == "vapostproc"]
+        self.assertEqual(len(vapostproc_nodes), 1)
+        self.assertEqual(vapostproc_nodes[0].id, "3")
+        # Caps node promoted to VAMemory.
+        self.assertEqual(types_by_id["4"], "video/x-raw(memory:VAMemory)")
+
 
 class TestAdaptImageSetVideoPipeline(unittest.TestCase):
     """
