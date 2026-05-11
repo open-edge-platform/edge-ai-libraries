@@ -111,7 +111,6 @@ interface MetricsDashboardProps {
     latencyAvg?: number;
     latencyMin?: number;
     latencyMax?: number;
-    latencyFps?: number;
   };
 }
 
