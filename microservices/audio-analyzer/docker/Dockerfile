@@ -64,7 +64,7 @@ WORKDIR $SETUP_PATH
 COPY pyproject.toml poetry.lock ./
 
 # Install dependencies without dev dependencies
-RUN poetry lock --no-update && poetry install --no-dev --no-interaction --no-ansi
+RUN poetry install --no-dev --no-interaction --no-ansi
 
 # Development stage - with dev dependencies and hot reload
 FROM python-base AS dev
@@ -130,7 +130,8 @@ ENV FASTAPI_ENV=production
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 # Remove unnecessary vulnerable Debian packages
-RUN dpkg --force-depends -r libncursesw6 2>/dev/null || true && \
+RUN apt remove --allow-remove-essential --purge -y bash && \
+    dpkg --force-depends -r libncursesw6 2>/dev/null || true && \
     dpkg --force-remove-essential --force-depends -r ncurses-bin 2>/dev/null || true && \
     dpkg --force-remove-essential --force-depends --purge ncurses-base 2>/dev/null || true && \
     dpkg --force-depends -r libsystemd0 2>/dev/null || true && \
