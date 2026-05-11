@@ -99,6 +99,7 @@ interface MetricsDashboardProps {
   className?: string;
   forceDark?: boolean;
   useDemoStyles?: boolean;
+  activeJobId?: string;
   historyOverride?: MetricHistoryPoint[];
   metricsOverride?: {
     fps: number;
@@ -113,16 +114,17 @@ export const MetricsDashboard = ({
   className = "",
   forceDark = false,
   useDemoStyles = false,
+  activeJobId,
   historyOverride,
   metricsOverride,
 }: MetricsDashboardProps) => {
   const isSummary = !!metricsOverride;
   const { resolvedTheme } = useTheme();
   const isDarkTheme = resolvedTheme === "dark" || forceDark;
-  const liveMetrics = useMetrics();
-  const liveHistory = useMetricHistory();
+  const liveMetrics = useMetrics(activeJobId);
+  const liveHistory = useMetricHistory(activeJobId);
   const metrics = metricsOverride ?? {
-    fps: liveMetrics.fps,
+    fps: liveMetrics.fps ?? 0,
     cpu: liveMetrics.cpu,
     memory: liveMetrics.memory,
     availableGpuIds: liveMetrics.availableGpuIds,

@@ -92,8 +92,6 @@ export const PerformanceTests = () => {
     String(DEFAULT_LOOPING_RUNTIME_SECONDS),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
-    useFrozenMetrics();
 
   const {
     execute: runTest,
@@ -103,6 +101,10 @@ export const PerformanceTests = () => {
     asyncJobHook: useRunPerformanceTestMutation,
     statusCheckHook: useGetPerformanceJobStatusQuery,
   });
+
+  const activeJobId = isRunning ? jobStatus?.id : undefined;
+  const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
+    useFrozenMetrics(activeJobId);
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
 
@@ -560,9 +562,7 @@ export const PerformanceTests = () => {
             <p className="text-sm font-medium text-status-fg mb-2">
               Test Failed
             </p>
-            <p className="text-xs text-status-fg">
-              {errorMessage}
-            </p>
+            <p className="text-xs text-status-fg">{errorMessage}</p>
           </div>
         )}
 
@@ -695,7 +695,7 @@ export const PerformanceTests = () => {
                     </div>
                   )}
 
-                <MetricsDashboard />
+                <MetricsDashboard activeJobId={activeJobId} />
               </div>
             )}
           </div>

@@ -5,10 +5,11 @@ import { cn } from "@/lib/utils";
 
 interface FpsDisplayProps {
   className?: string;
+  activeJobId?: string;
 }
 
-const FpsDisplay = ({ className = "" }: FpsDisplayProps) => {
-  const { fps, cpu, gpu } = useMetrics();
+const FpsDisplay = ({ className = "", activeJobId }: FpsDisplayProps) => {
+  const { fps, cpu, gpu } = useMetrics(activeJobId);
   const { isConnected, statusColor, statusIcon } = useConnectionStatus();
 
   return (
@@ -23,7 +24,7 @@ const FpsDisplay = ({ className = "" }: FpsDisplayProps) => {
         {isConnected ? (
           <>
             <Gauge />
-            {fps}
+            {fps ?? "—"}
             <Cpu />
             {cpu.toFixed(2)}%
             <Gpu />

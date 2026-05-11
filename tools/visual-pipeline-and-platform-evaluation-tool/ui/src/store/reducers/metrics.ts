@@ -136,6 +136,15 @@ const filterMetrics = (
 export const selectFpsMetric = (state: RootState) =>
   findMetric(state.metrics.metrics, "fps")?.value;
 
+export const selectFpsMetricForJob = (
+  state: RootState,
+  jobId: string | undefined,
+) => {
+  if (!jobId) return undefined;
+  return findMetric(state.metrics.metrics, "fps", (l) => l.job_id === jobId)
+    ?.value;
+};
+
 export const selectCpuMetric = (state: RootState) =>
   findMetric(
     state.metrics.metrics,

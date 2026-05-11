@@ -36,8 +36,8 @@ export interface FrozenMetricsSummary {
  *     metricsOverride={frozenSummary ?? undefined}
  *   />
  */
-export function useFrozenMetrics() {
-  const history = useMetricHistory();
+export function useFrozenMetrics(activeJobId?: string) {
+  const history = useMetricHistory(activeJobId);
   const [snapshot, setSnapshot] = useState<MetricHistoryPoint[]>([]);
   const [resultFps, setResultFps] = useState<number | null>(null);
   const testStartTimestampRef = useRef<number | null>(null);

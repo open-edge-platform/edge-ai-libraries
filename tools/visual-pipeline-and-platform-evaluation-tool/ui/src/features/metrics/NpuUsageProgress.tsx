@@ -21,7 +21,8 @@ export const NpuUsageProgress = () => {
           <ProgressLabel>
             <span className="flex items-center gap-2">
               <Gpu className="h-4 w-4" />
-              NPU: {formatDeviceName(deviceName?.full_device_name)} (metrics coming soon)
+              NPU: {formatDeviceName(deviceName?.full_device_name)} (metrics
+              coming soon)
             </span>
           </ProgressLabel>
           <ProgressValue>

@@ -29,8 +29,8 @@ export interface MetricHistoryPoint {
 
 const MAX_HISTORY_POINTS = 60;
 
-export const useMetricHistory = () => {
-  const metrics = useMetrics();
+export const useMetricHistory = (activeJobId?: string) => {
+  const metrics = useMetrics(activeJobId);
   const isConnected = useAppSelector(selectIsConnected);
   const [history, setHistory] = useState<MetricHistoryPoint[]>([]);
   const lastUpdateRef = useRef<number>(0);

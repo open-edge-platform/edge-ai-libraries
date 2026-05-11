@@ -68,8 +68,6 @@ export const DensityTests = () => {
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
-  const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
-    useFrozenMetrics();
 
   const {
     execute: runTest,
@@ -79,6 +77,10 @@ export const DensityTests = () => {
     asyncJobHook: useRunDensityTestMutation,
     statusCheckHook: useGetDensityJobStatusQuery,
   });
+
+  const activeJobId = isRunning ? jobStatus?.id : undefined;
+  const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
+    useFrozenMetrics(activeJobId);
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -484,7 +486,7 @@ export const DensityTests = () => {
                     Running density test...
                   </span>
                 </div>
-                <MetricsDashboard />
+                <MetricsDashboard activeJobId={activeJobId} />
               </div>
             )}
           </div>
@@ -507,9 +509,7 @@ export const DensityTests = () => {
             <p className="text-sm font-medium text-status-fg mb-2">
               Test Failed
             </p>
-            <p className="text-xs text-status-fg">
-              {errorMessage}
-            </p>
+            <p className="text-xs text-status-fg">{errorMessage}</p>
           </div>
         )}
 

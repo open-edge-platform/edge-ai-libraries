@@ -2482,6 +2482,7 @@ const DemoMode = () => {
                                   key={performanceJobId || testStartTimestamp}
                                   forceDark={true}
                                   useDemoStyles={true}
+                                  activeJobId={performanceJobId ?? undefined}
                                 />
                               </div>
                             )}
@@ -2648,6 +2649,7 @@ const DemoMode = () => {
                                   key={densityJobId || testStartTimestamp}
                                   forceDark={true}
                                   useDemoStyles={true}
+                                  activeJobId={densityJobId ?? undefined}
                                 />
                               </div>
                             )}

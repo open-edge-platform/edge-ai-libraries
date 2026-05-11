@@ -3,14 +3,16 @@ import { useAppSelector } from "@/store/hooks.ts";
 import {
   selectCpuMetric,
   selectCpuMetrics,
-  selectFpsMetric,
+  selectFpsMetricForJob,
   selectGpuMetrics,
   selectMemoryMetric,
   selectMetrics,
 } from "@/store/reducers/metrics.ts";
 
-export const useMetrics = () => {
-  const fps = useAppSelector(selectFpsMetric);
+export const useMetrics = (activeJobId?: string) => {
+  const fps = useAppSelector((state) =>
+    selectFpsMetricForJob(state, activeJobId),
+  );
   const cpu = useAppSelector(selectCpuMetric);
   const cpuDetailed = useAppSelector(selectCpuMetrics);
   const memory = useAppSelector(selectMemoryMetric);
@@ -91,7 +93,7 @@ export const useMetrics = () => {
   const gpu = gpus.length > 0 ? gpus[0].usage : 0;
 
   return {
-    fps: fps ?? 0,
+    fps,
     cpu: cpu ?? 0,
     gpu,
     cpuDetailed,

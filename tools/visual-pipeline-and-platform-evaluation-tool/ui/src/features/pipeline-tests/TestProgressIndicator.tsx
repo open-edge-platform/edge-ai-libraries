@@ -17,6 +17,7 @@ interface TestProgressIndicatorProps {
   className?: string;
   forceDark?: boolean;
   useDemoStyles?: boolean;
+  activeJobId?: string;
   historyOverride?: MetricHistoryPoint[];
   metricsOverride?: {
     fps: number;
@@ -31,14 +32,15 @@ export const TestProgressIndicator = ({
   className = "",
   forceDark = false,
   useDemoStyles = false,
+  activeJobId,
   historyOverride,
   metricsOverride,
 }: TestProgressIndicatorProps) => {
   const isSummary = !!metricsOverride;
-  const liveMetrics = useMetrics();
-  const liveHistory = useMetricHistory();
+  const liveMetrics = useMetrics(activeJobId);
+  const liveHistory = useMetricHistory(activeJobId);
   const metrics = metricsOverride ?? {
-    fps: liveMetrics.fps,
+    fps: liveMetrics.fps ?? 0,
     cpu: liveMetrics.cpu,
     memory: liveMetrics.memory,
     availableGpuIds: liveMetrics.availableGpuIds,
@@ -302,7 +304,9 @@ export const TestProgressIndicator = ({
                 {availableGpus.length > 1 && (
                   <>
                     {" "}
-                    <span className="inline-block min-w-[0.5rem]">{selectedGpu}</span>
+                    <span className="inline-block min-w-[0.5rem]">
+                      {selectedGpu}
+                    </span>
                   </>
                 )}{" "}
                 Frequency Over Time
