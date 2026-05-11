@@ -132,7 +132,7 @@ export const MultiFileUploader = ({
       }
     });
     return () => subscription.unsubscribe();
-  }, [formFields, watch]);
+  }, [formFields, watch, maxSize]);
 
   useEffect(() => {
     if (onUploadProgress) {

@@ -560,9 +560,7 @@ export const PerformanceTests = () => {
             <p className="text-sm font-medium text-status-fg mb-2">
               Test Failed
             </p>
-            <p className="text-xs text-status-fg">
-              {errorMessage}
-            </p>
+            <p className="text-xs text-status-fg">{errorMessage}</p>
           </div>
         )}
 

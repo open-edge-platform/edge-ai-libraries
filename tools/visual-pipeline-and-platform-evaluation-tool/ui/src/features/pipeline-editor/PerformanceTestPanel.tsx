@@ -5,7 +5,12 @@ import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, ChevronsRight, ExternalLink } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+  ExternalLink,
+} from "lucide-react";
 import { highlightJson } from "@/lib/jsonUtils";
 import "@/lib/hljs-theme.css";
 
@@ -28,12 +33,16 @@ const buildStreamLabel = (jobId: string, pipelineId: string): string => {
 /** Shorten a stream URL to its last two meaningful path segments. */
 const shortenStreamUrl = (url: string): string => {
   const segments = url.replace(/\/+$/, "").split("/").filter(Boolean);
-  return segments.length > 2
-    ? `…/${segments.slice(-2).join("/")}`
-    : url;
+  return segments.length > 2 ? `…/${segments.slice(-2).join("/")}` : url;
 };
 
-const MetadataJsonViewer = ({ lines, stale = false }: { lines: string[]; stale?: boolean }) => {
+const MetadataJsonViewer = ({
+  lines,
+  stale = false,
+}: {
+  lines: string[];
+  stale?: boolean;
+}) => {
   const [currentIndex, setCurrentIndex] = useState(lines.length - 1);
   const [followLatest, setFollowLatest] = useState(true);
 
@@ -61,7 +70,10 @@ const MetadataJsonViewer = ({ lines, stale = false }: { lines: string[]; stale?:
     setCurrentIndex(lines.length - 1);
   }, [lines.length]);
 
-  const safeIndex = lines.length > 0 ? Math.max(0, Math.min(currentIndex, lines.length - 1)) : 0;
+  const safeIndex =
+    lines.length > 0
+      ? Math.max(0, Math.min(currentIndex, lines.length - 1))
+      : 0;
   const currentLine = lines[safeIndex] ?? "";
   const highlightedHtml = useMemo(
     () => (currentLine ? highlightJson(currentLine) : ""),
@@ -71,7 +83,9 @@ const MetadataJsonViewer = ({ lines, stale = false }: { lines: string[]; stale?:
   if (lines.length === 0) {
     return (
       <div className="min-h-[100px] flex items-center justify-center border bg-muted/20 p-3">
-        <p className="text-sm text-muted-foreground">Waiting for JSON entries...</p>
+        <p className="text-sm text-muted-foreground">
+          Waiting for JSON entries...
+        </p>
       </div>
     );
   }
@@ -112,8 +126,13 @@ const MetadataJsonViewer = ({ lines, stale = false }: { lines: string[]; stale?:
           Follow
         </Button>
       </div>
-      <pre className={`min-h-[100px] max-h-[40vh] overflow-auto border p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-zinc-100 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 ${stale ? "border-2 dark:border-energy-blue/40 dark:shadow-energy-blue/20 dark:ring-1 dark:ring-energy-blue/20 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20 shadow-lg" : ""}`}>
-        <code className="hljs" dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+      <pre
+        className={`min-h-[100px] max-h-[40vh] overflow-auto border p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-zinc-100 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 ${stale ? "border-2 dark:border-energy-blue/40 dark:shadow-energy-blue/20 dark:ring-1 dark:ring-energy-blue/20 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20 shadow-lg" : ""}`}
+      >
+        <code
+          className="hljs"
+          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+        />
       </pre>
     </div>
   );
@@ -206,7 +225,12 @@ const PerformanceTestPanel = ({
 
   // Auto-switch to media tab when output video becomes available (only after pipeline finishes)
   useEffect(() => {
-    if (!isRunning && completedVideoPath && videoOutputEnabled && !livePreviewEnabled) {
+    if (
+      !isRunning &&
+      completedVideoPath &&
+      videoOutputEnabled &&
+      !livePreviewEnabled
+    ) {
       setActiveMainTab("media");
     }
   }, [isRunning, completedVideoPath, videoOutputEnabled, livePreviewEnabled]);
@@ -226,7 +250,13 @@ const PerformanceTestPanel = ({
         return { lines: { ...metadataLines }, entries: [...metadataEntries] };
       });
     }
-  }, [isRunning, startRecording, freezeSnapshot]);
+  }, [
+    isRunning,
+    startRecording,
+    freezeSnapshot,
+    metadataLines,
+    metadataEntries,
+  ]);
 
   useEffect(() => {
     if (metadataEntries.length === 0) {
@@ -345,17 +375,18 @@ const PerformanceTestPanel = ({
 
   const displayEntries = hasMetadataStreams
     ? metadataEntries
-    : frozenMetadata?.entries ?? [];
+    : (frozenMetadata?.entries ?? []);
   const displayLines = hasMetadataStreams
     ? metadataLines
-    : frozenMetadata?.lines ?? {};
+    : (frozenMetadata?.lines ?? {});
 
   const metadataTabValue = activeMetadataTab ?? displayEntries[0]?.[0] ?? "";
 
   const hasMediaTab = livePreviewEnabled || videoOutputEnabled;
   const mediaTabLabel = livePreviewEnabled ? "Live Preview" : "Output Video";
   const hasLiveStream = livePreviewEnabled && (isRunning || !!liveStreamUrl);
-  const hasOutputVideo = !livePreviewEnabled && !isRunning && !!completedVideoPath;
+  const hasOutputVideo =
+    !livePreviewEnabled && !isRunning && !!completedVideoPath;
   const effectiveMainTab =
     activeMainTab === "media" && !hasMediaTab ? "metadata" : activeMainTab;
 
@@ -411,7 +442,6 @@ const PerformanceTestPanel = ({
                 ) : null}
               </div>
             )}
-
           </TabsContent>
         )}
 
@@ -430,9 +460,14 @@ const PerformanceTestPanel = ({
             (() => {
               const [compositeKey, streamUrl] = displayEntries[0];
               const lines = displayLines[compositeKey] ?? [];
-              const state = hasStaleMetadata ? "closed" : (connectionStates[compositeKey] ?? "connecting");
-              const error = hasStaleMetadata ? null : connectionErrors[compositeKey];
-              const isStreamActive = !hasStaleMetadata && state !== "error" && state !== "closed";
+              const state = hasStaleMetadata
+                ? "closed"
+                : (connectionStates[compositeKey] ?? "connecting");
+              const error = hasStaleMetadata
+                ? null
+                : connectionErrors[compositeKey];
+              const isStreamActive =
+                !hasStaleMetadata && state !== "error" && state !== "closed";
               return (
                 <div className="flex flex-col space-y-3 min-w-0">
                   {isStreamActive && (
@@ -451,7 +486,9 @@ const PerformanceTestPanel = ({
                         {shortenStreamUrl(streamUrl)}
                         <ExternalLink className="h-3 w-3" />
                       </a>
-                      {error && <p className="text-xs text-destructive">{error}</p>}
+                      {error && (
+                        <p className="text-xs text-destructive">{error}</p>
+                      )}
                     </>
                   )}
                   <MetadataJsonViewer lines={lines} stale={hasStaleMetadata} />
@@ -474,9 +511,14 @@ const PerformanceTestPanel = ({
 
               {displayEntries.map(([compositeKey, streamUrl], index) => {
                 const lines = displayLines[compositeKey] ?? [];
-                const state = hasStaleMetadata ? "closed" : (connectionStates[compositeKey] ?? "connecting");
-                const error = hasStaleMetadata ? null : connectionErrors[compositeKey];
-                const isStreamActive = !hasStaleMetadata && state !== "error" && state !== "closed";
+                const state = hasStaleMetadata
+                  ? "closed"
+                  : (connectionStates[compositeKey] ?? "connecting");
+                const error = hasStaleMetadata
+                  ? null
+                  : connectionErrors[compositeKey];
+                const isStreamActive =
+                  !hasStaleMetadata && state !== "error" && state !== "closed";
 
                 return (
                   <TabsContent
@@ -511,7 +553,10 @@ const PerformanceTestPanel = ({
                       </>
                     )}
 
-                    <MetadataJsonViewer lines={lines} stale={hasStaleMetadata} />
+                    <MetadataJsonViewer
+                      lines={lines}
+                      stale={hasStaleMetadata}
+                    />
                   </TabsContent>
                 );
               })}

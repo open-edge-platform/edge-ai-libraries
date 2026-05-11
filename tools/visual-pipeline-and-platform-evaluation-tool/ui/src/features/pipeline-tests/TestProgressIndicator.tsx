@@ -302,7 +302,9 @@ export const TestProgressIndicator = ({
                 {availableGpus.length > 1 && (
                   <>
                     {" "}
-                    <span className="inline-block min-w-[0.5rem]">{selectedGpu}</span>
+                    <span className="inline-block min-w-[0.5rem]">
+                      {selectedGpu}
+                    </span>
                   </>
                 )}{" "}
                 Frequency Over Time
