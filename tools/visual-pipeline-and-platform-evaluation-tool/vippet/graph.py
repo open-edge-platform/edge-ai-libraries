@@ -110,7 +110,7 @@ NODE_KIND_CAPS = "caps"
 class InputKind(str, Enum):
     """Enum for input source types."""
 
-    FILE = "file"
+    VIDEO = "video"
     CAMERA = "camera"
     IMAGE_SET = "image_set"
 
@@ -1510,7 +1510,7 @@ class Graph:
                     )
 
                 # Determine the target GStreamer element type and properties
-                if kind == InputKind.FILE:
+                if kind == InputKind.VIDEO:
                     target_type = "filesrc"
                     target_properties = {"location": source}
                     logger.debug(
@@ -1632,7 +1632,7 @@ class Graph:
                 else:
                     raise ValueError(
                         f"Unsupported source kind '{kind}' for node {node_id}. "
-                        f"Supported kinds: '{InputKind.FILE.value}', "
+                        f"Supported kinds: '{InputKind.VIDEO.value}', "
                         f"'{InputKind.CAMERA.value}', '{InputKind.IMAGE_SET.value}'"
                     )
 
@@ -1852,6 +1852,27 @@ class Graph:
         """
         video_decoder = VideoDecoder()
         modified_graph = copy.deepcopy(self)
+
+        # Image-set sources already carry their own dedicated image
+        # decoder (jpegdec / pngdec / avdec_bmp / avdec_tiff) injected by
+        # ``apply_simple_view_changes`` right after ``multifilesrc``. The
+        # ``codec`` reported by ``determine_input_codec`` for these
+        # graphs is the image extension (e.g. ``"jpg"``), which is not a
+        # video codec and is intentionally absent from
+        # ``FOURCC_TO_CODEC``. Skip the entire decodebin3-replacement
+        # pass to avoid spurious "Unknown codec" / "Cannot find decoder"
+        # warnings; any ``decodebin3`` left in the graph (for example
+        # one carried over from the legacy default pipeline) will simply
+        # pass the already-decoded raw video frames through.
+        if any(
+            node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data
+            for node in modified_graph.nodes
+        ):
+            logger.debug(
+                "Image-set source detected; skipping decodebin3 replacement "
+                "(dedicated image decoder already present in graph)"
+            )
+            return modified_graph
 
         if codec is None:
             logger.warning("Codec is None, keeping decodebin3 as-is (fallback)")
@@ -2745,14 +2766,17 @@ def _build_chain(
         if is_caps:
             # For caps nodes we serialize as a single comma-separated caps string:
             #   base,key1=val1,key2=val2,...
-            # We must not include the internal "__node_kind" discriminator
+            # We must not include any internal/private discriminator keys
+            # (those starting with "__", e.g. "__node_kind", "__image_set")
             # in the serialized caps string.
 
             # Maintain insertion order of properties while skipping the
-            # reserved key, so that the resulting caps string is as close
+            # reserved keys, so that the resulting caps string is as close
             # as possible to the original (modulo whitespace).
             props_items = [
-                (key, value) for key, value in node.data.items() if key != NODE_KIND_KEY
+                (key, value)
+                for key, value in node.data.items()
+                if not key.startswith("__")
             ]
 
             if props_items:
@@ -2765,8 +2789,13 @@ def _build_chain(
                 result_parts.append(node.type)
         else:
             # Regular element: type followed by space-separated properties.
+            # Keys starting with "__" are internal markers (e.g. "__image_set")
+            # used by the graph layer for round-tripping between simple and
+            # advanced views; they must never reach the GStreamer command line.
             result_parts.append(node.type)
             for key, value in node.data.items():
+                if key.startswith("__"):
+                    continue
                 output_key = (
                     "model-path" if node.type == "gvagenai" and key == "model" else key
                 )
@@ -3160,7 +3189,7 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
             source_name = node.data.get("location", "")
             node.data.clear()
             node.type = "source"
-            node.data["kind"] = InputKind.FILE
+            node.data["kind"] = InputKind.VIDEO
             node.data["source"] = source_name
             logger.debug(f"Converted file source to generic source: {source_name}")
 
