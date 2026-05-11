@@ -6689,10 +6689,23 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         self.assertNotIn(("13", "1"), edges)
         self.assertNotIn(("1", "2"), edges)
 
-    def test_gpu_target_swaps_jpegdec_for_vajpegdec_when_available(self) -> None:
+    def test_gpu_target_keeps_software_jpegdec_and_inserts_vapostproc_va_pair(
+        self,
+    ) -> None:
+        """
+        VA image decoders (``vajpegdec`` and friends) are
+        deliberately NOT swapped in for image-set GPU targets.
+        Empirical testing on real Intel GPUs (Battlemage / Arc)
+        showed that ``vajpegdec`` rejects perfectly valid JPEGs at
+        runtime with ``subclass failed to handle new picture``.
+        Software ``jpegdec`` + ``vapostproc`` + caps
+        ``video/x-raw(memory:VAMemory),format=NV12`` is more
+        compatible and gives the same end-to-end VA memory delivery
+        to ``gvadetect`` / ``gvaclassify``.
+        """
         graph = self._build_graph("jpg")
 
-        # Pretend the runtime has vajpegdec available.
+        # Even though vajpegdec is registered, we must not use it.
         fake_inspector = MagicMock()
         fake_inspector.elements = [
             ("va", "vajpegdec", "VA-API JPEG Decoder"),
@@ -6704,16 +6717,25 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
             )
 
         types_in_order = [n.type for n in result.nodes]
-        # Software decoder replaced by VA decoder; no vapostproc needed.
-        self.assertIn("vajpegdec", types_in_order)
-        self.assertNotIn("jpegdec", types_in_order)
-        self.assertNotIn("vapostproc", types_in_order)
-        # decodebin3 still pruned.
+        self.assertIn("jpegdec", types_in_order)
+        self.assertNotIn("vajpegdec", types_in_order)
+        # vapostproc + VAMemory caps inserted right after the decoder.
+        self.assertIn("vapostproc", types_in_order)
+        self.assertIn("video/x-raw(memory:VAMemory)", types_in_order)
+        nv12_caps = [
+            n
+            for n in result.nodes
+            if n.type == "video/x-raw(memory:VAMemory)"
+            and str(n.data.get("format", "")).upper() == "NV12"
+        ]
+        self.assertEqual(len(nv12_caps), 1)
+        # decodebin3 pruned.
         self.assertNotIn("decodebin3", types_in_order)
 
     def test_gpu_target_inserts_vapostproc_when_no_va_decoder(self) -> None:
         # PNG has no VA decoder in stock GStreamer, so the upgrade path
-        # must fall back to inserting vapostproc.
+        # must insert vapostproc + VAMemory NV12 caps after the
+        # software decoder.
         graph = self._build_graph("png")
 
         fake_inspector = MagicMock()
@@ -6726,23 +6748,34 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
             )
 
         types_in_order = [n.type for n in result.nodes]
-        # Software pngdec kept (no VA replacement available).
+        # Software pngdec kept.
         self.assertIn("pngdec", types_in_order)
-        # vapostproc inserted right after the decoder.
+        # vapostproc + VAMemory caps inserted right after the decoder.
         self.assertIn("vapostproc", types_in_order)
+        self.assertIn("video/x-raw(memory:VAMemory)", types_in_order)
         idx_pngdec = types_in_order.index("pngdec")
         idx_vapostproc = types_in_order.index("vapostproc")
+        idx_caps = types_in_order.index("video/x-raw(memory:VAMemory)")
         self.assertEqual(idx_vapostproc, idx_pngdec + 1)
+        self.assertEqual(idx_caps, idx_vapostproc + 1)
         # decodebin3 pruned.
         self.assertNotIn("decodebin3", types_in_order)
 
-        # Connectivity: pngdec -> vapostproc -> fakesink.
+        # Connectivity: pngdec -> vapostproc -> caps -> fakesink.
         edges = [(e.source, e.target) for e in result.edges]
         pngdec_id = next(n.id for n in result.nodes if n.type == "pngdec")
-        vapostproc_id = next(n.id for n in result.nodes if n.type == "vapostproc")
+        vapostproc_id = next(
+            n.id for n in result.nodes if n.type == "vapostproc"
+        )
+        caps_id = next(
+            n.id
+            for n in result.nodes
+            if n.type == "video/x-raw(memory:VAMemory)"
+        )
         fakesink_id = next(n.id for n in result.nodes if n.type == "fakesink")
         self.assertIn((pngdec_id, vapostproc_id), edges)
-        self.assertIn((vapostproc_id, fakesink_id), edges)
+        self.assertIn((vapostproc_id, caps_id), edges)
+        self.assertIn((caps_id, fakesink_id), edges)
 
     def test_npu_target_is_treated_like_gpu(self) -> None:
         graph = self._build_graph("jpg")
@@ -6750,6 +6783,7 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         fake_inspector = MagicMock()
         fake_inspector.elements = [
             ("va", "vajpegdec", "VA-API JPEG Decoder"),
+            ("jpeg", "jpegdec", "JPEG image decoder"),
         ]
         with patch("explore.GstInspector", return_value=fake_inspector):
             result = graph.apply_decodebin3_replacement(
@@ -6757,8 +6791,12 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
             )
 
         types_in_order = [n.type for n in result.nodes]
-        self.assertIn("vajpegdec", types_in_order)
-        self.assertNotIn("jpegdec", types_in_order)
+        # Same behaviour as GPU: software jpegdec kept, vapostproc +
+        # VAMemory NV12 caps inserted.
+        self.assertIn("jpegdec", types_in_order)
+        self.assertNotIn("vajpegdec", types_in_order)
+        self.assertIn("vapostproc", types_in_order)
+        self.assertIn("video/x-raw(memory:VAMemory)", types_in_order)
 
     def test_gpu_target_promotes_injected_videoconvert_nv12_pair_to_va_aware(
         self,

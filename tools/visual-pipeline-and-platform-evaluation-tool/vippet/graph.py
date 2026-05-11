@@ -2667,26 +2667,21 @@ class Graph:
 
             has_injected_nv12_pair = _has_injected_nv12_adapter_pair(decoder_id)
 
-            # Step 1: optionally replace the software decoder with a
-            # VA-accelerated counterpart on GPU/NPU.
+            # Step 1: VA image decoders (``vajpegdec`` and friends)
+            # are deliberately NOT swapped in here. Empirical testing
+            # on real Intel GPUs (Battlemage / Arc) showed that
+            # ``vajpegdec`` rejects perfectly valid JPEGs at runtime
+            # with ``subclass failed to handle new picture`` ->
+            # ``not-negotiated``, regardless of whether the rest of
+            # the pipeline expects VA memory. The software decoder
+            # combined with ``vapostproc`` (step 3) is both more
+            # compatible (handles every JPEG variant) and gives the
+            # same end-to-end VA memory delivery to ``gvadetect`` /
+            # ``gvaclassify``. The historical swap branch is kept as
+            # a stub so the rest of the function (decodebin3 prune,
+            # NV12 promotion, encoder swap) can keep its
+            # ``replaced_with_va_decoder`` invariant unchanged.
             replaced_with_va_decoder = False
-            if wants_va_memory and not has_injected_nv12_pair:
-                from explore import GstInspector
-
-                available = {e[1] for e in GstInspector().elements}
-                for candidate in _IMAGE_SET_VA_DECODERS.get(extension, []):
-                    if candidate in available:
-                        logger.debug(
-                            "Replacing software image decoder '%s' with VA "
-                            "decoder '%s' for image-set node %s (extension %s)",
-                            decoder_node.type,
-                            candidate,
-                            src_node.id,
-                            extension,
-                        )
-                        decoder_node.type = candidate
-                        replaced_with_va_decoder = True
-                        break
 
             # Step 2: prune a redundant decodebin3 sitting right after
             # the image decoder, regardless of target device. The
@@ -2726,8 +2721,18 @@ class Graph:
                     nodes_by_id = {n.id: n for n in self.nodes}
 
             # Step 3: if we still need VA memory and the decoder is
-            # software-only, insert a vapostproc node to lift frames
-            # into VA memory before they reach gvadetect/gvaclassify.
+            # software-only, insert ``vapostproc ! video/x-raw
+            # (memory:VAMemory),format=NV12`` after the decoder so
+            # the downstream chain stays in VA memory and the format
+            # is pinned to NV12 (the format every VA-aware DLStreamer
+            # plugin understands). A standalone ``vapostproc`` is not
+            # enough: without an explicit caps filter behind it, the
+            # element would happily forward system-memory I420 frames
+            # downstream, which ``gvadetect`` with
+            # ``pre-process-backend=va-surface-sharing`` rejects with
+            # "For system memory only supports ie, opencv image
+            # preprocessors".
+            #
             # When an injected ``videoconvert ! NV12 caps`` pair is
             # already present downstream, step 4 promotes it to a
             # VA-aware equivalent which already covers the memory
@@ -2739,7 +2744,7 @@ class Graph:
                 and not replaced_with_va_decoder
                 and not has_injected_nv12_pair
             ):
-                # Allocate a fresh node id.
+                # Allocate fresh node and edge ids.
                 existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
                     int(e.id) for e in self.edges if e.id.isdigit()
                 ]
@@ -2749,32 +2754,50 @@ class Graph:
                 next_id_int += 1
                 vapostproc_node = Node(id=vapostproc_id, type="vapostproc", data={})
 
+                caps_id = str(next_id_int)
+                next_id_int += 1
+                caps_node = Node(
+                    id=caps_id,
+                    type="video/x-raw(memory:VAMemory)",
+                    data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "NV12"},
+                )
+
                 edge_decoder_to_vapostproc = Edge(
                     id=str(next_id_int),
                     source=decoder_id,
                     target=vapostproc_id,
                 )
                 next_id_int += 1
+                edge_vapostproc_to_caps = Edge(
+                    id=str(next_id_int),
+                    source=vapostproc_id,
+                    target=caps_id,
+                )
+                next_id_int += 1
 
-                # Insert vapostproc right after the decoder for
-                # readability in any debug dump.
+                # Insert vapostproc + caps right after the decoder
+                # for readability in any debug dump.
                 for i, n in enumerate(self.nodes):
                     if n.id == decoder_id:
-                        self.nodes.insert(i + 1, vapostproc_node)
+                        self.nodes[i + 1 : i + 1] = [vapostproc_node, caps_node]
                         break
 
                 # Rewire: every edge that previously left the decoder
-                # now leaves vapostproc (after we add the new bridging
-                # edge below).
+                # now leaves the caps node (after we add the new
+                # bridging edges below).
                 for edge in self.edges:
                     if edge.source == decoder_id:
-                        edge.source = vapostproc_id
+                        edge.source = caps_id
                 self.edges.append(edge_decoder_to_vapostproc)
+                self.edges.append(edge_vapostproc_to_caps)
 
                 logger.debug(
-                    "Inserted vapostproc (node %s) after software image "
-                    "decoder (node %s) to lift frames into VA memory",
+                    "Inserted 'vapostproc ! video/x-raw"
+                    "(memory:VAMemory),format=NV12' (nodes %s, %s) "
+                    "after software image decoder (node %s) to lift "
+                    "frames into VA memory",
                     vapostproc_id,
+                    caps_id,
                     decoder_id,
                 )
 
