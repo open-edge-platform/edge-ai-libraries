@@ -2472,7 +2472,7 @@ resolved_reference = "d8f202f4435cf3e5e0bf735723eaacbe84c6853c"
 
 [[package]]
 name = "pyyaml"
-version = "6.0.3"
+version = "6.0.3
 description = "YAML parser and emitter for Python"
 optional = false
 python-versions = ">=3.8"

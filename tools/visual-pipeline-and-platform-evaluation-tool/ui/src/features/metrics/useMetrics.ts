@@ -23,8 +23,8 @@ export const useMetrics = () => {
   const rawAvailableGpuIds = Array.from(
     new Set(
       allMetrics
-        .filter((m) => m.name === "gpu_engine_usage" && m.tags?.gpu_id)
-        .map((m) => m.tags!.gpu_id!),
+        .filter((m) => m.name === "gpu_engine_usage_usage" && m.labels.gpu_id)
+        .map((m) => m.labels.gpu_id),
     ),
   ).sort();
 

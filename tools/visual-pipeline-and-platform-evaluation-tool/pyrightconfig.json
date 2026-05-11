@@ -13,7 +13,6 @@
     "**/node_modules",
     "**/__pycache__",
     ".git",
-    "shared/scripts",
-    "shared/model-download"
+    "shared/"
   ]
 }

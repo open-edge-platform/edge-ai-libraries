@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
+from src.core.plugin_venv import get_plugin_venv_env
 from src.utils.logging import logger
 
 class UltralyticsDownloader(ModelDownloadPlugin):
@@ -196,8 +197,8 @@ class UltralyticsDownloader(ModelDownloadPlugin):
 
         logger.info(f"Executing: {' '.join(cmd)}")
 
-        # Prepare environment with MODELS_PATH
-        env = os.environ.copy()
+        # Prepare environment
+        env = get_plugin_venv_env("ultralytics")
         env['MODELS_PATH'] = models_path
         logger.info(f"Setting MODELS_PATH to {models_path}")
         # Execute the bash script and capture output

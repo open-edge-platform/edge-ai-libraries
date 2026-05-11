@@ -7,11 +7,12 @@ from collections import deque
 from enum import Enum
 from typing import Dict, Any, Optional, List
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
+from src.core.plugin_venv import get_plugin_venv_python, get_plugin_venv_env, build_venv_command
 from src.api.models import OPENVINO_EXPORT_PARAMS, EXPORT_TYPE_PARAMS
 from src.utils.logging import logger
 
 # Default OVMS release tag for export_model.py script
-OVMS_RELEASE_TAG = os.getenv("OVMS_RELEASE_TAG", "v2025.4.1")
+OVMS_RELEASE_TAG = os.getenv("OVMS_RELEASE_TAG", "v2026.0")
 
 
 class OpenVINOConverter(ModelDownloadPlugin):
@@ -104,7 +105,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         
         # Base command
         command = [
-            "python3", "scripts/export_model.py", export_type,
+            get_plugin_venv_python("openvino"), "scripts/export_model.py", export_type,
             "--source_model", model_name,
             "--weight-format", weight_format_str,
             "--config_file_path", f"{output_dir}/config_all.json",
@@ -353,11 +354,11 @@ class OpenVINOConverter(ModelDownloadPlugin):
         logger.info(f"Executing export_model.py command: {' '.join(command)}")
         try:
             result = subprocess.Popen(
-                command,
+                build_venv_command("openvino", command),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 universal_newlines=True,
-                text=True
+                text=True,
             )
             stderr_logs = deque(maxlen=3)
             stdout_logs = deque(maxlen=3)
@@ -382,14 +383,20 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 if model_type == "vlm":
                     logger.info("VLM model conversion failed with export_model.py, attempting fallback conversion using direct PyTorch to OpenVINO converter...")
                     command = [
-                        "python3", "scripts/convert_model_vlm.py", 
+                        get_plugin_venv_python("openvino"), "scripts/convert_model_vlm.py",
                         "--model-name", model_name,
                         "--download-path", model_directory,
                         "--precision", weight_format,
                         "--device", target_device.lower()
-                    ]                    
+                    ]
                     logger.info(f"Executing fallback command: {' '.join(command)}")
-                    result = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, text=True)
+                    result = subprocess.Popen(
+                        build_venv_command("openvino", command),
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        universal_newlines=True,
+                        text=True,
+                    )
 
                     # Stream output in real-time
                     while True:

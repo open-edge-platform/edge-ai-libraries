@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMetrics } from "@/features/metrics/useMetrics";
+import { useAppSelector } from "@/store/hooks.ts";
+import { selectIsConnected } from "@/store/reducers/metrics.ts";
 
 export interface GpuMetrics {
   compute?: number;
@@ -25,17 +27,21 @@ export interface MetricHistoryPoint {
   gpus: Record<string, GpuMetrics>;
 }
 
-const MAX_HISTORY_POINTS = 60; // save last 60 data points
+const MAX_HISTORY_POINTS = 60;
 
 export const useMetricHistory = () => {
   const metrics = useMetrics();
+  const isConnected = useAppSelector(selectIsConnected);
   const [history, setHistory] = useState<MetricHistoryPoint[]>([]);
   const lastUpdateRef = useRef<number>(0);
 
   useEffect(() => {
+    if (!isConnected) {
+      return;
+    }
+
     const now = Date.now();
 
-    // update once per second
     if (now - lastUpdateRef.current < 1000) {
       return;
     }
@@ -79,6 +85,7 @@ export const useMetricHistory = () => {
       return updated;
     });
   }, [
+    isConnected,
     metrics.fps,
     metrics.cpu,
     metrics.cpuDetailed.user,

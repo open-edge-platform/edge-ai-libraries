@@ -6,7 +6,7 @@ SHELL := bash -eu -o pipefail
 # default goal to show help
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
-	shell shell-vippet shell-models shell-model-download shell-metrics-service shell-videogenerator stop clean clean-output-videos help \
+	shell shell-vippet shell-models shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
 	build-videogenerator build-models build-onvif-discovery docker-build env-setup \
 	install-models-once install-models-force install-models-all \
 	test-smoke test-full
@@ -147,14 +147,14 @@ shell-models: ## Open shell in models container
 shell-model-download: ## Open shell in model-download container
 	$(MAKE) shell SERVICE=model-download
 
-shell-metrics-service: ## Open shell in metrics-service container
-	$(MAKE) shell SERVICE=metrics-service
+shell-metrics-manager: ## Open shell in metrics-manager container
+	$(MAKE) shell SERVICE=metrics-manager
 
 shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop the docker compose services
-	docker compose down models model-download metrics-service videogenerator mediamtx vippet-ui vippet onvif-discovery
+	docker compose down models model-download metrics-manager videogenerator mediamtx vippet-ui vippet onvif-discovery
 
 clean: ## Clean all build artifacts
 	rm -rf shared/models/output/ shared/model-download/ shared/onvif/onvif_cameras.json shared/videos/input shared/videos/output shared/videos/video-generator

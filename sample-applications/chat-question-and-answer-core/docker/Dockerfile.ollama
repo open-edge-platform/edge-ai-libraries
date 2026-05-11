@@ -44,10 +44,11 @@ RUN curl -sSL https://install.python-poetry.org | python -
 WORKDIR $SETUP_PATH
 COPY poetry.lock pyproject.toml ./
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
-RUN poetry install --with ollama --without dev --without openvino
+RUN poetry install --with ollama --without dev --without openvino && \
+    $VENV_PATH/bin/pip install --upgrade --no-cache-dir pip setuptools wheel
 
 # Install ollama and exclude nvidia gpu-related packages
-ARG OLLAMA_VERSION=0.17.0
+ARG OLLAMA_VERSION=0.23.0
 ARG OLLAMA_ARCHIVE=linux-amd64
 ARG OLLAMA_URL="https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-${OLLAMA_ARCHIVE}.tar.zst"
 

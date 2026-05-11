@@ -8,8 +8,8 @@ Provides efficient, batched video frame extraction from various sources (files, 
 
 from __future__ import annotations
 
+import ast
 import io
-import logging
 import os
 import queue
 import threading
@@ -21,7 +21,6 @@ from dataclasses import field
 from enum import Enum
 from fractions import Fraction
 from multiprocessing import shared_memory
-from PIL import Image
 from typing import Any
 from typing import Dict
 from typing import Generator
@@ -31,6 +30,9 @@ from typing import Union
 
 import av
 import numpy as np
+from PIL import Image
+
+from .common import logger
 
 INTERRUPT = object()  # interrupt signal (unique, non-colliding)
 DONE = object()  # consumer → main completion signal
@@ -61,25 +63,8 @@ def _get_video_config():
         return FallbackSettings()
 
 
-def _get_log_level(level_str: str) -> int:
-    """Convert log level string to logging constant."""
-    level_map = {
-        "DEBUG": logging.DEBUG,
-        "INFO": logging.INFO,
-        "WARNING": logging.WARNING,
-        "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL,
-    }
-    return level_map.get(level_str.upper(), logging.DEBUG)
-
-
-# Configure logger with configurable level
 _video_config = _get_video_config()
-logging.basicConfig(
-    level=_get_log_level(_video_config.VIDEO_FRAME_LOG_LEVEL),
-    format="%(asctime)s [%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d - %(message)s",
-)
-logger = logging.getLogger(__name__)
+logger.setLevel(_video_config.VIDEO_FRAME_LOG_LEVEL)
 
 
 class SharedMemoryPool:
@@ -269,6 +254,16 @@ class VideoFrameConfig:
     )
     frame_interval: int = 1
     keyframes_only: bool = False
+    # Segment config for temporal frame extraction
+    start_offset_sec: int = field(
+        default_factory=lambda: _video_config.DEFAULT_START_OFFSET_SEC
+    )
+    clip_duration: int = field(
+        default_factory=lambda: _video_config.DEFAULT_CLIP_DURATION
+    )
+    frame_indexes: List[int] | None = None
+    extraction_fps: float | None = None
+    num_frames: int = field(default_factory=lambda: _video_config.DEFAULT_NUM_FRAMES)
 
     def __post_init__(self):
         if self.batch_size < 1:
@@ -279,6 +274,12 @@ class VideoFrameConfig:
             raise ValueError("frame_interval must be >= 1")
         if self.keyframes_only and self.frame_interval != 1:
             raise ValueError("`frame_interval` must be 1 when `keyframes_only` is True")
+        if self.num_frames < 0:
+            raise ValueError("num_frames must be >= 0")
+        if self.extraction_fps is not None and self.extraction_fps <= 0:
+            raise ValueError("extraction_fps must be positive")
+        if self.start_offset_sec < 0:
+            raise ValueError("start_offset_sec must be >= 0")
 
     @property
     def effective_workers(self) -> int:
@@ -286,6 +287,96 @@ class VideoFrameConfig:
         if self.num_workers is not None:
             return self.num_workers
         return _video_config.VIDEO_FRAME_DECODER_WORKERS
+
+
+def _calculate_target_frame_indices(
+    total_frames: int,
+    fps: float,
+    stream_config: VideoFrameConfig,
+) -> set[int]:
+    """
+    Calculate target frame indices based on segment configuration.
+
+    Implements priority-based frame extraction:
+    1. frame_indexes (highest priority) - specific frame indices
+    2. extraction_fps - uniform sampling at specified rate
+    3. num_frames (lowest priority) - uniform sampling of specified number
+
+    Args:
+        total_frames: Total number of frames in the video
+        fps: Frames per second of the video
+        stream_config: Video frame configuration with segment parameters
+
+    Returns:
+        Set of frame indices to extract
+    """
+    # Calculate segment boundaries
+    start_idx = int(fps * stream_config.start_offset_sec)
+    end_idx = (
+        min(total_frames, start_idx + int(fps * stream_config.clip_duration))
+        if stream_config.clip_duration != -1
+        else total_frames
+    )
+
+    logger.debug(
+        f"Video segment boundaries - fps: {fps}, total_frames: {total_frames}, "
+        f"start_idx: {start_idx}, end_idx: {end_idx}"
+    )
+
+    # Priority 1: frame_indexes - specific frame indices (highest priority)
+    if stream_config.frame_indexes is not None:
+        frame_indexes = np.array(stream_config.frame_indexes, dtype=int)
+        # Filter indices to be within the video segment bounds
+        valid_indices = frame_indexes[
+            (frame_indexes >= start_idx) & (frame_indexes < end_idx)
+        ]
+
+        if len(valid_indices) == 0:
+            logger.warning(
+                f"No valid frame indices found within segment bounds [{start_idx}, {end_idx}), "
+                f"falling back to uniform sampling"
+            )
+            # Fall back to default uniform sampling
+            frame_idx = np.linspace(
+                start_idx,
+                end_idx,
+                num=stream_config.num_frames if stream_config.num_frames > 0 else end_idx - start_idx,
+                endpoint=False,
+                dtype=int,
+            )
+        else:
+            frame_idx = valid_indices
+
+        logger.debug(f"Using frame_indexes with {len(frame_idx)} valid indices")
+        return set(frame_idx.tolist())
+
+    # Priority 2: fps - uniform sampling at specified rate
+    if stream_config.extraction_fps is not None:
+        # Calculate frame interval based on user fps
+        frame_interval = float(fps) / float(stream_config.extraction_fps)
+
+        # Generate frame indices at the specified fps rate
+        frame_indices = []
+        current_frame = float(start_idx)
+
+        while current_frame < end_idx:
+            frame_indices.append(int(current_frame))
+            current_frame += frame_interval
+
+        logger.debug(
+            f"Using extraction_fps={stream_config.extraction_fps} for sampling, "
+            f"generated {len(frame_indices)} frames"
+        )
+        return set(frame_indices)
+
+    # Priority 3: num_frames - use explicit value for uniform sampling (lowest priority)
+    frame_idx = np.linspace(
+        start_idx, end_idx, num=stream_config.num_frames if stream_config.num_frames > 0 else end_idx - start_idx, endpoint=False, dtype=int
+    )
+    logger.debug(
+        f"Using default num_frames={stream_config.num_frames} for uniform sampling"
+    )
+    return set(frame_idx.tolist())
 
 
 def convert_and_store_frame(
@@ -462,6 +553,30 @@ def decode_and_batch_generator(
         if stream_config.keyframes_only:
             stream.skip_frame = "NONKEY"
 
+        # Calculate target frame indices based on segment config
+        fps = float(stream.average_rate) if stream.average_rate else 25.0
+        total_frames = stream.frames if stream.frames else 0
+        target_frame_indices = None
+
+        logger.info(f"Stream {stream_id} total frames: {total_frames}")
+
+        # Only calculate target indices if segment config is provided (not default)
+        if (
+            stream_config.frame_indexes is not None
+            or stream_config.extraction_fps is not None
+            or stream_config.start_offset_sec != 0
+            or stream_config.clip_duration != -1
+            or stream_config.num_frames != 0
+        ):
+            if total_frames > 0:
+                target_frame_indices = _calculate_target_frame_indices(
+                    total_frames, fps, stream_config
+                )
+                logger.info(
+                    f"Stream {stream_id} targeting {len(target_frame_indices)} frames "
+                    f"from {total_frames} total frames"
+                )
+
         batch_start_time = time.perf_counter()
         for frame_id, frame in enumerate(container.decode(video=0)):
 
@@ -477,8 +592,14 @@ def decode_and_batch_generator(
                 )
                 break
 
-            if frame_id % stream_config.frame_interval != 0:
-                continue
+            # Apply frame filtering based on target indices if calculated
+            if target_frame_indices is not None:
+                if frame_id not in target_frame_indices:
+                    continue
+            else:
+                # Fall back to frame_interval if no segment config
+                if frame_id % stream_config.frame_interval != 0:
+                    continue
 
             batch.append((frame_id, frame))
 
@@ -564,7 +685,14 @@ class VideoFrameExtractor:
                 if isinstance(video_input, list)
                 else [VideoFrameConfig()]
             )
+        if isinstance(self.configs, VideoFrameConfig):
+            self.configs = (
+                [self.configs]
+                if not isinstance(video_input, list)
+                else [self.configs] * len(video_input)
+            )
 
+        logger.info(f"VideoFrameExtractor initialized with configs: {self.configs}")
         self.shm_pool = shm_pool
 
         # Use external shutdown_event if provided, else create internal one
@@ -691,8 +819,8 @@ class VideoFrameExtractor:
         ]
 
         queue_size = (
-            self.configs[0].queue_size
-            if self.configs
+            _video_config.VIDEO_FRAME_QUEUE_SIZE * len(inputs)
+            if self.configs and isinstance(self.configs, list) and len(self.configs) > 0
             else _video_config.VIDEO_FRAME_QUEUE_SIZE
         )
         result_queue: queue.Queue = queue.Queue(maxsize=queue_size)
@@ -776,7 +904,6 @@ class VideoFrameExtractor:
             raise
 
         finally:
-            self._shutdown.set()
             logger.info("[DECODER MAIN] All threads have been signaled to shutdown.")
 
 
@@ -786,19 +913,30 @@ def extract_batched_frames(
     batch_size: int | None = None,
     keyframes_only: bool = False,
     shm_pool: SharedMemoryPool | None = None,
+    segment_config: dict | None = None,
 ) -> Generator[List[Image.Image], None, None]:
     """
     Convenience function to extract frames from multiple video sources using threading.
 
     Uses threading.Thread instead of multiprocessing for simpler implementation.
+    Supports temporal frame extraction via segment_config with multiple extraction strategies.
     May have GIL limitations but avoids shared memory complexity.
 
     Args:
         video_inputs: List of VideoInput objects, file paths, RTSP URLs, or bytes.
-        frame_interval: Extract every Nth frame.
+        frame_interval: Extract every Nth frame (ignored if segment_config is provided).
         batch_size: Number of frames per batch (uses VIDEO_FRAME_BATCH_SIZE env if None).
         keyframes_only: Whether to extract only keyframes.
         shm_pool: Optional pre-allocated shared memory pool.
+        segment_config: Configuration dictionary for video segmentation with options:
+            - startOffsetSec: Starting offset in seconds (default: 0)
+            - clip_duration: Duration of clip to extract from (-1 for full video, default: -1)
+            - frame_indexes: Array of specific frame indices (highest priority)
+            - extraction_fps: Frames per second for uniform sampling (can be fractional)
+            - num_frames: Number of frames for uniform sampling (default: 64)
+
+            Priority order: frame_indexes > extraction_fps > num_frames
+            If segment_config is not provided, frame_interval is used as fallback.
 
     Yields:
         Batches of PIL.Image frames from all sources.
@@ -806,10 +944,38 @@ def extract_batched_frames(
     if batch_size is None:
         batch_size = _video_config.VIDEO_FRAME_BATCH_SIZE
 
+    # Parse segment_config if provided
+    start_offset_sec = 0
+    clip_duration = -1
+    frame_indexes = None
+    extraction_fps = None
+    num_frames = _video_config.DEFAULT_NUM_FRAMES
+
+    if segment_config is not None:
+        start_offset_sec = segment_config.get(
+            "startOffsetSec", _video_config.DEFAULT_START_OFFSET_SEC
+        )
+        clip_duration = segment_config.get(
+            "clip_duration", _video_config.DEFAULT_CLIP_DURATION
+        )
+        frame_indexes = segment_config.get("frame_indexes")
+        extraction_fps = segment_config.get("extraction_fps")
+        num_frames = segment_config.get("num_frames", _video_config.DEFAULT_NUM_FRAMES)
+
+    logger.info(
+        f"Starting frame extraction with frame_interval={frame_interval}, batch_size={batch_size}, "
+        f"keyframes_only={keyframes_only}, start_offset_sec={start_offset_sec}, clip_duration={clip_duration}, "
+        f"frame_indexes={frame_indexes}, extraction_fps={extraction_fps}, num_frames={num_frames}"
+    )
     config = VideoFrameConfig(
         frame_interval=frame_interval,
         batch_size=batch_size,
         keyframes_only=keyframes_only,
+        start_offset_sec=start_offset_sec,
+        clip_duration=clip_duration,
+        frame_indexes=frame_indexes,
+        extraction_fps=extraction_fps,
+        num_frames=num_frames,
     )
     if shm_pool is None:
         # Create a default shared memory pool if not provided
@@ -821,7 +987,13 @@ def extract_batched_frames(
         )
         shm_pool = SharedMemoryPool(max_blocks=max_blocks, block_size=block_size)
 
-    extractor = VideoFrameExtractor(video_inputs, config, shm_pool=shm_pool)
+    shutdown_event = threading.Event()
+    extractor = VideoFrameExtractor(
+        video_inputs,
+        config,
+        shm_pool=shm_pool,
+        shutdown_event=shutdown_event,
+    )
     logger.info(f"extractor metadata: {extractor.metadata_list}")
     try:
         for batch in extractor.decode_frames():
@@ -830,6 +1002,7 @@ def extract_batched_frames(
                 logger.info(
                     f"Received signal {batch[0]} for stream {batch[1]}, stopping extraction."
                 )
+                shutdown_event.set()
                 break
 
             batch_dict, _ = batch
@@ -846,7 +1019,7 @@ def extract_batched_frames(
                 shm = shared_memory.SharedMemory(name=frame_meta["shm"])
                 arr = Image.fromarray(
                     np.ndarray(
-                        eval(frame_meta["shape"]),
+                        ast.literal_eval(frame_meta["shape"]),
                         dtype=frame_meta["dtype"],
                         buffer=shm.buf,
                     ),
@@ -870,3 +1043,4 @@ def extract_batched_frames(
                 shm_pool.release(frame_meta["shm"])
     finally:
         shm_pool.shutdown()
+        shutdown_event.set()

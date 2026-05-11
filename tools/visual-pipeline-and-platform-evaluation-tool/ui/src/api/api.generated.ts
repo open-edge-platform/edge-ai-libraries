@@ -838,7 +838,7 @@ export type ValidationJobSummary = {
   id: string;
   request: PipelineValidation;
 };
-export type ModelCategory = "classification" | "detection";
+export type ModelCategory = "classification" | "detection" | "genai";
 export type Model = {
   name: string;
   display_name: string;
