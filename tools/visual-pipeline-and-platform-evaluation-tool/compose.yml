@@ -265,7 +265,7 @@ services:
     environment:
       HOST: ia-time-series-analytics-microservice
       PORT: 5000
-      TOPIC: point_data
+      TOPIC: wind-turbine-data
       no_proxy: "ia-time-series-analytics-microservice,${no_proxy}"
       NO_PROXY: "ia-time-series-analytics-microservice,${no_proxy}"
       PYTHONUNBUFFERED: 1
