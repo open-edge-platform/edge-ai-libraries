@@ -9,11 +9,10 @@ running pipelines on both CPU and GPU to compare performance.
 
 ## Create pipelines from Optimized Template
 
-![Template 1](../_assets/pipeline-DC-table-template-col-row1.png)\
-*Template 1*
-
-![Template 2](../_assets/pipeline-DC-table-template-col-row2.png)\
-*Template 2*
+| Template | Description |
+|---|---|
+| <img src="../_assets/pipeline-DC-table-template-col-row1.png" width="50%"> | Template 1 |
+| <img src="../_assets/pipeline-DC-table-template-col-row2.png" width="50%"> | Template 2 |
 
 
 ## Step 1. Add new pipeline
