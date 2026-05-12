@@ -46,9 +46,9 @@ Define the name for nginx Chart.
 {{- end }}
 
 {{/*
-Define the name for videosummaryui Chart.
+Define the name for summaryui Chart.
 */}}
-{{- define "videosummaryui.fullname" -}}
+{{- define "summaryui.fullname" -}}
 {{ .Release.Name | trunc 57 | trimSuffix "-" }}-{{ .Values.name }}
 {{- end }}
 
