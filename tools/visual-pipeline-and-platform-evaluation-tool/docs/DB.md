@@ -25,14 +25,56 @@ Verify the container is running:
 docker ps | grep vippet-postgres
 ```
 
+### User Roles
+
+ViPPET supports two PostgreSQL roles with different levels of access:
+
+| Role | Permissions | UI behaviour |
+|------|-------------|--------------|
+| `vippet_server` | Full read/write on the `servers` table | Shows the **Add Server** button — can register and remove machines |
+| `vippet_user` | Read-only on the `servers` table | Hides the **Add Server** button — can only view registered machines on the Remote page |
+
+#### Creating the roles
+
+Connect to the running container as the superuser:
+
+```bash
+docker exec -it vippet-postgres psql -U <username> -d vippet_db
+```
+
+Then run the following SQL:
+
+```sql
+-- Create roles
+CREATE USER vippet_server WITH PASSWORD '<server_password>';
+CREATE USER vippet_user   WITH PASSWORD '<user_password>';
+
+-- Grant connection and schema access
+GRANT CONNECT ON DATABASE vippet_db TO vippet_server, vippet_user;
+GRANT USAGE   ON SCHEMA public      TO vippet_server, vippet_user;
+
+-- vippet_server: full access to the servers table
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE servers TO vippet_server;
+
+-- vippet_user: read-only access
+GRANT SELECT ON TABLE servers TO vippet_user;
+```
+
 ### Configuration
 
 Set the ``DATABASE_URL`` environment variable before starting ViPPET,
-either in your shell or in the ``.env`` file at the project root:
+either in your shell or in the ``.env`` file at the project root.
 
+**Admin machine** (can register/remove servers):
 ```
-DATABASE_URL=postgresql://<username>:<password>@<DB_HOST_IP>:5432/vippet_db
+DATABASE_URL=postgresql://vippet_server:<server_password>@<DB_HOST_IP>:5432/vippet_db
 ```
+
+**Regular machine** (read-only, Remote page only):
+```
+DATABASE_URL=postgresql://vippet_user:<user_password>@<DB_HOST_IP>:5432/vippet_db
+```
+
 The variable is forwarded into the ``vippet`` container via ``compose.yml``.
 
 ### Security recommendations
