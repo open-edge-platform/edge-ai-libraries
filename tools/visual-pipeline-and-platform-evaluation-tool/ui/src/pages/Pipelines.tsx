@@ -88,7 +88,11 @@ const normalizeSourceNodeData = (
 
   if (node.type === "source") {
     const normalizedKind = String(rawData.kind ?? "").toLowerCase();
-    if (normalizedKind === "camera" || normalizedKind === "file") {
+    if (
+      normalizedKind === "camera" ||
+      normalizedKind === "video" ||
+      normalizedKind === "image_set"
+    ) {
       normalizedData.kind = normalizedKind;
     }
 

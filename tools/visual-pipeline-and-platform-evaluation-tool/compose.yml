@@ -121,7 +121,7 @@ services:
       - no_proxy=${no_proxy}
     command: './model_manager.sh'
   model-download:
-    image: docker.io/intel/model-download:2026.1.0-20260428-weekly
+    image: docker.io/intel/model-download:2026.1.0-20260505-weekly
     container_name: model-download
     ports:
       - "8000:8000"
@@ -158,7 +158,7 @@ services:
     ports:
       - "7860:7860"
   metrics-manager:
-    image: docker.io/intel/metrics-manager:2026.1.0-20260507-weekly
+    image: docker.io/intel/metrics-manager:2026.1.0-20260508-weekly
     container_name: metrics-manager
     ports:
       - "9090:9090"

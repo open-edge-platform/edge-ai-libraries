@@ -279,7 +279,7 @@ gst_gencamsrc_class_init (GstGencamsrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_TRIGGERDELAY,
       g_param_spec_float ("trigger-delay", "TriggerDelay",
           "Specifies the delay in microseconds (us) to apply after the trigger reception before activating it.",
-          -1 /*Min */ , INT_MAX /*Max */ , -1 /*Default */ ,
+        -1 /*Min */ , (gfloat) INT_MAX /*Max */ , -1 /*Default */ ,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property (gobject_class, PROP_TRIGGERDIVIDER,
@@ -462,7 +462,8 @@ gst_gencamsrc_init (GstGencamsrc * gencamsrc)
       else {
         // commented out for privacy
         // GST_DEBUG_OBJECT (gencamsrc, "BALLUFF_ACQ_LIC_MODULE doesn't exist. Setting it now...");
-        setenv(env_variable,"/usr/local/lib/gstreamer-1.0/libgstgencamsrc.so",1);
+        g_setenv (env_variable,
+            "/usr/local/lib/gstreamer-1.0/libgstgencamsrc.so", TRUE);
         // commented out for privacy
         // env_variable_value = getenv(env_variable);
         // GST_DEBUG_OBJECT (gencamsrc, "new BALLUFF_ACQ_LIC_MODULE is: %s", env_variable_value);
@@ -474,7 +475,7 @@ gst_gencamsrc_init (GstGencamsrc * gencamsrc)
   }
 
   // disabling unlimited license for Balluff from DLStreamer Pipeline Server v2.2.0 onwards
-  unsetenv(env_variable);
+  g_unsetenv (env_variable);
 
   GencamParams *prop = &gencamsrc->properties;
 
@@ -1113,8 +1114,8 @@ gst_gencamsrc_create (GstPushSrc * src, GstBuffer ** buf)
     gencamsrc->elapsedTime = time - gencamsrc->prevSecTime;
     // check if time elapsed is > 1s
     if (gencamsrc->elapsedTime >= FPS_REPORT_TIME) {
-      int64_t frames = gencamsrc->frameNumber - gencamsrc->frames;
-      int64_t elapsedTime = gencamsrc->elapsedTime;
+      gint64 frames = gencamsrc->frameNumber - gencamsrc->frames;
+      gint64 elapsedTime = gencamsrc->elapsedTime;
       GST_INFO_OBJECT (src, "FPS: %f (Calculated time per frame: %.1fms)",
           ((float) frames / ((float) elapsedTime / FPS_REPORT_TIME)),
           (float) elapsedTime / frames);

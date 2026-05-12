@@ -23,7 +23,7 @@ class _RecordingSession(requests.Session):
     ) -> requests.Response:
         clean_url = str(url).split("?")[0].split("#")[0]
         _recorded_api_calls.add((str(method).upper(), clean_url))
-        return super().request(method, url, **kwargs)
+        return super().request(str(method), url, **kwargs)
 
 
 @pytest.fixture(scope="session")

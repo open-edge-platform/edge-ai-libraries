@@ -1,0 +1,21 @@
+app:
+  name: Text To Speech
+
+models:
+  tts:
+    name: Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice
+    runtime: openvino
+    device: CPU
+    dtype: int8
+    model_variant: custom_voice
+    default_speaker: Ryan
+    default_language: English
+    models_base_path: models
+    use_local_cache: true
+
+audio:
+  output_format: wav
+  sample_width: 16
+
+pipeline:
+  persist_outputs: true
