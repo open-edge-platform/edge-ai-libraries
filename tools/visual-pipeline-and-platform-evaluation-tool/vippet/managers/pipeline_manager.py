@@ -579,8 +579,12 @@ class PipelineManager:
             # Store the pipeline directory path for later video file collection
             video_output_paths[pipeline_id] = video_pipeline_dir
 
-            # Replace decodebin3 with parsebin + specific decoder based on input codec and target device
-            if base_graph.has_decodebin3():
+            # Replace decodebin3 with parsebin + specific decoder based on input codec and target device.
+            # Image-set sources also need this pass even without decodebin3, because
+            # video-centric templates (parsebin, avdec_h264, container muxers, ...)
+            # have to be adapted to the raw-video stream produced by the dedicated
+            # image decoder; ``apply_decodebin3_replacement`` handles both cases.
+            if base_graph.has_decodebin3() or base_graph.has_image_set_source():
                 codec = base_graph.determine_input_codec()
                 target_device = base_graph.get_target_device()
                 base_graph = base_graph.apply_decodebin3_replacement(

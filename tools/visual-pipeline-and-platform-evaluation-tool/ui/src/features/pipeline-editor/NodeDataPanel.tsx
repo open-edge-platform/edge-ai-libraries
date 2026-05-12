@@ -6,24 +6,36 @@ import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyN
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
 import { gvaGenAIConfig } from "@/features/pipeline-editor/nodes/GVAGenAINode.config.ts";
 import { gvaMotionDetectConfig } from "@/features/pipeline-editor/nodes/GVAMotionDetectNode.config.ts";
-import { sourceNodeConfig } from "./nodes/SourceNode.config.ts";
+import { sourceNodeConfig } from "./nodes/custom/SourceNode.config.ts";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import DeviceSelect from "@/components/shared/DeviceSelect";
-import { useGetCamerasQuery, useGetVideosQuery } from "@/api/api.generated";
+import {
+  useGetCamerasQuery,
+  useGetImageSetsQuery,
+  useGetVideosQuery,
+} from "@/api/api.generated";
 import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
+
+type SelectOptionConfig = string | readonly [string, string];
 
 type NodePropertyConfig = {
   key: string;
   label: string;
   type: "text" | "number" | "boolean" | "select" | "textarea";
   defaultValue?: unknown;
-  options?: string[] | readonly string[];
+  options?: SelectOptionConfig[] | readonly SelectOptionConfig[];
   description?: string;
   required?: boolean;
   params?: { [key: string]: string };
 };
+
+const getOptionValue = (option: SelectOptionConfig): string =>
+  Array.isArray(option) ? option[0] : (option as string);
+
+const getOptionLabel = (option: SelectOptionConfig): string =>
+  Array.isArray(option) ? option[1] : (option as string);
 
 type NodeConfig = {
   editableProperties: NodePropertyConfig[];
@@ -51,12 +63,13 @@ const NodeDataPanel = ({
   const models = useAppSelector(selectModels);
   const { data: cameras = [] } = useGetCamerasQuery();
   const { data: videos = [] } = useGetVideosQuery();
+  const { data: imageSets = [] } = useGetImageSetsQuery();
 
   const cameraOptions = useMemo<SelectOption[]>(
     () =>
       cameras.map((camera) => {
         const details = camera.details as Record<string, unknown> | undefined;
-        let value = "";
+        let value;
         let disabled = false;
 
         if (camera.device_type === "USB") {
@@ -105,6 +118,15 @@ const NodeDataPanel = ({
         value: video.filename,
       })),
     [videos],
+  );
+
+  const imageSetOptions = useMemo<SelectOption[]>(
+    () =>
+      imageSets.map((set) => ({
+        label: set.name,
+        value: set.name,
+      })),
+    [imageSets],
   );
 
   useEffect(() => {
@@ -163,22 +185,26 @@ const NodeDataPanel = ({
     return [{ label: currentSource, value: currentSource }, ...options];
   };
 
-  const normalizeKindValue = (kind: unknown): string => {
-    const normalized = String(kind ?? "").toLowerCase();
-
-    if (normalized === "camera") {
-      return "camera";
-    }
-
-    if (normalized === "file") {
-      return "file";
-    }
-
-    return String(kind ?? "");
-  };
+  const normalizeKindValue = (kind: unknown): string =>
+    String(kind ?? "").toLowerCase();
 
   const isCameraKind = (kind: unknown): boolean =>
     normalizeKindValue(kind) === "camera";
+
+  const isImageSetKind = (kind: unknown): boolean =>
+    normalizeKindValue(kind) === "image_set";
+
+  const getSourceOptionsForKind = (kind: unknown): SelectOption[] => {
+    if (isCameraKind(kind)) {
+      return cameraOptions;
+    }
+
+    if (isImageSetKind(kind)) {
+      return imageSetOptions;
+    }
+
+    return videoOptions;
+  };
 
   const handleInputChange = (key: string, value: string | unknown) => {
     if (!selectedNode) {
@@ -189,9 +215,7 @@ const NodeDataPanel = ({
     const updatedData = { ...editableData, [key]: nextValue };
 
     if (selectedNode.type === "source" && key === "kind") {
-      const sourceOptions = isCameraKind(nextValue)
-        ? cameraOptions
-        : videoOptions;
+      const sourceOptions = getSourceOptionsForKind(nextValue);
       const defaultSource = getDefaultSourceValue(sourceOptions);
       updatedData.source = defaultSource;
       updatedData.location = defaultSource;
@@ -246,10 +270,9 @@ const NodeDataPanel = ({
 
   // TODO: maybe it should only display defined fields
   const dataEntries = nodeConfig
-    ? editableProperties.map((prop) => [
-        prop.key,
-        editableData[prop.key] ?? prop.defaultValue,
-      ])
+    ? editableProperties
+        .filter((prop) => !prop.key.startsWith("__"))
+        .map((prop) => [prop.key, editableData[prop.key] ?? prop.defaultValue])
     : Object.entries(editableData ?? {}).filter(
         // Keys starting with '__' are internal/private properties and should not be displayed to users.
         ([key]) => !["label"].includes(key) && !key.startsWith("__"),
@@ -260,9 +283,7 @@ const NodeDataPanel = ({
   return (
     <div className="w-full h-full bg-background border-l border-border p-4 overflow-y-auto">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-foreground">
-          Node Data
-        </h3>
+        <h3 className="text-sm font-semibold text-foreground">Node Data</h3>
         <span className="text-xs text-muted-foreground bg-muted px-2 py-1">
           {selectedNode.type}
         </span>
@@ -288,7 +309,10 @@ const NodeDataPanel = ({
               (typeof value === "object" ? "textarea" : "text");
 
             return (
-              <div key={keyStr} className="border-l-2 border-brand-accent/20 pl-3">
+              <div
+                key={keyStr}
+                className="border-l-2 border-brand-accent/20 pl-3"
+              >
                 <label className="text-xs font-medium text-muted-foreground block mb-1">
                   {propConfig?.label ?? keyStr}:
                   {propConfig?.required && (
@@ -310,14 +334,12 @@ const NodeDataPanel = ({
                   >
                     <option value="">Select {propConfig?.label}</option>
                     {models
-                      .filter(
-                        (model) => {
-                          const expectedCategory = propConfig?.params?.filter;
-                          return expectedCategory
-                            ? model.category === expectedCategory
-                            : true;
-                        },
-                      )
+                      .filter((model) => {
+                        const expectedCategory = propConfig?.params?.filter;
+                        return expectedCategory
+                          ? model.category === expectedCategory
+                          : true;
+                      })
                       .map((model) => (
                         <option
                           key={model.name}
@@ -343,9 +365,7 @@ const NodeDataPanel = ({
                     {ensureCurrentSourceOption(
                       selectedNode.type === "filesrc"
                         ? videoOptions
-                        : isCameraKind(editableData.kind)
-                          ? cameraOptions
-                          : videoOptions,
+                        : getSourceOptionsForKind(editableData.kind),
                       sourceSelectValue,
                     ).map((option) => (
                       <option
@@ -353,9 +373,7 @@ const NodeDataPanel = ({
                         value={option.value}
                         disabled={Boolean(option.disabled)}
                         className={
-                          option.disabled
-                            ? "text-muted-foreground"
-                            : ""
+                          option.disabled ? "text-muted-foreground" : ""
                         }
                       >
                         {option.label}
@@ -373,14 +391,18 @@ const NodeDataPanel = ({
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-input px-2 py-1"
                   >
-                    {propConfig?.options?.map((option) => (
-                      <option key={option} value={option}>
-                        {keyStr === "kind"
-                          ? normalizeKindValue(option).charAt(0).toUpperCase() +
-                            normalizeKindValue(option).slice(1)
-                          : option}
-                      </option>
-                    ))}
+                    {propConfig?.options?.map((option) => {
+                      const optionValue = getOptionValue(option);
+                      const optionLabel = getOptionLabel(option);
+                      return (
+                        <option key={optionValue} value={optionValue}>
+                          {keyStr === "kind"
+                            ? optionLabel.charAt(0).toUpperCase() +
+                              optionLabel.slice(1)
+                            : optionLabel}
+                        </option>
+                      );
+                    })}
                   </select>
                 ) : inputType === "boolean" ? (
                   <div className="flex items-center gap-2">

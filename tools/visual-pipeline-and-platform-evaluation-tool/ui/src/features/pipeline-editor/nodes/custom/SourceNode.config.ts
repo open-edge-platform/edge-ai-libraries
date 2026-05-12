@@ -1,9 +1,11 @@
+type SelectOptionConfig = string | readonly [string, string];
+
 type NodePropertyConfig = {
   key: string;
   label: string;
   type: "text" | "number" | "boolean" | "select" | "textarea";
   defaultValue?: unknown;
-  options?: string[] | readonly string[];
+  options?: SelectOptionConfig[] | readonly SelectOptionConfig[];
   description?: string;
   required?: boolean;
   params?: { [key: string]: string };
@@ -19,8 +21,8 @@ export const sourceNodeConfig: NodeConfig = {
       key: "kind",
       label: "Source Type",
       type: "select",
-      options: ["file", "camera"],
-      defaultValue: "file",
+      options: ["video", ["image_set", "Image Set"], "camera"],
+      defaultValue: "video",
       description: "Select the input source type",
     },
     {
