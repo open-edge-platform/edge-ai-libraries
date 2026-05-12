@@ -17,8 +17,6 @@ fixes, and a modernized base image for Time Series Analytics.
 - Updated Intel GPU drivers to support WCL (compute-runtime/IGC version `26.14.37833`).
 - Updated Kapacitor version and Python library dependency versions.
 
-For older release notes, check out:
-
 ---
 
 ## Version 2026.0
