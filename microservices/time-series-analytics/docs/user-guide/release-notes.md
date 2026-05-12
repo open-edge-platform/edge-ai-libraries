@@ -19,9 +19,6 @@ fixes, and a modernized base image for Time Series Analytics.
 
 For older release notes, check out:
 
-- [Release notes 2026.0](#version-20260)
-- [Release notes 2025](./release-notes/release-notes-2025.md)
-
 ---
 
 ## Version 2026.0
