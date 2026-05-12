@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -38,12 +38,12 @@ def img_ing_obj(img_cfg):
 class TestImageIngestor:
 
     def test_init(self, img_cfg, capfd):
-        img_ing_obj.__init__(img_cfg, queue.Queue())
+        img_ing_obj = ImageIngestor(queue.Queue(), img_cfg)
     
     def test_start(self, mocker, img_ing_obj):
-        mocked_thread = mocker.patch('src.subscriber.image_ingestor.th.Thread')
+        img_ing_obj.th = MagicMock()
         img_ing_obj.start()
-        assert mocked_thread.start.called_with('target=self._run')
+        img_ing_obj.th.start.assert_called_once()
 
     @pytest.mark.parametrize(
         'is_set, expected',

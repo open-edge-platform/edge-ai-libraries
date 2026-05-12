@@ -1,0 +1,56 @@
+# Preferred place for container-specific configuration.
+# Keep all service settings here and edit values manually per deployment/use case.
+
+app:
+  name: Audio Analyzer
+  cleanup_on_exit: true
+  use_ov_genai: true
+
+models:
+  asr:
+    provider: openvino
+    name: whisper-small
+    device: CPU
+    weight_format: null
+    temperature: 0.0
+    diarization: false
+    hf_token: null
+    models_base_path: models
+    no_speech_threshold: 0.6
+    logprob_threshold: -1.0
+    min_duration_sec: 0.25
+    min_words: 2
+    beam_size: 5
+    best_of: 5
+    word_timestamps: false
+    threads: 4
+
+audio_preprocessing:
+  chunk_duration_sec: 15
+  silence_threshold: -35
+  silence_duration: 0.3
+  search_window_sec: 1
+  chunk_output_path: chunks/
+  denoise: false
+  denoise_model: ""
+
+audio_util:
+  max_size_mb: 200
+  allowed_extensions:
+    - .wav
+    - .mp3
+    - .m4a
+  chunk_size: 52428800
+
+pipeline:
+  delete_chunks_after_use: true
+
+sentiment:
+  enabled: true
+  model: speechbrain/emotion-recognition-wav2vec2-IEMOCAP
+  device: CPU
+  provider: openvino
+  weight_format: null
+  models_base_path: models
+  recency_weight: 0.7
+  peak_label: angry

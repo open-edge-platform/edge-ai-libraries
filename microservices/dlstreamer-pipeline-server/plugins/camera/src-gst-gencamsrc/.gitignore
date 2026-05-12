@@ -25,3 +25,15 @@ libtool
 ltmain.sh
 missing
 stamp-h1
+
+# CMake build output (generated)
+build/
+CMakeCache.txt
+CMakeFiles/
+
+# GenICam SDK — fetched at build time; not stored in git
+plugins/genicam-core/genicam_win/
+plugins/genicam-core/genicam_win_backup/
+
+# Test recordings
+*.avi
