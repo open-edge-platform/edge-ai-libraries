@@ -442,6 +442,70 @@ class TestModels(unittest.TestCase):
             mgr2 = m.SupportedModelsManager()
             self.assertIs(mgr, mgr2)
 
+    def test_genai_model_exists_on_disk_requires_directory(self):
+        """GenAI model should be considered installed when its model directory exists."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            models_dir = td_path / "models"
+            yaml_file = td_path / "supported.yaml"
+            yaml_file.write_text("[]")
+
+            m = _reload_models_module(str(yaml_file), str(models_dir))
+
+            genai_model = m.SupportedModel(
+                name="gemma3",
+                display_name="Gemma 3",
+                source="huggingface",
+                model_type="genai",
+                model_path="genai/gemma3",
+                model_proc="",
+            )
+
+            self.assertFalse(genai_model.exists_on_disk())
+
+            model_dir = models_dir / "genai" / "gemma3"
+            model_dir.mkdir(parents=True)
+            self.assertTrue(genai_model.exists_on_disk())
+
+            # Remove the directory and verify it is no longer considered installed.
+            model_dir.rmdir()
+            self.assertFalse(genai_model.exists_on_disk())
+
+    def test_find_installed_model_by_model_and_proc_path_for_genai_directory(self):
+        """Directory-based GenAI model path should map to the configured model entry."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            models_dir = td_path / "models"
+            model_dir = models_dir / "genai" / "gemma3"
+            model_dir.mkdir(parents=True)
+
+            yaml_file = td_path / "supported.yaml"
+            yaml_file.write_text(
+                """
+- name: gemma3
+  display_name: Gemma 3
+  source: huggingface
+  type: genai
+  unsupported_devices: ""
+  default: false
+  precisions:
+    - precision: INT8
+      model_path: genai/gemma3/
+      model_proc: ""
+"""
+            )
+
+            m = _reload_models_module(str(yaml_file), str(models_dir))
+            if hasattr(m, "_supported_models_manager_instance"):
+                setattr(m, "_supported_models_manager_instance", None)
+
+            manager = m.SupportedModelsManager()
+            found = manager.find_installed_model_by_model_and_proc_path(str(model_dir))
+
+            self.assertIsNotNone(found)
+            self.assertEqual(found.name, "gemma3")
+            self.assertEqual(found.model_type, "genai")
+
 
 if __name__ == "__main__":
     unittest.main()

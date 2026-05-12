@@ -37,7 +37,7 @@ def get_models():
     **Each model includes:**
     - `name` - Internal model identifier
     - `display_name` - Human-readable model name
-    - `category` - Logical model category (`classification`, `detection`) or `null` when type is unknown
+    - `category` - Logical model category (`classification`, `detection`, `genai`) or `null` when type is unknown
     - `precision` - Model precision (e.g., `"FP32"`, `"INT8"`) if available
 
     ## Conditions

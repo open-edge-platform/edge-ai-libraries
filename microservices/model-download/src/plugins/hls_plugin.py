@@ -44,7 +44,7 @@ HLS_VENV_PATH = Path("/opt/hls_venv")
 HLS_VENV_PYTHON = HLS_VENV_PATH / "bin" / "python"
 HLS_VENV_MARKER = HLS_VENV_PATH / ".hls_deps_installed"
 HLS_DEPENDENCIES = [
-    "openvino==2025.4.0",
+    "openvino==2026.0.0",
     "torch==2.9.1+cpu",
     "torchvision==0.24.1+cpu",
     "tensorflow",
@@ -70,6 +70,12 @@ class HlsPlugin(ModelDownloadPlugin):
         installing dependencies on the very first call.  Subsequent calls
         return immediately once the marker file exists."""
         async with _hls_venv_lock:
+            # Fast path: entrypoint.sh already built the venv.
+            if HLS_VENV_PYTHON.exists():
+                logger.info("hls_venv_reuse", path=str(HLS_VENV_PATH))
+                return HLS_VENV_PYTHON
+
+            # Fallback: lazy creation for non-Docker / dev environments.
             if HLS_VENV_MARKER.exists():
                 logger.info("hls_venv_reuse", path=str(HLS_VENV_PATH))
                 return HLS_VENV_PYTHON

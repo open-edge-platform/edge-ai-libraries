@@ -39,7 +39,8 @@ tests/
 │   ├── test_huggingface_plugin.py  # HuggingFace plugin tests
 │   ├── test_ollama_plugin.py       # Ollama plugin tests
 │   ├── test_openvino_plugin.py     # OpenVINO plugin tests
-│   └── test_ultralytics_plugin.py  # Ultralytics plugin tests
+│   ├── test_ultralytics_plugin.py  # Ultralytics plugin tests
+│   └── test_pipeline_zoo_models_plugin.py  # Pipeline-zoo models plugin tests
 └── test_data/               # Test data and temporary files
 ```
 
@@ -78,4 +79,5 @@ pytest tests/unit/test_huggingface_plugin.py -v
 pytest tests/unit/test_ollama_plugin.py -v
 pytest tests/unit/test_openvino_plugin.py -v
 pytest tests/unit/test_ultralytics_plugin.py -v
+pytest tests/unit/test_pipeline_zoo_models_plugin.py -v
 ```

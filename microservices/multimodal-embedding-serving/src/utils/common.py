@@ -30,7 +30,7 @@ from pydantic_settings import BaseSettings
 
 # Configure logger
 logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG, format="%(asctime)s [%(levelname)s] [%(filename)s:%(funcName)s:%(lineno)d] - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
