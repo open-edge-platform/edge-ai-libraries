@@ -20,7 +20,7 @@ ia-time-series-analytics-microservice:
 1. Base docker image: python:3.13-slim
 License-Identifier: Python Software Foundation License (PSF License)
 
-2. Kapacitor==1.8.5
+2. Kapacitor 1.8.5
 License-Identifier: MIT License
 
 3. requirements.txt

@@ -10,8 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Updated Kapacitor version. ([#2140])
-- Updated Intel GPU drivers to support WCL (compute-runtime/IGC `26.14.37833`). ([#2145])
-- Updated Intel GPU driver version. ([#2128])
+- Updated Intel GPU drivers to support WCL (compute-runtime/IGC `26.14.37833`). ([#2145]) ([#2128])
 - Replaced `pkill`-based Kapacitor shutdown with a `/proc`-based process discovery approach to terminate the Kapacitor daemon. ([#2104])
 - Switched UDF package upload format from `.zip` to `.tar` archives across endpoint, functional tests, and documentation. ([#2100])
 - Changed base Docker image from `kapacitor:<version>` to `python:<version>-slim` with Kapacitor installed via `.deb`. ([#2098])
