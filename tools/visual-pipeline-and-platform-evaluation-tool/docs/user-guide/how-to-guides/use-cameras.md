@@ -37,6 +37,8 @@ and displays it in the *Cameras* tab.
 After a network camera is discovered, authorization is required before it can be used. An *Authorize*
 button appears next to the camera entry in the *Cameras* tab.
 
+![Camera authorization](../_assets/ViPPET-UI-Cameras-Auth-light.png)
+
 To authorize a camera:
 
 1. Click the *Authorize* button next to the camera.
