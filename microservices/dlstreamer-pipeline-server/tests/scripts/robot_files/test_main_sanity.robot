@@ -68,7 +68,17 @@ dlsps_Test_case_070
     Should Not Be Equal As Integers    ${status}    1
     RETURN         Run Keyword And Return Status    ${status}
 
+dlsps_Test_case_002
+    [Documentation]     Verify gvadetect element for pallet defect detection model - default pipeline for RTSP Camera - appsink destination backend - CPU
+    ${status}          TC_002_dlsps
+    Should Not Be Equal As Integers    ${status}    1
+    RETURN         Run Keyword And Return Status    ${status}
 
+dlsps_Test_case_003
+    [Documentation]     Verify gvadetect element for pallet defect detection model - default pipeline - appsink destination backend - CPU
+    ${status}          TC_003_dlsps
+    Should Not Be Equal As Integers    ${status}    1
+    RETURN         Run Keyword And Return Status    ${status}
 
 
 
@@ -134,4 +144,16 @@ dlsps_TC_070
     [Documentation]    Validate CVLC based Input for backend : iGPU/dGPU
     [Tags]      dlsps
     ${Status}    Run Keyword And Return Status   dlsps_Test_case_070
+    Should Not Be Equal As Integers    ${Status}    0
+
+dlsps_TC_002
+    [Documentation]     Verify gvadetect element for pallet defect detection model - default pipeline for RTSP Camera - appsink destination backend - CPU
+    [Tags]      dlsps
+    ${Status}    Run Keyword And Return Status   dlsps_Test_case_002
+    Should Not Be Equal As Integers    ${Status}    0
+
+dlsps_TC_003
+    [Documentation]     Verify gvadetect element for pallet defect detection model - default pipeline - appsink destination backend - CPU
+    [Tags]      dlsps
+    ${Status}    Run Keyword And Return Status   dlsps_Test_case_003
     Should Not Be Equal As Integers    ${Status}    0
