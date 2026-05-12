@@ -3,7 +3,7 @@ Documentation    This is main test case file.
 Library          test_suit_dlsps_cases.py
 
 ***Variables***
-${IS_OPEN_EDGE}    false
+${IS_OPEN_EDGE}    true
 
 
 ***Keywords***
