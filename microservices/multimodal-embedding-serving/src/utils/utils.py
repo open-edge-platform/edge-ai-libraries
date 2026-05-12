@@ -35,6 +35,8 @@ import httpx
 import numpy as np
 from PIL import Image
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import transformers
 from .common import ErrorMessages, logger, settings
 
 # Only include proxies if they are defined
@@ -123,6 +125,8 @@ class ParallelImagePreprocessor:
                 # logger.info(f"Image preprocessing completed for future: {future}")
                 idx = futures[future]
                 result = future.result()
+                if isinstance(result, transformers.BatchFeature) and "pixel_values" in result:
+                    result = result.convert_to_tensors(tensor_type="pt").pixel_values.squeeze(0)
                 pending_results[idx] = result
 
                 # release in original order whenever contiguous ready
