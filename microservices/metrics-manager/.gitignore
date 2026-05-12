@@ -1,0 +1,31 @@
+# Environment variables (keep locally, never commit)
+.env
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Test artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Virtual environments
+.venv/
+venv/
+
+# uv lock file (generated automatically by uv sync, not committed)
+uv.lock
+
+# Misc
+*.log
+.DS_Store
