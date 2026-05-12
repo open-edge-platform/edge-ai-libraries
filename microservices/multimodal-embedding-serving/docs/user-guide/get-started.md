@@ -307,6 +307,7 @@ curl --location 'http://localhost:9777/embeddings' \
 ```
 
 ### Video Base64 Embedding
+set `num_frames: 0` to process all the frames.
 
 ```bash
 curl --location 'http://localhost:9777/embeddings' \

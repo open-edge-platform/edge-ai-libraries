@@ -53,24 +53,44 @@ All commands below assume you are in the `mcp/` directory:
 cd sample-applications/video-search-and-summarization/mcp
 ```
 
-**Build the image:**
+Docker Compose builds the MCP server and runs it alongside [MCP Inspector](https://github.com/modelcontextprotocol/inspector) for interactive testing.
 
-```bash
-docker build -t vss-mcp .
-```
+1. **Create your `.env` file:**
 
-**Run against a VSS Search backend:**
+   ```bash
+   cp .env.example .env
+   ```
 
-```bash
-docker run --rm -p 8000:8000 \
-  -v "$(pwd)/search.json:/app/search.json:ro" \
-  -e API_SPEC_URL=http://<VSS_IP>:12345/manager/swagger/json \
-  -e API_BASE_URL=http://<VSS_IP>:12345/manager \
-  -e FILTER_FILE_PATH=/app/search.json \
-  vss-mcp
-```
+2.  **Edit `.env`** — set the VSS backend IP and HOST IP:
 
-The MCP server is then reachable at `http://127.0.0.1:8000/mcp`.
+   ```dotenv
+   VSS_IP=<your-vss-ip>
+   HOST_IP=<your-host-ip>
+   ```
+
+   If you are behind a corporate proxy, also set `http_proxy`, `https_proxy`, and `no_proxy`.
+   The `VSS_IP` is automatically appended to `no_proxy` inside the containers by `compose.yaml`.
+
+3. **Start the services:**
+
+   ```bash
+   docker compose up --build -d
+   ```
+
+4. **Access:**
+
+   | Service        | URL                              |
+   |----------------|----------------------------------|
+   | MCP Server     | `http://<HOST_IP>:8000/mcp`      |
+   | MCP Inspector  | `http://<HOST_IP>:6274`          |
+
+   In MCP Inspector, select **Streamable HTTP** transport and enter `http://<HOST_IP>:8000/mcp` to connect.
+
+5. **Stop:**
+
+   ```bash
+   docker compose down
+   ```
 
 See [docs/user-guide/mcp-server.md](../docs/user-guide/mcp-server.md) for the full guide, runtime configuration, filter file format, and how to extend the server.
 

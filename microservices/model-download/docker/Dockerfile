@@ -23,10 +23,6 @@ RUN pip install uv==0.9.10
 # Copy project files
 COPY pyproject.toml uv.lock /opt/
 
-# Install base dependencies using uv
-RUN uv sync \
-    && rm -rf ~/.cache
-
 # ---- Stage 2: Final slim image ----
 FROM python:3.12-slim
 

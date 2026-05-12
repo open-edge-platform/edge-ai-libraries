@@ -186,12 +186,7 @@ class EmbeddingModel:
         try:
             logger.debug("Getting video embedding from URL input")
             video_path = await download_video(video_url)
-            return self.get_video_sampled_embeddings(video_path)
-        
-            # clip_images = extract_video_frames(video_path, segment_config)
-            # delete_file(video_path)
-            # logger.info("Video embedding extracted successfully from URL")
-            # return self.get_video_embeddings([clip_images])
+            return self.get_video_sampled_embeddings(video_path, segment_config)
         except Exception as e:
             logger.error(f"Error getting video embedding from URL: {e}")
             raise RuntimeError(f"Failed to get video embedding from URL: {e}")
@@ -212,12 +207,7 @@ class EmbeddingModel:
         try:
             logger.debug("Getting video embedding from base64")
             video_path = decode_base64_video(video_base64)
-            return self.get_video_sampled_embeddings(video_path)
-        
-            # clip_images = extract_video_frames(video_path, segment_config)
-            # delete_file(video_path)
-            # logger.info("Video embedding extracted successfully from base64")
-            # return self.get_video_embeddings([clip_images])
+            return self.get_video_sampled_embeddings(video_path, segment_config)
         except Exception as e:
             logger.error(f"Error getting video embedding from base64: {e}")
             raise RuntimeError(f"Failed to get video embedding from base64: {e}")
@@ -241,8 +231,8 @@ class EmbeddingModel:
             if not os.path.exists(safe_video_path):
                 raise FileNotFoundError(f"Video file not found: {safe_video_path}")
 
-            frame_interval = (segment_config or {}).get("frame_interval", 10)
-            return self.get_video_sampled_embeddings(safe_video_path, frame_interval=frame_interval)
+            frame_interval = (segment_config or {}).get("frame_interval", 5)
+            return self.get_video_sampled_embeddings(safe_video_path, segment_config, frame_interval=frame_interval)
         except Exception as e:
             logger.error(f"Error getting video embedding from file: {e}")
             raise RuntimeError(f"Failed to get video embedding from file: {e}")
@@ -320,7 +310,6 @@ class EmbeddingModel:
                 )
                 
                 # Extract the specific frames using video processing
-                from .utils import extract_video_frames
                 
                 # Check if this is an optimized manifest with unique frame numbers
                 if "total_metadata_entries" in manifest_data and "frame_metadata_map" in manifest_data:
@@ -362,16 +351,6 @@ class EmbeddingModel:
                     "startOffsetSec": 0,
                     "clip_duration": -1  # Process entire video
                 }
-                
-                # Extract specified frames from video
-                extracted_frames = extract_video_frames(
-                    safe_manifest_video_path, segment_config
-                )
-                
-                if not extracted_frames:
-                    raise ValueError(
-                        f"No frames could be extracted from video: {sanitize_for_log(safe_manifest_video_path)}"
-                    )
                 
                 # For optimized manifests, process both frames and detected crops efficiently
                 if "total_metadata_entries" in manifest_data and "frame_metadata_map" in manifest_data:
@@ -436,7 +415,8 @@ class EmbeddingModel:
                     return embeddings_list
                 else:
                     # Legacy behavior: direct mapping
-                    embeddings_list = self.get_video_embeddings([extracted_frames])
+                    # Extract specified frames from video
+                    embeddings_list = self.get_video_sampled_embeddings(video_path=safe_manifest_video_path, segment_config=segment_config)
                     logger.info(f"Video-based manifest processing complete - {len(embeddings_list)} frame embeddings")
                     return embeddings_list
                 
@@ -506,13 +486,13 @@ class EmbeddingModel:
             raise RuntimeError(f"Failed to get video embedding from frames manifest: {e}")
 
 
-    #TODO: Support SHM + Metadata-based optimized processing for sampled frames as well (similar to get_video_embedding_from_frames_manifest)
-    def get_video_sampled_embeddings(self, video_path: str, frame_interval: int = 1) -> List[List[float]]:
+    def get_video_sampled_embeddings(self, video_path: str, segment_config: dict = None, frame_interval: int = 1) -> List[List[float]]:
         """
         Get sampled frame embeddings from a video file based on a specified interval.
         
         Args:
             video_path: Path to the video file
+            segment_config: Optional configuration for segment-based processing
             frame_interval: Interval for sampling frames (e.g., every Nth frame)
         Returns:
             List of sampled frame embeddings.
@@ -521,25 +501,29 @@ class EmbeddingModel:
         start = time.perf_counter()
         encode_time = 0.0
         try:
-            for i, frame_batch in enumerate(extract_batched_frames(video_path, frame_interval=frame_interval)):
+            logger.info(f"Extracting sampled frame embeddings from video: {video_path} "
+                        f"with frame interval: {frame_interval} and segment config: {segment_config}")
+            for i, frame_batch in enumerate(extract_batched_frames(video_path, frame_interval=frame_interval, segment_config=segment_config)):
                 logger.info(f"Processing batch {i+1} of frames from video: {video_path} (interval: {frame_interval}) - "
                             f"Batch size: {len(frame_batch)}")
                 encode_time_start = time.perf_counter()
-                batch_embeddings = self.handler.encode_image(frame_batch)
-
+                batch_embeddings = self.handler.encode_image(frame_batch, metrics_out=True)
                 if isinstance(batch_embeddings, dict) and "embeddings" in batch_embeddings:
                     batch_embeddings = batch_embeddings["embeddings"]
-
-                # batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1, keepdim=True)
-                embeddings.append(batch_embeddings)
+                embeddings.append(torch.from_numpy(batch_embeddings))
                 encode_time += (time.perf_counter() - encode_time_start)
             wall_time = time.perf_counter() - start
-            logger.info(f"Extracted embeddings for sampled frames from video: {video_path} (interval: {frame_interval}) - "
-                        f"Total wall time: {wall_time:.2f}s, Encoding time: {encode_time:.2f}s")
         except Exception as e:
-            logger.error(f"Error extracting sampled frame embeddings from video: {e.with_traceback(e.__traceback__)}")
-            raise RuntimeError(f"Failed to extract sampled frame embeddings from video: {e}")   
-        return torch.cat(embeddings, dim=0).tolist()
+            logger.error(f"Error extracting sampled frame embeddings from video: {e}")
+            raise RuntimeError(f"Failed to extract sampled frame embeddings from video: {e}")
+
+        output = torch.cat(embeddings, dim=0)
+        logger.info("Detailed Summary for get_video_sampled_embeddings - " \
+                    "Video: %s, Total Frames Processed: %d, Frame Interval: %d, Segment Config: %s, "
+                    "Total Encode Time: %.4f seconds, Total Wall Time: %.4f seconds",
+                    sanitize_for_log(video_path), output.shape[0], frame_interval, segment_config, encode_time, wall_time)
+        logger.info(f"Final embeddings shape: {output.shape}, type: {type(output)}")
+        return output.tolist()
 
     def check_health(self) -> bool:
         """

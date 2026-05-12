@@ -14,6 +14,7 @@ dependencies = [
     "structlog==25.1.0",
     "uvicorn==0.38.0",
     "PyYAML==6.0.2",
+    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.1",
 ]
 
 [project.optional-dependencies]
@@ -34,8 +35,7 @@ cpu = [
 ]
 
 huggingface = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.1",
-    "transformers==4.53.3",
+    "transformers<4.58",
     "torch==2.9.1+cpu",
     "torchvision==0.24.1+cpu",
 ]
@@ -47,23 +47,7 @@ ultralytics = [
 ]
 
 openvino = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.1",
-    "optimum-intel==1.27.0",
-    "accelerate==1.11.0",
-    "datasets==4.5.0",
-    "diffusers==0.35.2",  # for image generation
-    "einops==0.8.1",
-    "nncf==2.19.0",
-    "numpy==2.2.6",
-    "openvino-tokenizers==2025.4.0.0",
-    "openvino==2025.4.0",
-    "pillow==12.1.1",
-    "sentence-transformers==5.1.2",
-    "sentencepiece==0.2.1",  # Required by: transformers
-    "timm==1.0.22",
-    "torch==2.9.1+cpu",
-    "torchvision==0.24.1+cpu",
-    "transformers==4.53.3",
+    
 ]
 
 ollama = [
@@ -71,15 +55,20 @@ ollama = [
 ]
 
 geti = [
-    "geti-sdk==2.13.0",
+    "geti-sdk==2.13.1",
 ]
 
 hls = [
-    "openvino==2025.4.0",
     "torch==2.9.1+cpu",
     "torchvision==0.24.1+cpu",
     "tensorflow",
     "tqdm>=4.67",
+]
+
+pipeline-zoo-models = [
+    # Intentionally empty: plugin uses Python stdlib only.
+    # Keep this extra so uv sync --extra pipeline-zoo-models works
+    # when ENABLED_PLUGINS is set to pipeline-zoo-models.
 ]
 
 [tool.uv]

@@ -114,7 +114,7 @@ class Benchmark:
         # `enable_latency_metrics` is forwarded so that the GStreamer subprocess
         # is launched with the DLStreamer latency_tracer active when requested.
         # `job_id` is forwarded so FPS metrics pushed during each density
-        # iteration are tagged with the owning job's id in metrics-service.
+        # iteration are tagged with the owning job's id in metrics-manager.
         self.runner = PipelineRunner(
             mode="normal",
             max_runtime=max_runtime,
