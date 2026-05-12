@@ -4,9 +4,6 @@ This article explains step-by-step how to configure and test AI pipelines using 
 from creating a new pipeline using DLStreamer launch string, editing the pipeline elements, to demonstrating
 running pipelines on both CPU and GPU to compare performance.
 
-![Pipeline Builder Results](../_assets/ViPPET-UI-PB-Results-light.png)\
-*Build results*
-
 ## Create pipelines from Optimized Template
 
 | Template | Description |
