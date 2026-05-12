@@ -2,7 +2,7 @@
 
 ## Version 2026.1
 
-**May 11, 2026**
+**June, 2026**
 This release introduces new deployment flexibility features, a UDF management API, security
 fixes, and a modernized base image for Time Series Analytics.
 

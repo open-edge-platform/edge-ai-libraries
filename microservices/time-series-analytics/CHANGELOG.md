@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2026.1] - May 2026
+## [2026.1] - June 2026
 
 ### Added
 - Added optional CPU core-pinning support via `CORE_PINNING` environment variable using a new `run.sh` entrypoint and `detect-cores.sh` script. ([#2087])
