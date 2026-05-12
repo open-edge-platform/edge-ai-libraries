@@ -94,9 +94,7 @@ Update or edit the values in YAML file as follows:
 | `global.env.RABBITMQ_DEFAULT_PASS` | RabbitMQ password | `<your-rabbitmq-password>` |
 | `global.env.OTLP_ENDPOINT` | OTLP endpoint | Leave empty if not using telemetry |
 | `global.env.OTLP_ENDPOINT_TRACE` | OTLP trace endpoint | Leave empty if not using telemetry |
-| `global.env.EMBEDDING_MODEL_NAME` | Default embedding model used by all services when not overridden | `CLIP/clip-vit-b-32` (search) or `QwenText/qwen3-embedding-0.6b` (summary+search) |
-| `global.env.TEXT_EMBEDDING_MODEL_NAME` | Optional text-only embedding model. Required when `global.embedding.preferTextModel` is `true`. | `QwenText/qwen3-embedding-0.6b` |
-| `global.embedding.preferTextModel` | When set to `true`, forces all services to use the text embedding model (for unified summary + search deployments). | `true` or `false` |
+| `global.embeddingModelName` | Embedding model used by Multimodal Embedding MS, DataPrep, and Video Search. Use a multimodal model for search-only and dual mode (e.g., `CLIP/clip-vit-b-32`) or a text embedding model for unified mode (e.g., `QwenText/qwen3-embedding-0.6b`). | `CLIP/clip-vit-b-32` or `QwenText/qwen3-embedding-0.6b` |
 | `global.devices.multimodalEmbedding.device` | Device for multimodal-embedding service | `CPU` or `GPU` |
 | `global.devices.multimodalEmbedding.key` | K8s resource key for GPU (required when device=GPU) | `gpu.intel.com/i915` or `gpu.intel.com/xe` |
 | `global.devices.vdmsDataprep.device` | Device for vdms-dataprep service | `CPU` or `GPU` |
@@ -113,13 +111,14 @@ Update or edit the values in YAML file as follows:
 | `pipelinemanager.env.AUDIO_DEVICE` | Device used for audio transcription (Whisper) | `cpu` (default) |
 | `pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | Default for audio transcript summarization. When enabled, the full audio transcript is summarized by the LLM and included in the final video summary. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
 | `pipelinemanager.env.PRODUCE_FINAL_SUMMARY` | Default for producing a final video summary. When enabled, chunk summaries are consolidated into a single video summary via map-reduce. When disabled, only per-chunk summaries are generated. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
+| `pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS` | Timeout in milliseconds for search dataprep operations (video embedding pipeline). Increase for large videos or slow hardware. | `600000` (default, 10 minutes) |
 | `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
 | `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
 | `vsscollector.enabled` | Enable the telemetry collector sidecar (telegraf-based) | `true` or `false` |
 | `vsscollector.websocketUrl` | Override the telemetry websocket URL (defaults to `ws://pipeline-manager:80/metrics/ws/collector`) | `ws://pipeline-manager:80/metrics/ws/collector` |
 | `vsscollector.signalVolume.subPath` | Subpath under the shared volume for telemetry signal files | `collector-signals` |
 
-> **Tip:** Set `global.env.EMBEDDING_MODEL_NAME` to pick the default embedding model for both the multimodal embedding service and DataPrep. When deploying the unified summary + search mode, also set `global.env.TEXT_EMBEDDING_MODEL_NAME` and flip `global.embedding.preferTextModel` to `true` so the chart enforces the text embedding requirement automatically. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+> **Tip:** Set `global.embeddingModelName` to pick the embedding model for all services. For search-only and dual UI mode, use a multimodal model (e.g., `CLIP/clip-vit-b-32`). For unified mode, use a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`). Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 > **Note:** `multimodal-embedding-ms` and `vdms-dataprep` share the same PVC for model/cache storage. If you enable GPU for one of them, enable it for the other as well (`global.devices.multimodalEmbedding.device=GPU` **and** `global.devices.vdmsDataprep.device=GPU`). Mixing GPU/CPU modes between the two causes the GPU pod to wait forever because the shared PVC can only be attached to a single node at a time. The Helm chart validates this pairing and will fail the install/upgrade when the devices do not match while both services are enabled.
 
@@ -315,7 +314,7 @@ helm install vss . -f summary_override.yaml -f xeon_vllm_values.yaml -f user_val
 
 #### **Use Case 3: Video Search Only**
 
-To deploy only the Video Search functionality, use the search override values:
+To deploy only the Video Search functionality, first set `global.embeddingModelName` to a multimodal embedding model (e.g. "CLIP/clip-vit-b-32"). Then run the following command:
 
 ```bash
 helm install vss . -f search_override.yaml -f user_values_override.yaml -n $my_namespace
@@ -323,15 +322,36 @@ helm install vss . -f search_override.yaml -f user_values_override.yaml -n $my_n
 
 #### **Use Case 4: Unified Video Search and Summarization**
 
-To deploy the combined video search and summarization functionality, use the unified override values:
+To deploy the combined video search and summarization functionality with a single unified UI:
 
 ```bash
 helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
-> **Requirement:** Before installing the unified stack, populate `global.env.TEXT_EMBEDDING_MODEL_NAME` and set `global.embedding.preferTextModel=true` (the supplied `unified_summary_search.yaml` does this for you). The chart will raise an error if the text embedding model is omitted while unified mode is enabled. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+> **Requirement:** Before installing the unified stack, set `global.embeddingModelName` to a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`) in `user_values_override.yaml`. The chart will raise an error if the embedding model is not set. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 >
 > **GPU Tip:** In unified mode the `multimodal-embedding-ms` and `vdms-dataprep` pods always share the same PVC, so either enable GPU for both (`global.devices.multimodalEmbedding.device=GPU` and `global.devices.vdmsDataprep.device=GPU`) or keep both on CPU. Mixing GPU/CPU settings leaves the GPU pod pending because the shared PVC cannot mount on two nodes simultaneously, and the Helm chart blocks such mismatches during install/upgrade.
+
+#### **Use Case 5: Dual UI (Separate Summary and Search UIs)**
+
+Deploy both Summary and Search functionality with separate UIs accessible via path-based routing by combining both override files:
+
+```bash
+helm install vss . -f summary_override.yaml -f search_override.yaml -f user_values_override.yaml -n $my_namespace
+```
+
+This mode deploys two independent UI instances:
+
+- **Summary UI** accessible at `http://<node-ip>:<nodeport>/summary/`
+- **Search UI** accessible at `http://<node-ip>:<nodeport>/search/`
+
+The root URL (`/`) redirects to `/summary/` by default.
+
+> **How it works:** Combining `summary_override.yaml` and `search_override.yaml` enables both VSS UI subchart aliases (`summaryui` and `searchui`). Nginx is automatically configured with path-based routing when both aliases are enabled; using either override file alone routes `/` to the single enabled UI.
+>
+> **Requirements:** Same as Use Case 4 (unified mode) — both summary and search backends are enabled. Set `global.embeddingModelName` to a text embedding model in `user_values_override.yaml`.
+>
+> **When to use Dual UI vs Unified:** Use Dual UI when you want physically separate interfaces for summary and search workflows (e.g., different teams or use cases). Use Unified when you prefer a single combined interface.
 
 ### Step 6: Verify the Deployment
 
