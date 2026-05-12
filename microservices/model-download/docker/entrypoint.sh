@@ -79,8 +79,8 @@ install_dependencies() {
                 REQUIREMENTS_FILE="/tmp/openvino_requirements_${DEFAULT_OVMS_TAG//[\.\/ ]/_}.txt"
                 if curl -fsSL -o "${REQUIREMENTS_FILE}" "${REQUIREMENTS_URL}"; then
                     echo -e "${GREEN} SUCCESS:${NC} OVMS requirements.txt downloaded from ${DEFAULT_OVMS_TAG}"
-                    # Pin transformers to 4.55 for compatibility
-                    sed -i 's/^transformers[>=<~!].*/transformers==4.55/' "${REQUIREMENTS_FILE}"
+                    # Pin transformers to 4.53.3 for compatibility
+                    sed -i 's/^transformers[>=<~!].*/transformers==4.53.3/' "${REQUIREMENTS_FILE}"
                     echo "OVMS_REQUIREMENTS_FILE=${REQUIREMENTS_FILE}" >> "${env_file}"
                     echo "OVMS_CUSTOM_TAG=false" >> "${env_file}"
                 else
