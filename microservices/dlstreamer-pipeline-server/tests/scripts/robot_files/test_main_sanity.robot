@@ -2,10 +2,6 @@
 Documentation    This is main test case file.
 Library          test_suit_dlsps_cases.py
 
-***Variables***
-${IS_OPEN_EDGE}    true
-
-
 ***Keywords***
 
 generate_repo_for_dlsps
