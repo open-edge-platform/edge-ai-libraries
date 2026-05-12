@@ -19,6 +19,10 @@ import type {
   StopPerformanceTestJobApiResponse,
   StopDensityTestJobApiArg,
   StopDensityTestJobApiResponse,
+  ValidatePipelineApiArg,
+  ValidatePipelineApiResponse,
+  CreatePipelineApiArg,
+  CreatePipelineApiResponse,
 } from "./api.generated";
 
 /**
@@ -122,6 +126,38 @@ export const remoteApiSlice = apiSlice.injectEndpoints({
       },
       invalidatesTags: ["jobs"],
     }),
+
+    // Validate Pipeline - Remote
+    validateRemotePipeline: build.mutation<
+      ValidatePipelineApiResponse,
+      ValidatePipelineApiArg & { serverIp?: string }
+    >({
+      queryFn: async ({ pipelineValidationInput, serverIp }, _api, _extraOptions, baseQuery) => {
+        const result = await baseQuery({
+          url: `/pipelines/validate`,
+          method: "POST",
+          body: pipelineValidationInput,
+          _serverIp: serverIp,
+        });
+        return result.error ? { error: result.error } : { data: result.data };
+      },
+    }),
+
+    // Create Pipeline - Remote
+    createRemotePipeline: build.mutation<
+      CreatePipelineApiResponse,
+      CreatePipelineApiArg & { serverIp?: string }
+    >({
+      queryFn: async ({ pipelineDefinition, serverIp }, _api, _extraOptions, baseQuery) => {
+        const result = await baseQuery({
+          url: `/pipelines`,
+          method: "POST",
+          body: pipelineDefinition,
+          _serverIp: serverIp,
+        });
+        return result.error ? { error: result.error } : { data: result.data };
+      },
+    }),
   }),
   overrideExisting: true,
 });
@@ -133,5 +169,7 @@ export const {
   useRunRemoteDensityTestMutation,
   useGetRemoteDensityJobStatusQuery,
   useStopRemoteDensityTestJobMutation,
+  useValidateRemotePipelineMutation,
+  useCreateRemotePipelineMutation,
 } = remoteApiSlice;
 

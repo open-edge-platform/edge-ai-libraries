@@ -6,6 +6,8 @@ import {
   useStopRemoteDensityTestJobMutation,
   useGetRemotePerformanceJobStatusQuery,
   useGetRemoteDensityJobStatusQuery,
+  useValidateRemotePipelineMutation,
+  useCreateRemotePipelineMutation,
 } from "@/api/remoteApi";
 import {
   Table,
@@ -35,7 +37,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group.tsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Square, X, Server } from "lucide-react";
+import { Loader2, Plus, Square, X, Server } from "lucide-react";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
@@ -127,6 +129,7 @@ export const Remote = () => {
     String(DEFAULT_LOOPING_RUNTIME_SECONDS),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSyncingPipelines, setIsSyncingPipelines] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   
   // Multi-server job tracking
@@ -139,6 +142,8 @@ export const Remote = () => {
   const [runDensityTest] = useRunRemoteDensityTestMutation();
   const [stopPerformanceTest] = useStopRemotePerformanceTestJobMutation();
   const [stopDensityTest] = useStopRemoteDensityTestJobMutation();
+  const [validateRemotePipeline] = useValidateRemotePipelineMutation();
+  const [createRemotePipeline] = useCreateRemotePipelineMutation();
 
   // Derive running state from serverJobs
   const isRunning = (Object.values(serverJobs) as ServerJobState[]).some((job) => job.isRunning);
@@ -344,6 +349,131 @@ export const Remote = () => {
 
     setTestResult(null);
     setErrorMessage(null);
+
+    // Pre-flight: verify all selected pipelines exist on every remote server,
+    // validate and create any that are missing using the local pipeline definition.
+    const selectedPipelineIds = pipelineSelections.map((s) => s.pipelineId);
+    const syncErrors: string[] = [];
+
+    /** Poll validation job status on a remote server until COMPLETED or FAILED. */
+    const pollValidationStatus = async (
+      serverIp: string,
+      jobId: string,
+    ): Promise<"COMPLETED" | "FAILED"> => {
+      const baseUrl = `http://${serverIp}/api/v1`;
+      for (let attempt = 0; attempt < 60; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const res = await fetch(`${baseUrl}/jobs/validation/${jobId}/status`);
+        if (!res.ok) continue;
+        const status: { state: string } = await res.json();
+        if (status.state === "COMPLETED") return "COMPLETED";
+        if (status.state === "FAILED") return "FAILED";
+      }
+      return "FAILED";
+    };
+
+    await Promise.all(
+      selectedServers.map(async (server) => {
+        const baseUrl = `http://${server.ip_address}/api/v1`;
+        try {
+          const response = await fetch(`${baseUrl}/pipelines`);
+          if (!response.ok) {
+            syncErrors.push(
+              `${server.ip_address}: failed to fetch pipelines (HTTP ${response.status})`,
+            );
+            return;
+          }
+          const remotePipelines: { id: string }[] = await response.json();
+          const remoteIds = new Set(remotePipelines.map((p) => p.id));
+          const missingIds = selectedPipelineIds.filter((id) => !remoteIds.has(id));
+          if (missingIds.length > 0) {
+            setIsSyncingPipelines(true);
+          }
+
+          // Validate then create each missing pipeline
+          await Promise.all(
+            missingIds
+              .map(async (id) => {
+                const localPipeline = pipelines.find((p) => p.id === id);
+                if (!localPipeline) {
+                  syncErrors.push(
+                    `${server.ip_address}: pipeline '${id}' not found locally`,
+                  );
+                  return;
+                }
+
+                // Validate every variant's graph on the remote server
+                for (const variant of localPipeline.variants) {
+                  let validationJobId: string;
+                  try {
+                    const validationRes = await validateRemotePipeline({
+                      pipelineValidationInput: {
+                        pipeline_graph: variant.pipeline_graph,
+                      },
+                      serverIp: server.ip_address,
+                    }).unwrap();
+                    validationJobId = validationRes.job_id;
+                  } catch {
+                    syncErrors.push(
+                      `${server.ip_address}: failed to start validation for pipeline '${localPipeline.name}' variant '${variant.name}'`,
+                    );
+                    return;
+                  }
+
+                  const validationState = await pollValidationStatus(
+                    server.ip_address,
+                    validationJobId,
+                  );
+                  if (validationState !== "COMPLETED") {
+                    syncErrors.push(
+                      `${server.ip_address}: validation failed for pipeline '${localPipeline.name}' variant '${variant.name}'`,
+                    );
+                    return;
+                  }
+                }
+
+                // All variants validated — create the pipeline using the hook
+                try {
+                  await createRemotePipeline({
+                    pipelineDefinition: {
+                      name: localPipeline.name,
+                      description: localPipeline.description,
+                      tags: localPipeline.tags ?? [],
+                      variants: localPipeline.variants.map((v) => ({
+                        name: v.name,
+                        pipeline_graph: v.pipeline_graph,
+                        pipeline_graph_simple: v.pipeline_graph_simple,
+                      })),
+                    },
+                    serverIp: server.ip_address,
+                  }).unwrap();
+                } catch (err: unknown) {
+                  const msg =
+                    err && typeof err === "object" && "data" in err
+                      ? (err as { data?: { message?: string } }).data?.message
+                      : undefined;
+                  syncErrors.push(
+                    `${server.ip_address}: failed to create pipeline '${localPipeline.name}' — ${msg ?? "unknown error"}`,
+                  );
+                }
+              }),
+          );
+        } catch {
+          syncErrors.push(
+            `${server.ip_address}: could not reach server to sync pipelines`,
+          );
+        }
+      }),
+    );
+
+    setIsSyncingPipelines(false);
+
+    if (syncErrors.length > 0) {
+      setErrorMessage(
+        `Cannot run test — pipeline sync failed:\n${syncErrors.join("\n")}`,
+      );
+      return;
+    }
 
     // Initialize job state for all selected servers
     const initialJobs: Record<string, ServerJobState> = {};
@@ -973,14 +1103,20 @@ export const Remote = () => {
           onClick={handleRunTest}
           disabled={
             isRunning ||
+            isSyncingPipelines ||
             selectedServerIds.length === 0 ||
             pipelineSelections.length === 0
           }
           className="self-start"
         >
-          {isRunning
-            ? "Starting..."
-            : `Run ${testType === "performance" ? "performance" : "density"} test on ${selectedServerIds.length} server${selectedServerIds.length !== 1 ? "s" : ""}`}
+          {isSyncingPipelines ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Syncing pipelines...
+            </>
+          ) : isRunning
+              ? "Starting..."
+              : `Run ${testType === "performance" ? "performance" : "density"} test on ${selectedServerIds.length} server${selectedServerIds.length !== 1 ? "s" : ""}`}
         </Button>
       )}
 
