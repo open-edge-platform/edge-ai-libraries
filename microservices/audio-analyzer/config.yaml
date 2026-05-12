@@ -1,0 +1,61 @@
+app:
+  name: Audio Analyzer
+  cleanup_on_exit: true
+  use_ov_genai: True # True or False, applicable for provider: openvino
+
+models:
+  asr:
+    provider: openai # openai | openvino | whispercpp
+    name: whisper-tiny  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
+    device: CPU # CPU recommended; CPU or GPU for openvino provider
+    weight_format: int8 # Optional OpenVINO export precision, e.g. int8 | fp16; ignored for provider: openai
+    temperature: 0.0
+    diarization: False
+    hf_token: None   # needed only if diarization=true
+    models_base_path: "models"
+
+    # Hallucination filtering — openai provider uses native no_speech_prob/avg_logprob.
+    # whispercpp derives the same values from per-token plog and ptsum.
+    # openvino genai pipelines do not expose these fields; filtering is skipped.
+    no_speech_threshold: 0.6
+    logprob_threshold: -1.0
+    min_duration_sec: 0.25
+    min_words: 2
+
+    # whisper.cpp specific — only used when provider: whispercpp
+    beam_size: 5
+    best_of: 5
+    word_timestamps: false
+    threads: 4
+
+audio_preprocessing:
+  chunk_duration_sec: 15
+  silence_threshold: -35  # in dB
+  silence_duration: 0.3   # minimum silence length in seconds
+  search_window_sec: 1    # how far to look for silence if no silence exactly at chunk boundary
+  chunk_output_path: chunks/
+  denoise: false          # set true for noisy mic/field audio (applies ffmpeg arnndn RNNoise filter)
+  denoise_model: ""       # path to .rnnn model file; leave empty to use ffmpeg built-in arnndn
+
+audio_util:
+  max_size_mb: 200
+  allowed_extensions:
+    - .wav
+    - .mp3
+    - .m4a
+  chunk_size: 52428800   # 1024 * 1024 * 50 = 50MB
+
+pipeline:
+  delete_chunks_after_use: true
+
+sentiment:
+  enabled: false                  # set true to enable parallel voice sentiment analysis
+  model: speechbrain/emotion-recognition-wav2vec2-IEMOCAP
+  device: CPU                     # CPU | GPU (openvino export only)
+  provider: openvino              # openvino | pytorch
+  weight_format: int8             # Optional OpenVINO export precision, e.g. int8 | fp16
+  models_base_path: "models"
+  # Aggregation — how to compute session-level sentiment from per-chunk results
+  # recency_weight: higher weight on recent chunks (good for kiosk drift detection)
+  recency_weight: 0.7             # 0.0 = equal weight, 1.0 = last chunk only
+  peak_label: angry               # label to watch for peak/escalation detection
