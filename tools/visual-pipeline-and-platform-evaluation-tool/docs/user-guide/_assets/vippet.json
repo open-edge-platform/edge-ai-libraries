@@ -1067,7 +1067,7 @@
           "models"
         ],
         "summary": "List All Models",
-        "description": "**List all installed and available models.**\n\n## Operation\nRead the supported models configuration, filter out models that are not\npresent on disk, and expose the remaining models in an API-friendly format.\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\nJSON array of Model objects.\n\n**Each model includes:**\n- `name` - Internal model identifier\n- `display_name` - Human-readable model name\n- `category` - Logical model category (`classification`, `detection`) or `null` when type is unknown\n- `precision` - Model precision (e.g., `\"FP32\"`, `\"INT8\"`) if available\n\n## Conditions\n\n### \u2705 Success\n- `supported_models.yaml` is loaded correctly by SupportedModelsManager\n- At least zero models are installed on disk (empty list is valid)\n\n### \u274c Failure\n- If SupportedModelsManager cannot be initialized (e.g., file missing, invalid YAML),\n  the application exits at startup and this endpoint will not be available\n\n## Example Response\n\n```json\n[\n  {\n    \"name\": \"vehicle-detection-0202\",\n    \"display_name\": \"Vehicle Detection\",\n    \"category\": \"detection\",\n    \"precision\": \"FP32\"\n  },\n  {\n    \"name\": \"person-reidentification-0200\",\n    \"display_name\": \"Person Reidentification\",\n    \"category\": \"classification\",\n    \"precision\": \"INT8\"\n  }\n]\n```",
+        "description": "**List all installed and available models.**\n\n## Operation\nRead the supported models configuration, filter out models that are not\npresent on disk, and expose the remaining models in an API-friendly format.\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\nJSON array of Model objects.\n\n**Each model includes:**\n- `name` - Internal model identifier\n- `display_name` - Human-readable model name\n- `category` - Logical model category (`classification`, `detection`, `genai`) or `null` when type is unknown\n- `precision` - Model precision (e.g., `\"FP32\"`, `\"INT8\"`) if available\n\n## Conditions\n\n### \u2705 Success\n- `supported_models.yaml` is loaded correctly by SupportedModelsManager\n- At least zero models are installed on disk (empty list is valid)\n\n### \u274c Failure\n- If SupportedModelsManager cannot be initialized (e.g., file missing, invalid YAML),\n  the application exits at startup and this endpoint will not be available\n\n## Example Response\n\n```json\n[\n  {\n    \"name\": \"vehicle-detection-0202\",\n    \"display_name\": \"Vehicle Detection\",\n    \"category\": \"detection\",\n    \"precision\": \"FP32\"\n  },\n  {\n    \"name\": \"person-reidentification-0200\",\n    \"display_name\": \"Person Reidentification\",\n    \"category\": \"classification\",\n    \"precision\": \"INT8\"\n  }\n]\n```",
         "operationId": "get_models",
         "responses": {
           "200": {
@@ -1284,7 +1284,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PipelineValidation-Input"
+                "$ref": "#/components/schemas/PipelineValidation"
               }
             }
           },
@@ -2303,7 +2303,7 @@
           "images"
         ],
         "summary": "List all available image sets",
-        "description": "**List all discovered image sets (directories) in INPUT_IMAGES_DIR.**\n\n## Operation\n\n1. ImagesManager scans INPUT_IMAGES_DIR for subdirectories\n2. Counts image files in each subdirectory\n3. Returns array of ImageSet objects\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of ImageSet objects (empty if none found) |\n| 500  | Runtime error while listing image sets |\n\n## Example Response\n\n```json\n[\n  {\n    \"name\": \"traffic_dataset\",\n    \"image_count\": 120\n  }\n]\n```",
+        "description": "**List all discovered image sets with their canonical metadata.**\n\n## Operation\n\n1. `ImagesManager` scans `UPLOADED_IMAGES_DIR` for subdirectories.\n2. For each directory, the canonical metadata is loaded from the\n   sidecar `set.json`. Directories without a readable `set.json`\n   are skipped (with a warning) so the endpoint never fails because\n   of a partially populated shared volume.\n3. Returns an array of `ImageSet` objects.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of `ImageSet` objects (empty if none found) |\n| 500  | Runtime error while listing image sets |\n\n## Conditions\n\n### \u2705 Success\n- `ImagesManager` successfully initialized at startup\n- `UPLOADED_IMAGES_DIR` exists and is readable\n\n### \u274c Failure\n- `ImagesManager` initialization fails \u2192 application exits at startup\n- Runtime errors \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"name\": \"traffic_dataset\",\n    \"source_archive\": \"traffic_dataset.zip\",\n    \"image_count\": 120,\n    \"extension\": \"png\",\n    \"width\": 1920,\n    \"height\": 1080,\n    \"uploaded_at\": \"2026-04-27T10:00:00Z\"\n  }\n]\n```",
         "operationId": "get_image_sets",
         "responses": {
           "200": {
@@ -2329,7 +2329,7 @@
           "images"
         ],
         "summary": "Check if an image set directory already exists",
-        "description": "**Check if an image set directory with the given name exists in INPUT_IMAGES_DIR.**\n\n## Parameters\n- `name` (query) - Name of the image set directory to check\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | Returns ImageSetExistsResponse with exists boolean |\n\n## Example Response\n\n```json\n{\n  \"exists\": true,\n  \"name\": \"traffic_dataset\"\n}\n```",
+        "description": "**Check if an image set directory with the given name already exists.**\n\nUsed by the UI to skip uploading a duplicate archive and to warn the\nuser early. Always succeeds with a boolean response.\n\n## Parameters\n\n- `name` (query) - Name of the image set directory to check.\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | Returns `ImageSetExistsResponse` with `exists` boolean |\n\n## Conditions\n\n### \u2705 Success\n- Always succeeds with a boolean response\n\n### \u274c Failure\n- None (this endpoint has no failure modes)\n\n## Example Response\n\n```json\n{\n  \"exists\": true,\n  \"name\": \"traffic_dataset\"\n}\n```",
         "operationId": "check_image_set_exists",
         "parameters": [
           {
@@ -2374,7 +2374,7 @@
           "images"
         ],
         "summary": "Upload a new image set as an archive",
-        "description": "**Upload an archive of images. The archive is extracted into its own directory under INPUT_IMAGES_DIR.**\n\n## Operation\n\n1. Validate archive extension against supported formats\n2. Derive image set directory name from archive filename (without extension)\n3. Reject if a directory with that name already exists\n4. Save archive to a temp location, then extract safely into the target directory\n5. Return ImageSet object with the discovered image count\n\n## Parameters\n- `file` (multipart/form-data) - Archive file to upload (zip, tar, tar.gz, tgz)\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 201  | Archive uploaded and extracted, returns ImageSet object |\n| 400  | Invalid archive (unsupported extension, duplicate name, unsafe paths, no images) |\n| 500  | Error during upload or extraction |\n\n## Example Response\n\n```json\n{\n  \"name\": \"traffic_dataset\",\n  \"image_count\": 120\n}\n```",
+        "description": "**Upload an archive of images and commit it as a new image set\nunder `UPLOADED_IMAGES_DIR`.**\n\n## Operation\n\n1. **Pre-write validation** (before any bytes touch disk):\n   - Filename is present.\n   - The filename carries a supported archive extension and the\n     sanitized trunk is not empty.\n   - No image set with the derived name already exists.\n2. **Stream upload to a temporary file** under `UPLOADED_IMAGES_DIR`,\n   enforcing `UPLOAD_MAX_SIZE_BYTES` per chunk. Aborts and deletes\n   the temp file the moment the accumulated byte count exceeds the\n   limit.\n3. **Validate + commit via `ImagesManager.register_uploaded_archive`**:\n   - Safe extraction (zip-slip guard, sub-directories rejected,\n     non-regular tar entries rejected).\n   - Uncompressed-size cap to defuse zip-bombs\n     (`UPLOAD_MAX_SIZE_BYTES \u00d7 10`).\n   - All extracted files must be of one allowed image extension\n     family and share the same resolution.\n   - Every image is renamed to `<trunk>_<NNNN>.<ext>`.\n   - `set.json` is written with the canonical metadata.\n   - The staging directory is atomically renamed into its final\n     location under a per-target lock so two concurrent uploads\n     cannot both win the same name.\n\nEvery validation rejection returns HTTP 422 with an\n`ImageUploadError` body containing both a human-readable `detail`\nfield and a structured `error` / `found` / `allowed` triple.\n\n## Parameters\n\n- `file` (multipart/form-data) - Archive file to upload (zip, tar,\n  tar.gz, tgz).\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 201  | Archive accepted; returns the new `ImageSet` metadata |\n| 422  | Upload rejected (`ImageUploadError` body with `error`, `found`, `allowed`, `detail`) |\n| 500  | Unexpected server error (for example disk full during the commit) |\n\n## Conditions\n\n### \u2705 Success\n- Filename is present and carries a supported archive extension\n- Sanitised trunk is non-empty\n- Archive size is within `UPLOAD_MAX_SIZE_BYTES`\n- Total uncompressed size is within\n  `UPLOAD_MAX_SIZE_BYTES \u00d7 10` (zip-bomb guard)\n- Archive is a flat collection of images, all of the same extension\n  family and the same resolution\n- No image set with the derived name already exists\n- `set.json` is written successfully and the staging directory is\n  moved into its final location\n\n### \u274c Failure\n- Missing filename \u2192 422 (`missing_filename`)\n- Unsupported archive extension \u2192 422 (`unsupported_archive_format`)\n- Filename sanitizes to an empty trunk \u2192 422 (`invalid_archive_name`)\n- Image set with the derived name already exists \u2192 422 (`image_set_already_exists`)\n- Archive too large \u2192 422 (`archive_too_large`)\n- Archive corrupted or contains an undecodable image \u2192 422 (`archive_corrupted`)\n- Archive contains sub-directories \u2192 422 (`archive_contains_subdirectories`)\n- Archive contains no supported images \u2192 422 (`archive_contains_no_images`)\n- Archive mixes image extensions \u2192 422 (`archive_mixed_image_extensions`)\n- Archive contains a disallowed file extension \u2192 422 (`archive_disallowed_image_extension`)\n- Archive contains images of different resolutions \u2192 422 (`archive_mixed_image_resolutions`)\n- Total uncompressed size exceeds the zip-bomb guard \u2192 422 (`archive_uncompressed_too_large`)\n- Archive contains an unsafe path or non-regular entry \u2192 422 (`unsafe_archive_path`)\n- Disk move or other I/O failure during commit \u2192 500\n- Any other unexpected runtime error \u2192 500\n\n## Example success response (HTTP 201)\n\n```json\n{\n  \"name\": \"traffic_dataset\",\n  \"source_archive\": \"Traffic Dataset.zip\",\n  \"image_count\": 120,\n  \"extension\": \"png\",\n  \"width\": 1920,\n  \"height\": 1080,\n  \"uploaded_at\": \"2026-04-27T10:00:00Z\"\n}\n```\n\n## Example error response (HTTP 422, mixed image extensions)\n\n```json\n{\n  \"detail\": \"Archive must contain images of exactly one type. Found multiple: ['jpg', 'png'].\",\n  \"error\": \"archive_mixed_image_extensions\",\n  \"found\": [\"jpg\", \"png\"],\n  \"allowed\": null\n}\n```\n\n## Example error response (HTTP 422, archive too large)\n\n```json\n{\n  \"detail\": \"Archive is too large (over 2147483648 bytes). Maximum allowed size is 2147483648 bytes.\",\n  \"error\": \"archive_too_large\",\n  \"found\": 3221225472,\n  \"allowed\": [2147483648]\n}\n```",
         "operationId": "upload_image_archive",
         "requestBody": {
           "content": {
@@ -2398,11 +2398,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Upload rejected by server-side validation.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ImageUploadError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error during upload or processing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
                 }
               }
             }
@@ -2416,7 +2426,7 @@
           "images"
         ],
         "summary": "List all images inside a given image set",
-        "description": "**List all image files in the given image set with per-file metadata.**\n\n## Operation\n\n1. Validate the image set name and ensure the directory exists\n2. Recursively walk the set directory for supported image extensions\n3. For each image, collect filename, extension, size, and dimensions\n4. Return the list sorted by filename\n\n## Parameters\n- `name` (path) - Name of the image set directory\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of ImageInfo objects (empty if the set has no images) |\n| 404  | Image set with the given name does not exist |\n| 500  | Runtime error while listing images |\n\n## Example Response\n\n```json\n[\n  {\n    \"filename\": \"frame_0001.jpg\",\n    \"extension\": \"jpg\",\n    \"size_bytes\": 204812,\n    \"width\": 1920,\n    \"height\": 1080\n  }\n]\n```",
+        "description": "**List all image files in the given image set with per-file metadata.**\n\n## Operation\n\n1. Resolve the image set by name and load its canonical metadata\n   from `set.json`. If either the directory or the sidecar is\n   missing the request is treated as 404.\n2. Iterate over the (flat) directory in alphabetical order and\n   collect every file whose extension matches the canonical\n   extension recorded in `set.json`. The sidecar itself is excluded\n   from the listing.\n3. For each entry, stat the file for its size; width and height\n   come straight from `set.json` because every image in a set\n   shares the same resolution by construction (no per-call OpenCV\n   probing).\n\n## Parameters\n\n- `name` (path) - Name of the image set directory.\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of `ImageInfo` objects (empty if the set has no images) |\n| 404  | Image set with the given name does not exist or has no readable `set.json` |\n| 500  | Runtime error while listing images |\n\n## Conditions\n\n### \u2705 Success\n- Image set directory exists under `UPLOADED_IMAGES_DIR`\n- Sidecar `set.json` is readable\n\n### \u274c Failure\n- Image set name unknown or missing \u2192 404\n- Unhandled runtime error \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"filename\": \"traffic_dataset_001.png\",\n    \"extension\": \"png\",\n    \"size_bytes\": 204812,\n    \"width\": 1920,\n    \"height\": 1080\n  }\n]\n```",
         "operationId": "list_images_in_set",
         "parameters": [
           {
@@ -3277,10 +3287,40 @@
             "title": "Name",
             "description": "Name of the image set directory."
           },
+          "source_archive": {
+            "type": "string",
+            "title": "Source Archive",
+            "description": "Original uploaded archive filename.",
+            "default": ""
+          },
           "image_count": {
             "type": "integer",
             "title": "Image Count",
-            "description": "Number of image files in the directory."
+            "description": "Number of image files in the set."
+          },
+          "extension": {
+            "type": "string",
+            "title": "Extension",
+            "description": "Lowercase canonical image extension shared by every image.",
+            "default": ""
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width",
+            "description": "Common image width in pixels.",
+            "default": 0
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height",
+            "description": "Common image height in pixels.",
+            "default": 0
+          },
+          "uploaded_at": {
+            "type": "string",
+            "title": "Uploaded At",
+            "description": "ISO-8601 UTC timestamp of when the set was created.",
+            "default": ""
           }
         },
         "type": "object",
@@ -3289,7 +3329,7 @@
           "image_count"
         ],
         "title": "ImageSet",
-        "description": "**Metadata for a single image set (directory of images).**\n\n## Attributes\n- `name` - Name of the image set (directory name under INPUT_IMAGES_DIR)\n- `image_count` - Number of image files in the directory\n\n### Example\n```json\n{\n  \"name\": \"traffic_dataset\",\n  \"image_count\": 120\n}\n```"
+        "description": "**Metadata for a single image set (directory of images).**\n\n## Attributes\n- `name` - Name of the image set (directory name under\n  `UPLOADED_IMAGES_DIR`; identical to the sanitized archive trunk).\n- `source_archive` - Original uploaded archive filename.\n- `image_count` - Number of image files in the set.\n- `extension` - Lowercase canonical extension shared by every image\n  (`jpg`, `png`, `bmp` or `tif`).\n- `width` - Common image width in pixels.\n- `height` - Common image height in pixels.\n- `uploaded_at` - ISO-8601 UTC timestamp of when the set was created.\n\n### Example\n```json\n{\n  \"name\": \"traffic_dataset\",\n  \"source_archive\": \"traffic_dataset.zip\",\n  \"image_count\": 120,\n  \"extension\": \"png\",\n  \"width\": 1920,\n  \"height\": 1080,\n  \"uploaded_at\": \"2026-04-27T10:00:00Z\"\n}\n```"
       },
       "ImageSetExistsResponse": {
         "properties": {
@@ -3311,6 +3351,69 @@
         ],
         "title": "ImageSetExistsResponse",
         "description": "**Response indicating whether an image set directory exists.**\n\n## Attributes\n- `exists` - True if directory exists in INPUT_IMAGES_DIR, False otherwise\n- `name` - The image set name that was checked\n\n### Example\n```json\n{\n  \"exists\": true,\n  \"name\": \"traffic_dataset\"\n}\n```"
+      },
+      "ImageUploadError": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "Human-readable error message suitable for UI display."
+          },
+          "error": {
+            "$ref": "#/components/schemas/ImageUploadErrorKind",
+            "description": "Machine-readable error kind."
+          },
+          "found": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Found",
+            "description": "Value that actually failed validation, or null."
+          },
+          "allowed": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed",
+            "description": "List of accepted values for the failed check, or null."
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail",
+          "error"
+        ],
+        "title": "ImageUploadError",
+        "description": "**Structured error body returned when an image archive upload is rejected.**\n\nReturned with HTTP 422 by `POST /images/upload` when the submitted\narchive fails any validation step (extension, size, layout, content,\nduplicate name, ...). Mirrors the shape of `VideoUploadError`: a\nhuman-readable `detail` plus a machine-readable `error` /\n`found` / `allowed` triple. The `found` and `allowed` fields are\ntyped loosely (`Any` / `list[Any]`) because some checks return\ncomposite values such as a list of detected extensions or a pair of\nresolutions.\n\n## Attributes\n- `detail` - Human-readable error message suitable for direct UI\n  display.\n- `error` - Machine-readable error kind (see `ImageUploadErrorKind`).\n- `found` - Optional value that actually failed validation.\n- `allowed` - Optional list of accepted values for the failed check.\n\n### Example (mixed image extensions)\n```json\n{\n  \"detail\": \"Archive must contain images of exactly one type. Found multiple: ['jpg', 'png'].\",\n  \"error\": \"archive_mixed_image_extensions\",\n  \"found\": [\"jpg\", \"png\"],\n  \"allowed\": null\n}\n```\n\n### Example (subdirectories not allowed)\n```json\n{\n  \"detail\": \"Archive must contain only files at the top level. Found nested entry 'subdir/foo.jpg'.\",\n  \"error\": \"archive_contains_subdirectories\",\n  \"found\": \"subdir/foo.jpg\",\n  \"allowed\": null\n}\n```"
+      },
+      "ImageUploadErrorKind": {
+        "type": "string",
+        "enum": [
+          "missing_filename",
+          "unsupported_archive_format",
+          "invalid_archive_name",
+          "archive_too_large",
+          "archive_corrupted",
+          "archive_contains_subdirectories",
+          "archive_contains_no_images",
+          "archive_mixed_image_extensions",
+          "archive_disallowed_image_extension",
+          "archive_mixed_image_resolutions",
+          "archive_uncompressed_too_large",
+          "image_set_already_exists",
+          "unsafe_archive_path"
+        ],
+        "title": "ImageUploadErrorKind",
+        "description": "**Machine-readable reason why an image archive upload was rejected.**\n\nReturned in the `error` field of the `ImageUploadError` response body\ntogether with a human-readable `detail` message. Mirrors the\n`VideoUploadErrorKind` enum used for video uploads.\n\n## Values\n- `MISSING_FILENAME` - The multipart part did not carry a filename.\n- `UNSUPPORTED_ARCHIVE_FORMAT` - Archive extension is not in the\n  allow-list.\n- `INVALID_ARCHIVE_NAME` - Archive filename sanitizes to an empty\n  value or carries no supported archive extension.\n- `ARCHIVE_TOO_LARGE` - Archive request body exceeds the size cap.\n- `ARCHIVE_CORRUPTED` - Archive could not be opened or one image\n  could not be decoded.\n- `ARCHIVE_CONTAINS_SUBDIRECTORIES` - Archive must contain only\n  top-level files.\n- `ARCHIVE_CONTAINS_NO_IMAGES` - Archive does not contain any\n  supported image files.\n- `ARCHIVE_MIXED_IMAGE_EXTENSIONS` - Archive contains images of\n  more than one extension family.\n- `ARCHIVE_DISALLOWED_IMAGE_EXTENSION` - Archive contains a file\n  with an extension outside the allow-list.\n- `ARCHIVE_MIXED_IMAGE_RESOLUTIONS` - Archive contains images that\n  do not all share the same resolution.\n- `ARCHIVE_UNCOMPRESSED_TOO_LARGE` - Total uncompressed size of the\n  archive exceeds the configured zip-bomb guard.\n- `IMAGE_SET_ALREADY_EXISTS` - An image set with the derived name\n  already exists.\n- `UNSAFE_ARCHIVE_PATH` - Archive contains a member with a\n  path-traversal attempt or a non-regular file entry.\n\n### Example\n```json\n\"archive_contains_subdirectories\"\n```"
       },
       "LatencyMetrics": {
         "properties": {
@@ -3440,10 +3543,11 @@
         "type": "string",
         "enum": [
           "classification",
-          "detection"
+          "detection",
+          "genai"
         ],
         "title": "ModelCategory",
-        "description": "**Model category for classification or detection tasks.**\n\n## Values\n- `CLASSIFICATION` - Classification model\n- `DETECTION` - Detection model\n\n### Example\n```json\n\"detection\"\n```"
+        "description": "**Model category for classification, detection, or GenAI tasks.**\n\n## Values\n- `CLASSIFICATION` - Classification model\n- `DETECTION` - Detection model\n- `GENAI` - Generative AI model (for example VLM)\n\n### Example\n```json\n\"detection\"\n```"
       },
       "NetworkCameraDetails": {
         "properties": {
@@ -4380,37 +4484,7 @@
         "title": "PipelineUpdate",
         "description": "**Partial update model for an existing pipeline.**\n\nAll fields are optional, but at least one must be provided when calling\nthe update endpoint. String fields (name, description) must be non-empty\nafter trimming whitespace.\n\nValidation is performed in model_validator to fail fast on invalid input.\n\n## Attributes\n- `name` - Optional new pipeline name (non-empty after trim if provided)\n- `description` - Optional new human-readable text describing what the pipeline does (non-empty after trim if provided)\n- `tags` - Optional list of tags (if provided, can be empty)\n\n### Example\n```json\n{\n  \"description\": \"Updated pipeline with better preprocessing\",\n  \"tags\": [\"updated\", \"v2\"]\n}\n```"
       },
-      "PipelineValidation-Input": {
-        "properties": {
-          "pipeline_graph": {
-            "$ref": "#/components/schemas/PipelineGraph"
-          },
-          "parameters": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parameters",
-            "examples": [
-              {
-                "max-runtime": 10
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "pipeline_graph"
-        ],
-        "title": "PipelineValidation",
-        "description": "**Request body for pipeline validation.**\n\n## Attributes\n- `pipeline_graph` - Structured graph representation of the pipeline\n- `parameters` - Optional parameter set for validation (e.g., `{\"max-runtime\": 10}`)\n\n### Example\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [...],\n    \"edges\": [...]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```"
-      },
-      "PipelineValidation-Output": {
+      "PipelineValidation": {
         "properties": {
           "pipeline_graph": {
             "$ref": "#/components/schemas/PipelineGraph"
@@ -4674,7 +4748,7 @@
             "title": "Id"
           },
           "request": {
-            "$ref": "#/components/schemas/PipelineValidation-Output"
+            "$ref": "#/components/schemas/PipelineValidation"
           }
         },
         "type": "object",
