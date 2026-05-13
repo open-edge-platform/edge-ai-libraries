@@ -11,6 +11,7 @@ import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStream
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
+import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import {
   Select,
   SelectContent,
@@ -75,11 +76,14 @@ export const DensityTests = () => {
   const {
     execute: runTest,
     isLoading: isRunning,
+    jobId,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunDensityTestMutation,
     statusCheckHook: useGetDensityJobStatusQuery,
   });
+
+  useActiveJobSync(jobId);
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {

@@ -19,6 +19,7 @@ import PipelineEditorCanvas, {
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
+import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
@@ -190,11 +191,14 @@ export const Pipelines = () => {
     execute: runPipeline,
     isLoading: isPipelineRunning,
     isJobCancelled,
+    jobId,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunPerformanceTestMutation,
     statusCheckHook: useGetPerformanceJobStatusQuery,
   });
+
+  useActiveJobSync(jobId);
 
   // Reset editor state when variant changes
   useEffect(() => {

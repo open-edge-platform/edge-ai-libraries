@@ -10,6 +10,7 @@ import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
+import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
@@ -99,11 +100,14 @@ export const PerformanceTests = () => {
   const {
     execute: runTest,
     isLoading: isRunning,
+    jobId,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunPerformanceTestMutation,
     statusCheckHook: useGetPerformanceJobStatusQuery,
   });
+
+  useActiveJobSync(jobId);
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
 
