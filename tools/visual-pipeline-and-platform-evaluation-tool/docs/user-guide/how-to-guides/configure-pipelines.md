@@ -6,10 +6,10 @@ running pipelines on both CPU and GPU to compare performance.
 
 ## Create pipelines from Optimized Template
 
-| Template | Description |
+| Template 1 | Template 2 |
 |---|---|
-| ![Template 1](../_assets/VIPPET-UI-Pipeline-table-Template1.png) | Template 1 |
-| ![Template 2](../_assets/VIPPET-UI-Pipeline-table-Template2.png) | Template 2 |
+| ![Template 1](../_assets/VIPPET-UI-Pipeline-table-Template1.png) | ![Template 2](../_assets/VIPPET-UI-Pipeline-table-Template2.png) |
+
 
 
 ## Step 1. Add new pipeline
