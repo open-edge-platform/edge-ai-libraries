@@ -4,10 +4,7 @@ This page maps ViPPET UI sections to dedicated how-to articles.
 
 ## Dashboard
 
-![Dashboard](./_assets/vippet-dashboar.png)
-*Figure 1: Dashboard section in ViPPET UI*
-
-Use this section to monitor current system and test activity from a single view.
+Use the dashboard section to monitor current system and test activity from a single view.
 It provides a quick health snapshot before and during test execution.
 
 Related article:
