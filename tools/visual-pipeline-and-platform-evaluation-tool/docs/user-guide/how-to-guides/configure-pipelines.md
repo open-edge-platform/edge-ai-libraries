@@ -8,8 +8,8 @@ running pipelines on both CPU and GPU to compare performance.
 
 | Template | Description |
 |---|---|
-| ![Template 1](../_assets/VIPPET-UI-Pipeline-table-Template1.png) | Template 1 |
-| ![Template 2](../_assets/VIPPET-UI-Pipeline-table-Template2.png) | Template 2 |
+| <img src="../_assets/VIPPET-UI-Pipeline-table-Template1.png" width="50%"> | Template 1 |
+| <img src="../_assets/VIPPET-UI-Pipeline-table-Template2.png" width="50%"> | Template 2 |
 
 
 ## Step 1. Add new pipeline
