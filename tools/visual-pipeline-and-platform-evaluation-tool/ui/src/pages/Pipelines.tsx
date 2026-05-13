@@ -902,6 +902,7 @@ export const Pipelines = () => {
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
                       }
+                      resultFps={jobStatus?.per_stream_fps}
                     />
                   </div>
                 </ResizablePanel>

@@ -145,6 +145,7 @@ type PerformanceTestPanelProps = {
   videoOutputEnabled?: boolean;
   enableLatencyMetrics?: boolean;
   liveStreamUrl?: string | null;
+  resultFps?: number | null;
 };
 
 const PerformanceTestPanel = ({
@@ -155,6 +156,7 @@ const PerformanceTestPanel = ({
   videoOutputEnabled = false,
   enableLatencyMetrics = false,
   liveStreamUrl,
+  resultFps,
 }: PerformanceTestPanelProps) => {
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
@@ -221,14 +223,14 @@ const PerformanceTestPanel = ({
       startRecording();
       setFrozenMetadata(null);
     } else if (wasRunning && !isRunning) {
-      freezeSnapshot(null);
+      freezeSnapshot(resultFps);
       setFrozenMetadata((prev) => {
         const hasLines = Object.values(metadataLines).some((l) => l.length > 0);
         if (!hasLines) return prev;
         return { lines: { ...metadataLines }, entries: [...metadataEntries] };
       });
     }
-  }, [isRunning, startRecording, freezeSnapshot]);
+  }, [isRunning, startRecording, freezeSnapshot, resultFps]);
 
   useEffect(() => {
     if (metadataEntries.length === 0) {

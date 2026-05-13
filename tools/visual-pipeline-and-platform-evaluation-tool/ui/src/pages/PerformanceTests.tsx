@@ -244,7 +244,7 @@ export const PerformanceTests = () => {
         video_output_paths: status.video_output_paths,
       });
       setErrorMessage(null);
-      freezeSnapshot(status.total_fps ?? status.per_stream_fps);
+      freezeSnapshot(status.per_stream_fps);
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");

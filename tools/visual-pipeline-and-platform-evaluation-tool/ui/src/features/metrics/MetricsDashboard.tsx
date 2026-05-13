@@ -22,80 +22,6 @@ import {
   type MetricHistoryPoint,
 } from "@/hooks/useMetricHistory.ts";
 
-const stabilizeSingleZeroDropSeries = <T extends Record<string, number>>(
-  data: T[],
-  keys: (keyof T)[],
-): T[] => {
-  const previousByKey: Partial<Record<keyof T, number>> = {};
-  const zeroStreakByKey: Partial<Record<keyof T, number>> = {};
-
-  return data.map((point) => {
-    const stabilizedPoint = { ...point };
-
-    keys.forEach((key) => {
-      const value = point[key];
-      const previousValue = previousByKey[key] ?? 0;
-      const currentZeroStreak = zeroStreakByKey[key] ?? 0;
-
-      if (value === 0 && previousValue > 0) {
-        const nextZeroStreak = currentZeroStreak + 1;
-        zeroStreakByKey[key] = nextZeroStreak;
-        if (nextZeroStreak === 1) {
-          stabilizedPoint[key] = previousValue as T[keyof T];
-          return;
-        }
-      } else {
-        zeroStreakByKey[key] = 0;
-      }
-
-      if (value > 0) {
-        previousByKey[key] = value;
-      }
-    });
-
-    return stabilizedPoint;
-  });
-};
-
-const stabilizeSingleZeroDropOptionalSeries = <
-  T extends Record<string, number | undefined>,
->(
-  data: T[],
-  keys: (keyof T)[],
-): T[] => {
-  const previousByKey: Partial<Record<keyof T, number>> = {};
-  const zeroStreakByKey: Partial<Record<keyof T, number>> = {};
-
-  return data.map((point) => {
-    const stabilizedPoint = { ...point };
-
-    keys.forEach((key) => {
-      const value = point[key];
-      if (value === undefined) return;
-
-      const previousValue = previousByKey[key] ?? 0;
-      const currentZeroStreak = zeroStreakByKey[key] ?? 0;
-
-      if (value === 0 && previousValue > 0) {
-        const nextZeroStreak = currentZeroStreak + 1;
-        zeroStreakByKey[key] = nextZeroStreak;
-        if (nextZeroStreak === 1) {
-          stabilizedPoint[key] = previousValue as T[keyof T];
-          return;
-        }
-      } else {
-        zeroStreakByKey[key] = 0;
-      }
-
-      if (value > 0) {
-        previousByKey[key] = value;
-      }
-    });
-
-    return stabilizedPoint;
-  });
-};
-
 interface MetricsDashboardProps {
   className?: string;
   forceDark?: boolean;
@@ -170,7 +96,7 @@ export const MetricsDashboard = ({
 
   const gpuData = useMemo(() => {
     const gpuId = selectedGpu.toString();
-    const rawGpuData = history.map((point) => {
+    return history.map((point) => {
       const gpu = point.gpus[gpuId];
       return {
         timestamp: point.timestamp,
@@ -181,14 +107,6 @@ export const MetricsDashboard = ({
         videoEnhance: gpu?.videoEnhance,
       };
     });
-
-    return stabilizeSingleZeroDropOptionalSeries(rawGpuData, [
-      "compute",
-      "render",
-      "copy",
-      "video",
-      "videoEnhance",
-    ]);
   }, [history, selectedGpu]);
 
   const availableEngines = useMemo(() => {
@@ -224,10 +142,7 @@ export const MetricsDashboard = ({
       return chartPoint;
     });
 
-    return stabilizeSingleZeroDropSeries(
-      normalizedGpuChartData,
-      availableEngines,
-    );
+    return normalizedGpuChartData;
   }, [gpuData, availableEngines]);
 
   const gpuFrequencyData = useMemo(() => {
@@ -237,7 +152,7 @@ export const MetricsDashboard = ({
       frequency: point.gpus[gpuId]?.frequency ?? 0,
     }));
 
-    return stabilizeSingleZeroDropSeries(rawGpuFrequencyData, ["frequency"]);
+    return rawGpuFrequencyData;
   }, [history, selectedGpu]);
 
   const gpuPowerData = useMemo(() => {
@@ -248,10 +163,7 @@ export const MetricsDashboard = ({
       pkgPower: point.gpus[gpuId]?.pkgPower ?? 0,
     }));
 
-    return stabilizeSingleZeroDropSeries(rawGpuPowerData, [
-      "gpuPower",
-      "pkgPower",
-    ]);
+    return rawGpuPowerData;
   }, [history, selectedGpu]);
 
   const displayedGpuUsage = useMemo(() => {
