@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
+import { useFrozenMetrics, aggregateLatencyTracerMetrics } from "@/hooks/useFrozenMetrics";
 import {
   type PipelineStreamSpec,
   useGetDensityJobStatusQuery,
@@ -223,7 +223,10 @@ export const DensityTests = () => {
         video_output_paths: status.video_output_paths,
       });
       setErrorMessage(null);
-      freezeSnapshot(status.per_stream_fps);
+      freezeSnapshot({
+        fps: status.per_stream_fps,
+        ...aggregateLatencyTracerMetrics(status.latency_tracer_metrics),
+      });
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");

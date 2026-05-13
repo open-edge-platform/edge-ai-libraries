@@ -24,6 +24,7 @@ import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
+import { aggregateLatencyTracerMetrics } from "@/hooks/useFrozenMetrics";
 import { toast } from "@/lib/toast";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
 import { PipelineActionsMenu } from "@/features/pipeline-editor/PipelineActionsMenu";
@@ -902,7 +903,16 @@ export const Pipelines = () => {
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
                       }
-                      resultFps={jobStatus?.per_stream_fps}
+                      resultOverrides={
+                        jobStatus
+                          ? {
+                              fps: jobStatus.per_stream_fps,
+                              ...aggregateLatencyTracerMetrics(
+                                jobStatus.latency_tracer_metrics,
+                              ),
+                            }
+                          : null
+                      }
                     />
                   </div>
                 </ResizablePanel>
