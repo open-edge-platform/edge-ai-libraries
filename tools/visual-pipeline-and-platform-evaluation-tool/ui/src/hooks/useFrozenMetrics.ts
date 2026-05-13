@@ -131,28 +131,10 @@ export function useFrozenMetrics() {
     const avg = (values: number[]) =>
       values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : 0;
 
-    const defined = (values: (number | undefined)[]) =>
-      values.filter((v): v is number => v !== undefined);
-
-    const avgOrUndefined = (values: (number | undefined)[]) => {
-      const d = defined(values);
-      return d.length > 0 ? avg(d) : undefined;
-    };
-
-    const minOrUndefined = (values: (number | undefined)[]) => {
-      const d = defined(values);
-      return d.length > 0 ? Math.min(...d) : undefined;
-    };
-
-    const maxOrUndefined = (values: (number | undefined)[]) => {
-      const d = defined(values);
-      return d.length > 0 ? Math.max(...d) : undefined;
-    };
-
     const fpsSeries = snapshot.map((p) => p.fps ?? 0);
     const firstPos = fpsSeries.findIndex((v) => v > 0);
     const fpsSlice = firstPos >= 0 ? fpsSeries.slice(firstPos) : fpsSeries;
-    const fpsAvg = avg(fpsSlice);
+    const lastFps = fpsSlice.at(-1) ?? 0;
 
     const gpuIds = Array.from(
       new Set(snapshot.flatMap((p) => Object.keys(p.gpus ?? {}))),
@@ -182,15 +164,17 @@ export function useFrozenMetrics() {
       {},
     );
 
+    const lastPoint = snapshot.at(-1);
+
     return {
-      fps: resultFps ?? fpsAvg,
+      fps: resultFps ?? lastFps,
       cpu: avg(snapshot.map((p) => p.cpu ?? 0)),
       memory: avg(snapshot.map((p) => p.memory ?? 0)),
       availableGpuIds: gpuIds,
       gpuDetailedMetrics,
-      latencyAvg: resultLatency?.avg ?? avgOrUndefined(snapshot.map((p) => p.latencyAvg)),
-      latencyMin: resultLatency?.min ?? minOrUndefined(snapshot.map((p) => p.latencyMin)),
-      latencyMax: resultLatency?.max ?? maxOrUndefined(snapshot.map((p) => p.latencyMax)),
+      latencyAvg: resultLatency?.avg ?? lastPoint?.latencyAvg,
+      latencyMin: resultLatency?.min ?? lastPoint?.latencyMin,
+      latencyMax: resultLatency?.max ?? lastPoint?.latencyMax,
     };
   }, [snapshot, resultFps, resultLatency]);
 

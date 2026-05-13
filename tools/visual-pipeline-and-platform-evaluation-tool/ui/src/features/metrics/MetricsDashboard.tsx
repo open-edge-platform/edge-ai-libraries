@@ -325,7 +325,7 @@ export const MetricsDashboard = ({
         />
         {showLatencySection && (
           <MetricCard
-            title={isSummary ? "Avg Latency" : "Latency"}
+            title={isSummary ? "Latency Average" : "Latency"}
             value={
               hasSummaryLatency
                 ? metricsOverride!.latencyAvg!
