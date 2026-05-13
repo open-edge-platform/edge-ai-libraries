@@ -490,31 +490,8 @@ export const DensityTests = () => {
           </div>
         )}
 
-        {!isRunning && frozenSummary && (
-          <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
-            <p className="text-sm font-medium text-status-fg mb-2">
-              Frozen Metrics Snapshot
-            </p>
-            <MetricsDashboard
-              historyOverride={frozenHistory}
-              metricsOverride={frozenSummary}
-            />
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="status-error my-4 p-3 bg-status-bg border border-status-border">
-            <p className="text-sm font-medium text-status-fg mb-2">
-              Test Failed
-            </p>
-            <p className="text-xs text-status-fg">
-              {errorMessage}
-            </p>
-          </div>
-        )}
-
         {testResult && (
-          <div className="status-success my-4 p-3 bg-status-bg border border-status-border">
+          <div className="status-success m-4 p-3 bg-status-bg border border-status-border">
             <p className="text-sm font-medium text-status-fg mb-2">
               Test Completed Successfully
             </p>
@@ -541,7 +518,32 @@ export const DensityTests = () => {
             </div>
           </div>
         )}
+
+        {!isRunning && frozenSummary && (
+          <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
+              Frozen Metrics Snapshot
+            </p>
+            <MetricsDashboard
+              historyOverride={frozenHistory}
+              metricsOverride={frozenSummary}
+            />
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="status-error my-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
+              Test Failed
+            </p>
+            <p className="text-xs text-status-fg">
+              {errorMessage}
+            </p>
+          </div>
+        )}
+
       </div>
+      <div className="pb-4" />
     </div>
   );
 };
