@@ -168,7 +168,6 @@ export function useAsyncJob<
     const response = await triggerMutation(args).unwrap();
 
     if ("job_id" in response) {
-      console.log("[DEBUG][useAsyncJob] Job started, job_id:", response.job_id);
       setJobId(response.job_id);
 
       return new Promise<TStatus>((resolve, reject) => {

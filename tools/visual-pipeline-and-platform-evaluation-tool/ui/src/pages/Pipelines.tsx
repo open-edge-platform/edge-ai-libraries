@@ -331,7 +331,6 @@ export const Pipelines = () => {
       toast.success("Pipeline run started", {
         description: new Date().toISOString(),
       });
-      console.log("[DEBUG][PipelineEditor] Running pipeline, id:", id, "variant:", variant);
 
       const status = await runPipeline({
         performanceTestSpec: {
@@ -354,13 +353,11 @@ export const Pipelines = () => {
       });
 
       if (isJobCancelled(status)) {
-        console.log("[DEBUG][PipelineEditor] Job cancelled, job_id:", status.id);
         toast.info("Pipeline run cancelled", {
           description: new Date().toISOString(),
         });
       } else {
-        console.log("[DEBUG][PipelineEditor] Job completed, job_id:", status.id, "state:", status.state);
-        toast.success("Pipeline run completed", {
+          toast.success("Pipeline run completed", {
           description: new Date().toISOString(),
         });
 
