@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 import pytest
@@ -49,12 +49,12 @@ def cam_ing_obj(cam_ing_cfg):
 class TestCamIngestor:
 
     def test_init(self, cam_ing_cfg, capfd):
-        cam_ing_obj.__init__(queue.Queue(), cam_ing_cfg)
+        cam_ing_obj = XirisCamIngestor(queue.Queue(), cam_ing_cfg)
 
     def test_start(self, mocker, cam_ing_obj):
         mocked_thread = mocker.patch('src.subscriber.cam_ingestor.th.Thread')
         cam_ing_obj.start()
-        assert mocked_thread.start.called_with('target=self._run')
+        mocked_thread.assert_called()
 
     def test_camera_start(self, mocker, cam_ing_obj):
         # mocked_thread = mocker.patch('src.subscriber.cam_ingestor.th.Thread')

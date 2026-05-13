@@ -1,30 +1,34 @@
-# Audio Analyzer Microservice
+# Audio Analyzer
 
-This repository provides a FastAPI-based microservice for analyzing audio including speech
-transcription from video files using pywhispercpp or OpenVINO with openvino-genai.
+FastAPI service for audio transcription and optional voice-sentiment analysis.
 
-Below, you will find links to detailed documentation to help you get started, configure, and
-deploy the microservice.
+## Start Here
 
-## Documentation
+This page is intentionally brief. Use the links below for the actual run steps, configuration details, and API examples.
 
-- **Overview**
-  - [Overview](./docs/user-guide/index.md): A high-level introduction to the microservice.
-  - [How It Works](./docs/user-guide/how-it-works.md): An overview of the architecture.
+- Run in Docker: [docs/run-container.md](docs/run-container.md)
+- Run on the host: [docs/run-standalone.md](docs/run-standalone.md)
+- Change configuration: [docs/configuration.md](docs/configuration.md)
+- API use cases and examples: [docs/api.md](docs/api.md)
 
-- **Getting Started**
-  - [Get Started](./docs/user-guide/get-started.md): Step-by-step guide to getting started with the microservice.
-  - [System Requirements](./docs/user-guide/get-started/system-requirements.md): Hardware and software requirements for running the microservice.
+## What It Does
 
-- **Deployment**
-  - [How to Build from Source](./docs/user-guide/get-started/build-from-source.md): Instructions for building the microservice from source code.
+The service accepts an uploaded audio file, chunks it with FFmpeg, runs ASR on each chunk, and returns either a single transcription response or a streaming NDJSON event stream. When sentiment is enabled, it also returns a session-level sentiment summary.
 
-- **API Reference**
-  - [API Reference](./docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.
+It supports:
 
-- **Troubleshooting**
-  - [Troubleshooting](./docs/user-guide/troubleshooting.md): Known issues and troubleshooting
-  steps.
+- OpenAI-style transcription API at `POST /v1/audio/transcriptions`
+- Streaming transcription API at `POST /v1/audio/transcriptions/stream`
+- Health check at `GET /health`
+- ALSA input device listing at `GET /devices`
+- ASR backends: `openai`, `openvino`. (`whispercpp` to be added)
+- Optional sentiment analysis with `openvino` or `pytorch`
+- Session continuation by reusing `session_id`
 
-- **Release Notes**
-  - [Release Notes](./docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.
+Session data is stored under `storage/<session_id>/`.
+
+## Notes
+
+- Do not use this page as the run guide; use the linked docs above.
+- The service exposes `X-Session-ID`; clients should read it if they want multi-upload sessions.
+
