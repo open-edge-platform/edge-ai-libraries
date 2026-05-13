@@ -4,6 +4,17 @@ on:
   schedule:
     - cron: '0 14 * * 5' # 14:00 UTC
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Branch or tag to checkout (default: main)'
+        required: false
+        type: string
+        default: 'main'
+      test_pattern:
+        description: 'Pytest pattern for tests to run (default: all tests)'
+        required: false
+        type: string
+        default: '.'
   workflow_call:
     inputs:
       tag:
