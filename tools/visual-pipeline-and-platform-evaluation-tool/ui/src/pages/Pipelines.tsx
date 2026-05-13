@@ -19,10 +19,12 @@ import PipelineEditorCanvas, {
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
+import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
+import { aggregateLatencyTracerMetrics } from "@/hooks/useFrozenMetrics";
 import { toast } from "@/lib/toast";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
 import { PipelineActionsMenu } from "@/features/pipeline-editor/PipelineActionsMenu";
@@ -139,6 +141,7 @@ export const Pipelines = () => {
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
   const [livePreviewEnabled, setLivePreviewEnabled] = useState(false);
+  const [latencyMetricsEnabled, setLatencyMetricsEnabled] = useState(false);
   const [loopingEnabled, setLoopingEnabled] = useState(false);
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
@@ -193,11 +196,14 @@ export const Pipelines = () => {
     execute: runPipeline,
     isLoading: isPipelineRunning,
     isJobCancelled,
+    jobId,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunPerformanceTestMutation,
     statusCheckHook: useGetPerformanceJobStatusQuery,
   });
+
+  useActiveJobSync(jobId);
 
   // Reset editor state when variant changes
   useEffect(() => {
@@ -346,6 +352,7 @@ export const Pipelines = () => {
             output_mode: outputMode,
             max_runtime: maxRuntimeSeconds,
             metadata_mode: hasMetadata ? "file" : "disabled",
+            enable_latency_metrics: latencyMetricsEnabled,
           },
         },
       });
@@ -355,7 +362,7 @@ export const Pipelines = () => {
           description: new Date().toISOString(),
         });
       } else {
-        toast.success("Pipeline run completed", {
+          toast.success("Pipeline run completed", {
           description: new Date().toISOString(),
         });
 
@@ -800,6 +807,17 @@ export const Pipelines = () => {
                           }}
                         />
                       </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Timer className="h-4 w-4 text-muted-foreground" />
+                          <span>Latency metrics</span>
+                        </div>
+                        <Switch
+                          checked={latencyMetricsEnabled}
+                          onCheckedChange={setLatencyMetricsEnabled}
+                        />
+                      </div>
                     </div>
                   </div>
                 </PopoverContent>
@@ -880,9 +898,20 @@ export const Pipelines = () => {
                       completedVideoPath={completedVideoPath}
                       livePreviewEnabled={livePreviewEnabled}
                       videoOutputEnabled={videoOutputEnabled}
+                      enableLatencyMetrics={latencyMetricsEnabled}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
+                      }
+                      resultOverrides={
+                        jobStatus
+                          ? {
+                              fps: jobStatus.per_stream_fps,
+                              ...aggregateLatencyTracerMetrics(
+                                jobStatus.latency_tracer_metrics,
+                              ),
+                            }
+                          : null
                       }
                     />
                   </div>

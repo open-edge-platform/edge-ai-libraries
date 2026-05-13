@@ -14,3 +14,4 @@ export { CpuFrequencyChart } from "@/features/metrics/charts/CpuFrequencyChart";
 export { GpuUsageChart } from "@/features/metrics/charts/GpuUsageChart";
 export { GpuPowerChart } from "@/features/metrics/charts/GpuPowerChart";
 export { GpuFrequencyChart } from "@/features/metrics/charts/GpuFrequencyChart";
+export { LatencyChart } from "@/features/metrics/charts/LatencyChart";

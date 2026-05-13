@@ -25,6 +25,7 @@ export interface MetricsState {
   lastMessage: string;
   metrics: MetricData[];
   error: string | null;
+  activeJobId: string | null;
 }
 
 const initialState: MetricsState = {
@@ -33,6 +34,7 @@ const initialState: MetricsState = {
   lastMessage: "",
   metrics: [],
   error: null,
+  activeJobId: null,
 };
 
 export const metrics = createSlice({
@@ -65,6 +67,9 @@ export const metrics = createSlice({
       state.isConnected = false;
       state.isConnecting = false;
       state.metrics = [];
+    },
+    setActiveJobId: (state, action: PayloadAction<string | null>) => {
+      state.activeJobId = action.payload;
     },
     messageReceived: (state, action: PayloadAction<string>) => {
       state.lastMessage = action.payload;
@@ -102,6 +107,7 @@ export const {
   streamDisconnected,
   streamReconnecting,
   streamError,
+  setActiveJobId,
   messageReceived,
 } = metrics.actions;
 
@@ -133,8 +139,17 @@ const filterMetrics = (
     (m) => m.name === name && (labelMatcher ? labelMatcher(m.labels) : true),
   );
 
-export const selectFpsMetric = (state: RootState) =>
-  findMetric(state.metrics.metrics, "fps")?.value;
+export const selectActiveJobId = (state: RootState) =>
+  state.metrics.activeJobId;
+
+export const selectFpsMetric = (state: RootState) => {
+  const jobId = state.metrics.activeJobId;
+  return findMetric(
+    state.metrics.metrics,
+    "fps",
+    jobId ? (l) => l.job_id === jobId : undefined,
+  )?.value;
+};
 
 export const selectCpuMetric = (state: RootState) =>
   findMetric(
@@ -172,6 +187,33 @@ export const selectCpuMetrics = (state: RootState) => {
     avgFrequency: (cpuFrequencyMetric?.value ?? 0) / 1_000_000,
     temp: cpuTempMetric?.value,
   };
+};
+
+export const selectLatencyMetrics = (state: RootState) => {
+  const jobId = state.metrics.activeJobId;
+  const labelMatcher = jobId
+    ? (l: Record<string, string>) => l.job_id === jobId
+    : undefined;
+  const avgMs = findMetric(
+    state.metrics.metrics,
+    "pipeline_latency_avg_ms",
+    labelMatcher,
+  )?.value;
+  const minMs = findMetric(
+    state.metrics.metrics,
+    "pipeline_latency_min_ms",
+    labelMatcher,
+  )?.value;
+  const maxMs = findMetric(
+    state.metrics.metrics,
+    "pipeline_latency_max_ms",
+    labelMatcher,
+  )?.value;
+
+  if (avgMs === undefined && minMs === undefined && maxMs === undefined)
+    return undefined;
+
+  return { avgMs, minMs, maxMs };
 };
 
 export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {

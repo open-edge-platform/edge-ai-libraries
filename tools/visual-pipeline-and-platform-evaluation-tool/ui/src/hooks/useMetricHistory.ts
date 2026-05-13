@@ -24,6 +24,9 @@ export interface MetricHistoryPoint {
   cpuAvgFrequency?: number;
   cpuTemp?: number;
   memory?: number;
+  latencyAvg?: number;
+  latencyMin?: number;
+  latencyMax?: number;
   gpus: Record<string, GpuMetrics>;
 }
 
@@ -73,6 +76,9 @@ export const useMetricHistory = () => {
         cpuAvgFrequency: metrics.cpuDetailed.avgFrequency,
         cpuTemp: metrics.cpuDetailed.temp,
         memory: metrics.memory,
+        latencyAvg: metrics.latency?.avgMs,
+        latencyMin: metrics.latency?.minMs,
+        latencyMax: metrics.latency?.maxMs,
         gpus,
       };
 
@@ -95,6 +101,7 @@ export const useMetricHistory = () => {
     metrics.memory,
     metrics.availableGpuIds,
     metrics.gpuDetailedMetrics,
+    metrics.latency,
   ]);
 
   return history;
