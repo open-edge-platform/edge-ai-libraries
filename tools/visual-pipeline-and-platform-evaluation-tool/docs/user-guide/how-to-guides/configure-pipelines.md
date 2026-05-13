@@ -22,7 +22,7 @@ information:
 - *Pipeline Description* - DLStreamer launch string
 
 ![Adding new pipeline](../_assets/ViPPET-UI-New-1-light.png)\
-*Figure 1: Add a new pipeline*
+*Add a new pipeline*
 
 Once you provide this information, click the *Add* button. Once the pipeline description is validated, the pipeline
 is shown as a graph in the Pipeline Builder view.
@@ -33,7 +33,7 @@ is shown as a graph in the Pipeline Builder view.
 > appropriate output configuration when you run the pipeline. For example: `... ! gvawatermark ! fakesink name=default_output_sink`.
 
 ![Viewing output](../_assets/ViPPET-UI-New-2-light.png)\
-*Figure 1a: View output configuration*
+*View output configuration*
 
 ## Step 2. Edit pipeline parameters
 
@@ -41,7 +41,7 @@ In the Pipeline Builder, you can view and configure the elements of the pipeline
 the *model* and *device* parameters in GVADetect and GVAClassify elements.
 
 ![Pipleline Editor](../_assets/ViPPET-UI-PB-light.png)\
-*Figure 2: Edit pipeline parameters*
+*Edit pipeline parameters*
 
 ## Step 3. Run pipeline on CPU
 
@@ -49,6 +49,9 @@ You can run the pipeline and save the output video using CPU-based encoding. Onc
 CPU utilization should visibly increase. The generated output video is then available for inspection.
 
 ## Step 4. Run pipeline on GPU
+
+![Run pipeline on GPU](../_assets/ViPPET-UI-PB-AV-light.png)\
+*Run pipeline on GPU*
 
 You can run the pipeline on a GPU to evaluate potential performance improvements. This requires updating the device
 settings in the detection and classification components. After configuring the pipeline, you execute it and record
@@ -58,5 +61,5 @@ With output saving enabled, the pipeline might not achieve maximum performance. 
 with output saving disabled to measure the impact of I/O overhead.
 
 ![Pipeline Builder Results](../_assets/ViPPET-UI-PB-Results-light.png)\
-*Figure 3: Check CPU and GPU performance*
+*Check CPU and GPU performance*
 
