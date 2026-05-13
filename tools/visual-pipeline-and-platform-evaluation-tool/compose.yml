@@ -121,11 +121,11 @@ services:
       - no_proxy=${no_proxy}
     command: './model_manager.sh'
   model-download:
-    image: docker.io/intel/model-download:2026.1.0-20260505-weekly
+    image: docker.io/intel/model-download:2026.1.0-20260512-weekly
     container_name: model-download
     ports:
       - "8000:8000"
-    command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-openvino,huggingface,ultralytics,geti}
+    command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,ollama,ultralytics,pipeline-zoo-models,openvino,geti,hls}
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:8000/api/v1/health"]
       interval: 30s
