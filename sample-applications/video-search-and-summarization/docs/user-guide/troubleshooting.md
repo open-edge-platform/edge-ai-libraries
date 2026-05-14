@@ -233,3 +233,12 @@ Alternatively, switch to a model with a larger context window.
    source setup.sh --down
    source setup.sh --summary
    ```
+
+## Accuracy of search results
+The accuracy of search results vary based on the embedding model used, configuration on frame sampling, object detection enabled or disabled, and the diversity of the video contents. The user is encouraged to check on these aspects in case the accuracy of the search results is not found to be satisfactory. Note that higher accuracy is normally a tradeoff with performance. Some specific pointers are provided below:
+1. Model selection: Among the supported models, models with higher dimensionality will provide better results.
+2. Higher frame sampling leads to better accuracy but at the cost of higher compute requirements.
+3. Enabling object detection normally provides a better accuracy. Consider this option in alignment with selected model capability.
+4. If the video diversity is very low, any query will seem to return the same results. Example: Same camera feed or video used for testing will return results from the same video irrespective of the query. Check the relevance score to determine how strong the match is.
+
+Raise an issue in case of continued challenges faced. 

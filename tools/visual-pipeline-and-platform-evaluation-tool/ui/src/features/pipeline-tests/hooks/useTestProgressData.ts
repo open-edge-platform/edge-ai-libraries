@@ -9,8 +9,6 @@ import {
   GPU_ENGINE_KEYS,
   type GpuEngineKey,
   getRecentYAxisMax,
-  stabilizeSingleZeroDropOptionalSeries,
-  stabilizeSingleZeroDropSeries,
 } from "@/features/pipeline-tests/utils/testProgressUtils";
 
 export interface TestProgressMetricsSnapshot {
@@ -78,13 +76,7 @@ export const useTestProgressData = ({
       };
     });
 
-    return stabilizeSingleZeroDropOptionalSeries(rawGpuData, [
-      "compute",
-      "render",
-      "copy",
-      "video",
-      "videoEnhance",
-    ]);
+    return rawGpuData;
   }, [history, selectedGpu]);
 
   const availableEngines = useMemo(() => {
@@ -113,7 +105,7 @@ export const useTestProgressData = ({
         return chartPoint;
       });
 
-    return stabilizeSingleZeroDropSeries(normalizedGpuChartData, availableEngines);
+    return normalizedGpuChartData;
   }, [gpuData, availableEngines]);
 
   const gpuFrequencyData = useMemo(() => {
@@ -123,7 +115,7 @@ export const useTestProgressData = ({
       frequency: point.gpus[gpuId]?.frequency ?? 0,
     }));
 
-    return stabilizeSingleZeroDropSeries(rawGpuFrequencyData, ["frequency"]);
+    return rawGpuFrequencyData;
   }, [history, selectedGpu]);
 
   const gpuPowerData = useMemo(() => {
@@ -134,7 +126,7 @@ export const useTestProgressData = ({
       pkgPower: point.gpus[gpuId]?.pkgPower ?? 0,
     }));
 
-    return stabilizeSingleZeroDropSeries(rawGpuPowerData, ["gpuPower", "pkgPower"]);
+    return rawGpuPowerData;
   }, [history, selectedGpu]);
 
   const displayedGpuUsage = useMemo(() => {

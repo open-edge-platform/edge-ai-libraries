@@ -194,6 +194,7 @@ export function useAsyncJob<
     isLoading: isMutating || isPolling,
     isMutating,
     isPolling,
+    jobId,
     jobStatus,
     reset,
     isJobCancelled,

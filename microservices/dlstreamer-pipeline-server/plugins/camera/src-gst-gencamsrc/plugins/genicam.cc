@@ -33,7 +33,9 @@
 #include "genicam.h"
 #include "gstgencamsrc.h"
 
-GST_DEBUG_CATEGORY_EXTERN (gst_gencamsrc_debug_category);
+/* On MSVC the debug category is defined in a .c TU (C linkage); the extern
+ * declaration must match that linkage so the linker can resolve it. */
+extern "C" { GST_DEBUG_CATEGORY_EXTERN (gst_gencamsrc_debug_category); }
 #define GST_CAT_DEFAULT gst_gencamsrc_debug_category
 
 bool
@@ -62,6 +64,7 @@ Genicam::Start (void)
   GST_DEBUG_OBJECT (gencamsrc, "START: %s", __func__);
 
   /* Get Serial Number */
+  // attempt to find the device by serial number via all available transport layers
   if (gencamParams->deviceSerialNumber == NULL) {
     getCameraSerialNumber ();
   }
@@ -713,7 +716,7 @@ bool Genicam::Create (GstBuffer ** buf, GstMapInfo * mapInfo)
 
   // not necessary as it is taken care of at init time and this doesn't make a difference, 
   // but present on safer side: disabling unlimited license every frame for Balluff from DLStreamer Pipeline Server v2.2.0 onwards
-  unsetenv("BALLUFF_ACQ_LIC_MODULE");
+  g_unsetenv ("BALLUFF_ACQ_LIC_MODULE");
 
     while (!(buffer = stream[0]->grab (GRAB_DELAY * 1000))) {
       if (acquisitionMode != "Continuous" && triggerMode == "On"
@@ -928,7 +931,7 @@ Genicam::setEnumFeature (const char *featureName, const char *str,
 
     for (size_t k = 0; k < featureList.size (); k++) {
       // Iterate all possible values if it matches
-      if (strcasecmp (str, featureList[k].c_str ()) == 0) {
+      if (g_ascii_strcasecmp (str, featureList[k].c_str ()) == 0) {
         matchFound = true;
         isEnumFeatureSet =
             rcg::setEnum (nodemap, featureName, featureList[k].c_str (), ex);
@@ -1196,7 +1199,7 @@ Genicam::setBinningHorizontalMode (void)
         false);
   }
   // Iterate the configured binning horizontal mode with camera supported list
-  if (strcasecmp (gencamParams->binningHorizontalMode, "sum") == 0) {
+  if (g_ascii_strcasecmp (gencamParams->binningHorizontalMode, "sum") == 0) {
     // Sum binning horizontal mode is supported?
     for (size_t k = 0; k < binningHorizontalModes.size (); k++) {
       // Summing is a deviation but some cameras use
@@ -1215,7 +1218,8 @@ Genicam::setBinningHorizontalMode (void)
       }
     }
 
-  } else if (strcasecmp (gencamParams->binningHorizontalMode, "average") == 0) {
+    } else if (g_ascii_strcasecmp (gencamParams->binningHorizontalMode,
+      "average") == 0) {
     // Average binning horizontal mode is supported?
     for (size_t k = 0; k < binningHorizontalModes.size (); k++) {
       // Averaging is a deviation but some cameras use
@@ -1301,7 +1305,7 @@ Genicam::setBinningVerticalMode (void)
     rcg::getEnum (nodemap, "BinningModeVertical", binningVerticalModes, false);
   }
   // Iterate the configured binning vertical mode with camera supported list
-  if (strcasecmp (gencamParams->binningVerticalMode, "sum") == 0) {
+  if (g_ascii_strcasecmp (gencamParams->binningVerticalMode, "sum") == 0) {
     // Sum binning vertical mode is supported?
     for (size_t k = 0; k < binningVerticalModes.size (); k++) {
       if ((binningVerticalModes[k] == "Sum") ||
@@ -1319,7 +1323,8 @@ Genicam::setBinningVerticalMode (void)
       }
     }
 
-  } else if (strcasecmp (gencamParams->binningVerticalMode, "average") == 0) {
+    } else if (g_ascii_strcasecmp (gencamParams->binningVerticalMode,
+      "average") == 0) {
     // Average binning vertical mode is supported?
     for (size_t k = 0; k < binningVerticalModes.size (); k++) {
       if ((binningVerticalModes[k] == "Average") ||
@@ -1440,7 +1445,7 @@ Genicam::setPixelFormat (void)
   // Iterate the configured format with camera supported list
   // Mapping necessary from FOURCC to GenICam SFNC / PFNC
 
-  if (strcasecmp (gencamParams->pixelFormat, "mono8") == 0) {
+  if (g_ascii_strcasecmp (gencamParams->pixelFormat, "mono8") == 0) {
     // Check Mono8 / GRAY8 / Y8 is supported by the camera
     for (size_t k = 0; k < pixelFormats.size (); k++) {
       if (pixelFormats[k] == "Mono8") {
@@ -1450,7 +1455,8 @@ Genicam::setPixelFormat (void)
       }
     }
 
-  } else if (strcasecmp (gencamParams->pixelFormat, "ycbcr411_8") == 0) {
+    } else if (g_ascii_strcasecmp (gencamParams->pixelFormat,
+      "ycbcr411_8") == 0) {
     // I420 / YUV420 / YCbCr411 8 bit supported by the camera?
     for (size_t k = 0; k < pixelFormats.size (); k++) {
       if (pixelFormats[k] == "YCbCr411_8") {
@@ -1460,7 +1466,8 @@ Genicam::setPixelFormat (void)
       }
     }
 
-  } else if (strcasecmp (gencamParams->pixelFormat, "ycbcr422_8") == 0) {
+    } else if (g_ascii_strcasecmp (gencamParams->pixelFormat,
+      "ycbcr422_8") == 0) {
     // YUY2 / YUV422 / Ycbcr422 8 bit supported by the camera?
     for (size_t k = 0; k < pixelFormats.size (); k++) {
       if (pixelFormats[k] == "YUV422_8"
@@ -1472,7 +1479,8 @@ Genicam::setPixelFormat (void)
       }
     }
 
-  } else if (strcasecmp (gencamParams->pixelFormat, "bayerbggr") == 0) {
+    } else if (g_ascii_strcasecmp (gencamParams->pixelFormat,
+      "bayerbggr") == 0) {
     // BayerBG8 is supported by the camera?
     for (size_t k = 0; k < pixelFormats.size (); k++) {
       if (pixelFormats[k] == "BayerBG8") {
@@ -1482,7 +1490,8 @@ Genicam::setPixelFormat (void)
       }
     }
 
-  } else if (strcasecmp (gencamParams->pixelFormat, "bayerrggb") == 0) {
+    } else if (g_ascii_strcasecmp (gencamParams->pixelFormat,
+      "bayerrggb") == 0) {
     // BayerRG8 supported by the camera?
     for (size_t k = 0; k < pixelFormats.size (); k++) {
       if (pixelFormats[k] == "BayerRG8") {
@@ -1492,7 +1501,8 @@ Genicam::setPixelFormat (void)
       }
     }
 
-  } else if (strcasecmp (gencamParams->pixelFormat, "bayergrbg") == 0) {
+    } else if (g_ascii_strcasecmp (gencamParams->pixelFormat,
+      "bayergrbg") == 0) {
     // BayerBG8 supported by the camera?
     for (size_t k = 0; k < pixelFormats.size (); k++) {
       if (pixelFormats[k] == "BayerGR8") {
@@ -1502,7 +1512,8 @@ Genicam::setPixelFormat (void)
       }
     }
 
-  } else if (strcasecmp (gencamParams->pixelFormat, "bayergbrg") == 0) {
+    } else if (g_ascii_strcasecmp (gencamParams->pixelFormat,
+      "bayergbrg") == 0) {
     // BayerGB8 supported by the camera?
     for (size_t k = 0; k < pixelFormats.size (); k++) {
       if (pixelFormats[k] == "BayerGB8") {
@@ -1512,7 +1523,7 @@ Genicam::setPixelFormat (void)
       }
     }
 
-  } else if (strcasecmp (gencamParams->pixelFormat, "rgb8") == 0) {
+  } else if (g_ascii_strcasecmp (gencamParams->pixelFormat, "rgb8") == 0) {
     // RGB8, 24 bit supported by the camera?
     for (size_t k = 0; k < pixelFormats.size (); k++) {
       if (pixelFormats[k] == "RGB8" || pixelFormats[k] == "RGB8Packed") {
@@ -1522,7 +1533,7 @@ Genicam::setPixelFormat (void)
       }
     }
 
-  } else if (strcasecmp (gencamParams->pixelFormat, "bgr8") == 0) {
+  } else if (g_ascii_strcasecmp (gencamParams->pixelFormat, "bgr8") == 0) {
     // BGR8, 24 bit supported by the camera?
     for (size_t k = 0; k < pixelFormats.size (); k++) {
       if (pixelFormats[k] == "BGR8" || pixelFormats[k] == "BGR8Packed") {
@@ -2020,7 +2031,8 @@ Genicam::setExposureTimeSelector (void)
   /* exposure time selector should be set in conjuction with
      exposure time mode. If common both should be common.
      For others, time mode should be individual */
-  if (strcasecmp (gencamParams->exposureTimeSelector, "Common") == 0) {
+    if (g_ascii_strcasecmp (gencamParams->exposureTimeSelector,
+      "Common") == 0) {
     GST_INFO_OBJECT (gencamsrc, "Setting ExposureTimeSelector to \"Common\"");
     rcg::setEnum (nodemap, "ExposureTimeMode", "Common", false);
   } else {

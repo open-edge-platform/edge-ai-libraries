@@ -1,0 +1,41 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Chart version conventions
+# -------------------------
+# `version`     Chart package version. Suffixed with `-helm` so it is
+#               distinguishable from the application image tag when
+#               both are pushed to the same OCI registry path
+#               (intel/metrics-manager:<X.Y.Z>      = Docker image,
+#                intel/metrics-manager:<X.Y.Z>-helm = Helm chart).
+# `appVersion`  Default container image tag the chart will deploy.
+#               Always equal to ./VERSION at the repository root.
+#
+# Both fields are kept in sync by `make bump NEW=...`.
+apiVersion: v2
+name: metrics-manager
+description: |
+  Unified metrics collection, ingestion, and relay service for Intel(R)
+  edge platforms. Bundles Telegraf system telemetry (CPU / memory /
+  temperature / Intel(R) GPU via qmassa / Intel(R) NPU via PMT sysfs)
+  with a FastAPI REST surface and a Server-Sent Events stream suitable
+  for live dashboards.
+type: application
+version: 2026.1.0-helm
+appVersion: "2026.1.0"
+keywords:
+  - metrics
+  - telemetry
+  - prometheus
+  - telegraf
+  - intel
+  - edge
+home: https://github.com/open-edge-platform/edge-ai-libraries/tree/main/metrics-manager
+sources:
+  - https://github.com/open-edge-platform/edge-ai-libraries
+maintainers:
+  - name: Intel Corporation
+    url: https://github.com/open-edge-platform
+icon: https://avatars.githubusercontent.com/u/17888862
+annotations:
+  category: Monitoring

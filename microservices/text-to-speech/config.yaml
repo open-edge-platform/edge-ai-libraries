@@ -1,0 +1,32 @@
+app:
+  name: Text To Speech
+models:
+  tts:
+    # SpeechT5: microsoft/speecht5_tts
+    # Qwen: Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice
+    name: Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice
+    runtime: openvino
+    # SpeechT5: CPU or GPU
+    # Qwen: CPU, GPU, or NPU
+    device: CPU
+    # SpeechT5: int8, int4, fp16, or fp32
+    # Qwen: int8, int4, fp16, or fp32
+    # NOTE: int4 on iGPU produces noise; GPU fp16 works great post-warmup (17s, high quality)
+    dtype: int8
+    # SpeechT5: default
+    # Qwen: custom_voice or voice_design
+    model_variant: custom_voice
+    # SpeechT5: default
+    # Qwen custom_voice example: Ryan
+    # Qwen voice_design: speaker can be omitted
+    default_speaker: Ryan
+    # Shared field used by both models
+    default_language: English
+    # Shared cache/output settings used by both models
+    models_base_path: models
+    use_local_cache: true
+audio:
+  output_format: wav
+  sample_width: 16
+pipeline:
+  persist_outputs: true

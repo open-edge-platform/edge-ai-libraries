@@ -1,0 +1,8 @@
+# This directory contains additional Telegraf configuration files
+# Files with .conf extension will be loaded automatically by Telegraf
+#
+# Example: custom-input.conf
+# [[inputs.exec]]
+#   commands = ["/path/to/my-script.sh"]
+#   interval = "10s"
+#   data_format = "json"
