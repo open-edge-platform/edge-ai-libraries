@@ -456,21 +456,24 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
 
             image_features = torch.from_numpy(image_features)
 
-            if metrics_out:
-                return {
-                    "embeddings": image_features,
-                    "inference_time_s": infer_end - infer_start,
-                    "processed_images": total_images,
-                }
         else:
             # Use PyTorch model (already includes projection + normalization)
+            infer_start = time.perf_counter()
             if isinstance(images, torch.Tensor):
                 pixel_values = images
             else:
                 inputs = self.processor(images=images, return_tensors="pt")
                 pixel_values = inputs.pixel_values
             image_features = self.model.encode_image(pixel_values)
-        
+            infer_end = time.perf_counter()
+
+        if metrics_out:
+            return {
+                "embeddings": image_features,
+                "inference_time_s": infer_end - infer_start,
+                "processed_images": total_images,
+            }
+
         return image_features
 
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:

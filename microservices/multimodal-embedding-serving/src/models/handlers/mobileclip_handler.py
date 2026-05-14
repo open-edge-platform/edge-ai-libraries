@@ -271,20 +271,22 @@ class MobileCLIPHandler(BaseEmbeddingModel):
 
             image_features = F.normalize(torch.from_numpy(embeddings), dim=-1)
 
-            if metrics_out:
-                return {
-                    "embeddings": image_features,
-                    "inference_time_s": infer_end - infer_start,
-                    "processed_images": total_images,
-                }
-            return image_features
 
         else:
+            infer_start = time.perf_counter()
             with torch.no_grad():
                 image_tensor = torch.stack([self.preprocess(img) for img in images])
                 image_features = self.model.encode_image(image_tensor)
+            infer_end = time.perf_counter()
             image_features = F.normalize(image_features, dim=-1)
-            return image_features
+        
+        if metrics_out:
+            return {
+                "embeddings": image_features,
+                "inference_time_s": infer_end - infer_start,
+                "processed_images": total_images,
+            }
+        return image_features
     
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:
         """Convert MobileCLIP model to OpenVINO format for inference optimization."""
