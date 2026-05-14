@@ -1,6 +1,6 @@
 # Release Notes: Visual Data Preparation for Retrieval (VDMS)
 
-## Version 2.0.0
+## Version 2026.1.0-rc1
 
 **14 May 2026**
 
