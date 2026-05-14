@@ -27,7 +27,7 @@
 
     2. unzip the package using the following command
 
-        `tar -xvzf ia-time-series-analytics-microservice-2026.1.0-<date>-weekly-helm.tgz`
+        `tar -xvzf ia-time-series-analytics-microservice-2026.1.0-rc1-helm.tgz`
 
     - Get into the helm directory
 
