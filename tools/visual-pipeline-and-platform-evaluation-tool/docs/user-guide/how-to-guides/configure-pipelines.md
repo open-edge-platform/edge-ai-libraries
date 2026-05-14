@@ -16,28 +16,23 @@ information:
 Once you provide this information, click the *Add* button. Once the pipeline description is validated, the pipeline
 is shown as a graph in the Pipeline Builder view.
 
+
 > **Note:** To view the output video or live stream in ViPPET, your pipeline must include a `fakesink` element with
 > the `name=default_output_sink` property. This serves as a placeholder that ViPPET automatically replaces with the
 > appropriate output configuration when you run the pipeline. For example: `... ! gvawatermark ! fakesink name=default_output_sink`.
-
-![Adding new pipeline](../_assets/testing-pipelines-p1.gif)\
-*Figure 1: Adding new pipeline*
 
 ## Step 2. Edit pipeline parameters
 
 In the Pipeline Builder, you can view and configure the elements of the pipeline. For example, you can change
 the *model* and *device* parameters in GVADetect and GVAClassify elements.
 
-![Editing pipeline](../_assets/testing-pipelines-p2.gif)\
-*Figure 2: Editing pipeline parameters*
+![Pipleline Editor](../_assets/ViPPET-UI-PB-light.png)\
+*Edit pipeline parameters*
 
 ## Step 3. Run pipeline on CPU
 
 You can run the pipeline and save the output video using CPU-based encoding. Once the pipeline starts,
 CPU utilization should visibly increase. The generated output video is then available for inspection.
-
-![Editing pipeline](../_assets/testing-pipelines-p3.gif)\
-*Figure 3: Running pipeline on CPU*
 
 ## Step 4. Run pipeline on GPU
 
@@ -48,5 +43,6 @@ the output. During execution, GPU utilization should visibly increase.
 With output saving enabled, the pipeline might not achieve maximum performance. You can then rerun the pipeline
 with output saving disabled to measure the impact of I/O overhead.
 
-![Editing pipeline](../_assets/testing-pipelines-p4.gif)\
-*Figure 4: Running pipeline on GPU*
+![Pipeline Builder Results](../_assets/ViPPET-UI-PB-Results-light.png)\
+*Check CPU and GPU performance*
+
