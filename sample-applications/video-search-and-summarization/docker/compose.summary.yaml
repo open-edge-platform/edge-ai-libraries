@@ -147,7 +147,7 @@ services:
       - vs_network
 
   audio-analyzer:
-    image: ${REGISTRY:-}audio-analyzer:${TAG:-latest}
+    image: ${REGISTRY:-}audio-analyzer:1.3.3
     hostname: audio-analyzer
     ports:
       - "${AUDIO_HOST_PORT}:8000"
