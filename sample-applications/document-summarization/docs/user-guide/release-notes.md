@@ -5,7 +5,7 @@
 **Version**: 2026.1.0-rc1
 **Release Date**: May 14, 2026
 
-- Fixed a broken LlamaIndex import by replacing the removed BaseLlamaPack dependency.
+- Fix LlamaIndex import issue by replacing deprecated BaseLlamaPack dependency with updated import structure.
 
 ## Known Issues/Behaviour (Consolidated):
 
@@ -17,7 +17,7 @@
 **Version**: 1.0.5
 **Release Date**: 25 Mar 2026
 
-- Updated few package version to fix vulnerabilities
+- Fix security vulnerabilities by updating several package versions.
 
 **Version**: 1.0.4
 **Release Date**: 17 Feb 2026
