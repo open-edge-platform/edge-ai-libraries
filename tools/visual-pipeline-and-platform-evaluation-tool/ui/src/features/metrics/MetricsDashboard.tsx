@@ -14,6 +14,9 @@ import {
   GpuUsageChart,
   LatencyChart,
   MemoryUtilizationChart,
+  NpuFrequencyChart,
+  NpuPowerChart,
+  NpuUsageChart,
 } from "@/features/metrics/charts";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
 import {
@@ -21,6 +24,8 @@ import {
   type GpuMetrics,
   type MetricHistoryPoint,
 } from "@/hooks/useMetricHistory.ts";
+import { useAppSelector } from "@/store/hooks.ts";
+import { selectHasNPU } from "@/store/reducers/devices.ts";
 
 interface MetricsDashboardProps {
   className?: string;
@@ -53,6 +58,7 @@ export const MetricsDashboard = ({
   const isDarkTheme = resolvedTheme === "dark" || forceDark;
   const liveMetrics = useMetrics();
   const liveHistory = useMetricHistory();
+  const hasNpu = useAppSelector(selectHasNPU);
   const metrics = metricsOverride ?? {
     fps: liveMetrics.fps,
     cpu: liveMetrics.cpu,
@@ -205,6 +211,23 @@ export const MetricsDashboard = ({
     memory: point.memory ?? 0,
   }));
 
+  const npuData = history.map((point) => ({
+    timestamp: point.timestamp,
+    usage: point.npuUsage ?? 0,
+  }));
+
+  const npuPowerData = history.map((point) => ({
+    timestamp: point.timestamp,
+    power: point.npuPower ?? 0,
+  }));
+
+  const npuFrequencyData = history.map((point) => ({
+    timestamp: point.timestamp,
+    frequency: point.npuFrequency ?? 0,
+  }));
+
+  const hasNpuData = hasNpu || npuData.some((point) => point.usage > 0);
+
   const latencyData = history.map((point) => ({
     timestamp: point.timestamp,
     avg: point.latencyAvg ?? 0,
@@ -259,6 +282,18 @@ export const MetricsDashboard = ({
     gpuFrequencyData.map((point) => point.frequency),
     CHART_MAX_DATA_POINTS,
     0.1,
+  );
+
+  const npuPowerYAxisMax = getRecentYAxisMax(
+    npuPowerData.map((point) => point.power),
+    CHART_MAX_DATA_POINTS,
+    1,
+  );
+
+  const npuFrequencyYAxisMax = getRecentYAxisMax(
+    npuFrequencyData.map((point) => point.frequency),
+    CHART_MAX_DATA_POINTS,
+    100,
   );
 
   const engineColors: Record<string, string> = {
@@ -342,9 +377,26 @@ export const MetricsDashboard = ({
             summaryUnitClassName={summaryUnitClassName}
           />
         )}
+        {hasNpuData && (
+          <MetricCard
+            title={isSummary ? "NPU Usage Average" : "NPU Usage"}
+            value={npuData.at(-1)?.usage ?? 0}
+            unit="%"
+            icon={<Gpu className="h-6 w-6 text-geode-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+            summaryCardClassName={summaryCardClassName}
+            summaryIconClassName={summaryIconClassName}
+            summaryTitleClassName={summaryTitleClassName}
+            summaryUnitClassName={summaryUnitClassName}
+          />
+        )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div
+        className={`grid grid-cols-1 gap-4 ${hasNpuData ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}
+      >
         <div className="space-y-4">
           <FrameRateChart
             data={fpsData}
@@ -451,6 +503,31 @@ export const MetricsDashboard = ({
             />
           )}
         </div>
+
+        {hasNpuData && (
+          <div className="space-y-4">
+            <NpuUsageChart
+              data={npuData}
+              isSummary={isSummary}
+              forceDark={forceDark}
+              useDemoStyles={useDemoStyles}
+            />
+            <NpuPowerChart
+              data={npuPowerData}
+              yAxisMax={npuPowerYAxisMax}
+              isSummary={isSummary}
+              forceDark={forceDark}
+              useDemoStyles={useDemoStyles}
+            />
+            <NpuFrequencyChart
+              data={npuFrequencyData}
+              yAxisMax={npuFrequencyYAxisMax}
+              isSummary={isSummary}
+              forceDark={forceDark}
+              useDemoStyles={useDemoStyles}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
