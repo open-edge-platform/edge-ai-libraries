@@ -46,13 +46,6 @@ Define the name for nginx Chart.
 {{- end }}
 
 {{/*
-Define the name for summaryui Chart.
-*/}}
-{{- define "summaryui.fullname" -}}
-{{ .Release.Name | trunc 57 | trimSuffix "-" }}-{{ .Values.name }}
-{{- end }}
-
-{{/*
 Define the name for pipelineManager Chart.
 */}}
 {{- define "pipelinemanager.fullname" -}}

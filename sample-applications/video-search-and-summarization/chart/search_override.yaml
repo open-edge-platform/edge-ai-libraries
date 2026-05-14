@@ -20,7 +20,7 @@ pipelinemanager:
 
 searchui:
   enabled: true
-  name: vss-search-ui
+  name: search-ui
   feature:
     summary: "FEATURE_OFF"
     search: "FEATURE_ON"

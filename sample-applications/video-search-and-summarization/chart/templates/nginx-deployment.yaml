@@ -21,7 +21,7 @@ data:
         {{- if $dualUi }}
         # Dual UI mode: path-based routing to separate Summary and Search UIs
         location /summary/ {
-            proxy_pass http://{{ include "vssui.name" (index .Subcharts "summaryui") }}/;
+            proxy_pass http://{{ include "vssui.name" .Subcharts.summaryui }}/;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "Upgrade";
@@ -41,7 +41,7 @@ data:
         }
 
         location /search/ {
-            proxy_pass http://{{ include "vssui.name" (index .Subcharts "searchui") }}/;
+            proxy_pass http://{{ include "vssui.name" .Subcharts.searchui }}/;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "Upgrade";
@@ -59,9 +59,9 @@ data:
         # Singleton UI mode: route all UI traffic to the single UI instance
         location / {
             {{- if .Values.summaryui.enabled }}
-            proxy_pass http://{{ include "vssui.name" (index .Subcharts "summaryui") }}/;
+            proxy_pass http://{{ include "vssui.name" .Subcharts.summaryui }}/;
             {{- else }}
-            proxy_pass http://{{ include "vssui.name" (index .Subcharts "searchui") }}/;
+            proxy_pass http://{{ include "vssui.name" .Subcharts.searchui }}/;
             {{- end }}
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;

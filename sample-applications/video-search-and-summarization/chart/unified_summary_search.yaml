@@ -25,7 +25,7 @@ pipelinemanager:
 
 summaryui:
   enabled: true
-  name: vss-unified-ui
+  name: unified-ui
   feature:
     summary: "FEATURE_ON"
     search: "FEATURE_ON"

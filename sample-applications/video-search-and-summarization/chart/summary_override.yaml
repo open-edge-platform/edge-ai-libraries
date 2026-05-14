@@ -9,7 +9,7 @@ audioanalyzer:
 
 summaryui:
   enabled: true
-  name: vss-summary-ui
+  name: summary-ui
   feature:
     summary: "FEATURE_ON"
     search: "FEATURE_OFF"
