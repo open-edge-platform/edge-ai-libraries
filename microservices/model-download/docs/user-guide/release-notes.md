@@ -1,6 +1,6 @@
 # Release Notes: Model Download
 
-## Version release-2026.1.0-rc1
+## Version 2026.1.0-rc1
 
 **May 14, 2026**
 
