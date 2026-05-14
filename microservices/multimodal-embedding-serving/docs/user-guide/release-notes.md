@@ -2,7 +2,7 @@
 
 This microservice supports features based on the requirements of Video Search and Summarization sample application, which uses this microservice. Refer to Video Search and Summarization [release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/release-notes.html) for release details of this microservice.
 
-## Version 2.0.0
+## Version 2026.1.0-rc1
 
 **14 May 2026**
 
