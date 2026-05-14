@@ -173,11 +173,11 @@ services:
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      test: ["CMD", "python", "-c", "import urllib.request as r; r.urlopen('http://localhost:8000/api/v1/health')", "2>", "/dev/null", "||", "exit", "1"]
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 10s
+      start_period: 25s
     networks:
       - vs_network
 
