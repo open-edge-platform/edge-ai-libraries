@@ -42,6 +42,7 @@ import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 import type { Pipeline } from "@/api/api.generated";
 import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
+import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
@@ -224,6 +225,10 @@ const DemoMode = () => {
   const [densityJobId, setDensityJobId] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
   const [performanceJobId, setPerformanceJobId] = useState<string | null>(null);
+
+  useActiveJobSync(
+    activeTest === "performance-test" ? performanceJobId : densityJobId,
+  );
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
     total_streams: number | null;

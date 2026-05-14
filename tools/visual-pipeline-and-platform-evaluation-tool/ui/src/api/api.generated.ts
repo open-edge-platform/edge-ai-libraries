@@ -226,7 +226,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/pipelines/validate`,
           method: "POST",
-          body: queryArg.pipelineValidationInput,
+          body: queryArg.pipelineValidation,
         }),
         invalidatesTags: ["pipelines"],
       }),
@@ -541,7 +541,7 @@ export type CreatePipelineApiArg = {
 export type ValidatePipelineApiResponse =
   /** status 202 Pipeline validation started */ ValidationJobResponse;
 export type ValidatePipelineApiArg = {
-  pipelineValidationInput: PipelineValidation2;
+  pipelineValidation: PipelineValidation;
 };
 export type GetPipelineApiResponse =
   /** status 200 Pipeline details retrieved successfully */ Pipeline;
@@ -904,12 +904,6 @@ export type ValidationJobResponse = {
   /** Identifier of the created validation job. */
   job_id: string;
 };
-export type PipelineValidation2 = {
-  pipeline_graph: PipelineGraph;
-  parameters?: {
-    [key: string]: any;
-  } | null;
-};
 export type PipelineUpdate = {
   name?: string | null;
   description?: string | null;
@@ -1052,14 +1046,48 @@ export type BodyUploadVideo = {
 export type ImageSet = {
   /** Name of the image set directory. */
   name: string;
-  /** Number of image files in the directory. */
+  /** Original uploaded archive filename. */
+  source_archive?: string;
+  /** Number of image files in the set. */
   image_count: number;
+  /** Lowercase canonical image extension shared by every image. */
+  extension?: string;
+  /** Common image width in pixels. */
+  width?: number;
+  /** Common image height in pixels. */
+  height?: number;
+  /** ISO-8601 UTC timestamp of when the set was created. */
+  uploaded_at?: string;
 };
 export type ImageSetExistsResponse = {
   /** True if the image set directory exists, False otherwise. */
   exists: boolean;
   /** The image set name (directory) that was checked. */
   name: string;
+};
+export type ImageUploadErrorKind =
+  | "missing_filename"
+  | "unsupported_archive_format"
+  | "invalid_archive_name"
+  | "archive_too_large"
+  | "archive_corrupted"
+  | "archive_contains_subdirectories"
+  | "archive_contains_no_images"
+  | "archive_mixed_image_extensions"
+  | "archive_disallowed_image_extension"
+  | "archive_mixed_image_resolutions"
+  | "archive_uncompressed_too_large"
+  | "image_set_already_exists"
+  | "unsafe_archive_path";
+export type ImageUploadError = {
+  /** Human-readable error message suitable for UI display. */
+  detail: string;
+  /** Machine-readable error kind. */
+  error: ImageUploadErrorKind;
+  /** Value that actually failed validation, or null. */
+  found?: any | null;
+  /** List of accepted values for the failed check, or null. */
+  allowed?: any[] | null;
 };
 export type BodyUploadImageArchive = {
   file: string;
