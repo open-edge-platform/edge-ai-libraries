@@ -1,5 +1,12 @@
 # Release Notes: Chat Q&A
 
+
+## Version 2026.1.0-rc1
+
+**New**
+    - EMF deployment package support has been removed.
+    - Security fixes.
+
 ## Version 2.1.0
 
 **April 1, 2026**
