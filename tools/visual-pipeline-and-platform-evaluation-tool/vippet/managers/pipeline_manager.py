@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
 
-from graph import Graph, OUTPUT_PLACEHOLDER
+from graph import Graph, OUTPUT_PLACEHOLDER, graph_is_metadata_only
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
@@ -579,8 +579,12 @@ class PipelineManager:
             # Store the pipeline directory path for later video file collection
             video_output_paths[pipeline_id] = video_pipeline_dir
 
-            # Replace decodebin3 with parsebin + specific decoder based on input codec and target device
-            if base_graph.has_decodebin3():
+            # Replace decodebin3 with parsebin + specific decoder based on input codec and target device.
+            # Image-set sources also need this pass even without decodebin3, because
+            # video-centric templates (parsebin, avdec_h264, container muxers, ...)
+            # have to be adapted to the raw-video stream produced by the dedicated
+            # image decoder; ``apply_decodebin3_replacement`` handles both cases.
+            if base_graph.has_decodebin3() or base_graph.has_image_set_source():
                 codec = base_graph.determine_input_codec()
                 target_device = base_graph.get_target_device()
                 base_graph = base_graph.apply_decodebin3_replacement(
@@ -682,27 +686,33 @@ class PipelineManager:
                 unique_pipeline_str = graph_instance.to_pipeline_description()
 
                 if output_mode != InternalOutputMode.DISABLED and stream_index == 0:
-                    # Replace the main output placeholder with the actual output subpipeline (file or live stream)
+                    # Replace the main output placeholder with the actual output subpipeline (file or live stream).
+                    # For metadata-only pipelines, there may be no placeholder (unnamed fakesink for metadata delivery).
                     if OUTPUT_PLACEHOLDER not in unique_pipeline_str:
-                        raise ValueError(
-                            f"Pipeline '{pipeline_name}' (id: {pipeline_id}) is missing required output sink. "
-                            f"Please add 'fakesink name=default_output_sink' at the end of the pipeline definition."
+                        if not graph_is_metadata_only(graph_instance.nodes):
+                            raise ValueError(
+                                f"Pipeline '{pipeline_name}' (id: {pipeline_id}) is missing required output sink. "
+                                f"Please add 'fakesink name=default_output_sink' at the end of the pipeline definition."
+                            )
+                        logger.debug(
+                            "Metadata-only pipeline detected with unnamed fakesink. Skipping output injection."
                         )
-                    if output_subpipeline is None:
-                        raise ValueError(
-                            "Output subpipeline was not created as expected."
+                    else:
+                        if output_subpipeline is None:
+                            raise ValueError(
+                                "Output subpipeline was not created as expected."
+                            )
+                        # Inject the explicit sink name into the output subpipeline
+                        # so the terminal sink element (filesink / rtspclientsink)
+                        # carries a deterministic, stream-unique GStreamer name.
+                        # This preserves the stream_id correlation even when the
+                        # main sink is replaced by the encoder + writer subpipeline.
+                        output_subpipeline_with_name = (
+                            f"{output_subpipeline} name={final_sink_name}"
                         )
-                    # Inject the explicit sink name into the output subpipeline
-                    # so the terminal sink element (filesink / rtspclientsink)
-                    # carries a deterministic, stream-unique GStreamer name.
-                    # This preserves the stream_id correlation even when the
-                    # main sink is replaced by the encoder + writer subpipeline.
-                    output_subpipeline_with_name = (
-                        f"{output_subpipeline} name={final_sink_name}"
-                    )
-                    unique_pipeline_str = unique_pipeline_str.replace(
-                        OUTPUT_PLACEHOLDER, output_subpipeline_with_name
-                    )
+                        unique_pipeline_str = unique_pipeline_str.replace(
+                            OUTPUT_PLACEHOLDER, output_subpipeline_with_name
+                        )
 
                 pipeline_parts.append(unique_pipeline_str)
 

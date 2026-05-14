@@ -2,6 +2,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import { persistStore, persistReducer } from "redux-persist";
 import storage from "redux-persist/lib/storage";
 import { api } from "@/api/api.generated.ts";
+import { apiModelDownload } from "@/api/api.model-download.generated.ts";
 import metricsReducer from "./reducers/metrics.ts";
 import pipelinesReducer from "./reducers/pipelines.ts";
 import modelsReducer from "./reducers/models.ts";
@@ -21,6 +22,7 @@ const persistedUiConfigReducer = persistReducer(
 export const store = configureStore({
   reducer: {
     [api.reducerPath]: api.reducer,
+    [apiModelDownload.reducerPath]: apiModelDownload.reducer,
     metrics: metricsReducer,
     pipelines: pipelinesReducer,
     models: modelsReducer,
@@ -32,7 +34,9 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: ["persist/PERSIST", "persist/REHYDRATE"],
       },
-    }).concat(api.middleware),
+    })
+      .concat(api.middleware)
+      .concat(apiModelDownload.middleware),
 });
 
 export const persistor = persistStore(store);

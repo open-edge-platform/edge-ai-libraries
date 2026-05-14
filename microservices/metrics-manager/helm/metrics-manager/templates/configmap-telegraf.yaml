@@ -1,0 +1,11 @@
+{{- if .Values.telegraf.config -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "metrics-manager.fullname" . }}-telegraf
+  labels:
+    {{- include "metrics-manager.labels" . | nindent 4 }}
+data:
+  telegraf.conf: |-
+{{ .Values.telegraf.config | indent 4 }}
+{{- end }}
