@@ -511,6 +511,7 @@ class TestGStreamerPipeline:
         gstreamer_pipeline._frame_fps = 10
         gstreamer_pipeline.count_pipeline_latency = 2
         gstreamer_pipeline.sum_pipeline_latency = 50
+        gstreamer_pipeline._frame_latency = 20
         expected_status = {
             "id": "test_id",
             "state": mock_state,
@@ -519,7 +520,8 @@ class TestGStreamerPipeline:
             "start_time": 15,
             "elapsed_time": 0,
             "message": "Debug",
-            "avg_pipeline_latency": 25.0}
+            "avg_pipeline_latency": 25.0,
+            "frame_latency": 20.0}
         result = gstreamer_pipeline.status()
         assert result == expected_status
 
