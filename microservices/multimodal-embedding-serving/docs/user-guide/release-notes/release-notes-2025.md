@@ -1,19 +1,5 @@
 # Release Notes: Multimodal Embedding Serving 2025
 
-## Version 1.3.2
-
-**20 March 2026**
-
-**New**
-
-- Support for Intel® Core™ Ultra Processors (Series 3)
-- Provided support for data and time based search queries
-
-**Validated configuration**
-
-- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU, Intel® Core™ Ultra Processors (Series 2 and 3)
-- Vanilla Kubernetes Cluster
-
 ## Version 1.3.1
 
 **20 Nov 2025**
