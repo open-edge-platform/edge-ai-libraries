@@ -17,6 +17,7 @@ global:
 pipelinemanager:
   env:
     SEARCH_DATAPREP_TIMEOUT_MS: "600000"
+    SEARCH_FEATURE: "FEATURE_ON"
 
 searchui:
   enabled: true

@@ -7,6 +7,10 @@ videoingestion:
 audioanalyzer:
   enabled: true
 
+pipelinemanager:
+  env:
+    SUMMARY_FEATURE: "FEATURE_ON"
+
 summaryui:
   enabled: true
   name: summary-ui
