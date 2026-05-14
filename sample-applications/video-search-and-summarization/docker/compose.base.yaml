@@ -9,10 +9,11 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy},vss-search-ui,vss-summary-ui,vss-singleton-ui,pipeline-manager,minio-service,ovms-service,localhost
+    # TODO: Refactor to remove env vars being used for mount directory.
     # CAUTION: Do not change following file mounts unless you know what you are doing.
     volumes:
-      - ${NGINX_BASE_CONFIG}:/etc/nginx/nginx.conf:ro
-      - ${NGINX_UI_CONFIG}:/etc/nginx/nginx_ui.conf:ro
+      - ../config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${NGINX_UI_CONFIG:-../config/nginx/singleton_ui.conf}:/etc/nginx/nginx_ui.conf:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost"]
       interval: 30s
@@ -53,8 +54,8 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
-      SUMMARY_FEATURE: FEATURE_ON
-      SEARCH_FEATURE: FEATURE_ON
+      SUMMARY_FEATURE: "FEATURE_OFF"
+      SEARCH_FEATURE: "FEATURE_OFF"
       TICK_INTERVAL_MS: ${TICK_INTERVAL_MS:-5000} # EVAM uses TICK
       FAST_TICK_INTERVAL_MS: ${FAST_TICK_INTERVAL_MS:-2000} # VLM/LLM uses FAST_TICK
       AUDIO_USE_FULL_TRANSCRIPT_SUMMARY: ${PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY:-true}

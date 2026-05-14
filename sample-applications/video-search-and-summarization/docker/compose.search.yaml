@@ -16,6 +16,7 @@ services:
         environment:
             SEARCH_ENDPOINT: ${VS_ENDPOINT}
             SEARCH_DATAPREP_ENDPOINT: ${VDMS_DATAPREP_ENDPOINT}
+            SEARCH_FEATURE: "FEATURE_ON"
 
     video-search:
         image: ${REGISTRY:-}video-search:${TAG:-latest}
