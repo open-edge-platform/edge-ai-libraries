@@ -1,0 +1,36 @@
+Metrics Manager {{ .Chart.AppVersion }} has been deployed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Workload kind: {{ .Values.controller.kind }}
+Image:         {{ include "metrics-manager.image" . }}
+Privileged:    {{ .Values.securityContext.privileged }}
+Host PID:      {{ .Values.pod.hostPID }}
+GPU enabled:   {{ .Values.hardware.gpu.enabled }}
+
+1. Verify pods are running:
+
+   kubectl --namespace {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+2. Open a port-forward to the REST API + SSE:
+
+   kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "metrics-manager.fullname" . }} {{ .Values.service.metricsPort }}:{{ .Values.service.metricsPort }}
+
+   Then check health:
+     curl http://localhost:{{ .Values.service.metricsPort }}/health
+
+3. Open a port-forward to the Telegraf Prometheus endpoint:
+
+   kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "metrics-manager.fullname" . }} {{ .Values.service.telegrafPort }}:{{ .Values.service.telegrafPort }}
+
+   Then scrape:
+     curl http://localhost:{{ .Values.service.telegrafPort }}/metrics | head
+
+4. Customize:
+
+   helm upgrade {{ .Release.Name }} oci://registry-1.docker.io/intel/metrics-manager \
+     --version {{ .Chart.Version }} \
+     --namespace {{ .Release.Namespace }} \
+     --set config.logLevel=DEBUG \
+     --set config.hostnameOverride=my-stable-host
+
+For the full reference, see:
+  https://github.com/open-edge-platform/edge-ai-libraries/tree/main/metrics-manager/docs/HELM.md

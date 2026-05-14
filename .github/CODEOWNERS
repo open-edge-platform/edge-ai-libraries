@@ -66,9 +66,13 @@ README.md           @xwu2intel
 /microservices/dlstreamer-pipeline-server/docs/        @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
 /microservices/dlstreamer-pipeline-server/README.md    @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/document-ingestion/                     @bharagha @madhuri-rai07 @Supriya-Krishnamurthi
-/microservices/document-ingestion/docs/                @bharagha @madhuri-rai07 @Supriya-Krishnamurthi  @open-edge-platform/open-edge-platform-docs-write
-/microservices/document-ingestion/README.md            @bharagha @madhuri-rai07 @Supriya-Krishnamurthi  @open-edge-platform/open-edge-platform-docs-write
+/microservices/metrics-manager/                        @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @mkobyli
+/microservices/metrics-manager/docs/                   @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @mkobyli  @open-edge-platform/open-edge-platform-docs-write
+/microservices/metrics-manager/README.md               @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @mkobyli  @open-edge-platform/open-edge-platform-docs-write
+
+/microservices/model-download/                         @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj
+/microservices/model-download/docs/                    @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
+/microservices/model-download/README.md                @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/model-download/                         @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj
 /microservices/model-download/docs/                    @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write

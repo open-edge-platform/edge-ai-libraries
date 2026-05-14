@@ -2,6 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.1] - June 2026
+
+### Added
+- Added optional CPU core-pinning support via `CORE_PINNING` environment variable using a new `run.sh` entrypoint and `detect-cores.sh` script. ([#2087])
+- Added `/udfs/package` API endpoint to upload and extract UDF deployment packages (tar archives) via HTTP. ([#2067])
+
+### Changed
+- Updated Kapacitor version. ([#2140])
+- Updated Intel GPU drivers to support WCL (compute-runtime/IGC `26.14.37833`). ([#2145]) ([#2128])
+- Replaced `pkill`-based Kapacitor shutdown with a `/proc`-based process discovery approach to terminate the Kapacitor daemon. ([#2104])
+- Switched UDF package upload format from `.zip` to `.tar` archives across endpoint, functional tests, and documentation. ([#2100])
+- Changed base Docker image from `kapacitor:<version>` to `python:<version>-slim` with Kapacitor installed via `.deb`. ([#2098])
+- Renamed Helm chart from `time-series-analytics-microservice` to `ia-time-series-analytics-microservice` to align with Docker Hub namespace. ([#1830])
+- Updated third-party programs file with latest dependency versions. ([#2046])
+- Bumped `requests` dependency version. ([#2062])
+
+### Fixed
+- Fixed security vulnerability by bumping `python-multipart`, `pytest`, `pytest-cov`, `pytest-asyncio`, and `pytest-html` dependency versions. ([#2151])
+- Fixed OPC UA alert sending failures by adding server hostname resolution, improved connection-state tracking, and more resilient re-initialization logic. ([#2124])
+- Fixed config update handler to remove the `alerts` key from in-memory configuration when the incoming payload omits alerts. ([#2099])
+
+### Documentation
+- Reviewed and updated Time Series Analytics documentation. ([#2153])
+- Updated simulator setup steps to use a Python virtual environment. ([#1830])
+- Fixed release notes article structure and consolidated release notes navigation. ([#1908])
+- Updated release notes links and references. ([#1916])
+- Updated reference links across documentation (ref sweep). ([#2038])
+- Fixed documentation links and references (pass 2). ([#1971])
+
+---
+
+[#2153]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2153
+[#2151]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2151
+[#2145]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2145
+[#2140]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2140
+[#2128]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2128
+[#2124]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2124
+[#2104]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2104
+[#2100]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2100
+[#2099]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2099
+[#2098]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2098
+[#2087]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2087
+[#2067]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2067
+[#2062]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2062
+[#2046]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2046
+[#2038]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2038
+[#1971]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1971
+[#1916]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1916
+[#1908]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1908
+[#1830]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1830
+
 ## [2026.0] - March 2026
 
 ### Added
