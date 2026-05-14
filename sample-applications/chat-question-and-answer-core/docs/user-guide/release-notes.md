@@ -2,8 +2,8 @@
 
 ## Current Release
 
-**Version**: 1.3.3 \
-**Release Date**: WW19 2026
+**Version**: 2026.1.0-rc1 \
+**Release Date**: WW20 2026
 
 - Making HF token as an optional. Only required when user downloading gated models.
 - Upgrade OLLAMA binary version.
