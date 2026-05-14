@@ -4,14 +4,6 @@ This article explains step-by-step how to configure and test AI pipelines using 
 from creating a new pipeline using DLStreamer launch string, editing the pipeline elements, to demonstrating
 running pipelines on both CPU and GPU to compare performance.
 
-## Create pipelines from Optimized Template
-
-| Template 1 | Template 2 |
-|---|---|
-| ![Template 1](../_assets/VIPPET-UI-Pipeline-table-Template1.png) | ![Template 2](../_assets/VIPPET-UI-Pipeline-table-Template2.png) |
-
-
-
 ## Step 1. Add new pipeline
 
 First, you need to add a new pipeline. To do this, click on *Add New Pipeline* button and provide the following
@@ -21,9 +13,6 @@ information:
 - *Description* - Pipeline's high-level description
 - *Pipeline Description* - DLStreamer launch string
 
-![Adding new pipeline](../_assets/ViPPET-UI-New-1-light.png)\
-*Add a new pipeline*
-
 Once you provide this information, click the *Add* button. Once the pipeline description is validated, the pipeline
 is shown as a graph in the Pipeline Builder view.
 
@@ -31,9 +20,6 @@ is shown as a graph in the Pipeline Builder view.
 > **Note:** To view the output video or live stream in ViPPET, your pipeline must include a `fakesink` element with
 > the `name=default_output_sink` property. This serves as a placeholder that ViPPET automatically replaces with the
 > appropriate output configuration when you run the pipeline. For example: `... ! gvawatermark ! fakesink name=default_output_sink`.
-
-![Viewing output](../_assets/ViPPET-UI-New-2-light.png)\
-*View output configuration*
 
 ## Step 2. Edit pipeline parameters
 
@@ -49,9 +35,6 @@ You can run the pipeline and save the output video using CPU-based encoding. Onc
 CPU utilization should visibly increase. The generated output video is then available for inspection.
 
 ## Step 4. Run pipeline on GPU
-
-![Run pipeline on GPU](../_assets/ViPPET-UI-PB-AV-light.png)\
-*Run pipeline on GPU*
 
 You can run the pipeline on a GPU to evaluate potential performance improvements. This requires updating the device
 settings in the detection and classification components. After configuring the pipeline, you execute it and record
