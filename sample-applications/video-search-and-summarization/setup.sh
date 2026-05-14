@@ -12,13 +12,8 @@ GRAY='\033[0;90m'
 NC='\033[0m' # No Color
 
 # =================== Setup Mount Directories ======================
-config_dir=${PWD}/config
-nginx_config_dir=${config_dir}/nginx
-
-export OVMS_CONFIG_DIR=${config_dir}/ovms_config
-export OV_MODEL_DIR=${PWD}/ov_models
-export RABBITMQ_CONFIG=${config_dir}/rmq.conf
-export NGINX_BASE_CONFIG=${nginx_config_dir}/nginx.conf
+nginx_config_dir="${PWD}/config/nginx"
+export OVMS_CONFIG_DIR="${PWD}/config/ovms_config"
 
 # ================================= SETUP ALIASES ======================================
 if [ "$#" -eq 1 ] && [ "$1" = "config" ]; then    # config with no args defaults to both summary and search
@@ -445,7 +440,7 @@ export ENABLE_VSS_COLLECTOR=${ENABLE_VSS_COLLECTOR:-false}
 # Object detection model settings
 export OD_MODEL_NAME=${OD_MODEL_NAME}
 export OD_MODEL_TYPE=${OD_MODEL_TYPE:-"yolo_v8"}
-export OD_MODEL_OUTPUT_DIR=${OV_MODEL_DIR}/yoloworld/v2
+export OD_MODEL_OUTPUT_DIR=${PWD}/ov_models/yoloworld/v2
 echo -e "[video-ingestion] ${GREEN}Using object detection model: ${YELLOW}$OD_MODEL_NAME of type $OD_MODEL_TYPE ${NC}"
 echo -e "[video-ingestion] ${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL_OUTPUT_DIR ${NC}"
 
@@ -743,8 +738,8 @@ export_model_for_ovms() {
     export storage_model_name
     
     (
-        mkdir -p "${config_dir}/ovms_config"
-        cd "${config_dir}/ovms_config" || exit 1
+        mkdir -p "${OVMS_CONFIG_DIR}"
+        cd "${OVMS_CONFIG_DIR}" || exit 1
 
         # Always pull latest export_model.py script
         echo -e "Downloading latest export_model.py from OVMS repository..."
@@ -999,103 +994,105 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
     configured_ovms_llm_model=${OVMS_LLM_MODEL_NAME:-${LLM_MODEL_NAME}}
     BACKEND_PROFILE="ovms"
 
-    if [ "$ENABLE_VLLM" = true ]; then
-        echo -e "[vllm-cpu-service] ${BLUE}Using vLLM for both chunk captioning and final summary${NC}"
-        BACKEND_PROFILE="vllm"
-        export USE_VLLM=CONFIG_ON
-        export LLM_SUMMARIZATION_API=${VLLM_ENDPOINT}
-        export VLM_ENDPOINT=${VLLM_ENDPOINT}
-        export VLM_HOST=${VLLM_HOST}
-        if [ -n "$configured_ovms_llm_model" ] && [ "$configured_ovms_llm_model" != "$VLM_MODEL_NAME" ]; then
-            echo -e "[pipeline-manager] ${YELLOW}Ignoring separate OVMS LLM model in vLLM-only mode; summarization will use VLM_MODEL_NAME=${VLM_MODEL_NAME}${NC}"
-        fi
-        export LLM_MODEL_NAME=${VLM_MODEL_NAME}
-        if [ "$PM_VLM_CONCURRENT_DEFAULTED" = true ]; then
-            export PM_VLM_CONCURRENT=1
-        fi
-        if [ "$PM_LLM_CONCURRENT_DEFAULTED" = true ]; then
-            export PM_LLM_CONCURRENT=1
-        fi
-        if [ "$PM_CAPTIONING_MAX_COMPLETION_TOKENS_DEFAULTED" = true ]; then
-            export PM_CAPTIONING_MAX_COMPLETION_TOKENS=256
-        fi
-        APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.vllm.yaml"
-    else
-        echo -e "[ovms-service] ${BLUE}Using OVMS for both chunk captioning and final summary${NC}"
-        export USE_VLLM=CONFIG_OFF
-        export LLM_MODEL_NAME=${configured_ovms_llm_model}
-        export LLM_SUMMARIZATION_API=http://$OVMS_HOST/v3
-        export VLM_ENDPOINT=http://$OVMS_HOST/v3
-        export VLM_HOST=${OVMS_HOST}
-
-        # VLM_TARGET_DEVICE and LLM_TARGET_DEVICE support: CPU, GPU, NPU, HETERO:...
-        # (defaults already set at top of script)
-        
-        # Determine weight format: user override takes precedence, otherwise auto-detect based on device
-        export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-$(get_ovms_weight_format "$VLM_TARGET_DEVICE")}
-        export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-$(get_ovms_weight_format "$LLM_TARGET_DEVICE")}
-
-        echo -e "[ovms-service] ${BLUE}VLM Target Device: ${YELLOW}${VLM_TARGET_DEVICE}${NC} (weight format: ${VLM_COMPRESSION_WEIGHT_FORMAT})"
-        echo -e "[ovms-service] ${BLUE}LLM Target Device: ${YELLOW}${LLM_TARGET_DEVICE}${NC} (weight format: ${LLM_COMPRESSION_WEIGHT_FORMAT})"
-
-        # Adjust concurrency and frame count for non-CPU devices
-        if [[ "$VLM_TARGET_DEVICE" != "CPU" ]]; then
-            export PM_VLM_CONCURRENT=1
-            export PM_LLM_CONCURRENT=1
-            if [ "$PM_MULTI_FRAME_COUNT_DEFAULTED" = true ]; then
-                export PM_MULTI_FRAME_COUNT=6
+    if [ "$1" != "--search" ]; then
+        if [ "$ENABLE_VLLM" = true ]; then
+            echo -e "[vllm-cpu-service] ${BLUE}Using vLLM for both chunk captioning and final summary${NC}"
+            BACKEND_PROFILE="vllm"
+            export USE_VLLM=CONFIG_ON
+            export LLM_SUMMARIZATION_API=${VLLM_ENDPOINT}
+            export VLM_ENDPOINT=${VLLM_ENDPOINT}
+            export VLM_HOST=${VLLM_HOST}
+            if [ -n "$configured_ovms_llm_model" ] && [ "$configured_ovms_llm_model" != "$VLM_MODEL_NAME" ]; then
+                echo -e "[pipeline-manager] ${YELLOW}Ignoring separate OVMS LLM model in vLLM-only mode; summarization will use VLM_MODEL_NAME=${VLM_MODEL_NAME}${NC}"
             fi
-        fi
-
-        # Add GPU compose override if either device uses GPU
-        if [[ "$VLM_TARGET_DEVICE" == *"GPU"* ]] || [[ "$LLM_TARGET_DEVICE" == *"GPU"* ]]; then
-            echo -e "[ovms-service] ${BLUE}Using GPU-capable OVMS image${NC}"
-            APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.gpu_ovms.yaml"
-        fi
-
-        ovms_split_model=false
-        if [ -n "$LLM_MODEL_NAME" ] && [ "$LLM_MODEL_NAME" != "$VLM_MODEL_NAME" ]; then
-            ovms_split_model=true
-            echo -e "[ovms-service] ${BLUE}Using split-model OVMS mode: VLM=${VLM_MODEL_NAME}, LLM=${LLM_MODEL_NAME}${NC}"
+            export LLM_MODEL_NAME=${VLM_MODEL_NAME}
+            if [ "$PM_VLM_CONCURRENT_DEFAULTED" = true ]; then
+                export PM_VLM_CONCURRENT=1
+            fi
+            if [ "$PM_LLM_CONCURRENT_DEFAULTED" = true ]; then
+                export PM_LLM_CONCURRENT=1
+            fi
+            if [ "$PM_CAPTIONING_MAX_COMPLETION_TOKENS_DEFAULTED" = true ]; then
+                export PM_CAPTIONING_MAX_COMPLETION_TOKENS=256
+            fi
+            APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.vllm.yaml"
         else
-            echo -e "[ovms-service] ${BLUE}Using shared single-model OVMS mode with VLM=${VLM_MODEL_NAME}${NC}"
-        fi
+            echo -e "[ovms-service] ${BLUE}Using OVMS for both chunk captioning and final summary${NC}"
+            export USE_VLLM=CONFIG_OFF
+            export LLM_MODEL_NAME=${configured_ovms_llm_model}
+            export LLM_SUMMARIZATION_API=http://$OVMS_HOST/v3
+            export VLM_ENDPOINT=http://$OVMS_HOST/v3
+            export VLM_HOST=${OVMS_HOST}
 
-        # Compute storage model names that encode device and format
-        # These are exported for pipeline-manager to use when calling OVMS API
-        export VLM_STORAGE_MODEL_NAME
-        VLM_STORAGE_MODEL_NAME=$(get_ovms_storage_model_name "$VLM_MODEL_NAME" "$VLM_TARGET_DEVICE" "$VLM_COMPRESSION_WEIGHT_FORMAT")
-        
-        if [ "$ovms_split_model" = true ]; then
-            export LLM_STORAGE_MODEL_NAME
-            LLM_STORAGE_MODEL_NAME=$(get_ovms_storage_model_name "$LLM_MODEL_NAME" "$LLM_TARGET_DEVICE" "$LLM_COMPRESSION_WEIGHT_FORMAT")
-        else
-            export LLM_STORAGE_MODEL_NAME="$VLM_STORAGE_MODEL_NAME"
-        fi
-        
-        echo -e "[ovms-service] ${GREEN}VLM Storage Model: ${YELLOW}${VLM_STORAGE_MODEL_NAME}${NC}"
-        echo -e "[ovms-service] ${GREEN}LLM Storage Model: ${YELLOW}${LLM_STORAGE_MODEL_NAME}${NC}"
+            # VLM_TARGET_DEVICE and LLM_TARGET_DEVICE support: CPU, GPU, NPU, HETERO:...
+            # (defaults already set at top of script)
+            
+            # Determine weight format: user override takes precedence, otherwise auto-detect based on device
+            export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-$(get_ovms_weight_format "$VLM_TARGET_DEVICE")}
+            export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-$(get_ovms_weight_format "$LLM_TARGET_DEVICE")}
 
-        if [ "$2" != "config" ]; then
-            # Reset OVMS config to only include storage model names needed for this run
-            if [ "$ovms_split_model" = true ]; then
-                reset_ovms_config "$VLM_STORAGE_MODEL_NAME" "$LLM_STORAGE_MODEL_NAME"
+            echo -e "[ovms-service] ${BLUE}VLM Target Device: ${YELLOW}${VLM_TARGET_DEVICE}${NC} (weight format: ${VLM_COMPRESSION_WEIGHT_FORMAT})"
+            echo -e "[ovms-service] ${BLUE}LLM Target Device: ${YELLOW}${LLM_TARGET_DEVICE}${NC} (weight format: ${LLM_COMPRESSION_WEIGHT_FORMAT})"
+
+            # Adjust concurrency and frame count for non-CPU devices
+            if [[ "$VLM_TARGET_DEVICE" != "CPU" ]]; then
+                export PM_VLM_CONCURRENT=1
+                export PM_LLM_CONCURRENT=1
+                if [ "$PM_MULTI_FRAME_COUNT_DEFAULTED" = true ]; then
+                    export PM_MULTI_FRAME_COUNT=6
+                fi
+            fi
+
+            # Add GPU compose override if either device uses GPU
+            if [[ "$VLM_TARGET_DEVICE" == *"GPU"* ]] || [[ "$LLM_TARGET_DEVICE" == *"GPU"* ]]; then
+                echo -e "[ovms-service] ${BLUE}Using GPU-capable OVMS image${NC}"
+                APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.gpu_ovms.yaml"
+            fi
+
+            ovms_split_model=false
+            if [ -n "$LLM_MODEL_NAME" ] && [ "$LLM_MODEL_NAME" != "$VLM_MODEL_NAME" ]; then
+                ovms_split_model=true
+                echo -e "[ovms-service] ${BLUE}Using split-model OVMS mode: VLM=${VLM_MODEL_NAME}, LLM=${LLM_MODEL_NAME}${NC}"
             else
-                reset_ovms_config "$VLM_STORAGE_MODEL_NAME"
+                echo -e "[ovms-service] ${BLUE}Using shared single-model OVMS mode with VLM=${VLM_MODEL_NAME}${NC}"
             fi
 
-            ensure_ovms_model \
-                "$VLM_MODEL_NAME" \
-                "$VLM_TARGET_DEVICE" \
-                "$VLM_COMPRESSION_WEIGHT_FORMAT" \
-                "VLM_CB" || return 1
-
+            # Compute storage model names that encode device and format
+            # These are exported for pipeline-manager to use when calling OVMS API
+            export VLM_STORAGE_MODEL_NAME
+            VLM_STORAGE_MODEL_NAME=$(get_ovms_storage_model_name "$VLM_MODEL_NAME" "$VLM_TARGET_DEVICE" "$VLM_COMPRESSION_WEIGHT_FORMAT")
+            
             if [ "$ovms_split_model" = true ]; then
+                export LLM_STORAGE_MODEL_NAME
+                LLM_STORAGE_MODEL_NAME=$(get_ovms_storage_model_name "$LLM_MODEL_NAME" "$LLM_TARGET_DEVICE" "$LLM_COMPRESSION_WEIGHT_FORMAT")
+            else
+                export LLM_STORAGE_MODEL_NAME="$VLM_STORAGE_MODEL_NAME"
+            fi
+            
+            echo -e "[ovms-service] ${GREEN}VLM Storage Model: ${YELLOW}${VLM_STORAGE_MODEL_NAME}${NC}"
+            echo -e "[ovms-service] ${GREEN}LLM Storage Model: ${YELLOW}${LLM_STORAGE_MODEL_NAME}${NC}"
+
+            if [ "$2" != "config" ]; then
+                # Reset OVMS config to only include storage model names needed for this run
+                if [ "$ovms_split_model" = true ]; then
+                    reset_ovms_config "$VLM_STORAGE_MODEL_NAME" "$LLM_STORAGE_MODEL_NAME"
+                else
+                    reset_ovms_config "$VLM_STORAGE_MODEL_NAME"
+                fi
+
                 ensure_ovms_model \
-                    "$LLM_MODEL_NAME" \
-                    "$LLM_TARGET_DEVICE" \
-                    "$LLM_COMPRESSION_WEIGHT_FORMAT" \
-                    "" || return 1
+                    "$VLM_MODEL_NAME" \
+                    "$VLM_TARGET_DEVICE" \
+                    "$VLM_COMPRESSION_WEIGHT_FORMAT" \
+                    "VLM_CB" || return 1
+
+                if [ "$ovms_split_model" = true ]; then
+                    ensure_ovms_model \
+                        "$LLM_MODEL_NAME" \
+                        "$LLM_TARGET_DEVICE" \
+                        "$LLM_COMPRESSION_WEIGHT_FORMAT" \
+                        "" || return 1
+                fi
             fi
         fi
     fi
