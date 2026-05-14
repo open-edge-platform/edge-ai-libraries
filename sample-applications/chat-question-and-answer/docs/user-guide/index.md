@@ -114,9 +114,6 @@ models supported overall.
 
 Refer to the [detailed hardware and software requirements](./get-started/system-requirements.md).
 
-This sample application is ready for deployment with Edge Orchestrator. Download the
-[deployment package](./get-started/deploy-with-edge-orchestrator.md) and follow the instructions.
-
 ## Benchmark Results
 
 Detailed metrics and analysis can be found in [the benchmark report](./benchmarks.md).
