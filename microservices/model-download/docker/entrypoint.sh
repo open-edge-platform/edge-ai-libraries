@@ -66,7 +66,7 @@ install_dependencies() {
             # Check if using default version - download export_model.py + matching requirements.txt
             if [[ "${OVMS_RELEASE_TAG}" == "${DEFAULT_OVMS_TAG}" ]]; then
                 echo -e "${BLUE}INFO:${NC} Using default OVMS version (${OVMS_RELEASE_TAG})."
-                EXPORT_SCRIPT_URL="https://raw.githubusercontent.com/openvinotoolkit/model_server/${DEFAULT_OVMS_TAG}/demos/common/export_models/export_model.py"
+                EXPORT_SCRIPT_URL="https://raw.githubusercontent.com/openvinotoolkit/model_server/v2026.0/demos/common/export_models/export_model.py"
                 mkdir -p /opt/scripts
                 if curl -fsSL -o /opt/scripts/export_model.py "${EXPORT_SCRIPT_URL}"; then
                     echo -e "${GREEN} SUCCESS:${NC} export_model.py downloaded from ${DEFAULT_OVMS_TAG}"
