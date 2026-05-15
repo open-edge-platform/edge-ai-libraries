@@ -27,7 +27,7 @@ and run the application efficiently.
 
 **DL Streamer requirements**
 
-- Ensure all [requirements](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/get_started/system_requirements.html) for DL Streamer are fulfilled.
+- Ensure all [requirements](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/dlstreamer/get_started/system_requirements.html) for DL Streamer are fulfilled.
 
 **Required Software**:
 
