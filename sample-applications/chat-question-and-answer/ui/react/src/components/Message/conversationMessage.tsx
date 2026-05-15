@@ -12,6 +12,7 @@ export interface ConversationMessageProps {
   human: boolean
   date: number
   showBlinkingIndicator?: boolean
+  responseTimeMs?: number
 }
 
 export function ConversationMessage({
@@ -19,6 +20,7 @@ export function ConversationMessage({
   message,
   date,
   showBlinkingIndicator = false,
+  responseTimeMs,
 }: ConversationMessageProps) {
   const dateFormat = () => {
     return DateTime.fromJSDate(new Date(date)).toLocaleString(DateTime.DATETIME_MED)
@@ -45,6 +47,16 @@ export function ConversationMessage({
         </div>
 
         <div className={style.messageDate}>{dateFormat()}</div>
+
+        {!human && responseTimeMs !== undefined && (
+          <div className={style.responseTime}>
+            <span className={style.responseDot} />
+            <span className={style.responseValue}>
+              {(responseTimeMs / 1000).toFixed(2)}s
+            </span>
+            <span className={style.responseLabel}>response time</span>
+          </div>
+        )}
       </div>
     </div>
   )

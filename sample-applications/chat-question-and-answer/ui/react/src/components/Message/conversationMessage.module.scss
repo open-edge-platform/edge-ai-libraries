@@ -81,3 +81,36 @@
     font-size: 10px;
     color: #556080;
 }
+
+.responseTime {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  width: fit-content;
+  margin-top: 6px;
+
+  background: #141f45;
+  border: 1px solid #1b2652;
+  border-radius: 20px;
+
+  padding: 3px 10px;
+}
+
+.responseDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #62ce58;
+}
+
+.responseValue {
+  font-size: 10px;
+  color: #62ce58;
+  font-weight: 500;
+}
+
+.responseLabel {
+  font-size: 10px;
+  color: #556080;
+}

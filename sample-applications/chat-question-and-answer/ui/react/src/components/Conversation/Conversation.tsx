@@ -125,6 +125,7 @@ const Conversation = ({ title }: ConversationProps) => {
                   date={message.time * 1000}
                   human={message.role == MessageRole.User}
                   message={message.content}
+                  responseTimeMs={message.responseTimeMs}
                 />
               )
             })}

@@ -519,6 +519,7 @@ export const doConversation = createAsyncThunk(
     // Set waiting for first token state - critical resource usage period
     dispatch(setIsWaitingForFirstToken({ conversationId: activeConversationId, isWaiting: true }));
 
+    let responseTimeMs: number | undefined;
     let result = "";
     let firstTokenReceived = false;
     try {
@@ -558,6 +559,12 @@ export const doConversation = createAsyncThunk(
           if (msg?.data != "[DONE]") {
             try {
               // Keep blinking indicator active throughout streaming - it will stop in onclose() once streaming ends
+              const parsedMetadata = tryParseResponseMetadata(msg.data);
+
+              if (parsedMetadata?.finished) {
+                responseTimeMs = parsedMetadata.response_time_ms;
+                return;
+              }
 
               const match = msg.data.match(/b'([^']*)'/);
               if (match && match[1] != "</s>") {
@@ -627,6 +634,7 @@ export const doConversation = createAsyncThunk(
                 role: MessageRole.Assistant,
                 content: result,
                 time: getCurrentTimeStamp(),
+                responseTimeMs,
               }
             })
           );
@@ -646,4 +654,18 @@ function decodeEscapedBytes(str: string): string {
     .slice(1)
     .map((byte: string) => parseInt(byte, 16));
   return new TextDecoder("utf-8").decode(new Uint8Array(byteArray));
+}
+
+function tryParseResponseMetadata(data: string): { response_time_ms?: number; finished?: boolean } | null {
+  try {
+    const parsed = JSON.parse(data);
+
+    if (typeof parsed === "object" && parsed !== null && "finished" in parsed) {
+      return parsed;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }

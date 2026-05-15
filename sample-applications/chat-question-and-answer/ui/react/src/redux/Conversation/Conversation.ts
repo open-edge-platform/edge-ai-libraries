@@ -16,6 +16,7 @@ export interface Message {
   content: string;
   time: number;
   conversationId?: string;
+  responseTimeMs?: number;
 }
 
 export interface File {
