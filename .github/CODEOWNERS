@@ -91,9 +91,9 @@ README.md           @xwu2intel
 /microservices/multimodal-embedding-serving/docs/      @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
 /microservices/multimodal-embedding-serving/README.md  @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/semantic-search-agent/                  @avinash-palleti @sachinkaushik @sainijit
-/microservices/semantic-search-agent/docs/             @avinash-palleti @sachinkaushik @sainijit  @open-edge-platform/open-edge-platform-docs-write
-/microservices/semantic-search-agent/README.md         @avinash-palleti @sachinkaushik @sainijit  @open-edge-platform/open-edge-platform-docs-write
+/microservices/semantic-search-agent/                  @avinash-palleti @sachinkaushik @bharagha
+/microservices/semantic-search-agent/docs/             @avinash-palleti @sachinkaushik @bharagha  @open-edge-platform/open-edge-platform-docs-write
+/microservices/semantic-search-agent/README.md         @avinash-palleti @sachinkaushik @bharagha  @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/text-to-speech/                         @avinash-palleti @unarayan @bharagha 
 /microservices/text-to-speech/docs/                    @avinash-palleti @unarayan @bharagha  @open-edge-platform/open-edge-platform-docs-write
