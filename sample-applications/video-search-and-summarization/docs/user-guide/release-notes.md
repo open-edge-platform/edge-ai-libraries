@@ -5,7 +5,13 @@
 **Version**: 2026.1.0-rc1 \
 **Release Date**: 15 May 2026
 
-**Changes**:
+**Bug Fixes:**
+Following fixes have been added in MultiModal Embedding Microservice:
+  - PyTorch fallback support for non-OpenVINO scenario.
+  - Fallback for all supported model variants.
+  - Handle preprocess metadata support in blip2 transformers.
+
+**Changes:**
 - Introducing new Dual UI mode with `--summary --search` flags to run both summary and search applications simultaneously at /summary and /search endpoints respectively.
 - New Dual UI setup for helm chart installations by providing summary and search mode override values file simulatneously.
 - Updates to setup script and nginx configuration files for flexible UI routing via nginx for each mode of deployment.
