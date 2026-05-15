@@ -24,10 +24,10 @@ You can deploy the Chat Q&A Core application using `Helm` in **two ways**: by pu
 Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/chat-question-and-answer-core):
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/chat-question-and-answer-core --version <version-no>
+helm pull oci://registry-1.docker.io/intel/chat-question-and-answer-core --version 2026.1.0-rc1-helm
 ```
 
-Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer-core/tags) for details on the latest version number to use for the sample application.
+Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer-core/tags) for more details on the version number to use for the sample application.
 
 #### Step 2: Extract the Chart
 
