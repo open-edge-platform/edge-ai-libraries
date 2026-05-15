@@ -83,7 +83,7 @@ README.md           @xwu2intel
 /microservices/model-registry/README.md                @bharagha @madhuri-rai07 @14pankaj  @open-edge-platform/open-edge-platform-docs-write
 
 # the main folder lacks codeowners, needs resolution
-# /microservices/multilevel-video-understanding/
+# /microservices/multilevel-video-understanding/           @Johere @zhangcong2019 @llin60 @xwu2intel
 # /microservices/multilevel-video-understanding/docs/      @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 # /microservices/multilevel-video-understanding/README.md  @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
