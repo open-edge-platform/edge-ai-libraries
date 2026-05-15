@@ -11,7 +11,7 @@ BLUE='\033[0;34m'
 GRAY='\033[0;90m'
 NC='\033[0m' # No Color
 
-# =================== Setup Mount Directories ======================
+# =================== Setup Config Directories ======================
 nginx_config_dir="${PWD}/config/nginx"
 export OVMS_CONFIG_DIR="${PWD}/config/ovms_config"
 
@@ -307,7 +307,6 @@ export ALLOW_HEADERS=${ALLOW_HEADERS:-*}
 
 # env for multimodal-embedding-serving (unified embedding service)
 export EMBEDDING_SERVER_PORT=9777
-# export EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}  # Must be explicitly provided - no default
 export DEFAULT_START_OFFSET_SEC=0
 export DEFAULT_CLIP_DURATION=${DEFAULT_CLIP_DURATION:--1}
 export DEFAULT_NUM_FRAMES=64
