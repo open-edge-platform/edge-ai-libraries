@@ -11,35 +11,44 @@ export interface FrozenMetricsSummary {
   memory: number;
   availableGpuIds: string[];
   gpuDetailedMetrics: Record<string, GpuMetrics>;
+  latencyAvg?: number;
+  latencyMin?: number;
+  latencyMax?: number;
+}
+
+export interface FrozenSnapshotOverrides {
+  fps?: number | null;
+  latencyAvg?: number;
+  latencyMin?: number;
+  latencyMax?: number;
 }
 
 /**
- * Encapsulates the "freeze metrics on test completion" pattern.
- *
- * Usage:
- *   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot, clear } = useFrozenMetrics();
- *
- *   // Before starting a test:
- *   startRecording();
- *
- *   // After test completes (pass the result FPS from the job if available):
- *   freezeSnapshot(status.total_fps ?? status.per_stream_fps);
- *   // or for density tests:
- *   freezeSnapshot(status.per_stream_fps);
- *
- *   // To reset (e.g. when navigating away):
- *   clear();
- *
- *   // Pass to MetricsDashboard when test is finished:
- *   <MetricsDashboard
- *     historyOverride={frozenHistory.length > 0 ? frozenHistory : undefined}
- *     metricsOverride={frozenSummary ?? undefined}
- *   />
+ * Aggregate per-stream latency_tracer_metrics from job status
+ * into a single avg/min/max suitable for FrozenSnapshotOverrides.
  */
+export function aggregateLatencyTracerMetrics(
+  metrics: Record<string, { avg_ms: number; min_ms: number; max_ms: number }> | null | undefined,
+): Pick<FrozenSnapshotOverrides, "latencyAvg" | "latencyMin" | "latencyMax"> | undefined {
+  if (!metrics) return undefined;
+  const entries = Object.values(metrics);
+  if (entries.length === 0) return undefined;
+  return {
+    latencyAvg: entries.reduce((s, e) => s + e.avg_ms, 0) / entries.length,
+    latencyMin: Math.min(...entries.map((e) => e.min_ms)),
+    latencyMax: Math.max(...entries.map((e) => e.max_ms)),
+  };
+}
+
 export function useFrozenMetrics() {
   const history = useMetricHistory();
   const [snapshot, setSnapshot] = useState<MetricHistoryPoint[]>([]);
   const [resultFps, setResultFps] = useState<number | null>(null);
+  const [resultLatency, setResultLatency] = useState<{
+    avg?: number;
+    min?: number;
+    max?: number;
+  } | null>(null);
   const testStartTimestampRef = useRef<number | null>(null);
   const historyRef = useRef<MetricHistoryPoint[]>(history);
 
@@ -69,14 +78,15 @@ export function useFrozenMetrics() {
     testStartTimestampRef.current = Date.now();
     setSnapshot([]);
     setResultFps(null);
+    setResultLatency(null);
   }, []);
 
   /**
    * Call once the test job has finished (COMPLETED or FAILED).
-   * Pass the FPS from the job result to override the WS-computed average.
+   * Pass overrides from the job result to replace SSE-computed averages.
    */
   const freezeSnapshot = useCallback(
-    (fps?: number | null) => {
+    (overrides?: FrozenSnapshotOverrides | null) => {
       const currentHistory = historyRef.current;
       const ts = testStartTimestampRef.current;
       if (ts != null) {
@@ -93,7 +103,16 @@ export function useFrozenMetrics() {
           setSnapshot([]);
         }
       }
-      setResultFps(fps ?? null);
+      setResultFps(overrides?.fps ?? null);
+      setResultLatency(
+        overrides?.latencyAvg !== undefined
+          ? {
+              avg: overrides.latencyAvg,
+              min: overrides.latencyMin,
+              max: overrides.latencyMax,
+            }
+          : null,
+      );
     },
     [ensureChartRenderable],
   );
@@ -103,6 +122,7 @@ export function useFrozenMetrics() {
     testStartTimestampRef.current = null;
     setSnapshot([]);
     setResultFps(null);
+    setResultLatency(null);
   }, []);
 
   const frozenSummary = useMemo<FrozenMetricsSummary | null>(() => {
@@ -114,7 +134,7 @@ export function useFrozenMetrics() {
     const fpsSeries = snapshot.map((p) => p.fps ?? 0);
     const firstPos = fpsSeries.findIndex((v) => v > 0);
     const fpsSlice = firstPos >= 0 ? fpsSeries.slice(firstPos) : fpsSeries;
-    const fpsAvg = avg(fpsSlice);
+    const lastFps = fpsSlice.at(-1) ?? 0;
 
     const gpuIds = Array.from(
       new Set(snapshot.flatMap((p) => Object.keys(p.gpus ?? {}))),
@@ -144,14 +164,19 @@ export function useFrozenMetrics() {
       {},
     );
 
+    const lastPoint = snapshot.at(-1);
+
     return {
-      fps: resultFps ?? fpsAvg,
+      fps: resultFps ?? lastFps,
       cpu: avg(snapshot.map((p) => p.cpu ?? 0)),
       memory: avg(snapshot.map((p) => p.memory ?? 0)),
       availableGpuIds: gpuIds,
       gpuDetailedMetrics,
+      latencyAvg: resultLatency?.avg ?? lastPoint?.latencyAvg,
+      latencyMin: resultLatency?.min ?? lastPoint?.latencyMin,
+      latencyMax: resultLatency?.max ?? lastPoint?.latencyMax,
     };
-  }, [snapshot, resultFps]);
+  }, [snapshot, resultFps, resultLatency]);
 
   return {
     frozenHistory: snapshot,

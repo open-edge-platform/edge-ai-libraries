@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
-import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
+import { useFrozenMetrics, type FrozenSnapshotOverrides } from "@/hooks/useFrozenMetrics";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
 import { Button } from "@/components/ui/button";
@@ -143,7 +143,9 @@ type PerformanceTestPanelProps = {
   pipelineId?: string;
   livePreviewEnabled?: boolean;
   videoOutputEnabled?: boolean;
+  enableLatencyMetrics?: boolean;
   liveStreamUrl?: string | null;
+  resultOverrides?: FrozenSnapshotOverrides | null;
 };
 
 const PerformanceTestPanel = ({
@@ -152,7 +154,9 @@ const PerformanceTestPanel = ({
   pipelineId,
   livePreviewEnabled = false,
   videoOutputEnabled = false,
+  enableLatencyMetrics = false,
   liveStreamUrl,
+  resultOverrides,
 }: PerformanceTestPanelProps) => {
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
@@ -219,14 +223,14 @@ const PerformanceTestPanel = ({
       startRecording();
       setFrozenMetadata(null);
     } else if (wasRunning && !isRunning) {
-      freezeSnapshot(null);
+      freezeSnapshot(resultOverrides);
       setFrozenMetadata((prev) => {
         const hasLines = Object.values(metadataLines).some((l) => l.length > 0);
         if (!hasLines) return prev;
         return { lines: { ...metadataLines }, entries: [...metadataEntries] };
       });
     }
-  }, [isRunning, startRecording, freezeSnapshot]);
+  }, [isRunning, startRecording, freezeSnapshot, resultOverrides]);
 
   useEffect(() => {
     if (metadataEntries.length === 0) {
@@ -520,9 +524,10 @@ const PerformanceTestPanel = ({
         </TabsContent>
       </Tabs>
 
-      {isRunning && <MetricsDashboard />}
+      {isRunning && <MetricsDashboard enableLatencyMetrics={enableLatencyMetrics} />}
       {!isRunning && frozenSummary && (
         <MetricsDashboard
+          enableLatencyMetrics={enableLatencyMetrics}
           historyOverride={frozenHistory}
           metricsOverride={frozenSummary}
         />

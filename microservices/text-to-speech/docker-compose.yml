@@ -1,0 +1,20 @@
+services:
+  text-to-speech:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: text-to-speech
+    ports:
+      - "8011:8011"
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+    environment:
+      TEXT_TO_SPEECH_CONFIG_OVERRIDE_PATHS: /app/text-to-speech/config.container.yaml
+    volumes:
+      - ./config.container.yaml:/app/text-to-speech/config.container.yaml:ro
+      - ./models:/app/text-to-speech/models
+      - ./storage:/app/text-to-speech/storage
+      - ./.cache/huggingface:/root/.cache/huggingface
+    restart: unless-stopped

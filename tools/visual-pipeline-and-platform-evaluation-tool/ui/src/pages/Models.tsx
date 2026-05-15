@@ -150,7 +150,7 @@ export const Models = () => {
           </TableHeader>
           <TableBody>
             {models.map((model) => (
-              <TableRow key={model.name}>
+              <TableRow key={model.display_name}>
                 <TableCell className="font-medium max-w-0">
                   <div className="truncate" title={model.display_name}>
                     {model.display_name}

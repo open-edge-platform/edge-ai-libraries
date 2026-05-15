@@ -36,6 +36,7 @@
 #ifndef RC_GENICAM_API_BUFFER
 #define RC_GENICAM_API_BUFFER
 
+#include <cstdint>
 #include <memory>
 #include <string>
 

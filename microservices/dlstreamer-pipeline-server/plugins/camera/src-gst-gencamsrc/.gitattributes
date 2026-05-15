@@ -1,0 +1,14 @@
+# Normalize all text files to LF in the repository
+* text=auto eol=lf
+
+# Windows SDK and build binaries — never convert line endings
+*.dll binary
+*.lib binary
+*.pdb binary
+*.exe binary
+*.pdf binary
+*.docx binary
+*.chm binary
+*.chi binary
+*.mht binary
+*.avi binary

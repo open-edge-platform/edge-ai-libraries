@@ -190,9 +190,10 @@ std::vector<std::shared_ptr<System> > System::getSystems()
         System *p=new System(name[i]);
         ret.push_back(std::shared_ptr<System>(p));
       }
-      catch (const std::exception &)
+      catch (const std::exception &ex)
       {
         // ignore transport layers that cannot be used
+        std::cerr << "WARNING: Failed to load transport layer: " << name[i] << " (" << ex.what() << ")" << std::endl;
       }
     }
   }
