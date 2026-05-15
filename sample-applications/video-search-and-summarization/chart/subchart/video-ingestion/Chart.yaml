@@ -2,5 +2,5 @@ apiVersion: v2
 name: videoingestion
 description: Helm chart for the videoingestion service
 type: application
-version: 1.3.2
+version: 2026.1.0-rc1-helm
 appVersion: "1.0"
