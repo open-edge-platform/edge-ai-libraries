@@ -197,7 +197,9 @@ export const MultiFileUploader = ({
           try {
             const response = JSON.parse(xhr.responseText);
             const detail =
-              response.detail || `Upload failed with status ${xhr.status}`;
+              response.detail ||
+              response.message ||
+              `Upload failed with status ${xhr.status}`;
             reject(new Error(detail));
           } catch {
             reject(new Error(`Upload failed with status ${xhr.status}`));

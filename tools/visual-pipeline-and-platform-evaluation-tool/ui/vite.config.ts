@@ -40,12 +40,6 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: false,
         },
-        "/model-download": {
-          target: env.VITE_MODEL_DOWNLOAD_URL || "http://localhost:8000",
-          changeOrigin: true,
-          secure: false,
-          ws: false,
-        },
         "/api": {
           target: env.VITE_API_URL || "http://localhost:7860",
           changeOrigin: true,

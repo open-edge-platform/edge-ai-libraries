@@ -1,18 +1,23 @@
 - name: ch_PP-OCRv4_rec_infer
   display_name: PaddleOCR
   source: public
+  hub: ultralytics
   type: classification
   precisions:
     - precision: FP32
-      model_path: public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml
+      model_path: ultralytics/public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
   default: true
+  download_request:
+    hub: ultralytics
+    name: ch_PP-OCRv4_rec_infer
 
 - name: efficientnet-b0_INT8
   display_name: EfficientNet B0
   source: pipeline-zoo-models
+  hub: pipeline-zoo-models
   type: classification
   precisions:
     - precision: INT8
@@ -22,10 +27,14 @@
     - /home/dlstreamer/dlstreamer/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json
   unsupported_devices: ""
   default: true
+  download_request:
+    hub: pipeline-zoo-models
+    name: efficientnet-b0_INT8
 
 - name: mobilenet-v2-pytorch
   display_name: MobileNet V2 PyTorch
   source: omz
+  hub: omz
   type: classification
   precisions:
     - precision: FP16
@@ -33,50 +42,15 @@
       model_proc: omz/mobilenet-v2-pytorch/mobilenet-v2.json
   extra_model_procs: []
   unsupported_devices: ""
-  default: false
-
-- name: resnet-50-tf_INT8
-  display_name: ResNet-50 TF
-  source: pipeline-zoo-models
-  type: classification
-  precisions:
-    - precision: INT8
-      model_path: pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
-      model_proc: pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
-  extra_model_procs: []
-  unsupported_devices: ""
   default: true
-
-- name: vehicle-attributes-recognition-barrier-0039
-  display_name: Vehicle Attributes Recognition Barrier 0039
-  source: omz
-  type: classification
-  precisions:
-    - precision: INT8
-      model_path: omz/vehicle-attributes-recognition-barrier-0039/FP16-INT8/vehicle-attributes-recognition-barrier-0039.xml
-      model_proc: omz/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json
-    - precision: FP16
-      model_path: omz/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml
-      model_proc: omz/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json
-  extra_model_procs: []
-  unsupported_devices: ""
-  default: true
-
-- name: human-pose-estimation-0001
-  display_name: Human Pose Estimation 0001
-  source: omz
-  type: classification
-  precisions:
-    - precision: FP16
-      model_path: omz/human-pose-estimation-0001/FP16/human-pose-estimation-0001.xml
-      model_proc: omz/human-pose-estimation-0001/human-pose-estimation-0001.json
-  extra_model_procs: []
-  unsupported_devices: ""
-  default: false
+  download_request:
+    hub: omz
+    name: mobilenet-v2-pytorch
 
 - name: age-gender-recognition-retail-0013
   display_name: Age Gender Recognition Retail 0013
   source: omz
+  hub: omz
   type: classification
   precisions:
     - precision: INT8
@@ -88,175 +62,112 @@
   extra_model_procs: []
   unsupported_devices: ""
   default: true
+  download_request:
+    hub: omz
+    name: age-gender-recognition-retail-0013
 
 - name: colorcls2
   display_name: Color Classification
   source: public
+  hub: ultralytics
   type: classification
   precisions:
     - precision: FP32
-      model_path: public/colorcls2/FP32/colorcls2.xml
+      model_path: ultralytics/public/colorcls2/FP32/colorcls2.xml
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
   default: true
-
-- name: ssdlite_mobilenet_v2_INT8
-  display_name: SSDLite MobileNet V2
-  source: pipeline-zoo-models
-  type: detection
-  precisions:
-    - precision: INT8
-      model_path: pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml
-      model_proc: pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json
-  extra_model_procs: []
-  unsupported_devices: ""
-  default: true
-
-- name: yolov5m-416_INT8
-  display_name: YOLO v5m 416x416
-  source: pipeline-zoo-models
-  type: detection
-  precisions:
-    - precision: INT8
-      model_path: pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml
-      model_proc: pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json
-  extra_model_procs: []
-  unsupported_devices: ""
-  default: true
-
-- name: yolov5m-640_INT8
-  display_name: YOLO v5m 640x640
-  source: pipeline-zoo-models
-  type: detection
-  precisions:
-    - precision: INT8
-      model_path: pipeline-zoo-models/yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8.xml
-      model_proc: pipeline-zoo-models/yolov5m-640_INT8/yolo-v5.json
-  extra_model_procs: []
-  unsupported_devices: ""
-  default: false
-
-- name: yolov5s-416_INT8
-  display_name: YOLO v5s 416x416
-  source: pipeline-zoo-models
-  type: detection
-  precisions:
-    - precision: INT8
-      model_path: pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
-      model_proc: pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
-  extra_model_procs: []
-  unsupported_devices: ""
-  default: true
+  download_request:
+    hub: ultralytics
+    name: colorcls2
 
 - name: yolov8_license_plate_detector
   display_name: YOLO v8 License Plate Detector
   source: public
+  hub: ultralytics
   type: detection
   precisions:
     - precision: FP32
-      model_path: public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml
+      model_path: ultralytics/public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: "NPU"
   default: true
+  download_request:
+    hub: ultralytics
+    name: yolov8_license_plate_detector
 
 - name: yolov8n
   display_name: YOLO v8n 640x640
   source: public
+  hub: ultralytics
   type: detection
   precisions:
     - precision: INT8
-      model_path: public/yolov8n/INT8/yolov8n.xml
+      model_path: ultralytics/public/yolov8n/INT8/yolov8n.xml
       model_proc: ""
     - precision: FP16
-      model_path: public/yolov8n/FP16/yolov8n.xml
+      model_path: ultralytics/public/yolov8n/FP16/yolov8n.xml
       model_proc: ""
     - precision: FP32
-      model_path: public/yolov8n/FP32/yolov8n.xml
+      model_path: ultralytics/public/yolov8n/FP32/yolov8n.xml
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
   default: true
-
-- name: yolov10m
-  display_name: YOLO v10m 640x640
-  source: public
-  type: detection
-  precisions:
-    - precision: INT8
-      model_path: public/yolov10m/INT8/yolov10m.xml
-      model_proc: ""
-    - precision: FP16
-      model_path: public/yolov10m/FP16/yolov10m.xml
-      model_proc: ""
-  extra_model_procs: []
-  unsupported_devices: "NPU"
-  default: false
-
-- name: yolov10s
-  display_name: YOLO v10s 640x640
-  source: public
-  type: detection
-  precisions:
-    - precision: INT8
-      model_path: public/yolov10s/INT8/yolov10s.xml
-      model_proc: ""
-    - precision: FP16
-      model_path: public/yolov10s/FP16/yolov10s.xml
-      model_proc: ""
-  extra_model_procs: []
-  unsupported_devices: "NPU"
-  default: false
+  download_request:
+    hub: ultralytics
+    name: yolov8n
+    config:
+      quantize: coco128
 
 - name: yolo11n
   display_name: YOLO 11n 640x640
   source: public
+  hub: ultralytics
   type: detection
   precisions:
     - precision: INT8
-      model_path: public/yolo11n/INT8/yolo11n.xml
+      model_path: ultralytics/public/yolo11n/INT8/yolo11n.xml
       model_proc: ""
     - precision: FP16
-      model_path: public/yolo11n/FP16/yolo11n.xml
+      model_path: ultralytics/public/yolo11n/FP16/yolo11n.xml
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
   default: true
+  download_request:
+    hub: ultralytics
+    name: yolo11n
+    config:
+      quantize: coco128
 
 - name: yolo11s
   display_name: YOLO 11s 640x640
   source: public
+  hub: ultralytics
   type: detection
   precisions:
     - precision: INT8
-      model_path: public/yolo11s/INT8/yolo11s.xml
+      model_path: ultralytics/public/yolo11s/INT8/yolo11s.xml
       model_proc: ""
     - precision: FP16
-      model_path: public/yolo11s/FP16/yolo11s.xml
+      model_path: ultralytics/public/yolo11s/FP16/yolo11s.xml
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
   default: true
-
-- name: yolo11m
-  display_name: YOLO v11m 640x640
-  source: public
-  type: detection
-  precisions:
-    - precision: INT8
-      model_path: public/yolo11m/INT8/yolo11m.xml
-      model_proc: ""
-    - precision: FP16
-      model_path: public/yolo11m/FP16/yolo11m.xml
-      model_proc: ""
-  extra_model_procs: []
-  unsupported_devices: ""
-  default: false
+  download_request:
+    hub: ultralytics
+    name: yolo11s
+    config:
+      quantize: coco128
 
 - name: face-detection-retail-0004
   display_name: Face Detection Retail 0004
   source: omz
+  hub: omz
   type: detection
   precisions:
     - precision: INT8
@@ -268,27 +179,66 @@
   extra_model_procs: []
   unsupported_devices: ""
   default: true
+  download_request:
+    hub: omz
+    name: face-detection-retail-0004
 
 - name: pallet_defect_detection
   display_name: Pallet Defect Detection
   source: public
+  hub: ultralytics
   type: detection
   precisions:
     - precision: INT8
-      model_path: public/pallet_defect_detection/INT8/pallet_defect_detection.xml
+      model_path: ultralytics/public/pallet_defect_detection/INT8/pallet_defect_detection.xml
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
   default: true
+  download_request:
+    hub: ultralytics
+    name: pallet_defect_detection
 
 - name: gemma3
   display_name: Gemma 3
   source: huggingface
+  hub: huggingface
   type: genai
   precisions:
     - precision: INT4
-      model_path: openvino_models/cpu/INT4/google/gemma-3-4b-it/
+      model_path: openvino_models/cpu/int4/google/gemma-3-4b-it/
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
   default: false
+  download_request:
+    hub: openvino
+    name: google/gemma-3-4b-it
+    type: vlm
+    is_ovms: true
+    config:
+      precision: int4
+      device: CPU
+      cache_size: 10
+
+- name: minicpm-v-2_6
+  display_name: MiniCPM-V 2.6
+  source: huggingface
+  hub: huggingface
+  type: genai
+  precisions:
+    - precision: INT4
+      model_path: openvino_models/cpu/int4/openbmb/MiniCPM-V-2_6/
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: false
+  download_request:
+    hub: openvino
+    name: openbmb/MiniCPM-V-2_6
+    type: vlm
+    is_ovms: true
+    config:
+      precision: int4
+      device: CPU
+      cache_size: 10

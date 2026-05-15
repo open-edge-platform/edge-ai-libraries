@@ -25,9 +25,7 @@ VENV_DIR := .venv
 $(VENV_DIR): $(PROJECT_NAME)/requirements.txt ## Create Python venv
 	python3 -m venv $@ ;\
 	set +u; . ./$@/bin/activate; set -u ;\
-	python -m pip install --upgrade pip ;\
 	python -m pip install -r $(PROJECT_NAME)/requirements-dev.txt ;\
-	python -m pip install -r video_generator/requirements.txt # needed for pyright checks
 
 all: lint build run test ## Run lint, build, run and test
 
@@ -69,8 +67,10 @@ generate_openapi: $(VENV_DIR) ## Generate OpenAPI schema file
 env-setup: ## Environment setup target: always run before build/run targets that need .env and shared dirs
 	mkdir -p shared/metadata && chmod o+w shared/metadata
 	mkdir -p shared/models/output && chmod o+w shared/models/output
-	mkdir -p shared/model-download/venv && chmod o+w shared/model-download/venv
 	mkdir -p shared/model-download/cache && chmod o+w shared/model-download/cache
+	for v in base huggingface ultralytics pipeline-zoo-models openvino geti hls; do \
+		mkdir -p shared/model-download/venv-$$v && chmod o+w shared/model-download/venv-$$v ; \
+	done
 	mkdir -p shared/images/input && chmod o+w shared/images/input
 	mkdir -p shared/images/output && chmod o+w shared/images/output
 	mkdir -p shared/videos/input && chmod o+w shared/videos/input

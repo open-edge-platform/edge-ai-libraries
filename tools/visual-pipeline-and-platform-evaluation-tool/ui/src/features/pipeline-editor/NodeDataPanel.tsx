@@ -340,14 +340,18 @@ const NodeDataPanel = ({
                           ? model.category === expectedCategory
                           : true;
                       })
-                      .map((model) => (
-                        <option
-                          key={model.display_name ?? model.name}
-                          value={model.display_name ?? model.name}
-                        >
-                          {model.display_name ?? model.name}
-                        </option>
-                      ))}
+                      .flatMap((model) =>
+                        (model.variants ?? [])
+                          .filter((variant) => variant.installed)
+                          .map((variant) => (
+                            <option
+                              key={variant.display_name}
+                              value={variant.display_name}
+                            >
+                              {variant.display_name}
+                            </option>
+                          )),
+                      )}
                   </select>
                 ) : keyStr === "device" ? (
                   <DeviceSelect

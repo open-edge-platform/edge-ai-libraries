@@ -28,8 +28,11 @@ def _mock_get_video_path(filename: str) -> str:
 
 
 def _mock_find_installed_model_by_model_and_proc_path(
-    model_path: str, model_proc_path: Optional[str] = None
+    model_path: str,
+    model_proc_path: Optional[str] = None,
+    require_installed: bool = True,
 ):
+    del require_installed  # tolerated for parity with the real signature
     mapped_names = [
         "yolov8_license_plate_detector",
         "ch_PP-OCRv4_rec_infer",
