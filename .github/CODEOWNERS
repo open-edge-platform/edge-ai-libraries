@@ -58,21 +58,21 @@ README.md           @xwu2intel
 # ============================================================================
 # microservices
 # ============================================================================
-/microservices/audio-analyzer/                         @bhardwaj-nakul @bharagha @krish918 @avinash-palleti
-/microservices/audio-analyzer/docs/                    @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
-/microservices/audio-analyzer/README.md                @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
+/microservices/audio-analyzer/                         @unarayan @bharagha @krish918 @avinash-palleti
+/microservices/audio-analyzer/docs/                    @unarayan @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
+/microservices/audio-analyzer/README.md                @unarayan @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/dlstreamer-pipeline-server/             @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat
 /microservices/dlstreamer-pipeline-server/docs/        @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
 /microservices/dlstreamer-pipeline-server/README.md    @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
 
+/microservices/document-ingestion/                     @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj
+/microservices/document-ingestion/docs/                @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
+/microservices/document-ingestion/README.md            @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
+
 /microservices/metrics-manager/                        @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @mkobyli
 /microservices/metrics-manager/docs/                   @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @mkobyli  @open-edge-platform/open-edge-platform-docs-write
 /microservices/metrics-manager/README.md               @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @mkobyli  @open-edge-platform/open-edge-platform-docs-write
-
-/microservices/model-download/                         @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj
-/microservices/model-download/docs/                    @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
-/microservices/model-download/README.md                @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/model-download/                         @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj
 /microservices/model-download/docs/                    @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
@@ -90,6 +90,14 @@ README.md           @xwu2intel
 /microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
 /microservices/multimodal-embedding-serving/docs/      @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
 /microservices/multimodal-embedding-serving/README.md  @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
+
+/microservices/semantic-search-agent/                  @avinash-palleti @sachinkaushik @sainijit
+/microservices/semantic-search-agent/docs/             @avinash-palleti @sachinkaushik @sainijit  @open-edge-platform/open-edge-platform-docs-write
+/microservices/semantic-search-agent/README.md         @avinash-palleti @sachinkaushik @sainijit  @open-edge-platform/open-edge-platform-docs-write
+
+/microservices/text-to-speech/                         @avinash-palleti @unarayan @bharagha 
+/microservices/text-to-speech/docs/                    @avinash-palleti @unarayan @bharagha  @open-edge-platform/open-edge-platform-docs-write
+/microservices/text-to-speech/README.md                @avinash-palleti @unarayan @bharagha  @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/time-series-analytics/                  @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe
 /microservices/time-series-analytics/docs/             @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe  @open-edge-platform/open-edge-platform-docs-write
@@ -121,6 +129,9 @@ README.md           @xwu2intel
 
 # the main folder lacks codeowners, needs resolution
 # /sample-applications/document-summarization
+/sample-applications/document-summarization/                  @bharagha @Supriya-Krishnamurthi @madhuri-rai07
+/sample-applications/document-summarization/docs/             @bharagha @Supriya-Krishnamurthi @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/document-summarization/README.md         @bharagha @Supriya-Krishnamurthi @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
 
 /sample-applications/plcopen-benchmark/                       @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
 /sample-applications/plcopen-benchmark/README.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel  @open-edge-platform/open-edge-platform-docs-write
