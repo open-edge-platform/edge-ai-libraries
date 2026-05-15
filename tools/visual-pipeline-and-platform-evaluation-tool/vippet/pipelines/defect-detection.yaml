@@ -43,6 +43,29 @@ variants:
       queue !
       gvafpscounter starting-frame=100 !
       fakesink name=default_output_sink
+  - name: GPU (WSL)
+    pipeline_description: >-
+      filesrc location=/videos/input/warehouse.avi !
+      parsebin !
+      avdec_h264 !
+      video/x-raw !
+      gvadetect
+        model=/models/output/public/pallet_defect_detection/INT8/pallet_defect_detection.xml
+        device=GPU
+        pre-process-backend=opencv
+        model-instance-id=instgpu0
+        inference-region=full-frame
+        inference-interval=1
+        batch-size=8
+        nireq=2
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        threshold=0.7 !
+      queue !
+      gvawatermark !
+      gvametaconvert add-empty-results=true !
+      queue !
+      gvafpscounter starting-frame=100 !
+      fakesink name=default_output_sink
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/warehouse.avi !
