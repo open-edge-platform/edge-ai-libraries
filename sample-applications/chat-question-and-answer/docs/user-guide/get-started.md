@@ -209,7 +209,6 @@ For alternative ways to set up the sample application, see:
 ./get-started/system-requirements
 ./get-started/build-from-source
 ./get-started/deploy-with-helm
-./get-started/deploy-with-edge-orchestrator
 
 :::
 hide_directive-->

@@ -7,15 +7,7 @@ metadata:
   labels:
     {{- include "multimodal-embedding-ms.labels" . | nindent 4 }}
 data:
-  {{- $embeddingModel := dict "value" "" }}
-  {{- if .Values.embeddingModelName }}
-  {{- $_ := set $embeddingModel "value" .Values.embeddingModelName }}
-  {{- else if (dig "embedding" "preferTextModel" false .Values.global) }}
-  {{- $_ := set $embeddingModel "value" (required "Set global.env.TEXT_EMBEDDING_MODEL_NAME when global.embedding.preferTextModel is true." (dig "env" "TEXT_EMBEDDING_MODEL_NAME" "" .Values.global)) }}
-  {{- else }}
-  {{- $_ := set $embeddingModel "value" (required "Set global.env.EMBEDDING_MODEL_NAME (or override multimodalembeddingms.embeddingModelName) before deploying the chart." (dig "env" "EMBEDDING_MODEL_NAME" "" .Values.global)) }}
-  {{- end }}
-  EMBEDDING_MODEL_NAME: {{ $embeddingModel.value | quote }}
+  EMBEDDING_MODEL_NAME: {{ required "global.embeddingModelName is required" .Values.global.embeddingModelName | quote }}
   {{- if $mmUsesGpu }}
   EMBEDDING_DEVICE: "GPU"
   EMBEDDING_USE_OV: "true"

@@ -125,15 +125,6 @@ build_dependencies() {
     log_info "${YELLOW}compose.yml not found for multimodal embedding serving${NC}";
   fi
 
-  # Build audio analyzer microservice
-  cd "${uservices_dir}/audio-analyzer/docker" || return 1
-  if [ -f "compose.yaml" ]; then
-    cd .. && docker_build -t ${REGISTRY}audio-analyzer:${TAG} -f docker/Dockerfile . || {
-      log_info "${RED}Failed to build audio-analyzer microservice${NC}"; 
-      build_success=false; 
-    }
-  fi
-
   # Return to original directory
   cd "$current_dir"
   

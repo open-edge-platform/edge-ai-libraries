@@ -2,8 +2,6 @@
 <!-- required for catalog, do not remove -->
 Assess Intel® hardware options, benchmark performance, and analyze key metrics to optimize hardware selection for AI workloads.
 
-![Overview](docs/user-guide/_assets/ViPPET-README.gif)
-
 <!--
 **Guidelines for Authors**:
 - Clearly explain the application’s purpose in one or two paragraphs.
