@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -21,21 +21,24 @@ optimization for efficient deployment in Chinese language applications.
 """
 
 from pathlib import Path
-from typing import List, Union, Dict, Any
+from typing import List, Union, Dict, Any, Optional
+import time
+import numpy as np
 import torch
 import torch.nn.functional as F
-import types
 import gc
+import os
 import openvino as ov
 from PIL import Image
 import cn_clip.clip as cn_clip
 from cn_clip.clip import load_from_name, available_models
 
 from ..base import BaseEmbeddingModel
-from ...utils import logger
+from ...utils import logger, ParallelImagePreprocessor
 from ..utils import (
     check_and_convert_openvino_models,
     load_openvino_models,
+    AsyncBatchInference,
 )
 
 
@@ -75,6 +78,12 @@ class CNClipHandler(BaseEmbeddingModel):
         # OpenVINO models
         self.ov_image_encoder = None
         self.ov_text_encoder = None
+        self._embedding_dim: Optional[int] = None
+        infer_batch_size = model_config.get("infer_batch_size", os.getenv("INFER_BATCH_SIZE", 64))
+        self.preprocess_shape = (infer_batch_size, 3, 224, 224)  # Default shape for CN-CLIP image encoder input
+        self._preprocess_workers = model_config.get("preprocess_workers", os.getenv("PREPROCESS_WORKERS", min(16, (os.cpu_count() or 4) * 2)))
+        self.async_infer = None
+        self.parallel_preprocessor: Optional[ParallelImagePreprocessor] = None
         
     def load_model(self) -> None:
         """Load CN-CLIP model using cn_clip."""
@@ -119,11 +128,24 @@ class CNClipHandler(BaseEmbeddingModel):
             ov_models_dir=self.ov_models_dir
         )
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
-            image_encoder_path, text_encoder_path, self.device
+            image_encoder_path, text_encoder_path, self.device, self.preprocess_shape
         )
         
         # Load preprocessing and tokenizer for OpenVINO inference
         _, self.preprocess = load_from_name(self.model_name, device="cpu")
+        self.parallel_preprocessor = ParallelImagePreprocessor(
+            preprocess_fn=self.preprocess,
+            max_workers=self._preprocess_workers,
+            preprocess_shape=self.preprocess_shape
+        )
+        embedding_dim = int(self.ov_image_encoder.output().get_partial_shape()[-1].to_string())
+        logger.info(f"Encoder o/p dimension: {embedding_dim}")
+        self.async_infer = AsyncBatchInference(
+            compiled_model=self.ov_image_encoder,
+            embedding_dim=embedding_dim,
+            preprocess_shape=self.preprocess_shape
+        )
+
         self.tokenizer = cn_clip.tokenize
         logger.info(f"CN-CLIP OpenVINO models loaded successfully on device: {self.device}")
     
@@ -230,81 +252,104 @@ class CNClipHandler(BaseEmbeddingModel):
         text_features = F.normalize(text_features, p=2, dim=1)
         return text_features
     
-    def encode_image(self, images: Union[Image.Image, List[Image.Image], torch.Tensor]) -> torch.Tensor:
+    def encode_image(self, images: Union[Image.Image, List[Image.Image]], metrics_out: bool = False) -> Union[Dict[str, Any], torch.Tensor]:
         """
         Encode images into embeddings.
         
         Args:
-            images: Single PIL Image, list of PIL Images, or preprocessed tensor
+            images: Single PIL Image or list of PIL Images
+            metrics_out: If True, return a dict with embeddings and timing metrics
+                         (only applicable for OpenVINO path with PIL images)
             
         Returns:
-            Image embeddings as torch.Tensor
+            Image embeddings as torch.Tensor, or a metrics dict if metrics_out=True
         """
         if isinstance(images, Image.Image):
             images = [images]
-        elif isinstance(images, torch.Tensor):
-            # Already preprocessed tensor
-            if self.use_openvino:
-                return self._encode_image_tensor_openvino(images)
-            else:
-                return self._encode_image_tensor_pytorch(images)
+        total_images = len(images)
         
         if self.use_openvino:
-            return self._encode_image_openvino(images)
+            logger.info(f"====AsyncInferQueue====")
+            preprocess_stream = self.parallel_preprocessor.preprocess_stream(images)
+            try:
+                infer_start = time.perf_counter()
+                embeddings = self.async_infer.infer_stream(
+                    batch_generator=preprocess_stream, total_images=total_images
+                )
+                infer_end = time.perf_counter()
+            finally:
+                preprocess_stream.close()
+
+            image_features = F.normalize(torch.from_numpy(embeddings), dim=-1)
+
         else:
-            return self._encode_image_pytorch(images)
-    
-    def _encode_image_pytorch(self, images: List[Image.Image]) -> torch.Tensor:
-        """Encode images using PyTorch model."""
-        with torch.no_grad():
-            # Preprocess images
-            processed_images = torch.stack([self.preprocess(img) for img in images])
-            
-            # Encode images
-            image_features = self.model.encode_image(processed_images)
-            
-            # Normalize features
-            image_features = F.normalize(image_features, p=2, dim=1)
-        return image_features
-    
-    def _encode_image_tensor_pytorch(self, images: torch.Tensor) -> torch.Tensor:
-        """Encode preprocessed image tensor using PyTorch model."""
-        with torch.no_grad():
-            image_features = self.model.encode_image(images)
-            image_features = F.normalize(image_features, p=2, dim=1)
-        return image_features
-    
-    def _encode_image_openvino(self, images: List[Image.Image]) -> torch.Tensor:
-        """Encode images using OpenVINO model."""
-        # Preprocess images
-        processed_images = torch.stack([self.preprocess(img) for img in images])
+            infer_start = time.perf_counter()
+            with torch.no_grad():
+                image_tensor = torch.stack([self.preprocess(img) for img in images])
+                image_features = self.model.encode_image(image_tensor)
+            image_features = F.normalize(image_features, dim=-1)
+            infer_end = time.perf_counter()
         
-        # Run inference with infer_new_request for thread safety
-        result = self.ov_image_encoder.infer_new_request({self.ov_image_encoder.inputs[0]: processed_images.numpy()})
-        image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
-        
-        # Convert to torch tensor and normalize
-        image_features = F.normalize(image_features, p=2, dim=1)
+        if metrics_out:
+            return {
+                "embeddings": image_features,
+                "inference_time_s": infer_end - infer_start,
+                "processed_images": total_images,
+            }
         return image_features
-    
-    def _encode_image_tensor_openvino(self, images: torch.Tensor) -> torch.Tensor:
-        """Encode preprocessed image tensor using OpenVINO model."""
-        # Use OpenVINO inference with infer_new_request for thread safety
-        result = self.ov_image_encoder.infer_new_request({self.ov_image_encoder.inputs[0]: images.numpy()})
-        image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
-        image_features = F.normalize(image_features, p=2, dim=1)
-        return image_features
-    
+
+
     def get_embedding_dim(self) -> int:
         """Get the embedding dimension."""
+        if self._embedding_dim is not None:
+            return self._embedding_dim
+
+        if self.preprocess is None:
+            raise RuntimeError("Preprocessing pipeline not initialized. Call load_model() first.")
+
+        image_size = self._get_preprocess_image_size()
+
         if self.use_openvino:
-            return self.ov_image_encoder.outputs[0].shape[1]
+            if self.async_infer is None:
+                raise RuntimeError("OpenVINO async inference not initialized. Call load_model() first.")
+
+            dummy_image = Image.fromarray(np.random.randint(0, 255, (image_size, image_size, 3), dtype=np.uint8))
+            dummy_np = np.array(self.preprocess(dummy_image))[np.newaxis]  # [1, C, H, W]
+            result = self.async_infer.infer(dummy_np)
+            self._embedding_dim = int(result.shape[-1])
         else:
-            # Get a dummy text embedding to determine dimension
+            if self.model is None:
+                raise RuntimeError("Model not loaded. Call load_model() first.")
+
             with torch.no_grad():
                 dummy_text = self.tokenizer(["test"])
                 dummy_features = self.model.encode_text(dummy_text)
-                return dummy_features.shape[1]
+                self._embedding_dim = dummy_features.shape[1]
+
+        return self._embedding_dim
+
+    def _get_preprocess_image_size(self) -> int:
+        """Infer the expected image resolution from the preprocess pipeline."""
+        default_size = 224
+
+        if self.preprocess is None:
+            return default_size
+
+        transforms = getattr(self.preprocess, "transforms", None)
+        if not transforms:
+            return default_size
+
+        for transform in transforms:
+            size = getattr(transform, "size", None)
+            if size is None:
+                continue
+
+            if isinstance(size, (tuple, list)) and len(size) > 0:
+                return int(size[0])
+            if isinstance(size, int):
+                return int(size)
+
+        return default_size
     
     def get_supported_image_formats(self) -> List[str]:
         """Get supported image formats."""

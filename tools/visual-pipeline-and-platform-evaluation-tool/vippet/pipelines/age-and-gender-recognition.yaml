@@ -80,6 +80,45 @@ variants:
       queue !
       gvametapublish file-format=json-lines file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false
+  - name: GPU (WSL)
+    pipeline_description: >-
+      filesrc location=/videos/input/age_prediction.mp4 !
+      parsebin !
+      avdec_h264 !
+      video/x-raw !
+      gvadetect
+        batch-size=1
+        model-instance-id=facemodel-gpu
+        model=/models/output/omz/face-detection-retail-0004/FP16/face-detection-retail-0004.xml
+        model-proc=/models/output/omz/face-detection-retail-0004/face-detection-retail-0004.json
+        inference-interval=3
+        scale-method=fast
+        inference-region=full-frame
+        threshold=0.5
+        device=GPU
+        pre-process-backend=opencv
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        nireq=2 !
+      queue !
+      gvatrack tracking-type=zero-term-imageless !
+      queue !
+      gvaclassify
+        batch-size=1
+        model-instance-id=age_classifier-gpu
+        model=/models/output/omz/age-gender-recognition-retail-0013/FP16/age-gender-recognition-retail-0013.xml
+        model-proc=/models/output/omz/age-gender-recognition-retail-0013/age-gender-recognition-retail-0013.json
+        device=GPU
+        pre-process-backend=opencv
+        inference-region=roi-list
+        object-class=face
+        reclassify-interval=1 !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      gvametaconvert !
+      queue !
+      gvametapublish file-format=json-lines file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/age_prediction.mp4 !

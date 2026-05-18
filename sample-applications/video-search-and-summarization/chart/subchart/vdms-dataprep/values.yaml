@@ -18,6 +18,7 @@ global:
 
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: ""
+  embeddingModelName: ""
 
   proxy:
     # setup proxy settings
@@ -120,7 +121,6 @@ podAffinity:
 indexName: "videosearch-index"
 vdmsVectorDbHost: "vdms-vectordb"
 vdmsVectorDbPort: 55555
-multimodalEmbeddingModelName: ""
 multimodalEmbeddingEndpoint: "http://multimodal-embedding-ms:8000/embeddings"
 defaultBucketName: "video-summary"
 logLevel: "INFO"

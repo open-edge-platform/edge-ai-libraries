@@ -44,6 +44,27 @@ variants:
       queue !
       gvametapublish file-format=json-lines file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false
+  - name: GPU (WSL)
+    pipeline_description: >-
+      filesrc location=/videos/input/obj_classification.mp4 !
+      parsebin !
+      avdec_h264 !
+      video/x-raw !
+      gvadetect
+        batch-size=1
+        model-instance-id=odmodel-gpu
+        model=/models/output/public/yolo11n/INT8/yolo11n.xml
+        threshold=0.5
+        device=GPU
+        pre-process-backend=opencv
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        nireq=2 !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      gvametaconvert !
+      queue !
+      gvametapublish file-format=json-lines file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/obj_classification.mp4 !

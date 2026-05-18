@@ -24,7 +24,7 @@ efficiently.
 
 ### Operating Systems
 
-- Ubuntu 24.04.1 LTS
+- Ubuntu 24.04.4 LTS
 
 <!--
 **Hardware Platforms**
@@ -34,12 +34,12 @@ efficiently.
 
 ## Minimum Requirements
 
-| **Component**       | **Minimum**                     | **Recommended**                      |
-|---------------------|---------------------------------|--------------------------------------|
-| **Processor**       | 11th Gen Intel® Core™ Processor | Intel® Core™ Ultra 7 Processor 155H  |
-| **Memory**          | 8 GB                            | 8 GB                                 |
-| **Disk Space**      | 256 GB SSD                      | 256 GB SSD                           |
-| **GPU/Accelerator** | Intel® UHD Graphics             | Intel® Arc™ Graphics                 |
+| **Component**       | **Minimum**                     | **Recommended**                        |
+|---------------------|---------------------------------|----------------------------------------|
+| **Processor**       | 11th Gen Intel® Core™ Processor | Intel® Core™ Ultra 7 Processor 155H    |
+| **Memory**          | 8 GB                            | 8 GB                                   |
+| **Disk Space**      | 256 GB SSD                      | 256 GB SSD                             |
+| **GPU/Accelerator** | Intel® UHD Graphics             | Intel® Arc™ Graphics (integrated GPU)  |
 
 ## Software Requirements
 

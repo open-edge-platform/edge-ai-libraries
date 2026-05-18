@@ -19,8 +19,6 @@ by enabling configuration of workload parameters, performance benchmarking, and 
 metrics such as throughput, CPU usage, and GPU usage. With its intuitive interface, the tool
 provides actionable insights that support optimized hardware selection and performance tuning.
 
-![demonstration of the UI in use](./_assets/ViPPET-README.gif)
-
 ## Use Cases
 
 **Evaluating Hardware for AI Workloads**: Intel® hardware options can be assessed to balance
