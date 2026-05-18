@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { useFrozenMetrics, aggregateLatencyTracerMetrics } from "@/hooks/useFrozenMetrics";
+import {
+  useFrozenMetrics,
+  aggregateLatencyTracerMetrics,
+} from "@/hooks/useFrozenMetrics";
 import {
   type PipelineStreamSpec,
   useGetDensityJobStatusQuery,
@@ -515,7 +518,9 @@ export const DensityTests = () => {
                     Running density test...
                   </span>
                 </div>
-                <MetricsDashboard enableLatencyMetrics={latencyMetricsEnabled} />
+                <MetricsDashboard
+                  enableLatencyMetrics={latencyMetricsEnabled}
+                />
               </div>
             )}
           </div>
@@ -567,12 +572,9 @@ export const DensityTests = () => {
             <p className="text-sm font-medium text-status-fg mb-2">
               Test Failed
             </p>
-            <p className="text-xs text-status-fg">
-              {errorMessage}
-            </p>
+            <p className="text-xs text-status-fg">{errorMessage}</p>
           </div>
         )}
-
       </div>
       <div className="pb-4" />
     </div>

@@ -28,8 +28,13 @@ export interface FrozenSnapshotOverrides {
  * into a single avg/min/max suitable for FrozenSnapshotOverrides.
  */
 export function aggregateLatencyTracerMetrics(
-  metrics: Record<string, { avg_ms: number; min_ms: number; max_ms: number }> | null | undefined,
-): Pick<FrozenSnapshotOverrides, "latencyAvg" | "latencyMin" | "latencyMax"> | undefined {
+  metrics:
+    | Record<string, { avg_ms: number; min_ms: number; max_ms: number }>
+    | null
+    | undefined,
+):
+  | Pick<FrozenSnapshotOverrides, "latencyAvg" | "latencyMin" | "latencyMax">
+  | undefined {
   if (!metrics) return undefined;
   const entries = Object.values(metrics);
   if (entries.length === 0) return undefined;

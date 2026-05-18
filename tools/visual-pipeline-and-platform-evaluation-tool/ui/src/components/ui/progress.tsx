@@ -52,10 +52,7 @@ function ProgressIndicator({
 }: ProgressPrimitive.Indicator.Props) {
   return (
     <ProgressPrimitive.Indicator
-      className={cn(
-        "bg-primary transition-all duration-500",
-        className,
-      )}
+      className={cn("bg-primary transition-all duration-500", className)}
       data-slot="progress-indicator"
       {...props}
     />
