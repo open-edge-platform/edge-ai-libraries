@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/metrics-manager">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.1.0/microservices/metrics-manager">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/metrics-manager/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/metrics-manager/README.md">
      Readme
   </a>
 </div>
@@ -111,7 +111,7 @@ All metrics are available on three endpoints:
 
 ## Supporting Resources
 
-- [Get Started Guide](./get-started.md)
+- [Get Started Guide](./get-started/installation.md)
 - [Installation Guide](./get-started/installation.md)
 - [System Requirements](./get-started/system-requirements.md)
 - [Testing Guide](./get-started/testing.md)

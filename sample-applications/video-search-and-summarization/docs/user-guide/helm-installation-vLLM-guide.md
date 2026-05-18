@@ -158,7 +158,7 @@ helm install vss . \
   -n ${NAMESPACE}
 ```
 
-> **Requirement:** The chart will raise an error if `global.embeddingModelName` is not set. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+> **Requirement:** The chart will raise an error if `global.embeddingModelName` is not set. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 **Understanding the override files:**
 

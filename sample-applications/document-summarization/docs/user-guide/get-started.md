@@ -136,7 +136,7 @@ Refer to [Deploy with Helm Chart](./deploy-with-helm.md) for the details. Ensure
 
 To run the units tests ensure you follow all the steps from below document
 
-- [How to run Unit Tests](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/document-summarization/tests/unit_tests/README.md)
+- [How to run Unit Tests](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/sample-applications/document-summarization/tests/unit_tests/README.md)
 
 ## Advanced Setup Options
 
