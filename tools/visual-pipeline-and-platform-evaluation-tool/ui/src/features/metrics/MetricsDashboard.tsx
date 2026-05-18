@@ -332,32 +332,36 @@ export const MetricsDashboard = ({
           summaryTitleClassName={summaryTitleClassName}
           summaryUnitClassName={summaryUnitClassName}
         />
-        <MetricCard
-          title={isSummary ? "CPU Usage Average" : "CPU Usage"}
-          value={metrics.cpu}
-          unit="%"
-          icon={<Cpu className="h-6 w-6 text-green-chart" />}
-          isSummary={isSummary}
-          forceDark={forceDark}
-          useDemoStyles={useDemoStyles}
-          summaryCardClassName={summaryCardClassName}
-          summaryIconClassName={summaryIconClassName}
-          summaryTitleClassName={summaryTitleClassName}
-          summaryUnitClassName={summaryUnitClassName}
-        />
-        <MetricCard
-          title={isSummary ? "GPU Usage Average" : "GPU Usage"}
-          value={displayedGpuUsage}
-          unit="%"
-          icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
-          isSummary={isSummary}
-          forceDark={forceDark}
-          useDemoStyles={useDemoStyles}
-          summaryCardClassName={summaryCardClassName}
-          summaryIconClassName={summaryIconClassName}
-          summaryTitleClassName={summaryTitleClassName}
-          summaryUnitClassName={summaryUnitClassName}
-        />
+        {!isSummary && (
+          <MetricCard
+            title="CPU Usage"
+            value={metrics.cpu}
+            unit="%"
+            icon={<Cpu className="h-6 w-6 text-green-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+            summaryCardClassName={summaryCardClassName}
+            summaryIconClassName={summaryIconClassName}
+            summaryTitleClassName={summaryTitleClassName}
+            summaryUnitClassName={summaryUnitClassName}
+          />
+        )}
+        {!isSummary && (
+          <MetricCard
+            title="GPU Usage"
+            value={displayedGpuUsage}
+            unit="%"
+            icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+            summaryCardClassName={summaryCardClassName}
+            summaryIconClassName={summaryIconClassName}
+            summaryTitleClassName={summaryTitleClassName}
+            summaryUnitClassName={summaryUnitClassName}
+          />
+        )}
         {showLatencySection && (
           <MetricCard
             title={isSummary ? "Latency Average" : "Latency"}
@@ -377,9 +381,9 @@ export const MetricsDashboard = ({
             summaryUnitClassName={summaryUnitClassName}
           />
         )}
-        {hasNpuData && (
+        {hasNpuData && !isSummary && (
           <MetricCard
-            title={isSummary ? "NPU Usage Average" : "NPU Usage"}
+            title="NPU Usage"
             value={npuData.at(-1)?.usage ?? 0}
             unit="%"
             icon={<Gpu className="h-6 w-6 text-geode-chart" />}

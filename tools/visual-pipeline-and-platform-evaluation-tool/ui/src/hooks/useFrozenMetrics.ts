@@ -168,7 +168,7 @@ export function useFrozenMetrics() {
 
     return {
       fps: resultFps ?? lastFps,
-      cpu: avg(snapshot.map((p) => p.cpu ?? 0)),
+      cpu: 0,
       memory: avg(snapshot.map((p) => p.memory ?? 0)),
       availableGpuIds: gpuIds,
       gpuDetailedMetrics,
