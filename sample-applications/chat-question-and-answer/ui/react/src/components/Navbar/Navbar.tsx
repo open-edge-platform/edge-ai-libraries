@@ -4,7 +4,7 @@ export function Navbar() {
     return (
         <header className={classes.navbar}>
             <div className={classes.navLeft}>
-                <span className={classes.navTitle}>asdasd QnA</span>
+                <span className={classes.navTitle}>Chat QnA</span>
             </div>
         </header>
     )

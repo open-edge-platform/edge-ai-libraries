@@ -113,9 +113,15 @@ const Conversation = ({ title }: ConversationProps) => {
           <div className={styleClasses.historyContainer} ref={scrollViewport}>
 
             {!selectedConversation && (
-              <>
-                <div className="infoMessage">To get started, upload your Document by clicking on Document icon on top right corner</div>
-              </>
+              <div className={styleClasses.emptyState}>
+                <div className={styleClasses.emptyStateTitle}>
+                  What are you working on?
+                </div>
+
+                <div className={styleClasses.emptyStateSubtitle}>
+                  Ask a question to get started
+                </div>
+              </div>
             )}
 
             {selectedConversation?.Messages.map((message: any, index: number) => {

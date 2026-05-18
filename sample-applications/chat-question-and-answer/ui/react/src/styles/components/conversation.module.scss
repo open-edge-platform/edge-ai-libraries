@@ -100,3 +100,34 @@
         background-color: #159ee4 !important;
     }
 }
+
+.emptyState {
+    flex: 1;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    text-align: center;
+
+    padding: 24px;
+}
+
+.emptyStateTitle {
+    font-size: 28px;
+    font-weight: 700;
+    color: #ffffff;
+
+    margin-bottom: 10px;
+
+    letter-spacing: -0.5px;
+}
+
+.emptyStateSubtitle {
+    font-size: 14px;
+    color: #6f7ca8;
+
+    max-width: 420px;
+    line-height: 1.5;
+}
