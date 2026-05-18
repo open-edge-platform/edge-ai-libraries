@@ -22,7 +22,7 @@ To deploy with Helm chart, you can either install the chart from Docker hub or f
    Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/model-download-chart):
 
    ```bash
-   helm pull oci://registry-1.docker.io/intel/model-download-chart --version <version-no>
+   helm pull oci://registry-1.docker.io/intel/model-download-chart --version 2026.1.0-rc1-helm
    ```
 
    See the [Docker hub's tags page](https://hub.docker.com/r/intel/model-download-chart/tags) for details on the latest version number to use for the application.
@@ -30,7 +30,7 @@ To deploy with Helm chart, you can either install the chart from Docker hub or f
 2. Extract the `.tgz` file
 
    ```bash
-   tar -xvf model-download-chart-<version-no>.tgz
+   tar -xvf model-download-chart-2026.1.0-rc1-helm.tgz
    ```
 
 3. This will create a directory named `model-download-chart`, containing the chart files. Navigate to the extracted directory:
@@ -47,7 +47,7 @@ To deploy with Helm chart, you can either install the chart from Docker hub or f
    # Clone the latest on the mainline
      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
    # Alternatively, clone a specific release branch
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.1.0
    ```
 
 2. Navigate to the chart directory:
@@ -75,7 +75,7 @@ The following is a summary of key configuration options available in the `values
 | `service.nodePort`             | Sets the static port (in the 30000–32767 range)                                                                                                                               | 32000                        | Yes                      |
 | `env.ENABLED_PLUGINS`          | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics,pipeline-zoo-models,openvino,geti,hls`) or `all` to enable all available plugins              | `all`                        | Yes                      |
 | `image.repository`             | image repository url                                                                                                                                                          | intel/model-download         | Yes                      |
-| `image.tag`                    | latest image tag                                                                                                                                                              | latest                       | Yes                      |
+| `image.tag`                    | latest image tag                                                                                                                                                              | 2026.1.0-rc1                       | Yes                      |
 | `gpu.enabled`                  | For model download deployed on GPU                                                                                                                                            | false                        |
 | `gpu.key`                      | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node <gpu-node> | `<your-node-key-on-cluster>` |
 | `affinity.enabled`             | Default is false, true to enable affinity                                                                                                                                     | `false`                      |
