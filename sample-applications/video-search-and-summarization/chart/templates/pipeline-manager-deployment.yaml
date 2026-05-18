@@ -109,7 +109,7 @@ spec:
           {{- end }}
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,{{ .Values.vllm.service.name }},{{ .Values.vllm.service.name }}.{{ .Release.Namespace }}.svc.cluster.local,"
+              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,summary-ui,search-ui,unified-ui,{{ .Values.vllm.service.name }},{{ .Values.vllm.service.name }}.{{ .Release.Namespace }}.svc.cluster.local,"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy

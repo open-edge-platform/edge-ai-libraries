@@ -510,7 +510,7 @@ class EmbeddingModel:
                 batch_embeddings = self.handler.encode_image(frame_batch, metrics_out=True)
                 if isinstance(batch_embeddings, dict) and "embeddings" in batch_embeddings:
                     batch_embeddings = batch_embeddings["embeddings"]
-                embeddings.append(torch.from_numpy(batch_embeddings))
+                embeddings.append(batch_embeddings)
                 encode_time += (time.perf_counter() - encode_time_start)
             wall_time = time.perf_counter() - start
         except Exception as e:

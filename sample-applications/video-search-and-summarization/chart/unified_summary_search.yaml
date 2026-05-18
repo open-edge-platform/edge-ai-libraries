@@ -18,20 +18,20 @@ audioanalyzer:
 global:
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: "video_summary_embeddings"
-  embedding:
-    preferTextModel: true
-  env:
-    EMBEDDING_MODEL_NAME: ""
-    TEXT_EMBEDDING_MODEL_NAME: ""
 
 pipelinemanager:
   env:
+    SEARCH_DATAPREP_TIMEOUT_MS: "600000"
     SUMMARY_FEATURE: "FEATURE_ON"
     SEARCH_FEATURE: "FEATURE_ON"
 
-videosummaryui:
-  name: videosummaryui
+summaryui:
+  enabled: true
+  name: unified-ui
   feature:
     summary: "FEATURE_ON"
     search: "FEATURE_ON"
     mux: "SUMMARY_SEARCH"
+
+searchui:
+  enabled: false

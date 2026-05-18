@@ -17,79 +17,81 @@ Sample response:
     "count": 1,
     "items": [
         {
-            "request_id": "a2e00af4-3d62-4d3b-b9e2-5a08743b21b7",
-            "source": "/videos/minio",
+            "request_id": "1dc48f8c-6ee1-4a5c-8d92-032b5bc5591d",
+            "source": "/videos/upload",
             "processing_mode": "sdk",
             "timestamps": {
-                "requested_at": "2025-12-15T05:18:19.320075Z",
-                "completed_at": "2025-12-15T05:18:53.187766Z",
-                "wall_time_seconds": 33.42496871948242
+                "requested_at": "2026-04-06T08:05:51.111006Z",
+                "completed_at": "2026-04-06T08:08:00.346370Z",
+                "wall_time_seconds": 127.636318
             },
             "video": {
-                "bucket_name": "video-summary",
-                "video_id": "a0ee04eb-5dc2-450b-a4b7-16a230a1c282",
-                "filename": "sample.mp4",
-                "frame_interval": 20,
+                "bucket_name": "vdms-bucket",
+                "video_id": "dp_video_1775462750",
+                "filename": "input.mp4",
+                "frame_interval": 1,
                 "fps": 30.0,
-                "total_frames": 17973,
-                "video_duration_seconds": 599.1,
-                "tags": [],
-                "video_url": "http://vdms-dataprep:8000/v1/dataprep/videos/download?video_id=a0ee04eb-5dc2-450b-a4b7-16a230a1c282&bucket_name=video-summary",
-                "video_rel_url": "/v1/dataprep/videos/download?video_id=a0ee04eb-5dc2-450b-a4b7-16a230a1c282&bucket_name=video-summary",
+                "total_frames": 12552,
+                "video_duration_seconds": 418.4,
+                "tags": ["intersection", "night"],
+                "video_url": "http://:8000/v1/dataprep/videos/download?video_id=dp_video_1775462750&bucket_name=vdms-bucket",
+                "video_rel_url": "/v1/dataprep/videos/download?video_id=dp_video_1775462750&bucket_name=vdms-bucket",
                 "processing_mode": "sdk"
             },
             "config": {
                 "embedding_mode": "sdk",
                 "object_detection_enabled": true,
-                "detection_confidence": 0.85,
-                "sdk_parallel_workers": 60,
-                "sdk_batch_size": 32
+                "detection_confidence": 0.85
             },
             "counts": {
-                "frames_extracted": 899,
-                "items_after_detection": 2370,
-                "embeddings_stored": 2370
+                "stream_id": 0,
+                "frames_extracted": 12552,
+                "items_after_detection": 8336,
+                "embeddings_stored": 20888
             },
-            "stages": [
-                {
-                    "name": "extraction",
-                    "seconds": 14.225327968597412,
-                    "percent_of_total": 42.55898663057204
-                },
-                {
-                    "name": "detection",
-                    "seconds": 388.91471695899963,
-                    "percent_of_total": 48.282008923343355
-                },
-                {
-                    "name": "embedding",
-                    "seconds": 59.44792938232422,
-                    "percent_of_total": 7.380192447729496
-                },
-                {
-                    "name": "storage",
-                    "seconds": 14.32844614982605,
-                    "percent_of_total": 1.7788119983550996
-                }
-            ],
-            "throughput": {
-                "embeddings_per_second": 960.7483555108118,
-                "wall_time_embeddings_per_second": 70.9559383300526,
-                "embedding_stage_embeddings_per_second": 39.86682168117158,
-                "frames_per_second": 63.19713696475425
+            "pipeline_stats": {
+                "pipeline_wall_duration": 127.636318,
+                "pipeline_throughput_fps": 163.652,
+                "pipeline_concurrency_factor": 2.677,
+                "pipeline_efficiency_pct": 89.253,
+                "parallel_efficiency_pct": 99.34,
+                "decode_pipeline_efficiency_pct": 0.8215,
+                "detect_pipeline_efficiency_pct": 0.9934,
+                "embed_store_pipeline_efficiency_pct": 0.8627
+            },
+            "stage_duration": {
+                "frame_extraction_seconds": 104.857776,
+                "detection_seconds": 126.794084,
+                "embedding_seconds_total": 80.117875,
+                "embed_preprocess_time": 49.012821,
+                "embed_inference_time": 30.771018,
+                "storage_seconds_total": 29.989046,
+                "total_wall_seconds": 127.636318
+            },
+            "stage_throughput": {
+                "decode_throughput": 119.705,
+                "detect_throughput": 98.995,
+                "embedding_preproc_throughput": 426.174,
+                "embedding_infer_throughput": 678.821,
+                "embeddings_throughput": 260.716,
+                "store_throughput": 696.521,
+                "pipeline_throughput": 163.652
             },
             "batches": [
-               {
-                    "batch_index": 29,
-                    "input_frames": 3,
-                    "items_after_detection": 7,
-                    "detection_seconds": 0.8262088298797607,
-                    "embedding_seconds": 0.25011181831359863,
-                    "storage_seconds": 0.06559395790100098,
-                    "total_seconds": 1.1423156261444092,
-                    "embeddings_stored": 7
+                {
+                    "stream_id": 0,
+                    "batch_index": 0,
+                    "input_frames": 64,
+                    "items_after_detection": 18,
+                    "detection_seconds": 0.440378,
+                    "embedding_seconds": 0.405169,
+                    "embedding_preproc_seconds": 0.239543,
+                    "embedding_infer_seconds": 0.163761,
+                    "storage_seconds": 0.269737,
+                    "total_seconds": 1.43656,
+                    "embeddings_stored": 82
                 },
-                <other batch details omitted for brevity>
+                "<other batch entries omitted for brevity>"
             ]
         }
     ]
@@ -118,41 +120,74 @@ This block mirrors the request that was processed:
 
 ### Processing config
 
-Fields such as `embedding_mode`, `object_detection_enabled`, `detection_confidence`, `sdk_parallel_workers`, and `sdk_batch_size` are captured from the resolved runtime configuration. They reflect the **effective** configuration (after environment variables, CLI args, and defaults are merged) so operators can correlate telemetry with tuning changes.
+Fields such as `embedding_mode`, `object_detection_enabled`, and `detection_confidence` are captured from the resolved runtime configuration. When SDK mode is active, `sdk_parallel_workers` and `sdk_batch_size` are also included if configured. All fields reflect the **effective** configuration (after environment variables, CLI args, and defaults are merged) so operators can correlate telemetry with tuning changes.
 
 ### Aggregate counts
 
 | Field | Description |
 | --- | --- |
+| `stream_id` | Identifier of the video stream processed (0-indexed). Useful when multiple streams are processed in a single request. |
 | `frames_extracted` | Number of keyframes pulled from the source video before detection. |
-| `items_after_detection` | Crops + frames that survived object detection filters. |
+| `items_after_detection` | Crops and frames that survived object detection filters. |
 | `embeddings_stored` | Items that were successfully embedded and written to VDMS. This value should match the `embeddings` counter in the service logs for the same request. |
 
-### Stage timings
+### Stage durations
 
-Stage timing objects follow the schema `{name, seconds, percent_of_total}` and are produced by `_build_stage_timings`:
+The `stage_duration` block reports the **cumulative** time each stage spent across all processed batches. Because the pipeline is concurrent, individual stage totals can exceed `wall_time_seconds`.
 
-1. `seconds` equals the summed time spent in the stage per the pipeline stats.
-2. Percentages always add up to `100` even when stages overlap:
-   - Extraction runs before anything else, so its percentage is `frame_extraction_seconds / wall_time_seconds`.
-   - Detection, embedding, and storage often overlap when the parallel pipeline is enabled. Their raw seconds are normalized against the **parallel budget**, computed as `(wall_time_seconds - extraction_seconds)`. Each stage receives a share of that budget proportional to its measured seconds. This highlights relative pressure inside the concurrently running stages without double-counting wall time.
+| Field | Description |
+| --- | --- |
+| `frame_extraction_seconds` | Total time spent decoding frames from the video source. |
+| `detection_seconds` | Total time spent running object detection across all batches. |
+| `embedding_seconds_total` | Total time for the full embedding stage (preprocessing + inference) across all batches. |
+| `embed_preprocess_time` | Time within the embedding stage spent on image preprocessing (resize, normalize). |
+| `embed_inference_time` | Time within the embedding stage spent on model inference only. |
+| `storage_seconds_total` | Total time spent writing embeddings to VDMS across all batches. |
+| `total_wall_seconds` | Same value as `timestamps.wall_time_seconds`; included here for convenience. |
 
-### Throughput metrics
+### Pipeline statistics
+
+The `pipeline_stats` block provides concurrency and efficiency metrics computed by `save_batch_results`. All are measured against the true wall-clock interval from the first decode operation to the last store operation.
 
 | Field | Description | Formula |
 | --- | --- | --- |
-| `embeddings_per_second` | Effective throughput for the entire request. Accounts for overlapping stages. | `embeddings_stored / effective_embedding_seconds`, where `effective_embedding_seconds = wall_time_seconds * (embedding_stage_percent / 100)`. Falls back to `wall_time_seconds` if the embedding stage percent is `0`. |
-| `embedding_stage_embeddings_per_second` | Raw throughput during the embedding stage only. Useful for spotting model-level slowdowns. | `embeddings_stored / embedding_seconds_total`. |
-| `wall_time_embeddings_per_second` | Wall-clock throughput that ignores stage overlap. | `embeddings_stored / wall_time_seconds`. |
-| `frames_per_second` | Frame extraction throughput. | `frames_extracted / frame_extraction_seconds` (or `/ wall_time_seconds` if extraction time is unknown). |
+| `pipeline_wall_duration` | True wall-clock duration of the pipeline (seconds). | `(last_store_end_us - first_decode_start_us) / 1_000_000` |
+| `pipeline_throughput_fps` | Overall pipeline throughput in frames per second. | `frames_extracted / pipeline_wall_duration` |
+| `pipeline_concurrency_factor` | How many seconds of work are completed per wall-clock second. Values greater than 1 indicate effective use of concurrency. | `sum_of_all_stage_totals / pipeline_wall_duration` |
+| `pipeline_efficiency_pct` | How efficiently the three concurrent worker threads (decode, detect, embed+store) are utilized. 100 % means all threads are busy the entire time. | `(pipeline_concurrency_factor / 3) × 100` |
+| `parallel_efficiency_pct` | How well the slowest (bottleneck) stage fills the pipeline wall time. 100 % means the bottleneck stage ran continuously without idle gaps. | `max(decode, detect, embed, store totals) × 100 / pipeline_wall_duration` |
+| `decode_pipeline_efficiency_pct` | Fraction of wall time the decode thread was actively working. | `frame_extraction_seconds / pipeline_wall_duration` |
+| `detect_pipeline_efficiency_pct` | Fraction of wall time the detection thread was actively working. | `detection_seconds / pipeline_wall_duration` |
+| `embed_store_pipeline_efficiency_pct` | Fraction of wall time the embed+store thread was actively working. | `(embedding_seconds_total + storage_seconds_total) / pipeline_wall_duration` |
+
+### Stage throughput
+
+The `stage_throughput` block reports the per-stage processing rate, making it easy to spot which stage is the bottleneck.
+
+| Field | Description | Formula |
+| --- | --- | --- |
+| `decode_throughput` | Frame decode rate (frames/s). | `frames_extracted / frame_extraction_seconds` |
+| `detect_throughput` | Detection throughput (frames/s). | `frames_extracted / detection_seconds` |
+| `embedding_preproc_throughput` | Preprocessing throughput (items/s). | `embeddings_stored / embed_preprocess_time` |
+| `embedding_infer_throughput` | Inference throughput (items/s). | `embeddings_stored / embed_inference_time` |
+| `embeddings_throughput` | End-to-end embedding stage throughput (items/s). | `embeddings_stored / embedding_seconds_total` |
+| `store_throughput` | VDMS write throughput (items/s). | `embeddings_stored / storage_seconds_total` |
+| `pipeline_throughput` | Overall pipeline throughput (frames/s). Same value as `pipeline_stats.pipeline_throughput_fps`. | `frames_extracted / pipeline_wall_duration` |
 
 ### Batch breakdown
 
-When SDK mode runs with batching enabled, each batch reports:
+When SDK mode runs with batching enabled, each entry in the `batches` array reports per-batch timing and counts. These entries make it easy to identify skewed batches (for example, ones with large detection times because of busy scenes).
 
-- `batch_index` – sequential identifier (starting at `1`).
-- `input_frames` and `items_after_detection` – how many frames/crops were submitted for that batch.
-- `detection_seconds`, `embedding_seconds`, `storage_seconds`, `total_seconds` – stage timing for the batch, captured before threading overhead is applied.
-- `embeddings_stored` – how many embeddings survived all downstream filters.
-
-These entries make it easy to identify skewed batches (for example, ones with large detection times because of busy scenes).
+| Field | Description |
+| --- | --- |
+| `stream_id` | Identifier of the stream this batch belongs to. |
+| `batch_index` | Zero-based sequential identifier for the batch within its stream. |
+| `input_frames` | Number of raw frames fed into this batch before detection. |
+| `items_after_detection` | Frames and crops that passed the detection filter (`total - batch_size`). |
+| `detection_seconds` | Time spent running object detection for this batch. |
+| `embedding_seconds` | Total embedding time for this batch (preprocessing + inference). |
+| `embedding_preproc_seconds` | Time spent on image preprocessing within the embedding step. |
+| `embedding_infer_seconds` | Time spent on model inference within the embedding step. |
+| `storage_seconds` | Time spent writing this batch's embeddings to VDMS. |
+| `total_seconds` | Total end-to-end time for this batch (detect + embed + store). |
+| `embeddings_stored` | Number of embeddings successfully stored for this batch. |

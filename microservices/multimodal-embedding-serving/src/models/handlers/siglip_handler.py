@@ -164,38 +164,36 @@ class SigLIPHandler(BaseEmbeddingModel):
         if isinstance(images, Image.Image):
             images = [images]
         total_images = len(images)
-        if self.use_openvino and self.ov_image_encoder is not None:
-            # Use OpenVINO inference with infer_new_request for thread safety
 
+        if self.use_openvino:
             logger.info(f"====AsyncInferQueue====")
             preprocess_stream = self.parallel_preprocessor.preprocess_stream(images)
             try:
                 infer_start = time.perf_counter()
-                embeddings = self.async_infer.infer_stream(batch_generator=preprocess_stream, total_images=total_images)
+                embeddings = self.async_infer.infer_stream(
+                    batch_generator=preprocess_stream, total_images=total_images
+                )
                 infer_end = time.perf_counter()
             finally:
                 preprocess_stream.close()
-                del images
 
-            logger.info(f"Inference time for batch of {total_images} images: {infer_end - infer_start:.4f} seconds")
+            # Normalize consistently
+            image_features = F.normalize(torch.from_numpy(embeddings), dim=-1)
 
-            if metrics_out:
-                return {
-                    "embeddings": embeddings,
-                    "inference_time_s": infer_end - infer_start,
-                    "processed_images": total_images
-                }
-            image_features = torch.from_numpy(embeddings)
         else:
-            # Use PyTorch model
+            infer_start = time.perf_counter()
             with torch.no_grad():
-                if isinstance(images, Image.Image):
-                    images = [images]
-                inputs = self.processor(images=images, return_tensors="pt")
-                pixel_values = inputs.pixel_values
-                image_features = self.model.encode_image(pixel_values)      
+                image_tensor = torch.stack([self.preprocess(img) for img in images])
+                image_features = self.model.encode_image(image_tensor)
+            infer_end = time.perf_counter()
+            image_features = F.normalize(image_features, dim=-1)
         
-        image_features = F.normalize(image_features, dim=-1)
+        if metrics_out:
+            return {
+                "embeddings": image_features,
+                "inference_time_s": infer_end - infer_start,
+                "processed_images": total_images,
+            }
         return image_features
     
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:

@@ -3,23 +3,24 @@ global:
     no_proxy: ""
     http_proxy: ""
     https_proxy: ""
-  env:
-    APP_ENDPOINT_URL: "/manager"
-    APP_ASSETS_URL: "/minio"
 
-name: videosummaryui
+
+name: vssui
 image:
   repository: intel/vss-ui
   tag: "latest"
   pullPolicy: IfNotPresent
   resources: {}
 
-containerPortName: vs-ui-port  # Optional name to refer containerPort
+containerPortName: vssui-port  # Optional name to refer containerPort
 service:
   type: ClusterIP
   port: 80  # Port on which service listens for incoming connection
 
+pipelineManagerEndpoint: "/manager"
+assetsEndpoint: "/minio"
+
 feature:
-  summary: "FEATURE_OFF"
-  search: "FEATURE_ON"
-  mux: "ATOMIC"
+  summary: ""
+  search: ""
+  mux: ""

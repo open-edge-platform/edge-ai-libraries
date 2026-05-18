@@ -50,7 +50,7 @@ variants:
         model-instance-id=detect0
         pre-process-backend=va-surface-sharing
         device=GPU
-        ie-config=GPU_THROUGHPUT_STREAMS=2        
+        ie-config=GPU_THROUGHPUT_STREAMS=2
         batch-size=0
         inference-interval=3
         inference-region=full-frame
@@ -62,6 +62,42 @@ variants:
         model=/models/output/public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml
         model-instance-id=classify0
         pre-process-backend=va-surface-sharing
+        device=GPU
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        batch-size=0
+        inference-interval=3
+        nireq=0
+        inference-region=roi-list
+        reclassify-interval=1 !
+      queue !
+      gvawatermark !
+      gvametaconvert format=json !
+      gvametapublish method=file file-path=/dev/null !
+      fakesink name=default_output_sink
+  - name: GPU (WSL)
+    pipeline_description: >-
+      filesrc location=/videos/input/license-plate-detection.mp4 !
+      parsebin !
+      avdec_h264 !
+      video/x-raw !
+      gvafpscounter starting-frame=500 !
+      gvadetect
+        model=/models/output/public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml
+        model-instance-id=detect0
+        pre-process-backend=opencv
+        device=GPU
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        batch-size=0
+        inference-interval=3
+        inference-region=full-frame
+        nireq=0 !
+      queue !
+      gvatrack tracking-type=short-term-imageless !
+      queue !
+      gvaclassify
+        model=/models/output/public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml
+        model-instance-id=classify0
+        pre-process-backend=opencv
         device=GPU
         ie-config=GPU_THROUGHPUT_STREAMS=2
         batch-size=0

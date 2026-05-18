@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "videosummaryui.name" . }}
+  name: {{ include "vssui.name" . }}
   labels:
     app: {{ .Values.name }}
 spec:
