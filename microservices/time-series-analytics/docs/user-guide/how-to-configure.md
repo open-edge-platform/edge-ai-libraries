@@ -9,7 +9,7 @@ This document describes the configuration options available in `config.json` for
     "udfs": {
         "name": "windturbine_anomaly_detector",
         "models": "windturbine_anomaly_detector.pkl",
-        "device": "cpu"
+        "device": "CPU"
     },
     "alerts": {
         "mqtt": {
@@ -36,7 +36,7 @@ This document describes the configuration options available in `config.json` for
 |----------|-----------|-----------------------------------------------------------------------------------------------|----------------------------------------|
 | `name`   | Yes       | The name of the UDF script.                                                                   | `"windturbine_anomaly_detector"`       |
 | `models` | No        | The name of the model file used by the UDF.                                                   | `"windturbine_anomaly_detector.pkl"`   |
-| `device` | No        | Specifies the hardware `cpu` or `gpu` for executing the UDF model inference. Default is `cpu` | `"cpu"`                                |
+| `device` | No        | Specifies the hardware `CPU` or `GPU` for executing the UDF model inference. Default is `CPU`.| `"CPU/cpu/GPU/gpu"`                    | 
 
 Refer to [Running inferencing on GPU](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/get-started.html#running-user-defined-function-udf-inference-on-gpu) for usage of GPU in Time Series - Wind Turbine Anomaly Detection Sample App.
 
