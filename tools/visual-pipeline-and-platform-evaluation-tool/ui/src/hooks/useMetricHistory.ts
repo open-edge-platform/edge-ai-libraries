@@ -24,6 +24,10 @@ export interface MetricHistoryPoint {
   cpuAvgFrequency?: number;
   cpuTemp?: number;
   memory?: number;
+  npuUsage?: number;
+  npuFrequency?: number;
+  npuPower?: number;
+  npuTemperature?: number;
   latencyAvg?: number;
   latencyMin?: number;
   latencyMax?: number;
@@ -76,6 +80,10 @@ export const useMetricHistory = () => {
         cpuAvgFrequency: metrics.cpuDetailed.avgFrequency,
         cpuTemp: metrics.cpuDetailed.temp,
         memory: metrics.memory,
+        npuUsage: metrics.npu || undefined,
+        npuFrequency: metrics.npuDetailed.frequency,
+        npuPower: metrics.npuDetailed.power,
+        npuTemperature: metrics.npuDetailed.temperature,
         latencyAvg: metrics.latency?.avgMs,
         latencyMin: metrics.latency?.minMs,
         latencyMax: metrics.latency?.maxMs,
@@ -99,6 +107,8 @@ export const useMetricHistory = () => {
     metrics.cpuDetailed.avgFrequency,
     metrics.cpuDetailed.temp,
     metrics.memory,
+    metrics.npu,
+    metrics.npuDetailed,
     metrics.availableGpuIds,
     metrics.gpuDetailedMetrics,
     metrics.latency,

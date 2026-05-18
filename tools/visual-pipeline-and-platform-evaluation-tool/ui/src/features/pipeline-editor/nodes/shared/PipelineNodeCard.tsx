@@ -18,7 +18,6 @@ export type PipelineNodeCardProps = {
 const PipelineNodeCard = ({
   title,
   icon,
-  nodeType: _nodeType,
   roleClasses,
   details,
   minWidthClass = "min-w-[13.75rem]",

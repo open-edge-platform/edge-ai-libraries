@@ -10,9 +10,7 @@ const FakeSinkNode = () => {
       nodeType="fakesink"
       roleClasses={PIPELINE_NODE_ROLE_CLASSES.sink}
       handles="target"
-      details={
-        <div className="text-xs text-node-body-text">default</div>
-      }
+      details={<div className="text-xs text-node-body-text">default</div>}
       icon={
         <path
           strokeLinecap="round"
