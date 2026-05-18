@@ -12,6 +12,8 @@ from utils.config_loader import config
 from utils.ensure_model import ensure_model
 from utils.preload_models import preload_models
 import logging
+import os
+import shutil
 
 
 logger = logging.getLogger(__name__)
@@ -26,8 +28,24 @@ def _cors_allow_origins() -> list[str]:
     return origins or ["http://127.0.0.1", "http://localhost"]
 
 
+def _clear_storage_on_startup() -> None:
+    from utils.app_paths import STORAGE_ROOT
+    if not getattr(getattr(config, "app", None), "clear_storage_on_startup", False):
+        return
+    if not os.path.isdir(STORAGE_ROOT):
+        return
+    count = 0
+    for entry in os.listdir(STORAGE_ROOT):
+        entry_path = os.path.join(STORAGE_ROOT, entry)
+        if os.path.isdir(entry_path):
+            shutil.rmtree(entry_path, ignore_errors=True)
+            count += 1
+    logger.info("Cleared %d session folder(s) from storage on startup", count)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _clear_storage_on_startup()
     ensure_model()
     preload_models()
 

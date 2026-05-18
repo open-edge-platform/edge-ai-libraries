@@ -1,10 +1,11 @@
 app:
   name: Text To Speech
+  clear_storage_on_startup: true  # delete all session folders under storage/ at startup
 models:
   tts:
     # SpeechT5: microsoft/speecht5_tts
     # Qwen: Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice
-    name: Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice
+    name: microsoft/speecht5_tts
     runtime: openvino
     # SpeechT5: CPU or GPU
     # Qwen: CPU, GPU, or NPU
