@@ -250,7 +250,7 @@ vsscollector:
   name: vss-collector
   image:
     repository: docker.io/intel/vippet-collector
-    tag: "2025.2.0"
+    tag: "2026.0.0"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP

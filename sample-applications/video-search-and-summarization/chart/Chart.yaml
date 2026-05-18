@@ -34,16 +34,16 @@ dependencies:
     repository: "file://subchart/vdms-vectordb/"
     condition: vdmsvectordb.enabled
   - name: vdmsdataprep
-    version: 2.0.0
+    version: 2026.1.0-rc1-helm
     repository: "file://subchart/vdms-dataprep/"
     condition: vdmsdataprep.enabled
   - name: multimodalembeddingms
-    version: 2.0.0
+    version: 2026.1.0-rc1-helm
     repository: "file://subchart/multimodal-embedding-ms/"
     condition: multimodalembeddingms.enabled
   - name: vllm-server
     alias: vllm
-    version: 0.1.0
+    version: 2026.1.0-rc1-helm
     repository: "file://subchart/vllm"
     condition: vllm.enabled
   - name: vssui
