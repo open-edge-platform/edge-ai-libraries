@@ -470,7 +470,7 @@ def classifier_startup(config):
         elif device == "gpu" or (device.startswith("gpu:") and device.split(":")[1].isdigit()):
             device = device
         else:
-            raise ValueError(f"Invalid value for 'device' in udfs: {device_config}, must be 'cpu' or 'gpu'")
+            raise ValueError(f"Invalid value for 'device' in udfs: {device_config}, must be 'CPU/cpu', 'GPU/gpu', or 'GPU:N/gpu:N' (e.g., 'GPU:0')")
 
     if os.getenv("SAMPLE_APP") is not None:
         dir_name = os.getenv("SAMPLE_APP")

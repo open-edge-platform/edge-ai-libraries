@@ -178,7 +178,7 @@ if [[ "$ACTION" != "down" ]]; then
         export TAG="$TAG"
         export REGISTRY="$REGISTRY"
     else
-        export TAG="latest"
+        export TAG="2026.1.0-rc1"
     fi
     export USER_GROUP_ID="$USER_GROUP_ID"
     export MODEL_PATH="$MODEL_PATH"
