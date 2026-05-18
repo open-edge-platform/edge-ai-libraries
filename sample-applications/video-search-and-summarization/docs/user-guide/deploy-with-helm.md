@@ -27,17 +27,15 @@ There are 2 options to get the charts in your workspace:
 Use the following command to pull the Helm chart from Docker Hub:
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version <version-no>
+helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version 2026.1.0-rc1-helm
 ```
-
-Refer to the release notes for details on the latest version number to use for the sample application.
 
 ##### Step 2: Extract the `.tgz` File
 
 After pulling the chart, extract the `.tgz` file:
 
 ```bash
-tar -xvf video-search-and-summarization-<version-no>.tgz
+tar -xvf video-search-and-summarization-2026.1.0-rc1-helm.tgz
 ```
 
 This will create a directory named `video-search-and-summarization` containing the chart files. Navigate to the extracted directory to access the charts.
@@ -53,10 +51,8 @@ cd video-search-and-summarization
 Clone the repository containing the Helm chart:
 
 ```bash
-# Clone the latest on mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   # Clone the release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.1.0
 ```
 
 ##### Step 2: Change to the Chart Directory

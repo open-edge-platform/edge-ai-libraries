@@ -360,7 +360,7 @@ Follow these steps to run the application:
 
    ```bash
    # Clone the release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b 2026.1.0
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.1.0
 
    cd edge-ai-libraries/sample-applications/video-search-and-summarization
    ```
