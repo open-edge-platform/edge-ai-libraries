@@ -6,10 +6,10 @@ app:
 
 models:
   asr:
-    provider: openai # openai | openvino | whispercpp
+    provider: openvino # openai | openvino | whispercpp
     name: whisper-tiny  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
     device: CPU # CPU recommended; CPU or GPU for openvino provider
-    weight_format: None # Optional OpenVINO export precision, e.g. int8 | fp16; ignored for provider: openai
+    weight_format: fp16 # Optional OpenVINO export precision, e.g. int8 | fp16; ignored for provider: openai
     temperature: 0.0
     diarization: False
     hf_token: None   # needed only if diarization=true
