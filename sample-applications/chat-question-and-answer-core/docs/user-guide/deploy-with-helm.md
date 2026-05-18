@@ -34,7 +34,7 @@ Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question
 Unpack the downloaded .tgz file:
 
 ```bash
-tar -xvf chat-question-and-answer-core-<version-no>.tgz
+tar -xvf chat-question-and-answer-core-2026.1.0-rc1-helm.tgz
 cd chat-question-and-answer-core
 ```
 
