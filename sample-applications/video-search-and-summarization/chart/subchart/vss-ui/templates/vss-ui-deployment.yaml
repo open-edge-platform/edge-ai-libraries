@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "videosummaryui.fullname" . }}
+  name: {{ include "vssui.fullname" . }}
   labels:
     app: {{ .Values.name }}
 spec:
@@ -27,9 +27,9 @@ spec:
           {{- end }}
           env:
             - name: APP_ENDPOINT_URL
-              value: "{{ .Values.global.env.APP_ENDPOINT_URL }}"
+              value: "{{ .Values.pipelineManagerEndpoint }}"
             - name: APP_ASSETS_URL
-              value: "{{ .Values.global.env.APP_ASSETS_URL }}"
+              value: "{{ .Values.assetsEndpoint }}"
             - name: HTTP_PROXY
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: HTTPS_PROXY

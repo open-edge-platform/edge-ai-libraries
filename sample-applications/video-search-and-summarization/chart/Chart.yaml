@@ -25,9 +25,6 @@ dependencies:
     version: 1.3.2
     repository: "file://subchart/video-ingestion/"
     condition: videoingestion.enabled
-  - name: videosummaryui
-    version: 1.3.2
-    repository: "file://subchart/video-summary-ui/"
   - name: videosearch
     version: 1.3.2
     repository: "file://subchart/video-search/"
@@ -49,3 +46,13 @@ dependencies:
     version: 0.1.0
     repository: "file://subchart/vllm"
     condition: vllm.enabled
+  - name: vssui
+    alias: summaryui
+    version: 1.3.2
+    repository: "file://subchart/vss-ui/"
+    condition: summaryui.enabled
+  - name: vssui
+    alias: searchui
+    version: 1.3.2
+    repository: "file://subchart/vss-ui/"
+    condition: searchui.enabled
