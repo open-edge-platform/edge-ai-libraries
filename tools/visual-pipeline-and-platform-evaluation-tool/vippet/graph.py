@@ -3699,8 +3699,8 @@ def _build_chain(
             for key, value in node.data.items():
                 if key.startswith("__"):
                     continue
-                # Remap the canonical in-memory key ``model`` back to the wire key 
-                # declared in NODE_MODEL_SPECS for this node type (e.g. ``model-path`` 
+                # Remap the canonical in-memory key ``model`` back to the wire key
+                # declared in NODE_MODEL_SPECS for this node type (e.g. ``model-path``
                 # for ``gvagenai``). All other keys pass through unchanged.
                 output_key = spec.model_key if key == "model" else key
                 result_parts.append(f"{output_key}={value}")
