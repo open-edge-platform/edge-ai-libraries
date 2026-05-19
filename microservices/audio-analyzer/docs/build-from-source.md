@@ -14,7 +14,7 @@ The repository ships a `Dockerfile` and a `docker-compose.yml`. To build the
 image as part of the Compose stack:
 
 ```bash
-LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose build
+docker compose build
 ```
 
 To build the image directly with `docker`:
@@ -25,7 +25,10 @@ docker build -t audio-analyzer:local .
 
 The Compose setup mounts `config.container.yaml`, `models/`, `chunks/`,
 `storage/`, and the Hugging Face cache into the container, and passes
-`/dev/dri` through for host Intel iGPU access by default.
+`/dev/dri` through for host Intel iGPU access by default. The container
+runs as UID/GID `1000:1000` by default; see
+[troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders)
+if your host user differs.
 
 For the full container run flow, see [run-container.md](run-container.md).
 

@@ -45,14 +45,38 @@ cached artifacts.
 
 ## Permission Errors on Mounted Folders
 
-The container is intended to run as your current host user so shared folders
-stay writable from both Docker and standalone runs. Start it with:
+The container runs as UID/GID `1000:1000` by default (set via
+`user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"` in `docker-compose.yml`).
+If your host user has a different UID/GID, the container will write into
+the mounted folders (`models/`, `chunks/`, `storage/`,
+`.cache/huggingface/`) as `1000:1000`, which can lead to errors such as:
+
+```
+PermissionError: [Errno 13] Permission denied: '/app/audio_analyzer/storage/...'
+```
+
+or, on the host side:
+
+```
+mkdir: cannot create directory 'models/...': Permission denied
+```
+
+To fix this, start the container with your host user's UID/GID so the
+mounted folders stay writable from both Docker and standalone runs:
 
 ```bash
 LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose up -d --build
 ```
 
-Or create a local `.env` file with `LOCAL_UID` and `LOCAL_GID`.
+Or persist it by creating a local `.env` file in the `audio_analyzer/`
+directory:
+
+```bash
+LOCAL_UID=$(id -u)
+LOCAL_GID=$(id -g)
+```
+
+After that, plain `docker compose up -d --build` will pick up your IDs.
 
 ## Microphone / `GET /devices` Returns Empty
 

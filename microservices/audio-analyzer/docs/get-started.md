@@ -20,9 +20,13 @@ See [run-container.md](run-container.md) for the full step-by-step guide.
 Quick start:
 
 ```bash
-LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose up -d --build
+docker compose up -d --build
 curl --noproxy '*' http://127.0.0.1:8010/health
 ```
+
+If you hit permission errors on `models/`, `chunks/`, `storage/`, or
+`.cache/huggingface/`, see
+[troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders).
 
 ## Path 2: Run on the Host
 
