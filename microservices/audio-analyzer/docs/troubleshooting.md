@@ -61,6 +61,12 @@ or, on the host side:
 mkdir: cannot create directory 'models/...': Permission denied
 ```
 
+This can also happen when a bind-mount source path does not exist on the host.
+Docker Compose may create the missing directory as `root` before the
+container starts. Fresh clones of this repository include placeholder files
+for the expected mount roots, but if you deleted `models/`, `chunks/`,
+`storage/`, or `.cache/huggingface/`, recreate them as your user first.
+
 To fix this, start the container with your host user's UID/GID so the
 mounted folders stay writable from both Docker and standalone runs:
 
@@ -77,6 +83,13 @@ LOCAL_GID=$(id -g)
 ```
 
 After that, plain `docker compose up -d --build` will pick up your IDs.
+
+If the directories already exist as `root`, repair them once on the host:
+
+```bash
+mkdir -p models chunks storage .cache/huggingface
+sudo chown -R "$(id -u):$(id -g)" models chunks storage .cache
+```
 
 ## Microphone / `GET /devices` Returns Empty
 

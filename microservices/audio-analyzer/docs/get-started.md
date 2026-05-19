@@ -14,6 +14,9 @@ Pick one of the two deployment paths and follow the linked guide.
 
 The container image exposes the API on host port `8010` and mounts shared
 folders for models, chunks, storage, and the Hugging Face cache.
+Fresh clones include placeholder directories for these mount roots. If you
+delete them and then start Compose, Docker may recreate the missing host
+paths as `root` before the container starts.
 
 See [run-container.md](run-container.md) for the full step-by-step guide.
 

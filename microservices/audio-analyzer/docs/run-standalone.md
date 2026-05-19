@@ -70,7 +70,7 @@ curl --noproxy '*' http://127.0.0.1:8010/health
 
 ## API Use Cases and Examples
 
-For API use cases, request examples, and endpoint details, see [api.md](api.md).
+For API use cases, request examples, and endpoint details, see [api-reference.md](api-reference.md).
 
 ## Notes
 

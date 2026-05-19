@@ -29,6 +29,9 @@ The Compose setup mounts `config.container.yaml`, `models/`, `chunks/`,
 runs as UID/GID `1000:1000` by default; see
 [troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders)
 if your host user differs.
+Fresh clones include placeholder files for the expected mount roots. If you
+remove those directories and then start Compose, Docker may recreate the
+missing host paths as `root` before the container starts.
 
 For the full container run flow, see [run-container.md](run-container.md).
 

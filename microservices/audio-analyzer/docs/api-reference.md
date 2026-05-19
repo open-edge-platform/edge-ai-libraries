@@ -85,6 +85,6 @@ session-level sentiment summary.
 
 ## Related
 
-- Endpoint examples in context of a running deployment: [api.md](api.md)
+- Startup and deployment guides: [get-started.md](get-started.md), [run-container.md](run-container.md), [run-standalone.md](run-standalone.md)
 - Configuration of ASR and sentiment backends:
   [configuration.md](configuration.md)
