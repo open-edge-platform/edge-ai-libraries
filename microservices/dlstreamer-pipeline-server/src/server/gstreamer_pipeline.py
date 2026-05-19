@@ -10,7 +10,7 @@ import os
 import string
 import time
 from threading import Lock, Thread
-from collections import namedtuple
+from collections import deque, namedtuple
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -86,9 +86,12 @@ class GStreamerPipeline(Pipeline):
         self._last_frame_count = 0
         self._last_frame_time = 0
         self._gst_launch_string = None
-        self.latency_times = dict()
+        self.latency_times = deque()
         self.sum_pipeline_latency = 0
         self.count_pipeline_latency = 0
+        self._frame_latency = 0
+        self._last_latency_sum = 0
+        self._last_latency_count = 0
         self._real_base = None
         self._stream_base = None
         self._year_base = None
@@ -294,6 +297,7 @@ class GStreamerPipeline(Pipeline):
         if self.count_pipeline_latency != 0:
             status_obj["avg_pipeline_latency"] = self.sum_pipeline_latency / \
                 self.count_pipeline_latency
+            status_obj["frame_latency"] = self._frame_latency
 
         return status_obj
 
@@ -751,17 +755,11 @@ class GStreamerPipeline(Pipeline):
 
     @staticmethod
     def source_probe_callback(unused_pad, info, self):
-        buffer = info.get_buffer()
-        pts = buffer.pts
         current_time = time.time()
-        self.latency_times[pts] = current_time
+        self.latency_times.append(current_time)
         stale_threshold = current_time - 30
-        while self.latency_times:
-            k, v = next(iter(self.latency_times.items()))
-            if v < stale_threshold:
-                del self.latency_times[k]
-            else:
-                break
+        while self.latency_times and self.latency_times[0] < stale_threshold:
+            self.latency_times.popleft()
         return Gst.PadProbeReturn.OK
 
     def source_setup_callback(self, unused_bin, src_element, unused_udata):
@@ -771,12 +769,13 @@ class GStreamerPipeline(Pipeline):
 
     @staticmethod
     def appsink_probe_callback(unused_pad, info, self):
-        buffer = info.get_buffer()
-        pts = buffer.pts
-        source_time = self.latency_times.pop(pts, -1)
-        if source_time != -1:
-            self.sum_pipeline_latency += time.time() - source_time
+        if self.latency_times:
+            source_time = self.latency_times.popleft()
+            frame_latency = time.time() - source_time
+            self.sum_pipeline_latency += frame_latency
             self.count_pipeline_latency += 1
+            self._last_latency_sum += frame_latency
+            self._last_latency_count += 1
         return Gst.PadProbeReturn.OK
 
     def _save_start_time(self):
@@ -797,6 +796,10 @@ class GStreamerPipeline(Pipeline):
           self._frame_fps = (self.frame_count - self._last_frame_count) / delta_time
           self._last_frame_count = self.frame_count
           self._last_frame_time = current_time
+          if self._last_latency_count > 0:
+            self._frame_latency = self._last_latency_sum / self._last_latency_count
+            self._last_latency_sum = 0
+            self._last_latency_count = 0
         
     def on_sample_app_destination(self, sink):
         self._logger.debug("Received Sample from Pipeline {id}".format(
@@ -938,6 +941,9 @@ class GStreamerPipeline(Pipeline):
                 self.latency_times.clear()
                 self.sum_pipeline_latency = 0
                 self.count_pipeline_latency = 0
+                self._frame_latency = 0
+                self._last_latency_sum = 0
+                self._last_latency_count = 0
 
                 # Rebuild the pipeline from scratch (reusing start() logic)
                 gst_launch_string = string.Formatter().vformat(

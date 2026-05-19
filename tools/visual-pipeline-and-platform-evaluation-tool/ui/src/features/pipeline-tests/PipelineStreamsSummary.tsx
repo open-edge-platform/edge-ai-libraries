@@ -44,7 +44,9 @@ export const PipelineStreamsSummary = ({
                 </span>
                 {variantName && (
                   <>
-                    <span className="text-[0.625rem] text-pipeline-summary-variant">•</span>
+                    <span className="text-[0.625rem] text-pipeline-summary-variant">
+                      •
+                    </span>
                     <span className="truncate text-[0.625rem] font-medium uppercase tracking-wider text-pipeline-summary-variant">
                       {variantName}
                     </span>
