@@ -237,7 +237,9 @@ class AudioUploadTests(unittest.TestCase):
         upload = DummyUploadFile("../clip.wav", b"audio-bytes")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            with patch.object(app_paths, "STORAGE_ROOT", temp_dir):
+            with patch.object(app_paths, "STORAGE_ROOT", temp_dir), patch(
+                "utils.audio_util._audio_stream_exists", return_value=True
+            ):
                 filename, file_path = save_audio_file(upload, session_id=session_id)
 
             self.assertEqual(filename, "clip.wav")
@@ -250,7 +252,9 @@ class AudioUploadTests(unittest.TestCase):
         upload_two = DummyUploadFile("clip.wav", b"second")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            with patch.object(app_paths, "STORAGE_ROOT", temp_dir):
+            with patch.object(app_paths, "STORAGE_ROOT", temp_dir), patch(
+                "utils.audio_util._audio_stream_exists", return_value=True
+            ):
                 first_name, first_path = save_audio_file(upload_one, session_id=session_id)
                 second_name, second_path = save_audio_file(upload_two, session_id=session_id)
 

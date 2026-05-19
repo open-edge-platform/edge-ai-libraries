@@ -5,6 +5,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from dto.audiosource import AudioSource
+from dto.transcription_dto import validate_transcription_options
 from pipeline import Pipeline
 from utils.audio_util import save_audio_file
 from utils.locks import audio_pipeline_lock
@@ -59,13 +60,13 @@ def transcribe_audio(
     if audio_pipeline_lock.locked():
         raise HTTPException(status_code=429, detail="Session Active, Try Later")
 
-    del prompt
-
-    if model not in {"whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"}:
-        raise HTTPException(status_code=400, detail=f"Unsupported model: {model}")
-
-    if response_format not in {"json", "text", "verbose_json", "srt", "vtt"}:
-        raise HTTPException(status_code=400, detail=f"Unsupported response_format: {response_format}")
+    language, _ = validate_transcription_options(
+        temperature=temperature,
+        language=language,
+        prompt=prompt,
+        model=model,
+        response_format=response_format,
+    )
 
     try:
         session_id, continue_session = resolve_requested_session_id(session_id)

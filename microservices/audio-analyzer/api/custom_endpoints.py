@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from dto.audiosource import AudioSource
+from dto.transcription_dto import validate_transcription_options
 from pipeline import Pipeline
 from utils.audio_util import save_audio_file
 from utils.config_loader import config
@@ -48,6 +49,11 @@ def stream_transcribe_audio(
 ):
     if audio_pipeline_lock.locked():
         raise HTTPException(status_code=429, detail="Session Active, Try Later")
+
+    language, _ = validate_transcription_options(
+        temperature=temperature,
+        language=language,
+    )
 
     try:
         session_id, continue_session = resolve_requested_session_id(session_id)
