@@ -224,6 +224,14 @@ class AudioUploadTests(unittest.TestCase):
         self.assertTrue(os.path.isabs(chunks_dir))
         self.assertEqual(chunks_dir, os.path.join(app_paths.BASE_DIR, "chunks/"))
 
+    def test_get_session_chunks_dir_stays_under_session_storage(self):
+        session_chunks_dir = app_paths.get_session_chunks_dir("session-123")
+
+        self.assertEqual(
+            session_chunks_dir,
+            os.path.join(app_paths.STORAGE_ROOT, "session-123", "chunks"),
+        )
+
     def test_save_audio_file_uses_session_directory_and_sanitized_name(self):
         session_id = "session-123"
         upload = DummyUploadFile("../clip.wav", b"audio-bytes")
