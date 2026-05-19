@@ -10,7 +10,7 @@ by following these [build instructions](https://docs.openedgeplatform.intel.com/
 ---
 > **Note**: The tags suffixed with `-weekly` and `-rcX` are developmental builds that may not be stable.
 
-### [1.1.0](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/time-series-analytics/release-notes/release-notes-2025.html)
+### [1.1.0](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/time-series-analytics/release_notes/dec-2025.html)
 
 #### Deploy using Docker Compose
 ---
