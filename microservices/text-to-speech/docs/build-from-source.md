@@ -15,6 +15,7 @@ the image as part of the Compose stack:
 
 ```bash
 docker compose build
+docker compose up -d
 ```
 
 To build the image directly with `docker`:
@@ -30,8 +31,6 @@ UID/GID `1000:1000` by default; see
 [troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders)
 if your host user differs.
 
-For the full container run flow, see [run-container.md](run-container.md).
-
 ## Build a Python Environment (Standalone)
 
 Install host packages, then create a virtual environment and install
@@ -45,15 +44,12 @@ python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
+python main.py
 ```
-
-For the full standalone run flow, see
-[run-standalone.md](run-standalone.md).
 
 ## Verifying the Build
 
-After building, start the service via one of the two run guides and
-confirm:
+After building and starting the service, confirm:
 
 ```bash
 curl --noproxy '*' http://127.0.0.1:8011/health

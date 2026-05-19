@@ -54,7 +54,8 @@ curl --noproxy '*' \
     "input": "The kiosk is ready for your next request.",
     "response_format": "wav"
   }' \
-  --output speech.wav
+  -o speech.wav \
+  -w '\nHTTP %{http_code}\n'
 ```
 
 > SpeechT5 accepts only the configured `voice` and `language`. Passing
@@ -74,7 +75,8 @@ curl --noproxy '*' \
     "instructions": "Speak clearly and warmly.",
     "response_format": "wav"
   }' \
-  --output speech.wav
+  -o speech.wav \
+  -w '\nHTTP %{http_code}\n'
 ```
 
 > The service currently supports English only. Requests that pass any
