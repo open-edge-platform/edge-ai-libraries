@@ -3,9 +3,12 @@ from contextlib import asynccontextmanager
 from utils.logger_config import setup_logger
 setup_logger()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from api.custom_endpoints import router as custom_router
+from api.error_responses import build_openai_error, openai_error_response
 from api.openai_endpoints import router as openai_router
 from pipeline import Pipeline
 from utils.config_loader import config
@@ -78,6 +81,51 @@ app.add_middleware(
 
 app.include_router(openai_router)
 app.include_router(custom_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def handle_request_validation_error(request: Request, exc: RequestValidationError):
+    first_error = exc.errors()[0] if exc.errors() else {}
+    loc = first_error.get("loc", ())
+    param = None
+    if len(loc) >= 2 and loc[0] == "body":
+        param = str(loc[1])
+    message = first_error.get("msg", "Request validation failed")
+    return openai_error_response(
+        422,
+        message,
+        param=param,
+        code="invalid_request",
+    )
+
+
+@app.exception_handler(HTTPException)
+async def handle_http_exception(request: Request, exc: HTTPException):
+    detail = exc.detail
+    if isinstance(detail, dict) and "error" in detail:
+        return JSONResponse(status_code=exc.status_code, content=detail)
+    if isinstance(detail, str):
+        message = detail
+    else:
+        message = "Request failed"
+    return openai_error_response(
+        exc.status_code,
+        message,
+        code="invalid_request" if exc.status_code < 500 else "internal_error",
+    )
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_exception(request: Request, exc: Exception):
+    logger.exception("Unhandled application failure")
+    return JSONResponse(
+        status_code=500,
+        content=build_openai_error(
+            "Speech synthesis failed",
+            error_type="server_error",
+            code="internal_error",
+        ),
+    )
 
 if __name__ == "__main__":
     import uvicorn

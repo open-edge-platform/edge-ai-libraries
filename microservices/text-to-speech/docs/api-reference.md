@@ -35,7 +35,7 @@ JSON body fields:
 
 | Field             | Required | Description                                                                                              |
 | ----------------- | -------- | -------------------------------------------------------------------------------------------------------- |
-| `model`           | Yes      | Required for OpenAI API compatibility; value is ignored. The service always uses the configured model.   |
+| `model`           | Yes      | Required for OpenAI API compatibility; the configured service model is always used.                       |
 | `input`           | Yes      | Text to synthesize.                                                                                      |
 | `voice`           | No       | Speaker name; defaults to the configured speaker.                                                        |
 | `language`        | No       | Only `English` is currently accepted.                                                                    |
@@ -57,8 +57,8 @@ curl --noproxy '*' \
   --output speech.wav
 ```
 
-> SpeechT5 uses a single fixed speaker embedding; the `voice` and
-> `language` fields are accepted but ignored.
+> SpeechT5 accepts only the configured `voice` and `language`. Passing
+> other values, or any `instructions`, returns an OpenAI-style error.
 
 Example — Qwen TTS (set `models.tts.name` to a Qwen model in `config.yaml`):
 
@@ -79,6 +79,19 @@ curl --noproxy '*' \
 
 > The service currently supports English only. Requests that pass any
 > other language return `400`.
+
+Error responses follow the OpenAI schema:
+
+```json
+{
+  "error": {
+    "message": "Only English is currently supported for speech synthesis.",
+    "type": "invalid_request_error",
+    "param": "language",
+    "code": "invalid_request"
+  }
+}
+```
 
 ## Sessions
 
