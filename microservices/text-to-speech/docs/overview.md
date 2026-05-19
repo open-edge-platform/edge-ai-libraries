@@ -1,32 +1,36 @@
 # Overview
 
-The Text To Speech microservice is a FastAPI-based service for synthesizing
-speech from text. It accepts a text input, runs the configured TTS model
-(OpenVINO or PyTorch runtime), and returns either raw WAV audio or JSON
-metadata plus a base64-encoded WAV payload.
+The Text To Speech microservice turns text into natural-sounding speech. It
+is designed to be dropped into voice-enabled applications (kiosks,
+assistants, IVR, accessibility tooling) where a simple HTTP request should
+return either raw WAV audio or a JSON payload with metadata.
+
+## Use Cases
+
+- Voice responses for conversational assistants and kiosks.
+- Accessibility readers and announcement systems.
+- IVR / call-flow prompts generated on the edge.
+- Audio generation pipelines that need a self-hosted, OpenAI-compatible
+  `/v1/audio/speech` endpoint.
 
 ## Key Capabilities
 
-- Speech generation API at `POST /v1/audio/speech`
-- Voice and model metadata at `GET /v1/audio/voices`
-- Health check at `GET /health`
-- TTS runtimes: `openvino`, `pytorch`
+- OpenAI-style speech endpoint and a voices/metadata endpoint.
+- Multi-runtime backends: OpenVINO (Intel-optimized) and PyTorch.
 - Configurable device (`CPU`, `GPU`, `NPU`) and precision (`int8`, `int4`,
-  `fp16`, `fp32`) where supported by the runtime/model
-- English-only synthesis in the current service build
-- Optional persistence of synthesized output under `storage/<session_id>/`
+  `fp16`, `fp32`) where the runtime/model supports it.
+- Selectable speaker / voice per model family.
+- Optional persistence of synthesized output for session reuse.
 
-## Storage
+## Supported Models
 
-When `pipeline.persist_outputs` is enabled, the synthesized WAV and its
-metadata are written under `storage/<session_id>/`. The session id is also
-returned in the `X-Session-ID` response header for `wav` responses.
+- **SpeechT5** — `microsoft/speecht5_tts` (default). Lightweight,
+  English-only, well suited for CPU and edge devices.
+- **Qwen3-TTS** — `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` with
+  `model_variant: custom_voice` or `voice_design` for richer voice control.
+- Runtimes: `openvino` (recommended on Intel hardware) and `pytorch`.
+- English-only synthesis in the current service build.
 
-## Deployment Modes
-
-- Containerized via Docker Compose, exposing the API on port `8011`.
-- Standalone Python execution on the host, bound to `127.0.0.1:8011` by
-  default.
-
-For deeper context on internal flow and components, see
-[how-it-works.md](how-it-works.md).
+See [configuration.md](configuration.md) for how to select the model,
+runtime, device, precision, and default speaker, and
+[how-it-works.md](how-it-works.md) for the internal request flow.

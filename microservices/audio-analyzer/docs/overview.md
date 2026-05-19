@@ -1,32 +1,42 @@
 # Overview
 
-The Audio Analyzer is a FastAPI-based microservice for audio transcription and
-optional voice-sentiment analysis. It accepts an uploaded audio file, chunks
-it with FFmpeg, runs ASR on each chunk, and returns either a single
-transcription response or a streaming NDJSON event stream. When sentiment is
-enabled, it also returns a session-level sentiment summary.
+The Audio Analyzer is a microservice that turns spoken audio into text and,
+optionally, into a high-level sentiment summary. It is designed to be dropped
+into voice-enabled applications (kiosks, assistants, call analytics, meeting
+notes) where a simple HTTP upload should return either a final transcript or
+a live stream of partial results.
+
+## Use Cases
+
+- Conversational assistants and kiosks that need speech-to-text on the edge.
+- Post-call or meeting analytics where a session-level sentiment summary is
+  useful alongside the transcript.
+- Batch transcription of recorded audio files.
+- Streaming transcription UIs that consume incremental NDJSON events as
+  chunks complete.
 
 ## Key Capabilities
 
-- OpenAI-style transcription API at `POST /v1/audio/transcriptions`
-- Streaming transcription API at `POST /v1/audio/transcriptions/stream`
-- Health check at `GET /health`
-- ALSA input device listing at `GET /devices`
-- ASR backends: `openai`, `openvino` (`whispercpp` to be added)
-- Optional sentiment analysis with `openvino` or `pytorch`
-- Session continuation by reusing `session_id` (returned in `X-Session-ID`)
+- OpenAI-style transcription endpoint and a streaming NDJSON variant.
+- Multi-backend ASR (OpenAI Whisper, OpenVINO, with whisper.cpp planned).
+- Optional voice-sentiment analysis aggregated per session.
+- Session continuation so multiple uploads can extend the same conversation.
+- Runs on CPU; supports GPU acceleration on Intel hardware via OpenVINO.
 
-## Storage
+## Supported Models
 
-Per-session runtime files are stored under `storage/<session_id>/`. Temporary
-audio chunks are written under the configured `audio_preprocessing.chunk_dir`
-and can be auto-deleted after processing.
+**ASR (speech-to-text):**
 
-## Deployment Modes
+- Whisper family — `whisper-tiny`, `whisper-base`, `whisper-small`,
+  `whisper-medium`, `whisper-large` — selectable via `models.asr.name`.
+- Backends: `openai` (PyTorch), `openvino` (Intel-optimized).
 
-- Containerized via Docker Compose, exposing the API on port `8010`.
-- Standalone Python execution on the host, bound to `127.0.0.1:8010` by
-  default.
+**Sentiment (optional, voice-based):**
 
-For deeper context on internal flow and components, see
-[how-it-works.md](how-it-works.md).
+- Default: `speechbrain/emotion-recognition-wav2vec2-IEMOCAP`.
+- Any compatible HuggingFace model can be configured via `sentiment.model`,
+  served through the `openvino` or `pytorch` provider.
+
+See [configuration.md](configuration.md) for how to select models, devices,
+and precision, and [how-it-works.md](how-it-works.md) for the internal
+request flow.

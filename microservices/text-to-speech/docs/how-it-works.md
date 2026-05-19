@@ -1,7 +1,53 @@
 # How It Works
 
-This page describes the internal flow of a TTS request through the
-microservice.
+This page describes the architecture and internal flow of a TTS request
+through the microservice.
+
+## Architecture
+
+At a high level, the Text To Speech service is a FastAPI application that
+accepts a JSON request, runs it through a runtime-backed TTS pipeline
+(OpenVINO or PyTorch), and returns either raw WAV audio or a JSON envelope
+containing metadata and a base64-encoded WAV payload. Models are loaded and
+warmed up once per process and reused across requests.
+
+```mermaid
+flowchart LR
+    Client([Client])
+
+    subgraph Service["Text To Speech (FastAPI, :8011)"]
+        API["API Layer<br/>(speech / voices / health)"]
+        Pipeline["Pipeline Orchestrator<br/>(pipeline.py)"]
+        Backend["TTS Backend<br/>(openvino | pytorch)"]
+        Voices["Voice / Speaker Registry"]
+        Session[("Session Store<br/>storage/&lt;session_id&gt;/")]
+    end
+
+    Models[("Model Cache<br/>models/")]
+    Device{{"Inference Device<br/>CPU / GPU / NPU"}}
+
+    Client -- "POST /v1/audio/speech<br/>GET /v1/audio/voices" --> API
+    API --> Pipeline
+    Pipeline --> Voices
+    Pipeline --> Backend
+    Backend --> Device
+    Backend -. loads / warms up .-> Models
+    Pipeline <-- "optional persist" --> Session
+    Pipeline -- "audio/wav  or  JSON + base64 WAV<br/>X-Session-ID header" --> Client
+```
+
+**Key planes:**
+
+- **API layer** — request validation, language/voice resolution, and
+  response shaping (raw `audio/wav` vs. JSON envelope).
+- **Pipeline orchestrator** — owns model load/warmup, speaker resolution,
+  synthesis, and optional persistence.
+- **TTS backend** — pluggable OpenVINO or PyTorch runtime selected via
+  config; handles model placement on the configured device and precision.
+- **Voice registry** — exposes the available speakers/voices for the
+  active model and resolves the request's `voice` field.
+- **Session store** — when `pipeline.persist_outputs` is true, the
+  synthesized WAV and metadata are written under `storage/<session_id>/`.
 
 ## Request Flow
 

@@ -1,7 +1,57 @@
 # How It Works
 
-This page describes the internal flow of an audio request through the
-microservice.
+This page describes the architecture and internal flow of an audio request
+through the microservice.
+
+## Architecture
+
+At a high level, the Audio Analyzer is a FastAPI service that accepts an
+audio upload, splits it into chunks with FFmpeg, runs each chunk through an
+ASR backend, and (optionally) runs a sentiment model in parallel. Results
+are aggregated per session and returned either as a single JSON response or
+as an NDJSON event stream.
+
+```mermaid
+flowchart LR
+    Client([Client])
+
+    subgraph Service["Audio Analyzer (FastAPI, :8010)"]
+        API["API Layer<br/>(transcription / health / devices)"]
+        Pipeline["Pipeline Orchestrator<br/>(pipeline.py)"]
+        Pre["Preprocessing<br/>(FFmpeg: decode, chunk, denoise)"]
+        ASR["ASR Backend<br/>(openai | openvino | whispercpp)"]
+        Sent["Sentiment Backend<br/>(openvino | pytorch)"]
+        Session[("Session Store<br/>storage/&lt;session_id&gt;/")]
+    end
+
+    Models[("Model Cache<br/>models/")]
+    Device{{"Inference Device<br/>CPU / GPU"}}
+
+    Client -- "POST /v1/audio/transcriptions{,/stream}" --> API
+    API --> Pipeline
+    Pipeline --> Pre
+    Pre --> ASR
+    Pre --> Sent
+    ASR --> Device
+    Sent --> Device
+    ASR --> Pipeline
+    Sent --> Pipeline
+    Pipeline <--> Session
+    ASR -. loads .-> Models
+    Sent -. loads .-> Models
+    Pipeline -- "JSON response / NDJSON events<br/>X-Session-ID header" --> Client
+```
+
+**Key planes:**
+
+- **API layer** — request validation, session header handling, response
+  shaping (single JSON vs. streaming NDJSON).
+- **Pipeline orchestrator** — drives preprocessing, ASR, and sentiment;
+  aggregates per-chunk results into a session-level summary.
+- **Backends** — pluggable ASR and sentiment implementations selected via
+  config; each backend handles its own model loading and device placement.
+- **Session store** — per-session directory holding chunk files and
+  metadata; enables multi-upload continuation via `session_id`.
 
 ## Request Flow
 
