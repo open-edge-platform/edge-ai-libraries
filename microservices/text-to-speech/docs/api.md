@@ -10,7 +10,7 @@ Returns:
 
 ## `GET /v1/audio/voices`
 
-Returns the configured model metadata plus supported speakers and languages.
+Returns the configured model metadata plus supported speakers and the currently supported language list.
 
 Example:
 
@@ -25,7 +25,7 @@ JSON body fields:
 - `model`: required field for OpenAI API compatibility; the value is ignored — the service always uses the model defined in `config.yaml`. Pass any string such as `"default"`.
 - `input`: required text to synthesize
 - `voice`: optional speaker name; defaults to the configured speaker
-- `language`: optional language; defaults to the configured language
+- `language`: optional language; only `English` is currently accepted
 - `instructions`: optional speaking style guidance
 - `response_format`: `wav` or `json`
 
@@ -63,3 +63,5 @@ curl --noproxy '*' \
 ```
 
 > SpeechT5 uses a single fixed speaker embedding; the `voice` and `language` fields are accepted but ignored.
+
+> The service currently supports English only. Requests that pass any other language return `400`.

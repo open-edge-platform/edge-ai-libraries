@@ -21,7 +21,7 @@ models:
     # Qwen custom_voice example: Ryan
     # Qwen voice_design: speaker can be omitted
     default_speaker: Ryan
-    # Shared field used by both models
+    # The service currently supports English only.
     default_language: English
     # Shared cache/output settings used by both models
     models_base_path: models

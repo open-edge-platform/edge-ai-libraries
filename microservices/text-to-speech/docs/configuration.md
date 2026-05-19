@@ -38,7 +38,7 @@ TEXT_TO_SPEECH__MODELS__TTS__DEVICE=GPU python main.py
 
 ## Key Sections
 
-- `models.tts`: model name, runtime, device, dtype, variant, speaker, language, cache settings
+- `models.tts`: model name, runtime, device, dtype, variant, speaker, English language default, cache settings
 - `audio`: output format and sample width
 - `pipeline.persist_outputs`: whether synthesized audio and metadata are written to storage
 
@@ -48,6 +48,7 @@ TEXT_TO_SPEECH__MODELS__TTS__DEVICE=GPU python main.py
 - `models.tts.device`: `CPU`, `GPU`, or `NPU` depending on model/runtime support
 - `models.tts.dtype`: `int8`, `int4`, `fp16`, `fp32`
 - `models.tts.model_variant`: `custom_voice` or `voice_design` for Qwen variants
+- `models.tts.default_language`: keep this at `English`; other languages are not currently supported by the service API
 - `audio.output_format`: typically `wav`
 
 ## Linux iGPU / OpenVINO GPU

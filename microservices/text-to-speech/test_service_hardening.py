@@ -96,6 +96,38 @@ class ServiceHardeningTests(unittest.TestCase):
                 )
         self.assertEqual(response.status_code, 422)
 
+    def test_generate_speech_rejects_non_english_language(self):
+        with patch("main.ensure_model"), patch("main.preload_models"), patch("main.Pipeline") as warmup_pipeline, patch("api.openai_endpoints.Pipeline") as mock_pipeline:
+            warmup_pipeline.return_value.synthesize.return_value = self._warmup_result()
+            mock_pipeline.return_value.synthesize.side_effect = ValueError("Only English is currently supported for speech synthesis.")
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/v1/audio/speech",
+                    json={
+                        "model": "qwen-tts",
+                        "input": "hello",
+                        "language": "Spanish",
+                        "response_format": "wav",
+                    },
+                )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Only English is currently supported for speech synthesis.")
+
+    def test_list_supported_voices_reports_english_only(self):
+        model_info = {
+            "model": "test-model",
+            "supported_speakers": ["Ryan"],
+            "supported_languages": ["English"],
+            "default_language": "English",
+        }
+        with patch("main.ensure_model"), patch("main.preload_models"), patch("main.Pipeline") as warmup_pipeline, patch("api.custom_endpoints.Pipeline") as mock_pipeline:
+            warmup_pipeline.return_value.synthesize.return_value = self._warmup_result()
+            mock_pipeline.return_value.get_model_info.return_value = model_info
+            with TestClient(main.app) as client:
+                response = client.get("/v1/audio/voices")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["supported_languages"], ["English"])
+
 
 if __name__ == "__main__":
     unittest.main()
