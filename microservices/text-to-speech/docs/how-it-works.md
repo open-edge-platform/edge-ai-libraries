@@ -12,6 +12,26 @@ containing metadata and a base64-encoded WAV payload. Models are loaded and
 warmed up once per process and reused across requests.
 
 ```mermaid
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontFamily': '"IntelOne Display", "Intel Clear", "Inter", "Segoe UI", Arial, sans-serif',
+    'fontSize': '14px',
+    'primaryColor': '#0068B5',
+    'primaryTextColor': '#FFFFFF',
+    'primaryBorderColor': '#00377C',
+    'lineColor': '#00377C',
+    'secondaryColor': '#EEF3F8',
+    'tertiaryColor': '#F7F8FA',
+    'background': '#FFFFFF',
+    'mainBkg': '#FFFFFF',
+    'clusterBkg': '#F7F8FA',
+    'clusterBorder': '#0068B5',
+    'edgeLabelBackground': '#FFFFFF',
+    'noteBkgColor': '#F7F8FA',
+    'noteTextColor': '#3A3A3A'
+  }
+}}%%
 flowchart LR
     Client([Client])
 
@@ -34,6 +54,20 @@ flowchart LR
     Backend -. loads / warms up .-> Models
     Pipeline <-- "optional persist" --> Session
     Pipeline -- "audio/wav  or  JSON + base64 WAV<br/>X-Session-ID header" --> Client
+
+    classDef client fill:#FFFFFF,stroke:#0068B5,stroke-width:2px,color:#3A3A3A;
+    classDef core fill:#0068B5,stroke:#00377C,stroke-width:1.5px,color:#FFFFFF;
+    classDef backend fill:#00A3F4,stroke:#00377C,stroke-width:1.5px,color:#FFFFFF;
+    classDef store fill:#6C6C6C,stroke:#0068B5,stroke-width:1.5px,color:#FFFFFF;
+    classDef device fill:#00C7FD,stroke:#00377C,stroke-width:1.5px,color:#3A3A3A;
+
+    class Client client;
+    class API,Pipeline,Voices core;
+    class Backend backend;
+    class Session,Models store;
+    class Device device;
+
+    style Service fill:#F7F8FA,stroke:#0068B5,stroke-width:1.5px,color:#3A3A3A;
 ```
 
 **Key planes:**
