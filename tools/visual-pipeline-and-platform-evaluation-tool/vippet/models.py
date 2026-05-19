@@ -459,11 +459,11 @@ class SupportedModelsManager:
                 return model
         return None
 
-    def find_installed_model_by_model_and_proc_path(
+    def find_model_by_model_and_proc_path(
         self,
         model_path: str,
         model_proc_path: Optional[str] = None,
-        require_installed: bool = True,
+        installed_only: bool = True,
     ) -> Optional[SupportedModel]:
         """
         Finds a model by its model path and, if provided, by its model_proc_path.
@@ -482,11 +482,11 @@ class SupportedModelsManager:
         Args:
             model_path (str): The path to the model file (full or relative).
             model_proc_path (Optional[str]): The path to the model-proc file, or None.
-            require_installed (bool): When True (default) only return models
-                that are currently present on disk. Set to False to also
-                match supported-but-not-yet-installed models (used by
-                pipeline graph ingestion so ``used_by_pipelines`` is
-                populated regardless of install status).
+            installed_only (bool): When True (default) only return models that
+                are currently present on disk. Set to False to also match
+                supported-but-not-yet-installed models (used by pipeline graph
+                ingestion so ``used_by_pipelines`` is populated regardless of
+                install status).
 
         Returns:
             Optional[SupportedModel]: The matching SupportedModel instance if found, otherwise None.
@@ -496,7 +496,7 @@ class SupportedModelsManager:
         for model in self._models:
             if (
                 model.model_type == "genai"
-                and (not require_installed or model.exists_on_disk())
+                and (not installed_only or model.exists_on_disk())
                 and os.path.normpath(model.model_path_full).rstrip("/")
                 == normalized_model_path.rstrip("/")
             ):
@@ -513,7 +513,7 @@ class SupportedModelsManager:
             model
             for model in self._models
             if os.path.basename(model.model_path) == model_filename
-            and (not require_installed or model.exists_on_disk())
+            and (not installed_only or model.exists_on_disk())
         ]
 
         if not matching_models:

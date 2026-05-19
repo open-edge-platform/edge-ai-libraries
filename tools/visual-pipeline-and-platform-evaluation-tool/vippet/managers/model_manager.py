@@ -29,6 +29,7 @@ Threading model mirrors :class:`OptimizationManager`:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -777,15 +778,19 @@ class ModelManager:
                         if job is not None:
                             job.progress_message = progress
 
-                    if all(s == "completed" for s, _ in statuses):
-                        self._finalize_success(job_id, model_name, head)
-                        return
-                    if any(s == "failed" for s, _ in statuses):
-                        msg = next(
-                            (err for s, err in statuses if s == "failed" and err),
-                            "model-download reported a failed job",
-                        )
-                        self._fail_job(job_id, msg)
+                    if all(s in ("completed", "failed") for s, _ in statuses):
+                        if all(s == "completed" for s, _ in statuses):
+                            self._finalize_success(job_id, model_name, head)
+                            return
+                        # At least one failed and none is still processing —
+                        # aggregate every failure reason into a single message
+                        # so callers see all root causes at once.
+                        errors = [
+                            err or "model-download reported a failed job"
+                            for s, err in statuses
+                            if s == "failed"
+                        ]
+                        self._fail_job(job_id, "; ".join(errors))
                         return
 
                     time.sleep(DOWNLOAD_POLL_INTERVAL_S)
@@ -1306,7 +1311,7 @@ class ModelManager:
             with os.fdopen(fd, "wb") as out:
                 shutil.copyfileobj(upload, out, length=UPLOAD_CHUNK_SIZE)
         except Exception:
-            with contextlib_suppress():
+            with contextlib.suppress(Exception):
                 os.unlink(path)
             raise
         return path
@@ -1374,16 +1379,3 @@ class _DownloadRequestCache:
                     SUPPORTED_MODELS_FILE,
                     exc_info=True,
                 )
-
-
-class contextlib_suppress:
-    """Tiny inline equivalent of ``contextlib.suppress(Exception)``.
-
-    Avoids importing contextlib just for one call site.
-    """
-
-    def __enter__(self) -> "contextlib_suppress":
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> bool:  # type: ignore[override]
-        return True
