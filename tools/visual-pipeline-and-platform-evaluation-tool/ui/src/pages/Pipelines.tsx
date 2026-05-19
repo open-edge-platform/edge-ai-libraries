@@ -55,6 +55,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft,
+  Braces,
   Eye,
   Film,
   Infinity as InfinityIcon,
@@ -142,6 +143,7 @@ export const Pipelines = () => {
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
   const [livePreviewEnabled, setLivePreviewEnabled] = useState(false);
   const [latencyMetricsEnabled, setLatencyMetricsEnabled] = useState(false);
+  const [metadataEnabled, setMetadataEnabled] = useState(false);
   const [loopingEnabled, setLoopingEnabled] = useState(false);
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
@@ -351,7 +353,8 @@ export const Pipelines = () => {
           execution_config: {
             output_mode: outputMode,
             max_runtime: maxRuntimeSeconds,
-            metadata_mode: hasMetadata ? "file" : "disabled",
+            metadata_mode:
+              hasMetadata && metadataEnabled ? "file" : "disabled",
             enable_latency_metrics: latencyMetricsEnabled,
           },
         },
@@ -463,6 +466,10 @@ export const Pipelines = () => {
           : 0;
     const currentVariantData = data.variants.find((v) => v.id === variant);
     const isReadOnly = currentVariantData?.read_only ?? false;
+    const pipelineHasMetadata =
+      currentVariantData?.pipeline_graph.nodes.some(
+        (n) => n.type === "gvametapublish",
+      ) ?? false;
 
     const editorContent = (
       <div className="w-full h-full relative">
@@ -818,6 +825,19 @@ export const Pipelines = () => {
                           onCheckedChange={setLatencyMetricsEnabled}
                         />
                       </div>
+
+                      {pipelineHasMetadata && (
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Braces className="h-4 w-4 text-muted-foreground" />
+                            <span>Metadata JSON</span>
+                          </div>
+                          <Switch
+                            checked={metadataEnabled}
+                            onCheckedChange={setMetadataEnabled}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </PopoverContent>
@@ -899,6 +919,7 @@ export const Pipelines = () => {
                       livePreviewEnabled={livePreviewEnabled}
                       videoOutputEnabled={videoOutputEnabled}
                       enableLatencyMetrics={latencyMetricsEnabled}
+                      enableMetadata={metadataEnabled && pipelineHasMetadata}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null

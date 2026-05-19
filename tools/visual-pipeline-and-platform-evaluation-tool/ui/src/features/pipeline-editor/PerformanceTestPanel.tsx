@@ -166,6 +166,7 @@ type PerformanceTestPanelProps = {
   livePreviewEnabled?: boolean;
   videoOutputEnabled?: boolean;
   enableLatencyMetrics?: boolean;
+  enableMetadata?: boolean;
   liveStreamUrl?: string | null;
   resultOverrides?: FrozenSnapshotOverrides | null;
 };
@@ -177,6 +178,7 @@ const PerformanceTestPanel = ({
   livePreviewEnabled = false,
   videoOutputEnabled = false,
   enableLatencyMetrics = false,
+  enableMetadata = true,
   liveStreamUrl,
   resultOverrides,
 }: PerformanceTestPanelProps) => {
@@ -388,8 +390,17 @@ const PerformanceTestPanel = ({
   const hasLiveStream = livePreviewEnabled && (isRunning || !!liveStreamUrl);
   const hasOutputVideo =
     !livePreviewEnabled && !isRunning && !!completedVideoPath;
+  const showMetadataSection = enableMetadata && showMetadataTab;
+  const visibleTabCount =
+    (hasMediaTab ? 1 : 0) + (showMetadataSection ? 1 : 0);
   const effectiveMainTab =
-    activeMainTab === "media" && !hasMediaTab ? "metadata" : activeMainTab;
+    activeMainTab === "media" && !hasMediaTab
+      ? "metadata"
+      : activeMainTab === "metadata" && !showMetadataSection
+        ? hasMediaTab
+          ? "media"
+          : "metadata"
+        : activeMainTab;
 
   return (
     <div className="flex flex-col w-full h-full bg-background p-4 space-y-4 overflow-y-auto overflow-x-hidden min-w-0">
@@ -400,14 +411,16 @@ const PerformanceTestPanel = ({
         onValueChange={setActiveMainTab}
         className="flex flex-col min-w-0"
       >
-        <TabsList>
-          {hasMediaTab && (
-            <TabsTrigger value="media">{mediaTabLabel}</TabsTrigger>
-          )}
-          <TabsTrigger value="metadata" disabled={!showMetadataTab}>
-            Metadata JSON
-          </TabsTrigger>
-        </TabsList>
+        {visibleTabCount > 1 && (
+          <TabsList>
+            {hasMediaTab && (
+              <TabsTrigger value="media">{mediaTabLabel}</TabsTrigger>
+            )}
+            {showMetadataSection && (
+              <TabsTrigger value="metadata">Metadata JSON</TabsTrigger>
+            )}
+          </TabsList>
+        )}
 
         {hasMediaTab && (
           <TabsContent value="media" className="space-y-4 mt-2">
@@ -446,15 +459,16 @@ const PerformanceTestPanel = ({
           </TabsContent>
         )}
 
-        <TabsContent
-          value="metadata"
-          className="space-y-4 mt-2 overflow-hidden min-w-0"
-        >
-          {!showMetadataTab && isRunning && (
-            <p className="text-sm text-muted-foreground">
-              Waiting for metadata stream URLs from the API...
-            </p>
-          )}
+        {enableMetadata && (
+          <TabsContent
+            value="metadata"
+            className="space-y-4 mt-2 overflow-hidden min-w-0"
+          >
+            {!showMetadataTab && isRunning && (
+              <p className="text-sm text-muted-foreground">
+                Waiting for metadata stream URLs from the API...
+              </p>
+            )}
 
           {showMetadataTab &&
             displayEntries.length === 1 &&
@@ -563,7 +577,8 @@ const PerformanceTestPanel = ({
               })}
             </Tabs>
           )}
-        </TabsContent>
+          </TabsContent>
+        )}
       </Tabs>
 
       {isRunning && (
