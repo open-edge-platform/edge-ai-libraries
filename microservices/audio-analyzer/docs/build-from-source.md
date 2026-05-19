@@ -1,0 +1,57 @@
+# Build From Source
+
+This page covers building the Audio Analyzer microservice from source for
+both Docker and standalone host execution.
+
+## Prerequisites
+
+- Verify the [system requirements](system-requirements.md).
+- Clone the repository and `cd` into the `audio_analyzer/` directory.
+
+## Build the Docker Image
+
+The repository ships a `Dockerfile` and a `docker-compose.yml`. To build the
+image as part of the Compose stack:
+
+```bash
+LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose build
+```
+
+To build the image directly with `docker`:
+
+```bash
+docker build -t audio-analyzer:local .
+```
+
+The Compose setup mounts `config.container.yaml`, `models/`, `chunks/`,
+`storage/`, and the Hugging Face cache into the container, and passes
+`/dev/dri` through for host Intel iGPU access by default.
+
+For the full container run flow, see [run-container.md](run-container.md).
+
+## Build a Python Environment (Standalone)
+
+Install host packages, then create a virtual environment and install Python
+dependencies from source:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ffmpeg alsa-utils libsndfile1
+
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+For the full standalone run flow, see [run-standalone.md](run-standalone.md).
+
+## Verifying the Build
+
+After building, start the service via one of the two run guides and confirm:
+
+```bash
+curl --noproxy '*' http://127.0.0.1:8010/health
+```
+
+A `{"status": "ok"}` response confirms the build is functional.
