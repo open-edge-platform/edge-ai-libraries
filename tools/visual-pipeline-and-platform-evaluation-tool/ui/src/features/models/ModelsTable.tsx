@@ -181,7 +181,7 @@ export const ModelsTable = () => {
         <span className="text-sm text-muted-foreground">
           {effectiveSelection.size > 0
             ? `${effectiveSelection.size} model${effectiveSelection.size === 1 ? "" : "s"} selected`
-            : "Select one or more uninstalled models to install"}
+            : "Select one or more available models to install"}
         </span>
         <Button
           size="sm"
