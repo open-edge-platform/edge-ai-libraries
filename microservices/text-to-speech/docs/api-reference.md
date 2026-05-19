@@ -46,16 +46,19 @@ Example — SpeechT5 (set `models.tts.name` to `microsoft/speecht5_tts` in
 `config.yaml`):
 
 ```bash
-curl --noproxy '*' \
-  -X POST http://127.0.0.1:8011/v1/audio/speech \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "default",
-    "input": "The kiosk is ready for your next request.",
-    "response_format": "wav"
-  }' \
-  -o speech.wav \
-  -w '\nHTTP %{http_code}\n'
+status=$(
+  curl --noproxy '*' -sS \
+    -o speech.wav \
+    -w '%{http_code}' \
+    -X POST http://127.0.0.1:8011/v1/audio/speech \
+    -H 'Content-Type: application/json' \
+    -d '{
+      "model": "default",
+      "input": "The kiosk is ready for your next request.",
+      "response_format": "wav"
+    }'
+)
+if [ "$status" = "200" ]; then echo "Success: saved audio to speech.wav"; else echo "Failure: HTTP $status"; cat speech.wav; rm -f speech.wav; fi
 ```
 
 > SpeechT5 accepts only the configured `voice` and `language`. Passing
@@ -64,35 +67,22 @@ curl --noproxy '*' \
 Example — Qwen TTS (set `models.tts.name` to a Qwen model in `config.yaml`):
 
 ```bash
-curl --noproxy '*' \
-  -X POST http://127.0.0.1:8011/v1/audio/speech \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "default",
-    "input": "The kiosk is ready for your next request.",
-    "voice": "Ryan",
-    "language": "English",
-    "instructions": "Speak clearly and warmly.",
-    "response_format": "wav"
-  }' \
-  -o speech.wav \
-  -w '\nHTTP %{http_code}\n'
-```
-
-> The service currently supports English only. Requests that pass any
-> other language return `400`.
-
-Error responses follow the OpenAI schema:
-
-```json
-{
-  "error": {
-    "message": "Only English is currently supported for speech synthesis.",
-    "type": "invalid_request_error",
-    "param": "language",
-    "code": "invalid_request"
-  }
-}
+status=$(
+  curl --noproxy '*' -sS \
+    -o speech.wav \
+    -w '%{http_code}' \
+    -X POST http://127.0.0.1:8011/v1/audio/speech \
+    -H 'Content-Type: application/json' \
+    -d '{
+      "model": "default",
+      "input": "The kiosk is ready for your next request.",
+      "voice": "Ryan",
+      "language": "English",
+      "instructions": "Speak clearly and warmly.",
+      "response_format": "wav"
+    }'
+)
+if [ "$status" = "200" ]; then echo "Success: saved audio to speech.wav"; else echo "Failure: HTTP $status"; cat speech.wav; rm -f speech.wav; fi
 ```
 
 ## Sessions
