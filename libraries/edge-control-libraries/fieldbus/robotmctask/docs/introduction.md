@@ -58,7 +58,7 @@ The software runs on standard PCs or servers. Since it is primarily developed in
 
 ### Running
 
-Please check [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/libraries/edge-control-libraries/fieldbus/robotmctask/README.md) file for details.
+Please check the [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/libraries/edge-control-libraries/fieldbus/robotmctask/README.md) file for details.
 
 ### Examples
 
