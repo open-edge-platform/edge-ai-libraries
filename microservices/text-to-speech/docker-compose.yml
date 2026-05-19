@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: text-to-speech
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     ports:
       - "8011:8011"
     devices:
@@ -12,9 +13,10 @@ services:
       - video
     environment:
       TEXT_TO_SPEECH_CONFIG_OVERRIDE_PATHS: /app/text-to-speech/config.container.yaml
+      HF_HOME: /app/text-to-speech/.cache/huggingface
     volumes:
       - ./config.container.yaml:/app/text-to-speech/config.container.yaml:ro
       - ./models:/app/text-to-speech/models
       - ./storage:/app/text-to-speech/storage
-      - ./.cache/huggingface:/root/.cache/huggingface
+      - ./.cache/huggingface:/app/text-to-speech/.cache/huggingface
     restart: unless-stopped

@@ -1,5 +1,8 @@
 FROM openvino/ubuntu22_runtime:2026.1.0
 
+ARG APP_UID=1000
+ARG APP_GID=1000
+
 USER root
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -18,6 +21,10 @@ RUN python3 -m pip install --upgrade pip \
     && python3 -m pip install -r requirements.txt
 
 COPY . .
+
+RUN chown -R ${APP_UID}:${APP_GID} /app/text-to-speech
+
+USER ${APP_UID}:${APP_GID}
 
 EXPOSE 8011
 
