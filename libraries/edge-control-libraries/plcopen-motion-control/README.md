@@ -1,6 +1,6 @@
 # PLCopen Motion Control
 
-For more information, please see the complete [documentation](https://docs.openedgeplatform.intel.com/edge-ai-libraries/plcopen-motion-control/main/index.html)
+For more information, please see the complete [documentation](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/plcopen-motion-control/index.html)
 
 ## Description
 
