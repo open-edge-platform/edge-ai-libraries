@@ -6,9 +6,8 @@ SHELL := bash -eu -o pipefail
 # default goal to show help
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
-	shell shell-vippet shell-models shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
-	build-videogenerator build-models build-onvif-discovery docker-build env-setup \
-	install-models-once install-models-force install-models-all \
+	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
+	build-videogenerator build-onvif-discovery docker-build env-setup \
 	test-smoke test-full
 
 # Project Variables
@@ -87,21 +86,18 @@ build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onv
 build-videogenerator: env-setup ## Build videogenerator image
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build videogenerator
 
-build-models: env-setup ## Build model image
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build models
-
 build-onvif-discovery: env-setup ## Build onvif discovery image
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build onvif-discovery
 
-docker-build: build build-videogenerator build-models ## Build all images
+docker-build: build build-videogenerator ## Build all images
 
-run: env-setup install-models-once ## Run the docker compose services
+run: env-setup ## Run the docker compose services
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
 
-run-dev: env-setup install-models-once ## Run the docker compose services for development
+run-dev: env-setup ## Run the docker compose services for development
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
 
 test: env-setup ## Run unit tests and generate coverage report
@@ -126,23 +122,11 @@ test-full: $(VENV_DIR) ## Run full functional tests
 	set +u; . ./$</bin/activate; set -u ;\
 	python -m pytest --log-cli-level=INFO vippet/tests/functional/
 
-install-models-once: env-setup ## Handle models download and installation (once)
-	. .env && MODEL_INSTALLATION=once docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models
-
-install-models-force: env-setup ## Handle models download and installation (force)
-	. .env && MODEL_INSTALLATION=force docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models
-
-install-models-all: env-setup ## Install all models automatically (no dialog)
-	. .env && MODEL_INSTALLATION=all docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models
-
 shell: env-setup ## Open shell in specified container (i.e. make shell SERVICE=vippet)
 	docker exec -it $(SERVICE) bash
 
 shell-vippet: ## Open shell in vippet container
 	$(MAKE) shell SERVICE=vippet
-
-shell-models: ## Open shell in models container
-	$(MAKE) shell SERVICE=models
 
 shell-model-download: ## Open shell in model-download container
 	$(MAKE) shell SERVICE=model-download
@@ -154,7 +138,7 @@ shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop the docker compose services
-	docker compose down models model-download metrics-manager videogenerator mediamtx vippet-ui vippet onvif-discovery
+	docker compose down model-download metrics-manager videogenerator mediamtx vippet-ui vippet onvif-discovery
 
 clean: ## Clean all build artifacts
 	rm -rf shared/models/output/ shared/model-download/ shared/onvif/onvif_cameras.json shared/videos/input shared/videos/output shared/videos/video-generator

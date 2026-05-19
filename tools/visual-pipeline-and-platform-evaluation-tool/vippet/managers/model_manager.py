@@ -128,8 +128,8 @@ OMZ_CONVERTER_BIN: str = os.environ.get(
 # ``public``) and an optional ``model_proc`` file to copy into the final
 # model directory under a specific destination filename.
 #
-# Mirrors ``download_omz_models`` in ``models/model_manager.sh`` for the
-# subset of OMZ models still listed in ``supported_models.yaml``.
+# Used by the OMZ fallback path for the subset of OMZ models still listed
+# in ``supported_models.yaml`` that model-download does not handle yet.
 _OMZ_MODEL_RULES: dict[str, dict[str, str]] = {
     "mobilenet-v2-pytorch": {
         "category": "public",
@@ -833,14 +833,13 @@ class ModelManager:
     ) -> None:
         """Download/convert an OMZ model using ``openvino-dev`` CLIs.
 
-        model-download has no OMZ plugin yet, so we keep this fallback
-        until the ``models`` container can be removed entirely.
+        model-download has no OMZ plugin yet, so we keep this fallback in
+        vippet-app itself.
 
-        Mirrors ``download_omz_models`` in ``models/model_manager.sh``:
-        download + convert in a private temp dir, then move the artefacts
-        into ``MODELS_PATH/omz/<model_name>/`` and apply any per-model
-        post-processing (copy ``model_proc`` JSON, inject ImageNet
-        labels for ``mobilenet-v2-pytorch``, ...).
+        Downloads and converts in a private temp dir, then moves the
+        artefacts into ``MODELS_PATH/omz/<model_name>/`` and applies any
+        per-model post-processing (copy ``model_proc`` JSON, inject
+        ImageNet labels for ``mobilenet-v2-pytorch``, ...).
         """
         tmp_dir: str | None = None
         try:
@@ -934,8 +933,8 @@ class ModelManager:
     ) -> None:
         """Move converted OMZ artefacts and apply per-model post-processing.
 
-        Replicates the custom handling from ``download_omz_models`` in
-        ``models/model_manager.sh`` for the OMZ models still listed in
+        Handles the per-model quirks (model-proc JSON copy, ImageNet
+        label injection, ...) for OMZ models still listed in
         ``supported_models.yaml`` (``mobilenet-v2-pytorch``,
         ``age-gender-recognition-retail-0013``,
         ``face-detection-retail-0004``).

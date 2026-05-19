@@ -116,30 +116,6 @@ services:
       - ./shared/images/:/images
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
-  models:
-    profiles: [do-not-start]
-    image: docker.io/intel/vippet-models:${DOCKER_TAG}
-    build:
-      context: .
-      dockerfile: models/Dockerfile
-      args:
-        http_proxy:
-        https_proxy:
-        no_proxy:
-    stdin_open: true
-    tty: true
-    container_name: models
-    volumes:
-      - ./shared/models/:/models
-    environment:
-      - MODELS_PATH=/models/output
-      - SUPPORTED_MODELS_FILE=/models/supported_models.yaml
-      - QUANTIZE_DATASET=coco128
-      - MODEL_INSTALLATION=${MODEL_INSTALLATION:-once}
-      - http_proxy=${http_proxy}
-      - https_proxy=${https_proxy}
-      - no_proxy=${no_proxy}
-    command: './model_manager.sh'
   model-download:
     image: docker.io/intel/model-download:2026.1.0-20260512-weekly
     container_name: model-download

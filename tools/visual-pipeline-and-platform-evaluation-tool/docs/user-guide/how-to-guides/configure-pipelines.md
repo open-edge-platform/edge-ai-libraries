@@ -16,7 +16,6 @@ information:
 Once you provide this information, click the *Add* button. Once the pipeline description is validated, the pipeline
 is shown as a graph in the Pipeline Builder view.
 
-
 > **Note:** To view the output video or live stream in ViPPET, your pipeline must include a `fakesink` element with
 > the `name=default_output_sink` property. This serves as a placeholder that ViPPET automatically replaces with the
 > appropriate output configuration when you run the pipeline. For example: `... ! gvawatermark ! fakesink name=default_output_sink`.
@@ -45,4 +44,3 @@ with output saving disabled to measure the impact of I/O overhead.
 
 ![Pipeline Builder Results](../_assets/ViPPET-UI-PB-Results-light.png)\
 *Check CPU and GPU performance*
-
