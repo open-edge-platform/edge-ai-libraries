@@ -49,13 +49,6 @@ To change host or port:
 TEXT_TO_SPEECH_SERVER_HOST=0.0.0.0 TEXT_TO_SPEECH_SERVER_PORT=8011 python main.py
 ```
 
-If your Linux iGPU setup provides an Intel oneAPI environment script, source it before starting the service:
-
-```bash
-source /opt/intel/oneapi/setvars.sh
-python main.py
-```
-
 Equivalent `uvicorn` command:
 
 ```bash
@@ -70,7 +63,8 @@ curl --noproxy '*' http://127.0.0.1:8011/health
 
 ## API Use Cases and Examples
 
-For API use cases, request examples, and endpoint details, see [api.md](api.md).
+For API use cases, request examples, and endpoint details, see
+[api-reference.md](api-reference.md).
 
 ## Notes
 
@@ -78,4 +72,3 @@ For API use cases, request examples, and endpoint details, see [api.md](api.md).
 - First startup can take longer because models may be downloaded or converted
 - Runtime outputs are stored under `storage/<session_id>/`
 - Host-side Linux iGPU/OpenVINO GPU is the validated GPU path for this setup
-- `/opt/intel/oneapi/setvars.sh` is not available on a default Ubuntu install; it appears only after the relevant Intel host stack is installed

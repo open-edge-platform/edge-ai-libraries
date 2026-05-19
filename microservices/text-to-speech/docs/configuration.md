@@ -53,17 +53,12 @@ TEXT_TO_SPEECH__MODELS__TTS__DEVICE=GPU python main.py
 
 ## Linux iGPU / OpenVINO GPU
 
-If you want to use the Intel iGPU on Linux:
+To use the Intel iGPU on Linux:
 
-- on a new machine, first install the required Intel/OpenVINO host GPU runtime or oneAPI toolkit; `setvars.sh` is not present on a default Ubuntu install
-- set `models.tts.device: GPU` for OpenVINO TTS
-- on systems that provide a oneAPI environment script, source the Intel environment before starting the service
+- Install the required Intel/OpenVINO host GPU runtime
+  (e.g. `intel-opencl-icd`, `level-zero`) on the host machine.
+- Set `models.tts.device: GPU` for OpenVINO TTS.
 
-Example:
-
-```bash
-source /opt/intel/oneapi/setvars.sh
-python main.py
-```
-
-This GPU path was validated on the Linux host setup. The container path uses an Intel OpenVINO runtime base image plus `/dev/dri` passthrough, but it still depends on the host having working Intel GPU support. The exact installation path can vary; `/opt/intel/oneapi/setvars.sh` is a common location, not a guaranteed one.
+This GPU path was validated on the Linux host setup. The container path
+uses an Intel OpenVINO runtime base image plus `/dev/dri` passthrough, but
+it still depends on the host having working Intel GPU support.

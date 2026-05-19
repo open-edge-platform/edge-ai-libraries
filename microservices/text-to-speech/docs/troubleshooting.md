@@ -36,15 +36,6 @@ the cached artifacts.
   in `docker-compose.yml`).
 - For NPU, the host must have the Intel NPU driver stack installed and
   the model must be NPU-compatible.
-- If you rely on Intel oneAPI, source the environment script before
-  starting the service:
-
-  ```bash
-  source /opt/intel/oneapi/setvars.sh
-  ```
-
-  This script only exists after the relevant Intel host stack is
-  installed.
 
 ## Permission Errors on Mounted Folders
 

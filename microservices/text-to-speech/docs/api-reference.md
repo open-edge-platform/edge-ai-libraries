@@ -42,23 +42,6 @@ JSON body fields:
 | `instructions`    | No       | Optional speaking style guidance (where supported by the model).                                         |
 | `response_format` | No       | `wav` (raw `audio/wav`) or `json` (metadata + base64-encoded WAV).                                       |
 
-Example — Qwen TTS (set `models.tts.name` to a Qwen model in `config.yaml`):
-
-```bash
-curl --noproxy '*' \
-  -X POST http://127.0.0.1:8011/v1/audio/speech \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "default",
-    "input": "The kiosk is ready for your next request.",
-    "voice": "Ryan",
-    "language": "English",
-    "instructions": "Speak clearly and warmly.",
-    "response_format": "wav"
-  }' \
-  --output speech.wav
-```
-
 Example — SpeechT5 (set `models.tts.name` to `microsoft/speecht5_tts` in
 `config.yaml`):
 
@@ -77,6 +60,23 @@ curl --noproxy '*' \
 > SpeechT5 uses a single fixed speaker embedding; the `voice` and
 > `language` fields are accepted but ignored.
 
+Example — Qwen TTS (set `models.tts.name` to a Qwen model in `config.yaml`):
+
+```bash
+curl --noproxy '*' \
+  -X POST http://127.0.0.1:8011/v1/audio/speech \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "default",
+    "input": "The kiosk is ready for your next request.",
+    "voice": "Ryan",
+    "language": "English",
+    "instructions": "Speak clearly and warmly.",
+    "response_format": "wav"
+  }' \
+  --output speech.wav
+```
+
 > The service currently supports English only. Requests that pass any
 > other language return `400`.
 
@@ -89,6 +89,5 @@ corresponding WAV and metadata are written under
 
 ## Related
 
-- Endpoint examples in context of a running deployment: [api.md](api.md)
 - Configuration of model, runtime, and device:
   [configuration.md](configuration.md)
