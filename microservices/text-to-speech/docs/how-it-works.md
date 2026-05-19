@@ -116,7 +116,7 @@ flowchart LR
 
 ## Configuration Surface
 
-All runtime behavior is driven by `config.yaml` (or `config.container.yaml`
-for Docker), with overrides via `TEXT_TO_SPEECH_CONFIG_OVERRIDE_PATHS` and
-`TEXT_TO_SPEECH__...` environment variables. See
-[configuration.md](configuration.md) for the full list of fields.
+All runtime behavior is driven by `config.yaml`, shared by both standalone
+and container runs, with targeted overrides via `TEXT_TO_SPEECH__...`
+environment variables. See [configuration.md](configuration.md) for the
+full list of fields.

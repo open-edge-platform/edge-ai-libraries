@@ -33,11 +33,9 @@ Check these in order:
 
 2. The active config is valid YAML.
 
-   The service loads configuration in this order:
-
-   - `config.yaml`
-   - files listed in `TEXT_TO_SPEECH_CONFIG_OVERRIDE_PATHS`
-   - `TEXT_TO_SPEECH__...` environment overrides
+   The service loads `config.yaml`, then applies `TEXT_TO_SPEECH__...`
+   environment overrides. The same `config.yaml` is used by both
+   standalone and container runs (bind-mounted into the container).
 
 3. Docker is using the expected service directory.
 

@@ -23,9 +23,9 @@ To build the image directly with `docker`:
 docker build -t text-to-speech:local .
 ```
 
-The Compose setup mounts `config.container.yaml`, `models/`, `storage/`,
-and the Hugging Face cache into the container, and passes `/dev/dri`
-through for host Intel iGPU access by default. The container runs as
+The Compose setup mounts `config.yaml`, `models/`, `storage/`, and the
+Hugging Face cache into the container, and passes `/dev/dri` through for
+host Intel iGPU access by default. The container runs as
 UID/GID `1000:1000` by default; see
 [troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders)
 if your host user differs.

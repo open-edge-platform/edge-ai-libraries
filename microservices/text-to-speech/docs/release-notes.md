@@ -31,7 +31,7 @@ and selectable models, built for edge deployment on Intel hardware.
 - Models are warm-loaded once per process and reused across requests to
   keep per-request synthesis latency low.
 - OpenVINO acceleration on Intel CPUs, integrated/discrete GPUs, and NPUs.
-- Layered config (`config.yaml`, `config.container.yaml`) with env
+- Single `config.yaml` shared by standalone and container runs, with env
   overrides via `TEXT_TO_SPEECH__...`.
 - Docker Compose deployment exposing the API on port `8011`; standalone
   Python mode binds `127.0.0.1:8011` on the host.
