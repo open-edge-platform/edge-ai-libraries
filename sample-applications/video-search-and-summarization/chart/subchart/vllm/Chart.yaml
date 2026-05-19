@@ -2,5 +2,5 @@ apiVersion: v2
 name: vllm-server
 description: vLLM CPU inference service
 type: application
-version: 0.1.0
+version: 2026.1.0-rc1-helm
 appVersion: "0.13.0"

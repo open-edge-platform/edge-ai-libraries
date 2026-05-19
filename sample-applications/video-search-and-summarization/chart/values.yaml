@@ -104,7 +104,7 @@ pipelinemanager:
     runAsGroup: 0
   image:
     repository: intel/pipeline-manager
-    tag: "latest"
+    tag: "2026.1.0-rc1"
     pullPolicy: IfNotPresent
   containerPortName: videosumm-port # Optional name to refer containerPort
   service:
@@ -250,7 +250,7 @@ vsscollector:
   name: vss-collector
   image:
     repository: docker.io/intel/vippet-collector
-    tag: "2025.2.0"
+    tag: "2026.0.0"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP

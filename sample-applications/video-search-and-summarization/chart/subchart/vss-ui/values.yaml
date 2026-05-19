@@ -8,7 +8,7 @@ global:
 name: vssui
 image:
   repository: intel/vss-ui
-  tag: "latest"
+  tag: "2026.1.0-rc1"
   pullPolicy: IfNotPresent
   resources: {}
 
