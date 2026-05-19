@@ -11,6 +11,7 @@ services:
       - /dev/dri:/dev/dri
     group_add:
       - video
+      - "${RENDER_GID:-992}"
     environment:
       TEXT_TO_SPEECH_CONFIG_OVERRIDE_PATHS: /app/text-to-speech/config.container.yaml
       HF_HOME: /app/text-to-speech/.cache/huggingface

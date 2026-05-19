@@ -9,7 +9,7 @@ models:
     runtime: openvino
     # SpeechT5: CPU or GPU
     # Qwen: CPU, GPU, or NPU
-    device: CPU
+    device: GPU
     # SpeechT5: int8, int4, fp16, or fp32
     # Qwen: int8, int4, fp16, or fp32
     # NOTE: int4 on iGPU produces noise; GPU fp16 works great post-warmup (17s, high quality)

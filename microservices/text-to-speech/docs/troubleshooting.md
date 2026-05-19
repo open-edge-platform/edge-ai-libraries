@@ -34,6 +34,19 @@ the cached artifacts.
   installed on the host (separate from the Python dependencies).
 - For the container, `/dev/dri` must be exposed to the container (default
   in `docker-compose.yml`).
+- For GPU containers running as a non-root user, the container also needs the
+  host render group ID. Set `RENDER_GID` in `.env` to match the host render
+  node, for example:
+
+  ```bash
+  RENDER_GID=$(stat -c '%g' /dev/dri/renderD128)
+  ```
+
+  Without that extra group, OpenVINO GPU startup can fail with errors such as:
+
+  ```text
+  [GPU] Context was not initialized for 0 device
+  ```
 - For NPU, the host must have the Intel NPU driver stack installed and
   the model must be NPU-compatible.
 
