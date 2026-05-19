@@ -9,9 +9,9 @@
   ```
 
 - Confirm the active config file is valid YAML. The service loads
-  `config.yaml` first, then files listed in
-  `AUDIO_ANALYZER_CONFIG_OVERRIDE_PATHS`, then `AUDIO_ANALYZER__...`
-  environment overrides.
+  `config.yaml`, then applies `AUDIO_ANALYZER__...` environment overrides.
+  The same `config.yaml` is used by both standalone and container runs
+  (bind-mounted into the container).
 
 ## First Startup Is Slow
 

@@ -123,7 +123,7 @@ flowchart LR
 
 ## Configuration Surface
 
-All runtime behavior is driven by `config.yaml` (or `config.container.yaml`
-for Docker), with overrides via `AUDIO_ANALYZER_CONFIG_OVERRIDE_PATHS` and
-`AUDIO_ANALYZER__...` environment variables. See
-[configuration.md](configuration.md) for the full list of fields.
+All runtime behavior is driven by `config.yaml`, shared by both standalone
+and container runs, with targeted overrides via `AUDIO_ANALYZER__...`
+environment variables. See [configuration.md](configuration.md) for the
+full list of fields.

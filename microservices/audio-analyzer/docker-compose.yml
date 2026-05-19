@@ -12,10 +12,9 @@ services:
     group_add:
       - video
     environment:
-      AUDIO_ANALYZER_CONFIG_OVERRIDE_PATHS: /app/audio_analyzer/config.container.yaml
       HF_HOME: /app/audio_analyzer/.cache/huggingface
     volumes:
-      - ./config.container.yaml:/app/audio_analyzer/config.container.yaml:ro
+      - ./config.yaml:/app/audio_analyzer/config.yaml:ro
       - ./models:/app/audio_analyzer/models
       - ./chunks:/app/audio_analyzer/chunks
       - ./storage:/app/audio_analyzer/storage

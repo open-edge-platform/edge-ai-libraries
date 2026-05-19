@@ -26,9 +26,9 @@ pip install -r requirements.txt
 
 ## Config
 
-- Start from `config.yaml`. For configuration details and override behavior, see [configuration.md](configuration.md).
-- Use `AUDIO_ANALYZER_CONFIG_OVERRIDE_PATHS` if you want one or more override YAML files
-- Use `AUDIO_ANALYZER__...` environment variables only for targeted overrides
+- Edit `config.yaml`. For configuration details, see [configuration.md](configuration.md).
+- The same `config.yaml` is used for both standalone and container runs.
+- Use `AUDIO_ANALYZER__...` environment variables only for targeted overrides.
 - For Linux Intel iGPU usage, first install the required Intel/OpenVINO host runtime on the machine, then set the OpenVINO device fields to `GPU` in config.
 
 ## Start
