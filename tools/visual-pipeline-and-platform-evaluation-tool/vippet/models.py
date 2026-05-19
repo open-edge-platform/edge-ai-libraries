@@ -52,6 +52,8 @@ class SupportedModel:
         self.display_name: str = display_name
         self.source: str = source
         self.model_type: str = model_type
+        # Normalize once so downstream string-level path comparisons (e.g. in `find_installed_model_by_model_and_proc_path`)
+        # are stable against trailing slashes, redundant separators, or `./` segments.
         self.model_path: str = os.path.normpath(model_path)
         self.model_proc: str | None = model_proc
         self.unsupported_devices: str | None = unsupported_devices
