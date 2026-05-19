@@ -216,6 +216,24 @@ export const selectLatencyMetrics = (state: RootState) => {
   return { avgMs, minMs, maxMs };
 };
 
+export const selectNpuMetric = (state: RootState) =>
+  findMetric(state.metrics.metrics, "npu_utilization")?.value;
+
+export const selectNpuMetrics = (state: RootState) => {
+  const utilization = findMetric(
+    state.metrics.metrics,
+    "npu_utilization",
+  )?.value;
+  const frequency = findMetric(state.metrics.metrics, "npu_frequency")?.value;
+  const power = findMetric(state.metrics.metrics, "npu_power")?.value;
+  const temperature = findMetric(
+    state.metrics.metrics,
+    "npu_temperature",
+  )?.value;
+
+  return { utilization, frequency, power, temperature };
+};
+
 export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
   const gpuEngineMetrics = filterMetrics(
     state.metrics.metrics,

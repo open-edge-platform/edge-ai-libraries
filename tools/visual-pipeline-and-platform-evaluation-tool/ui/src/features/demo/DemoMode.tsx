@@ -443,7 +443,6 @@ const DemoMode = () => {
         ? fpsSeries.slice(firstPositiveFpsIndex)
         : fpsSeries;
     const fpsAvg = avg(fpsValuesForAverage);
-    const cpuAvg = avg(frozenMetrics.map((point) => point.cpu ?? 0));
     const memoryAvg = avg(frozenMetrics.map((point) => point.memory ?? 0));
 
     const gpuIds = Array.from(
@@ -477,7 +476,7 @@ const DemoMode = () => {
 
     return {
       fps: frozenPerStreamFps ?? fpsAvg,
-      cpu: cpuAvg,
+      cpu: 0,
       memory: memoryAvg,
       availableGpuIds: gpuIds,
       gpuDetailedMetrics,

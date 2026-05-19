@@ -93,12 +93,12 @@ Related article:
 :maxdepth: 2
 :hidden:
 
-./how-to-guides/use-gvapython-scripts
-./how-to-guides/use-video-generator
 ./how-to-guides/configure-pipelines
 ./how-to-guides/performance-testing
 ./how-to-guides/density-testing.md
 ./how-to-guides/use-cameras
+./how-to-guides/use-video-generator
+./how-to-guides/use-gvapython-scripts
 
 :::
 hide_directive-->

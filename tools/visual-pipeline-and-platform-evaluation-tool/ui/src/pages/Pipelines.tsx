@@ -362,7 +362,7 @@ export const Pipelines = () => {
           description: new Date().toISOString(),
         });
       } else {
-          toast.success("Pipeline run completed", {
+        toast.success("Pipeline run completed", {
           description: new Date().toISOString(),
         });
 
@@ -590,10 +590,7 @@ export const Pipelines = () => {
                   </TooltipContent>
                 </Tooltip>
 
-                <PopoverContent
-                  align="start"
-                  className="w-72 p-3 rounded-none"
-                >
+                <PopoverContent align="start" className="w-72 p-3 rounded-none">
                   <div className="space-y-3">
                     <div className="space-y-2">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -693,7 +690,10 @@ export const Pipelines = () => {
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="bottom">
-                              <p>Continuously restart the pipeline for a set duration</p>
+                              <p>
+                                Continuously restart the pipeline for a set
+                                duration
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                           <Switch

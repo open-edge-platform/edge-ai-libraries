@@ -45,7 +45,8 @@ export const gvaGenAIConfig = {
       label: "Generation config",
       type: "text" as const,
       defaultValue: "max_new_tokens=64",
-      description: "OpenVINO GenAI generation parameters (e.g. max_new_tokens=64)",
+      description:
+        "OpenVINO GenAI generation parameters (e.g. max_new_tokens=64)",
     },
     {
       key: "metrics",
