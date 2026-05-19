@@ -142,7 +142,7 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
 
     ```bash
     export REGISTRY="intel/"
-    export TAG=latest
+    export TAG=2026.1.0-rc1
     source setup.sh llm=<model-server> embed=<embedding>
     # Below are the options
     # model-server: VLLM(deprecated) , OVMS, TGI(deprecated)
