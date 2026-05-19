@@ -2,15 +2,22 @@
 
 ## Hardware
 
-- **CPU**: x86_64. Modern Intel Core or Xeon processor recommended.
-- **Memory**: 8 GB RAM minimum; 16 GB recommended for larger ASR models or
-  sentiment + ASR running together.
-- **Disk**: At least 10 GB free for model assets, Hugging Face cache,
-  temporary chunks, and session storage.
-- **GPU (optional)**: Intel integrated GPU or discrete GPU exposed via
-  `/dev/dri` for the OpenVINO `GPU` device path.
-- **Microphone (optional)**: ALSA-compatible capture device if you intend to
-  list devices via `GET /devices` or pass `/dev/snd` into the container.
+- **CPU**: x86_64. Intel Core Ultra (Meteor Lake) or newer is recommended.
+  Older Intel Core / Xeon processors will run the service but may be slower
+  on OpenVINO inference paths.
+- **Memory**: 16 GB RAM minimum. 32 GB recommended when running ASR and
+  sentiment together, when using larger Whisper variants, or when keeping
+  multiple sessions warm.
+- **Disk**: 20 GB free SSD space recommended for model assets, the Hugging
+  Face cache, temporary audio chunks, and per-session storage. NVMe is
+  preferred for faster first-run model export.
+- **GPU (optional)**: Intel integrated GPU (Meteor Lake or newer iGPU) or a
+  supported discrete GPU exposed via `/dev/dri` for the OpenVINO `GPU`
+  device path.
+- **NPU (optional)**: Intel Core Ultra NPU is supported by OpenVINO; set
+  the relevant device fields to `NPU` in config when available.
+- **Microphone (optional)**: ALSA-compatible capture device if you intend
+  to list devices via `GET /devices` or pass `/dev/snd` into the container.
 
 ## Operating System
 
