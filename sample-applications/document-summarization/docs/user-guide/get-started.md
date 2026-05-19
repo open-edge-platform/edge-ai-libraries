@@ -24,8 +24,8 @@ The sample application has been validated with a few models just to validate the
 ### LLM Models validated for each model server
 
 | Model Server | Models Validated |
-   |--------------|-------------------|
-   | `OVMS` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
+|--------------|-------------------|
+| `OVMS` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
 
 Note: Limited validation was done on DeepSeek model.
 
@@ -136,7 +136,7 @@ Refer to [Deploy with Helm Chart](./deploy-with-helm.md) for the details. Ensure
 
 To run the units tests ensure you follow all the steps from below document
 
-- [How to run Unit Tests](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/document-summarization/tests/unit_tests/README.md)
+- [How to run Unit Tests](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/sample-applications/document-summarization/tests/unit_tests/README.md)
 
 ## Advanced Setup Options
 

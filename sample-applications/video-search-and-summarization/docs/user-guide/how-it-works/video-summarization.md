@@ -52,7 +52,7 @@ The following are steps in the application flow:
 
 1. **Create the Video Summarization pipeline**
 
-   - **Configure the pipeline**: The Video Summarization UI microservice allows you to configure capabilities on the Video Summarization pipeline. You can see configuration examples for the Video Summarization pipeline [here](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/video-search-and-summarization/cli/config).
+   - **Configure the pipeline**: The Video Summarization UI microservice allows you to configure capabilities on the Video Summarization pipeline. You can see configuration examples for the Video Summarization pipeline [here](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.1.0/sample-applications/video-search-and-summarization/cli/config).
 
    - **Create the pipeline**: The Video Summarization Pipeline Manager configures the pipeline based on your input.
 
@@ -119,15 +119,15 @@ The key components of the Video Summarization mode are as follows:
 
    **Inference microservices**:
 
-   - [Multimodal Embedding](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html)
+   - [Multimodal Embedding](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/multimodal-embedding-serving/index.html)
 
-   - [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html)
+   <!-- [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html) - Provides audio transcription capabilities. -->
 
    - [OpenVINO™ Model Server (OVMS)](https://docs.openvino.ai/nightly/model-server/ovms_what_is_openvino_model_server.html) or [vLLM](https://docs.vllm.ai/) - Hosts VLM/LLM models for captioning and summarization.
 
     **Data-handling microservices**
 
-   - [VDMS-based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/vdms/README.md)
+   - [VDMS-based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/visual-data-preparation-for-retrieval/vdms/README.md)
 
    See the respective documentation for details.
 

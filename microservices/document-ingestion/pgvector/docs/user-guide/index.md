@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/document-ingestion/pgvector">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.1.0/microservices/document-ingestion/pgvector">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/document-ingestion/pgvector/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/document-ingestion/pgvector/README.md">
      Readme
   </a>
 </div>
@@ -30,7 +30,7 @@ vectorDB and minIO is used as the data store.
 ## Example Use Case
 
 **Use Case 1**: Refer to the
-[Chat Q&A](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/index.html)
+[Chat Q&A](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/chat-question-and-answer/index.html)
 sample application where this microservice is used.
 
 ### High-Level System View Diagram

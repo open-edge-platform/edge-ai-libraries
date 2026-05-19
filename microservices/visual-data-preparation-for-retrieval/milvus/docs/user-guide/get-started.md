@@ -73,7 +73,7 @@ Note: supported media types: jpg, png, mp4
    ```
 
    **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
-   See [Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for Multimodal Embedding Serving for available options.
+   See [Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for Multimodal Embedding Serving for available options.
 
    <details>
    <summary>For EMT-S platform</summary>
@@ -171,4 +171,4 @@ curl -X DELETE http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/delete_all
 
 - Check the [API reference](./api-reference.md)
 - The visual data preparation microservice usually pairs with a retriever microservice. For more information, check the retriever's [get-started-guide](../../../../vector-retriever/milvus/docs/user-guide/get-started.md)
-- This microservice depends on the [multimodal embedding service](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) for embedding extraction.
+- This microservice depends on the [multimodal embedding service](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) for embedding extraction.

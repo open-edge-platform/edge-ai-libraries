@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/dlstreamer-pipeline-server">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.1.0/microservices/dlstreamer-pipeline-server">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/dlstreamer-pipeline-server/README.md">
      Readme
   </a>
 </div>
@@ -64,7 +64,7 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
 
 - **DL Streamer Pipeline Server Model Update**
 
-  Supports integration with the Model Registry service - [Model Registry](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-registry/index.html) for model download, deployment and management.
+  Supports integration with the Model Registry service - [Model Registry](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/model-registry/index.html) for model download, deployment and management.
 
 - **Open Telemetry**
 

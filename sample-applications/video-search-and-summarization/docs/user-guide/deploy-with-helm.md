@@ -114,7 +114,7 @@ Update or edit the values in YAML file as follows:
 | `vsscollector.websocketUrl` | Override the telemetry websocket URL (defaults to `ws://pipeline-manager:80/metrics/ws/collector`) | `ws://pipeline-manager:80/metrics/ws/collector` |
 | `vsscollector.signalVolume.subPath` | Subpath under the shared volume for telemetry signal files | `collector-signals` |
 
-> **Tip:** Set `global.embeddingModelName` to pick the embedding model for all services. For search-only and dual UI mode, use a multimodal model (e.g., `CLIP/clip-vit-b-32`). For unified mode, use a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`). Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+> **Tip:** Set `global.embeddingModelName` to pick the embedding model for all services. For search-only and dual UI mode, use a multimodal model (e.g., `CLIP/clip-vit-b-32`). For unified mode, use a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`). Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 > **Note:** `multimodal-embedding-ms` and `vdms-dataprep` share the same PVC for model/cache storage. If you enable GPU for one of them, enable it for the other as well (`global.devices.multimodalEmbedding.device=GPU` **and** `global.devices.vdmsDataprep.device=GPU`). Mixing GPU/CPU modes between the two causes the GPU pod to wait forever because the shared PVC can only be attached to a single node at a time. The Helm chart validates this pairing and will fail the install/upgrade when the devices do not match while both services are enabled.
 
@@ -324,7 +324,7 @@ To deploy the combined video search and summarization functionality with a singl
 helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
-> **Requirement:** Before installing the unified stack, set `global.embeddingModelName` to a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`) in `user_values_override.yaml`. The chart will raise an error if the embedding model is not set. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+> **Requirement:** Before installing the unified stack, set `global.embeddingModelName` to a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`) in `user_values_override.yaml`. The chart will raise an error if the embedding model is not set. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 >
 > **GPU Tip:** In unified mode the `multimodal-embedding-ms` and `vdms-dataprep` pods always share the same PVC, so either enable GPU for both (`global.devices.multimodalEmbedding.device=GPU` and `global.devices.vdmsDataprep.device=GPU`) or keep both on CPU. Mixing GPU/CPU settings leaves the GPU pod pending because the shared PVC cannot mount on two nodes simultaneously, and the Helm chart blocks such mismatches during install/upgrade.
 

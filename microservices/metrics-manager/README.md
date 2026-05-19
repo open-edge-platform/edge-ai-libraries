@@ -2,12 +2,12 @@
 
 A unified metrics collection, ingestion, and relay service that combines Telegraf-based system metrics with a flexible REST API for custom metrics. Supports multiple input formats including JSON, InfluxDB Line Protocol, and OpenTelemetry (OTLP).
 
-- **Get Started:** [docs/user-guide/get-started.md](docs/user-guide/get-started.md) — install and run in 5 minutes
+- **Get Started:** [docs/user-guide/get-started/installation.md](docs/user-guide/get-started/installation.md) — install and run in 5 minutes
 - **Full Documentation:** [docs/user-guide/index.md](docs/user-guide/index.md)
-- **Source code & docs:** <https://github.com/open-edge-platform/edge-ai-libraries/tree/main/metrics-manager>
+- **Source code & docs:** <https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.1.0/microservices/metrics-manager>
 - **Issues / feature requests:** <https://github.com/open-edge-platform/edge-ai-libraries/issues> (use the `metrics-manager` label)
 - **Container image (Docker Hub):** [`intel/metrics-manager`](https://hub.docker.com/r/intel/metrics-manager) - tagged `intel/metrics-manager:<VERSION>` (e.g. `intel/metrics-manager:2026.1.0`)
-- **Helm chart (OCI):** `oci://registry-1.docker.io/intel/metrics-manager:<VERSION>-helm` (see [docs/user-guide/deploy-with-helm.md](docs/user-guide/deploy-with-helm.md))
+- **Helm chart (OCI):** `oci://registry-1.docker.io/intel/metrics-manager:<VERSION>-helm` (see [docs/user-guide/get-started/deploy-with-helm.md](docs/user-guide/get-started/deploy-with-helm.md))
 
 ## Features
 
@@ -164,7 +164,7 @@ helm install metrics-manager \
 
 The chart exposes Telegraf and the REST/SSE API as a `Service`, supports
 `Deployment` or `DaemonSet` mode, and integrates with Prometheus Operator
-via an opt-in `ServiceMonitor`. See [docs/user-guide/deploy-with-helm.md](docs/user-guide/deploy-with-helm.md) for the
+via an opt-in `ServiceMonitor`. See [docs/user-guide/get-started/deploy-with-helm.md](docs/user-guide/get-started/deploy-with-helm.md) for the
 complete reference.
 
 ## Building the Image
@@ -361,13 +361,13 @@ metrics-manager/
 
 | Document | Description |
 |----------|-------------|
-| [Get Started](docs/user-guide/get-started.md) | Quick start guide and installation instructions |
+| [Get Started](docs/user-guide/get-started/installation.md) | Quick start guide and installation instructions |
 | [Installation](docs/user-guide/get-started/installation.md) | Step-by-step setup on a new machine, variants, integration examples |
 | [System Requirements](docs/user-guide/get-started/system-requirements.md) | Supported platforms and hardware requirements |
 | [Build from Source](docs/user-guide/get-started/build-from-source.md) | Building the metrics manager from source code |
 | [Environment Variables](docs/user-guide/get-started/environment-variables.md) | Configuration through environment variables and Telegraf config |
 | [Custom Metrics](docs/user-guide/get-started/custom-metrics.md) | Using the REST API for custom metrics |
-| [Deploy with Helm](docs/user-guide/deploy-with-helm.md) | Kubernetes deployment via the published OCI Helm chart |
+| [Deploy with Helm](docs/user-guide/get-started/deploy-with-helm.md) | Kubernetes deployment via the published OCI Helm chart |
 | [API Reference](docs/user-guide/api-reference.md) | All endpoints, formats, examples, response models |
 | [How It Works](docs/user-guide/how-it-works.md) | Architecture, data flow, and component relationships |
 | [Testing](docs/user-guide/get-started/testing.md) | Unit tests, smoke tests, development setup |

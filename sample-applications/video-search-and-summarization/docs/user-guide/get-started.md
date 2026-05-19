@@ -149,7 +149,7 @@ Before running the application, you need to set several environment variables:
       export TEXT_EMBEDDING_MODEL="QwenText/qwen3-embedding-0.6b"
       ```
 
-      > **Note**: Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model names.
+      > **Note**: Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model names.
 
 4. **Configure summarization to use audio transcript (Summary and Dual UI mode):**
 
@@ -440,7 +440,7 @@ Follow these steps to run the application:
 
     > **Note:**
     > - The vLLM configuration has been tested on Intel® Xeon® 6 processors.
-    > - Review [docker/compose.vllm.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
+    > - Review [docker/compose.vllm.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/sample-applications/video-search-and-summarization/docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
 
 4. (Optional) Verify the resolved environment variables and setup configurations:
 
@@ -483,10 +483,10 @@ Follow these steps to run the application:
    ```bash
    # for Summary mode
    VLM_TARGET_DEVICE=GPU source setup.sh --summary
-   
+
    # for Dual UI mode
    VLM_TARGET_DEVICE=GPU source setup.sh --summary --search
-   
+
    # for Unified UI mode
    VLM_TARGET_DEVICE=GPU source setup.sh --summary-and-search
    ```
@@ -573,7 +573,7 @@ After successfully starting the application, access the application UI on follow
 
 | UI | URL |
 |----|-----|
-| Video Summarization | `http://<host-ip>:12345/summary/` 
+| Video Summarization | `http://<host-ip>:12345/summary/`
 | Video Search       | `http://<host-ip>:12345/search/` |
 
 Visiting the root URL `http://<host-ip>:12345/` redirects to the Video Summarization UI.
@@ -600,7 +600,7 @@ Key metrics include `ovms_requests_success`, `ovms_inference_time_us`, and `ovms
 
 ## CLI Usage
 
-Refer to [CLI Usage](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/cli/README.md) for details on using the application from a text user interface (terminal-based UI).
+Refer to [CLI Usage](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/sample-applications/video-search-and-summarization/cli/README.md) for details on using the application from a text user interface (terminal-based UI).
 
 ## Running in Kubernetes Cluster
 

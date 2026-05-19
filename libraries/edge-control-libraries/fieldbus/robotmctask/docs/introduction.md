@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/libraries/edge-control-libraries/fieldbus/robotmctask">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/libraries/edge-control-libraries/fieldbus/robotmctask/README.md">
      Readme
   </a>
 </div>
@@ -58,13 +58,13 @@ The software runs on standard PCs or servers. Since it is primarily developed in
 
 ### Running
 
-Please check [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/README.md) file for details.
+Please check the [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/libraries/edge-control-libraries/fieldbus/robotmctask/README.md) file for details.
 
 ### Examples
 
 One example using Robot Motion Control Task is provided.
 
-* [mc_rl_sample](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/edge-control-libraries/fieldbus/robotmctask/examples):
+* [mc_rl_sample](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.1.0/libraries/edge-control-libraries/fieldbus/robotmctask/examples):
 A comprehensive demonstration showcasing:
 
     - **Multi-Topology Configuration:** Robot task setup with multiple topologies using different ENI files
@@ -78,4 +78,4 @@ A comprehensive demonstration showcasing:
 
 ## License
 
-The source code is licensed under Apache License . See [LICENSE](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/LICENSE) file for details.
+The source code is licensed under Apache License . See [LICENSE](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/libraries/edge-control-libraries/fieldbus/robotmctask/LICENSE) file for details.

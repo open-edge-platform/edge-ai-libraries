@@ -22,7 +22,7 @@ By following this guide, you will learn how to:
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose : `Required v2.33.1` [Installation Guide](https://docs.docker.com/compose/install/).
 - Install `Python 3.11`.
-- Model download microservice is up and running. [Get Started Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started.html).
+- Model download microservice is up and running. [Get Started Guide](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/model-download/get-started.html).
 - `jq` command-line JSON processor: [Installation Guide](https://jqlang.org/download/).
 
 <!--
@@ -91,7 +91,7 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
    Note: Adjust the repo link appropriately in case of forked repo.
 
 2. **Bring Up the Model Download Microservice**:
-  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started.html).
+  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/model-download/get-started.html).
 
 3. **Navigate to the Directory**:
    Go to the directory where the Docker Compose file is located:
@@ -132,7 +132,7 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
     export ALLOWED_HOSTS=<comma_separated_list_of_trusted_domains> # Ex: example.com,subdomain.example.com
     ```
 
-    For detailed guidance on configuring __ALLOWED_HOSTS__ for different deployment scenarios, refer to [ALLOWED_HOSTS Configuration](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/pgvector/get-started.html#allowed-hosts-configuration)
+    For detailed guidance on configuring __ALLOWED_HOSTS__ for different deployment scenarios, refer to [ALLOWED_HOSTS Configuration](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/pgvector/get-started.html#allowed-hosts-configuration)
 
     __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
 
