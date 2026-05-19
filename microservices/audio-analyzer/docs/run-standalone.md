@@ -49,13 +49,6 @@ To change host or port:
 AUDIO_ANALYZER_SERVER_HOST=0.0.0.0 AUDIO_ANALYZER_SERVER_PORT=8010 python main.py
 ```
 
-If your Linux iGPU setup provides an Intel oneAPI environment script, source it before starting the service:
-
-```bash
-source /opt/intel/oneapi/setvars.sh
-python main.py
-```
-
 Equivalent `uvicorn` command:
 
 ```bash
@@ -78,4 +71,3 @@ For API use cases, request examples, and endpoint details, see [api-reference.md
 - First startup can take longer because models may be downloaded or exported
 - Runtime session files are stored under `storage/<session_id>/`
 - Host-side Linux iGPU/OpenVINO GPU was the validated GPU path for this setup
-- `/opt/intel/oneapi/setvars.sh` is not available on a default Ubuntu install; it appears only after the relevant Intel host stack is installed

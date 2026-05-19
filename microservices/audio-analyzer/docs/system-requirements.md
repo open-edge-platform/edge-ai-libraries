@@ -47,15 +47,3 @@ sudo apt-get install -y ffmpeg alsa-utils libsndfile1
 - Outbound internet access on first run to download model assets from
   Hugging Face, unless models are pre-staged under `models/` and the cache.
 - Inbound access to TCP port `8010` (default) for API clients.
-
-## Optional: Intel oneAPI
-
-If your Linux iGPU setup provides an Intel oneAPI environment script, it must
-be sourced before starting the service:
-
-```bash
-source /opt/intel/oneapi/setvars.sh
-```
-
-This script is not present on a default Ubuntu install; it appears only after
-the relevant Intel host stack is installed.

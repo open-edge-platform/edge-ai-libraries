@@ -34,14 +34,6 @@ cached artifacts.
   installed on the host (separate from the Python dependencies).
 - For the container, `/dev/dri` must be exposed to the container (default in
   `docker-compose.yml`).
-- If you rely on Intel oneAPI, source the environment script before starting
-  the service:
-
-  ```bash
-  source /opt/intel/oneapi/setvars.sh
-  ```
-
-  This script only exists after the relevant Intel host stack is installed.
 
 ## Permission Errors on Mounted Folders
 
