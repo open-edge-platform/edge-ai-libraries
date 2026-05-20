@@ -224,12 +224,22 @@ class AudioUploadTests(unittest.TestCase):
         self.assertTrue(os.path.isabs(chunks_dir))
         self.assertEqual(chunks_dir, os.path.join(app_paths.BASE_DIR, "chunks/"))
 
+    def test_get_session_chunks_dir_stays_under_session_storage(self):
+        session_chunks_dir = app_paths.get_session_chunks_dir("session-123")
+
+        self.assertEqual(
+            session_chunks_dir,
+            os.path.join(app_paths.STORAGE_ROOT, "session-123", "chunks"),
+        )
+
     def test_save_audio_file_uses_session_directory_and_sanitized_name(self):
         session_id = "session-123"
         upload = DummyUploadFile("../clip.wav", b"audio-bytes")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            with patch.object(app_paths, "STORAGE_ROOT", temp_dir):
+            with patch.object(app_paths, "STORAGE_ROOT", temp_dir), patch(
+                "utils.audio_util._audio_stream_exists", return_value=True
+            ):
                 filename, file_path = save_audio_file(upload, session_id=session_id)
 
             self.assertEqual(filename, "clip.wav")
@@ -242,7 +252,9 @@ class AudioUploadTests(unittest.TestCase):
         upload_two = DummyUploadFile("clip.wav", b"second")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            with patch.object(app_paths, "STORAGE_ROOT", temp_dir):
+            with patch.object(app_paths, "STORAGE_ROOT", temp_dir), patch(
+                "utils.audio_util._audio_stream_exists", return_value=True
+            ):
                 first_name, first_path = save_audio_file(upload_one, session_id=session_id)
                 second_name, second_path = save_audio_file(upload_two, session_id=session_id)
 
