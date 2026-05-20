@@ -1,4 +1,4 @@
-# Vector retriever microservice
+# Vector Retriever - Milvus Microservice
 
 <!--hide_directive
 <div class="component_card_widget">
