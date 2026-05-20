@@ -14,9 +14,11 @@ Retrieves embeddings based on vector similarity. Usually it is used along with a
 ## Overview
 
 The Retrieval Microservice is designed to perform efficient, vector-based searches
- using a vector database such as Milvus. It provides a RESTful API for retrieving
- relevant results based on text queries and optional filters. This microservice is
- optimized for handling large-scale datasets and supports flexible query configurations.
+ using a vector database such as Milvus. It uses the CLIP model's text and image encoders
+ to transform queries into embeddings and perform similarity search. It provides a RESTful
+ API for retrieving relevant results based on text or image queries and optional filters.
+ This microservice is optimized for handling large-scale datasets and supports flexible
+ query configurations.
 
 Key Features:
 
@@ -24,6 +26,10 @@ Key Features:
 
   Accepts text queries and retrieves the top-k most relevant results based on vector
   similarity. Supports optional filters to refine search results.
+
+- Image-to-Image Retrieval:
+
+  Uses a query image to find visually similar images.
 
 - Integration with Milvus:
 
@@ -40,10 +46,24 @@ Key Features:
    `/v1/retrieval` endpoint. The query is processed with an embedding model to generate
    embeddings and to retrieve embeddings from the Milvus database.
 
-2. Result Generation:
+2. Similarity Search:
+
+   The query embedding is matched against indexed embeddings in Milvus to find the
+   nearest vectors.
+
+3. Result Generation:
 
    The retrieved results include metadata, similarity scores, and unique identifiers.
    Results are returned in JSON format for easy integration with downstream applications.
+
+4. Result Ranking:
+
+   Retrieved candidates are ranked by similarity score and top-k results are returned.
+
+5. Metadata Resolution:
+
+   The service returns associated metadata (for example file path, source reference, or
+   original image linkage) to provide context for each match.
 
 ## Workflow
 
