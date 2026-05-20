@@ -13,7 +13,7 @@ Retrieve relevant visual data from a vector database using text or image queries
 ## Overview
 The Vector Retriever microservice is designed to search visual data efficiently by querying embeddings stored in a vector database. It uses the CLIP model's text and image encoders to transform user queries into embeddings and perform similarity search for accurate retrieval.
 
-Key Features:
+### Key Features:
 
 - Text-to-Image Retrieval:
 
