@@ -48,7 +48,7 @@ RUN poetry install --with ollama --without dev --without openvino && \
     $VENV_PATH/bin/pip install --upgrade --no-cache-dir pip setuptools wheel
 
 # Install ollama and exclude nvidia gpu-related packages
-ARG OLLAMA_VERSION=0.23.0
+ARG OLLAMA_VERSION=0.24.0
 ARG OLLAMA_ARCHIVE=linux-amd64
 ARG OLLAMA_URL="https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-${OLLAMA_ARCHIVE}.tar.zst"
 
