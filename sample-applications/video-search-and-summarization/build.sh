@@ -51,7 +51,7 @@ fi
 # Usage information
 show_usage() {
   echo -e "Usage: $0 [OPTION]"
-  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding, audio-analyzer)"
+  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding-serving)"
   echo -e "  --help, -h\t\t Show this help message"
   echo -e "  --push\t Push all built Docker images to the registry"
   echo -e "  <no option>\t Build sample application services (video-ingestion, pipeline-manager, search-ms, and UI)"
@@ -136,7 +136,6 @@ build_dependencies() {
     local dep_images=(
       "${REGISTRY}vdms-dataprep:${TAG}"
       "${REGISTRY}multimodal-embedding-serving:${TAG}"
-      "${REGISTRY}audio-analyzer:${TAG}"
     )
     for img in "${dep_images[@]}"; do
       if docker image inspect "$img" &> /dev/null; then
@@ -254,7 +253,6 @@ push_images() {
   local all_images=(
     "${REGISTRY}vdms-dataprep:${TAG}"
     "${REGISTRY}multimodal-embedding-serving:${TAG}"
-    "${REGISTRY}audio-analyzer:${TAG}"
     "${REGISTRY}video-ingestion:${TAG}"
     "${REGISTRY}pipeline-manager:${TAG}"
     "${REGISTRY}video-search:${TAG}"
