@@ -75,7 +75,7 @@ The Vector Retriever microservice provides efficient semantic retrieval over vis
 
 ## Learn More
 
-- Start with the [Get Started](./get-started.md).
+- Begin with the [Get Started Guide](./get-started.md).
 
 <!--hide_directive
 :::{toctree}
