@@ -32,6 +32,9 @@ class SupportedModel:
         precision: str | None = None,
         default: bool = False,
         model_proc_is_full_path: bool = False,
+        hub: str | None = None,
+        canonical_name: str | None = None,
+        canonical_display_name: str | None = None,
     ) -> None:
         """
         Initializes the SupportedModel instance.
@@ -50,7 +53,23 @@ class SupportedModel:
         """
         self.name: str = name
         self.display_name: str = display_name
+        # Canonical (YAML-level) identifiers. For model-proc variants
+        # ``name``/``display_name`` carry suffixes such as
+        # ``_preproc-aspect-ratio`` / ``[model-proc: ...]`` while the
+        # canonical pair stays equal to the original YAML entry. This
+        # lets the API collapse variants into a single installable model
+        # while the PipelineBuilder keeps fine-grained choices.
+        self.canonical_name: str = canonical_name if canonical_name else name
+        self.canonical_display_name: str = (
+            canonical_display_name if canonical_display_name else display_name
+        )
         self.source: str = source
+        # YAML ``hub`` field. Identifies the actual download backend
+        # (e.g. ``ultralytics``, ``omz``, ``huggingface``). ``source``
+        # stays as the legacy on-disk grouping key (``public``, ``omz``,
+        # ``pipeline-zoo-models``, ...). When ``hub`` is missing in
+        # YAML we fall back to ``source`` for backward compatibility.
+        self.hub: str = hub if hub else source
         self.model_type: str = model_type
         self.model_path: str = os.path.normpath(model_path)
         self.model_proc: str | None = model_proc
@@ -166,6 +185,12 @@ class SupportedModelsManager:
                     name = require_str_field(entry, "name", idx)
                     display_name = require_str_field(entry, "display_name", idx)
                     source = require_str_field(entry, "source", idx)
+                    hub_raw = entry.get("hub")
+                    hub = (
+                        hub_raw
+                        if isinstance(hub_raw, str) and hub_raw.strip()
+                        else source
+                    )
                     model_type = require_str_field(entry, "type", idx)
                     unsupported_devices = entry.get("unsupported_devices", None)
                     default = entry.get("default", False)
@@ -223,6 +248,9 @@ class SupportedModelsManager:
                                 unsupported_devices=unsupported_devices,
                                 precision=precision,
                                 default=default,
+                                hub=hub,
+                                canonical_name=name,
+                                canonical_display_name=display_name,
                             )
                         )
 
@@ -252,6 +280,9 @@ class SupportedModelsManager:
                                             precision=precision,
                                             default=False,  # Variants are not default
                                             model_proc_is_full_path=True,  # extra_model_procs contains full paths
+                                            hub=hub,
+                                            canonical_name=name,
+                                            canonical_display_name=display_name,
                                         )
                                     )
 
@@ -428,11 +459,14 @@ class SupportedModelsManager:
                 return model
         return None
 
-    def find_installed_model_by_model_and_proc_path(
-        self, model_path: str, model_proc_path: Optional[str] = None
+    def find_model_by_model_and_proc_path(
+        self,
+        model_path: str,
+        model_proc_path: Optional[str] = None,
+        installed_only: bool = True,
     ) -> Optional[SupportedModel]:
         """
-        Finds an installed model by its model path and, if provided, by its model_proc_path.
+        Finds a model by its model path and, if provided, by its model_proc_path.
 
         Models are stored at paths with the structure:
             {source}/{model_name}/{precision_dir}/{filename}.xml
@@ -448,16 +482,21 @@ class SupportedModelsManager:
         Args:
             model_path (str): The path to the model file (full or relative).
             model_proc_path (Optional[str]): The path to the model-proc file, or None.
+            installed_only (bool): When True (default) only return models that
+                are currently present on disk. Set to False to also match
+                supported-but-not-yet-installed models (used by pipeline graph
+                ingestion so ``used_by_pipelines`` is populated regardless of
+                install status).
 
         Returns:
-            Optional[SupportedModel]: The installed SupportedModel instance if found, otherwise None.
+            Optional[SupportedModel]: The matching SupportedModel instance if found, otherwise None.
         """
         normalized_model_path = os.path.normpath(model_path)
         # Compare with trailing-slash stripped (pipeline descriptions may omit the slash).
         for model in self._models:
             if (
                 model.model_type == "genai"
-                and model.exists_on_disk()
+                and (not installed_only or model.exists_on_disk())
                 and os.path.normpath(model.model_path_full).rstrip("/")
                 == normalized_model_path.rstrip("/")
             ):
@@ -469,12 +508,12 @@ class SupportedModelsManager:
         model_filename = os.path.basename(normalized_model_path)
         model_precision_dir = os.path.basename(os.path.dirname(normalized_model_path))
 
-        # Step 1: find all installed models matching the filename
+        # Step 1: find all models matching the filename
         matching_models = [
             model
             for model in self._models
             if os.path.basename(model.model_path) == model_filename
-            and model.exists_on_disk()
+            and (not installed_only or model.exists_on_disk())
         ]
 
         if not matching_models:

@@ -7,10 +7,10 @@ const toast = {
     data?: Parameters<typeof sonnerToast.warning>[1],
   ) =>
     sonnerToast.warning(message, {
-      ...data,
       closeButton: true,
       duration: Infinity,
       dismissible: true,
+      ...data,
     }),
   error: (
     message: Parameters<typeof sonnerToast.error>[0],

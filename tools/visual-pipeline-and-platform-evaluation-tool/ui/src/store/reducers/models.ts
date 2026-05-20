@@ -27,12 +27,21 @@ export const { setModels } = modelsSlice.actions;
 
 // Base selector
 export const selectModels = (state: RootState) => state.models.items;
+export const selectModelsLastFetched = (state: RootState) =>
+  state.models.lastFetched;
 
 export const selectModelsMap = createSelector([selectModels], (models) => {
   const map = new Map<string, Model>();
   models.forEach((m) => map.set(m.name, m));
   return map;
 });
+
+export const selectIsAnyModelDownloaded = createSelector(
+  [selectModels, selectModelsLastFetched],
+  (models, lastFetched) =>
+    lastFetched === null ||
+    models.some((m) => m.install_status !== "not_installed"),
+);
 
 // Optimized selectors using the map
 export const selectModelById = (state: RootState, modelId: string) =>

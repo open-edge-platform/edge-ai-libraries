@@ -6,7 +6,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { EllipsisVertical, Lock, Plus } from "lucide-react";
+import { EllipsisVertical, ExternalLink, Lock, Plus } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
 import { Link } from "react-router";
@@ -28,6 +28,15 @@ import { CreatePipelineDialog } from "./CreatePipelineDialog.tsx";
 import { usePipelineTagColors } from "@/hooks/usePipelineTagColors";
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 import { cn } from "@/lib/utils";
+
+const PIPELINE_SAMPLE_APP_LINKS: Record<string, string> = {
+  "defect-detection":
+    "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-vision/pallet-defect-detection/index.html",
+  "smart-nvr":
+    "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-nvr/index.html",
+  "smart-parking":
+    "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html",
+};
 
 type PipelineCardsProps = {
   pipelines: Pipeline[];
@@ -125,6 +134,21 @@ export const PipelineCards = ({
                     <EllipsisVertical className="h-4 w-4" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {pipeline.source === "PREDEFINED" &&
+                      PIPELINE_SAMPLE_APP_LINKS[pipeline.id] && (
+                        <DropdownMenuItem asChild>
+                          <a
+                            href={PIPELINE_SAMPLE_APP_LINKS[pipeline.id]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center justify-between gap-2"
+                          >
+                            Go to sample app
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </DropdownMenuItem>
+                      )}
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();

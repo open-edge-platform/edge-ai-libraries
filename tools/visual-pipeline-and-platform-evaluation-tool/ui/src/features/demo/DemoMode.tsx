@@ -930,8 +930,15 @@ const DemoMode = () => {
             : null;
 
       if (!category) return null;
-      const match = models.find((model) => model.category === category);
-      return match ? (match.display_name ?? match.name) : null;
+      // Pick the first installed variant of the first matching model.
+      // Variants expose the per-precision display_name expected by the
+      // pipeline graph (e.g. "YOLO v8n 640x640 (FP16)").
+      for (const model of models) {
+        if (model.category !== category) continue;
+        const variant = (model.variants ?? []).find((v) => v.installed);
+        if (variant) return variant.display_name;
+      }
+      return null;
     };
 
     const getPipelineVariantForRun = (pipelineId: string) =>
@@ -1810,21 +1817,36 @@ const DemoMode = () => {
                                                                         ?.params
                                                                         ?.filter,
                                                                   )
-                                                                  .map(
-                                                                    (model) => (
-                                                                      <option
-                                                                        key={
-                                                                          model.name
-                                                                        }
-                                                                        value={
-                                                                          model.display_name ??
-                                                                          model.name
-                                                                        }
-                                                                      >
-                                                                        {model.display_name ??
-                                                                          model.name}
-                                                                      </option>
-                                                                    ),
+                                                                  .flatMap(
+                                                                    (model) =>
+                                                                      (
+                                                                        model.variants ??
+                                                                        []
+                                                                      )
+                                                                        .filter(
+                                                                          (
+                                                                            variant,
+                                                                          ) =>
+                                                                            variant.installed,
+                                                                        )
+                                                                        .map(
+                                                                          (
+                                                                            variant,
+                                                                          ) => (
+                                                                            <option
+                                                                              key={
+                                                                                variant.display_name
+                                                                              }
+                                                                              value={
+                                                                                variant.display_name
+                                                                              }
+                                                                            >
+                                                                              {
+                                                                                variant.display_name
+                                                                              }
+                                                                            </option>
+                                                                          ),
+                                                                        ),
                                                                   )}
                                                               </select>
                                                             ) : isSourceLocationField &&
