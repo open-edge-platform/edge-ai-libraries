@@ -74,7 +74,10 @@ export class DataprepTelemetryService implements OnModuleInit, OnModuleDestroy {
       }
 
       const response = await axios.get(url, { timeout: this.getTimeoutMs() });
-      const value = response.data?.items?.[0]?.throughput?.embeddings_per_second;
+      const item = response.data?.items?.[0];
+      const value =
+        item?.stage_throughput?.embeddings_throughput ??
+        item?.throughput?.embeddings_per_second;
 
       if (typeof value !== 'number' || Number.isNaN(value)) {
         return;

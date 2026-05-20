@@ -169,7 +169,7 @@ services:
             - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
         devices:
-            - /dev/dri:/dev/dri
+            - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
         group_add:
             - ${USER_GROUP_ID:-1000}
             - ${VIDEO_GROUP_ID:-44}
@@ -197,7 +197,7 @@ services:
             DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES}
             OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
         devices:
-            - /dev/dri:/dev/dri
+            - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
         group_add:
             - ${USER_GROUP_ID:-1000}
             - ${VIDEO_GROUP_ID:-44}
