@@ -18,5 +18,5 @@ services:
       - ./config.yaml:/app/text-to-speech/config.yaml:ro
       - ./models:/app/text-to-speech/models
       - ./storage:/app/text-to-speech/storage
-      - ./.cache/huggingface:/app/text-to-speech/.cache/huggingface
+      - ./.cache:/root/.cache
     restart: unless-stopped

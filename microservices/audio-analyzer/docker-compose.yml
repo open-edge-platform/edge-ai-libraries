@@ -18,7 +18,7 @@ services:
       - ./models:/app/audio_analyzer/models
       - ./chunks:/app/audio_analyzer/chunks
       - ./storage:/app/audio_analyzer/storage
-      - ./.cache/huggingface:/app/audio_analyzer/.cache/huggingface
+      - ./.cache:/root/.cache
     restart: unless-stopped
     # Uncomment the next lines if you also need microphone capture from the host.
     # devices:
