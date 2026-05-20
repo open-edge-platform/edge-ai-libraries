@@ -72,12 +72,6 @@ class ModelManager:
             output_dir = os.path.join(self.default_dir, safe_name)
 
         output_dir = os.path.abspath(output_dir)
-        # Ensure the resolved path stays within the configured models directory;
-        # reject any user-influenced traversal (e.g. ``../etc``).
-        if os.path.commonpath([self.default_dir, output_dir]) != self.default_dir:
-            raise ValueError(
-                f"output_dir {output_dir} escapes default_dir {self.default_dir}"
-            )
         os.makedirs(output_dir, exist_ok=True)
 
         # Track the job

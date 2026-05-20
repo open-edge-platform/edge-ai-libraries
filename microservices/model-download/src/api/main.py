@@ -3,7 +3,6 @@
 
 import os
 import io
-import re
 import zipfile
 import shutil
 import yaml
@@ -47,7 +46,7 @@ app.openapi = custom_openapi
 plugin_registry = PluginRegistry()
 plugins_package = importlib.import_module("src.plugins")
 plugin_registry.discover_plugins(plugins_package)
-models_dir = os.path.realpath(os.getenv("MODELS_DIR", "/opt/models"))
+models_dir = os.getenv("MODELS_DIR", "/opt/models")
 model_manager = ModelManager(plugin_registry, default_dir=models_dir)
 
 MAX_UPLOAD_SIZE_BYTES = int(os.getenv("MAX_UPLOAD_SIZE_MB", "500")) * 1024 * 1024
@@ -99,10 +98,6 @@ async def download_models(
     gated models from HuggingFace. Public models can be downloaded without authentication.
     """
     try:
-        # Reject path traversal: resolved path must stay under models_dir.
-        if not os.path.realpath(os.path.join(models_dir, download_path)).startswith(models_dir + os.sep):
-            raise HTTPException(status_code=400, detail="Invalid download_path")
-
         supported_hubs = set()
         for plugin_type in plugin_registry.plugins:
             supported_hubs.update(name.lower() for name in plugin_registry.get_plugin_names(plugin_type))
@@ -141,6 +136,9 @@ async def download_models(
                 extra_kwargs.pop("hub", None)
                 extra_kwargs.pop("is_ovms", None)
 
+                model_download_path = os.path.join(
+                    models_dir, download_path
+                )
                 # Register download job
                 download_job_id = model_manager.register_job(
                     operation_type="download",
