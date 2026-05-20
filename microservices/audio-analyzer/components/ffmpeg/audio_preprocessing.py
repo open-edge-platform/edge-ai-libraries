@@ -6,7 +6,7 @@ import shutil
 import time
 import logging
 from utils.config_loader import config
-from utils.app_paths import get_chunks_dir
+from utils.app_paths import get_chunks_dir, get_session_chunks_dir
 from dto.audiosource import AudioSource
 
 logger = logging.getLogger(__name__)
@@ -95,10 +95,17 @@ def _build_af_filter() -> list[str]:
     return ["-af", af]
 
 
-def process_audio_segment(audio_path, start_time, end_time, chunk_index):
-    os.makedirs(CHUNKS_DIR, exist_ok=True)
+def _resolve_chunks_dir(session_id: str | None = None) -> str:
+    if session_id:
+        return get_session_chunks_dir(session_id)
+    return CHUNKS_DIR
+
+
+def process_audio_segment(audio_path, start_time, end_time, chunk_index, session_id: str | None = None):
+    chunks_dir = _resolve_chunks_dir(session_id)
+    os.makedirs(chunks_dir, exist_ok=True)
     chunk_name = f"chunk_{chunk_index}_{uuid4().hex[:6]}.wav"
-    chunk_path = os.path.join(CHUNKS_DIR, chunk_name)
+    chunk_path = os.path.join(chunks_dir, chunk_name)
     result = subprocess.run(
         [
             "ffmpeg", "-y", "-i", audio_path,
@@ -127,7 +134,7 @@ def process_audio_segment(audio_path, start_time, end_time, chunk_index):
         "chunk_index": chunk_index
     }
 
-def chunk_audio_by_silence(audio_path):
+def chunk_audio_by_silence(audio_path, session_id: str | None = None):
     if SEARCH_WINDOW > CHUNK_DURATION:
         raise ValueError(
             f"Silence search window ({SEARCH_WINDOW}s) can't be more than chunk duration ({CHUNK_DURATION}s)."
@@ -140,20 +147,21 @@ def chunk_audio_by_silence(audio_path):
         end_time = get_closest_silence(silences, ideal_end) or min(ideal_end, duration)
         if end_time <= current_time:
             end_time = min(ideal_end, duration)
-        yield process_audio_segment(audio_path, current_time, end_time, chunk_index)
+        yield process_audio_segment(audio_path, current_time, end_time, chunk_index, session_id=session_id)
         current_time = end_time
         chunk_index += 1
 
 def chunk_audiostream_by_silence(session_id: str):
     global FFMPEG_PROCESSES
-    os.makedirs(CHUNKS_DIR, exist_ok=True)
+    chunks_dir = _resolve_chunks_dir(session_id)
+    os.makedirs(chunks_dir, exist_ok=True)
     mic_device = os.environ.get("AUDIO_ANALYZER_MICROPHONE", "").strip()
     if not mic_device:
         raise ValueError(
             "Microphone device not set. Set AUDIO_ANALYZER_MICROPHONE to an ALSA device such as hw:0,0"
         )
 
-    record_file = os.path.join(CHUNKS_DIR, f"live_input_{session_id}.wav")
+    record_file = os.path.join(chunks_dir, f"live_input_{session_id}.wav")
     process = subprocess.Popen(
         [
             "ffmpeg", "-y",
@@ -180,12 +188,12 @@ def chunk_audiostream_by_silence(session_id: str):
             duration = get_audio_duration(record_file)
             if (process.poll() is not None) and (duration - current_time < CHUNK_DURATION):
                 logger.info(f"Session {session_id}: FFmpeg stopped, processing final chunk...")
-                yield process_audio_segment(record_file, current_time, duration, chunk_index)
+                yield process_audio_segment(record_file, current_time, duration, chunk_index, session_id=session_id)
                 break
             if duration - current_time < CHUNK_DURATION:
                 time.sleep(0.02)
                 continue
-            segment_file = os.path.join(CHUNKS_DIR, f"temp_segment_{uuid4().hex[:6]}.wav")
+            segment_file = os.path.join(chunks_dir, f"temp_segment_{uuid4().hex[:6]}.wav")
             subprocess.run(
                 [
                     "ffmpeg", "-y", "-i", record_file,
@@ -206,7 +214,7 @@ def chunk_audiostream_by_silence(session_id: str):
             end_time = get_closest_silence(silences, ideal_end) or min(ideal_end, duration)
             if end_time <= current_time:
                 end_time = min(ideal_end, duration)
-            yield process_audio_segment(record_file, current_time, end_time, chunk_index)
+            yield process_audio_segment(record_file, current_time, end_time, chunk_index, session_id=session_id)
             current_time = end_time
             chunk_index += 1
             os.remove(segment_file)
@@ -228,4 +236,4 @@ def chunk_by_silence(input, session_id: str):
     if input.source_type == AudioSource.MICROPHONE:
         yield from chunk_audiostream_by_silence(session_id)
     else:
-        yield from chunk_audio_by_silence(input.audio_filename)
+        yield from chunk_audio_by_silence(input.audio_filename, session_id=session_id)

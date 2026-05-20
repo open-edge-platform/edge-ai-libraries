@@ -26,8 +26,8 @@ pip install -r requirements.txt
 
 ## Config
 
-- Start from `config.yaml`. For configuration details and override behavior, see [configuration.md](configuration.md).
-- Use `TEXT_TO_SPEECH_CONFIG_OVERRIDE_PATHS` if you want one or more override YAML files.
+- Edit `config.yaml`. For configuration details, see [configuration.md](configuration.md).
+- The same `config.yaml` is used for both standalone and container runs.
 - Use `TEXT_TO_SPEECH__...` environment variables only for targeted overrides.
 - For Linux Intel iGPU usage, first install the required Intel/OpenVINO host runtime on the machine, then set the OpenVINO device field to `GPU` in config.
 
@@ -49,13 +49,6 @@ To change host or port:
 TEXT_TO_SPEECH_SERVER_HOST=0.0.0.0 TEXT_TO_SPEECH_SERVER_PORT=8011 python main.py
 ```
 
-If your Linux iGPU setup provides an Intel oneAPI environment script, source it before starting the service:
-
-```bash
-source /opt/intel/oneapi/setvars.sh
-python main.py
-```
-
 Equivalent `uvicorn` command:
 
 ```bash
@@ -70,7 +63,8 @@ curl --noproxy '*' http://127.0.0.1:8011/health
 
 ## API Use Cases and Examples
 
-For API use cases, request examples, and endpoint details, see [api.md](api.md).
+For API use cases, request examples, and endpoint details, see
+[api-reference.md](api-reference.md).
 
 ## Notes
 
@@ -78,4 +72,3 @@ For API use cases, request examples, and endpoint details, see [api.md](api.md).
 - First startup can take longer because models may be downloaded or converted
 - Runtime outputs are stored under `storage/<session_id>/`
 - Host-side Linux iGPU/OpenVINO GPU is the validated GPU path for this setup
-- `/opt/intel/oneapi/setvars.sh` is not available on a default Ubuntu install; it appears only after the relevant Intel host stack is installed

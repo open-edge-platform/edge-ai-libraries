@@ -5,33 +5,24 @@
 The service loads configuration in this order:
 
 1. `config.yaml`
-2. Files listed in `AUDIO_ANALYZER_CONFIG_OVERRIDE_PATHS`
-3. Environment variables with the `AUDIO_ANALYZER__...` prefix
+2. Environment variables with the `AUDIO_ANALYZER__...` prefix
 
-This applies to both Docker and standalone runs.
+The same `config.yaml` is used for both Docker and standalone runs. In Docker, `config.yaml` is bind-mounted into the container, so edits on the host take effect on `docker compose restart`.
 
-## Config Files
+## Config File
 
-- `config.yaml`: base defaults for local or general use
-- `config.container.yaml`: preferred container deployment config
-
-For container deployments, edit `config.container.yaml` directly. For direct local runs, start from `config.yaml` and override only what you need.
+- `config.yaml`: single source of truth for both standalone and container runs.
 
 ## Environment Variables
 
-- `AUDIO_ANALYZER_CONFIG_PATH`: alternate base config file
-- `AUDIO_ANALYZER_CONFIG_OVERRIDE_PATHS`: comma-separated YAML override files
+- `AUDIO_ANALYZER_CONFIG_PATH`: alternate base config file (advanced)
 - `AUDIO_ANALYZER_ENV_FILE`: optional dotenv file to preload before config parsing
 - `AUDIO_ANALYZER_SERVER_HOST`: host used by `python main.py`
 - `AUDIO_ANALYZER_SERVER_PORT`: port used by `python main.py`
 
 Targeted config overrides use the `AUDIO_ANALYZER__...` prefix.
 
-Examples:
-
-```bash
-AUDIO_ANALYZER_CONFIG_OVERRIDE_PATHS=custom.local.yaml python main.py
-```
+Example:
 
 ```bash
 AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py

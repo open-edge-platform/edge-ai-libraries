@@ -4,9 +4,11 @@ Use this path when you want the service to run in a container and expose the API
 
 ## Before You Start
 
-- Edit `config.container.yaml` with the settings you want. For configuration details and override behavior, see [configuration.md](configuration.md).
-- The Compose setup mounts `config.container.yaml`, `models/`, `chunks/`, `storage/`, and Hugging Face cache into the container.
+- Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see [configuration.md](configuration.md).
+- The Compose setup mounts `config.yaml`, `models/`, `chunks/`, `storage/`, and the Hugging Face cache into the container.
+- The repository includes placeholder files so fresh clones already contain those mount roots. If you remove any of those directories, recreate them as your user before starting Compose or Docker may recreate the missing host paths as `root`.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
+- The image defaults to UID/GID `1000:1000`, and Compose also runs the container as `1000:1000` unless you override `LOCAL_UID` and `LOCAL_GID`. If your host user is different, see [troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders) before starting.
 
 ## Start
 
@@ -25,7 +27,7 @@ curl --noproxy '*' http://127.0.0.1:8010/health
 
 ## API Use Cases and Examples
 
-For API use cases, request examples, and endpoint details, see [api.md](api.md).
+For API use cases, request examples, and endpoint details, see [api-reference.md](api-reference.md).
 
 ## Follow Logs
 
@@ -35,7 +37,7 @@ docker compose logs -f audio-analyzer
 
 ## Restart
 
-If you changed only `config.container.yaml`:
+If you changed only `config.yaml`:
 
 ```bash
 docker compose restart audio-analyzer
@@ -63,7 +65,10 @@ docker compose down
 ## Notes
 
 - Container host port: `8010`
-- The service loads `config.container.yaml` through `AUDIO_ANALYZER_CONFIG_OVERRIDE_PATHS`
+- The service loads `config.yaml` (bind-mounted from the host); the same file is used in standalone mode
+- The container writes shared files as the user it runs as (default `1000:1000`), so `models/`, `chunks/`, `storage/`, and `.cache/huggingface/` should remain usable from standalone host runs when host UID/GID match
+- If a bind-mount source path is missing on the host, Docker may create it as `root` before the service starts; pre-create the directories if you cleaned them out
+- Direct image runs inherit the same non-root default unless you pass a different `--user`
 - First startup can take longer because model download or export may happen during startup
 - If you need host microphone access, uncomment the `/dev/snd` device mapping in `docker-compose.yml`
 - Linux iGPU access now depends on the host exposing `/dev/dri` and having Intel/OpenVINO host GPU support installed

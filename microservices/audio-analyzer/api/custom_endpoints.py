@@ -8,8 +8,11 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from dto.audiosource import AudioSource
+from dto.transcription_dto import validate_transcription_options
 from pipeline import Pipeline
 from utils.audio_util import save_audio_file
+from utils.config_loader import config
+from utils.latency_store import asr_latency
 from utils.locks import audio_pipeline_lock
 from utils.session_manager import resolve_requested_session_id
 
@@ -22,6 +25,21 @@ def health():
     return JSONResponse(content={"status": "ok"}, status_code=200)
 
 
+@router.get("/v1/model-info")
+def asr_model_info():
+    return JSONResponse(content={
+        "model": config.models.asr.name,
+        "provider": config.models.asr.provider,
+        "device": config.models.asr.device,
+        "weight_format": getattr(config.models.asr, "weight_format", None),
+    })
+
+
+@router.get("/v1/performance")
+def asr_performance():
+    return JSONResponse(content={"latency": asr_latency.stats()})
+
+
 @router.post("/v1/audio/transcriptions/stream")
 def stream_transcribe_audio(
     file: UploadFile = File(...),
@@ -31,6 +49,11 @@ def stream_transcribe_audio(
 ):
     if audio_pipeline_lock.locked():
         raise HTTPException(status_code=429, detail="Session Active, Try Later")
+
+    language, _ = validate_transcription_options(
+        temperature=temperature,
+        language=language,
+    )
 
     try:
         session_id, continue_session = resolve_requested_session_id(session_id)
