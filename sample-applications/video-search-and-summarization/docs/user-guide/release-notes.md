@@ -12,7 +12,7 @@
 - Refactored Helm chart to use a reusable `vssui` subchart with multi-mode nginx and consolidated embedding model config under `global.embeddingModelName`.
 - Bumped DLStreamer base image to 2026.1.0-ubuntu24-rc1 for Video Ingestion Microservice.
 - **Setup Script:** Updates in environment variable to setup embedding models. New MULTIMODAL_EMBEDDING_MODEL and existing TEXT_EMBEDDING_MODEL are used to provide embedding models in relevant modes.
-- **Docker Compose:** Replaced `curl` with Python `urllib` in container healthchecks for a lighter runtime footprint for some of the dependencies.
+- **Docker Compose:** Replaced `curl` with Python `urllib` in container healthcheck for a lighter runtime footprint for some of the dependencies.
 - **Docker Compose:** Replaced environment variables with hard coded mount paths. This helps in stopping containers without looking for preset variables.
 - **Build Script:** Removed Audio-Analyzer from the dependency build pipeline. A frozen version 1.3.3 will be used for the Audio Analyzer microservice for current and all subsequent releases.
 - **Setup Script:** Minor cleanup to remove unused environment variables and remove several environment variables being used as mount directories in Docker Compose files _(some of these environment variables are still used pertaining to design issues)_.
