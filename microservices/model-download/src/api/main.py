@@ -3,6 +3,7 @@
 
 import os
 import io
+import re
 import zipfile
 import shutil
 import yaml
@@ -53,6 +54,9 @@ MAX_UPLOAD_SIZE_BYTES = int(os.getenv("MAX_UPLOAD_SIZE_MB", "500")) * 1024 * 102
 UPLOAD_CHUNK_SIZE_BYTES = int(os.getenv("UPLOAD_CHUNK_SIZE_KB", "8")) * 1024
 CUSTOM_MODELS_SUBDIR = "custom_uploaded_models"
 
+# Allowlist for ``download_path``: rejects absolute paths, ``..``, and special chars.
+_DOWNLOAD_PATH_RE = re.compile(r"^(?!/)(?!.*\.\.)[A-Za-z0-9._/-]+$")
+
 # Log which plugins are activated at startup
 for plugin_type in plugin_registry.plugins:
     for plugin_name in plugin_registry.get_plugin_names(plugin_type):
@@ -98,6 +102,16 @@ async def download_models(
     gated models from HuggingFace. Public models can be downloaded without authentication.
     """
     try:
+        # Sanitize the user-supplied ``download_path`` before filesystem use.
+        if not _DOWNLOAD_PATH_RE.fullmatch(download_path):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"download_path must match {_DOWNLOAD_PATH_RE.pattern} "
+                    "(no absolute paths, no '..', no special characters)"
+                ),
+            )
+
         supported_hubs = set()
         for plugin_type in plugin_registry.plugins:
             supported_hubs.update(name.lower() for name in plugin_registry.get_plugin_names(plugin_type))
