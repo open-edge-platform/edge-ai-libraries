@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 services:
@@ -21,8 +21,8 @@ services:
         environment:
             - http_proxy=${http_proxy}
             - https_proxy=${https_proxy}
-            - no_proxy=localhost,127.0.0.1,${PM_HOST},vss-ui,${no_proxy}
-            - WEBSOCKET_URL=ws://${PM_HOST}:3000/metrics/ws/collector
+            - no_proxy=localhost,127.0.0.1,pipeline-manager,vss-summary-ui,vss-search-ui,vss-singleton-ui,${no_proxy}
+            - WEBSOCKET_URL=ws://pipeline-manager:3000/metrics/ws/collector
         depends_on:
             pipeline-manager:
                 condition: service_started

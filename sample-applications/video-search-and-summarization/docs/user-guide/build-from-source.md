@@ -75,15 +75,43 @@ This section shows how to build the Video Search and Summary sample application 
 
 4. **Run the Docker Container**:
 
-    The Video Search and Summary application offers multiple stacks and deployment options, to verify the newly created images run the below command to run the application:
+    The Video Search and Summary application provides multiple deployment scenarios. To verify the newly created images, run any of these:
 
     ```bash
-    source setup.sh --summary
+    source setup.sh --summary              # Brings up Video Summarization application
+    source setup.sh --search               # Brings up Video Search application
+    source setup.sh --summary --search     # Brings up both Summarization and Search with separate UIs
+    source setup.sh --summary-and-search   # Brings up unified single UI for Video Summarization and Search
     ```
 
 5. Accessing the Application
 
-    After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
+    #### `--summary` mode
+
+   | UI | URL |
+   |----|-----|
+   | Video Summarization | `http://<host-ip>:12345/` |
+
+   #### `--search` mode
+
+   | UI | URL |
+   |----|-----|
+   | Video Search | `http://<host-ip>:12345/` |
+
+   #### `--summary --search` mode
+
+   | UI | URL |
+   |----|-----|
+   | Video Summarization | `http://<host-ip>:12345/summary/` |
+   | Video Search       | `http://<host-ip>:12345/search/` |
+
+   Visiting the root URL `http://<host-ip>:12345/` redirects to the Video Summarization UI.
+
+   #### `--summary-and-search` mode
+
+   | UI | URL |
+   |----|-----|
+   | Unified Summary/Search | `http://<host-ip>:12345/` |
 
 ## Verification
 

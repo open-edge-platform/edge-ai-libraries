@@ -10,7 +10,6 @@ videosearch:
     VDMS_VDB_HOST: "vdms-vectordb"
     VDMS_VDB_PORT: "55555"
     EMBEDDINGS_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
-    EMBEDDINGS_MODEL_NAME: ""
     SEARCH_ENGINE: "FaissFlat"
     DISTANCE_STRATEGY: "IP"
     VS_WATCHER_DIR: "/tmp/watcher-dir"
@@ -45,6 +44,7 @@ videosearch:
 global:
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: ""
+  embeddingModelName: ""
   proxy:
     no_proxy:
     http_proxy:
@@ -53,7 +53,6 @@ global:
     MINIO_ROOT_USER: 
     MINIO_ROOT_PASSWORD:
     MULTIMODAL_EMBEDDING_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
-    EMBEDDING_MODEL_NAME: ""
   # Add other environment variables as needed
 
 mmEmbeddingingMs:

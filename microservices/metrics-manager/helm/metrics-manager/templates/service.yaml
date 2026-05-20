@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "metrics-manager.fullname" . }}
+  labels:
+    {{- include "metrics-manager.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "metrics-manager.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.service.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePorts.metrics }}
+      nodePort: {{ .Values.service.nodePorts.metrics }}
+      {{- end }}
+    - name: telegraf
+      port: {{ .Values.service.telegrafPort }}
+      targetPort: telegraf
+      protocol: TCP
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePorts.telegraf }}
+      nodePort: {{ .Values.service.nodePorts.telegraf }}
+      {{- end }}
+    - name: telegraf-http
+      port: {{ .Values.service.telegrafHttpPort }}
+      targetPort: telegraf-http
+      protocol: TCP
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePorts.telegrafHttp }}
+      nodePort: {{ .Values.service.nodePorts.telegrafHttp }}
+      {{- end }}

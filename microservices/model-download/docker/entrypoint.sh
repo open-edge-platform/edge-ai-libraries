@@ -66,7 +66,7 @@ install_dependencies() {
             # Check if using default version - download export_model.py + matching requirements.txt
             if [[ "${OVMS_RELEASE_TAG}" == "${DEFAULT_OVMS_TAG}" ]]; then
                 echo -e "${BLUE}INFO:${NC} Using default OVMS version (${OVMS_RELEASE_TAG})."
-                EXPORT_SCRIPT_URL="https://raw.githubusercontent.com/openvinotoolkit/model_server/${DEFAULT_OVMS_TAG}/demos/common/export_models/export_model.py"
+                EXPORT_SCRIPT_URL="https://raw.githubusercontent.com/openvinotoolkit/model_server/v2026.0/demos/common/export_models/export_model.py"
                 mkdir -p /opt/scripts
                 if curl -fsSL -o /opt/scripts/export_model.py "${EXPORT_SCRIPT_URL}"; then
                     echo -e "${GREEN} SUCCESS:${NC} export_model.py downloaded from ${DEFAULT_OVMS_TAG}"
@@ -79,8 +79,8 @@ install_dependencies() {
                 REQUIREMENTS_FILE="/tmp/openvino_requirements_${DEFAULT_OVMS_TAG//[\.\/ ]/_}.txt"
                 if curl -fsSL -o "${REQUIREMENTS_FILE}" "${REQUIREMENTS_URL}"; then
                     echo -e "${GREEN} SUCCESS:${NC} OVMS requirements.txt downloaded from ${DEFAULT_OVMS_TAG}"
-                    # Pin transformers to 4.55 for compatibility
-                    sed -i 's/^transformers[>=<~!].*/transformers==4.55/' "${REQUIREMENTS_FILE}"
+                    # Pin transformers to 4.53.3 for compatibility
+                    sed -i 's/^transformers[>=<~!].*/transformers==4.53.3/' "${REQUIREMENTS_FILE}"
                     echo "OVMS_REQUIREMENTS_FILE=${REQUIREMENTS_FILE}" >> "${env_file}"
                     echo "OVMS_CUSTOM_TAG=false" >> "${env_file}"
                 else

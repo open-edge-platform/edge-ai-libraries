@@ -1,0 +1,221 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Default values for metrics-manager.
+# Override any of these with `--set foo.bar=...` or `-f my-values.yaml`.
+# To print the rendered defaults from the published OCI artifact, run:
+#   helm show values oci://registry-1.docker.io/intel/metrics-manager \
+#     --version <X.Y.Z>-helm
+# (See docs/HELM.md for the exact pinned version.)
+
+# -----------------------------------------------------------------------------
+# Container image
+# -----------------------------------------------------------------------------
+image:
+  repository: intel/metrics-manager
+  # tag defaults to .Chart.AppVersion (kept in sync with ./VERSION).
+  # Override only when running a custom build.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# -----------------------------------------------------------------------------
+# Workload kind
+# -----------------------------------------------------------------------------
+# `Deployment` (default): single instance, suitable for collecting metrics
+#   from a fixed node via nodeSelector or for service-level metrics.
+# `DaemonSet`: one pod per node, suitable for cluster-wide hardware telemetry.
+controller:
+  kind: Deployment
+  replicaCount: 1
+  # Scheduling constraints. Applied to the pod template, so they take
+  # effect for both Deployment and DaemonSet workloads.
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -----------------------------------------------------------------------------
+# Pod-level configuration
+# -----------------------------------------------------------------------------
+pod:
+  # Required for the bundled npu_reader to read /proc/<pid>/... and the
+  # Telegraf [[inputs.system]] / [[inputs.processes]] plugins to see all
+  # processes on the host. Equivalent to `pid: host` in compose.yaml.
+  hostPID: true
+  # CPU/RAM/temperature/GPU/NPU readers all read sysfs from the host.
+  # The pod itself does not need hostNetwork, but exposing the API on the
+  # host's network namespace can simplify scraping by node-local agents.
+  hostNetwork: false
+  # Leave dnsPolicy empty to let the chart pick a sensible default:
+  #   * ClusterFirstWithHostNet when hostNetwork=true (required by the
+  #     Kubernetes API server)
+  #   * ClusterFirst otherwise
+  # Set explicitly to override (e.g. "Default", "None").
+  dnsPolicy: ""
+  restartPolicy: Always
+  # Default ServiceAccount can be overridden if your cluster has admission
+  # controllers that require a specific identity.
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  podAnnotations: {}
+  podLabels: {}
+  priorityClassName: ""
+
+# -----------------------------------------------------------------------------
+# Container security context
+# -----------------------------------------------------------------------------
+# `privileged: true` matches the documented `docker run --privileged`
+# invocation that allows the bundled npu_reader to access
+# /sys/class/intel_pmt and the qmassa GPU monitor to enumerate render nodes.
+# Disable only if you are running CPU/RAM/temperature collection only.
+securityContext:
+  privileged: true
+  runAsNonRoot: false
+  readOnlyRootFilesystem: false
+  # AppArmor / seccomp Unconfined matches the compose.yaml `security_opt:
+  # apparmor:unconfined` knob (required when /proc is read-only or in
+  # nested containers).
+  #
+  # `appArmorProfile` is a native container security-context field added in
+  # Kubernetes 1.30. The chart auto-detects the API version and renders
+  # either the native field (>= 1.30) or the legacy
+  # `container.apparmor.security.beta.kubernetes.io/<name>` pod annotation
+  # (< 1.30). Set `appArmorProfileForce: true` to force the native field
+  # even when KubeVersion reports an older minor (useful for `helm template`
+  # when targeting a specific cluster).
+  appArmorProfile:
+    type: Unconfined
+  appArmorProfileForce: false
+  seccompProfile:
+    type: Unconfined
+
+# -----------------------------------------------------------------------------
+# Hardware access
+# -----------------------------------------------------------------------------
+hardware:
+  # Mount /dev/dri so qmassa can enumerate Intel(R) GPU render nodes.
+  # On NPU-only or CPU-only hosts leave this disabled - qmassa will
+  # detect the absence of the device and idle silently.
+  gpu:
+    enabled: true
+  # NPU telemetry comes from /sys/class/intel_pmt which is exposed via
+  # the /sys hostPath mount below; no additional device knob is needed.
+
+# -----------------------------------------------------------------------------
+# Container ports + Service
+# -----------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  # Port the FastAPI REST + SSE endpoint listens on.
+  metricsPort: 9090
+  # Telegraf's [[outputs.prometheus_client]] (scraped by Prometheus,
+  # Grafana, the SSE poller etc.).
+  telegrafPort: 9273
+  # Telegraf's [[inputs.http_listener_v2]] (Influx Line Protocol POSTs).
+  telegrafHttpPort: 8186
+  annotations: {}
+  # Set to NodePort or LoadBalancer for external access.
+  nodePorts:
+    metrics: ""
+    telegraf: ""
+    telegrafHttp: ""
+
+# -----------------------------------------------------------------------------
+# Application configuration (every value below maps 1:1 to an environment
+# variable. See docs/CONFIGURATION.md for the full reference.)
+# -----------------------------------------------------------------------------
+config:
+  logLevel: INFO
+  logFormat: json
+  corsOrigins: "*"
+  metricsRetentionSeconds: 300
+  maxMetricsBatchSize: 1000
+  # Optional: stable host label for Telegraf, qmassa_reader and npu_reader.
+  # Empty -> kernel hostname (default Telegraf behaviour).
+  hostnameOverride: ""
+  # Free-form extra environment variables. Use this for any setting not
+  # surfaced as a typed value above (e.g. RATE_LIMIT_*, TRUST_FORWARDED_*).
+  # Each item must be a {name, value} pair.
+  extraEnv: []
+  #  - name: RATE_LIMIT_REQUESTS_PER_MINUTE
+  #    value: "300"
+
+# -----------------------------------------------------------------------------
+# Telegraf configuration
+# -----------------------------------------------------------------------------
+# Set telegraf.config to a string to ship a custom telegraf.conf via a
+# generated ConfigMap, mounted at /etc/telegraf/telegraf.conf. When empty,
+# the image's default telegraf.conf is used.
+telegraf:
+  config: ""
+
+# -----------------------------------------------------------------------------
+# Custom metrics directory (/app/custom-metrics)
+# -----------------------------------------------------------------------------
+# `emptyDir` (default): scripts dropped at runtime live for the pod's
+#   lifetime. Best for testing.
+# `pvc`: bind a PersistentVolumeClaim (existing or generated). Best when
+#   you ship scripts via a sidecar / init job and want them to survive
+#   pod restarts.
+# `none`: skip the volume entirely. The image will write to the empty
+#   directory created by the Dockerfile - lost on restart, no scripts.
+customMetrics:
+  enabled: true
+  storage: emptyDir          # emptyDir | pvc | none
+  existingClaim: ""          # used when storage=pvc and you already have one
+  # When storage=pvc and existingClaim is empty, a PVC is generated:
+  size: 100Mi
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+
+# -----------------------------------------------------------------------------
+# Resource requests / limits
+# -----------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+# -----------------------------------------------------------------------------
+# Probes
+# -----------------------------------------------------------------------------
+livenessProbe:
+  httpGet:
+    path: /health
+    port: metrics
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: metrics
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# -----------------------------------------------------------------------------
+# ServiceMonitor (Prometheus Operator)
+# -----------------------------------------------------------------------------
+# When enabled, generate a ServiceMonitor that scrapes the Telegraf
+# Prometheus port. Requires `monitoring.coreos.com/v1` CRDs in the
+# cluster (Prometheus Operator).
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  namespace: ""
+  labels: {}
+  annotations: {}
