@@ -30,6 +30,6 @@ spec:
             - name: LLM_MODEL
               value: "{{ .Values.global.llm.llmModelId }}"
             - name: API_URL
-              value: "{{ .Values.global.backendApi.url }}"
+              value: "http://{{ .Values.global.backendApi.host }}:{{ .Values.global.backendApi.port }}{{ .Values.global.backendApi.path }}"
           command: ["python"]
           args: ["ui/gradio_app.py"]
