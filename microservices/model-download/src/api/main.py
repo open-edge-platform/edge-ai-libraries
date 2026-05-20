@@ -47,15 +47,12 @@ app.openapi = custom_openapi
 plugin_registry = PluginRegistry()
 plugins_package = importlib.import_module("src.plugins")
 plugin_registry.discover_plugins(plugins_package)
-models_dir = os.getenv("MODELS_DIR", "/opt/models")
+models_dir = os.path.realpath(os.getenv("MODELS_DIR", "/opt/models"))
 model_manager = ModelManager(plugin_registry, default_dir=models_dir)
 
 MAX_UPLOAD_SIZE_BYTES = int(os.getenv("MAX_UPLOAD_SIZE_MB", "500")) * 1024 * 1024
 UPLOAD_CHUNK_SIZE_BYTES = int(os.getenv("UPLOAD_CHUNK_SIZE_KB", "8")) * 1024
 CUSTOM_MODELS_SUBDIR = "custom_uploaded_models"
-
-# Allowlist for ``download_path``: rejects absolute paths, ``..``, and special chars.
-_DOWNLOAD_PATH_RE = re.compile(r"^(?!/)(?!.*\.\.)[A-Za-z0-9._/-]+$")
 
 # Log which plugins are activated at startup
 for plugin_type in plugin_registry.plugins:
@@ -102,15 +99,9 @@ async def download_models(
     gated models from HuggingFace. Public models can be downloaded without authentication.
     """
     try:
-        # Sanitize the user-supplied ``download_path`` before filesystem use.
-        if not _DOWNLOAD_PATH_RE.fullmatch(download_path):
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"download_path must match {_DOWNLOAD_PATH_RE.pattern} "
-                    "(no absolute paths, no '..', no special characters)"
-                ),
-            )
+        # Reject path traversal: resolved path must stay under models_dir.
+        if not os.path.realpath(os.path.join(models_dir, download_path)).startswith(models_dir + os.sep):
+            raise HTTPException(status_code=400, detail="Invalid download_path")
 
         supported_hubs = set()
         for plugin_type in plugin_registry.plugins:
@@ -150,9 +141,6 @@ async def download_models(
                 extra_kwargs.pop("hub", None)
                 extra_kwargs.pop("is_ovms", None)
 
-                model_download_path = os.path.join(
-                    models_dir, download_path
-                )
                 # Register download job
                 download_job_id = model_manager.register_job(
                     operation_type="download",
