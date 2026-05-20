@@ -5,21 +5,17 @@
 **Version**: 2026.1.0-rc1 \
 **Release Date**: 15 May 2026
 
-**Bug Fixes:**
-Following fixes have been added in MultiModal Embedding Microservice:
-  - PyTorch fallback support for non-OpenVINO scenario.
-  - Fallback for all supported model variants.
-  - Handle preprocess metadata support in blip2 transformers.
-
 **Changes:**
-- Introducing new Dual UI mode with `--summary --search` flags to run both summary and search applications simultaneously at /summary and /search endpoints respectively.
-- New Dual UI setup for helm chart installations by providing summary and search mode override values file simulatneously.
-- Updates to setup script and nginx configuration files for flexible UI routing via nginx for each mode of deployment.
+- Introducing new Dual UI mode with a new `--summary --search` CLI argument for `setup.sh`. This runs both summary and search applications simultaneously at **/summary** and **/search** URI endpoints respectively.
+- New Dual UI setup for helm chart installation. This is implemented by enabling ways to provide values override file for summary and search mode simultaneously.
+- Updates to setup script and nginx configuration files for flexible UI routing for each mode of deployment - existing summary mode, search mode, Unified UI Mode and the new Dual UI mode.
 - Updates in environment variable to setup embedding models. New MULTIMODAL_EMBEDDING_MODEL and existing TEXT_EMBEDDING_MODEL are used to provide embedding models in relevant modes.
 - Refactored Helm chart to use a reusable `vssui` subchart with multi-mode nginx and consolidated embedding model config under `global.embeddingModelName`.
 - Bumped DLStreamer base image to 2026.1.0-ubuntu24-rc1 for video-ingestion.
-- Replaced `curl` with Python `urllib` in container healthchecks for a lighter runtime footprint.
-- Removed audio-analyzer from the dependency build pipeline.
+- Docker Compose: Replaced `curl` with Python `urllib` in container healthchecks for a lighter runtime footprint for some of the dependencies.
+- Removed Audio-Analyzer from the dependency build pipeline. A frozen version 1.3.3 will be used for the Audio Analyzer microservice for current and all subsequent releases.
+- Minor refactoring in setup script to remove unused environment variables and avoid using environment variables to be used as mount directories in Docker Compose files.
+- Minor refactoring in Docker Compose to remove env vars being used as mount path.
 
 ## Previous Release
 
@@ -107,7 +103,7 @@ Following fixes have been added in MultiModal Embedding Microservice:
 
 - Video_Summary: Link to Multimodal embedding models are missing in the getting started guide
 - Video_Search: Change in models with different embedding dimension results in no video search
-- Video_Summary: When Video search is deployed with embedding model as Blip2/blip2_feature_extractor, Multimodal embedding serving doesnt run
+- Video_Summary: When Video search is deployed with embedding model as Blip2/blip2_feature_extractor, Multimodal embedding serving does not run
 
 **HW used for validation**:
 
