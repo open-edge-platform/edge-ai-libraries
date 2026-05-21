@@ -1,5 +1,7 @@
 FROM python:3.12-slim
 
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install uv directly and sync the project dependencies.
@@ -10,6 +12,8 @@ COPY README.md ./
 
 COPY src ./src
 RUN uv sync --frozen --no-dev
+RUN groupadd -g 1000 appuser && useradd -m -u 1000 -g 1000 appuser && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8000
 
