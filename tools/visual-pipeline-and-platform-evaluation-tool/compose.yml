@@ -117,7 +117,7 @@ services:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
-    image: docker.io/intel/model-download:2026.1.0-20260512-weekly
+    image: docker.io/intel/model-download:2026.1.0-rc1
     container_name: model-download
     ports:
       - "8000:8000"
