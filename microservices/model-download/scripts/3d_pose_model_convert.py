@@ -34,7 +34,7 @@ def prepare_model(models_dir: Path) -> None:
 
         print(f"Extracting checkpoint archive into {models_dir}")
         with tarfile.open(tar_path) as archive:
-            archive.extractall(models_dir)
+            archive.extractall(models_dir, filter="data")
         print("Checkpoint extraction complete")
 
     if not ov_model_path.exists():
