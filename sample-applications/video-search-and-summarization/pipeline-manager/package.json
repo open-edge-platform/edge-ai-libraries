@@ -87,7 +87,7 @@
     "sha.js": "^2.4.12",
     "glob": "^10.5.0",
     "qs": "^6.15.0",
-    "systeminformation": "^5.31.2",
+    "systeminformation": "^5.30.7",
     "fast-xml-parser": "^5.7.0",
     "protobufjs": "^8.0.2",
     "socket.io-parser": "^4.2.6",
@@ -101,7 +101,6 @@
     "serialize-javascript": "^7.0.4",
     "ajv": "^8.18.0",
     "file-type": "^21.3.1",
-    "tar": "^7.5.11",
     "picomatch": "^4.0.4"
 
   },

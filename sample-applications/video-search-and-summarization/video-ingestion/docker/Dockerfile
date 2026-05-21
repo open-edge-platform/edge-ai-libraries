@@ -1,10 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM intel/dlstreamer-pipeline-server:2026.1.0-ubuntu24-rc1.1
-
-USER root
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+FROM intel/dlstreamer-pipeline-server:2026.1.0-ubuntu24-rc1
 
 COPY requirements.txt . 
 RUN pip install --no-cache-dir -r requirements.txt
@@ -44,7 +41,5 @@ RUN if [ "$tmp/copyleft_sources" = "true" ]; then \
         done; \
         apt-get remove --purge -y gcc build-essential libffi-dev python3-dev; \
     fi
-
-USER intelmicroserviceuser
-
+    
 EXPOSE 8080
