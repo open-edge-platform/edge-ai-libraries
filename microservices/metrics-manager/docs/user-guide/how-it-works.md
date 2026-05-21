@@ -1,6 +1,6 @@
 # How It Works
 
-This document provides a technical deep dive into the architecture, data flows, and internal mechanisms of Metrics Manager.
+This document provides information about the architecture, data flows, and internal mechanisms of Metrics Manager.
 
 ## High-Level Architecture
 
@@ -66,6 +66,7 @@ Metrics Manager is a unified metrics platform that collects, stores, and streams
 Telegraf is a lightweight metrics agent that runs inside the container and collects:
 
 **Inputs:**
+
 - `/proc/stat` → CPU usage (user, system, idle) per core
 - `/proc/meminfo` → Memory (total, used, available)
 - `/sys/class/thermal/` → CPU temperature
@@ -75,10 +76,12 @@ Telegraf is a lightweight metrics agent that runs inside the container and colle
 - `Telegraf HTTP listener :8186` → Custom metrics from Metrics Manager
 
 **Processing:**
+
 - All inputs go through a Starlark processor (temperature filtering)
 - Aggregated into Prometheus text format
 
 **Outputs:**
+
 - `:9273/metrics` — Prometheus endpoint (scraped by SSE clients)
 - `:8186/write` — HTTP listener (accepts InfluxDB Line Protocol from FastAPI)
 
@@ -87,6 +90,7 @@ Telegraf is a lightweight metrics agent that runs inside the container and colle
 The FastAPI application provides:
 
 **REST API Endpoints:**
+
 - `POST /api/v1/metrics/simple` — Single metric (easiest format)
 - `POST /api/v1/metrics` — JSON batch (multiple metrics with multiple fields)
 - `POST /api/v1/metrics/influx` — InfluxDB Line Protocol batch
@@ -100,6 +104,7 @@ The FastAPI application provides:
 - `GET /metrics` — Prometheus format (custom metrics only)
 
 **SSE Stream Endpoint:**
+
 - `GET /metrics/stream` — Server-Sent Events stream
   - Polls Telegraf `:9273/metrics` every 500ms (configurable)
   - Broadcasts all metrics as `data: {...}` events
@@ -107,6 +112,7 @@ The FastAPI application provides:
   - Browser support: serves HTML page with live table; SSE clients get raw stream
 
 **In-Memory Storage:**
+
 - Stores custom metrics with configurable retention (default 300 seconds)
 - Automatic cleanup of expired metrics
 - Automatic eviction when memory limit reached (default 100k metrics)
@@ -120,11 +126,11 @@ Manages three long-running processes inside the container:
 2. **Metrics Manager / uvicorn** (priority 20) — FastAPI application
 3. **qmassa** (priority 30) — Intel GPU reader (writes to named pipe)
 
-Priority determines startup order. All are auto-restarted if they crash.
+Priority determines startup order, with lower priority starting first. All are auto-restarted if they crash.
 
 ### Container Startup Sequence
 
-When the container starts, the entrypoint script initializes the environment and supervisor manages process startup:
+When the container starts, the `entrypoint.sh` script initializes the environment and supervisor manages process startup:
 
 ```
 entrypoint.sh
@@ -193,7 +199,7 @@ HTTP POST client
 **Key Details:**
 
 - All ingestion endpoints are **fire-and-forget** — the response is sent immediately while persistence happens in the background
-- **No blocking**: Custom metrics don't block system metrics collection
+- **No blocking**: Custom metrics do not block system metrics collection
 - **Debounced persistence**: Multiple metrics pushed within 100ms are batched together in a single HTTP POST to Telegraf
 - **Exponential backoff**: Failed HTTP POSTs retry with exponential backoff (not implemented yet, logged only)
 
@@ -251,7 +257,7 @@ Response back to client (with correlation ID + compression)
 - **GZIP Compression**: Automatic for responses >1 KB; especially useful for SSE streams with many metrics
 - **CORS**: By default allows all origins (`*`). Restrict via `CORS_ORIGINS` environment variable in production
 
-See [Configuration Guide](./environment-variables.md#security) for security-related settings.
+See [Environment Variables](./get-started/environment-variables.md#security) for security-related settings.
 
 ---
 
@@ -274,14 +280,14 @@ qmassa → FIFO → reader   ┤   [[inputs.execd]]       │
 
 **Telegraf Inputs:**
 
-| Input | Source | Interval | Fields |
-|-------|--------|----------|--------|
-| `cpu` | `/proc/stat` | 1s | usage_user, usage_system, usage_idle (per core + total) |
-| `mem` | `/proc/meminfo` | 1s | total, used, available, used_percent |
-| `temp` | `/sys/class/thermal/` | 1s | temperature (per sensor, filtered to coretemp) |
-| `exec` | `read_cpu_freq.sh` | 10s | cpu_freq_mhz (per core) |
-| `execd` | `qmassa_reader.py` | continuous | gpu_* (engine usage, frequency, power) |
-| `execd` | `npu_reader.py` | 1s | npu_power, npu_frequency, npu_temperature, npu_utilization, etc. |
+| Input   | Source                | Interval   | Fields                                                           |
+| ------- | --------------------- | ---------- | ---------------------------------------------------------------- |
+| `cpu`   | `/proc/stat`          | 1s         | usage_user, usage_system, usage_idle (per core + total)          |
+| `mem`   | `/proc/meminfo`       | 1s         | total, used, available, used_percent                             |
+| `temp`  | `/sys/class/thermal/` | 1s         | temperature (per sensor, filtered to coretemp)                   |
+| `exec`  | `read_cpu_freq.sh`    | 10s        | cpu_freq_mhz (per core)                                          |
+| `execd` | `qmassa_reader.py`    | continuous | gpu\_\* (engine usage, frequency, power)                         |
+| `execd` | `npu_reader.py`       | 1s         | npu_power, npu_frequency, npu_temperature, npu_utilization, etc. |
 
 **Telegraf Output:**
 
@@ -320,13 +326,13 @@ SSE Client (browser or script)
   "metrics": [
     {
       "name": "cpu_usage_user",
-      "labels": {"cpu": "cpu-total", "host": "myhost"},
+      "labels": { "cpu": "cpu-total", "host": "myhost" },
       "value": 0.14,
       "timestamp": 1777463430000
     },
     {
       "name": "memory_used_mb",
-      "labels": {"host": "myhost"},
+      "labels": { "host": "myhost" },
       "value": 2048.5,
       "timestamp": 1777463430000
     }
@@ -430,12 +436,14 @@ measurement[,tag1=val1,tag2=val2] field1=val1[,field2=val2] [timestamp]
 ```
 
 **Example:**
+
 ```
 cpu_usage,host=myhost,cpu=cpu0 usage=45.2 1704067200000000000
 memory,host=myhost used_percent=67.5 1704067200000000000
 ```
 
 Used for:
+
 - Telegraf input/output
 - Custom metrics persistence to Telegraf
 - `/api/v1/metrics/influx` endpoint input
@@ -448,12 +456,14 @@ metric_name{label1="value1",label2="value2"} value
 ```
 
 **Example:**
+
 ```
 cpu_usage_user{cpu="cpu-total",host="myhost"} 45.2
 memory_used_mb{host="myhost"} 2048.5
 ```
 
 Used for:
+
 - `:9273/metrics` endpoint (scraped by SSE clients)
 - `/metrics` endpoint (custom metrics only)
 
@@ -477,22 +487,22 @@ Used for:
 
 ## Performance Characteristics
 
-| Scenario | Performance |
-|----------|-------------|
-| Ingest 1000 metrics/sec | ~5% CPU, <100ms p99 latency (debounced persistence) |
-| Store 100k metrics in memory | ~50 MB RAM |
+| Scenario                     | Performance                                                   |
+| ---------------------------- | ------------------------------------------------------------- |
+| Ingest 1000 metrics/sec      | ~5% CPU, <100ms p99 latency (debounced persistence)           |
+| Store 100k metrics in memory | ~50 MB RAM                                                    |
 | SSE broadcast to 100 clients | ~50 ms per polling cycle (one Telegraf fetch per 100 clients) |
-| Custom metric appears in SSE | ~600ms worst-case (100ms debounce + 500ms polling interval) |
+| Custom metric appears in SSE | ~600ms worst-case (100ms debounce + 500ms polling interval)   |
 
 ---
 
 ## Error Handling
 
-- **Invalid metric format**: Returns 422 Unprocessable Entity with validation error
+- **Invalid metric format**: Returns `422 Unprocessable Entity` with validation error
 - **Memory limit exceeded**: Oldest metrics are evicted silently
 - **Telegraf :8186 unreachable**: HTTP POST fails, error logged, metrics still stored locally
 - **Expired metrics**: Cleaned up silently on next store access
-- **Rate limit exceeded**: Returns 429 Too Many Requests
+- **Rate limit exceeded**: Returns `429 Too Many Requests`
 - **Graceful shutdown**: Completes in-flight requests, closes aiohttp session, logs uptime
 
 ## License
@@ -505,5 +515,5 @@ SPDX-License-Identifier: Apache-2.0
 
 - [API Reference](./api-reference.md)
 - [Architecture Overview](./index.md)
-- [Configuration Guide](./get-started/environment-variables.md)
+- [Environment Variables](./get-started/environment-variables.md)
 - [Troubleshooting](./troubleshooting.md)
