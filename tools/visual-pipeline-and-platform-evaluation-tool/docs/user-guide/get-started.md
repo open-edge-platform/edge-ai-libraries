@@ -39,7 +39,6 @@ For alternative ways to set up the sample application, refer to
 1. **Set up the working directory**:
 
    ```bash
-   mkdir -p visual-pipeline-and-platform-evaluation-tool/models
    mkdir -p visual-pipeline-and-platform-evaluation-tool/onvif_discovery
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/models
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/videos
@@ -56,20 +55,17 @@ For alternative ways to set up the sample application, refer to
    curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose.gpu.yml"
    curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose.npu.yml"
    curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/Makefile"
-   curl -Lo models/Dockerfile "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/Dockerfile"
-   curl -Lo models/model_manager.sh "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/model_manager.sh"
    curl -Lo onvif_discovery/Dockerfile "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/onvif_discovery/Dockerfile"
    curl -Lo onvif_discovery/onvif_discovery_agent.py "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/onvif_discovery/onvif_discovery_agent.py"
    curl -Lo shared/videos/default_recordings.yaml "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/shared/videos/default_recordings.yaml"
    curl -Lo shared/models/supported_models.yaml "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml"
-   chmod +x models/model_manager.sh
    chmod +x setup_env.sh
    ```
 
 3. **Start the application**:
 
    ```bash
-   make build-onvif-discovery build-models run
+   make build-onvif-discovery run
    ```
 
 4. **Verify that the application is running**:
@@ -95,15 +91,12 @@ Check the logs and look for confirmation messages indicating that the microservi
 
 ### Model Installation and Management
 
-When the Visual Pipeline and Platform Evaluation Tool is launched for the first time,
-a prompt is displayed to select and install the models to be used.
-This step allows installation of only the models relevant to the intended pipelines.
-
-To manage the installed models again, run the following command:
-
-```bash
-make install-models-force
-```
+AI models are installed on demand through the **Models** page in the web UI
+(or directly via the `/api/v1/models` API endpoints). The backend proxies
+install requests to the `model-download` microservice, which downloads and
+converts the selected models into the shared `shared/models/output/`
+volume. There is no separate installer container to run before starting
+the application.
 
 ### Video Generation
 

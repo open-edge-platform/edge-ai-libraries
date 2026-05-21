@@ -27,9 +27,12 @@ def _mock_get_video_path(filename: str) -> str:
     return os.path.join("/tmp", filename)
 
 
-def _mock_find_installed_model_by_model_and_proc_path(
-    model_path: str, model_proc_path: Optional[str] = None
+def _mock_find_model_by_model_and_proc_path(
+    model_path: str,
+    model_proc_path: Optional[str] = None,
+    installed_only: bool = True,
 ):
+    del installed_only  # tolerated for parity with the real signature
     mapped_names = [
         "yolov8_license_plate_detector",
         "ch_PP-OCRv4_rec_infer",
@@ -76,8 +79,8 @@ def _mock_find_model_by_display_name(name: str):
     return mock_model
 
 
-mock_models_manager_instance.find_installed_model_by_model_and_proc_path.side_effect = (
-    _mock_find_installed_model_by_model_and_proc_path
+mock_models_manager_instance.find_model_by_model_and_proc_path.side_effect = (
+    _mock_find_model_by_model_and_proc_path
 )
 mock_models_manager_instance.find_installed_model_by_display_name.side_effect = (
     _mock_find_model_by_display_name

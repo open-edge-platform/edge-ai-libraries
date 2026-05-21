@@ -10,6 +10,8 @@ from internal_types import (
     InternalDensityJobStatus,
     InternalDensityJobSummary,
     InternalLatencyMetrics,
+    InternalModelDownloadJobStatus,
+    InternalModelDownloadJobSummary,
     InternalOptimizationJobStatus,
     InternalOptimizationJobSummary,
     InternalPerformanceJobStatus,
@@ -18,8 +20,9 @@ from internal_types import (
     InternalValidationJobStatus,
     InternalValidationJobSummary,
 )
-from managers.optimization_manager import OptimizationManager
 from managers.metadata_manager import MetadataManager
+from managers.model_manager import ModelManager
+from managers.optimization_manager import OptimizationManager
 from managers.tests_manager import TestsManager
 from managers.validation_manager import ValidationManager
 
@@ -1444,3 +1447,125 @@ def _validation_summary_to_api(
             parameters=summary.request.parameters,
         ),
     )
+
+
+# ------------------------------------------------------------------
+# Model download jobs
+# ------------------------------------------------------------------
+
+
+def _model_job_to_api_status(
+    job: InternalModelDownloadJobStatus,
+) -> schemas.ModelDownloadJobStatus:
+    """Convert an internal model download job status to API schema."""
+    current_time = int(time.time() * 1000)
+    elapsed_time = (
+        job.end_time - job.start_time if job.end_time else current_time - job.start_time
+    )
+    return schemas.ModelDownloadJobStatus(
+        id=job.id,
+        model_name=job.model_name,
+        source=schemas.ModelSource(job.source.value),
+        start_time=job.start_time,
+        elapsed_time=elapsed_time,
+        state=schemas.ModelDownloadJobState(job.state.value),
+        details=list(job.details),
+        progress_message=job.progress_message,
+        model_path=job.model_path,
+    )
+
+
+def _model_job_summary_to_api(
+    summary: InternalModelDownloadJobSummary,
+) -> schemas.ModelDownloadJobSummary:
+    """Convert an internal model download job summary to API schema."""
+    return schemas.ModelDownloadJobSummary(
+        id=summary.id,
+        model_name=summary.model_name,
+        source=schemas.ModelSource(summary.source.value),
+    )
+
+
+@router.get(
+    "/models/status",
+    operation_id="get_model_download_statuses",
+    summary="List all model download jobs",
+    response_model=list[schemas.ModelDownloadJobStatus],
+)
+async def get_model_download_statuses():
+    """
+    # List Model Download Jobs
+
+    Return the current status of every model download job created via
+    `POST /models/download`. Jobs live in memory only (mirrors the
+    optimization/validation pattern) and are lost on restart, but
+    completed downloads are still reflected by `GET /models` via the
+    installed-models registry.
+    """
+    return [_model_job_to_api_status(j) for j in ModelManager().get_all_jobs()]
+
+
+@router.get(
+    "/models/{job_id}",
+    operation_id="get_model_download_job_summary",
+    summary="Get a model download job summary",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "model": schemas.ModelDownloadJobSummary,
+        },
+        404: {
+            "description": "Model download job not found",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+async def get_model_download_job_summary(job_id: str):
+    """
+    # Get Model Download Job Summary
+
+    Return the short summary (id, model name, source) of a model
+    download job. Returns 404 when the job id is unknown.
+    """
+    summary = ModelManager().get_job_summary(job_id)
+    if summary is None:
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Model download job {job_id} not found"
+            ).model_dump(),
+            status_code=404,
+        )
+    return _model_job_summary_to_api(summary)
+
+
+@router.get(
+    "/models/{job_id}/status",
+    operation_id="get_model_download_job_status",
+    summary="Get a model download job status",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "model": schemas.ModelDownloadJobStatus,
+        },
+        404: {
+            "description": "Model download job not found",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+async def get_model_download_job_status(job_id: str):
+    """
+    # Get Model Download Job Status
+
+    Return the current state, timings and progress of a model download
+    job. Returns 404 when the job id is unknown.
+    """
+    job = ModelManager().get_job(job_id)
+    if job is None:
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Model download job {job_id} not found"
+            ).model_dump(),
+            status_code=404,
+        )
+    return _model_job_to_api_status(job)

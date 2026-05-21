@@ -1061,13 +1061,145 @@
         }
       }
     },
+    "/jobs/models/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "List all model download jobs",
+        "description": "# List Model Download Jobs\n\nReturn the current status of every model download job created via\n`POST /models/download`. Jobs live in memory only (mirrors the\noptimization/validation pattern) and are lost on restart, but\ncompleted downloads are still reflected by `GET /models` via the\ninstalled-models registry.",
+        "operationId": "get_model_download_statuses",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ModelDownloadJobStatus"
+                  },
+                  "type": "array",
+                  "title": "Response Get Model Download Statuses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/models/{job_id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get a model download job summary",
+        "description": "# Get Model Download Job Summary\n\nReturn the short summary (id, model name, source) of a model\ndownload job. Returns 404 when the job id is unknown.",
+        "operationId": "get_model_download_job_summary",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDownloadJobSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model download job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/models/{job_id}/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get a model download job status",
+        "description": "# Get Model Download Job Status\n\nReturn the current state, timings and progress of a model download\njob. Returns 404 when the job id is unknown.",
+        "operationId": "get_model_download_job_status",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDownloadJobStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model download job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/models": {
       "get": {
         "tags": [
           "models"
         ],
         "summary": "List All Models",
-        "description": "**List all installed and available models.**\n\n## Operation\nRead the supported models configuration, filter out models that are not\npresent on disk, and expose the remaining models in an API-friendly format.\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\nJSON array of Model objects.\n\n**Each model includes:**\n- `name` - Internal model identifier\n- `display_name` - Human-readable model name\n- `category` - Logical model category (`classification`, `detection`, `genai`) or `null` when type is unknown\n- `precision` - Model precision (e.g., `\"FP32\"`, `\"INT8\"`) if available\n\n## Conditions\n\n### \u2705 Success\n- `supported_models.yaml` is loaded correctly by SupportedModelsManager\n- At least zero models are installed on disk (empty list is valid)\n\n### \u274c Failure\n- If SupportedModelsManager cannot be initialized (e.g., file missing, invalid YAML),\n  the application exits at startup and this endpoint will not be available\n\n## Example Response\n\n```json\n[\n  {\n    \"name\": \"vehicle-detection-0202\",\n    \"display_name\": \"Vehicle Detection\",\n    \"category\": \"detection\",\n    \"precision\": \"FP32\"\n  },\n  {\n    \"name\": \"person-reidentification-0200\",\n    \"display_name\": \"Person Reidentification\",\n    \"category\": \"classification\",\n    \"precision\": \"INT8\"\n  }\n]\n```",
+        "description": "# List Models\n\nReturn every model known to vippet-app: entries from\n`supported_models.yaml` plus user-uploaded custom models.\n\n## Response\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of `Model` objects |\n| 500  | Unexpected error |\n\nThe `install_status` field reflects the current state on disk (and\nin-flight jobs). The `used_by_pipelines` array lists predefined\npipelines that reference each model; an empty array means the model\nis not currently used by any predefined pipeline.",
         "operationId": "get_models",
         "responses": {
           "200": {
@@ -1080,6 +1212,206 @@
                   },
                   "type": "array",
                   "title": "Response Get Models"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models/upload": {
+      "post": {
+        "tags": [
+          "models"
+        ],
+        "summary": "Upload a custom model",
+        "description": "# Upload Model\n\nUpload a ZIP file with ``model.xml`` + ``model.bin`` at its root.\nThe upload is streamed to the model-download microservice and the\nresulting model is registered locally as a `custom` model so it\nappears immediately in `GET /models`.\n\n## Form fields\n\n- **`model_name`** *(required)* - Canonical identifier for the model\n- **`category`** *(required)* - Logical model category\n  (`classification`, `detection`, `genai`)\n- **`file`** *(required)* - ZIP file containing the OpenVINO IR\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 201  | `ModelUploadResponse` with the newly registered model |\n| 400  | Invalid form fields or ZIP contents |\n| 409  | A model with the same `model_name` already exists |\n| 413  | Uploaded file exceeds the configured size limit |\n| 502  | model-download microservice returned an error |\n| 500  | Unexpected error |",
+        "operationId": "upload_model",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_model"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "201": {
+            "description": "Model uploaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid upload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Model already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream model-download error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models/download": {
+      "post": {
+        "tags": [
+          "models"
+        ],
+        "summary": "Start one or more model download jobs",
+        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in `supported_models.yaml`; OMZ models are downloaded\nlocally by vippet-app because model-download has no OMZ plugin yet.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | Some accepted, some rejected (mixed `status_code` values) |\n| 400  | All requested models share the same client error (e.g. no `download_request`) |\n| 404  | All requested models are unknown |\n| 409  | All requested models are already installed or in progress |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |",
+        "operationId": "start_model_download",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelDownloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "202": {
+            "description": "All requested downloads accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDownloadJobResponse"
+                }
+              }
+            }
+          },
+          "207": {
+            "description": "Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDownloadJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "All requested models were rejected with the same client error (e.g. missing `download_request`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDownloadJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "All requested models are unknown (not present in `supported_models.yaml`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDownloadJobResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "All requested models are already installed or have a download job already running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDownloadJobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request body validation failed (e.g. duplicate names).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
                 }
               }
             }
@@ -2689,6 +3021,30 @@
         ],
         "title": "Body_upload_image_archive"
       },
+      "Body_upload_model": {
+        "properties": {
+          "model_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Model Name"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ModelCategory"
+          },
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_name",
+          "category",
+          "file"
+        ],
+        "title": "Body_upload_model"
+      },
       "Body_upload_video": {
         "properties": {
           "file": {
@@ -3501,11 +3857,13 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "Internal model identifier."
           },
           "display_name": {
             "type": "string",
-            "title": "Display Name"
+            "title": "Display Name",
+            "description": "Human-readable model name."
           },
           "category": {
             "anyOf": [
@@ -3515,9 +3873,40 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Logical model category, or null when unknown."
           },
-          "precision": {
+          "source": {
+            "$ref": "#/components/schemas/ModelSource",
+            "description": "Upstream hub the model is downloaded from."
+          },
+          "install_status": {
+            "$ref": "#/components/schemas/ModelInstallStatus",
+            "description": "Current install status of the model on the local disk."
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/ModelVariant"
+            },
+            "type": "array",
+            "title": "Variants",
+            "description": "Selectable variants (one per precision / model-proc)."
+          },
+          "used_by_pipelines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Used By Pipelines",
+            "description": "List of predefined-pipeline ids that reference this model. Non-empty means the model is recommended."
+          },
+          "default": {
+            "type": "boolean",
+            "title": "Default",
+            "description": "Whether the model is marked as a default install candidate in supported_models.yaml. The Models page uses this flag to pre-select recommended models in the bulk-install UI.",
+            "default": false
+          },
+          "unsupported_devices": {
             "anyOf": [
               {
                 "type": "string"
@@ -3526,18 +3915,19 @@
                 "type": "null"
               }
             ],
-            "title": "Precision"
+            "title": "Unsupported Devices",
+            "description": "Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist."
           }
         },
         "type": "object",
         "required": [
           "name",
           "display_name",
-          "category",
-          "precision"
+          "source",
+          "install_status"
         ],
         "title": "Model",
-        "description": "**Description of a single model exposed by the models API.**\n\n## Attributes\n- `name` - Internal model identifier used by the backend\n- `display_name` - Human readable model name suitable for UI\n- `category` - Logical model category (classification, detection), or null when the type from configuration is unknown or unsupported\n- `precision` - Model precision string (e.g., \"FP32\", \"INT8\"), or null when not specified\n\n### Example\n```json\n{\n  \"name\": \"vehicle-detection-0202\",\n  \"display_name\": \"Vehicle Detection\",\n  \"category\": \"detection\",\n  \"precision\": \"FP32\"\n}\n```"
+        "description": "**Description of a single supported model exposed by the models API.**\n\nLists every model known to vippet-app: both entries from\n`supported_models.yaml` (regardless of whether they are installed) and\nuser-uploaded models. Use `install_status` to know if the model is\nready to use, and `used_by_pipelines` to know whether installing it is\nrecommended (non-empty list means at least one predefined pipeline\nreferences it).\n\nThe `variants` array enumerates every selectable (precision,\nmodel-proc) combination \u2014 used by the pipeline builder to populate\nthe model dropdown. The install page collapses them under a single\n`display_name` and shows the unique precisions only.\n\n## Attributes\n- `name` - Internal model identifier used by the backend\n- `display_name` - Human-readable model name suitable for UI\n- `category` - Logical model category (`classification`, `detection`, `genai`) or null when unknown\n- `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)\n- `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)\n- `variants` - Selectable variants of this model (one per precision and optional model-proc)\n- `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation\n- `default` - Whether the model is marked as a default install candidate in `supported_models.yaml`. Used by the Models page to pre-select recommended models in the bulk-install UI.\n- `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)\n\n### Example\n```json\n{\n  \"name\": \"yolo11n\",\n  \"display_name\": \"YOLO 11n 640x640\",\n  \"category\": \"detection\",\n  \"source\": \"ultralytics\",\n  \"install_status\": \"installed\",\n  \"variants\": [\n    {\"name\": \"yolo11n_INT8\", \"display_name\": \"YOLO 11n 640x640 (INT8)\", \"precision\": \"INT8\"},\n    {\"name\": \"yolo11n_FP16\", \"display_name\": \"YOLO 11n 640x640 (FP16)\", \"precision\": \"FP16\"}\n  ],\n  \"used_by_pipelines\": [\"smart-nvr\", \"goods-detection\"],\n  \"unsupported_devices\": null\n}\n```"
       },
       "ModelCategory": {
         "type": "string",
@@ -3548,6 +3938,264 @@
         ],
         "title": "ModelCategory",
         "description": "**Model category for classification, detection, or GenAI tasks.**\n\n## Values\n- `CLASSIFICATION` - Classification model\n- `DETECTION` - Detection model\n- `GENAI` - Generative AI model (for example VLM)\n\n### Example\n```json\n\"detection\"\n```"
+      },
+      "ModelDownloadJobItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Model name."
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id",
+            "description": "Identifier of the created model-download job, or null when the request was rejected for this model."
+          },
+          "status_code": {
+            "type": "integer",
+            "title": "Status Code",
+            "description": "HTTP-like per-model status code.",
+            "examples": [
+              202,
+              400,
+              404,
+              409
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Human-readable status description."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "status_code",
+          "message"
+        ],
+        "title": "ModelDownloadJobItem",
+        "description": "**Per-model outcome of a multi-model download request.**\n\nReturned as one entry per requested name in\n`ModelDownloadJobResponse.jobs`. ``job_id`` is set only when the\nbackend accepted the request (status 202); for other status codes\nit is ``null`` and ``message`` describes why.\n\n## Attributes\n- `name` - Model name (matches the key in the parent map; repeated\n  for convenience when consumers iterate the values)\n- `job_id` - Identifier of the created model-download job, or null\n  when the request was rejected for this model\n- `status_code` - HTTP-like per-model status (`202` accepted,\n  `400` no `download_request`, `404` unknown model, `409` already\n  installed or in progress)\n- `message` - Human-readable status description\n\n### Example\n```json\n{\n  \"name\": \"yolo11n\",\n  \"job_id\": \"mdl001\",\n  \"status_code\": 202,\n  \"message\": \"Download started (job mdl001)\"\n}\n```"
+      },
+      "ModelDownloadJobResponse": {
+        "properties": {
+          "jobs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelDownloadJobItem"
+            },
+            "type": "object",
+            "title": "Jobs",
+            "description": "Per-model outcome keyed by the requested model name."
+          }
+        },
+        "type": "object",
+        "required": [
+          "jobs"
+        ],
+        "title": "ModelDownloadJobResponse",
+        "description": "**Envelope returned by `POST /models/download` for a batch request.**\n\nThe `jobs` map is keyed by the model names from the request body.\nEach value reports the outcome for that specific model \u2014 accepted\nrequests carry a `job_id` (use it with `/jobs/models/{job_id}` to\npoll progress); rejected ones carry a non-202 `status_code` and an\nexplanatory `message`.\n\nThe outer HTTP status mirrors the aggregate result:\n- `202` when **all** models were accepted,\n- `207` Multi-Status when **some** were accepted and some rejected,\n- the worst per-model error code (`400`/`404`/`409`) when **all**\n  were rejected.\n\n## Attributes\n- `jobs` - Per-model outcome keyed by the requested model name.\n\n### Example\n```json\n{\n  \"jobs\": {\n    \"yolo11n\": {\n      \"name\": \"yolo11n\",\n      \"job_id\": \"mdl001\",\n      \"status_code\": 202,\n      \"message\": \"Download started (job mdl001)\"\n    },\n    \"yolov8n\": {\n      \"name\": \"yolov8n\",\n      \"job_id\": null,\n      \"status_code\": 409,\n      \"message\": \"Model 'yolov8n' is already installed\"\n    }\n  }\n}\n```"
+      },
+      "ModelDownloadJobState": {
+        "type": "string",
+        "enum": [
+          "RUNNING",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "title": "ModelDownloadJobState",
+        "description": "**State of a model download job tracked by vippet-app.**\n\nMirrors optimization/validation job state machines. No cancellation.\n\n## Values\n- `RUNNING` - Download is in progress\n- `COMPLETED` - Download finished successfully\n- `FAILED` - Download finished unsuccessfully\n\n### Example\n```json\n\"RUNNING\"\n```"
+      },
+      "ModelDownloadJobStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ModelSource"
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time"
+          },
+          "elapsed_time": {
+            "type": "integer",
+            "title": "Elapsed Time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ModelDownloadJobState"
+          },
+          "details": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Details"
+          },
+          "progress_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Message"
+          },
+          "model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "model_name",
+          "source",
+          "start_time",
+          "elapsed_time",
+          "state",
+          "details"
+        ],
+        "title": "ModelDownloadJobStatus",
+        "description": "**Detailed status of a model download job.**\n\n## Attributes\n- `id` - Job identifier\n- `model_name` - Name of the supported model being installed\n- `source` - Origin hub the model is being downloaded from\n- `start_time` - Start time in milliseconds since epoch\n- `elapsed_time` - Elapsed time in milliseconds\n- `state` - Current job state (`RUNNING`, `COMPLETED`, `FAILED`)\n- `details` - Human-readable messages for the current state\n- `progress_message` - Last status text reported by the downloader (or null)\n- `model_path` - Filesystem path of the installed model, set only when state is `COMPLETED`\n\n### Example\n```json\n{\n  \"id\": \"mdl001\",\n  \"model_name\": \"yolo11n\",\n  \"source\": \"ultralytics\",\n  \"start_time\": 1715000000000,\n  \"elapsed_time\": 4321,\n  \"state\": \"RUNNING\",\n  \"details\": [\"Downloading yolo11n from Ultralytics\"],\n  \"progress_message\": \"Fetching weights...\",\n  \"model_path\": null\n}\n```"
+      },
+      "ModelDownloadJobSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ModelSource"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "model_name",
+          "source"
+        ],
+        "title": "ModelDownloadJobSummary",
+        "description": "**Short summary of a model download job.**\n\n## Attributes\n- `id` - Job identifier\n- `model_name` - Name of the supported model being installed\n- `source` - Origin hub the model is being downloaded from\n\n### Example\n```json\n{\n  \"id\": \"mdl001\",\n  \"model_name\": \"yolo11n\",\n  \"source\": \"ultralytics\"\n}\n```"
+      },
+      "ModelDownloadRequest": {
+        "properties": {
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Names",
+            "description": "List of supported-model names to install. Must be non-empty and unique.",
+            "examples": [
+              [
+                "yolo11n",
+                "yolov8n"
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "names"
+        ],
+        "title": "ModelDownloadRequest",
+        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in `supported_models.yaml`. Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+      },
+      "ModelInstallStatus": {
+        "type": "string",
+        "enum": [
+          "installed",
+          "not_installed",
+          "installing",
+          "failed"
+        ],
+        "title": "ModelInstallStatus",
+        "description": "**Current install status of a model on the local disk.**\n\n## Values\n- `INSTALLED` - Model files are present on disk and ready to use\n- `NOT_INSTALLED` - Model is supported but not present on disk\n- `INSTALLING` - Model is currently being downloaded/installed\n- `FAILED` - Most recent install attempt failed\n\n### Example\n```json\n\"installed\"\n```"
+      },
+      "ModelSource": {
+        "type": "string",
+        "enum": [
+          "huggingface",
+          "ultralytics",
+          "pipeline-zoo-models",
+          "omz",
+          "custom"
+        ],
+        "title": "ModelSource",
+        "description": "**Upstream hub a model is downloaded from.**\n\nMirrors the `hub` value used by the model-download microservice and\nadds `CUSTOM` for user-uploaded models.\n\n## Values\n- `HUGGINGFACE` - HuggingFace Hub\n- `ULTRALYTICS` - Ultralytics model zoo\n- `PIPELINE_ZOO_MODELS` - OpenVINO Pipeline Zoo models\n- `OMZ` - OpenVINO Open Model Zoo (handled locally by vippet-app)\n- `CUSTOM` - User-uploaded model\n\n### Example\n```json\n\"huggingface\"\n```"
+      },
+      "ModelUploadResponse": {
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/Model",
+            "description": "Newly registered model entry."
+          }
+        },
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "ModelUploadResponse",
+        "description": "**Response body returned after a model has been successfully uploaded.**\n\nThe response is the freshly registered `Model` entry so that the UI\ncan update its state without an extra `GET /models` round-trip.\n\n## Attributes\n- `model` - Newly registered model entry\n\n### Example\n```json\n{\n  \"model\": {\n    \"name\": \"my-custom-detector\",\n    \"display_name\": \"My Custom Detector\",\n    \"category\": \"detection\",\n    \"source\": \"custom\",\n    \"install_status\": \"installed\",\n    \"variants\": [{\"name\": \"my-custom-detector\", \"display_name\": \"My Custom Detector (FP32)\", \"precision\": \"FP32\"}],\n    \"used_by_pipelines\": [],\n    \"unsupported_devices\": null\n  }\n}\n```"
+      },
+      "ModelVariant": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Stable variant identifier."
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name",
+            "description": "Human-readable variant label including precision suffix."
+          },
+          "precision": {
+            "type": "string",
+            "title": "Precision",
+            "description": "Precision label."
+          },
+          "installed": {
+            "type": "boolean",
+            "title": "Installed",
+            "description": "Whether the underlying artefacts for this exact variant are present on disk.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "display_name",
+          "precision"
+        ],
+        "title": "ModelVariant",
+        "description": "**Single selectable variant of a supported model.**\n\nA variant identifies one concrete (model, precision, model-proc)\ncombination. The pipeline builder uses variants to populate the\ninference-element model dropdown so every precision (and every\nextra model-proc) appears as a separate entry; the canonical\n`Model` still represents the collapsed view shown on the install\npage.\n\nNo filesystem paths are exposed; the backend resolves\n`display_name` back to the underlying artefacts when ingesting or\nrunning a pipeline graph.\n\n## Attributes\n- `name` - Stable per-variant identifier (matches\n  `SupportedModel.name`, e.g. `efficientnet-b0_INT8`)\n- `display_name` - Human-readable variant label with precision\n  (and optional `[model-proc: ...]`) suffix, used as the dropdown\n  value in the pipeline builder\n- `precision` - Precision label (e.g. `FP32`, `FP16`, `INT8`,\n  `FP16-INT8`, `INT4`)\n- `installed` - Whether the underlying artefacts for this exact\n  variant are present on disk. The pipeline builder filters its\n  dropdown by this flag."
       },
       "NetworkCameraDetails": {
         "properties": {

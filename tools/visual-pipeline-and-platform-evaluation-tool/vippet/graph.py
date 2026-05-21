@@ -3743,8 +3743,12 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
             continue
 
         model_proc_path = node.data.get("model-proc", None)
-        model = SupportedModelsManager().find_installed_model_by_model_and_proc_path(
-            model_path, model_proc_path
+        # Match against every supported model (installed or not) so that
+        # pipelines referencing a not-yet-installed model still get a
+        # resolved display name. This lets ``used_by_pipelines`` in the
+        # /models endpoint stay populated regardless of install status.
+        model = SupportedModelsManager().find_model_by_model_and_proc_path(
+            model_path, model_proc_path, installed_only=False
         )
 
         if model is not None:

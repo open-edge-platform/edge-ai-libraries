@@ -46,13 +46,24 @@ ENV VIRTUAL_ENV=/home/dlstreamer/.venv
 RUN python3 -m venv --system-site-packages $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Copy the requirements file into the container
-COPY --chown=dlstreamer:dlstreamer vippet/requirements.txt /home/dlstreamer/vippet/requirements.txt
+# Secondary virtualenv dedicated to ``openvino-dev[onnx]==2024.6.0``
+# (omz_downloader / omz_converter). It pulls its own matching
+# ``openvino==2024.6.0`` so it never collides with the OpenVINO 2026.x
+# runtime installed in $VIRTUAL_ENV. Built without --system-site-packages
+# to fully isolate the two stacks.
+ENV OMZ_VIRTUAL_ENV=/home/dlstreamer/.omz-venv
 
-# Install necessary Python dependencies
+# Copy the requirements files into the container
+COPY --chown=dlstreamer:dlstreamer vippet/requirements.txt /home/dlstreamer/vippet/requirements.txt
+COPY --chown=dlstreamer:dlstreamer vippet/requirements-omz.txt /home/dlstreamer/vippet/requirements-omz.txt
+
+# Install the production runtime dependencies into the main venv and the
+# OMZ tooling into its own isolated venv.
 RUN \
-    pip3 install --upgrade pip && \
-    pip3 install --disable-pip-version-check --no-cache-dir -r requirements.txt
+    pip3 install --disable-pip-version-check --no-cache-dir -r requirements.txt && \
+    python3 -m venv $OMZ_VIRTUAL_ENV && \
+    $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check --no-cache-dir \
+        -r requirements-omz.txt
 
 # Copy the Python scripts and configuration files into the container
 COPY --chown=dlstreamer:dlstreamer \
