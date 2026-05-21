@@ -45,7 +45,10 @@
     "js-yaml": "^4.1.1",
     "@eslint/plugin-kit": "^0.6.0",
     "immutable": "^5.1.5",
-    "minimatch": "^10.2.5"
+    "minimatch": "^10.2.5",
+    "picomatch@<=2.3.1": "^2.3.2",
+    "picomatch@>=4.0.0 <4.0.4": "^4.0.4",
+    "socket.io-parser": "^4.2.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
