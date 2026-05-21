@@ -24,9 +24,11 @@ _EXTERNAL_MODEL_PATH_TEMPLATES: dict[str, str] = {
 
 # Pipelines with no video encoder/muxer branch; ``output_mode=file`` returns
 # an empty ``video_output_paths`` list, so the file-output test is skipped.
-_NO_FILE_VIDEO_OUTPUT_PIPELINES: frozenset[str] = frozenset({
-    "Video Summarization VLM",
-})
+_NO_FILE_VIDEO_OUTPUT_PIPELINES: frozenset[str] = frozenset(
+    {
+        "Video Summarization VLM",
+    }
+)
 
 
 # API call recording – used by test_z_api_coverage.py to verify that all
