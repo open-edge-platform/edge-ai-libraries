@@ -511,7 +511,7 @@ export const doConversation = createAsyncThunk(
 
     const body = {
       conversation_messages,
-      max_tokens: MAX_TOKENS,
+      max_tokens: MAX_TOKENS ?? 512,
     };
 
     // Set generating state - user has submitted, waiting for AI to start responding
