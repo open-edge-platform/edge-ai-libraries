@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# Lightweight image for the servers-only REST API (api/servers_app.py).
+# Does NOT include GStreamer, OpenVINO, or any other ViPPET pipeline
+# dependencies — only what is needed to serve /api/v1/servers endpoints
+# backed by a PostgreSQL database.
+
+FROM python:3.12-slim AS prod
+
+# Proxy build arguments (passed from host environment via compose build args)
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+ENV HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    NO_PROXY=${NO_PROXY}
+
+WORKDIR /app
+
+# Install only the packages required by servers_app
+RUN pip install --no-cache-dir \
+    "fastapi[standard]==0.133.1" \
+    "pydantic==2.12.5" \
+    "sqlalchemy==2.0.36" \
+    "psycopg2-binary==2.9.10"
+
+# Copy only the source files needed at runtime
+COPY api/__init__.py        api/__init__.py
+COPY api/api_schemas.py     api/api_schemas.py
+COPY api/servers_app.py     api/servers_app.py
+COPY api/routes/__init__.py api/routes/__init__.py
+COPY api/routes/servers.py  api/routes/servers.py
+COPY database.py            database.py
+COPY managers/              managers/
+
+ENV PYTHONPATH=/app
+
+EXPOSE 80
+
+CMD ["uvicorn", "api.servers_app:app", "--host", "0.0.0.0", "--port", "80"]

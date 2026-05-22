@@ -105,7 +105,7 @@ def register_routers(app: FastAPI) -> None:
         models,
         pipeline_templates,
         pipelines,
-        servers,
+        sysinfo,
         tests,
         videos,
         cameras,
@@ -122,7 +122,7 @@ def register_routers(app: FastAPI) -> None:
         tags=["pipeline-templates"],
     )
     app.include_router(pipelines.router, prefix="/pipelines", tags=["pipelines"])
-    app.include_router(servers.router, prefix="/servers", tags=["servers"])
+    app.include_router(sysinfo.router, prefix="/sysinfo", tags=["sysinfo"])
     app.include_router(tests.router, prefix="/tests", tags=["tests"])
     app.include_router(videos.router, prefix="/videos", tags=["videos"])
     app.include_router(images.router, prefix="/images", tags=["images"])

@@ -19,7 +19,7 @@ import { routeConfig, keepAliveRoutes } from "@/config/navigation.ts";
 import { BackgroundJobsProvider } from "@/contexts/BackgroundJobsContext";
 import { BackgroundJobsWidget } from "@/components/BackgroundJobsWidget";
 import { useEffect, useState } from "react";
-import { API_BASE_URL } from "@/api/apiSlice.ts";
+import { SERVERS_BASE_URL, ADMIN_API_KEY } from "@/api/apiSlice.ts";
 
 const Layout = () => {
   usePipelinesLoader();
@@ -30,7 +30,11 @@ const Layout = () => {
   const [isServerRole, setIsServerRole] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/servers/db-status`)
+    fetch(`${SERVERS_BASE_URL}/servers/db-status`, {
+      headers: {
+        ...(ADMIN_API_KEY && { "X-Admin-Key": ADMIN_API_KEY }),
+      },
+    })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setIsServerRole(data?.role === "vippet_server"))
       .catch(() => setIsServerRole(false));

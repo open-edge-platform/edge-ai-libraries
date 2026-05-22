@@ -48,7 +48,7 @@ import {
 import { formatErrorMessage } from "@/lib/utils.ts";
 import { useStreamRateChange } from "@/hooks/useStreamRateChange.ts";
 import type { Pipeline } from "@/api/api.generated";
-import { API_BASE_URL } from "@/api/apiSlice.ts";
+import { SERVERS_BASE_URL } from "@/api/apiSlice.ts";
 
 type TestType = "performance" | "density";
 
@@ -191,7 +191,7 @@ export const Remote = () => {
     const fetchServers = async () => {
       setIsLoadingServers(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/servers`);
+        const response = await fetch(`${SERVERS_BASE_URL}/servers`);
         if (!response.ok) {
           throw new Error("Failed to fetch servers");
         }

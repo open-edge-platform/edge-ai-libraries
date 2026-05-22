@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# Standalone compose file for the central servers registry service.
+#
+# Includes a PostgreSQL container — no external database required.
+#
+# Usage:
+#   POSTGRES_PASSWORD=<pass> ADMIN_API_KEY=<key> docker compose -f compose.servers.yml up
+#
+# Required environment variables:
+#   POSTGRES_PASSWORD   Password for the PostgreSQL user
+#   ADMIN_API_KEY       Secret key required for write operations (POST/PATCH/DELETE)
+#
+# Optional environment variables:
+#   POSTGRES_USER       PostgreSQL username         (default: vippet)
+#   POSTGRES_DB         PostgreSQL database name    (default: vippet_db)
+#   APP_LOG_LEVEL       Logging level               (default: INFO)
+#
+# Other ViPPET machines should set in their .env:
+#   VITE_SERVERS_HOST=<this-machine-ip>        # port 80 (default HTTP)
+#   VITE_ADMIN_API_KEY=<key>                   # omit for read-only access
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vippet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-vippet_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vippet} -d ${POSTGRES_DB:-vippet_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  servers:
+    build:
+      context: vippet
+      dockerfile: Dockerfile.servers
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
+    ports:
+      - "80:80"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vippet}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-vippet_db}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:80/api/v1/servers')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  postgres_data:

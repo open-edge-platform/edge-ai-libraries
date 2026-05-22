@@ -62,32 +62,25 @@ class Server(Base):
         )
 
 
-def check_db_connection() -> tuple[bool, str, str | None]:
+def check_db_connection() -> tuple[bool, str]:
     """
-    Check whether the database is reachable and return the connected role.
+    Check whether the database is reachable.
 
     Returns:
-        Tuple of (is_available: bool, reason: str, db_role: str | None).
-        ``db_role`` is the PostgreSQL ``current_user`` value when available,
-        ``None`` otherwise.
-
-    Expected roles:
-        - ``vippet_server``: may register/manage servers.
-        - ``vippet_user``: read-only access, server registration hidden in UI.
+        Tuple of (is_available: bool, reason: str).
     """
     import sqlalchemy
 
     raw_url = os.environ.get("DATABASE_URL", "")
     if not raw_url:
-        return False, "DATABASE_URL environment variable is not set", None
+        return False, "DATABASE_URL environment variable is not set"
 
     try:
         with engine.connect() as conn:
-            result = conn.execute(sqlalchemy.text("SELECT current_user"))
-            db_role: str = result.scalar()
-        return True, "Database connection successful", db_role
+            conn.execute(sqlalchemy.text("SELECT 1"))
+        return True, "Database connection successful"
     except Exception as e:
-        return False, f"Cannot connect to database: {e}", None
+        return False, f"Cannot connect to database: {e}"
 
 
 def init_db() -> None:

@@ -1,7 +1,9 @@
 ## PostgreSQL Setup
 
-ViPPET uses a PostgreSQL database to persist server/machine records.
-The connection is configured via the ``DATABASE_URL`` environment variable.
+ViPPET uses a PostgreSQL database on a **central machine** to persist server/machine
+records. The database connection is only required on that central machine — client
+machines connect to its REST API via ``VITE_SERVERS_HOST`` and do not need
+``DATABASE_URL`` at all.
 
 ### Starting the PostgreSQL Docker container
 
@@ -25,57 +27,31 @@ Verify the container is running:
 docker ps | grep vippet-postgres
 ```
 
-### User Roles
-
-ViPPET supports two PostgreSQL roles with different levels of access:
-
-| Role | Permissions | UI behaviour |
-|------|-------------|--------------|
-| `vippet_server` | Full read/write on the `servers` table | Shows the **Add Server** button — can register and remove machines |
-| `vippet_user` | Read-only on the `servers` table | Hides the **Add Server** button — can only view registered machines on the Remote page |
-
-#### Creating the roles
-
-Connect to the running container as the superuser:
-
-```bash
-docker exec -it vippet-postgres psql -U <username> -d vippet_db
-```
-
-Then run the following SQL:
-
-```sql
--- Create roles
-CREATE USER vippet_server WITH PASSWORD '<server_password>';
-CREATE USER vippet_user   WITH PASSWORD '<user_password>';
-
--- Grant connection and schema access
-GRANT CONNECT ON DATABASE vippet_db TO vippet_server, vippet_user;
-GRANT USAGE   ON SCHEMA public      TO vippet_server, vippet_user;
-
--- vippet_server: full access to the servers table
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE servers TO vippet_server;
-
--- vippet_user: read-only access
-GRANT SELECT ON TABLE servers TO vippet_user;
-```
-
 ### Configuration
 
-Set the ``DATABASE_URL`` environment variable before starting ViPPET,
-either in your shell or in the ``.env`` file at the project root.
+Set the following environment variables on the **central machine** before starting
+the servers registry service:
 
-**Admin machine** (can register/remove servers):
 ```
-DATABASE_URL=postgresql://vippet_server:<server_password>@<DB_HOST_IP>:5432/vippet_db
-```
-
-**Regular machine** (read-only, Remote page only):
-```
-DATABASE_URL=postgresql://vippet_user:<user_password>@<DB_HOST_IP>:5432/vippet_db
+DATABASE_URL=postgresql://<username>:<password>@<DB_HOST_IP>:5432/vippet_db
+ADMIN_API_KEY=<your-secret-key>
 ```
 
-The variable is forwarded into the ``vippet`` container via ``compose.yml``.
+See [Server Registry Service](../compose.servers.yml) or `make run-servers` /
+`make servers` for how to start the service.
+
+### Access Control
+
+ViPPET uses a single database user. Write access to the servers registry is
+controlled by the ``ADMIN_API_KEY`` environment variable on the central machine:
+
+| Central machine config | Access level | UI behaviour |
+|---|---|---|
+| `ADMIN_API_KEY` is **set** | Write — register/remove machines | Shows the **Register Server** button |
+| `ADMIN_API_KEY` is **not set** | Read-only — list servers only | Hides the **Register Server** button |
+
+Client machines whose UI is built with ``VITE_ADMIN_API_KEY=<key>`` will include
+the key in write requests. Machines without it are implicitly read-only.
 
 ### Security recommendations
 
@@ -83,7 +59,11 @@ The variable is forwarded into the ``vippet`` container via ``compose.yml``.
     ```
     sudo ufw allow from <trusted_ip> to any port 5432
     ```
-* Use a strong, randomly generated password::
+* Generate a strong, random password:
+    ```
+    openssl rand -base64 32
+    ```
+* Generate a strong, random API key:
     ```
     openssl rand -base64 32
     ```

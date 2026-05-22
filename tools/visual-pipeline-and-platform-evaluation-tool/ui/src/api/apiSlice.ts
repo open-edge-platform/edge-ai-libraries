@@ -3,6 +3,13 @@ import type { BaseQueryFn } from "@reduxjs/toolkit/query";
 
 export const API_BASE_URL = "/api/v1";
 
+const _serversHost = import.meta.env.VITE_SERVERS_HOST as string | undefined;
+export const SERVERS_BASE_URL = _serversHost
+  ? `http://${_serversHost}/api/v1`
+  : API_BASE_URL;
+
+export const ADMIN_API_KEY: string = (import.meta.env.VITE_ADMIN_API_KEY as string | undefined) ?? "";
+
 /**
  * Dynamic base query that supports per-request server IP override.
  * 

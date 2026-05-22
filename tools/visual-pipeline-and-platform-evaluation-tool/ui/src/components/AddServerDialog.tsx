@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { toast } from "sonner";
 import { ServerIcon, Loader2 } from "lucide-react";
-import { API_BASE_URL } from "@/api/apiSlice.ts";
+import { API_BASE_URL, ADMIN_API_KEY, SERVERS_BASE_URL } from "@/api/apiSlice.ts";
 
 type SystemInfo = {
   uuid: string;
@@ -30,7 +30,7 @@ export const AddServerDialog = () => {
 
   const checkIfRegistered = async (uuid: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/servers`);
+      const response = await fetch(`${SERVERS_BASE_URL}/servers`);
       if (!response.ok) {
         return false;
       }
@@ -45,7 +45,7 @@ export const AddServerDialog = () => {
   const fetchSystemInfo = async () => {
     setIsFetching(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/servers/system-info`);
+      const response = await fetch(`${API_BASE_URL}/sysinfo`);
 
       if (!response.ok) {
         throw new Error("Failed to fetch system information");
@@ -82,10 +82,11 @@ export const AddServerDialog = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/servers`, {
+      const response = await fetch(`${SERVERS_BASE_URL}/servers`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(ADMIN_API_KEY && { "X-Admin-Key": ADMIN_API_KEY }),
         },
         body: JSON.stringify(systemInfo),
       });
@@ -115,9 +116,12 @@ export const AddServerDialog = () => {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${API_BASE_URL}/servers/${encodeURIComponent(systemInfo.uuid)}`,
+        `${SERVERS_BASE_URL}/servers/${encodeURIComponent(systemInfo.uuid)}`,
         {
           method: "DELETE",
+          headers: {
+            ...(ADMIN_API_KEY && { "X-Admin-Key": ADMIN_API_KEY }),
+          },
         }
       );
 
