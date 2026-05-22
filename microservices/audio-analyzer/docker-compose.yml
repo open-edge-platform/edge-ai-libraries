@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: audio-analyzer
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     ports:
       - "8010:8010"
     devices:
@@ -11,13 +12,16 @@ services:
     group_add:
       - video
     environment:
-      AUDIO_ANALYZER_CONFIG_OVERRIDE_PATHS: /app/audio_analyzer/config.container.yaml
+      # Point HF cache under ~/.cache so a single ./.cache mount persists
+      # HF downloads AND openai-whisper's ~/.cache/whisper *.pt files,
+      # avoiding a ~2 min re-download of tiny.pt on every restart.
+      HF_HOME: /home/openvino/.cache/huggingface
     volumes:
-      - ./config.container.yaml:/app/audio_analyzer/config.container.yaml:ro
+      - ./config.yaml:/app/audio_analyzer/config.yaml:ro
       - ./models:/app/audio_analyzer/models
       - ./chunks:/app/audio_analyzer/chunks
       - ./storage:/app/audio_analyzer/storage
-      - ./.cache/huggingface:/root/.cache/huggingface
+      - ./.cache:/home/openvino/.cache
     restart: unless-stopped
     # Uncomment the next lines if you also need microphone capture from the host.
     # devices:

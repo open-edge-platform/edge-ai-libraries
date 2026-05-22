@@ -4,8 +4,8 @@ Use this path when you want the service to run in a container and expose the API
 
 ## Before You Start
 
-- Edit `config.container.yaml` with the settings you want. For configuration details and override behavior, see [configuration.md](configuration.md).
-- The Compose setup mounts `config.container.yaml`, `models/`, `storage/`, and Hugging Face cache into the container.
+- Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see [configuration.md](configuration.md).
+- The Compose setup mounts `config.yaml`, `models/`, `storage/`, and the Hugging Face cache into the container.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
 
 ## Start
@@ -25,7 +25,8 @@ curl --noproxy '*' http://127.0.0.1:8011/health
 
 ## API Use Cases and Examples
 
-For API use cases, request examples, and endpoint details, see [api.md](api.md).
+For API use cases, request examples, and endpoint details, see
+[api-reference.md](api-reference.md).
 
 ## Follow Logs
 
@@ -35,7 +36,7 @@ docker compose logs -f text-to-speech
 
 ## Restart
 
-If you changed only `config.container.yaml`:
+If you changed only `config.yaml`:
 
 ```bash
 docker compose restart text-to-speech
@@ -63,7 +64,7 @@ docker compose down
 ## Notes
 
 - Container host port: `8011`
-- The service loads `config.container.yaml` through `TEXT_TO_SPEECH_CONFIG_OVERRIDE_PATHS`
+- The service loads `config.yaml` (bind-mounted from the host); the same file is used in standalone mode
 - First startup can take longer because model download or conversion may happen during startup
 - Linux iGPU access depends on the host exposing `/dev/dri` and having Intel/OpenVINO host GPU support installed
 - On a new machine, Intel/OpenVINO host GPU support is still a separate prerequisite from Python dependency installation

@@ -39,6 +39,20 @@ class OpenVinoQwenTTSService(BaseTTSService):
         self.model = OpenVinoQwenTTSService._models[model_key]
         self._inference_lock = self._get_inference_lock(IMPLEMENTATION_NAME)
 
+    def _validate_custom_voice_request(self, speaker: str | None) -> None:
+        if not speaker:
+            raise ValueError("Qwen custom_voice requires a speaker name.")
+
+        get_supported_speakers = getattr(self.model, "get_supported_speakers", None)
+        if not callable(get_supported_speakers):
+            return
+
+        supported_speakers = [candidate.strip() for candidate in get_supported_speakers() if candidate and candidate.strip()]
+        if supported_speakers and speaker.strip().lower() not in {candidate.lower() for candidate in supported_speakers}:
+            raise ValueError(
+                f"Unsupported voice '{speaker}'. Supported voices: {', '.join(supported_speakers)}."
+            )
+
     def synthesize(
         self,
         text: str,
@@ -51,6 +65,7 @@ class OpenVinoQwenTTSService(BaseTTSService):
 
         with self._inference_lock:
             if self.config.model_variant == "custom_voice":
+                self._validate_custom_voice_request(chosen_speaker)
                 wavs, sample_rate = self.model.generate_custom_voice(
                     text=normalized_text,
                     language=chosen_language,
@@ -58,6 +73,12 @@ class OpenVinoQwenTTSService(BaseTTSService):
                     instruct=instructions or "",
                 )
             elif self.config.model_variant == "voice_design":
+                if chosen_speaker and chosen_speaker.strip() and chosen_speaker != self.config.default_speaker:
+                    raise ValueError(
+                        "Qwen voice_design does not accept the voice field. Describe the desired voice in instructions instead."
+                    )
+                if not instructions:
+                    raise ValueError("Qwen voice_design requires instructions describing the desired voice.")
                 wavs, sample_rate = self.model.generate_voice_design(
                     text=normalized_text,
                     language=chosen_language,

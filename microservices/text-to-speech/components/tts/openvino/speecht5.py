@@ -69,7 +69,11 @@ class OpenVinoSpeechT5Service(BaseTTSService):
 
         if chosen_language and chosen_language.lower() != self.config.default_language.lower():
             raise ValueError(
-                f"SpeechT5 currently supports only the configured language '{self.config.default_language}'."
+                f"Only {self.config.default_language} is currently supported for speech synthesis."
+            )
+        if chosen_speaker and chosen_speaker.lower() != self.config.default_speaker.lower():
+            raise ValueError(
+                f"SpeechT5 currently supports only the configured voice '{self.config.default_speaker}'."
             )
         if instructions:
             raise ValueError("SpeechT5 does not support free-form voice instructions.")

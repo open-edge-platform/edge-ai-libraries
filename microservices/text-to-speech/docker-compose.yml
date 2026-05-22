@@ -4,17 +4,21 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: text-to-speech
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     ports:
       - "8011:8011"
     devices:
       - /dev/dri:/dev/dri
     group_add:
       - video
+      - "${RENDER_GID:-992}"
     environment:
-      TEXT_TO_SPEECH_CONFIG_OVERRIDE_PATHS: /app/text-to-speech/config.container.yaml
+      # Point HF cache under ~/.cache so a single ./.cache mount persists
+      # every model cache the service uses (HF, torch hub, etc.).
+      HF_HOME: /home/openvino/.cache/huggingface
     volumes:
-      - ./config.container.yaml:/app/text-to-speech/config.container.yaml:ro
+      - ./config.yaml:/app/text-to-speech/config.yaml:ro
       - ./models:/app/text-to-speech/models
       - ./storage:/app/text-to-speech/storage
-      - ./.cache/huggingface:/root/.cache/huggingface
+      - ./.cache:/home/openvino/.cache
     restart: unless-stopped

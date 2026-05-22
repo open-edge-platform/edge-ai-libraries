@@ -3,9 +3,10 @@ import logging
 from io import BytesIO
 
 import soundfile as sf
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse, Response
 
+from api.error_responses import openai_error_response
 from dto.speech_dto import SpeechRequest
 from pipeline import Pipeline
 from utils.session_manager import generate_session_id
@@ -21,6 +22,7 @@ def generate_speech(request: SpeechRequest):
     # is always the one defined in config; it cannot be switched via the request.
 
     try:
+        request.validate_for_service()
         pipeline = Pipeline(session_id=generate_session_id())
         result = pipeline.synthesize(
             text=request.input,
@@ -29,13 +31,23 @@ def generate_speech(request: SpeechRequest):
             instructions=request.instructions,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return openai_error_response(400, str(exc), code="invalid_request")
     except RuntimeError as exc:
         logger.exception("Speech synthesis runtime failure")
-        raise HTTPException(status_code=503, detail="Speech synthesis is temporarily unavailable") from exc
+        return openai_error_response(
+            503,
+            "Speech synthesis is temporarily unavailable",
+            error_type="server_error",
+            code="service_unavailable",
+        )
     except Exception as exc:
         logger.exception("Unexpected speech synthesis failure")
-        raise HTTPException(status_code=500, detail="Speech synthesis failed") from exc
+        return openai_error_response(
+            500,
+            "Speech synthesis failed",
+            error_type="server_error",
+            code="internal_error",
+        )
 
     audio_bytes = BytesIO()
     sf.write(audio_bytes, result["audio"], result["sampling_rate"], format="WAV")
