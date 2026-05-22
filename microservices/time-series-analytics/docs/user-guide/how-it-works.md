@@ -6,7 +6,7 @@ The input data that this microservice takes can be broadly divided into two:
 - **Input payload and configuration management via REST APIs**
   a. REST clients sending the data in JSON format
   b. Telegraf services sending the data in line protocol format
-- **UDF deployment package** (comprises UDF, TICKScripts, models)
+- **UDF deployment package** (comprises the UDF, TICKScripts, models)
   a. Through Volume mounts OR docker cp OR kubectl cp command
 
 ![Time Series Analytics Microservice High Level Architecture](./_assets/Time-Series-Analytics-Microservice-Architecture.png)

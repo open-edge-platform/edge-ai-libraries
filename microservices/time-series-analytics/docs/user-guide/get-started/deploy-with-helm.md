@@ -25,7 +25,7 @@
 
         `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.1.0-rc1-helm`
 
-    2. Unzip the package using the following command
+    2. Extract the package using the following command
 
         `tar -xvzf ia-time-series-analytics-microservice-2026.1.0-rc1-helm.tgz`
 

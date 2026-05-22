@@ -95,7 +95,7 @@ By default, we have a simple UDF python script at `edge-ai-libraries/microservic
 inferencing, it just does a simple check to filter the temperature points which are less than 20 OR greater than 25.
 The corresponding tick script is available at `edge-ai-libraries/microservices/time-series-analytics/temperature_classifier.tick`.
 
-Directory (`edge-ai-libraries/microservices/time-series-analytics/`) details are as below:
+Directory (`edge-ai-libraries/microservices/time-series-analytics/`) details are as follows::
 
 ### `config.json`
 
