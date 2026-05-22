@@ -1,10 +1,11 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { Controller, Delete, Get } from '@nestjs/common';
+import { Controller, Delete, Get, Param } from '@nestjs/common';
 import { TagsService } from '../services/tags.service';
 import { TagsDbService } from '../services/tags-db.service';
-import { ApiOkResponse, ApiOperation, ApiParam } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Tags')
 @Controller('tags')
 export class TagsController {
   constructor(
@@ -14,7 +15,7 @@ export class TagsController {
 
   @Get('')
   @ApiOperation({ summary: 'Get all tags' })
-  @ApiOkResponse({ description: 'Returns a list of all tags' })
+  @ApiOkResponse({ description: 'Returns a list of all tags', type: [String] })
   async getTags(): Promise<string[]> {
     return this.$tagsDB.readAll().then((tags) => tags.map((tag) => tag.tag));
   }
@@ -26,7 +27,8 @@ export class TagsController {
     type: 'number',
     description: 'ID of the tag to remove',
   })
-  async removeTag(tagId: number) {
+  @ApiOkResponse({ description: 'Tag removed successfully' })
+  async removeTag(@Param('tagId') tagId: number) {
     if (!tagId) {
       throw new Error('Tag ID is required');
     }

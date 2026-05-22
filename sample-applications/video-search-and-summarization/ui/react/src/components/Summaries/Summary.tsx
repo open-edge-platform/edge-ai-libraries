@@ -6,9 +6,9 @@ import { SummaryActions, SummarySelector } from '../../redux/summary/summarySlic
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { StateActionStatus, SystemConfigWithMeta, UIState } from '../../redux/summary/summary';
-import { AILabel, AILabelContent, IconButton, Tag } from '@carbon/react';
+import { AILabel, AILabelContent, IconButton, Modal, ModalBody, Tag } from '@carbon/react';
 
-import { Renew, Download } from '@carbon/icons-react';
+import { Renew, Download, Headphones } from '@carbon/icons-react';
 import axios from 'axios';
 import ChunksContainer from './ChunksContainer';
 import { socket } from '../../socket';
@@ -16,7 +16,7 @@ import { APP_URL } from '../../config';
 import StatusTag, { statusClassLabel, statusClassName } from './StatusTag';
 import Markdown from 'react-markdown';
 import { VideoChunkActions } from '../../redux/summary/videoChunkSlice';
-import { VideoFramesAction } from '../../redux/summary/videoFrameSlice';
+import { VideoFramesAction, VideoFrameSelector } from '../../redux/summary/videoFrameSlice';
 import SummariesContainer from './SummariesContainer';
 import { processMD, downloadTextFile, formatDateForFilename, sanitizeFilename } from '../../utils/util';
 import { videosSelector } from '../../redux/video/videoSlice';
@@ -86,19 +86,23 @@ const SummaryTitle = styled.div`
   margin-top: 1rem;
   background-color: #fff;
   .video-container {
+    flex: 0 0 auto;
+    max-width: 40%;
     overflow: hidden;
     height: 100%;
     .video {
       height: 100%;
+      width: 100%;
+      object-fit: contain;
     }
   }
   .info-container {
+    flex: 1 1 0%;
+    min-width: 0;
     height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 0 1rem;
-    // display: flex;
-    // flex-flow: row wrap;
-    // align-items: center;
-    // justify-content: flex-start;
     .title-container {
       display: flex;
       flex-flow: row wrap;
@@ -107,13 +111,27 @@ const SummaryTitle = styled.div`
       & > * {
         margin-right: 1rem;
       }
+      .cds--btn--ghost {
+        width: 25px;
+        height: 25px;
+        min-height: 10px;
+        padding: 0;
+        border: 1px solid var(--cds-border-inverse, #161616);
+        border-radius: 0;
+      }
+      .cds--btn--ghost:hover {
+        background-color: var(--cds-border-inverse, #161616);
+        color: #fff;
+      }
+      .cds--btn--ghost:hover svg {
+        fill: #fff;
+      }
     }
     .status-container {
       display: flex;
-      .status {
-        padding: 0.5rem;
-        border: 1px solid #000;
-      }
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.25rem;
     }
   }
 `;
@@ -123,9 +141,6 @@ const NothingSelected = styled.div`
   padding: 0 2rem;
 `;
 
-const Spacer = styled.span`
-  flex: 1 1 auto;
-`;
 
 const StyledMessage = styled.div`
   font-size: 1rem;
@@ -198,8 +213,10 @@ export const Summary: FC = () => {
   const dispatch = useAppDispatch();
   const { selectedSummary, sidebarSummaries } = useAppSelector(SummarySelector);
   const { getVideoUrl, videos } = useAppSelector(videosSelector);
+  const { frameSummaries, frameSummaryStatusCount } = useAppSelector(VideoFrameSelector);
 
   const [systemConfig, setSystemConfig] = useState<SystemConfigWithMeta>();
+  const [showAudioSummaryModal, setShowAudioSummaryModal] = useState(false);
 
   useEffect(() => {
     console.log(selectedSummary);
@@ -239,7 +256,7 @@ export const Summary: FC = () => {
 
   const handleSummaryData = (data: UIState) => {
     if (selectedSummary) {
-      if (selectedSummary.chunksCount !== data.chunks.length) {
+      if (data.chunks.length > 0) {
         dispatch(
           VideoChunkActions.addChunks(
             data.chunks.map((curr) => ({
@@ -285,8 +302,16 @@ export const Summary: FC = () => {
     }
   };
 
+  const handleDownloadAudioSummary = () => {
+    if (!selectedSummary?.audioTranscriptSummary) return;
+    const videoName = sanitizeFilename(selectedSummary.title);
+    const dateStr = formatDateForFilename(new Date());
+    const filename = `audio_summary_${videoName}_${dateStr}.md`;
+    downloadTextFile(selectedSummary.audioTranscriptSummary, filename);
+  };
+
   const handleDownloadFinalSummary = () => {
-    if (!selectedSummary) return;
+    if (!selectedSummary || !selectedSummary.summary?.trim()) return;
     
     try {
       const now = new Date();
@@ -346,7 +371,7 @@ export const Summary: FC = () => {
       content += `|-------------|-------|\n`;
       content += `| Video Chunking | ${selectedSummary.chunkingStatus.toUpperCase()} |\n`;
       content += `| Frame Summaries Complete | ${selectedSummary.frameSummaryStatus.complete} |\n`;
-      content += `| Frame Summaries Progress | ${selectedSummary.frameSummaryStatus.inProgress} |\n`;
+      content += `| Frame Summaries In Progress | ${selectedSummary.frameSummaryStatus.inProgress + selectedSummary.frameSummaryStatus.ready} |\n`;
       content += `| Video Summary Status | ${selectedSummary.videoSummaryStatus.toUpperCase()} |\n`;
       content += `\n`;
       
@@ -420,7 +445,7 @@ export const Summary: FC = () => {
                   </li>
                 </ul>
                 <hr />
-                <h5 className='secondary bold'>Image Inferencing</h5>
+                <h5 className='secondary bold'>Frame Captioning</h5>
                 <ul>
                   <li>
                     {t('aiModel', {
@@ -444,7 +469,7 @@ export const Summary: FC = () => {
                   </li>
                 </ul>
                 <hr />
-                <h5 className='secondary bold'>Text Inferencing</h5>
+                <h5 className='secondary bold'>Text Summarization</h5>
                 <ul>
                   <li>
                     {t('aiModel', {
@@ -457,35 +482,26 @@ export const Summary: FC = () => {
                     })}
                   </li>
                 </ul>
+                {summaryData.systemConfig?.audioModel && (
+                  <>
+                    <h5 className='secondary bold'>Speech-to-Text</h5>
+                    <ul>
+                      <li>
+                        {t('aiModel', {
+                          model: summaryData.systemConfig.audioModel,
+                        })}
+                      </li>
+                    </ul>
+                  </>
+                )}
               </AILabelContent>
             </AILabel>
-          </div>
 
-          <div className='status-container'>
-            <StatusTag action={summaryData.chunkingStatus} label={t('chunkingLabel')} />
-            {summaryData.frameSummaryStatus.inProgress > 0 && (
-              <StatusTag
-                action={StateActionStatus.IN_PROGRESS}
-                label={t('chunkingSummaryLabel')}
-                count={summaryData.frameSummaryStatus.inProgress}
-              />
-            )}
-
-            {summaryData.frameSummaryStatus.complete > 0 && (
-              <StatusTag
-                action={StateActionStatus.COMPLETE}
-                label={t('chunkingSummaryLabel')}
-                count={summaryData.frameSummaryStatus.complete}
-              />
-            )}
-
-            <StatusTag action={summaryData.videoSummaryStatus} label={t('summaryLabel')} />
-          </div>
-          <div className='actions'>
             <IconButton
               label={t('SyncState')}
               align={'left'}
               size='sm'
+              kind='ghost'
               onClick={() => {
                 refetchSummary(summaryData.stateId);
               }}
@@ -493,9 +509,32 @@ export const Summary: FC = () => {
               <Renew />
             </IconButton>
           </div>
-        </div>
 
-        <Spacer />
+          <div className='status-container'>
+            <StatusTag action={summaryData.videoChunkingStatus ?? summaryData.chunkingStatus} label={t('chunkingLabel')} />
+            {summaryData.audioStatus && summaryData.audioStatus !== StateActionStatus.NA && (
+              <StatusTag action={summaryData.audioStatus} label={t('audioTranscriptionLabel')} />
+            )}
+            {(() => {
+              const pendingCount = frameSummaryStatusCount.inProgress + frameSummaryStatusCount.ready;
+              if (pendingCount > 0) {
+                return <StatusTag action={StateActionStatus.IN_PROGRESS} label={t('chunkingSummaryLabel')} count={pendingCount} />;
+              }
+              if (frameSummaryStatusCount.complete > 0) {
+                return <StatusTag action={StateActionStatus.COMPLETE} label={t('chunkingSummaryLabel')} count={frameSummaryStatusCount.complete} />;
+              }
+              return null;
+            })()}
+
+            {summaryData.audioTranscriptSummaryStatus && summaryData.audioTranscriptSummaryStatus !== StateActionStatus.NA && (
+              <StatusTag action={summaryData.audioTranscriptSummaryStatus} label={t('audioSummaryLabel')} />
+            )}
+
+            {summaryData.systemConfig?.produceFinalSummary !== false && (
+              <StatusTag action={summaryData.videoSummaryStatus} label={t('summaryLabel')} />
+            )}
+          </div>
+        </div>
       </SummaryTitle>
     );
   };
@@ -504,26 +543,76 @@ export const Summary: FC = () => {
     const summaryData = selectedSummary!;
     return (
       <>
+        <Modal
+          onRequestClose={() => setShowAudioSummaryModal(false)}
+          open={showAudioSummaryModal}
+          modalHeading={t('audioTranscriptSummaryHeading', { defaultValue: 'Audio Transcript Summary' })}
+          passiveModal
+        >
+          <ModalBody>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+              <DownloadButton onClick={handleDownloadAudioSummary} data-tooltip={t('downloadAudioSummary', { defaultValue: 'Download Audio Summary' })}>
+                <Download />
+              </DownloadButton>
+            </div>
+            <StyledMessage>
+              <Markdown>{processMD(summaryData.audioTranscriptSummary ?? '')}</Markdown>
+            </StyledMessage>
+          </ModalBody>
+        </Modal>
         <SummaryContainer>
           <section>
             <div className="left-section">
-              <h3>Summary</h3>
-              <Tag size='md' type={statusClassName[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA] as any}>
-                {t(statusClassLabel[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA])}
-              </Tag>
+              <h3>{summaryData.systemConfig?.produceFinalSummary === false ? t('chunkSummariesHeading', { defaultValue: 'Chunk Summaries' }) : 'Summary'}</h3>
+              {summaryData.systemConfig?.produceFinalSummary !== false && (
+                <Tag size='md' type={statusClassName[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA] as any}>
+                  {t(statusClassLabel[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA])}
+                </Tag>
+              )}
             </div>
-            {summaryData.summary && summaryData.summary.trim() !== '' && (
-              <DownloadButton
-                onClick={handleDownloadFinalSummary}
-                data-tooltip={t('downloadFinalSummary')}
-              >
-                <Download />
-              </DownloadButton>
-            )}
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              {summaryData.audioTranscriptSummary && summaryData.audioTranscriptSummary.trim() !== '' && (
+                <DownloadButton
+                  onClick={() => setShowAudioSummaryModal(true)}
+                  data-tooltip={t('viewAudioSummary', { defaultValue: 'View Audio Transcript Summary' })}
+                >
+                  <Headphones />
+                </DownloadButton>
+              )}
+              {summaryData.summary && summaryData.summary.trim() !== '' && (
+                <DownloadButton
+                  onClick={handleDownloadFinalSummary}
+                  data-tooltip={t('downloadFinalSummary')}
+                >
+                  <Download />
+                </DownloadButton>
+              )}
+            </div>
           </section>
 
           <StyledMessage>
-            <Markdown>{processMD(summaryData.summary)}</Markdown>
+            {summaryData.systemConfig?.produceFinalSummary === false ? (
+              (() => {
+                const completedChunkSummaries = frameSummaries.filter(fs => fs.status === StateActionStatus.COMPLETE && fs.summary);
+                return completedChunkSummaries.length > 0 ? (
+                  <>
+                    {completedChunkSummaries
+                      .map((fs, idx) => (
+                      <div key={fs.frameKey} style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--cds-border-subtle)' }}>
+                        <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--cds-text-secondary)' }}>
+                          {t('chunkLabel', { defaultValue: 'Chunk' })} {idx + 1} — {t('Frames')} [{fs.startFrame}:{fs.endFrame}]
+                        </h4>
+                        <Markdown>{processMD(fs.summary)}</Markdown>
+                      </div>
+                    ))}
+                </>
+              ) : (
+                <p style={{ opacity: 0.6, fontStyle: 'italic' }}>{t('chunkSummariesPending', { defaultValue: 'Chunk summaries are being generated...' })}</p>
+              );
+              })()
+            ) : (
+              <Markdown>{processMD(summaryData.summary)}</Markdown>
+            )}
           </StyledMessage>
         </SummaryContainer>
         {/* <ChunksContainer /> */}

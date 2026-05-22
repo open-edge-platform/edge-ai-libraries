@@ -1,4 +1,4 @@
-import { Outlet, useLocation, matchPath } from "react-router";
+import { Outlet, useLocation, matchPath, Link } from "react-router";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { usePipelinesLoader } from "@/hooks/usePipelines.ts";
 import { useModelsLoader } from "@/hooks/useModels.ts";
@@ -17,6 +17,10 @@ import { Separator } from "@/components/ui/separator.tsx";
 import { routeConfig, keepAliveRoutes } from "@/config/navigation.ts";
 import { BackgroundJobsProvider } from "@/contexts/BackgroundJobsContext";
 import { BackgroundJobsWidget } from "@/components/BackgroundJobsWidget";
+import { useEffect } from "react";
+import { useAppSelector } from "@/store/hooks";
+import { selectIsAnyModelDownloaded } from "@/store/reducers/models";
+import { toast } from "@/lib/toast";
 
 const Layout = () => {
   usePipelinesLoader();
@@ -24,12 +28,30 @@ const Layout = () => {
   useDevicesLoader();
   const { theme, setTheme } = useTheme();
   const location = useLocation();
+  const hasModels = useAppSelector(selectIsAnyModelDownloaded);
 
-  const isRouteActive = (path: string) => {
-    if (path === "" && location.pathname === "/") return true;
-    if (path === "") return false;
-    return matchPath({ path, end: false }, location.pathname);
-  };
+  useEffect(() => {
+    if (!hasModels) {
+      toast.warning("There are no models in the system.", {
+        id: "no-models-warning",
+        closeButton: false,
+        description: (
+          <span>
+            Go to the{" "}
+            <Link
+              to="/models"
+              className="font-semibold underline underline-offset-2"
+            >
+              Models
+            </Link>{" "}
+            page and download models.
+          </span>
+        ),
+      });
+    } else {
+      toast.dismiss("no-models-warning");
+    }
+  }, [hasModels]);
 
   return (
     <BackgroundJobsProvider>
@@ -66,10 +88,13 @@ const Layout = () => {
             <div className="flex h-full overflow-auto relative">
               {routeConfig.map((route, index) => {
                 const routePath = route.path ?? "";
-                const isKeepAlive = keepAliveRoutes.some((keepAlivePath) =>
-                  routePath.startsWith(keepAlivePath.replace(/^\//, "")),
+                const isKeepAlive = keepAliveRoutes.some(
+                  (keepAlivePath) =>
+                    routePath === keepAlivePath.replace(/^\//, ""),
                 );
-                const isActive = isRouteActive(routePath);
+                const isActive =
+                  isKeepAlive &&
+                  matchPath({ path: routePath, end: true }, location.pathname);
 
                 if (isKeepAlive && route.Component) {
                   const Component = route.Component;
@@ -89,7 +114,10 @@ const Layout = () => {
                 return null;
               })}
               {!keepAliveRoutes.some((path) =>
-                location.pathname.startsWith(path),
+                matchPath(
+                  { path: path.replace(/^\//, ""), end: true },
+                  location.pathname,
+                ),
               ) && <Outlet />}
             </div>
           </SidebarInset>

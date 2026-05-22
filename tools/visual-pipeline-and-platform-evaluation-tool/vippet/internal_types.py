@@ -106,6 +106,78 @@ class InternalOptimizationType(str, Enum):
     OPTIMIZE = "optimize"
 
 
+class InternalModelInstallStatus(str, Enum):
+    """
+    Internal representation of model install status.
+
+    Values:
+        INSTALLED: Model is present on disk and ready to use.
+        NOT_INSTALLED: Model is supported but not present on disk.
+        INSTALLING: Model is currently being downloaded/installed.
+        FAILED: Most recent install attempt failed.
+    """
+
+    INSTALLED = "installed"
+    NOT_INSTALLED = "not_installed"
+    INSTALLING = "installing"
+    FAILED = "failed"
+
+
+class InternalModelSource(str, Enum):
+    """
+    Internal representation of the upstream hub a model comes from.
+
+    Mirrors the ``hub`` field exposed by the model-download microservice
+    plus the additional ``CUSTOM`` value used for user-uploaded models.
+
+    Values:
+        HUGGINGFACE: HuggingFace Hub.
+        ULTRALYTICS: Ultralytics model zoo.
+        PIPELINE_ZOO_MODELS: OpenVINO Pipeline Zoo models.
+        OMZ: OpenVINO Open Model Zoo (handled locally by vippet-app
+            until the ``models`` container is removed).
+        CUSTOM: User-uploaded model.
+    """
+
+    HUGGINGFACE = "huggingface"
+    ULTRALYTICS = "ultralytics"
+    PIPELINE_ZOO_MODELS = "pipeline-zoo-models"
+    OMZ = "omz"
+    CUSTOM = "custom"
+
+
+class InternalModelCategory(str, Enum):
+    """
+    Internal representation of model category.
+
+    Values:
+        CLASSIFICATION: Classification model.
+        DETECTION: Detection model.
+        GENAI: Generative AI model (e.g. VLM/LLM).
+    """
+
+    CLASSIFICATION = "classification"
+    DETECTION = "detection"
+    GENAI = "genai"
+
+
+class InternalModelDownloadJobState(str, Enum):
+    """
+    Internal representation of a model download job state.
+
+    Mirrors optimization/validation job state machines (no CANCELLED).
+
+    Values:
+        RUNNING: Download is in progress (polling model-download).
+        COMPLETED: Download finished successfully and files are on disk.
+        FAILED: Download finished unsuccessfully.
+    """
+
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
 class InternalCameraType(str, Enum):
     """
     Internal representation of camera type.
@@ -194,6 +266,46 @@ class InternalVariantCreate:
 
 
 @dataclass
+class InternalStreamInfo:
+    """
+    Internal representation of a single running stream inside a pipeline.
+
+    Every stream started by the pipeline runner has a deterministic,
+    stream-unique GStreamer ``name`` applied to both its main source and
+    main sink element (see ``Graph.apply_stream_identifiers``). These two
+    names together form the stream's stable identifier used for
+    correlating external tracer rows (e.g. DLStreamer ``latency_tracer``)
+    back to a specific stream.
+
+    ``source_name`` and ``sink_name`` are kept as separate fields to
+    match the layout of ``latency_tracer`` output (``source_name=...``,
+    ``sink_name=...`` are emitted as separate tokens). The combined
+    ``stream_id`` is exposed as a computed property rather than stored
+    as a duplicate piece of state.
+
+    Attributes:
+        source_name: GStreamer ``name`` of the main source element
+            (for example ``"src_p0_s0_0_0"``).
+        sink_name: GStreamer ``name`` of the main sink element
+            (for example ``"sink_p0_s0_0_0"``).
+    """
+
+    source_name: str
+    sink_name: str
+
+    @property
+    def stream_id(self) -> str:
+        """
+        Return the composite stream identifier used outside this class.
+
+        The format is ``"{source_name}__{sink_name}"``. It is emitted
+        in API responses and used as the key of the
+        ``latency_tracer_metrics`` map on job status objects.
+        """
+        return f"{self.source_name}__{self.sink_name}"
+
+
+@dataclass
 class InternalPipelineStreamSpec:
     """
     Internal representation of pipeline stream count with pipeline identifier.
@@ -208,10 +320,17 @@ class InternalPipelineStreamSpec:
     Attributes:
         id: Pipeline identifier (variant path or synthetic graph ID).
         streams: Number of streams allocated to this pipeline.
+        streams_ids: Stable, stream-unique identifiers for every stream
+            started by this pipeline, in the order streams are created by
+            the pipeline runner. Each entry has the format
+            ``"{source_name}__{sink_name}"`` and is the same key used in
+            the job's ``latency_tracer_metrics`` map. The length of this
+            list always equals ``streams``.
     """
 
     id: str
     streams: int
+    streams_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -278,6 +397,8 @@ class InternalPipeline:
         tags: List of tags for categorizing the pipeline.
         variants: List of InternalVariant objects.
         thumbnail: Base64-encoded image for pipeline preview (PREDEFINED only).
+            Excluded from ``repr()`` (and therefore from log output) because
+            the base64 payload can be very large.
         created_at: Creation timestamp as UTC datetime.
         modified_at: Last modification timestamp as UTC datetime.
     """
@@ -288,9 +409,9 @@ class InternalPipeline:
     source: InternalPipelineSource
     tags: List[str]
     variants: List[InternalVariant]
-    thumbnail: Optional[str]
-    created_at: datetime
-    modified_at: datetime
+    thumbnail: Optional[str] = field(repr=False)
+    created_at: datetime = field(repr=True)
+    modified_at: datetime = field(repr=True)
 
 
 @dataclass
@@ -345,6 +466,50 @@ class InternalPipelineRequestOptimize:
 
 
 @dataclass
+class InternalLatencyMetrics:
+    """
+    Internal representation of the last observed latency_tracer sample
+    for a single stream.
+
+    The DLStreamer ``latency_tracer`` emits per-stream interval lines of
+    the form::
+
+        latency_tracer_pipeline_interval, source_name=(string)...,
+        sink_name=(string)..., interval=(double)1000.25,
+        avg=(double)364.31, min=(double)0.004,
+        max=(double)529.26, latency=(double)21.28,
+        fps=(double)46.99;
+
+    Only the fields consumed downstream are stored. ``fps`` is omitted
+    because FPS is already provided by ``gvafpscounter`` via
+    ``PipelineResult.total_fps`` / ``per_stream_fps``; re-reporting it
+    here would duplicate state.
+
+    Only the **last** interval sample per stream is retained; no
+    history is kept.
+
+    All timing fields are in milliseconds (as reported by the tracer).
+
+    Attributes:
+        interval_ms: Length of the measurement window reported by the
+            tracer (``interval`` field, milliseconds).
+        avg_ms: Average frame latency over the window (``avg``, ms).
+        min_ms: Minimum frame latency observed in the window
+            (``min``, ms).
+        max_ms: Maximum frame latency observed in the window
+            (``max``, ms).
+        latency_ms: Current end-to-end latency reported by the tracer
+            (``latency``, ms).
+    """
+
+    interval_ms: float
+    avg_ms: float
+    min_ms: float
+    max_ms: float
+    latency_ms: float
+
+
+@dataclass
 class InternalExecutionConfig:
     """
     Internal representation of execution configuration.
@@ -353,11 +518,15 @@ class InternalExecutionConfig:
         output_mode: Mode for pipeline output generation.
         max_runtime: Maximum runtime in seconds (0 = run until EOS).
         metadata_mode: Mode for metadata publishing via gvametapublish elements.
+        enable_latency_metrics: When True, the GStreamer subprocess runs with
+            the DLStreamer `latency_tracer` active in pipeline-only mode with
+            a 1000 ms interval. Defaults to False (tracer disabled).
     """
 
     output_mode: InternalOutputMode
     max_runtime: float
     metadata_mode: InternalMetadataMode
+    enable_latency_metrics: bool = False
 
 
 @dataclass
@@ -427,6 +596,13 @@ class InternalPerformanceJobStatus:
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
         live_stream_urls: Mapping from pipeline ID to live stream URL.
+        latency_tracer_metrics: Last observed latency_tracer sample per
+            stream, keyed by ``stream_id`` (``"{source_name}__{sink_name}"``).
+            ``None`` when the job was executed with
+            ``execution_config.enable_latency_metrics=False`` (tracer was
+            not started at all); an empty dict means the tracer was
+            active but no samples were produced (e.g. the pipeline
+            exited before the first interval).
     """
 
     id: str
@@ -442,6 +618,7 @@ class InternalPerformanceJobStatus:
     video_output_paths: dict[str, list[str]] | None = None
     live_stream_urls: dict[str, str] | None = None
     metadata_stream_urls: dict[str, list[str]] | None = None
+    latency_tracer_metrics: dict[str, InternalLatencyMetrics] | None = None
 
 
 @dataclass
@@ -475,6 +652,11 @@ class InternalDensityJobStatus:
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
+        latency_tracer_metrics: Last observed latency_tracer sample per
+            stream, keyed by ``stream_id`` (``"{source_name}__{sink_name}"``).
+            ``None`` when the job was executed with
+            ``execution_config.enable_latency_metrics=False``; an empty
+            dict means the tracer was active but produced no samples.
     """
 
     id: str
@@ -488,6 +670,7 @@ class InternalDensityJobStatus:
     total_streams: int | None = None
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
+    latency_tracer_metrics: dict[str, InternalLatencyMetrics] | None = None
 
 
 @dataclass
@@ -792,3 +975,188 @@ class InternalCamera:
     device_name: str
     device_type: InternalCameraType
     details: Union[InternalUSBCameraDetails, InternalNetworkCameraDetails]
+
+
+@dataclass
+class InternalModelPrecision:
+    """
+    Internal representation of a single model precision variant.
+
+    Attributes:
+        precision: Precision label (e.g. "FP32", "FP16", "INT8", "FP16-INT8", "INT4").
+        model_path: Filesystem path to the model file (.xml) or, for genai
+            models, a directory. Absolute path resolved against ``MODELS_PATH``.
+    """
+
+    precision: str
+    model_path: str
+
+
+@dataclass
+class InternalModelVariant:
+    """
+    Internal representation of a single selectable model variant.
+
+    A variant identifies one concrete (model, precision, model-proc)
+    combination as exposed to the pipeline builder. Unlike
+    ``InternalModelPrecision`` (which carries on-disk paths and is used
+    for install-status / registry bookkeeping), this type is purely
+    API-shaped and intentionally carries no filesystem paths.
+
+    Attributes:
+        name: Stable per-variant identifier (matches
+            ``SupportedModel.name``, e.g. ``efficientnet-b0_INT8``).
+        display_name: Human-readable variant label with precision
+            suffix (and optional ``[model-proc: ...]``), suitable as a
+            dropdown value in the pipeline builder.
+        precision: Precision label of the variant.
+        installed: Whether the underlying artefacts for this exact
+            variant are present on disk. Used by the pipeline builder
+            to filter the model dropdown to ready-to-use entries.
+    """
+
+    name: str
+    display_name: str
+    precision: str
+    installed: bool = False
+
+
+@dataclass
+class InternalSupportedModel:
+    """
+    Internal representation of one entry in ``supported_models.yaml``
+    enriched with runtime state (install status, recommendation).
+
+    The route layer maps this into the API ``Model`` schema.
+
+    Attributes:
+        name: Unique internal identifier of the model.
+        display_name: Human-readable name shown in the UI.
+        category: Model category (classification/detection/genai).
+        source: Origin hub of the model (huggingface, ultralytics, ...).
+        precisions: Internal precision records (with filesystem paths)
+            used by the install-status / registry logic. **Not exposed
+            via the API** — see ``variants`` for the API-facing list.
+        variants: Selectable variants of the canonical model (one per
+            precision and optional ``extra_model_procs`` entry). Used
+            by the pipeline-builder dropdown.
+        install_status: Current install status (installed / not_installed /
+            installing / failed).
+        used_by_pipelines: List of predefined-pipeline ids that reference
+            this model. Empty list means the model is not recommended.
+        default: Whether this model is marked as a default choice in
+            ``supported_models.yaml`` (internal-only; not exposed via API).
+        unsupported_devices: Comma-separated string of devices on which
+            the model cannot run (e.g. "NPU"). ``None`` when no
+            restrictions exist.
+        download_request: Body fragment (or full body) to POST to the
+            model-download microservice in order to install this model.
+            ``None`` when no automated download is wired up yet.
+    """
+
+    name: str
+    display_name: str
+    category: InternalModelCategory | None
+    source: InternalModelSource
+    precisions: list[InternalModelPrecision]
+    install_status: InternalModelInstallStatus
+    variants: list[InternalModelVariant] = field(default_factory=list)
+    used_by_pipelines: list[str] = field(default_factory=list)
+    default: bool = False
+    unsupported_devices: str | None = None
+    download_request: dict[str, Any] | None = None
+
+
+@dataclass
+class InternalModelUploadSpec:
+    """
+    Internal representation of a model upload request.
+
+    Holds the validated multipart inputs that are forwarded to
+    model-download together with the local-only ``category`` field used
+    by vippet-app to track where the model can be used in the UI.
+
+    Attributes:
+        model_name: Canonical name the model should be registered under.
+            Forwarded to model-download as the model name.
+        category: Logical model category (classification/detection/genai).
+        file_path: Absolute path to a temporary file on disk holding the
+            uploaded model payload (vippet-app streams it to
+            model-download).
+        original_filename: Original filename provided by the client,
+            kept only for logging.
+    """
+
+    model_name: str
+    category: InternalModelCategory
+    file_path: str
+    original_filename: str
+
+
+@dataclass
+class InternalModelDownloadRequest:
+    """
+    Internal representation of a model download request.
+
+    Attributes:
+        name: Supported model name (must exist in supported_models.yaml).
+    """
+
+    name: str
+
+
+@dataclass
+class InternalModelDownloadJobStatus:
+    """
+    Internal state of a single model download job.
+
+    Mirrors the optimization/validation job pattern: no cancellation, jobs
+    live in memory only. ``external_job_ids`` is kept internal and is not
+    exposed by the API.
+
+    Attributes:
+        id: Vippet-side job identifier.
+        model_name: Name of the supported model being installed.
+        source: Origin hub the model is being downloaded from.
+        state: Current job state.
+        start_time: Job start time in milliseconds since epoch.
+        end_time: Job end time in milliseconds since epoch (None if running).
+        details: Human-readable messages for the current state. Cleared on
+            state transition.
+        progress_message: Last status text reported by model-download
+            (or by the local OMZ downloader).
+        model_path: Absolute filesystem path to the installed model,
+            populated only when the job completes successfully.
+        external_job_ids: Job ids returned by the model-download
+            microservice; not exposed via the API (internal only).
+    """
+
+    id: str
+    model_name: str
+    source: InternalModelSource
+    state: InternalModelDownloadJobState
+    start_time: int
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    progress_message: str | None = None
+    model_path: str | None = None
+    external_job_ids: list[str] = field(default_factory=list)
+
+
+@dataclass
+class InternalModelDownloadJobSummary:
+    """
+    Short summary of a model download job.
+
+    Used by ``ModelManager`` for summary queries; converted to the API
+    ``ModelDownloadJobSummary`` schema in the route layer.
+
+    Attributes:
+        id: Job identifier.
+        model_name: Name of the supported model being installed.
+        source: Origin hub the model is being downloaded from.
+    """
+
+    id: str
+    model_name: str
+    source: InternalModelSource

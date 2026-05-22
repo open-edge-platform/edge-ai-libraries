@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
+from src.core.plugin_venv import get_plugin_venv_env
 from src.utils.logging import logger
 
 class UltralyticsDownloader(ModelDownloadPlugin):
@@ -63,6 +64,15 @@ class UltralyticsDownloader(ModelDownloadPlugin):
         # Call the download script
         with self._script_lock:
             return_code = self._call_bash_script(model=model_name, quantize=quantize, models_path=hub_dir)
+
+        if int8_requested and return_code == 0:
+            int8_artifacts = self._find_int8_artifacts(hub_dir, model_name)
+            if not int8_artifacts:
+                self._cleanup_requested_model_artifacts(hub_dir, model_name)
+                raise RuntimeError(
+                    f"INT8 export not supported for '{model_name}' (dataset='{quantize}'). "
+                    "No INT8 artifacts were generated."
+                )
 
         if int8_requested and return_code == 0:
             int8_artifacts = self._find_int8_artifacts(hub_dir, model_name)
@@ -187,8 +197,8 @@ class UltralyticsDownloader(ModelDownloadPlugin):
 
         logger.info(f"Executing: {' '.join(cmd)}")
 
-        # Prepare environment with MODELS_PATH
-        env = os.environ.copy()
+        # Prepare environment
+        env = get_plugin_venv_env("ultralytics")
         env['MODELS_PATH'] = models_path
         logger.info(f"Setting MODELS_PATH to {models_path}")
         # Execute the bash script and capture output

@@ -22,7 +22,7 @@ import { Modal, ModalBody, Tooltip } from '@carbon/react';
 import styled from 'styled-components';
 import Markdown from 'react-markdown';
 import { processMD, downloadTextFile, formatDateForFilename, sanitizeFilename } from '../../utils/util';
-import { ClosedCaption, Information, Download } from '@carbon/icons-react';
+import { ClosedCaption, Information, Download, Headphones } from '@carbon/icons-react';
 import { getStatusByPriority, StatusIndicator } from './StatusTag';
 import { notify, NotificationSeverity } from '../Notification/notify.ts';
 
@@ -105,6 +105,10 @@ const StyledModal = styled(Modal)`
     padding-right: 3rem;
   }
   
+  .cds--modal-content {
+    overflow-y: auto;
+  }
+
   .download-button-wrapper {
     position: absolute;
     right: 3rem;
@@ -120,6 +124,7 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
   const [modalHeading, setModalHeading] = useState<string>('');
   const [modalBody, setModalBody] = useState<SummaryStatusWithFrames[]>([]);
   const [showModal, setShowModal] = useState<boolean>(false);
+  const [showAudioModal, setShowAudioModal] = useState<boolean>(false);
 
   const detailsClickHandler = (heading: string, text: SummaryStatusWithFrames[]) => {
     setModalHeading(heading);
@@ -294,6 +299,23 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
             ))}
           </ModalBody>
         </StyledModal>
+        <StyledModal
+          onRequestClose={() => setShowAudioModal(false)}
+          open={showAudioModal}
+          modalHeading={t('chunkAudioTranscriptHeading', {
+            chunkId: uiChunkData?.chunkId,
+            defaultValue: `Audio Transcript — Chunk ${uiChunkData?.chunkId}`,
+          })}
+          passiveModal
+        >
+          <ModalBody>
+            <StyledMessage>
+              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', fontSize: '0.875rem', lineHeight: '1.6' }}>
+                {uiChunkData?.audioTranscripts}
+              </pre>
+            </StyledMessage>
+          </ModalBody>
+        </StyledModal>
         <div className='chunk-header'>
           <span className='chunk-name'>
             {t('ChunkPrefix') + ' ' + uiChunkData?.chunkId}
@@ -341,6 +363,24 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
               //   }}
               // >
               // </IconButton>
+            )}
+            {selectedSummary?.systemConfig?.audioModel && (
+              uiChunkData?.audioTranscripts ? (
+                <Tooltip
+                  label={t('showAudioTranscript', { defaultValue: 'Show Audio Transcript' })}
+                  autoAlign
+                  onClick={() => setShowAudioModal(true)}
+                >
+                  <Headphones />
+                </Tooltip>
+              ) : (
+                <Tooltip
+                  label={t('noAudioTranscript', { defaultValue: 'No audio transcript for this segment' })}
+                  autoAlign
+                >
+                  <Headphones style={{ opacity: 0.35, cursor: 'default' }} />
+                </Tooltip>
+              )
             )}
           </span>
           {uiChunkData?.duration && (

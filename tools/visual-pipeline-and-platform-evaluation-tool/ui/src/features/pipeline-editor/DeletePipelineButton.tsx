@@ -1,8 +1,9 @@
 import { Trash2 } from "lucide-react";
 import { useDeletePipelineMutation } from "@/api/api.generated";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useNavigate } from "react-router";
 import { handleApiError } from "@/lib/apiUtils";
+import { PipelineToolbarButton } from "./shared";
 
 interface DeletePipelineButtonProps {
   pipelineId: string;
@@ -33,14 +34,14 @@ const DeletePipelineButton = ({
   };
 
   return (
-    <button
+    <PipelineToolbarButton
       onClick={handleDelete}
       disabled={isLoading}
-      className="bg-red-600 dark:bg-[#f88f8f] dark:text-[#242528] dark:hover:bg-red-400 hover:bg-red-700 font-medium disabled:bg-red-300 text-white p-2 flex items-center gap-2 transition-colors"
-    >
-      <Trash2 className="w-5 h-5" />
-      <span>{isLoading ? "Deleting..." : "Delete"}</span>
-    </button>
+      icon={<Trash2 className="w-5 h-5" />}
+      label={<span>{isLoading ? "Deleting..." : "Delete"}</span>}
+      variant="destructive"
+      className="p-2"
+    />
   );
 };
 

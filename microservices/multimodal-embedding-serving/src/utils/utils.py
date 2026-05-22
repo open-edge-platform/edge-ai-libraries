@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -9,7 +9,7 @@ including images and videos from different sources (URLs, base64, local files).
 
 Key functionality:
 - Image downloading and processing from URLs
-- Base64 decoding for images and videos  
+- Base64 decoding for images and videos
 - Video frame extraction and processing
 - File management operations
 - Error handling and validation
@@ -24,21 +24,20 @@ import os
 import re
 import socket
 import tempfile
+from typing import Callable, List, Optional
 import uuid
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse
 
-import decord
+import av
 import httpx
 import numpy as np
-from decord import VideoReader, cpu
 from PIL import Image
-from torchvision.transforms import ToPILImage
-from .common import ErrorMessages, logger, settings
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-decord.bridge.set_bridge("torch")
-toPIL = ToPILImage()
+import transformers
+from .common import ErrorMessages, logger, settings
 
 # Only include proxies if they are defined
 proxies = {}
@@ -49,6 +48,113 @@ if settings.https_proxy:
 # if settings.no_proxy_env:
 #     proxies["no_proxy"] = settings.no_proxy_env
 
+
+class ParallelImagePreprocessor:
+
+    def __init__(
+        self,
+        preprocess_fn: Callable[[Image.Image], np.ndarray],
+        max_workers: Optional[int] = None,
+        preprocess_shape: tuple = (224, 224, 3),
+        batch_size: int = 64,
+    ):
+        self.preprocess_fn = preprocess_fn
+        self.max_workers = max_workers
+        self.batch_size = preprocess_shape[0] if len(preprocess_shape) == 4 else batch_size
+        self.preprocess_shape = preprocess_shape
+        self.pool = ThreadPoolExecutor(
+            max_workers=self.max_workers, thread_name_prefix="ImagePreprocessWorker"
+        )
+
+    def __del__(self):
+        # Ensure threads are cleaned up
+        if self.pool:
+            self.pool.shutdown(wait=True)
+
+    def preprocess_images(
+        self,
+        images: List[Image.Image],
+    ) -> np.ndarray:
+        """
+        Parallel image preprocessing using thread pool.
+
+        Args:
+            images: List of ndarray to preprocess. [H, W, C]
+
+        Returns:
+            Preprocessed images as numpy array with shape [N, C, H, W].
+        """
+        if not images:
+            raise ValueError("images must be non-empty")
+
+        try:
+
+            out = np.empty((len(images), *self.preprocess_shape[1:]), dtype=np.float32)
+            for i, result in enumerate(self.pool.map(self.preprocess_fn, images)):
+                out[i] = result
+
+            return out
+
+        except Exception as e:
+            logger.error(
+                f"Error during parallel image preprocessing: {e}", exc_info=True
+            )
+            raise RuntimeError(f"Error during parallel image preprocessing: {e}")
+    
+    def preprocess_stream(self, images):
+        """
+        Yield preprocessed batches as soon as enough images finish.
+        Preserves final output order using indices later.
+        """
+        if not images:
+            raise ValueError("images empty")
+        
+        futures = {}
+        pending_results = {}
+        batch = []
+        try:
+            futures = {
+                self.pool.submit(self.preprocess_fn, img): idx
+                for idx, img in enumerate(images)
+            }
+            images = None  # release original list reference early
+            next_expected = 0
+
+            logger.info("Processing preprocessed images as they complete...")
+            for future in as_completed(futures):
+                # logger.info(f"Image preprocessing completed for future: {future}")
+                idx = futures[future]
+                result = future.result()
+                if isinstance(result, transformers.BatchFeature) and "pixel_values" in result:
+                    result = result.convert_to_tensors(tensor_type="pt").pixel_values.squeeze(0)
+                pending_results[idx] = result
+
+                # release in original order whenever contiguous ready
+                while next_expected in pending_results:
+                    batch.append(pending_results.pop(next_expected))
+                    next_expected += 1
+
+                    if len(batch) == self.batch_size:
+                        logger.info(f"Yielding batch of {len(batch)} preprocessed images starting at index {next_expected - len(batch)}")
+                        out = np.stack(batch).astype(np.float32)
+                        batch.clear()
+                        yield out
+
+            if batch:
+                logger.info(f"Yielding final batch of {len(batch)} preprocessed images starting at index {next_expected - len(batch)}")
+                out = np.stack(batch).astype(np.float32)
+                batch.clear()
+                yield out
+
+        except Exception as e:
+            logger.error(f"Error during parallel image preprocessing stream: {e}", exc_info=True)
+            raise RuntimeError(f"Error during parallel image preprocessing stream: {e}")
+        
+        finally:
+            futures.clear()
+            pending_results.clear()
+            batch.clear()
+            images = None
 
 _SAFE_LOG_PATTERN = re.compile(r"[\r\n\t\x00-\x1f\x7f]+")
 _VIDEO_TMP_DIR = Path(tempfile.gettempdir()) / "videoQnA"
@@ -432,129 +538,3 @@ def decode_base64_video(video_base64: str) -> str:
     except Exception as e:
         logger.error(f"Error decoding base64 video: {e}")
         raise RuntimeError(f"{ErrorMessages.DECODE_BASE64_VIDEO_ERROR}: {e}")
-
-
-def extract_video_frames(video_path: str, segment_config: dict = None) -> list:
-    """
-    Extracts frames from a video with configurable extraction modes.
-
-    Supports multiple frame extraction strategies with flexible configuration
-    options. The function can extract specific frames by index, sample at
-    a given frame rate, or uniformly sample a specified number of frames.
-
-    Args:
-        video_path: Path to the video file to process
-        segment_config: Configuration dictionary for video segmentation with options:
-            - startOffsetSec: Starting offset in seconds (default: 0)
-            - clip_duration: Duration of clip to extract from (-1 for full video)
-            - frame_indexes: Array of specific frame indices (highest priority)
-            - fps: Frames per second for uniform sampling (can be fractional)
-            - num_frames: Number of frames for uniform sampling (lowest priority)
-
-    Returns:
-        List of extracted video frames as PIL Image objects
-
-    Raises:
-        RuntimeError: If there is an error during the frame extraction process,
-            including invalid video files or unsupported formats
-
-    Note:
-        Priority order: frame_indexes > fps > num_frames. If multiple extraction
-        methods are specified, the highest priority method will be used.
-    """
-    try:
-        logger.debug("Extracting frames from video input")
-        if segment_config is None:
-            segment_config = {}
-
-        start_offset_sec = segment_config.get(
-            "startOffsetSec", settings.DEFAULT_START_OFFSET_SEC
-        )
-        clip_duration = segment_config.get(
-            "clip_duration", settings.DEFAULT_CLIP_DURATION
-        )
-        num_frames = segment_config.get("num_frames", settings.DEFAULT_NUM_FRAMES)
-        extraction_fps = segment_config.get("extraction_fps")
-        frame_indexes = segment_config.get("frame_indexes")
-        
-        logger.debug("Video frame extraction configuration prepared")
-
-        vr = VideoReader(video_path, ctx=cpu(0))
-        vlen = len(vr)
-        video_fps = vr.get_avg_fps()
-        start_idx = int(video_fps * start_offset_sec)
-        end_idx = (
-            min(vlen, start_idx + int(video_fps * clip_duration))
-            if clip_duration != -1
-            else vlen
-        )
-        logger.debug(f"Video FPS: {video_fps}, Total frames: {vlen}")
-        # Priority 1: frame_indexes - specific frame indices (highest priority)
-        if frame_indexes is not None:
-            if not isinstance(frame_indexes, (list, tuple, np.ndarray)):
-                raise ValueError("frame_indexes must be a list, tuple, or numpy array")
-            
-            # Convert to numpy array and ensure valid indices
-            frame_indexes = np.array(frame_indexes, dtype=int)
-            
-            # Filter indices to be within the video segment bounds
-            valid_indices = frame_indexes[(frame_indexes >= start_idx) & (frame_indexes <= end_idx)]
-            
-            if len(valid_indices) == 0:
-                logger.warning(
-                    "No valid frame indices found within segment bounds [%s, %s)",
-                    start_idx,
-                    end_idx,
-                )
-                # Fall back to default uniform sampling
-                frame_idx = np.linspace(
-                    start_idx, end_idx, num=settings.DEFAULT_NUM_FRAMES, endpoint=False, dtype=int
-                )
-            else:
-                frame_idx = valid_indices
-            
-            logger.debug(f"Using frame_indexes with {len(frame_idx)} valid indices")
-        
-        # Priority 2: fps - uniform sampling at specified rate
-        elif extraction_fps is not None:
-            if not isinstance(extraction_fps, (int, float)) or extraction_fps <= 0:
-                raise ValueError("fps must be a positive number")
-            
-            # Calculate frame interval based on user fps (float to preserve precision)
-            frame_interval = float(video_fps) / float(extraction_fps)
-            
-            # Generate frame indices at the specified fps rate
-            frame_indices = []
-            current_frame = float(start_idx)
-            
-            while current_frame <= end_idx:
-                frame_indices.append(int(current_frame))
-                current_frame += frame_interval
-            
-            frame_idx = np.array(frame_indices, dtype=int)
-            logger.debug(f"Using fps={extraction_fps} for sampling, generated {len(frame_idx)} frames")
-        
-        # Priority 3: num_frames - use explicit value if provided, otherwise use default
-        # Default: use DEFAULT_NUM_FRAMES for uniform sampling (lowest priority)
-        else:
-            frame_idx = np.linspace(
-                start_idx, end_idx, num=num_frames, endpoint=False, dtype=int
-            )
-            logger.debug(f"Using default num_frames={num_frames} for uniform sampling")
-
-        video_frames = []
-
-        # read images
-        temp_frms = vr.get_batch(frame_idx.astype(int).tolist())
-        for idx in range(temp_frms.shape[0]):
-            im = temp_frms[idx]  # H W C
-            video_frames.append(toPIL(im.permute(2, 0, 1)))
-        logger.info(
-            "%s Frames extracted successfully from video: %s",
-            len(video_frames),
-            sanitize_for_log(video_path),
-        )
-        return video_frames
-    except Exception as e:
-        logger.error("Error extracting video frames: %s", sanitize_for_log(e))
-        raise RuntimeError(f"{ErrorMessages.EXTRACT_VIDEO_FRAMES_ERROR}: {e}")

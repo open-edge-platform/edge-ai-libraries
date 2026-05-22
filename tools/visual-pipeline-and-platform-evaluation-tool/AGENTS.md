@@ -11,7 +11,7 @@ of AI inference pipelines (GStreamer + OpenVINO™ + DLStreamer), collecting har
 ```text
 tools/visual-pipeline-and-platform-evaluation-tool/
 ├── vippet/               # Backend: Python/FastAPI application
-│   ├── api/              # REST + WebSocket API (FastAPI, port 7860)
+│   ├── api/              # REST API (FastAPI, port 7860)
 │   │   ├── main.py       # App entrypoint, router registration
 │   │   ├── api_schemas.py # Pydantic request/response models
 │   │   └── routes/       # API route handlers (pipelines, models, jobs, etc.)
@@ -35,12 +35,7 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 │   │   └── config/       # Navigation and app config
 │   ├── vite.config.ts    # Vite config with API proxy rules
 │   └── Dockerfile        # Nginx-based production image
-├── collector/            # Hardware metrics collector (Telegraf + qmassa)
-│   ├── qmassa_reader.py  # Reads GPU metrics from qmassa FIFO and emits InfluxDB line protocol
-│   └── supervisord.conf  # Runs qmassa + telegraf as supervised processes
 ├── video_generator/      # Synthetic test video generator (Python + GStreamer)
-├── models/               # Model download and management scripts
-│   └── model_manager.sh  # Interactive/automated model installer
 ├── shared/               # Runtime-mounted volumes (videos, models, scripts)
 ├── compose.yml           # Main Docker Compose file
 ├── compose.dev.yml       # Dev override (disables healthcheck, mounts source)
@@ -78,10 +73,7 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 # 2. Set up shared directories
 make env-setup
 
-# 3. Install AI models (interactive)
-make install-models-once
-
-# 4. Build and run all services
+# 3. Build and run all services
 make build
 make run
 ```
@@ -124,7 +116,7 @@ make format      # Auto-format with ruff
 - **Backend API**: `http://localhost:7860/api/v1/` (FastAPI, auto-documented at `/docs`)
 - **UI**: `http://localhost:80`
 - **RTSP live streams**: `rtsp://localhost:8554/{stream_name}` (via mediamtx)
-- **WebSocket metrics**: `ws://localhost:7860/metrics/ws`
+- **SSE metrics stream**: `http://localhost/metrics/stream` (proxied by nginx to metrics-manager)
 
 The OpenAPI schema can be regenerated with:
 
@@ -134,13 +126,13 @@ make generate_openapi
 
 ## Docker Compose Services
 
-| Service     | Description                               | Port |
-|-------------|-------------------------------------------|------|
-| `vippet`    | Backend (FastAPI)                         | 7860 |
-| `vippet-ui` | Frontend (Nginx)                          | 80   |
-| `mediamtx`  | RTSP server                               | 8554 |
-| `models`    | Model installer (profile: `do-not-start`) | -    |
-| `collector` | Metrics collector (profile: `gpu`/`npu`)  | -    |
+| Service           | Description                               | Port |
+|-------------------|-------------------------------------------|------|
+| `vippet`          | Backend (FastAPI)                         | 7860 |
+| `vippet-ui`       | Frontend (Nginx)                          | 80   |
+| `mediamtx`        | RTSP server                               | 8554 |
+| `model-download`  | Model download microservice               | 8000 |
+| `metrics-manager` | Metrics collector                         | 9090 |
 
 Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automatically by `setup_env.sh`.
 
@@ -176,12 +168,18 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `APP_LOG_LEVEL`                  | Python logging level for the application                     | `INFO`                                                     |
 | `RUNNER_LOG_LEVEL`               | Logging level for gst_runner.py subprocess                   | `INFO`                                                     |
 | `WEB_SERVER_LOG_LEVEL`           | Logging level for uvicorn web server                         | `WARNING`                                                  |
-| `METRICS_LOG_LEVEL`              | Logging level for metrics WebSocket routes                   | `INFO`                                                     |
 | `GST_DEBUG`                      | GStreamer native debug level (integer, 0-9)                  | `1`                                                        |
 | `MODELS_PATH`                    | Path to downloaded models                                    | `/models/output`                                           |
 | `SUPPORTED_MODELS_FILE`          | Path to supported_models.yaml                                | `/models/supported_models.yaml`                            |
-| `INPUT_VIDEO_DIR`                | Path to input videos                                         | `/videos/input`                                            |
+| `AUTO_VIDEO_DIR`                 | Path to auto-downloaded videos                               | `/videos/input/auto`                                       |
+| `UPLOADED_VIDEO_DIR`             | Path to user-uploaded videos                                 | `/videos/input/uploaded`                                   |
+| `DEFAULT_RECORDINGS_FILE`        | Path to the YAML listing recordings to auto-download         | `/videos/default_recordings.yaml`                          |
+| `UPLOAD_ALLOWED_EXTENSIONS`      | Comma-separated allow-list of upload file extensions         | `mp4,mkv,mov,avi,ts,264,avc,h265,hevc`                     |
+| `UPLOAD_ALLOWED_CONTAINERS`      | Comma-separated allow-list of upload container formats       | `mp4,mov,mkv,avi,mpegts,raw`                               |
+| `UPLOAD_ALLOWED_CODECS`          | Comma-separated allow-list of upload video codecs            | `h264,h265`                                                |
+| `UPLOAD_MAX_SIZE_BYTES`          | Maximum accepted upload body size in bytes                   | `2147483648` (2 GiB)                                       |
 | `OUTPUT_VIDEO_DIR`               | Path to output videos                                        | `/videos/output`                                           |
+| `UPLOADED_IMAGES_DIR`            | Path to user-uploaded image sets                             | `/images/input/uploaded`                                   |
 | `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | Glob patterns for elements shown in simplified pipeline view | `*src,urisourcebin,gva*,*sink,source`                      |
 | `SIMPLE_VIEW_INVISIBLE_ELEMENTS` | Element names hidden from simplified pipeline view           | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` |
 | `LIVE_STREAM_SERVER_HOST`        | RTSP server hostname                                         | `mediamtx`                                                 |
@@ -196,7 +194,8 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 - The `vippet/` Python package uses relative imports — always run from the container context
 - GStreamer pipelines are executed as **subprocesses** via `gst_runner.py`, not directly in Python
 - Hardware device detection happens at startup via `device.py` (OpenVINO Core)
-- The `models` service must be run separately before `vippet` to install required AI models
+- AI models are installed at runtime via the `model-download` microservice;
+  vippet-app exposes `/api/v1/models` endpoints (and the UI Models page) to trigger installs
 - Video input sources: files from `shared/videos/input/`, USB cameras (`/dev/video*`), RTSP/ONVIF cameras
 
 ## Documentation Standards
@@ -393,7 +392,8 @@ Optional[str]
 
 ## Common Issues
 
-- **Models not found**: Run `make install-models-once` first
+- **Models not found**: Install required models through the UI (Models page) or the `/api/v1/models` endpoints;
+  vippet-app proxies installs to the `model-download` service
 - **Permission denied on /dev/video***: Add user to `video` group
 - **GPU not detected**: Check `setup_env.sh` output and Docker GPU support
 - **Port conflicts**: Check if ports 80, 7860, 8554 are available

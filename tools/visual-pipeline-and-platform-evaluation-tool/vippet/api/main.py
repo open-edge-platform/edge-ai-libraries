@@ -9,9 +9,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
 from api.middleware import InitializationMiddleware
-from api.routes import health, metrics
+from api.routes import health
+from images import ImagesManager
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
+from managers.model_manager import ModelManager
 from managers.pipeline_manager import PipelineManager
 from managers.pipeline_template_manager import PipelineTemplateManager
 from videos import VideosManager
@@ -38,6 +40,14 @@ logger = logging.getLogger()
 logger.setLevel(os.environ.get("APP_LOG_LEVEL", "INFO").upper())
 logger.handlers = [handler]
 
+# Silence noisy third-party HTTP client loggers that emit one INFO line
+# per outbound request (e.g. polling model-download job status during
+# downloads). Keep them at WARNING so genuine errors still surface.
+for _noisy in ("httpx", "httpcore"):
+    logging.getLogger(_noisy).setLevel(
+        os.environ.get("HTTPX_LOG_LEVEL", "WARNING").upper()
+    )
+
 
 def _initialize_in_background(app: FastAPI) -> None:
     """
@@ -57,11 +67,21 @@ def _initialize_in_background(app: FastAPI) -> None:
         # extracts metadata, and converts to TS format
         VideosManager()
 
+        # Initialize ImagesManager - ensures the uploaded image-set
+        # root directory exists with the right permissions before any
+        # request hits POST /images/upload.
+        ImagesManager()
+
         # Initialize PipelineManager - loads predefined pipelines
         PipelineManager()
 
         # Initialize PipelineTemplateManager - loads pipeline templates
         PipelineTemplateManager()
+
+        # Initialize ModelManager - reads supported_models.yaml and the
+        # installed-models registry. Must run after PipelineManager so
+        # that ``GET /models`` can compute ``used_by_pipelines``.
+        ModelManager()
 
         # Register remaining routers after VideosManager, PipelineManager, and PipelineTemplateManager are initialized
         register_routers(app)
@@ -87,6 +107,7 @@ def register_routers(app: FastAPI) -> None:
     from api.routes import (
         convert,
         devices,
+        images,
         jobs,
         models,
         pipeline_templates,
@@ -109,6 +130,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(pipelines.router, prefix="/pipelines", tags=["pipelines"])
     app.include_router(tests.router, prefix="/tests", tags=["tests"])
     app.include_router(videos.router, prefix="/videos", tags=["videos"])
+    app.include_router(images.router, prefix="/images", tags=["images"])
     app.include_router(cameras.router, prefix="/cameras", tags=["cameras"])
 
 
@@ -226,5 +248,3 @@ app.add_middleware(InitializationMiddleware)
 
 # Register health router immediately (before initialization) so health checks work while app is initializing
 app.include_router(health.router, tags=["health"])
-# Register metrics router immediately (it does not depend on VideosManager) so collector can connect as soon as possible
-app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])

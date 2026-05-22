@@ -123,7 +123,7 @@ class TestModels(unittest.TestCase):
             self.assertEqual(found_by_disp.name, "inst")
 
             # find by model_path and model_proc_path
-            found_by_path = manager.find_installed_model_by_model_and_proc_path(
+            found_by_path = manager.find_model_by_model_and_proc_path(
                 str(installed), ""
             )
             self.assertIsNotNone(found_by_path)
@@ -249,7 +249,7 @@ class TestModels(unittest.TestCase):
             # model not found should return False
             self.assertFalse(manager.is_model_supported_on_device("NoSuchModel", "cpu"))
 
-    def test_find_installed_model_by_model_and_proc_path_with_extra_model_procs(self):
+    def test_find_model_by_model_and_proc_path_with_extra_model_procs(self):
         """Test matching when extra_model_procs provides full-path model-proc variants."""
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
@@ -287,14 +287,14 @@ class TestModels(unittest.TestCase):
             manager = m.SupportedModelsManager()
 
             # Find by base model_proc
-            found_base = manager.find_installed_model_by_model_and_proc_path(
+            found_base = manager.find_model_by_model_and_proc_path(
                 str(model_file), str(base_proc)
             )
             self.assertIsNotNone(found_base)
             self.assertIn("model-proc: base", found_base.display_name)
 
             # Find by extra model_proc
-            found_extra = manager.find_installed_model_by_model_and_proc_path(
+            found_extra = manager.find_model_by_model_and_proc_path(
                 str(model_file), str(extra_proc)
             )
             self.assertIsNotNone(found_extra)
@@ -344,8 +344,8 @@ class TestModels(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 m3.SupportedModelsManager()
 
-    def test_find_installed_model_by_model_and_proc_path_precision_dir_matching(self):
-        """Test that find_installed_model_by_model_and_proc_path disambiguates models
+    def test_find_model_by_model_and_proc_path_precision_dir_matching(self):
+        """Test that find_model_by_model_and_proc_path disambiguates models
         with the same filename but different precision directories (e.g. INT8 vs FP16)."""
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
@@ -391,17 +391,13 @@ class TestModels(unittest.TestCase):
             self.assertEqual(len(manager.get_all_installed_models()), 2)
 
             # Searching by full path with INT8 dir should return the INT8 variant
-            found_int8 = manager.find_installed_model_by_model_and_proc_path(
-                str(int8_xml)
-            )
+            found_int8 = manager.find_model_by_model_and_proc_path(str(int8_xml))
             self.assertIsNotNone(found_int8)
             self.assertEqual(found_int8.precision, "INT8")
             self.assertIn("INT8", found_int8.display_name)
 
             # Searching by full path with FP16 dir should return the FP16 variant
-            found_fp16 = manager.find_installed_model_by_model_and_proc_path(
-                str(fp16_xml)
-            )
+            found_fp16 = manager.find_model_by_model_and_proc_path(str(fp16_xml))
             self.assertIsNotNone(found_fp16)
             self.assertEqual(found_fp16.precision, "FP16")
             self.assertIn("FP16", found_fp16.display_name)
@@ -441,6 +437,70 @@ class TestModels(unittest.TestCase):
             # Test singleton behavior - second call returns same instance
             mgr2 = m.SupportedModelsManager()
             self.assertIs(mgr, mgr2)
+
+    def test_genai_model_exists_on_disk_requires_directory(self):
+        """GenAI model should be considered installed when its model directory exists."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            models_dir = td_path / "models"
+            yaml_file = td_path / "supported.yaml"
+            yaml_file.write_text("[]")
+
+            m = _reload_models_module(str(yaml_file), str(models_dir))
+
+            genai_model = m.SupportedModel(
+                name="gemma3",
+                display_name="Gemma 3",
+                source="huggingface",
+                model_type="genai",
+                model_path="genai/gemma3",
+                model_proc="",
+            )
+
+            self.assertFalse(genai_model.exists_on_disk())
+
+            model_dir = models_dir / "genai" / "gemma3"
+            model_dir.mkdir(parents=True)
+            self.assertTrue(genai_model.exists_on_disk())
+
+            # Remove the directory and verify it is no longer considered installed.
+            model_dir.rmdir()
+            self.assertFalse(genai_model.exists_on_disk())
+
+    def test_find_model_by_model_and_proc_path_for_genai_directory(self):
+        """Directory-based GenAI model path should map to the configured model entry."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            models_dir = td_path / "models"
+            model_dir = models_dir / "genai" / "gemma3"
+            model_dir.mkdir(parents=True)
+
+            yaml_file = td_path / "supported.yaml"
+            yaml_file.write_text(
+                """
+- name: gemma3
+  display_name: Gemma 3
+  source: huggingface
+  type: genai
+  unsupported_devices: ""
+  default: false
+  precisions:
+    - precision: INT8
+      model_path: genai/gemma3/
+      model_proc: ""
+"""
+            )
+
+            m = _reload_models_module(str(yaml_file), str(models_dir))
+            if hasattr(m, "_supported_models_manager_instance"):
+                setattr(m, "_supported_models_manager_instance", None)
+
+            manager = m.SupportedModelsManager()
+            found = manager.find_model_by_model_and_proc_path(str(model_dir))
+
+            self.assertIsNotNone(found)
+            self.assertEqual(found.name, "gemma3")
+            self.assertEqual(found.model_type, "genai")
 
 
 if __name__ == "__main__":

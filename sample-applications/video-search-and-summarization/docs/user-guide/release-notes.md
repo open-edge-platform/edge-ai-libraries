@@ -2,7 +2,55 @@
 
 ## Current Release
 
-**Version**: 1.3.2-rc1 \
+**Version**: 2026.1.0-rc1 \
+**Release Date**: 15 May 2026
+
+**Changes:**
+- Introducing new Dual UI mode with a new `--summary --search` CLI argument for `setup.sh`. This runs both summary and search applications simultaneously at **/summary** and **/search** URI endpoints respectively.
+- New Dual UI setup for helm chart installation. This is implemented by enabling ways to provide values override file for summary and search mode simultaneously.
+- Updates to setup script and nginx configuration files for flexible UI routing for each mode of deployment - existing summary mode, search mode, Unified UI Mode and the new Dual UI mode.
+- Refactored Helm chart to use a reusable `vssui` subchart with multi-mode nginx and consolidated embedding model config under `global.embeddingModelName`.
+- Bumped DLStreamer base image to 2026.1.0-ubuntu24-rc1 for Video Ingestion Microservice.
+- **Setup Script:** Updates in environment variable to setup embedding models. New MULTIMODAL_EMBEDDING_MODEL and existing TEXT_EMBEDDING_MODEL are used to provide embedding models in relevant modes.
+- **Docker Compose:** Replaced `curl` with Python `urllib` package in container healthcheck command for a lighter runtime footprint for Audio Analyzer.
+- **Docker Compose:** Replaced environment variables with hard coded mount paths. This helps in stopping containers without looking for preset variables.
+- **Build Script:** Removed Audio-Analyzer from the dependency build pipeline. A frozen version 1.3.3 will be used for the Audio Analyzer microservice for current and all subsequent releases.
+- **Setup Script:** Minor cleanup to remove unused environment variables and remove several environment variables being used as mount directories in Docker Compose files _(some of these environment variables are still used pertaining to design issues)_.
+
+## Previous Release
+
+**Version**: 1.3.3-rc1 \
+**Release Date**: 05 May 2026  
+
+**Features**:
+
+- **Configurable final video summary**: Added PM_PRODUCE_FINAL_SUMMARY feature flag to make the final LLM map-reduce video summary optional. When disabled, chunk-wise summaries are displayed chronologically instead. A per-video UI override checkbox is available in both upload flows. Audio transcript summarization is automatically skipped when the final summary is turned off.
+- **Audio transcript summarization**: Added audio transcript summarization support and improved audio transcription accuracy.
+- **OVMS-first architecture**: Replaced the standalone `vlm-openvino-serving` microservice with OpenVINO Model Server (OVMS) as the unified inference backend for both VLM captioning and LLM summarization. This is a **breaking change**; the `vlm-inference` subchart and container have been removed.
+- **Performance Optimizations (MME & VDMS-Data-Prep)**:
+  - Refactored pre-processing and inference with `AsyncInferQueue` based OpenVINO inference and static shape model compilation for iGPU.
+  - Added ThreadPool for parallel open_clip image pre-processing with support for input tensor batching and padding for optimal OpenVINO inference paths.
+  - Introduced PyAV-based video decode abstraction supporting keyframes and uniform sampled frames extraction with producer-consumer pattern for parallel decode and frame translation to PIL.
+  - Enabled multiple/parallel decoder instances for file, RTSP stream, and bytes input sources.
+  - Implemented frame batching for pipelined pre-processing and inference with integrated PyAV decoder in VDMS data-prep.
+- **Search Timeout and Resource Management**: Added `SEARCH_DATAPREP_TIMEOUT_MS` configuration to prevent VSS-UI timing out during embedding creation. Added ulimit constraints with soft and hard limits to enable shared memory creation and define memory block allocation boundaries.
+
+**HW used for validation**:
+
+- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
+- Vanilla Kubernetes Cluster
+
+**Known Issues/Limitations**:
+
+- This release includes only limited testing on EMT‑S and EMT‑D, some behaviors may not yet be fully validated across all scenarios.
+- HW sizing of the Video Search or Video Summarization pipeline is in progress. Optimization of the pipelines will follow HW sizing.
+- Known issues are internally tracked. Reference not provided here.
+- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
+- NPU support with OVMS is added as experimental feature and may not work for all models or configurations.
+
+## Previous releases
+
+**Version**: 1.3.2 \
 **Release Date**: 17 Feb 2026  
 
 **Features**:
@@ -18,17 +66,6 @@
 
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 - Vanilla Kubernetes Cluster
-
-**Known Issues/Limitations**:
-
-- This release includes only limited testing on EMT‑S and EMT‑D, some behaviors may not yet be fully validated across all scenarios.
-- Video Summarization with `mini_cpm` model not working on Xeon® 5 and Xeon® 6 machines.
-- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
-- HW sizing of the Video Search or Video Summarization pipeline is in progress. Optimization of the pipelines will follow HW sizing.
-- Known issues are internally tracked. Reference not provided here.
-- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
-
-## Previous releases
 
 **Version**: 1.3.1 \
 **Release Date**: 20 Nov 2025
@@ -66,7 +103,7 @@
 
 - Video_Summary: Link to Multimodal embedding models are missing in the getting started guide
 - Video_Search: Change in models with different embedding dimension results in no video search
-- Video_Summary: When Video search is deployed with embedding model as Blip2/blip2_feature_extractor, Multimodal embedding serving doesnt run
+- Video_Summary: When Video search is deployed with embedding model as Blip2/blip2_feature_extractor, Multimodal embedding serving does not run
 
 **HW used for validation**:
 

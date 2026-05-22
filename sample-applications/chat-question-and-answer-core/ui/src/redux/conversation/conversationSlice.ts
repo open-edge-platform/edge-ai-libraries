@@ -126,19 +126,19 @@ export const conversationSlice = createSlice({
       state.conversations = [];
       state.selectedConversationId = '';
     });
-    builder.addCase(uploadFile.fulfilled, () => {});
-    builder.addCase(uploadFile.rejected, () => {});
+    builder.addCase(uploadFile.fulfilled, () => { });
+    builder.addCase(uploadFile.rejected, () => { });
     builder.addCase(removeFile.fulfilled, (state, action) => {
       const index = state.files.findIndex((file) => file === action.payload);
       if (index !== -1) {
         state.files.splice(index, 1);
       }
     });
-    builder.addCase(removeFile.rejected, () => {});
+    builder.addCase(removeFile.rejected, () => { });
     builder.addCase(removeAllFiles.fulfilled, (state, action) => {
       state.files = action.payload;
     });
-    builder.addCase(removeAllFiles.rejected, () => {});
+    builder.addCase(removeAllFiles.rejected, () => { });
   },
 });
 
@@ -148,7 +148,7 @@ const handleConnectionError = async (message?: string) => {
   if (healthStatus.status === 503) {
     notify(
       message ||
-        'The backend service is starting up. Please try again in a few moments.',
+      'The backend service is starting up. Please try again in a few moments.',
       NotificationSeverity.ERROR,
     );
   }
@@ -199,9 +199,18 @@ export const uploadFile = createAsyncThunk(
       }
     } catch (error) {
       if (client.isAxiosError(error) && error.response) {
+        const errorData = error.response.data as
+          | { detail?: string; message?: string }
+          | undefined;
+        const message =
+          (typeof errorData?.detail === 'string' && errorData.detail) ||
+          (typeof errorData?.message === 'string' && errorData.message) ||
+          error.message ||
+          'Failed to upload the file';
+
         return rejectWithValue({
           status: error.status,
-          message: error.message || 'Failed to upload the file',
+          message,
         });
       } else {
         return rejectWithValue({

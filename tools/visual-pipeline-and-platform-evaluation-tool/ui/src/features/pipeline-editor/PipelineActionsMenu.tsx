@@ -27,7 +27,7 @@ import {
   Upload,
   Zap,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { handleApiError } from "@/lib/apiUtils";
 import {
   DropdownMenu,
@@ -54,6 +54,10 @@ import { EditVariantDialog } from "@/features/pipelines/EditVariantDialog";
 import { DeletePipelineVariantDialog } from "@/features/pipelines/DeletePipelineVariantDialog";
 import { DeletePipelineDialog } from "@/features/pipelines/DeletePipelineDialog";
 import { formatErrorMessage } from "@/lib/utils.ts";
+import {
+  PIPELINE_FILE_UPLOAD_INPUT_CLASSNAME,
+  PipelineDialogButton,
+} from "./shared";
 
 interface PipelineActionsMenuProps {
   pipeline: Pipeline;
@@ -602,7 +606,7 @@ export const PipelineActionsMenu = ({
                   };
                   reader.readAsText(file);
                 }}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                className={PIPELINE_FILE_UPLOAD_INPUT_CLASSNAME}
               />
             </div>
 
@@ -618,27 +622,26 @@ export const PipelineActionsMenu = ({
                 value={pipelineDescription}
                 onChange={(e) => setPipelineDescription(e.target.value)}
                 placeholder="Paste or upload your pipeline description here..."
-                className="w-full h-64 p-3 border rounded-md resize-none font-mono text-sm"
+                className="w-full h-64 p-3 border border-input bg-background rounded-md resize-none font-mono text-sm"
               />
             </div>
 
             <div className="flex justify-end gap-2">
-              <button
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              <PipelineDialogButton
                 onClick={() => {
                   setImportDialogOpen(false);
                   setPipelineDescription("");
                 }}
               >
                 Cancel
-              </button>
-              <button
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              </PipelineDialogButton>
+              <PipelineDialogButton
+                variant="primary"
                 onClick={handleImportDescriptionClick}
                 disabled={isImporting || !pipelineDescription.trim()}
               >
                 {isImporting ? "Importing..." : "Import"}
-              </button>
+              </PipelineDialogButton>
             </div>
           </div>
         </DialogContent>

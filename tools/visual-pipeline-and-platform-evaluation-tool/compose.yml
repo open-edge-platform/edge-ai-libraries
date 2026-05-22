@@ -21,32 +21,68 @@ x-vippet: &vippet
   depends_on:
     mediamtx:
       condition: service_started
+    model-download:
+      condition: service_healthy
   environment:
     GST_DEBUG: "1"
     APP_LOG_LEVEL: INFO
     RUNNER_LOG_LEVEL: INFO
     WEB_SERVER_LOG_LEVEL: WARNING
-    METRICS_LOG_LEVEL: INFO
     MODELS_PATH: /models/output
     SUPPORTED_MODELS_FILE: /models/supported_models.yaml
+    # Image-set uploads. Image sets are extracted into per-set
+    # subdirectories of UPLOADED_IMAGES_DIR; no auto-downloaded image
+    # content exists today, so only the 'uploaded' tree is mounted.
+    UPLOADED_IMAGES_DIR: /images/input/uploaded
+    # 'auto' holds recordings downloaded from default_recordings.yaml;
+    # 'uploaded' holds user uploads. Each is created on startup if missing.
+    AUTO_VIDEO_DIR: /videos/input/auto
+    UPLOADED_VIDEO_DIR: /videos/input/uploaded
+    DEFAULT_RECORDINGS_FILE: /videos/default_recordings.yaml
     INPUT_VIDEO_DIR: /videos/input
     OUTPUT_VIDEO_DIR: /videos/output
+    # Upload validation limits for POST /videos/upload. Keep
+    # UPLOAD_MAX_SIZE_BYTES in sync with nginx 'client_max_body_size' in
+    # ui/nginx.conf.
+    UPLOAD_ALLOWED_EXTENSIONS: "mp4,mkv,mov,avi,ts,264,avc,h265,hevc"
+    UPLOAD_ALLOWED_CONTAINERS: "mp4,mov,mkv,avi,mpegts,raw"
+    UPLOAD_ALLOWED_CODECS: "h264,h265"
+    UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
     METADATA_DIR: /metadata
     SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
     RTSPSRC_DEFAULT_LATENCY_MS: ${RTSPSRC_DEFAULT_LATENCY_MS:-100}
+    METRICS_MANAGER_URL: ${METRICS_MANAGER_URL:-http://metrics-manager:9090}
+    # model-download microservice integration. vippet-app proxies all
+    # model-management calls to model-download; the URL is internal to
+    # the compose network.
+    MODEL_DOWNLOAD_URL: ${MODEL_DOWNLOAD_URL:-http://model-download:8000}
+    # Path of the JSON registry tracking installed/uploaded models on
+    # the shared volume so it survives service restarts.
+    INSTALLED_MODELS_REGISTRY: ${INSTALLED_MODELS_REGISTRY:-/models/output/installed_models.json}
+    # DLStreamer-bundled assets used during OMZ model post-processing
+    # (copying model_proc JSON, injecting ImageNet labels for
+    # mobilenet-v2-pytorch, ...). Override only if the DLStreamer
+    # installation layout in the container changes.
+    DLSTREAMER_MODEL_PROC_DIR: ${DLSTREAMER_MODEL_PROC_DIR:-/opt/intel/dlstreamer/samples/gstreamer/model_proc}
+    DLSTREAMER_LABELS_DIR: ${DLSTREAMER_LABELS_DIR:-/opt/intel/dlstreamer/samples/labels}
+    # Isolated virtualenv where ``openvino-dev[onnx]==2024.6.0`` lives.
+    # vippet-app invokes ``omz_downloader``/``omz_converter`` from this
+    # venv so the legacy 2024.x ``openvino`` package never collides
+    # with the OpenVINO 2026.x runtime used for inference.
+    OMZ_VIRTUAL_ENV: ${OMZ_VIRTUAL_ENV:-/home/dlstreamer/.omz-venv}
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
-    no_proxy: "${no_proxy:+${no_proxy},}mediamtx"
+    no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download"
   device_cgroup_rules:
     # Broad access to USB devices is required to support a wide range of USB cameras.
     - 'c 189:* rmw'
     - 'a 189:* rwm'
   volumes:
     - "/dev:/dev"
-    - ./shared/collector-signals:/home/dlstreamer/vippet/.collector-signals
+    - ./shared/images/:/images
     - ./shared/models/:/models
     - ./shared/videos/:/videos
     - ./shared/scripts/:/scripts
@@ -70,48 +106,33 @@ services:
     depends_on:
       vippet:
         condition: service_healthy
+      metrics-manager:
+        condition: service_healthy
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: "${no_proxy:+${no_proxy},}mediamtx"
+      no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager"
     volumes:
+      - ./shared/images/:/images
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
-  models:
-    profiles: [do-not-start]
-    image: docker.io/intel/vippet-models:${DOCKER_TAG}
-    build:
-      context: .
-      dockerfile: models/Dockerfile
-      args:
-        http_proxy:
-        https_proxy:
-        no_proxy:
-    stdin_open: true
-    tty: true
-    container_name: models
-    volumes:
-      - ./shared/models/:/models
-    environment:
-      - MODELS_PATH=/models/output
-      - SUPPORTED_MODELS_FILE=/models/supported_models.yaml
-      - QUANTIZE_DATASET=coco128
-      - MODEL_INSTALLATION=${MODEL_INSTALLATION:-once}
-      - http_proxy=${http_proxy}
-      - https_proxy=${https_proxy}
-      - no_proxy=${no_proxy}
-    command: './model_manager.sh'
   model-download:
-    image: docker.io/intel/model-download:2026.1.0-20260331-weekly
+    image: docker.io/intel/model-download:2026.1.0-rc1
     container_name: model-download
-    command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-openvino,huggingface,ultralytics,geti}
+    ports:
+      - "8000:8000"
+    command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,ultralytics,pipeline-zoo-models,openvino,geti,hls}
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:8000/api/v1/health"]
+      # First start can take tens of minutes: each plugin venv runs `uv sync`
+      # and pulls heavy deps (torch, openvino, ...). `start_period` keeps the
+      # container marked "starting" (so dependents wait but don't get
+      # "unhealthy" early) for up to 60 minutes.
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
-      start_interval: 5s
+      start_period: 60m
+      start_interval: 2s
     restart: on-failure:5
     environment:
       MODELS_DIR: /models/output
@@ -119,6 +140,9 @@ services:
       HF_HUB_ENABLE_HF_TRANSFER: "1"
       HF_TOKEN: ${HF_TOKEN:-}
       UV_CACHE_DIR: /cache/uv
+      # Cache the Hugging Face hub downloads so HF-backed plugins reuse
+      # large weights between container restarts.
+      HF_HOME: /cache/huggingface
       GETI_HOST: ${GETI_HOST:-}
       GETI_TOKEN: ${GETI_TOKEN:-}
       GETI_WORKSPACE_ID: ${GETI_WORKSPACE_ID:-}
@@ -129,42 +153,52 @@ services:
       no_proxy: ${no_proxy}
     volumes:
       - ./shared/models/:/models
-      - ./shared/model-download/venv:/opt/.venv
+      # Persist uv cache + per-plugin venvs across restarts.
       - ./shared/model-download/cache:/cache
+      - ./shared/model-download/venv-base:/opt/.venv
+      - ./shared/model-download/venv-huggingface:/opt/.venv-huggingface
+      - ./shared/model-download/venv-ultralytics:/opt/.venv-ultralytics
+      - ./shared/model-download/venv-pipeline-zoo-models:/opt/.venv-pipeline-zoo-models
+      - ./shared/model-download/venv-openvino:/opt/.venv-openvino
+      - ./shared/model-download/venv-geti:/opt/.venv-geti
+      - ./shared/model-download/venv-hls:/opt/.venv-hls
   vippet:  # Always 'vippet', hardware config from override files
     <<: *vippet
     container_name: vippet
     ports:
       - "7860:7860"
-  collector:
-    image: docker.io/intel/vippet-collector:${DOCKER_TAG}
-    build:
-      context: ./collector
-      dockerfile: Dockerfile
-      args:
-        http_proxy:
-        https_proxy:
-        no_proxy:
-    container_name: collector
+  metrics-manager:
+    image: docker.io/intel/metrics-manager:2026.1.0-20260508-weekly
+    container_name: metrics-manager
     ports:
+      - "9090:9090"
       - "9273:9273"
     privileged: true
+    pid: host
+    security_opt:
+      - apparmor:unconfined
     devices:
-      - "/sys:/sys"
-      - "/dev:/dev"
-      - "/run:/run"
-      - "/proc:/proc"
-    pid: host # qmassa needs it
+      - "/dev/dri:/dev/dri"
     volumes:
-      - "./shared/collector-signals:/app/.collector-signals"
-    restart: on-failure:5
-    depends_on:
-      vippet:
-        condition: service_healthy
+      - /sys:/sys:ro
+      - /run:/run:ro
+      - ./vippet-telegraf.conf:/etc/telegraf/telegraf.conf:ro
     environment:
+      METRICS_PORT: 9090
+      LOG_LEVEL: INFO
+      CORS_ORIGINS: "*"
+      CUSTOM_METRICS_DIR: /app/custom-metrics
+      METRICS_RETENTION_SECONDS: 300
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
+    restart: on-failure:5
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
   mediamtx:
     image: bluenviron/mediamtx:1.15.6
     container_name: mediamtx
@@ -176,7 +210,7 @@ services:
     ports:
       - "8554:8554"     # RTSP
       - "8889:8889"     # WebRTC signaling/HTTP
-      - "8189:8189/udp" # WebRTC/ICE UDP 
+      - "8189:8189/udp" # WebRTC/ICE UDP
   onvif-discovery:
     image: docker.io/intel/vippet-onvif-discovery:${DOCKER_TAG}
     build:
@@ -224,4 +258,3 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
-

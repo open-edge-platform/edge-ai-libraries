@@ -39,7 +39,7 @@ To learn more on setting frame destination, refer to this [section](../advanced-
 
 `parameters` are an optional section (JSON object) within a pipeline definition and are used to specify which pipeline properties are configurable. In the sample pipeline above, we allow parameterization of `gvadetect` element properties (aliased by setting name=detection). To learn more about pipeline parameters, refer to this [section](../advanced-guide/detailed_usage/rest_api/defining_pipelines.md#pipeline-parameters)
 
-> **Note:** Refer to this [tutorial](./change-dlstreamer-pipeline.md) and this [section](../advanced-guide/detailed_usage/configuration/basic.md) for configuration file.
+> **Note:** Refer to this [tutorial](./change-dlstreamer-pipeline.md) and this [section](../advanced-guide/detailed_usage/configuration/dlstreamer-ps-config.md) for configuration file.
 > Refer to [this](../advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md) page for detailed instructions on how to define configurable pipelines and launch them using REST command.
 
 Here is a sample REST request for the default pipeline (same as above sample) which has placeholders for `source`, `destination` and `parameters`. A video file within the container is specified as source, file is set as metadata destination, RTSP is specified for frame destination and the gvadetect element parameters such as model and device are provided under the parameters section. The model and video files are already provided as DL Streamer Pipeline Server samples.

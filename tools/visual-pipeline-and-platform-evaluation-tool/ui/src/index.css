@@ -3,6 +3,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@import "./tokens/colors-base.css";
+@import "./tokens/colors-semantic.css";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -12,238 +15,10 @@
   --font-heading:
     "Montserrat", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
     "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: calc(var(--radius) - 0.125rem);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-
-  /* Intel colors */
-  --color-classic-blue: var(--classic-blue);
-  --color-classic-blue-tint-2: var(--classic-blue-tint-2);
-  --color-classic-blue-tint-1: var(--classic-blue-tint-1);
-  --color-classic-blue-shade-1: var(--classic-blue-shade-1);
-  --color-classic-blue-shade-2: var(--classic-blue-shade-2);
-  --color-energy-blue: var(--energy-blue);
-  --color-energy-blue-tint-2: var(--energy-blue-tint-2);
-  --color-energy-blue-tint-1: var(--energy-blue-tint-1);
-  --color-energy-blue-shade-1: var(--energy-blue-shade-1);
-  --color-energy-blue-shade-2: var(--energy-blue-shade-2);
-  --color-carbon: var(--carbon);
-  --color-carbon-tint-2: var(--carbon-tint-2);
-  --color-carbon-tint-1: var(--carbon-tint-1);
-  --color-carbon-shade-1: var(--carbon-shade-1);
-  --color-carbon-shade-2: var(--carbon-shade-2);
-  --color-blue-teal-shade-1: var(--blue-teal-shade-1);
-
-  --color-status-error: var(--status-error);
-  --color-status-error-soft: var(--status-error-soft);
-  --color-status-success: var(--status-success);
-  --color-status-success-soft: var(--status-success-soft);
-  --color-status-warning: var(--status-warning);
-  --color-status-warning-soft: var(--status-warning-soft);
-  --color-status-info: var(--status-info);
-  --color-status-info-soft: var(--status-info-soft);
-
-  --color-classic-blue-hover: var(--classic-blue-hover);
-  --color-light-gray-100: var(--light-gray-100);
-  --color-light-gray-200: var(--light-gray-200);
-  --color-dark-gray-100: var(--dark-gray-100);
-  --color-dark-gray-200: var(--dark-gray-200);
-
-  --color-electric-geode: var(--electric-geode);
-  --color-electric-cobalt: var(--electric-cobalt);
-  --color-electric-aqua: var(--electric-aqua);
-  --color-electric-moss: var(--electric-moss);
-  --color-electric-daisy: var(--electric-daisy);
-  --color-electric-rust: var(--electric-rust);
-  --color-electric-coral: var(--electric-coral);
-
-  --color-blue-steel: var(--blue-steel);
-  --color-blue-steel-tint-2: var(--blue-steel-tint-2);
-  --color-blue-steel-shade-1: var(--blue-steel-shade-1);
-  --color-green-chart: var(--green-chart);
-  --color-red-chart: var(--red-chart);
-  --color-yellow-chart: var(--yellow-chart);
-  --color-magenta-chart: var(--magenta-chart);
-  --color-purple-chart: var(--purple-chart);
-  --color-orange-chart: var(--orange-chart);
-  --color-brown-chart: var(--brown-chart);
-  --color-geode-chart: var(--geode-chart);
-  --color-cobalt-chart: var(--cobalt-chart);
-  --color-moss-chart: var(--moss-chart);
-  --color-blue-chart: var(--blue-chart);
-  --color-coral-chart: var(--coral-chart);
-}
-
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: var(--light-gray-100);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: var(--light-gray-100);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: var(--classic-blue);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: var(--carbon-tint-2);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.5 0 0);
-  --accent: var(--light-gray-200);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: var(--status-error);
-  --border: oklch(0.922 0 0);
-  --input: var(--carbon-tint-1);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: var(--light-gray-100);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-
-  /* Intel colors */
-  --classic-blue: oklch(0.377 0.152 258.338); /* #0054AE */
-  --classic-blue-tint-2: oklch(0.792 0.094 245.571); /* #6CC4F5 */
-  --classic-blue-tint-1: oklch(0.625 0.158 247.996); /* #0099EC */
-  --classic-blue-shade-1: oklch(0.266 0.118 261.226); /* #00377C */
-  --classic-blue-shade-2: oklch(0.157 0.084 264.366); /* #001E50 */
-  --energy-blue: oklch(0.807 0.126 232.661); /* #00C7FD */
-  --energy-blue-tint-2: oklch(0.916 0.063 234.365); /* #A0EBFF */
-  --energy-blue-tint-1: oklch(0.867 0.096 233.398); /* #6DDCFF */
-  --energy-blue-shade-1: oklch(0.622 0.102 233.812); /* #0095CA */
-  --energy-blue-shade-2: oklch(0.413 0.073 235.449); /* #005B85 */
-  --blue-steel: oklch(0.597 0.072 241.5); /* #548FAD */
-  --blue-steel-tint-2: oklch(0.857 0.042 237.5); /* #B9D6E5 */
-  --carbon: oklch(0.577 0 0); /* #808080 */
-  --carbon-tint-2: oklch(0.927 0 0); /* #E9E9E9 */
-  --carbon-tint-1: oklch(0.725 0 0); /* #AEAEAE */
-  --carbon-shade-1: oklch(0.381 0 0); /* #525252 */
-  --carbon-shade-2: oklch(0.204 0 0); /* #262626 */
-
-  --status-error: oklch(0.5347 0.2194 29.23); /* #CE0000 */
-  --status-error-soft: oklch(0.7616 0.1274 20.47); /* #F88F8F */
-  --status-success: oklch(0.5488 0.186752 142.4953); /* #008A00 */
-  --status-success-soft: oklch(0.827 0.0644 144.96); /* #ADD2AD */
-  --status-warning: oklch(0.875 0.1791 92.68); /* #FFD100 */
-  --status-warning-soft: oklch(0.9371 0.1114 97.04); /* #FFEB92 */
-  --status-info: var(--classic-blue);
-  --status-info-soft: var(--energy-blue);
-
-  --classic-blue-hover: oklch(0.333 0.137 258.653); /* #004A9D */
-  --light-gray-100: oklch(0.9694 0.0011 197.14); /* #F4F5F5 */
-  --light-gray-200: oklch(0.9366 0.0017 247.84); /* #E9EAEB */
-  --dark-gray-100: oklch(0.3177 0.0072 274.75); /* #313236 */
-  --dark-gray-200: oklch(0.3634 0.0074 264.48); /* #3C3E42 */
-
-  --electric-geode: oklch(0.5794 0.2752 308.89); /* #A923F1 */
-  --electric-cobalt: oklch(0.4709 0.3001 266.75); /* #1E1EFF */
-  --electric-aqua: oklch(0.7653 0.1393 176.98); /* #16CFB1 */
-  --electric-moss: oklch(0.8078 0.1822 127.53); /* #9FD541 */
-  --electric-daisy: oklch(0.9147 0.1908 101.03); /* #FFE500 */
-  --electric-rust: oklch(0.7315 0.1802 50.72); /* #FE8022 */
-  --electric-coral: oklch(0.5859 0.2057 13.88); /* #DA2E56 */
-
-  --green-chart: oklch(0.795 0.108 128.285); /* #B1D272 */
-  --moss-chart: oklch(0.545 0.08 135); /* #697D52 */
-  --purple-chart: oklch(0.865 0.098 307.174); /* #EEC3F7 */
-  --geode-chart: oklch(0.428 0.125 308); /* #653171 */
-  --red-chart: oklch(0.827 0.116 16.064); /* #FFB6B9 */
-  --coral-chart: oklch(0.62 0.18 20); /* #D55050 */
-  --magenta-chart: oklch(0.76 0.121 267.338); /* #B2B9FF */
-  --cobalt-chart: oklch(0.388 0.175 264.5); /* #0F1FA1 */
-  --blue-chart: oklch(0.377 0.152 258.338); /* #0054AE */
-  --yellow-chart: oklch(0.861 0.173 89.872); /* #FFD100 */
-  --orange-chart: oklch(0.743 0.165 49.357); /* #FF8F51 */
-  --brown-chart: oklch(0.545 0.163 46.032); /* #BF601A */
-}
-
-.dark {
-  --background: oklch(0.3053 0.0055 271.23);
-  --foreground: oklch(0.985 0 0);
-  --card: var(--dark-gray-200);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: var(--dark-gray-200);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: var(--energy-blue);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: var(--carbon-shade-2);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.788 0 0);
-  --accent: var(--background);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: var(--status-error-soft);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: var(--dark-gray-200);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-  --blue-steel-shade-1: oklch(0.527 0.065 231); /* #41728A */
-  --blue-teal-shade-1: oklch(0.285 0.04 210); /* #183544 */
-
-  /* Bright chart colors for dark backgrounds */
-  --green-chart: oklch(0.75 0.15 140); /* Bright green */
-  --red-chart: oklch(0.7 0.22 25); /* Bright red/pink */
-  --yellow-chart: oklch(0.85 0.18 95); /* Bright yellow */
-  --magenta-chart: oklch(0.75 0.2 290); /* Bright magenta/purple */
-  --purple-chart: oklch(0.7 0.2 310); /* Bright purple */
-  --orange-chart: oklch(0.75 0.2 50); /* Bright orange */
-  --blue-chart: oklch(0.65 0.22 240); /* Bright blue */
-  --moss-chart: oklch(0.65 0.12 140); /* Bright moss */
-  --geode-chart: oklch(0.6 0.18 320); /* Bright geode */
-  --cobalt-chart: oklch(0.6 0.25 265); /* Bright cobalt */
-  --coral-chart: oklch(0.7 0.22 30); /* Bright coral */
-  --brown-chart: oklch(0.6 0.15 60); /* Bright brown/orange */
+  --radius-xl: calc(var(--radius) + 0.25rem);
 }
 
 @layer base {
@@ -265,8 +40,8 @@
   }
 
   ::-webkit-scrollbar {
-    width: 3px;
-    height: 3px;
+    width: 0.1875rem;
+    height: 0.1875rem;
   }
 
   ::-webkit-scrollbar-track {
@@ -275,12 +50,138 @@
 
   ::-webkit-scrollbar-thumb {
     background: var(--carbon-tint-1);
-    border-radius: 6px;
+    border-radius: 0.375rem;
   }
 
   ::-webkit-scrollbar-thumb:hover {
     background: var(--carbon);
   }
+}
+
+/* Node color themes
+   Each utility must set all derived properties on the element because
+   :root computes --node-border etc. with --node-color: transparent at
+   :root scope — children inherit the resolved value, not the formula. */
+@utility node-sky {
+  --node-color: var(--electric-sky);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
+}
+@utility node-emerald {
+  --node-color: var(--electric-emerald);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
+}
+@utility node-teal {
+  --node-color: var(--electric-teal);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
+}
+@utility node-cobalt {
+  --node-color: var(--electric-cobalt);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
+}
+@utility node-amethyst {
+  --node-color: var(--electric-amethyst);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
+}
+@utility node-indigo {
+  --node-color: var(--electric-indigo);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
+}
+@utility node-geode {
+  --node-color: var(--electric-geode);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
+}
+@utility node-coral {
+  --node-color: var(--electric-coral);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
+}
+@utility node-rust {
+  --node-color: var(--electric-rust);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
+}
+@utility node-fuchsia {
+  --node-color: var(--electric-fuchsia);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
+}
+@utility node-moss {
+  --node-color: var(--electric-moss);
+  --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
+  --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
+  --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
+  --node-title: color-mix(in srgb, var(--node-color) 88%, var(--foreground));
+  --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
+}
+@utility node-neutral {
+  --node-border: color-mix(in srgb, var(--foreground) 24%, var(--background));
+  --node-surface: color-mix(in srgb, var(--muted) 78%, var(--background));
+  --node-icon: color-mix(in srgb, var(--foreground) 62%, var(--background));
+  --node-title: color-mix(in srgb, var(--foreground) 78%, var(--background));
+  --node-handle: color-mix(in srgb, var(--foreground) 54%, var(--background));
+}
+
+/* Status color themes — same pattern: derived props must be set on the element */
+@utility status-info {
+  --status-color: var(--brand-accent);
+  --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
+  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
+}
+@utility status-success {
+  --status-color: var(--electric-moss);
+  --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
+  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
+}
+@utility status-error {
+  --status-color: var(--destructive);
+  --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
+  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
+}
+@utility status-accent {
+  --status-color: var(--electric-geode);
+  --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
+  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
 }
 
 @layer components {

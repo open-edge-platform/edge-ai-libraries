@@ -1,5 +1,3 @@
-/*SPDX-License-Identifier: Apache-2.0*/
-
 import { GpuChartSection } from "@/features/metrics/charts/GpuChartSection";
 import {
   type DashboardChartCommonProps,
@@ -37,6 +35,7 @@ export const GpuFrequencyChart = ({
       chartUnit=" GHz"
       chartYAxisDomain={[0, yAxisMax]}
       chartLabels={["Frequency"]}
+      showLegend={false}
       selectedGpu={selectedGpu}
       availableGpus={availableGpus}
       onGpuChange={onGpuChange}

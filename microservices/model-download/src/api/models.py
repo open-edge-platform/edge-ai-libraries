@@ -3,7 +3,7 @@
 
 from enum import Enum
 from typing import List, Optional, TypedDict, Dict, Any, Tuple
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Parameter mapping for export_model.py command builder
 # Format: {param_name: (flag_name, param_type)}
@@ -71,6 +71,7 @@ class DeviceType(str, Enum):
 class ModelHub(str, Enum):
     HUGGINGFACE = "huggingface"
     ULTRALYTICS = "ultralytics"
+    PIPELINE_ZOO_MODELS = "pipeline-zoo-models"
     OLLAMA = "ollama"
     OPENVINO = "openvino"
     GETI = "geti"
@@ -81,6 +82,9 @@ class ModelType(str, Enum):
     VLM = "vlm"
     EMBEDDINGS = "embeddings"
     RERANKER = "rerank"
+    IMAGE_GENERATION = "image_generation"
+    TEXT2SPEECH = "text2speech"
+    SPEECH2TEXT = "speech2text"
     VISION = "vision"
     THREE_D_POSE = "3d-pose"
     RPPG = "rppg"
@@ -290,6 +294,12 @@ class ModelRequest(BaseModel):
     is_ovms: bool = False
     revision: Optional[str] = None
     config: Optional[Config] = None
+
+    @field_validator("hub", mode="before")
+    @classmethod
+    def _normalize_hub(cls, v):
+        # Accept hub names case-insensitively (e.g. 'Geti', 'GETI', 'HuggingFace').
+        return v.lower() if isinstance(v, str) else v
 
 
 

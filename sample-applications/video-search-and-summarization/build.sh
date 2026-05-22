@@ -7,6 +7,29 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
+# Check prerequisites
+# Args: $1 = true if poetry check is needed (for --dependencies)
+check_prerequisites() {
+  local check_poetry=${1:-false}
+  
+  # Docker is always required
+  if ! command -v docker &> /dev/null; then
+    echo -e "${RED}Error: docker is not installed or not in PATH${NC}"
+    echo -e "Please install Docker: https://docs.docker.com/get-docker/"
+    exit 1
+  fi
+  
+  # Poetry is required for --dependencies (to build multimodal-embedding wheel)
+  if [ "$check_poetry" = true ]; then
+    if ! command -v poetry &> /dev/null; then
+      echo -e "${RED}Error: poetry is not installed or not in PATH${NC}"
+      echo -e "Poetry is required to build the multimodal-embedding wheel."
+      echo -e "Please install poetry: https://python-poetry.org/docs/#installation"
+      exit 1
+    fi
+  fi
+}
+
 export REGISTRY_URL=${REGISTRY_URL:-}
 export PROJECT_NAME=${PROJECT_NAME:-}
 export TAG=${TAG:-latest}
@@ -28,7 +51,7 @@ fi
 # Usage information
 show_usage() {
   echo -e "Usage: $0 [OPTION]"
-  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding, vlm-openvino-serving, audio-analyzer)"
+  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding-serving)"
   echo -e "  --help, -h\t\t Show this help message"
   echo -e "  --push\t Push all built Docker images to the registry"
   echo -e "  <no option>\t Build sample application services (video-ingestion, pipeline-manager, search-ms, and UI)"
@@ -102,28 +125,6 @@ build_dependencies() {
     log_info "${YELLOW}compose.yml not found for multimodal embedding serving${NC}";
   fi
 
-  
-  # Build vlm-openvino-serving
-  cd "${uservices_dir}/vlm-openvino-serving/docker" || return 0
-  if [ -f "compose.yaml" ]; then
-    cd .. && docker_build -t ${REGISTRY}vlm-openvino-serving:${TAG} -f docker/Dockerfile . || {
-      log_info "${RED}Failed to build vlm-openvino-serving${NC}"; 
-      build_success=false; 
-    }
-  else
-    log_info "${YELLOW}compose.yaml not found for vlm-openvino-serving ${NC}";
-  fi
-
-
-  # Build audio analyzer microservice
-  cd "${uservices_dir}/audio-analyzer/docker" || return 1
-  if [ -f "compose.yaml" ]; then
-    cd .. && docker_build -t ${REGISTRY}audio-analyzer:${TAG} -f docker/Dockerfile . || {
-      log_info "${RED}Failed to build audio-analyzer microservice${NC}"; 
-      build_success=false; 
-    }
-  fi
-
   # Return to original directory
   cd "$current_dir"
   
@@ -132,8 +133,17 @@ build_dependencies() {
     
     # Print built images
     log_info "${GREEN}Built images:${NC}"
-    echo "Retrieving Docker images related to microservice dependencies..."
-    docker images | grep -E "${REGISTRY}.*(vdms|multimodal|vlm|audio).*${TAG}"
+    local dep_images=(
+      "${REGISTRY}vdms-dataprep:${TAG}"
+      "${REGISTRY}multimodal-embedding-serving:${TAG}"
+    )
+    for img in "${dep_images[@]}"; do
+      if docker image inspect "$img" &> /dev/null; then
+        # Strip default docker.io/ prefix since Docker stores names without it
+        local filter_img="${img#docker.io/}"
+        docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}' "$filter_img"
+      fi
+    done
     
     return 0
   else
@@ -206,8 +216,19 @@ build_sample_app() {
     
     # Print built images
     log_info "${GREEN}Built sample application images:${NC}"
-    echo "Retrieving Docker images related to sample applications..."
-    docker images | grep -E "${REGISTRY}.*(vss-ui|video-search|pipeline-manager|video-ingestion).*$TAG"
+    local app_images=(
+      "${REGISTRY}video-ingestion:${TAG}"
+      "${REGISTRY}pipeline-manager:${TAG}"
+      "${REGISTRY}video-search:${TAG}"
+      "${REGISTRY}vss-ui:${TAG}"
+    )
+    for img in "${app_images[@]}"; do
+      if docker image inspect "$img" &> /dev/null; then
+        # Strip default docker.io/ prefix since Docker stores names without it
+        local filter_img="${img#docker.io/}"
+        docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}' "$filter_img"
+      fi
+    done
     
     return 0
   else
@@ -221,35 +242,54 @@ build_sample_app() {
 # ================================================================================
 push_images() {
   log_info "Pushing Docker images to registry..."
-  
-  # Save current directory
-  local current_dir=$(pwd)
+
+  if [ -z "$REGISTRY" ]; then
+    log_info "${YELLOW}Warning: No registry prefix set. Images will be pushed to the default Docker registry (docker.io).${NC}"
+  fi
+
   local push_success=true
 
-  # Get list of dependency images to push
-  log_info "Pushing dependency images..."
-  dependency_images=$(docker images | grep -E "${REGISTRY}.*(vdms|multimodal|vlm|audio).*${TAG}" | awk '{print $1":"$2}')
-  
-  # Push dependency images
-  for image in $dependency_images; do
-    log_info "Pushing $image..."
-    docker push $image || {
-      log_info "${RED}Failed to push $image${NC}";
-      push_success=false;
-    }
+  # Exact image references matching what build_dependencies and build_sample_app produce
+  local all_images=(
+    "${REGISTRY}vdms-dataprep:${TAG}"
+    "${REGISTRY}multimodal-embedding-serving:${TAG}"
+    "${REGISTRY}video-ingestion:${TAG}"
+    "${REGISTRY}pipeline-manager:${TAG}"
+    "${REGISTRY}video-search:${TAG}"
+    "${REGISTRY}vss-ui:${TAG}"
+  )
+
+  local pid_image_map=()
+  local push_log_dir
+  push_log_dir=$(mktemp -d)
+
+  for image in "${all_images[@]}"; do
+    if docker image inspect "$image" &> /dev/null; then
+      log_info "Pushing $image..."
+      local log_file="${push_log_dir}/${image//\//_}.log"
+      docker push "$image" &> "$log_file" &
+      pid_image_map+=("$!|$image|$log_file")
+    else
+      log_info "${YELLOW}Image $image not found locally, skipping...${NC}"
+    fi
   done
 
-  # Push sample application images
-  log_info "Pushing sample application images..."
-  app_images=$(docker images | grep -E "${REGISTRY}.*(pipeline-manager|video-search|video-ingestion|vss-ui).*${TAG}" | awk '{print $1":"$2}')
-  
-  for image in $app_images; do
-    log_info "Pushing $image..."
-    docker push $image || {
-      log_info "${RED}Failed to push $image${NC}";
-      push_success=false;
-    }
+  # Wait for all pushes and print per-image logs sequentially
+  for entry in "${pid_image_map[@]}"; do
+    local pid="${entry%%|*}"
+    local rest="${entry#*|}"
+    local image="${rest%%|*}"
+    local log_file="${rest#*|}"
+    if ! wait "$pid"; then
+      log_info "${RED}Failed to push $image${NC}"
+      cat "$log_file"
+      push_success=false
+    else
+      log_info "${GREEN}Successfully pushed $image${NC}"
+    fi
+    rm -f "$log_file"
   done
+  rm -rf "$push_log_dir"
 
   if [ "$push_success" = true ]; then
     log_info "${GREEN}All images pushed successfully${NC}"
@@ -266,9 +306,12 @@ push_images() {
 if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
   show_usage
 elif [ "$1" == "--dependencies" ]; then
+  check_prerequisites true
   build_dependencies
 elif [ "$1" == "--push" ]; then
+  check_prerequisites false
   push_images
 else
+  check_prerequisites false
   build_sample_app
 fi

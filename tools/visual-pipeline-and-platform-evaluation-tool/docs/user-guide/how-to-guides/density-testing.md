@@ -68,7 +68,7 @@ What is happening:
 - **stream_rate** defines proportional stream allocation across selected pipelines.
 - ViPPET uses these ratios to distribute total streams during each test iteration.
 
-![Density testing](../_assets/density-test.png)
+![Density testing](../_assets/ViPPET-UI-Density-light.png)
 *Figure 1: Density test configuration view*
 
 ### Running
@@ -82,7 +82,7 @@ What is happening:
   count using binary search.
 - The process ends when the algorithm converges on the best stable configuration.
 
-![Density test execution](../_assets/density-test-execution.png)
+![Density test execution](../_assets/ViPPET-UI-Density-Run-light.png)
 *Figure 2: Density test in progress*
 
 ### Test results
@@ -93,7 +93,7 @@ When the job completes, ViPPET reports:
 - Total streams
 - Stream distribution per pipeline
 
-![Density test results](../_assets/density-test-results.png)
+![Density test results](../_assets/ViPPET-UI-Density-Results-light.png)
 *Figure 3: Density test results summary*
 
 ### Stream rate rules

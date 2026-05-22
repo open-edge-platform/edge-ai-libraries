@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field.tsx";
 import { useLoadCameraProfilesMutation } from "@/api/api.generated.ts";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { handleApiError } from "@/lib/apiUtils";
 
 type CameraAuthFormData = {
@@ -81,7 +81,7 @@ export const CameraAuthDialog = ({
       <DialogTrigger asChild>
         <Button size="sm">Authorize</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[31.25rem]">
         <DialogHeader>
           <DialogTitle>Authorize Camera</DialogTitle>
           <DialogDescription>

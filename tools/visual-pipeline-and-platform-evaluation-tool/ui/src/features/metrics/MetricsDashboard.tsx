@@ -1,7 +1,5 @@
-/*SPDX-License-Identifier: Apache-2.0*/
-
 import { useMemo, useState } from "react";
-import { Cpu, Gauge, Gpu } from "lucide-react";
+import { Clock, Cpu, Gauge, Gpu } from "lucide-react";
 import { useTheme } from "next-themes";
 import { MetricCard } from "@/features/metrics/MetricCard.tsx";
 import {
@@ -14,7 +12,11 @@ import {
   GpuFrequencyChart,
   GpuPowerChart,
   GpuUsageChart,
+  LatencyChart,
   MemoryUtilizationChart,
+  NpuFrequencyChart,
+  NpuPowerChart,
+  NpuUsageChart,
 } from "@/features/metrics/charts";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
 import {
@@ -22,85 +24,14 @@ import {
   type GpuMetrics,
   type MetricHistoryPoint,
 } from "@/hooks/useMetricHistory.ts";
-
-const stabilizeSingleZeroDropSeries = <T extends Record<string, number>>(
-  data: T[],
-  keys: (keyof T)[],
-): T[] => {
-  const previousByKey: Partial<Record<keyof T, number>> = {};
-  const zeroStreakByKey: Partial<Record<keyof T, number>> = {};
-
-  return data.map((point) => {
-    const stabilizedPoint = { ...point };
-
-    keys.forEach((key) => {
-      const value = point[key];
-      const previousValue = previousByKey[key] ?? 0;
-      const currentZeroStreak = zeroStreakByKey[key] ?? 0;
-
-      if (value === 0 && previousValue > 0) {
-        const nextZeroStreak = currentZeroStreak + 1;
-        zeroStreakByKey[key] = nextZeroStreak;
-        if (nextZeroStreak === 1) {
-          stabilizedPoint[key] = previousValue as T[keyof T];
-          return;
-        }
-      } else {
-        zeroStreakByKey[key] = 0;
-      }
-
-      if (value > 0) {
-        previousByKey[key] = value;
-      }
-    });
-
-    return stabilizedPoint;
-  });
-};
-
-const stabilizeSingleZeroDropOptionalSeries = <
-  T extends Record<string, number | undefined>,
->(
-  data: T[],
-  keys: (keyof T)[],
-): T[] => {
-  const previousByKey: Partial<Record<keyof T, number>> = {};
-  const zeroStreakByKey: Partial<Record<keyof T, number>> = {};
-
-  return data.map((point) => {
-    const stabilizedPoint = { ...point };
-
-    keys.forEach((key) => {
-      const value = point[key];
-      if (value === undefined) return;
-
-      const previousValue = previousByKey[key] ?? 0;
-      const currentZeroStreak = zeroStreakByKey[key] ?? 0;
-
-      if (value === 0 && previousValue > 0) {
-        const nextZeroStreak = currentZeroStreak + 1;
-        zeroStreakByKey[key] = nextZeroStreak;
-        if (nextZeroStreak === 1) {
-          stabilizedPoint[key] = previousValue as T[keyof T];
-          return;
-        }
-      } else {
-        zeroStreakByKey[key] = 0;
-      }
-
-      if (value > 0) {
-        previousByKey[key] = value;
-      }
-    });
-
-    return stabilizedPoint;
-  });
-};
+import { useAppSelector } from "@/store/hooks.ts";
+import { selectHasNPU } from "@/store/reducers/devices.ts";
 
 interface MetricsDashboardProps {
   className?: string;
   forceDark?: boolean;
   useDemoStyles?: boolean;
+  enableLatencyMetrics?: boolean;
   historyOverride?: MetricHistoryPoint[];
   metricsOverride?: {
     fps: number;
@@ -108,6 +39,9 @@ interface MetricsDashboardProps {
     memory: number;
     availableGpuIds: string[];
     gpuDetailedMetrics: Record<string, GpuMetrics>;
+    latencyAvg?: number;
+    latencyMin?: number;
+    latencyMax?: number;
   };
 }
 
@@ -115,6 +49,7 @@ export const MetricsDashboard = ({
   className = "",
   forceDark = false,
   useDemoStyles = false,
+  enableLatencyMetrics = false,
   historyOverride,
   metricsOverride,
 }: MetricsDashboardProps) => {
@@ -123,6 +58,7 @@ export const MetricsDashboard = ({
   const isDarkTheme = resolvedTheme === "dark" || forceDark;
   const liveMetrics = useMetrics();
   const liveHistory = useMetricHistory();
+  const hasNpu = useAppSelector(selectHasNPU);
   const metrics = metricsOverride ?? {
     fps: liveMetrics.fps,
     cpu: liveMetrics.cpu,
@@ -134,8 +70,8 @@ export const MetricsDashboard = ({
   const [selectedGpu, setSelectedGpu] = useState<number>(0);
 
   const summaryContainerClassName = isDarkTheme
-    ? "p-4 rounded-xl border-2 border-energy-blue/40 bg-gradient-to-br from-energy-blue/5 to-energy-blue-tint-1/5 shadow-lg shadow-energy-blue/10"
-    : "p-4 rounded-xl border-2 border-classic-blue/40 bg-gradient-to-br from-classic-blue/5 to-classic-blue/10 shadow-lg shadow-classic-blue/10";
+    ? "p-4 border-2 border-energy-blue/40 bg-gradient-to-br from-energy-blue/5 to-energy-blue-tint-1/5 shadow-lg shadow-energy-blue/10"
+    : "p-4 border-2 border-classic-blue/40 bg-gradient-to-br from-classic-blue/5 to-classic-blue/10 shadow-lg shadow-classic-blue/10";
   const summaryCardClassName = isDarkTheme
     ? "border-2 border-energy-blue/60 shadow-energy-blue/20 shadow-lg ring-2 ring-energy-blue/30"
     : "border-2 border-classic-blue/60 shadow-classic-blue/20 shadow-lg ring-2 ring-classic-blue/20";
@@ -166,7 +102,7 @@ export const MetricsDashboard = ({
 
   const gpuData = useMemo(() => {
     const gpuId = selectedGpu.toString();
-    const rawGpuData = history.map((point) => {
+    return history.map((point) => {
       const gpu = point.gpus[gpuId];
       return {
         timestamp: point.timestamp,
@@ -177,14 +113,6 @@ export const MetricsDashboard = ({
         videoEnhance: gpu?.videoEnhance,
       };
     });
-
-    return stabilizeSingleZeroDropOptionalSeries(rawGpuData, [
-      "compute",
-      "render",
-      "copy",
-      "video",
-      "videoEnhance",
-    ]);
   }, [history, selectedGpu]);
 
   const availableEngines = useMemo(() => {
@@ -220,10 +148,7 @@ export const MetricsDashboard = ({
       return chartPoint;
     });
 
-    return stabilizeSingleZeroDropSeries(
-      normalizedGpuChartData,
-      availableEngines,
-    );
+    return normalizedGpuChartData;
   }, [gpuData, availableEngines]);
 
   const gpuFrequencyData = useMemo(() => {
@@ -233,7 +158,7 @@ export const MetricsDashboard = ({
       frequency: point.gpus[gpuId]?.frequency ?? 0,
     }));
 
-    return stabilizeSingleZeroDropSeries(rawGpuFrequencyData, ["frequency"]);
+    return rawGpuFrequencyData;
   }, [history, selectedGpu]);
 
   const gpuPowerData = useMemo(() => {
@@ -244,10 +169,7 @@ export const MetricsDashboard = ({
       pkgPower: point.gpus[gpuId]?.pkgPower ?? 0,
     }));
 
-    return stabilizeSingleZeroDropSeries(rawGpuPowerData, [
-      "gpuPower",
-      "pkgPower",
-    ]);
+    return rawGpuPowerData;
   }, [history, selectedGpu]);
 
   const displayedGpuUsage = useMemo(() => {
@@ -289,6 +211,49 @@ export const MetricsDashboard = ({
     memory: point.memory ?? 0,
   }));
 
+  const npuData = history.map((point) => ({
+    timestamp: point.timestamp,
+    usage: point.npuUsage ?? 0,
+  }));
+
+  const npuPowerData = history.map((point) => ({
+    timestamp: point.timestamp,
+    power: point.npuPower ?? 0,
+  }));
+
+  const npuFrequencyData = history.map((point) => ({
+    timestamp: point.timestamp,
+    frequency: point.npuFrequency ?? 0,
+  }));
+
+  const hasNpuData = hasNpu || npuData.some((point) => point.usage > 0);
+
+  const latencyData = history.map((point) => ({
+    timestamp: point.timestamp,
+    avg: point.latencyAvg ?? 0,
+    min: point.latencyMin ?? 0,
+    max: point.latencyMax ?? 0,
+  }));
+
+  const hasLatencyData = latencyData.some(
+    (point) => point.avg > 0 || point.min > 0 || point.max > 0,
+  );
+
+  const hasSummaryLatency =
+    isSummary &&
+    metricsOverride?.latencyAvg !== undefined &&
+    metricsOverride?.latencyMin !== undefined &&
+    metricsOverride?.latencyMax !== undefined;
+
+  const showLatencySection =
+    enableLatencyMetrics || hasLatencyData || hasSummaryLatency;
+
+  const latencyYAxisMax = getRecentYAxisMax(
+    latencyData.map((point) => Math.max(point.avg, point.min, point.max)),
+    CHART_MAX_DATA_POINTS,
+    1,
+  );
+
   const fpsYAxisMax = getRecentYAxisMax(
     fpsData.map((point) => point.value),
     CHART_MAX_DATA_POINTS,
@@ -319,6 +284,18 @@ export const MetricsDashboard = ({
     0.1,
   );
 
+  const npuPowerYAxisMax = getRecentYAxisMax(
+    npuPowerData.map((point) => point.power),
+    CHART_MAX_DATA_POINTS,
+    1,
+  );
+
+  const npuFrequencyYAxisMax = getRecentYAxisMax(
+    npuFrequencyData.map((point) => point.frequency),
+    CHART_MAX_DATA_POINTS,
+    100,
+  );
+
   const engineColors: Record<string, string> = {
     compute: "var(--color-yellow-chart)",
     render: "var(--color-orange-chart)",
@@ -341,39 +318,23 @@ export const MetricsDashboard = ({
         isSummary ? summaryContainerClassName : ""
       }`}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <MetricCard
+          title={isSummary ? "Frame Rate Average" : "Frame Rate"}
+          value={metrics.fps}
+          unit="fps"
+          icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
+          isSummary={isSummary}
+          forceDark={forceDark}
+          useDemoStyles={useDemoStyles}
+          summaryCardClassName={summaryCardClassName}
+          summaryIconClassName={summaryIconClassName}
+          summaryTitleClassName={summaryTitleClassName}
+          summaryUnitClassName={summaryUnitClassName}
+        />
+        {!isSummary && (
           <MetricCard
-            title={isSummary ? "Frame Rate Average" : "Frame Rate"}
-            value={metrics.fps}
-            unit="fps"
-            icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
-            isSummary={isSummary}
-            forceDark={forceDark}
-            useDemoStyles={useDemoStyles}
-            summaryCardClassName={summaryCardClassName}
-            summaryIconClassName={summaryIconClassName}
-            summaryTitleClassName={summaryTitleClassName}
-            summaryUnitClassName={summaryUnitClassName}
-          />
-          <FrameRateChart
-            data={fpsData}
-            yAxisMax={fpsYAxisMax}
-            isSummary={isSummary}
-            forceDark={forceDark}
-            useDemoStyles={useDemoStyles}
-          />
-          <MemoryUtilizationChart
-            data={memoryData}
-            isSummary={isSummary}
-            forceDark={forceDark}
-            useDemoStyles={useDemoStyles}
-          />
-        </div>
-
-        <div className="space-y-4">
-          <MetricCard
-            title={isSummary ? "CPU Usage Average" : "CPU Usage"}
+            title="CPU Usage"
             value={metrics.cpu}
             unit="%"
             icon={<Cpu className="h-6 w-6 text-green-chart" />}
@@ -385,31 +346,10 @@ export const MetricsDashboard = ({
             summaryTitleClassName={summaryTitleClassName}
             summaryUnitClassName={summaryUnitClassName}
           />
-          <CpuUsageChart
-            data={cpuData}
-            isSummary={isSummary}
-            forceDark={forceDark}
-            useDemoStyles={useDemoStyles}
-          />
-          <CpuTemperatureChart
-            data={cpuTempData}
-            yAxisMax={cpuTempYAxisMax}
-            isSummary={isSummary}
-            forceDark={forceDark}
-            useDemoStyles={useDemoStyles}
-          />
-          <CpuFrequencyChart
-            data={cpuFrequencyData}
-            yAxisMax={cpuFrequencyYAxisMax}
-            isSummary={isSummary}
-            forceDark={forceDark}
-            useDemoStyles={useDemoStyles}
-          />
-        </div>
-
-        <div className="space-y-4">
+        )}
+        {!isSummary && (
           <MetricCard
-            title={isSummary ? "GPU Usage Average" : "GPU Usage"}
+            title="GPU Usage"
             value={displayedGpuUsage}
             unit="%"
             icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
@@ -421,25 +361,85 @@ export const MetricsDashboard = ({
             summaryTitleClassName={summaryTitleClassName}
             summaryUnitClassName={summaryUnitClassName}
           />
-          {!useDemoStyles && (
-            <GpuUsageChart
-              data={gpuChartData}
-              dataKeys={availableEngines}
-              colors={availableEngines.map((engine) => engineColors[engine])}
-              labels={availableEngines.map((engine) => engineLabels[engine])}
-              selectedGpu={selectedGpu}
-              availableGpus={availableGpus}
-              onGpuChange={setSelectedGpu}
-              isSummary={isSummary}
-              forceDark={forceDark}
-              useDemoStyles={useDemoStyles}
-              summarySectionClassName={summarySectionClassName}
-              summaryTitleClassName={summaryTitleClassName}
-            />
-          )}
-          <GpuPowerChart
-            data={gpuPowerData}
-            yAxisMax={gpuPowerYAxisMax}
+        )}
+        {showLatencySection && (
+          <MetricCard
+            title={isSummary ? "Latency Average" : "Latency"}
+            value={
+              hasSummaryLatency
+                ? metricsOverride!.latencyAvg!
+                : (latencyData.at(-1)?.avg ?? 0)
+            }
+            unit="ms"
+            icon={<Clock className="h-6 w-6 text-orange-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+            summaryCardClassName={summaryCardClassName}
+            summaryIconClassName={summaryIconClassName}
+            summaryTitleClassName={summaryTitleClassName}
+            summaryUnitClassName={summaryUnitClassName}
+          />
+        )}
+        {hasNpuData && !isSummary && (
+          <MetricCard
+            title="NPU Usage"
+            value={npuData.at(-1)?.usage ?? 0}
+            unit="%"
+            icon={<Gpu className="h-6 w-6 text-geode-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+            summaryCardClassName={summaryCardClassName}
+            summaryIconClassName={summaryIconClassName}
+            summaryTitleClassName={summaryTitleClassName}
+            summaryUnitClassName={summaryUnitClassName}
+          />
+        )}
+      </div>
+
+      <div
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+      >
+        <FrameRateChart
+          data={fpsData}
+          yAxisMax={fpsYAxisMax}
+          isSummary={isSummary}
+          forceDark={forceDark}
+          useDemoStyles={useDemoStyles}
+        />
+        <CpuUsageChart
+          data={cpuData}
+          isSummary={isSummary}
+          forceDark={forceDark}
+          useDemoStyles={useDemoStyles}
+        />
+        <MemoryUtilizationChart
+          data={memoryData}
+          isSummary={isSummary}
+          forceDark={forceDark}
+          useDemoStyles={useDemoStyles}
+        />
+        <CpuTemperatureChart
+          data={cpuTempData}
+          yAxisMax={cpuTempYAxisMax}
+          isSummary={isSummary}
+          forceDark={forceDark}
+          useDemoStyles={useDemoStyles}
+        />
+        <CpuFrequencyChart
+          data={cpuFrequencyData}
+          yAxisMax={cpuFrequencyYAxisMax}
+          isSummary={isSummary}
+          forceDark={forceDark}
+          useDemoStyles={useDemoStyles}
+        />
+        {!useDemoStyles && (
+          <GpuUsageChart
+            data={gpuChartData}
+            dataKeys={availableEngines}
+            colors={availableEngines.map((engine) => engineColors[engine])}
+            labels={availableEngines.map((engine) => engineLabels[engine])}
             selectedGpu={selectedGpu}
             availableGpus={availableGpus}
             onGpuChange={setSelectedGpu}
@@ -449,9 +449,37 @@ export const MetricsDashboard = ({
             summarySectionClassName={summarySectionClassName}
             summaryTitleClassName={summaryTitleClassName}
           />
-          <GpuFrequencyChart
-            data={gpuFrequencyData}
-            yAxisMax={gpuFrequencyYAxisMax}
+        )}
+        <GpuPowerChart
+          data={gpuPowerData}
+          yAxisMax={gpuPowerYAxisMax}
+          selectedGpu={selectedGpu}
+          availableGpus={availableGpus}
+          onGpuChange={setSelectedGpu}
+          isSummary={isSummary}
+          forceDark={forceDark}
+          useDemoStyles={useDemoStyles}
+          summarySectionClassName={summarySectionClassName}
+          summaryTitleClassName={summaryTitleClassName}
+        />
+        <GpuFrequencyChart
+          data={gpuFrequencyData}
+          yAxisMax={gpuFrequencyYAxisMax}
+          selectedGpu={selectedGpu}
+          availableGpus={availableGpus}
+          onGpuChange={setSelectedGpu}
+          isSummary={isSummary}
+          forceDark={forceDark}
+          useDemoStyles={useDemoStyles}
+          summarySectionClassName={summarySectionClassName}
+          summaryTitleClassName={summaryTitleClassName}
+        />
+        {useDemoStyles && (
+          <GpuUsageChart
+            data={gpuChartData}
+            dataKeys={availableEngines}
+            colors={availableEngines.map((engine) => engineColors[engine])}
+            labels={availableEngines.map((engine) => engineLabels[engine])}
             selectedGpu={selectedGpu}
             availableGpus={availableGpus}
             onGpuChange={setSelectedGpu}
@@ -461,23 +489,42 @@ export const MetricsDashboard = ({
             summarySectionClassName={summarySectionClassName}
             summaryTitleClassName={summaryTitleClassName}
           />
-          {useDemoStyles && (
-            <GpuUsageChart
-              data={gpuChartData}
-              dataKeys={availableEngines}
-              colors={availableEngines.map((engine) => engineColors[engine])}
-              labels={availableEngines.map((engine) => engineLabels[engine])}
-              selectedGpu={selectedGpu}
-              availableGpus={availableGpus}
-              onGpuChange={setSelectedGpu}
-              isSummary={isSummary}
-              forceDark={forceDark}
-              useDemoStyles={useDemoStyles}
-              summarySectionClassName={summarySectionClassName}
-              summaryTitleClassName={summaryTitleClassName}
-            />
-          )}
-        </div>
+        )}
+        {hasNpuData && (
+          <NpuUsageChart
+            data={npuData}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+          />
+        )}
+        {hasNpuData && (
+          <NpuPowerChart
+            data={npuPowerData}
+            yAxisMax={npuPowerYAxisMax}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+          />
+        )}
+        {hasNpuData && (
+          <NpuFrequencyChart
+            data={npuFrequencyData}
+            yAxisMax={npuFrequencyYAxisMax}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+          />
+        )}
+        {showLatencySection && (
+          <LatencyChart
+            data={latencyData}
+            yAxisMax={latencyYAxisMax}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+          />
+        )}
       </div>
     </div>
   );

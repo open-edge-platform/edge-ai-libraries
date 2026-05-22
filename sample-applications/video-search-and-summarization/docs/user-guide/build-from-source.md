@@ -53,7 +53,7 @@ This section shows how to build the Video Search and Summary sample application 
 
    **3.2 Building Images**
 
-   The build script provides options to build and push the images. Build script provides option to build only the application microservices or build together with all the dependent microservices. The following microservices are dependent: [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html), [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html), [VDMS based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/vdms), and [VLM microservice](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/vlm-openvino-serving).
+   The build script provides options to build and push the images. Build script provides option to build only the application microservices or build together with all the dependent microservices. The following microservices are dependent: [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html), [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html), and [VDMS based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/vdms). VLM captioning and LLM summarization are handled by [OpenVINO™ Model Server](https://docs.openvino.ai/nightly/model-server/ovms_what_is_openvino_model_server.html) (OVMS) or [vLLM](https://docs.vllm.ai/en/latest/usage/).
 
    ```bash
 
@@ -75,15 +75,43 @@ This section shows how to build the Video Search and Summary sample application 
 
 4. **Run the Docker Container**:
 
-    The Video Search and Summary application offers multiple stacks and deployment options, to verify the newly created images run the below command to run the application:
+    The Video Search and Summary application provides multiple deployment scenarios. To verify the newly created images, run any of these:
 
     ```bash
-    source setup.sh --summary
+    source setup.sh --summary              # Brings up Video Summarization application
+    source setup.sh --search               # Brings up Video Search application
+    source setup.sh --summary --search     # Brings up both Summarization and Search with separate UIs
+    source setup.sh --summary-and-search   # Brings up unified single UI for Video Summarization and Search
     ```
 
 5. Accessing the Application
 
-    After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
+    #### `--summary` mode
+
+   | UI | URL |
+   |----|-----|
+   | Video Summarization | `http://<host-ip>:12345/` |
+
+   #### `--search` mode
+
+   | UI | URL |
+   |----|-----|
+   | Video Search | `http://<host-ip>:12345/` |
+
+   #### `--summary --search` mode
+
+   | UI | URL |
+   |----|-----|
+   | Video Summarization | `http://<host-ip>:12345/summary/` |
+   | Video Search       | `http://<host-ip>:12345/search/` |
+
+   Visiting the root URL `http://<host-ip>:12345/` redirects to the Video Summarization UI.
+
+   #### `--summary-and-search` mode
+
+   | UI | URL |
+   |----|-----|
+   | Unified Summary/Search | `http://<host-ip>:12345/` |
 
 ## Verification
 

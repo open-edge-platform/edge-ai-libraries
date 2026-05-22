@@ -7,10 +7,10 @@ import { ConfigService } from '@nestjs/config';
 import { TemplateService } from './template.service';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { OpenAI } from 'openai';
-import { of } from 'rxjs';
 import { OpenaiHelperService } from './openai-helper.service';
 import { FeaturesService } from 'src/features/features.service';
 import { InferenceCountService } from './inference-count.service';
+import { CONFIG_STATE } from 'src/features/features.model';
 
 // Mock OpenAI Client
 jest.mock('openai', () => {
@@ -42,12 +42,17 @@ describe('VlmService', () => {
   let datastoreService: DatastoreService;
   let configService: ConfigService;
   let templateService: TemplateService;
+  let mockFetch: jest.Mock;
+  let mockSelectModel: jest.Mock;
 
   // Mock config values
-  const mockConfigValues = {
+    const mockConfigValues = {
     'openai.vlmCaptioning.apiKey': 'test-api-key',
     'openai.vlmCaptioning.apiBase': 'https://api.openai.com/v1',
     'openai.vlmCaptioning.device': 'CPU',
+    'openai.vlmCaptioning.modelsAPI': 'v1/config',
+    'openai.vlmCaptioning.modelName': undefined,
+    'openai.llmSummarization.modelName': undefined,
     'proxy.noProxy': '',
     'proxy.url': 'http://proxy.example.com:8080',
     'openai.vlmCaptioning.defaults.doSample': true,
@@ -55,18 +60,45 @@ describe('VlmService', () => {
     'openai.vlmCaptioning.defaults.temperature': 0.7,
     'openai.vlmCaptioning.defaults.topP': 0.9,
     'openai.vlmCaptioning.defaults.presencePenalty': 0.5,
-    'openai.vlmCaptioning.defaults.frequencyPenalty': 0.5,
-    'openai.vlmCaptioning.defaults.maxCompletionTokens': 500,
-  };
+      'openai.vlmCaptioning.defaults.frequencyPenalty': 0.5,
+      'openai.vlmCaptioning.defaults.maxCompletionTokens': 500,
+      'datastore.bucketName': 'video-summary',
+    };
 
   const mockConfigGet = (key: string) => {
     return mockConfigValues[key];
   };
 
   beforeEach(async () => {
+    mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          'gpt-4-vision-preview': {
+            model_version_status: [
+              {
+                version: '1.0',
+                state: 'AVAILABLE',
+                status: {
+                  error_code: '',
+                  error_message: '',
+                },
+              },
+            ],
+          },
+        }),
+    });
+    global.fetch = mockFetch;
+    mockSelectModel = jest.fn(({ availableModels, configuredModelName }) => {
+      return configuredModelName ?? availableModels[0];
+    });
+
     // Create mocks
     const mockDatastoreService = {
       getFile: jest.fn().mockResolvedValue(Buffer.from('test-image-data')),
+      getObjectRelativePath: jest
+        .fn()
+        .mockImplementation((objectName = '') => `/video-summary/${objectName}`),
     };
 
     const mockConfigService = {
@@ -76,14 +108,27 @@ describe('VlmService', () => {
     const mockTemplateService = {
       getFrameCaptionTemplateWithoutObjects: jest.fn().mockReturnValue('Describe this image:'),
       getMultipleFrameCaptionTemplateWithoutObjects: jest.fn().mockReturnValue('Describe these images:'),
+      getCaptionsSummarizeTemplate: jest
+        .fn()
+        .mockReturnValue('Summarize sequential frame captions:\n\n%data%'),
+      createUserQuery: jest
+        .fn()
+        .mockImplementation((template: string, data: string | string[]) =>
+          template.replaceAll(
+            '%data%',
+            Array.isArray(data) ? data.join('\n\n') : data,
+          ),
+        ),
     };
 
     const mockOpenaiHelper = {
       initializeClient: jest.fn().mockReturnValue({
         client: new (OpenAI as any)(),
-        openAiConfig: {},
+        openAiConfig: { baseURL: 'https://api.openai.com/v1' },
         proxyAgent: {},
       }),
+      getConfigUrl: jest.fn().mockReturnValue('https://api.openai.com/v1/config'),
+      selectModel: mockSelectModel,
     };
 
     const mockFeaturesService = {
@@ -139,6 +184,33 @@ describe('VlmService', () => {
       expect(service.model).toBe('gpt-4-vision-preview');
     });
 
+    it('should fallback to models list when config discovery fails', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('config unavailable'));
+
+      await (service as any).initialize();
+
+      expect(service.model).toBe('gpt-4-vision-preview');
+      expect(service.client.models.list).toHaveBeenCalled();
+    });
+
+    it('should reject llm-only single model selection for captioning', async () => {
+      jest.spyOn(configService, 'get').mockImplementation((key) => {
+        if (key === 'openai.llmSummarization.modelName') {
+          return 'gpt-4-vision-preview';
+        }
+        return mockConfigValues[key];
+      });
+      mockSelectModel.mockImplementation(() => {
+        throw new Error(
+          'VLM captioning requires VLM_MODEL_NAME when OVMS is configured with only the LLM model.',
+        );
+      });
+
+      await expect((service as any).initialize()).rejects.toThrow(
+        'Open AI fetch models failed',
+      );
+    });
+
     it('should set serviceReady to true after successful initialization', async () => {
       // Force initialization
       await (service as any).initialize();
@@ -168,6 +240,7 @@ describe('VlmService', () => {
         presence_penalty: 0.5,
         frequency_penalty: 0.5,
         max_completion_tokens: 500,
+        max_tokens: 500,
       });
     });
 
@@ -203,6 +276,7 @@ describe('VlmService', () => {
         presence_penalty: 0.5,
         frequency_penalty: 0.5,
         max_completion_tokens: 500,
+        max_tokens: 500,
       });
       
       expect(result).toBe('Mocked response content');
@@ -222,23 +296,25 @@ describe('VlmService', () => {
   });
 
   describe('imageInference', () => {
-    it('should call OpenAI with correct image URLs and query', async () => {
+    it('should pass direct URLs for multiple images', async () => {
       const userQuery = 'What is in this image?';
       const imageUri = ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'];
       
       const result = await service.imageInference(userQuery, imageUri);
       
-  expect(service.client.chat.completions.create).toHaveBeenCalledWith({
+      // Both OVMS and vLLM now use direct URLs (OVMS via --allowed_media_domains)
+      expect(service.client.chat.completions.create).toHaveBeenCalledWith({
         messages: [
           {
             role: 'user',
             content: [
-      { type: 'text', text: userQuery },
-      { type: 'video', video: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'] },
+              { type: 'text', text: userQuery },
+              { type: 'image_url', image_url: { url: 'https://example.com/image1.jpg' } },
+              { type: 'image_url', image_url: { url: 'https://example.com/image2.jpg' } },
             ],
           },
         ],
-    model: service.model,
+        model: service.model,
         do_sample: true,
         seed: 42,
         temperature: 0.7,
@@ -246,13 +322,43 @@ describe('VlmService', () => {
         presence_penalty: 0.5,
         frequency_penalty: 0.5,
         max_completion_tokens: 500,
+        max_tokens: 500,
+      });
+      
+      expect(result).toBe('Mocked response content');
+    });
+
+    it('should pass direct URL for single image', async () => {
+      const userQuery = 'What is in this image?';
+      const imageUri = ['https://example.com/image1.jpg'];
+      
+      const result = await service.imageInference(userQuery, imageUri);
+      
+      expect(service.client.chat.completions.create).toHaveBeenCalledWith({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: userQuery },
+              { type: 'image_url', image_url: { url: 'https://example.com/image1.jpg' } },
+            ],
+          },
+        ],
+        model: service.model,
+        do_sample: true,
+        seed: 42,
+        temperature: 0.7,
+        top_p: 0.9,
+        presence_penalty: 0.5,
+        frequency_penalty: 0.5,
+        max_completion_tokens: 500,
+        max_tokens: 500,
       });
       
       expect(result).toBe('Mocked response content');
     });
 
     it('should handle errors during image inference', async () => {
-      // Mock the create method to throw an error
       jest.spyOn(service.client.chat.completions, 'create').mockRejectedValueOnce(new Error('API error'));
       
       const userQuery = 'What is in this image?';
@@ -264,8 +370,9 @@ describe('VlmService', () => {
 
   describe('runSingleImage', () => {
     it('should encode image to base64 and call OpenAI API', async () => {
-  // Mock the encodeBase64ContentFromUrl method (synchronous return expected by implementation)
-  jest.spyOn(service as any, 'encodeBase64ContentFromUrl').mockReturnValueOnce('base64-encoded-image');
+      jest
+        .spyOn(service as any, 'encodeBase64ContentFromUrl')
+        .mockResolvedValueOnce('base64-encoded-image');
       
       const params = {
         fileNameOrUrl: 'test-image.jpg',
@@ -273,7 +380,6 @@ describe('VlmService', () => {
       
       await service.runSingleImage(params);
       
-      // Check if the encodeBase64ContentFromUrl was called
       expect((service as any).encodeBase64ContentFromUrl).toHaveBeenCalledWith('test-image.jpg');
       
       // Check if the OpenAI API was called with the correct parameters
@@ -295,12 +401,14 @@ describe('VlmService', () => {
         presence_penalty: 0.5,
         frequency_penalty: 0.5,
         max_completion_tokens: 500,
+        max_tokens: 500,
       });
     });
 
     it('should use custom user query when provided', async () => {
-  // Mock the encodeBase64ContentFromUrl method (synchronous return expected by implementation)
-  jest.spyOn(service as any, 'encodeBase64ContentFromUrl').mockReturnValueOnce('base64-encoded-image');
+      jest
+        .spyOn(service as any, 'encodeBase64ContentFromUrl')
+        .mockResolvedValueOnce('base64-encoded-image');
       
       const params = {
         user_query: 'Custom query about this image:',
@@ -326,9 +434,9 @@ describe('VlmService', () => {
     });
   });
 
+
   describe('runMultiImage', () => {
     it('should encode multiple images and call OpenAI API', async () => {
-      // Mock the encodeBase64ContentFromUrl method to return different values for different calls
       jest.spyOn(service as any, 'encodeBase64ContentFromUrl')
         .mockResolvedValueOnce('base64-encoded-image1')
         .mockResolvedValueOnce('base64-encoded-image2');
@@ -363,11 +471,40 @@ describe('VlmService', () => {
   });
 
   describe('encodeBase64ContentFromUrl', () => {
+    it('should resolve datastore object names from datastore URLs', () => {
+      const result = (service as any).getObjectNameFromUrl(
+        'http://minio-service:80/video-summary/test%20object/frame.jpg',
+      );
+      expect(result).toBe('test object/frame.jpg');
+    });
+
+    it('should load image bytes from datastore and base64 encode them', async () => {
+      jest
+        .spyOn(datastoreService, 'getFile')
+        .mockResolvedValueOnce('/tmp/test-image.jpg');
+      mockFetch.mockReset();
+      const readFileSpy = jest
+        .spyOn(require('node:fs/promises'), 'readFile')
+        .mockResolvedValueOnce(Buffer.from('test-image-data'));
+
+      const result = await (service as any).encodeBase64ContentFromUrl(
+        'http://minio-service:80/video-summary/test-image.jpg',
+      );
+
+      expect(datastoreService.getFile).toHaveBeenCalledWith('test-image.jpg');
+      expect(readFileSpy).toHaveBeenCalledWith('/tmp/test-image.jpg');
+      expect(result).toBe(Buffer.from('test-image-data').toString('base64'));
+      readFileSpy.mockRestore();
+    });
+
     it('should handle error when fetching content fails', async () => {
-      // Since the implementation currently returns an empty string, we're just testing
-      // that it doesn't throw an exception
-      const result = await (service as any).encodeBase64ContentFromUrl('test-image.jpg');
-      expect(result).toBe('');
+      jest
+        .spyOn(datastoreService, 'getFile')
+        .mockRejectedValueOnce(new Error('failed'));
+
+      await expect(
+        (service as any).encodeBase64ContentFromUrl('test-image.jpg'),
+      ).rejects.toThrow('Failed to fetch content');
     });
   });
 });

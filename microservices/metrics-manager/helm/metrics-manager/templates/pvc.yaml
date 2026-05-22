@@ -1,0 +1,17 @@
+{{- if and .Values.customMetrics.enabled (eq .Values.customMetrics.storage "pvc") (not .Values.customMetrics.existingClaim) -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "metrics-manager.fullname" . }}-custom-metrics
+  labels:
+    {{- include "metrics-manager.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.customMetrics.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.customMetrics.size }}
+  {{- with .Values.customMetrics.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}

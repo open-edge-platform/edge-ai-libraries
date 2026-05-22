@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -81,7 +81,7 @@ class TestPublisher:
     def test_start(self, mocker, pub_obj):
         mocked_thread = mocker.patch("src.publisher.publisher.th.Thread")
         pub_obj.start()
-        assert mocked_thread.called_once_with(target=pub_obj._run)
+        mocked_thread.assert_called_once_with(target=pub_obj._run)
         assert mocked_thread.return_value.start.call_count == 1
 
     @pytest.mark.parametrize(

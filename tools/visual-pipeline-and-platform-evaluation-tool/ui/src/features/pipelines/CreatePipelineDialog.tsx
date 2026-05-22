@@ -27,7 +27,7 @@ import {
   type Pipeline,
   type PipelineGraph,
 } from "@/api/api.generated.ts";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import {
   handleApiError,
   handleAsyncJobError,
@@ -72,6 +72,7 @@ import {
 } from "./pipelineSchemas";
 import { PipelineTagsCombobox } from "./PipelineTagsCombobox";
 import { isSupportedVideoFilename } from "@/lib/videoUtils.ts";
+import { cn } from "@/lib/utils";
 
 type CreatePipelineDialogProps = {
   children: ReactNode;
@@ -421,7 +422,7 @@ export const CreatePipelineDialog = ({
                 id="pipeline-description"
                 {...register("pipelineDescription")}
                 placeholder="Paste or upload your pipeline description here..."
-                className="h-64 resize-none"
+                className="h-33 resize-none"
               />
               <FieldError
                 errors={
@@ -559,11 +560,11 @@ export const CreatePipelineDialog = ({
                                   className="cursor-pointer"
                                 >
                                   <Card
-                                    className={`p-4 transition-colors hover:border-primary ${
-                                      selectedTemplate?.id === template.id
-                                        ? "border-primary bg-accent"
-                                        : ""
-                                    }`}
+                                    className={cn(
+                                      "p-4 transition-colors hover:border-primary",
+                                      selectedTemplate?.id === template.id &&
+                                        "border-primary bg-accent",
+                                    )}
                                   >
                                     <div className="flex items-start gap-3">
                                       <RadioGroupItem
@@ -670,14 +671,18 @@ export const CreatePipelineDialog = ({
                                 ?.filter(
                                   (model) => model.category === "detection",
                                 )
-                                .map((model) => (
-                                  <SelectItem
-                                    key={model.display_name}
-                                    value={model.display_name}
-                                  >
-                                    {model.display_name}
-                                  </SelectItem>
-                                ))}
+                                .flatMap((model) =>
+                                  (model.variants ?? [])
+                                    .filter((variant) => variant.installed)
+                                    .map((variant) => (
+                                      <SelectItem
+                                        key={variant.display_name}
+                                        value={variant.display_name}
+                                      >
+                                        {variant.display_name}
+                                      </SelectItem>
+                                    )),
+                                )}
                             </SelectContent>
                           </Select>
                           <FieldError
@@ -712,14 +717,18 @@ export const CreatePipelineDialog = ({
                                       (model) =>
                                         model.category === "classification",
                                     )
-                                    .map((model) => (
-                                      <SelectItem
-                                        key={model.display_name}
-                                        value={model.display_name}
-                                      >
-                                        {model.display_name}
-                                      </SelectItem>
-                                    ))}
+                                    .flatMap((model) =>
+                                      (model.variants ?? [])
+                                        .filter((variant) => variant.installed)
+                                        .map((variant) => (
+                                          <SelectItem
+                                            key={variant.display_name}
+                                            value={variant.display_name}
+                                          >
+                                            {variant.display_name}
+                                          </SelectItem>
+                                        )),
+                                    )}
                                 </SelectContent>
                               </Select>
                               <FieldError

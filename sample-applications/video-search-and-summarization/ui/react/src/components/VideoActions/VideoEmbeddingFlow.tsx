@@ -376,7 +376,8 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
     }
 
     const base = ASSETS_ENDPOINT.replace(/\/$/, '');
-    return `${base}/${bucket}/${encodedPath}`;
+    const assetVideoUrl = `${base}/${bucket}/${encodedPath}`;
+    return getSafePreviewVideoUrl(assetVideoUrl, ASSETS_ENDPOINT);
   }, []);
 
   const resetForm = useCallback(() => {

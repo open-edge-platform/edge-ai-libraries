@@ -27,9 +27,12 @@ def _mock_get_video_path(filename: str) -> str:
     return os.path.join("/tmp", filename)
 
 
-def _mock_find_installed_model_by_model_and_proc_path(
-    model_path: str, model_proc_path: Optional[str] = None
+def _mock_find_model_by_model_and_proc_path(
+    model_path: str,
+    model_proc_path: Optional[str] = None,
+    installed_only: bool = True,
 ):
+    del installed_only  # tolerated for parity with the real signature
     mapped_names = [
         "yolov8_license_plate_detector",
         "ch_PP-OCRv4_rec_infer",
@@ -76,8 +79,8 @@ def _mock_find_model_by_display_name(name: str):
     return mock_model
 
 
-mock_models_manager_instance.find_installed_model_by_model_and_proc_path.side_effect = (
-    _mock_find_installed_model_by_model_and_proc_path
+mock_models_manager_instance.find_model_by_model_and_proc_path.side_effect = (
+    _mock_find_model_by_model_and_proc_path
 )
 mock_models_manager_instance.find_installed_model_by_display_name.side_effect = (
     _mock_find_model_by_display_name
@@ -203,7 +206,7 @@ parse_test_cases = [
                     id="0",
                     type="source",
                     data={
-                        "kind": InputKind.FILE,
+                        "kind": InputKind.VIDEO,
                         "source": "license-plate-detection.mp4",
                     },
                 ),
@@ -315,7 +318,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "song.ogg"},
+                    data={"kind": InputKind.VIDEO, "source": "song.ogg"},
                 ),
                 Node(id="6", type="autoaudiosink", data={}),
                 Node(id="11", type="autovideosink", data={}),
@@ -375,7 +378,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "song.ogg"},
+                    data={"kind": InputKind.VIDEO, "source": "song.ogg"},
                 ),
                 Node(id="8", type="autoaudiosink", data={}),
                 Node(id="11", type="autoaudiosink", data={}),
@@ -451,7 +454,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "XXX"},
+                    data={"kind": InputKind.VIDEO, "source": "XXX"},
                 ),
                 Node(
                     id="4",
@@ -608,7 +611,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                    data={"kind": InputKind.VIDEO, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="5",
@@ -729,7 +732,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                    data={"kind": InputKind.VIDEO, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="5",
@@ -847,7 +850,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                    data={"kind": InputKind.VIDEO, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="5",
@@ -1030,7 +1033,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                    data={"kind": InputKind.VIDEO, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="5",
@@ -1219,7 +1222,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                    data={"kind": InputKind.VIDEO, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="5",
@@ -1397,7 +1400,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                    data={"kind": InputKind.VIDEO, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="6",
@@ -1534,7 +1537,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                    data={"kind": InputKind.VIDEO, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="5",
@@ -1618,7 +1621,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                    data={"kind": InputKind.VIDEO, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="5",
@@ -1671,7 +1674,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                    data={"kind": InputKind.VIDEO, "source": "${VIDEO}"},
                 ),
                 Node(id="5", type="gvafpscounter", data={"starting-frame": "500"}),
                 Node(id="8", type="fakesink", data={}),
@@ -1703,7 +1706,7 @@ parse_test_cases = [
         Graph(
             nodes=[
                 Node(
-                    id="0", type="source", data={"kind": InputKind.FILE, "source": ""}
+                    id="0", type="source", data={"kind": InputKind.VIDEO, "source": ""}
                 ),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -1739,7 +1742,7 @@ parse_test_cases = [
         Graph(
             nodes=[
                 Node(
-                    id="0", type="source", data={"kind": InputKind.FILE, "source": ""}
+                    id="0", type="source", data={"kind": InputKind.VIDEO, "source": ""}
                 ),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -1775,7 +1778,7 @@ parse_test_cases = [
         Graph(
             nodes=[
                 Node(
-                    id="0", type="source", data={"kind": InputKind.FILE, "source": ""}
+                    id="0", type="source", data={"kind": InputKind.VIDEO, "source": ""}
                 ),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -1811,7 +1814,7 @@ parse_test_cases = [
         Graph(
             nodes=[
                 Node(
-                    id="0", type="source", data={"kind": InputKind.FILE, "source": ""}
+                    id="0", type="source", data={"kind": InputKind.VIDEO, "source": ""}
                 ),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -1971,7 +1974,7 @@ unsorted_nodes_edges = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "song.ogg"},
+                    data={"kind": InputKind.VIDEO, "source": "song.ogg"},
                 ),
                 Node(id="6", type="autoaudiosink", data={}),
                 Node(id="11", type="autovideosink", data={}),
@@ -2020,7 +2023,7 @@ unsorted_nodes_edges = [
                 Node(
                     id="1",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "song.ogg"},
+                    data={"kind": InputKind.VIDEO, "source": "song.ogg"},
                 ),
                 Node(id="7", type="autoaudiosink", data={}),
                 Node(id="12", type="autovideosink", data={}),
@@ -2080,7 +2083,7 @@ unsorted_nodes_edges = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "song.ogg"},
+                    data={"kind": InputKind.VIDEO, "source": "song.ogg"},
                 ),
                 Node(id="8", type="autoaudiosink", data={}),
                 Node(id="11", type="autoaudiosink", data={}),
@@ -2129,7 +2132,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
                 Node(id="3", type="fakesink", data={}),
@@ -2144,7 +2147,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(
                     id="2", type="gvadetect", data={"model": "yolo", "device": "CPU"}
@@ -2201,7 +2204,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "input.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "input.mp4"},
                 ),
                 Node(
                     id="1",
@@ -2226,7 +2229,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "input.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "input.mp4"},
                 ),
                 Node(
                     id="1",
@@ -2287,7 +2290,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
@@ -2302,7 +2305,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
@@ -2345,7 +2348,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="2", type="gvadetect", data={"model": "yolo"}),
                 Node(id="3", type="fakesink", data={}),
@@ -2360,7 +2363,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(
                     id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}
@@ -2411,7 +2414,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(
                     id="1",
@@ -2430,7 +2433,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(
                     id="1", type="gvadetect", data={"model": "yolo", "device": "GPU"}
@@ -2479,7 +2482,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(
                     id="1",
@@ -2553,7 +2556,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(
                     id="1",
@@ -2724,7 +2727,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="2", type="gvadetect", data={"model": "yolo"}),
                 Node(id="3", type="fakesink", data={}),
@@ -2739,7 +2742,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="2", type="gvadetect", data={"model": "yolo"}),
                 Node(id="3", type="fakesink", data={}),
@@ -2771,7 +2774,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
@@ -2786,7 +2789,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
@@ -2819,7 +2822,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvaclassify", data={"model": "resnet"}),
@@ -2836,7 +2839,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvaclassify", data={"model": "resnet"}),
@@ -2871,7 +2874,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvaclassify", data={"model": "resnet"}),
@@ -2888,7 +2891,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvaclassify", data={"model": "resnet"}),
@@ -2921,7 +2924,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
@@ -2936,7 +2939,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
@@ -2970,7 +2973,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvatrack", data={}),
@@ -2987,7 +2990,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 # Node id="2" removed
@@ -3019,7 +3022,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
@@ -3034,7 +3037,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(
                     id="1", type="gvaclassify", data={"model": "yolo"}
@@ -3069,7 +3072,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvatrack", data={}),
@@ -3086,7 +3089,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvatrack", data={}),
@@ -3125,7 +3128,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvatrack", data={}),
@@ -3144,7 +3147,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 # Nodes 2, 3 removed
@@ -3176,7 +3179,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
@@ -3222,7 +3225,7 @@ apply_simple_view_changes_negative_test_cases = [
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
@@ -3789,7 +3792,7 @@ class TestToSimpleView(unittest.TestCase):
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvametaconvert", data={}),
@@ -3992,7 +3995,7 @@ class TestApplySimpleViewChanges(unittest.TestCase):
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
                 Node(id="3", type="fakesink", data={}),
@@ -4008,7 +4011,7 @@ class TestApplySimpleViewChanges(unittest.TestCase):
                 Node(
                     id="0",
                     type="source",
-                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                    data={"kind": InputKind.VIDEO, "source": "test.mp4"},
                 ),
                 Node(
                     id="2", type="gvadetect", data={"model": "yolo", "device": "CPU"}
@@ -5234,6 +5237,30 @@ class TestPrepareMainOutputPlaceholder(unittest.TestCase):
         # Check that all properties are cleared
         self.assertEqual(result.nodes[2].data, {})
 
+    def test_gvagenai_single_unnamed_fakesink_is_not_converted(self):
+        """Test that gvagenai pipelines keep a single unnamed fakesink as metadata-only sink."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="videoconvert", data={}),
+                Node(id="3", type="gvagenai", data={"model-path": "model.xml"}),
+                Node(id="4", type="fakesink", data={"sync": "false"}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+            ],
+        )
+
+        result = graph.prepare_main_output_placeholder()
+
+        # For gvagenai metadata-only pipelines, unnamed fakesink should remain unchanged.
+        self.assertEqual(result.nodes[4].type, "fakesink")
+        self.assertEqual(result.nodes[4].data, {"sync": "false"})
+
     def test_single_named_non_default_fakesink_is_auto_selected(self):
         """Test that single fakesink with non-default name is automatically selected."""
         graph = Graph(
@@ -5772,6 +5799,1891 @@ class TestInjectMetadataFilePaths(unittest.TestCase):
         self.assertEqual(graph.nodes[0].data, {})
         self.assertEqual(graph.nodes[1].data, {"add-empty-results": "true"})
         self.assertEqual(graph.nodes[3].data, {})
+
+
+class TestApplyStreamIdentifiers(unittest.TestCase):
+    """Test cases for Graph.apply_stream_identifiers method."""
+
+    def test_linear_pipeline_names_source_and_sink(self):
+        """Source and main-branch sink get deterministic names; stream_id is returned."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result, source_name, sink_name, stream_id = graph.apply_stream_identifiers(1, 2)
+
+        self.assertEqual(source_name, "src_p1_s2")
+        self.assertEqual(sink_name, "sink_p1_s2")
+        self.assertEqual(stream_id, "src_p1_s2__sink_p1_s2")
+        # Source node and main-branch sink node get their `name` set.
+        self.assertEqual(result.nodes[0].data.get("name"), "src_p1_s2")
+        self.assertEqual(result.nodes[2].data.get("name"), "sink_p1_s2")
+        # Intermediate node untouched.
+        self.assertNotIn("name", result.nodes[1].data)
+        # Original graph is not mutated (deep copy semantics).
+        self.assertNotIn("name", graph.nodes[0].data)
+        self.assertNotIn("name", graph.nodes[2].data)
+
+    def test_tee_branch_sinks_are_not_renamed(self):
+        """Only the main-branch terminal sink is named; tee-branch sinks stay untouched."""
+        # Layout:
+        #   filesrc -> tee -> queue -> fakesink (MAIN BRANCH; first outgoing edge of tee)
+        #                  `-> queue2 -> fakesink2 (TEE BRANCH)
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(id="2", type="queue", data={}),
+                Node(id="3", type="fakesink", data={}),  # main-branch sink
+                Node(id="4", type="queue", data={}),
+                Node(
+                    id="5", type="fakesink", data={"name": "branch_sink"}
+                ),  # tee branch
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                # First outgoing edge of the tee = main branch
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                # Second outgoing edge of the tee = tee branch
+                Edge(id="3", source="1", target="4"),
+                Edge(id="4", source="4", target="5"),
+            ],
+        )
+
+        result, _, sink_name, _ = graph.apply_stream_identifiers(0, 0)
+
+        # Main-branch sink got the new name.
+        main_sink = next(n for n in result.nodes if n.id == "3")
+        self.assertEqual(main_sink.data.get("name"), sink_name)
+
+        # Tee-branch sink kept its original name, unchanged.
+        tee_sink = next(n for n in result.nodes if n.id == "5")
+        self.assertEqual(tee_sink.data.get("name"), "branch_sink")
+
+    def test_output_placeholder_sink_is_not_renamed_in_graph(self):
+        """When main terminal is OUTPUT_PLACEHOLDER, no `name` is written to the graph."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type=OUTPUT_PLACEHOLDER, data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        result, source_name, sink_name, stream_id = graph.apply_stream_identifiers(0, 0)
+
+        # Source is named, placeholder stays clean.
+        self.assertEqual(result.nodes[0].data.get("name"), source_name)
+        self.assertNotIn("name", result.nodes[1].data)
+        # Sink name is still computed and returned so the caller can inject it
+        # into the expanded output subpipeline.
+        self.assertEqual(sink_name, "sink_p0_s0")
+        self.assertEqual(stream_id, f"{source_name}__{sink_name}")
+
+    def test_names_are_unique_across_streams(self):
+        """Different pipeline/stream indices produce different stream_ids."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+
+        seen: set[str] = set()
+        for pi in range(2):
+            for si in range(3):
+                _, _, _, stream_id = graph.apply_stream_identifiers(pi, si)
+                self.assertNotIn(stream_id, seen)
+                seen.add(stream_id)
+
+        self.assertEqual(len(seen), 6)
+
+    def test_existing_source_name_is_overwritten(self):
+        """If source already has a `name`, it is replaced (tracer needs deterministic value)."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"name": "old_src"}),
+                Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+
+        result, source_name, sink_name, _ = graph.apply_stream_identifiers(3, 4)
+
+        self.assertEqual(result.nodes[0].data["name"], source_name)
+        self.assertEqual(result.nodes[0].data["name"], "src_p3_s4")
+        # The "default_output_sink" marker is overwritten, which is
+        # acceptable here because `prepare_main_output_placeholder` is always
+        # run first (for stream 0). For other streams, the tracer-unique name
+        # is exactly what is expected on the main sink.
+        self.assertEqual(result.nodes[1].data["name"], sink_name)
+        self.assertEqual(result.nodes[1].data["name"], "sink_p3_s4")
+
+    def test_empty_graph_raises(self):
+        """Empty graph cannot produce a source, so the method raises."""
+        graph = Graph(nodes=[], edges=[])
+        with self.assertRaises(ValueError):
+            graph.apply_stream_identifiers(0, 0)
+
+    def test_multiple_start_nodes_picks_smallest_id(self):
+        """When multiple sources exist, the smallest id is used, matching to_pipeline_description ordering."""
+        # Two independent chains: 0 -> 1 and 2 -> 3
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+                Node(id="2", type="filesrc", data={"location": "b.mp4"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        result, source_name, sink_name, _ = graph.apply_stream_identifiers(0, 0)
+
+        # Chain that starts at id="0" is the one selected (smallest start id).
+        self.assertEqual(result.nodes[0].data.get("name"), source_name)
+        self.assertEqual(result.nodes[1].data.get("name"), sink_name)
+        # The second chain is left untouched.
+        self.assertNotIn("name", result.nodes[2].data)
+        self.assertNotIn("name", result.nodes[3].data)
+
+    def test_placeholder_on_non_first_tee_branch_is_selected_as_main_sink(self):
+        """
+        When the OUTPUT_PLACEHOLDER is on a non-first tee branch
+        (e.g. recorder pipelines where the inline branch ends in an
+        intermediate splitmuxsink and the user-facing output is on the
+        second tee branch), the placeholder — not the inline-branch
+        terminal — must be selected as the main sink. Otherwise the
+        inline splitmuxsink would receive the stream sink name and the
+        caller would then inject the same name into the expanded output
+        subpipeline, producing two elements with identical names.
+        """
+        # Layout:
+        #   filesrc -> tee -> queue -> splitmuxsink  (inline / first branch,
+        #                                              intermediate recorder)
+        #                  `-> queue2 -> OUTPUT_PLACEHOLDER  (second branch,
+        #                                                     user-facing output)
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(id="2", type="queue", data={}),
+                Node(
+                    id="3",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/intermediate.mp4"},
+                ),
+                Node(id="4", type="queue", data={}),
+                Node(id="5", type=OUTPUT_PLACEHOLDER, data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                # First outgoing edge of the tee = inline/intermediate branch
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                # Second outgoing edge of the tee = user-facing output branch
+                Edge(id="3", source="1", target="4"),
+                Edge(id="4", source="4", target="5"),
+            ],
+        )
+
+        result, source_name, sink_name, _ = graph.apply_stream_identifiers(0, 0)
+
+        # Source is named as usual.
+        source = next(n for n in result.nodes if n.id == "0")
+        self.assertEqual(source.data.get("name"), source_name)
+
+        # The intermediate splitmuxsink on the inline branch MUST NOT be
+        # renamed to the stream sink name.
+        splitmux = next(n for n in result.nodes if n.id == "3")
+        self.assertNotIn("name", splitmux.data)
+        self.assertNotEqual(splitmux.data.get("name"), sink_name)
+
+        # The placeholder stays clean (caller injects the name into the
+        # expanded output subpipeline) but is what the returned sink_name
+        # refers to.
+        placeholder = next(n for n in result.nodes if n.id == "5")
+        self.assertEqual(placeholder.type, OUTPUT_PLACEHOLDER)
+        self.assertNotIn("name", placeholder.data)
+        self.assertEqual(sink_name, "sink_p0_s0")
+
+    def test_multiple_placeholders_raise(self):
+        """More than one OUTPUT_PLACEHOLDER is ambiguous and must be rejected."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(id="2", type=OUTPUT_PLACEHOLDER, data={}),
+                Node(id="3", type=OUTPUT_PLACEHOLDER, data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="1", target="3"),
+            ],
+        )
+
+        with self.assertRaises(ValueError):
+            graph.apply_stream_identifiers(0, 0)
+
+    def test_default_output_sink_on_non_first_tee_branch_is_selected(self):
+        """
+        For streams without OUTPUT_PLACEHOLDER (stream_index > 0 or
+        output_mode=disabled), when the user-facing output fakesink is
+        marked with `name=default_output_sink` AND sits on a non-first tee
+        branch (inline branch terminates at an intermediate splitmuxsink),
+        the method must select the `default_output_sink` fakesink — NOT
+        the intermediate splitmuxsink on the inline branch.
+        """
+        # Layout:
+        #   filesrc -> tee -> queue -> splitmuxsink      (inline / first branch,
+        #                                                  intermediate recorder)
+        #                  `-> queue2 -> fakesink        (second branch,
+        #                                                  user-facing output)
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(id="2", type="queue", data={}),
+                Node(
+                    id="3",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/intermediate.mp4"},
+                ),
+                Node(id="4", type="queue", data={}),
+                Node(
+                    id="5",
+                    type="fakesink",
+                    data={"name": "default_output_sink"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="1", target="4"),
+                Edge(id="4", source="4", target="5"),
+            ],
+        )
+
+        result, _, sink_name, _ = graph.apply_stream_identifiers(0, 1)
+
+        # Main sink = default_output_sink fakesink on the second tee branch.
+        main_sink = next(n for n in result.nodes if n.id == "5")
+        self.assertEqual(main_sink.data.get("name"), sink_name)
+
+        # Intermediate splitmuxsink keeps its data and is NOT renamed.
+        splitmux = next(n for n in result.nodes if n.id == "3")
+        self.assertNotIn("name", splitmux.data)
+        self.assertEqual(splitmux.data.get("location"), "/tmp/intermediate.mp4")
+
+    def test_multiple_default_output_sinks_raise(self):
+        """Two fakesinks named `default_output_sink` are ambiguous and rejected."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(
+                    id="2",
+                    type="fakesink",
+                    data={"name": "default_output_sink"},
+                ),
+                Node(
+                    id="3",
+                    type="fakesink",
+                    data={"name": "default_output_sink"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="1", target="3"),
+            ],
+        )
+
+        with self.assertRaises(ValueError):
+            graph.apply_stream_identifiers(0, 0)
+
+    def test_single_fakesink_without_name_is_selected(self):
+        """
+        When there is no placeholder and no `default_output_sink` marker
+        but exactly one fakesink exists, that fakesink is the main sink
+        — mirroring `prepare_main_output_placeholder`'s auto-pick rule.
+        """
+        # Layout: filesrc -> tee -> queue -> splitmuxsink (inline)
+        #                         `-> queue2 -> fakesink (no name)
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "a.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(id="2", type="queue", data={}),
+                Node(
+                    id="3",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/intermediate.mp4"},
+                ),
+                Node(id="4", type="queue", data={}),
+                Node(id="5", type="fakesink", data={}),  # unnamed, sole fakesink
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="1", target="4"),
+                Edge(id="4", source="4", target="5"),
+            ],
+        )
+
+        result, _, sink_name, _ = graph.apply_stream_identifiers(0, 0)
+
+        # The single fakesink on the second tee branch is chosen.
+        main_sink = next(n for n in result.nodes if n.id == "5")
+        self.assertEqual(main_sink.data.get("name"), sink_name)
+
+        # Inline splitmuxsink is not renamed.
+        splitmux = next(n for n in result.nodes if n.id == "3")
+        self.assertNotIn("name", splitmux.data)
+
+
+# --------------------------------------------------------------------------- #
+# Image-set source mapping (simple -> advanced).
+# --------------------------------------------------------------------------- #
+
+
+def _make_image_set_mock(
+    name: str = "dorota",
+    extension: str = "jpg",
+    image_count: int = 40,
+    width: int = 2,
+):
+    """
+    Build a mock for ``ImagesManager().get_image_set`` / ``get_location_pattern``.
+    ``width`` is the zero-padding width that the location pattern carries
+    (``len(str(image_count))``).
+    """
+    image_set = MagicMock()
+    image_set.name = name
+    image_set.extension = extension
+    image_set.image_count = image_count
+    image_set.width = 1280
+    image_set.height = 720
+    location = f"/images/input/uploaded/{name}/{name}_%0{width}d.{extension}"
+    return image_set, location
+
+
+class TestImageSetSourceMapping(unittest.TestCase):
+    """
+    Verify that ``apply_simple_view_changes`` rewrites a generic
+    ``source`` node with ``kind=image_set`` into a concrete
+    ``multifilesrc`` + decoder pair, with the right caps, stop-index and
+    edges. The downstream ``apply_looping_modifications`` and
+    ``determine_input_codec`` behaviours that depend on the marker flag
+    are covered in their own classes below.
+    """
+
+    def _make_simple(self, kind, source: str) -> Graph:
+        return Graph(
+            nodes=[
+                Node(id="0", type="source", data={"kind": kind, "source": source}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="12", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="11", source="2", target="12"),
+            ],
+        )
+
+    def _make_advanced_with_filesrc(self) -> Graph:
+        # Mirrors the kind of advanced graph that ``from_simple_view``
+        # produces for a file source (filesrc + decodebin3 + ...).
+        return Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "x.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="12", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="11", source="2", target="12"),
+            ],
+        )
+
+    @patch("graph.ImagesManager")
+    def test_jpg_image_set_replaces_filesrc_with_multifilesrc_and_jpegdec(
+        self, mock_cls
+    ):
+        image_set, location = _make_image_set_mock("dorota", "jpg", 40, 2)
+        instance = MagicMock()
+        instance.get_image_set.return_value = image_set
+        instance.get_location_pattern.return_value = location
+        mock_cls.return_value = instance
+
+        original_simple = self._make_simple(InputKind.VIDEO, "x.mp4")
+        modified_simple = self._make_simple(InputKind.IMAGE_SET, "dorota")
+        original_advanced = self._make_advanced_with_filesrc()
+
+        result = Graph.apply_simple_view_changes(
+            modified_simple=modified_simple,
+            original_simple=original_simple,
+            original_advanced=original_advanced,
+        )
+
+        # The original source node has been retyped to multifilesrc.
+        src = next(n for n in result.nodes if n.id == "0")
+        self.assertEqual(src.type, "multifilesrc")
+        self.assertEqual(src.data["location"], location)
+        self.assertEqual(src.data["index"], "1")
+        self.assertEqual(src.data["stop-index"], "40")
+        # ``loop`` starts off; ``apply_looping_modifications`` flips it.
+        self.assertEqual(src.data["loop"], "false")
+        self.assertIn("caps", src.data)
+        self.assertTrue(src.data["caps"].startswith("image/jpeg"))
+        # Internal marker is present (carries the canonical extension).
+        self.assertIn("__image_set", src.data)
+        self.assertEqual(src.data["__image_set"], "jpg")
+
+        # A jpegdec node has been inserted right after the source.
+        decoder_nodes = [n for n in result.nodes if n.type == "jpegdec"]
+        self.assertEqual(len(decoder_nodes), 1)
+        decoder = decoder_nodes[0]
+
+        # Edges are rewired so the source flows through the decoder.
+        edges_from_source = [e for e in result.edges if e.source == "0"]
+        self.assertEqual(len(edges_from_source), 1)
+        self.assertEqual(edges_from_source[0].target, decoder.id)
+
+        # The original ``0->1`` edge into decodebin3 has been retargeted
+        # to flow out of the new decoder.
+        edges_from_decoder = [e for e in result.edges if e.source == decoder.id]
+        # The decoder fans out to whatever was downstream of the original source.
+        self.assertGreaterEqual(len(edges_from_decoder), 1)
+
+    @patch("graph.ImagesManager")
+    def test_png_uses_pngdec_and_image_png_caps(self, mock_cls):
+        image_set, location = _make_image_set_mock("imgs", "png", 5, 1)
+        instance = MagicMock()
+        instance.get_image_set.return_value = image_set
+        instance.get_location_pattern.return_value = location
+        mock_cls.return_value = instance
+
+        result = Graph.apply_simple_view_changes(
+            modified_simple=self._make_simple(InputKind.IMAGE_SET, "imgs"),
+            original_simple=self._make_simple(InputKind.VIDEO, "x.mp4"),
+            original_advanced=self._make_advanced_with_filesrc(),
+        )
+
+        src = next(n for n in result.nodes if n.id == "0")
+        self.assertTrue(src.data["caps"].startswith("image/png"))
+        self.assertEqual(src.data["__image_set"], "png")
+        self.assertTrue(any(n.type == "pngdec" for n in result.nodes))
+
+    @patch("graph.ImagesManager")
+    def test_bmp_uses_avdec_bmp(self, mock_cls):
+        image_set, location = _make_image_set_mock("b", "bmp", 3, 1)
+        instance = MagicMock()
+        instance.get_image_set.return_value = image_set
+        instance.get_location_pattern.return_value = location
+        mock_cls.return_value = instance
+
+        result = Graph.apply_simple_view_changes(
+            modified_simple=self._make_simple(InputKind.IMAGE_SET, "b"),
+            original_simple=self._make_simple(InputKind.VIDEO, "x.mp4"),
+            original_advanced=self._make_advanced_with_filesrc(),
+        )
+        self.assertTrue(any(n.type == "avdec_bmp" for n in result.nodes))
+        src = next(n for n in result.nodes if n.id == "0")
+        self.assertTrue(src.data["caps"].startswith("image/bmp"))
+
+    @patch("graph.ImagesManager")
+    def test_tif_uses_avdec_tiff(self, mock_cls):
+        image_set, location = _make_image_set_mock("t", "tif", 3, 1)
+        instance = MagicMock()
+        instance.get_image_set.return_value = image_set
+        instance.get_location_pattern.return_value = location
+        mock_cls.return_value = instance
+
+        result = Graph.apply_simple_view_changes(
+            modified_simple=self._make_simple(InputKind.IMAGE_SET, "t"),
+            original_simple=self._make_simple(InputKind.VIDEO, "x.mp4"),
+            original_advanced=self._make_advanced_with_filesrc(),
+        )
+        self.assertTrue(any(n.type == "avdec_tiff" for n in result.nodes))
+        src = next(n for n in result.nodes if n.id == "0")
+        self.assertTrue(src.data["caps"].startswith("image/tiff"))
+
+    @patch("graph.ImagesManager")
+    def test_unknown_image_set_raises(self, mock_cls):
+        instance = MagicMock()
+        instance.get_image_set.return_value = None
+        mock_cls.return_value = instance
+
+        with self.assertRaises(ValueError) as cm:
+            Graph.apply_simple_view_changes(
+                modified_simple=self._make_simple(InputKind.IMAGE_SET, "missing"),
+                original_simple=self._make_simple(InputKind.VIDEO, "x.mp4"),
+                original_advanced=self._make_advanced_with_filesrc(),
+            )
+        self.assertIn("Unknown image set", str(cm.exception))
+
+    @patch("graph.ImagesManager")
+    def test_missing_location_pattern_raises(self, mock_cls):
+        image_set, _ = _make_image_set_mock("dorota", "jpg", 40, 2)
+        instance = MagicMock()
+        instance.get_image_set.return_value = image_set
+        instance.get_location_pattern.return_value = None
+        mock_cls.return_value = instance
+
+        with self.assertRaises(ValueError) as cm:
+            Graph.apply_simple_view_changes(
+                modified_simple=self._make_simple(InputKind.IMAGE_SET, "dorota"),
+                original_simple=self._make_simple(InputKind.VIDEO, "x.mp4"),
+                original_advanced=self._make_advanced_with_filesrc(),
+            )
+        self.assertIn("location pattern", str(cm.exception))
+
+
+# --------------------------------------------------------------------------- #
+# Looping behaviour for image-set sources.
+# --------------------------------------------------------------------------- #
+
+
+class TestApplyLoopingImageSet(unittest.TestCase):
+    """
+    Image-set ``multifilesrc`` nodes only need ``loop=true``; the TS
+    dance and demuxer rewrites that apply to file sources must be
+    skipped. Marker flag presence (``__image_set``) is what selects
+    the lightweight branch.
+    """
+
+    def test_image_set_node_only_flips_loop_to_true(self):
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/images/input/uploaded/x/x_%01d.jpg",
+                        "index": "1",
+                        "stop-index": "5",
+                        "loop": "false",
+                        "caps": "image/jpeg,framerate=30/1",
+                        "__image_set": "jpg",
+                    },
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        # ``apply_looping_modifications`` instantiates VideosManager
+        # eagerly even though the image-set branch does not use it. We
+        # mock the class to keep the test independent of the videos
+        # filesystem layout.
+        with patch("graph.VideosManager"):
+            result = graph.apply_looping_modifications()
+
+        src = result.nodes[0]
+        self.assertEqual(src.type, "multifilesrc")
+        self.assertEqual(src.data["loop"], "true")
+        # Location pattern must stay intact - no TS conversion.
+        self.assertEqual(src.data["location"], "/images/input/uploaded/x/x_%01d.jpg")
+        self.assertEqual(src.data["stop-index"], "5")
+        # No TS demuxer was inserted - the decoder is preserved as-is.
+        self.assertEqual(result.nodes[1].type, "jpegdec")
+
+    def test_image_set_node_skips_ts_resolution(self):
+        """
+        For an image-set ``multifilesrc`` node, no per-node ``get_ts_path``
+        call is issued - the marker flag short-circuits the pass before
+        the TS dance kicks in. Other VideosManager methods may still be
+        touched at construction time, so we only assert the per-node
+        helpers are not invoked.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/images/input/uploaded/x/x_%01d.png",
+                        "index": "1",
+                        "stop-index": "3",
+                        "loop": "false",
+                        "caps": "image/png,framerate=30/1",
+                        "__image_set": "png",
+                    },
+                ),
+                Node(id="1", type="pngdec", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        with patch("graph.VideosManager") as mock_videos_cls:
+            instance = MagicMock()
+            mock_videos_cls.return_value = instance
+            result = graph.apply_looping_modifications()
+
+        # The image-set branch must NOT consult per-node TS helpers.
+        instance.get_ts_path.assert_not_called()
+        instance.ensure_ts_file.assert_not_called()
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+
+
+# --------------------------------------------------------------------------- #
+# determine_input_codec for image-set sources.
+# --------------------------------------------------------------------------- #
+
+
+class TestDetermineInputCodecImageSet(unittest.TestCase):
+    def _graph_with(self, ext: str) -> Graph:
+        return Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": f"/images/input/uploaded/x/x_%01d.{ext}",
+                        "index": "1",
+                        "stop-index": "1",
+                        "loop": "false",
+                        "caps": f"image/{ext},framerate=30/1",
+                        "__image_set": ext,
+                    },
+                ),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+
+    def test_jpg(self):
+        self.assertEqual(self._graph_with("jpg").determine_input_codec(), "jpg")
+
+    def test_png(self):
+        self.assertEqual(self._graph_with("png").determine_input_codec(), "png")
+
+    def test_empty_marker_returns_none(self):
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/foo/bar_%01d.jpg",
+                        "__image_set": "",
+                    },
+                ),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+        self.assertIsNone(graph.determine_input_codec())
+
+
+# --------------------------------------------------------------------------- #
+# _input_video_name_to_path: absolute paths bypass.
+# --------------------------------------------------------------------------- #
+
+
+class TestInputVideoNameToPathAbsoluteBypass(unittest.TestCase):
+    """
+    Image-set ``multifilesrc`` nodes carry an absolute location pattern
+    (``/images/input/uploaded/.../x_%02d.jpg``) that must be passed to
+    GStreamer untouched. The video-name → path mapping has to detect
+    absolute paths and skip them; any other behaviour breaks the
+    image-set pipeline.
+    """
+
+    @patch("graph.VideosManager")
+    def test_absolute_location_is_left_untouched(self, mock_videos_cls):
+        from graph import _input_video_name_to_path
+
+        nodes = [
+            Node(
+                id="0",
+                type="multifilesrc",
+                data={"location": "/images/input/uploaded/dorota/dorota_%02d.jpg"},
+            )
+        ]
+        _input_video_name_to_path(nodes)
+
+        # The mapping must not be invoked for absolute paths.
+        mock_videos_cls.assert_not_called()
+        self.assertEqual(
+            nodes[0].data["location"],
+            "/images/input/uploaded/dorota/dorota_%02d.jpg",
+        )
+
+    @patch("graph.VideosManager")
+    def test_relative_filename_still_resolved_through_videos_manager(
+        self, mock_videos_cls
+    ):
+        from graph import _input_video_name_to_path
+
+        instance = MagicMock()
+        instance.get_video_path.return_value = "/videos/input/uploaded/foo.mp4"
+        mock_videos_cls.return_value = instance
+
+        nodes = [Node(id="0", type="filesrc", data={"location": "foo.mp4"})]
+        _input_video_name_to_path(nodes)
+
+        instance.get_video_path.assert_called_once_with("foo.mp4")
+        self.assertEqual(nodes[0].data["location"], "/videos/input/uploaded/foo.mp4")
+
+
+# --------------------------------------------------------------------------- #
+# _prepare_generic_input: image-set multifilesrc round-trip back to source.
+# --------------------------------------------------------------------------- #
+
+
+class TestPrepareGenericInputImageSet(unittest.TestCase):
+    """
+    Verify that ``_prepare_generic_input`` (advanced -> simple) emits a
+    ``source`` node with ``kind=image_set`` for ``multifilesrc`` nodes
+    that were originally produced from an image-set source. Without
+    this, the simple view would lose the image-set kind on round-trip
+    and reload the pipeline as a regular file source.
+    """
+
+    def test_image_set_multifilesrc_becomes_image_set_source(self) -> None:
+        from graph import _IMAGE_SET_NODE_FLAG, InputKind, _prepare_generic_input
+
+        node = Node(
+            id="0",
+            type="multifilesrc",
+            data={
+                "location": "/images/input/uploaded/dorota/dorota_%02d.jpg",
+                "index": "1",
+                "stop-index": "40",
+                "loop": "false",
+                "caps": "image/jpeg,framerate=30/1",
+                _IMAGE_SET_NODE_FLAG: "jpg",
+            },
+        )
+
+        _prepare_generic_input([node])
+
+        self.assertEqual(node.type, "source")
+        self.assertEqual(node.data["kind"], InputKind.IMAGE_SET)
+        self.assertEqual(node.data["source"], "dorota")
+        # Internal marker must not leak into the simple view.
+        self.assertNotIn(_IMAGE_SET_NODE_FLAG, node.data)
+        self.assertNotIn("location", node.data)
+
+    def test_plain_multifilesrc_still_becomes_file_source(self) -> None:
+        from graph import InputKind, _prepare_generic_input
+
+        node = Node(
+            id="0",
+            type="multifilesrc",
+            data={"location": "loop.mp4"},
+        )
+
+        _prepare_generic_input([node])
+
+        self.assertEqual(node.type, "source")
+        self.assertEqual(node.data["kind"], InputKind.VIDEO)
+        self.assertEqual(node.data["source"], "loop.mp4")
+
+
+class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
+    """
+    Image-set graphs already inject a dedicated image decoder
+    (``jpegdec``/``pngdec``/...) right after ``multifilesrc``. The codec
+    string returned by ``determine_input_codec`` is the image extension
+    (e.g. ``"jpg"``), which is intentionally not a known video codec.
+    ``apply_decodebin3_replacement`` must:
+
+    * never emit "Unknown codec" / "Cannot find decoder" warnings for
+      these graphs;
+    * prune a redundant ``decodebin3`` sitting after the image decoder
+      (it is a no-op once a dedicated image decoder is in place);
+    * for GPU/NPU targets, ensure frames reach inference plugins in VA
+      memory - either by swapping the software decoder for a VA decoder
+      (``vajpegdec``) if available, or by inserting a ``vapostproc``
+      element after the software decoder otherwise.
+    """
+
+    def _build_graph(self, extension: str = "jpg") -> Graph:
+        decoder_type = {
+            "jpg": "jpegdec",
+            "png": "pngdec",
+            "bmp": "avdec_bmp",
+            "tif": "avdec_tiff",
+        }[extension]
+        return Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": f"/images/input/uploaded/x/x_%02d.{extension}",
+                        "index": "1",
+                        "stop-index": "5",
+                        "loop": "false",
+                        "caps": f"image/{extension},framerate=30/1",
+                        "__image_set": extension,
+                    },
+                ),
+                Node(id="13", type=decoder_type, data={}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="14", source="0", target="13"),
+                Edge(id="0", source="13", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+    def _capture_warnings(self):
+        return self.assertLogs("graph", level="WARNING")
+
+    def test_cpu_target_prunes_decodebin3_and_emits_no_warnings(self) -> None:
+        graph = self._build_graph()
+
+        with self._capture_warnings() as cm:
+            import logging as _logging
+
+            _logging.getLogger("graph").warning("sentinel")
+            result = graph.apply_decodebin3_replacement(
+                codec="jpg", target_device="CPU"
+            )
+
+        warnings_emitted = [
+            r.getMessage() for r in cm.records if r.levelname == "WARNING"
+        ]
+        self.assertEqual(warnings_emitted, ["sentinel"])
+
+        # decodebin3 must be gone; the chain is multifilesrc -> jpegdec -> fakesink.
+        types_in_order = [n.type for n in result.nodes]
+        self.assertNotIn("decodebin3", types_in_order)
+        self.assertEqual(types_in_order, ["multifilesrc", "jpegdec", "fakesink"])
+
+        # The edge that used to leave decodebin3 now leaves jpegdec.
+        edges = [(e.source, e.target) for e in result.edges]
+        self.assertIn(("0", "13"), edges)
+        self.assertIn(("13", "2"), edges)
+        self.assertNotIn(("13", "1"), edges)
+        self.assertNotIn(("1", "2"), edges)
+
+    def test_gpu_target_keeps_software_jpegdec_and_inserts_vapostproc_va_pair(
+        self,
+    ) -> None:
+        """
+        VA image decoders (``vajpegdec`` and friends) are
+        deliberately NOT swapped in for image-set GPU targets.
+        Empirical testing on real Intel GPUs (Battlemage / Arc)
+        showed that ``vajpegdec`` rejects perfectly valid JPEGs at
+        runtime with ``subclass failed to handle new picture``.
+        Software ``jpegdec`` + ``vapostproc`` + caps
+        ``video/x-raw(memory:VAMemory),format=NV12`` is more
+        compatible and gives the same end-to-end VA memory delivery
+        to ``gvadetect`` / ``gvaclassify``.
+        """
+        graph = self._build_graph("jpg")
+
+        # Even though vajpegdec is registered, we must not use it.
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vajpegdec", "VA-API JPEG Decoder"),
+            ("jpeg", "jpegdec", "JPEG image decoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            result = graph.apply_decodebin3_replacement(
+                codec="jpg", target_device="GPU"
+            )
+
+        types_in_order = [n.type for n in result.nodes]
+        self.assertIn("jpegdec", types_in_order)
+        self.assertNotIn("vajpegdec", types_in_order)
+        # vapostproc + VAMemory caps inserted right after the decoder.
+        self.assertIn("vapostproc", types_in_order)
+        self.assertIn("video/x-raw(memory:VAMemory)", types_in_order)
+        nv12_caps = [
+            n
+            for n in result.nodes
+            if n.type == "video/x-raw(memory:VAMemory)"
+            and str(n.data.get("format", "")).upper() == "NV12"
+        ]
+        self.assertEqual(len(nv12_caps), 1)
+        # decodebin3 pruned.
+        self.assertNotIn("decodebin3", types_in_order)
+
+    def test_gpu_target_inserts_vapostproc_when_no_va_decoder(self) -> None:
+        # PNG has no VA decoder in stock GStreamer, so the upgrade path
+        # must insert vapostproc + VAMemory NV12 caps after the
+        # software decoder.
+        graph = self._build_graph("png")
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("png", "pngdec", "PNG image decoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            result = graph.apply_decodebin3_replacement(
+                codec="png", target_device="GPU"
+            )
+
+        types_in_order = [n.type for n in result.nodes]
+        # Software pngdec kept.
+        self.assertIn("pngdec", types_in_order)
+        # vapostproc + VAMemory caps inserted right after the decoder.
+        self.assertIn("vapostproc", types_in_order)
+        self.assertIn("video/x-raw(memory:VAMemory)", types_in_order)
+        idx_pngdec = types_in_order.index("pngdec")
+        idx_vapostproc = types_in_order.index("vapostproc")
+        idx_caps = types_in_order.index("video/x-raw(memory:VAMemory)")
+        self.assertEqual(idx_vapostproc, idx_pngdec + 1)
+        self.assertEqual(idx_caps, idx_vapostproc + 1)
+        # decodebin3 pruned.
+        self.assertNotIn("decodebin3", types_in_order)
+
+        # Connectivity: pngdec -> vapostproc -> caps -> fakesink.
+        edges = [(e.source, e.target) for e in result.edges]
+        pngdec_id = next(n.id for n in result.nodes if n.type == "pngdec")
+        vapostproc_id = next(n.id for n in result.nodes if n.type == "vapostproc")
+        caps_id = next(
+            n.id for n in result.nodes if n.type == "video/x-raw(memory:VAMemory)"
+        )
+        fakesink_id = next(n.id for n in result.nodes if n.type == "fakesink")
+        self.assertIn((pngdec_id, vapostproc_id), edges)
+        self.assertIn((vapostproc_id, caps_id), edges)
+        self.assertIn((caps_id, fakesink_id), edges)
+
+    def test_npu_target_is_treated_like_gpu(self) -> None:
+        graph = self._build_graph("jpg")
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vajpegdec", "VA-API JPEG Decoder"),
+            ("jpeg", "jpegdec", "JPEG image decoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            result = graph.apply_decodebin3_replacement(
+                codec="jpg", target_device="NPU"
+            )
+
+        types_in_order = [n.type for n in result.nodes]
+        # Same behaviour as GPU: software jpegdec kept, vapostproc +
+        # VAMemory NV12 caps inserted.
+        self.assertIn("jpegdec", types_in_order)
+        self.assertNotIn("vajpegdec", types_in_order)
+        self.assertIn("vapostproc", types_in_order)
+        self.assertIn("video/x-raw(memory:VAMemory)", types_in_order)
+
+    def test_gpu_target_promotes_injected_videoconvert_nv12_pair_to_va_aware(
+        self,
+    ) -> None:
+        """
+        On GPU/NPU, ``_adapt_image_set_video_pipeline`` no longer
+        injects a CPU-only ``videoconvert ! NV12`` pair, so the
+        upgrade path always inserts a fresh
+        ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
+        pair right after the software image decoder. Any pre-existing
+        ``videoconvert ! NV12`` pair downstream is left untouched
+        (NV12-only DLStreamer consumers like ``gvamotiondetect`` accept
+        VAMemory NV12 directly, so the conversion is a harmless
+        no-op).
+        """
+        # Build a graph that pretends a legacy adapter produced
+        # ``multifilesrc -> jpegdec -> videoconvert -> caps NV12 ->
+        # gvamotiondetect -> fakesink``. The new upgrade path should
+        # insert ``vapostproc ! VAMemory NV12`` between jpegdec and
+        # videoconvert.
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/images/input/uploaded/x/x_%02d.jpg",
+                        "index": "1",
+                        "stop-index": "5",
+                        "loop": "false",
+                        "caps": "image/jpeg,framerate=30/1",
+                        "__image_set": "jpg",
+                    },
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="videoconvert", data={}),
+                Node(
+                    id="3",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "format": "NV12"},
+                ),
+                Node(id="4", type="gvamotiondetect", data={}),
+                Node(id="5", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+            ],
+        )
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vajpegdec", "VA-API JPEG Decoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            graph._upgrade_image_set_for_va_memory("GPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # Software decoder kept (VA decoder swap is intentionally not
+        # performed any more - empirically broken on real Intel GPUs).
+        self.assertEqual(types_by_id["1"], "jpegdec")
+        # Pre-existing legacy videoconvert + NV12 caps are NOT
+        # promoted - the new model only promotes caps directly behind
+        # a ``vapostproc``. They stay as they are.
+        self.assertEqual(types_by_id["2"], "videoconvert")
+        self.assertEqual(types_by_id["3"], "video/x-raw")
+        # Exactly one fresh vapostproc was inserted right after jpegdec
+        # by step 3 of the upgrade.
+        vapostproc_nodes = [n for n in graph.nodes if n.type == "vapostproc"]
+        self.assertEqual(len(vapostproc_nodes), 1)
+        # The new vapostproc is followed by a VAMemory NV12 caps node.
+        edges_from = {}
+        for e in graph.edges:
+            edges_from.setdefault(e.source, []).append(e.target)
+        vp_id = vapostproc_nodes[0].id
+        nxt = edges_from[vp_id][0]
+        nxt_node = next(n for n in graph.nodes if n.id == nxt)
+        self.assertEqual(nxt_node.type, "video/x-raw(memory:VAMemory)")
+        self.assertEqual(nxt_node.data.get("format"), "NV12")
+        # And the new pair sits between jpegdec and videoconvert.
+        self.assertEqual(edges_from["1"], [vp_id])
+        self.assertEqual(edges_from[nxt], ["2"])
+
+    def test_cpu_target_does_not_promote_injected_nv12_pair(self) -> None:
+        """
+        On CPU we do not want VA memory; the legacy
+        ``videoconvert ! video/x-raw,format=NV12`` pair must be left
+        untouched and no ``vapostproc`` may be inserted.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/images/input/uploaded/x/x_%02d.jpg",
+                        "index": "1",
+                        "stop-index": "5",
+                        "loop": "false",
+                        "caps": "image/jpeg,framerate=30/1",
+                        "__image_set": "jpg",
+                    },
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="videoconvert", data={}),
+                Node(
+                    id="3",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "format": "NV12"},
+                ),
+                Node(id="4", type="gvamotiondetect", data={}),
+                Node(id="5", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+            ],
+        )
+
+        graph._upgrade_image_set_for_va_memory("CPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        self.assertEqual(types_by_id["1"], "jpegdec")
+        self.assertEqual(types_by_id["2"], "videoconvert")
+        self.assertEqual(types_by_id["3"], "video/x-raw")
+        self.assertNotIn("vapostproc", [n.type for n in graph.nodes])
+
+    def test_gpu_target_inserts_vapostproc_even_when_decodebin3_sits_between_decoder_and_pair(
+        self,
+    ) -> None:
+        """
+        Regression: in real graphs coming from the UI the chain after
+        ``_adapt_image_set_video_pipeline`` may look like
+
+            multifilesrc -> jpegdec -> decodebin3 -> videoconvert ->
+            video/x-raw,format=NV12 -> gvamotiondetect -> ...
+
+        The upgrade path must:
+            * keep the software image decoder (VA decoder swap is no
+              longer attempted - empirically broken on real Intel
+              GPUs),
+            * prune the redundant ``decodebin3`` (step 2),
+            * insert a fresh ``vapostproc ! VAMemory NV12`` pair right
+              after the decoder (step 3), regardless of any leftover
+              ``videoconvert ! NV12`` further downstream.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/images/input/uploaded/x/x_%02d.jpg",
+                        "index": "1",
+                        "stop-index": "5",
+                        "loop": "false",
+                        "caps": "image/jpeg,framerate=30/1",
+                        "__image_set": "jpg",
+                    },
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="decodebin3", data={}),
+                Node(id="3", type="videoconvert", data={}),
+                Node(
+                    id="4",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "format": "NV12"},
+                ),
+                Node(id="5", type="gvamotiondetect", data={}),
+                Node(id="6", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+                Edge(id="e5", source="5", target="6"),
+            ],
+        )
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vajpegdec", "VA-API JPEG Decoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            graph._upgrade_image_set_for_va_memory("GPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # VA decoder swap is no longer attempted.
+        self.assertEqual(types_by_id["1"], "jpegdec")
+        # decodebin3 was pruned by step 2.
+        self.assertNotIn("decodebin3", [n.type for n in graph.nodes])
+        # Exactly one fresh vapostproc was inserted right after jpegdec.
+        vapostproc_nodes = [n for n in graph.nodes if n.type == "vapostproc"]
+        self.assertEqual(len(vapostproc_nodes), 1)
+        # The new vapostproc is followed by a VAMemory NV12 caps node.
+        edges_from = {}
+        for e in graph.edges:
+            edges_from.setdefault(e.source, []).append(e.target)
+        vp_id = vapostproc_nodes[0].id
+        nxt = edges_from[vp_id][0]
+        nxt_node = next(n for n in graph.nodes if n.id == nxt)
+        self.assertEqual(nxt_node.type, "video/x-raw(memory:VAMemory)")
+        self.assertEqual(nxt_node.data.get("format"), "NV12")
+        # The legacy videoconvert + NV12 caps stay as-is downstream.
+        self.assertEqual(types_by_id["3"], "videoconvert")
+        self.assertEqual(types_by_id["4"], "video/x-raw")
+
+    def test_gpu_target_swaps_software_h264_encoder_for_va_encoder(self) -> None:
+        """
+        Software H264 encoders (``openh264enc``/``x264enc``) cannot
+        accept ``video/x-raw(memory:VAMemory)`` nor NV12 in system
+        memory, which makes them incompatible with the all-VA
+        inference chain we build for image-set + GPU. The upgrade
+        path must swap them for an available VA H264 encoder.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(
+                    id="2",
+                    type="openh264enc bitrate=16000000 complexity=low",
+                    data={},
+                ),
+                Node(id="3", type="h264parse", data={}),
+                Node(id="4", type="mp4mux", data={}),
+                Node(
+                    id="5",
+                    type="filesink",
+                    data={"location": "/tmp/out.mp4"},
+                ),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+            ],
+        )
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vah264lpenc", "VA-API low-power H264 encoder"),
+            ("va", "vah264enc", "VA-API H264 encoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            graph._upgrade_image_set_for_va_memory("GPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # Low-power VA encoder preferred; inline properties dropped
+        # because the VA encoders use a different property surface.
+        self.assertEqual(types_by_id["2"], "vah264lpenc")
+        encoder_node = next(n for n in graph.nodes if n.id == "2")
+        self.assertEqual(encoder_node.data, {})
+
+    def test_cpu_target_keeps_software_h264_encoder(self) -> None:
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(
+                    id="2",
+                    type="openh264enc bitrate=16000000 complexity=low",
+                    data={},
+                ),
+                Node(
+                    id="3",
+                    type="filesink",
+                    data={"location": "/tmp/out.mp4"},
+                ),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+            ],
+        )
+
+        graph._upgrade_image_set_for_va_memory("CPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # On CPU we keep the software encoder unchanged.
+        self.assertEqual(
+            types_by_id["2"], "openh264enc bitrate=16000000 complexity=low"
+        )
+
+    def test_gpu_target_keeps_software_h264_encoder_when_no_va_encoder_available(
+        self,
+    ) -> None:
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="openh264enc", data={}),
+                Node(
+                    id="3",
+                    type="filesink",
+                    data={"location": "/tmp/out.mp4"},
+                ),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+            ],
+        )
+
+        # No VA encoder registered.
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("openh264", "openh264enc", "OpenH264 encoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            graph._upgrade_image_set_for_va_memory("GPU")
+
+        # Encoder unchanged - we never break a working pipeline by
+        # removing the only available encoder.
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        self.assertEqual(types_by_id["2"], "openh264enc")
+
+    def test_gpu_target_swaps_software_h264_encoders_in_both_tee_branches(
+        self,
+    ) -> None:
+        """
+        Smart NVR has a tee that fans out to two branches, each
+        ending with an ``openh264enc``. Both must be swapped to a
+        VA encoder when the target is GPU.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="tee", data={"name": "t0"}),
+                Node(id="3", type="queue", data={}),
+                Node(
+                    id="4",
+                    type="openh264enc bitrate=16000000 complexity=low",
+                    data={},
+                ),
+                Node(id="5", type="filesink", data={"location": "/tmp/a.mp4"}),
+                Node(id="6", type="queue", data={}),
+                Node(id="7", type="openh264enc", data={}),
+                Node(id="8", type="filesink", data={"location": "/tmp/b.mp4"}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+                Edge(id="e5", source="2", target="6"),
+                Edge(id="e6", source="6", target="7"),
+                Edge(id="e7", source="7", target="8"),
+            ],
+        )
+
+        fake_inspector = MagicMock()
+        fake_inspector.elements = [
+            ("va", "vah264lpenc", "VA-API low-power H264 encoder"),
+        ]
+        with patch("explore.GstInspector", return_value=fake_inspector):
+            graph._upgrade_image_set_for_va_memory("GPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        self.assertEqual(types_by_id["4"], "vah264lpenc")
+        self.assertEqual(types_by_id["7"], "vah264lpenc")
+
+
+class TestAdaptImageSetVideoPipeline(unittest.TestCase):
+    """
+    Verify that video-centric template elements (parsebin, video
+    decoders, container sinks) are rewritten into raw-video-friendly
+    form when the source is an image-set (multifilesrc + image
+    decoder), so that templates such as Smart NVR can run with
+    image-set inputs.
+    """
+
+    def _smart_nvr_like_graph(self) -> Graph:
+        """
+        Build a minimal graph that mimics the Smart NVR CPU template
+        after image-set source substitution:
+
+            multifilesrc -> jpegdec -> parsebin -> tee
+                            tee. -> queue -> splitmuxsink (recorder)
+                            tee. -> queue -> avdec_h264 -> capsfilter
+                                  -> gvafpscounter -> fakesink (inference)
+        """
+        return Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="parsebin", data={}),
+                Node(id="3", type="tee", data={"name": "t0"}),
+                Node(id="4", type="queue", data={}),
+                Node(
+                    id="5",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/out_%03d.mp4"},
+                ),
+                Node(id="6", type="queue", data={}),
+                Node(id="7", type="avdec_h264", data={}),
+                Node(id="8", type="capsfilter", data={"caps": "video/x-raw"}),
+                Node(id="9", type="gvafpscounter", data={}),
+                Node(id="10", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+                Edge(id="e5", source="3", target="6"),
+                Edge(id="e6", source="6", target="7"),
+                Edge(id="e7", source="7", target="8"),
+                Edge(id="e8", source="8", target="9"),
+                Edge(id="e9", source="9", target="10"),
+            ],
+        )
+
+    def test_parsebin_and_avdec_h264_replaced_by_identity(self) -> None:
+        graph = self._smart_nvr_like_graph()
+
+        # No encoder available in this test environment - we only
+        # care about the parser/decoder rewriting here.
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
+            graph._adapt_image_set_video_pipeline()
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # parsebin and avdec_h264 are no-ops for raw video and must
+        # become identity to keep the topology intact.
+        self.assertEqual(types_by_id["2"], "identity")
+        self.assertEqual(types_by_id["7"], "identity")
+        # The image decoder itself must be preserved.
+        self.assertEqual(types_by_id["1"], "jpegdec")
+        # No new nodes were added (encoder was unavailable).
+        self.assertEqual(len(graph.nodes), 11)
+
+    def test_encoder_chain_inserted_before_splitmuxsink(self) -> None:
+        graph = self._smart_nvr_like_graph()
+
+        with patch(
+            "video_encoder.VideoEncoder._select_element",
+            return_value="openh264enc bitrate=16000000 complexity=low",
+        ):
+            graph._adapt_image_set_video_pipeline()
+
+        types_in_order = [n.type for n in graph.nodes]
+        # The injected chain must end with h264parse right before the
+        # container sink and contain a videoconvert + an h264 encoder.
+        self.assertIn("videoconvert", types_in_order)
+        self.assertIn("h264parse", types_in_order)
+        self.assertTrue(
+            any("openh264enc" in t for t in types_in_order),
+            f"expected an openh264enc element in {types_in_order}",
+        )
+
+        # Connectivity check: queue(4) -> videoconvert -> encoder ->
+        # h264parse -> splitmuxsink(5).
+        edges = [(e.source, e.target) for e in graph.edges]
+        videoconvert_id = next(n.id for n in graph.nodes if n.type == "videoconvert")
+        encoder_id = next(n.id for n in graph.nodes if "openh264enc" in n.type)
+        h264parse_id = next(n.id for n in graph.nodes if n.type == "h264parse")
+
+        self.assertIn(("4", videoconvert_id), edges)
+        self.assertIn((videoconvert_id, encoder_id), edges)
+        self.assertIn((encoder_id, h264parse_id), edges)
+        self.assertIn((h264parse_id, "5"), edges)
+        # The original direct queue->splitmuxsink edge must be gone.
+        self.assertNotIn(("4", "5"), edges)
+
+    def test_no_op_when_no_image_set_source(self) -> None:
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "v.mp4"}),
+                Node(id="1", type="parsebin", data={}),
+                Node(id="2", type="avdec_h264", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+            ],
+        )
+
+        graph._adapt_image_set_video_pipeline()
+
+        types_in_order = [n.type for n in graph.nodes]
+        # Without an image-set source the adapter must leave the
+        # video-centric pipeline untouched.
+        self.assertEqual(
+            types_in_order, ["filesrc", "parsebin", "avdec_h264", "fakesink"]
+        )
+
+    def test_vamemory_capsfilter_degraded_to_plain_video_x_raw(self) -> None:
+        """
+        Smart NVR GPU template ships with
+        ``video/x-raw(memory:VAMemory)`` capsfilters paired with VA
+        video decoders (``vah264dec``). After image-set adaptation
+        the VA decoder becomes ``identity`` (which cannot negotiate
+        VAMemory) and the upstream chain produces system memory.
+        The leftover VAMemory capsfilters must therefore be degraded
+        to plain ``video/x-raw`` capsfilters; otherwise the pipeline
+        fails at parse time with ``can't handle caps
+        video/x-raw(memory:VAMemory)``.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="vah264dec", data={}),
+                Node(
+                    id="3",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="4", type="gvafpscounter", data={}),
+                Node(
+                    id="5",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps", "width": "320", "height": "240"},
+                ),
+                Node(id="6", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+                Edge(id="e5", source="5", target="6"),
+            ],
+        )
+
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
+            graph._adapt_image_set_video_pipeline()
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # vah264dec replaced with identity (Step 1).
+        self.assertEqual(types_by_id["2"], "identity")
+        # Both VAMemory capsfilters degraded to plain video/x-raw
+        # (Step 1b). Their data fields (width/height markers) are
+        # preserved because only the type prefix is rewritten.
+        self.assertEqual(types_by_id["3"], "video/x-raw")
+        self.assertEqual(types_by_id["5"], "video/x-raw")
+        caps5 = next(n for n in graph.nodes if n.id == "5")
+        self.assertEqual(caps5.data.get("width"), "320")
+        self.assertEqual(caps5.data.get("height"), "240")
+
+    def test_vamemory_capsfilter_without_kind_marker_is_also_degraded(
+        self,
+    ) -> None:
+        """
+        Regression test for Simple NVR GPU + image-set: the YAML
+        parser only marks a caps node with ``__node_kind=caps`` when
+        the segment carries at least one ``key=value`` pair. A bare
+        ``video/x-raw(memory:VAMemory)`` segment is therefore loaded
+        as a node with empty ``data`` (no kind marker). Step 1b must
+        still degrade that node, otherwise the leftover VAMemory caps
+        breaks the pipeline at parse time with
+        ``identity can't handle caps video/x-raw(memory:VAMemory)``.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="vah264dec", data={}),
+                # NOTE: no ``__node_kind`` marker - this mirrors how
+                # ``Graph.from_pipeline_description`` parses a bare
+                # ``video/x-raw(memory:VAMemory)`` segment.
+                Node(id="3", type="video/x-raw(memory:VAMemory)", data={}),
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+            ],
+        )
+
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
+            graph._adapt_image_set_video_pipeline()
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # vah264dec replaced with identity (Step 1).
+        self.assertEqual(types_by_id["2"], "identity")
+        # Bare VAMemory capsfilter degraded to plain video/x-raw
+        # (Step 1b heuristic on type prefix).
+        self.assertEqual(types_by_id["3"], "video/x-raw")
+
+    def test_vamemory_capsfilter_preserved_on_gpu_target(self) -> None:
+        """
+        Regression for Smart NVR GPU + image-set:
+        ``_adapt_image_set_video_pipeline(target_device='GPU')`` must
+        NOT degrade ``video/x-raw(memory:VAMemory)`` capsfilters. On
+        GPU/NPU, ``_upgrade_image_set_for_va_memory`` later inserts
+        ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
+        right after the image decoder, so a leftover VAMemory caps
+        node further downstream (here mimicking the post-tee branch
+        of Smart NVR: ``identity ! video/x-raw(memory:VAMemory) !
+        gvafpscounter``) is fed VA frames and must stay intact.
+        Degrading it would yield ``identity can't handle caps
+        video/x-raw`` at parse time, which is exactly the failure
+        observed in the field.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="vah264dec", data={}),
+                Node(
+                    id="3",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="4", type="gvafpscounter", data={}),
+                Node(id="5", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+            ],
+        )
+
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
+            graph._adapt_image_set_video_pipeline(target_device="GPU")
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # vah264dec is still replaced with identity (Step 1).
+        self.assertEqual(types_by_id["2"], "identity")
+        # Step 1b is a no-op on GPU: the VAMemory capsfilter survives
+        # untouched so that the VA frames produced upstream (by the
+        # vapostproc bridge inserted later) can pass through.
+        self.assertEqual(types_by_id["3"], "video/x-raw(memory:VAMemory)")
+
+    def test_vamemory_capsfilter_left_alone_for_non_image_set_pipeline(
+        self,
+    ) -> None:
+        """
+        The VAMemory capsfilter degrade must only run for image-set
+        pipelines; regular video pipelines (filesrc + parsebin +
+        vah264dec) must keep their VAMemory capsfilters intact.
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "v.mp4"}),
+                Node(id="1", type="parsebin", data={}),
+                Node(id="2", type="vah264dec", data={}),
+                Node(
+                    id="3",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+            ],
+        )
+
+        graph._adapt_image_set_video_pipeline()
+
+        types_by_id = {n.id: n.type for n in graph.nodes}
+        # No image-set source -> no rewriting at all.
+        self.assertEqual(types_by_id["2"], "vah264dec")
+        self.assertEqual(types_by_id["3"], "video/x-raw(memory:VAMemory)")
+
+    def test_nv12_caps_injected_before_gvamotiondetect(self) -> None:
+        """
+        ``gvamotiondetect`` only accepts NV12 raw video. Image
+        decoders such as ``jpegdec`` produce I420 by default, so the
+        link fails at parse time. The adapter must inject
+        ``videoconvert ! video/x-raw,format=NV12`` between the image
+        decoder and the motion-detect element.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="gvamotiondetect", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+            ],
+        )
+
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
+            graph._adapt_image_set_video_pipeline()
+
+        # A videoconvert and an NV12 caps node must have been
+        # inserted in front of gvamotiondetect.
+        videoconvert_nodes = [n for n in graph.nodes if n.type == "videoconvert"]
+        self.assertEqual(len(videoconvert_nodes), 1)
+        nv12_caps_nodes = [
+            n
+            for n in graph.nodes
+            if n.type == "video/x-raw"
+            and str(n.data.get("format", "")).upper() == "NV12"
+        ]
+        self.assertEqual(len(nv12_caps_nodes), 1)
+
+        videoconvert_id = videoconvert_nodes[0].id
+        caps_id = nv12_caps_nodes[0].id
+
+        edges = [(e.source, e.target) for e in graph.edges]
+        # jpegdec(1) -> videoconvert -> caps -> gvamotiondetect(2)
+        self.assertIn(("1", videoconvert_id), edges)
+        self.assertIn((videoconvert_id, caps_id), edges)
+        self.assertIn((caps_id, "2"), edges)
+        # The original direct jpegdec -> gvamotiondetect edge is gone.
+        self.assertNotIn(("1", "2"), edges)
+
+    def test_nv12_caps_not_reinjected_when_already_present(self) -> None:
+        """
+        If the user/template already supplies NV12 caps upstream of
+        ``gvamotiondetect``, the adapter must not insert a redundant
+        videoconvert/caps pair.
+        """
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={"__image_set": "jpg", "location": "x"},
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="videoconvert", data={}),
+                Node(id="3", type="video/x-raw", data={"format": "NV12"}),
+                Node(id="4", type="gvamotiondetect", data={}),
+                Node(id="5", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="e0", source="0", target="1"),
+                Edge(id="e1", source="1", target="2"),
+                Edge(id="e2", source="2", target="3"),
+                Edge(id="e3", source="3", target="4"),
+                Edge(id="e4", source="4", target="5"),
+            ],
+        )
+
+        with patch("video_encoder.VideoEncoder._select_element", return_value=None):
+            graph._adapt_image_set_video_pipeline()
+
+        # Exactly one videoconvert and one NV12 caps node - the
+        # originals; no extras injected.
+        self.assertEqual(len([n for n in graph.nodes if n.type == "videoconvert"]), 1)
+        self.assertEqual(
+            len(
+                [
+                    n
+                    for n in graph.nodes
+                    if n.type == "video/x-raw"
+                    and str(n.data.get("format", "")).upper() == "NV12"
+                ]
+            ),
+            1,
+        )
+
+
+class TestInternalMarkersStrippedFromPipelineDescription(unittest.TestCase):
+    """
+    Keys in ``Node.data`` whose name starts with ``__`` are reserved for
+    internal use by the graph layer (e.g. ``__node_kind`` for caps
+    discrimination, ``__image_set`` for image-set source round-tripping).
+    They must be filtered out when serializing the graph to a GStreamer
+    pipeline description string - otherwise the GStreamer parser rejects
+    the pipeline with ``no property "__xxx" in element "yyy"``.
+    """
+
+    @patch("graph.SupportedModelsManager")
+    @patch("graph.VideosManager")
+    def test_image_set_marker_not_emitted_on_multifilesrc(
+        self, mock_videos_cls, mock_models_cls
+    ) -> None:
+        mock_videos_cls.return_value = mock_videos_manager_instance
+        mock_models_cls.return_value = mock_models_manager_instance
+
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesrc",
+                    data={
+                        "location": "/images/input/uploaded/x/x_%02d.jpg",
+                        "index": "1",
+                        "stop-index": "40",
+                        "loop": "false",
+                        "caps": "image/jpeg,framerate=30/1",
+                        "__image_set": "jpg",
+                    },
+                ),
+                Node(id="1", type="jpegdec", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        description = graph.to_pipeline_description()
+
+        self.assertNotIn("__image_set", description)
+        # Real properties must remain.
+        self.assertIn("location=/images/input/uploaded/x/x_%02d.jpg", description)
+        self.assertIn("stop-index=40", description)
+        self.assertIn("loop=false", description)
+
+    @patch("graph.SupportedModelsManager")
+    @patch("graph.VideosManager")
+    def test_arbitrary_double_underscore_keys_are_stripped(
+        self, mock_videos_cls, mock_models_cls
+    ) -> None:
+        mock_videos_cls.return_value = mock_videos_manager_instance
+        mock_models_cls.return_value = mock_models_manager_instance
+
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="videotestsrc",
+                    data={"num-buffers": "10", "__internal_marker": "should-not-leak"},
+                ),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+
+        description = graph.to_pipeline_description()
+
+        self.assertNotIn("__internal_marker", description)
+        self.assertNotIn("should-not-leak", description)
+        self.assertIn("num-buffers=10", description)
 
 
 if __name__ == "__main__":

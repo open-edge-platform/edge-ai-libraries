@@ -171,6 +171,31 @@ def test_upload_unsupported_file(test_client):
         }
 
 
+def test_upload_document_without_text_returns_clean_detail(test_client, mocker):
+    """
+    Verify that uploading a valid file with no extractable text returns the
+    original embedding error detail without duplicate wrapper text.
+    """
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        tmp_file.write(b"fake image-only pdf bytes")
+        tmp_file.seek(0)
+
+        mocker.patch("app.server.validate_document", return_value=True)
+        mocker.patch("app.server.save_document", return_value=(tmp_file.name, None))
+        mocker.patch("app.server.create_faiss_vectordb", return_value=False)
+
+        response = test_client.post(
+            "/documents",
+            files={"files": (tmp_file.name, tmp_file, "application/pdf")},
+        )
+
+        assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+        assert response.json() == {
+            "detail": "Error creating embedding. No text data from the document."
+        }
+
+
 def test_fail_get_documents(test_client, mocker):
     """
     Test case for handling failure when retrieving documents from the vector database.

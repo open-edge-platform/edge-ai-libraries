@@ -5,4 +5,6 @@ import { API_BASE_URL } from "./apiSlice";
  */
 export const ENDPOINTS = {
   UPLOAD_VIDEO: `${API_BASE_URL}/videos/upload`,
+  UPLOAD_IMAGE_ARCHIVE: `${API_BASE_URL}/images/upload`,
+  UPLOAD_MODEL: `${API_BASE_URL}/models/upload`,
 } as const;

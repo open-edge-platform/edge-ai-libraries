@@ -19,7 +19,7 @@ import { useEffect, useCallback } from "react";
 import { useAppDispatch } from "@/store/hooks";
 import { toast } from "sonner";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
-import { MultiFileUploader } from "@/components/shared/MultiFileUploader.tsx";
+import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
 
 export const Videos = () => {
   const { data: videos, isSuccess, isLoading } = useGetVideosQuery();
@@ -95,6 +95,7 @@ export const Videos = () => {
 
       <MultiFileUploader
         accept="video/*"
+        maxSize={2 * 1024 * 1024 * 1024} // 2 GB
         uploadEndpoint={ENDPOINTS.UPLOAD_VIDEO}
         checkFileExists={handleCheckFileExists}
         onUploadProgress={handleUploadProgress}
@@ -120,7 +121,11 @@ export const Videos = () => {
           <TableBody>
             {filteredVideos.map((video) => (
               <TableRow key={video.filename}>
-                <TableCell className="font-medium">{video.filename}</TableCell>
+                <TableCell className="font-medium max-w-0">
+                  <div className="truncate" title={video.filename}>
+                    {video.filename}
+                  </div>
+                </TableCell>
                 <TableCell>
                   {video.width}x{video.height}
                 </TableCell>
@@ -131,7 +136,7 @@ export const Videos = () => {
                 </TableCell>
                 <TableCell>
                   <video
-                    src={`/assets/videos/input/${video.filename}`}
+                    src={`/assets/videos/input/${video.path}`}
                     controls
                     className="w-48 h-auto"
                   >

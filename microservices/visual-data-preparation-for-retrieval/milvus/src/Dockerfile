@@ -1,11 +1,19 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.12.12-slim
+# Use latest Python 3.12 slim image with security patches
+FROM python:3.12-slim
 
 ENV LANG=C.UTF-8
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing gnupg curl unzip
+# Update system packages and install dependencies with latest security patches
+RUN apt-get update -y && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends --fix-missing \
+        gnupg \
+        curl \
+        unzip \
+        ca-certificates
 
 RUN curl https://repositories.intel.com/gpu/intel-graphics.key | \
     gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg && \
@@ -14,9 +22,10 @@ RUN curl https://repositories.intel.com/gpu/intel-graphics.key | \
     apt-get update && \
     apt-get install --no-install-recommends -y \
     libze1 intel-level-zero-gpu intel-opencl-icd && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-RUN apt-get remove --no-install-recommends -y gnupg && \
-    apt-get autoremove -y
+    apt-get remove --no-install-recommends -y gnupg && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/bash user && \
 mkdir -p /home/user && \

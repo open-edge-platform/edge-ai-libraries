@@ -21,6 +21,7 @@ export interface SummaryPipelinePrompts {
 
 export interface SummaryPipelineAudio {
   audioModel: string;
+  useFullTranscriptSummary?: boolean;
 }
 
 export interface SummaryPipelineEvam {
@@ -31,6 +32,7 @@ export interface SummaryPipelineDTO {
   videoId: string;
   video?: Video;
   title: string;
+  produceFinalSummary?: boolean;
   sampling: SummaryPipelineSampling;
   evam: SummaryPipelineEvam;
   prompts?: SummaryPipelinePrompts;

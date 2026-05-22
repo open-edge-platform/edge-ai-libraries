@@ -23,14 +23,11 @@
 
     1. Download helm chart with the following command
 
-        `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.1.0-<date>-weekly-helm`
-
-        Replace `<date>` with the actual patch version date (e.g., `20260120` for January 20th, 2026).
-        `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.1.0-20260120-weekly-helm`
+        `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.1.0-rc1-helm`
 
     2. unzip the package using the following command
 
-        `tar -xvzf ia-time-series-analytics-microservice-2026.1.0-<date>-weekly-helm.tgz`
+        `tar -xvzf ia-time-series-analytics-microservice-2026.1.0-rc1-helm.tgz`
 
     - Get into the helm directory
 
@@ -97,7 +94,6 @@ python3 simulator/temperature_input.py --port 30002
 ## Verify the Temperature Classifier Results
 
 Run following commands to see the filtered temperature results:
-
 
 ``` bash
 POD_NAME=$(kubectl get pods -n apps -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep deployment-time-series-analytics-microservice | head -n 1)

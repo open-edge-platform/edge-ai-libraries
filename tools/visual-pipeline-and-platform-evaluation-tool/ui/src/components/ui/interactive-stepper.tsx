@@ -423,7 +423,7 @@ export const InteractiveStepperTrigger = React.forwardRef<
   };
 
   const triggerClasses = cn(
-    "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
+    "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
     className,
   );
 
@@ -451,7 +451,7 @@ export const InteractiveStepperTitle = React.forwardRef<
   const titleClasses = cn(
     "text-sm font-medium leading-none text-primary text-left",
     orientation === "horizontal" ? "ml-3" : "mt-2 ml-3",
-    // state === 'active' ? 'text-primary' : 'text-gray-500',
+    // state === 'active' ? 'text-primary' : 'text-muted-foreground',
     className,
   );
 
@@ -469,7 +469,7 @@ export const InteractiveStepperDescription = React.forwardRef<
   const { orientation } = useStepper();
 
   const descriptionClasses = cn(
-    "text-sm text-gray-500 text-left",
+    "text-sm text-muted-foreground text-left",
     orientation === "horizontal" ? "ml-3" : "mt-1 ml-3",
     className,
   );
@@ -497,8 +497,10 @@ export const InteractiveStepperSeparator = React.forwardRef<
 
   const separatorClasses = cn(
     className,
-    isCompleted ? "w-[2px] bg-primary" : "bg-muted",
-    orientation === "horizontal" ? "h-[0px] flex-1" : "w-[1px] h-10 ml-[17px]",
+    isCompleted ? "w-[0.125rem] bg-primary" : "bg-muted",
+    orientation === "horizontal"
+      ? "h-[0rem] flex-1"
+      : "w-[0.0625rem] h-10 ml-[1.0625rem]",
   );
 
   return <div ref={ref} className={separatorClasses} {...props} />;

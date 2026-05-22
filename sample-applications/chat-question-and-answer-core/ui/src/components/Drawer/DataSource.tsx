@@ -118,8 +118,21 @@ const DataSource: FC<DataSourceProps> = ({ close }) => {
         notify(t('fileUploadSuccessful'), NotificationSeverity.SUCCESS);
         dispatch(fetchInitialFiles());
       } catch (error) {
-        const axiosError = error as AxiosError;
-        notify(`${axiosError.message}`, NotificationSeverity.ERROR);
+        const axiosError = error as AxiosError<{
+          detail?: string;
+          message?: string;
+        }>;
+        const payloadError =
+          error && typeof error === 'object' && 'message' in error
+            ? (error as { message?: string }).message
+            : undefined;
+        const errorMessage =
+          axiosError.response?.data?.detail ||
+          axiosError.response?.data?.message ||
+          payloadError ||
+          t('filesFailedToUpload');
+
+        notify(`${errorMessage}`, NotificationSeverity.ERROR);
       } finally {
         setFile(null);
         if (fileInputRef.current) {

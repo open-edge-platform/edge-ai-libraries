@@ -1,0 +1,31 @@
+@import "highlight.js/styles/github.css";
+
+.hljs {
+  background: transparent;
+  padding: 0;
+}
+
+pre code.hljs {
+  padding: 0;
+}
+
+/*
+ * JSON-specific overrides — the default GitHub theme maps keys, numbers, and
+ * strings to almost the same blue/navy, making JSON hard to scan. These
+ * overrides give each token type a distinct colour.
+ */
+
+.hljs-attr { color: oklch(0.4949 0.1802 257.61) }           /* keys – blue */
+.hljs-string { color: oklch(0.5463 0.1442 147.34) }         /* string values – green */
+.hljs-number { color: oklch(0.6483 0.1799 45.86) }          /* numbers – orange */
+.hljs-literal { color: oklch(0.5015 0.1884 294.99) }        /* true / false / null wrapper */
+.hljs-literal .hljs-keyword { color: oklch(0.588 0.1927 20.46) }  /* true / false / null – red */
+.hljs-punctuation { color: oklch(0.5514 0.019 251.01) }     /* braces, brackets, commas – gray */
+
+.dark .hljs { color: oklch(0.8569 0.0142 248.08) }
+.dark .hljs-attr { color: oklch(0.7856 0.1154 246.67) }     /* keys – light blue */
+.dark .hljs-string { color: oklch(0.8416 0.1641 145.78) }   /* string values – green */
+.dark .hljs-number { color: oklch(0.7992 0.1411 60.09) }    /* numbers – orange */
+.dark .hljs-literal { color: oklch(0.8005 0.1275 305.84) }  /* true / false / null wrapper – purple */
+.dark .hljs-literal .hljs-keyword { color: oklch(0.7345 0.1626 25.77) }  /* true / false / null – coral */
+.dark .hljs-punctuation { color: oklch(0.6625 0.0182 250.96) }  /* braces, brackets, commas – muted gray */

@@ -1,13 +1,8 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+# Backend services required for Video Search Application.
 services:
-    vss-ui:
-        environment:
-            APP_SOCKET_APPEND: ${CONFIG_SOCKET_APPEND:-CONFIG_OFF}
-            APP_SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_OFF}
-            APP_SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_ON}
-
     pipeline-manager:
         depends_on:
             vdms-vector-db:
@@ -21,8 +16,7 @@ services:
         environment:
             SEARCH_ENDPOINT: ${VS_ENDPOINT}
             SEARCH_DATAPREP_ENDPOINT: ${VDMS_DATAPREP_ENDPOINT}
-            SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_OFF}
-            SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_ON}
+            SEARCH_FEATURE: "FEATURE_ON"
 
     video-search:
         image: ${REGISTRY:-}video-search:${TAG:-latest}
@@ -42,8 +36,8 @@ services:
         ports:
             - '${VS_HOST_PORT}:8000'
         environment:
-            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},${PM_HOST},localhost
-            no_proxy_env: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},${PM_HOST},localhost
+            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},pipeline-manager,localhost
+            no_proxy_env: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},pipeline-manager,localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             VDMS_VDB_HOST: ${VDMS_VDB_HOST}
@@ -145,6 +139,11 @@ services:
             ALLOW_ORIGINS: ${ALLOW_ORIGINS:-*}
             ALLOW_METHODS: ${ALLOW_METHODS:-*}
             ALLOW_HEADERS: ${ALLOW_HEADERS:-*}
+        ulimits:
+            nofile:
+                soft: 32768
+                hard: 65535
+        ipc: host
         ports:
             - '${VDMS_DATAPREP_HOST_PORT}:8000'
         depends_on:
@@ -170,7 +169,7 @@ services:
             - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
         devices:
-            - /dev/dri:/dev/dri
+            - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
         group_add:
             - ${USER_GROUP_ID:-1000}
             - ${VIDEO_GROUP_ID:-44}
@@ -198,7 +197,7 @@ services:
             DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES}
             OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
         devices:
-            - /dev/dri:/dev/dri
+            - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
         group_add:
             - ${USER_GROUP_ID:-1000}
             - ${VIDEO_GROUP_ID:-44}
