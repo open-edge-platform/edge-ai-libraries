@@ -34,7 +34,7 @@ export interface MetricHistoryPoint {
   gpus: Record<string, GpuMetrics>;
 }
 
-const MAX_HISTORY_POINTS = 60;
+const MAX_HISTORY_WINDOW_MS = 60_000;
 
 export const useMetricHistory = () => {
   const metrics = useMetrics();
@@ -91,12 +91,8 @@ export const useMetricHistory = () => {
       };
 
       const updated = [...prev, newPoint];
-
-      if (updated.length > MAX_HISTORY_POINTS) {
-        return updated.slice(updated.length - MAX_HISTORY_POINTS);
-      }
-
-      return updated;
+      const cutoff = now - MAX_HISTORY_WINDOW_MS;
+      return updated.filter((point) => point.timestamp >= cutoff);
     });
   }, [
     isConnected,
