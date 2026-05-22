@@ -103,7 +103,7 @@ def _skip_when_external_model_missing(request: pytest.FixtureRequest) -> None:
     if not model_path.is_dir():
         pytest.skip(
             f"Pre-downloaded model for pipeline '{pipeline_name}' "
-            f"({case_value.device_family}) not found at {model_path}. "
+            f"({getattr(case_value, 'device_family', '')}) not found at {model_path}. "
             "Download the model before running this test."
         )
 
