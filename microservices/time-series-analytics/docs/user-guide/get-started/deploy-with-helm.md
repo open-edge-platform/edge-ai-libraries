@@ -6,8 +6,8 @@
 - K8s installation on single or multi node must be done as pre-requisite to continue
   the following deployment. Note: The kubernetes cluster is set up with `kubeadm`,
   `kubectl` and `kubelet` packages on single and multi nodes with `v1.30.2`.
-  Refer to tutorials such as <https://adamtheautomator.com/installing-kubernetes-on-ubuntu> and many other
-  online tutorials to set up Kubernetes cluster on the web with host OS as Ubuntu 22.04.
+  Refer to tutorials such as <https://dev.to/korakrit/installing-kubernetes-single-node-setup-on-ubuntu-2404-4f47> and many other
+  online tutorials to set up Kubernetes cluster on the web with host OS as Ubuntu 24.04.
 - For Helm installation, refer to [Helm website](https://helm.sh/docs/intro/install/)
 
 > **Note**
