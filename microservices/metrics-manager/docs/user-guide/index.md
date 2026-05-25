@@ -61,43 +61,7 @@ hide_directive-->
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         DOCKER CONTAINER                            │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │             SUPERVISOR (process manager)                     │   │
-│  │                                                              │   │
-│  │  ┌────────────────────┐ ┌────────────────────┐ ┌────────┐    │   │
-│  │  │   Metrics-Mgr      │ │    Telegraf        │ │ qmassa │    │   │
-│  │  │   (FastAPI)        │ │  (collector)       │ │ (GPU)  │    │   │
-│  │  │   :9090            │ │  :9273/:8186       │ │→ FIFO  │    │   │
-│  │  └────────┬───────────┘ └────────┬───────────┘ └────┬───┘    │   │
-│  │           │                      │                  │        │   │
-│  └───────────┼──────────────────────┼──────────────────┼────────┘   │
-│              │                      │                  │            │
-│              │        HTTP POST :8186/write            │            │
-│              │       (InfluxDB Line Protocol)          │            │
-│              │                                         │            │
-│              ▼                      ▼                  ▼            │
-│         ┌──────────────┐     ┌──────────────────┐                   │
-│         │ MetricsStore │     │  qmassa.fifo     │                   │
-│         │ (in-memory)  │     │ (named pipe)     │                   │
-│         └──────┬───────┘     └──────────────────┘                   │
-│                │                                                    │
-│         ┌──────┴───────────────────────────┐                        │
-│         ▼                                  ▼                        │
-│     ┌───────────────────┐  ┌──────────────────────────────┐         │
-│     │   REST API        │  │       SSE Stream             │         │
-│     │ /api/v1/*         │  │ /metrics/stream              │         │
-│     │ /metrics          │  │ (polls :9273 every 500ms)    │         │
-│     │ /write            │  │ → N browser clients          │         │
-│     │ /health           │  │                              │         │
-│     └───────────────────┘  └──────────────────────────────┘         │
-│                                                                     │
-│  Ports: 9090 (API+SSE) │ 9273 (Telegraf) │ 8186 (HTTP)              │
-└─────────────────────────────────────────────────────────────────────┘
-```
+![Metrics Manager Microservice Architecture](./_assets/metrics-mgr-microsvc-arch.drawio.svg "microservice architecture diagram")
 
 ## How It Works
 

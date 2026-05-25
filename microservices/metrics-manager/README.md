@@ -22,35 +22,9 @@ A unified metrics collection, ingestion, and relay service that combines Telegra
 - **Memory Protection**: Automatic eviction when memory limits reached
 - **Graceful Shutdown**: Clean handling of SIGTERM/SIGINT signals
 
-## Architecture
+## Data Flow
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                              Metrics Manager                                     │
-│                                                                                  │
-│  ┌─────────────┐    ┌──────────────────┐    ┌───────────────────────────────┐    │
-│  │  Telegraf   │    │     FastAPI      │    │       Custom Metrics          │    │
-│  │  (System)   │--->│      Server      │<---│       REST API                │    │
-│  │             │    │                  │    │                               │    │
-│  │ • CPU       │    │ /metrics/stream  │    │ POST /api/v1/metrics          │    │
-│  │ • Memory    │    │ /metrics         │    │ POST /api/v1/metrics/simple   │    │
-│  │ • Temp      │    │ /health          │    │ POST /api/v1/metrics/influx   │    │
-│  │ • GPU       │    │                  │    │ POST /api/v1/metrics/otlp     │    │
-│  │ • NPU       │    │                  │    │                               │    │
-│  └─────────────┘    └────────┬─────────┘    └───────────────────────────────┘    │
-│                              │                                                   │
-│                              ▼                                                   │
-│                      ┌───────────────┐                                           │
-│                      │  SSE Clients  │                                           │
-│                      │  (dashboards) │                                           │
-│                      └───────────────┘                                           │
-│                                                                                  │
-│  Ports:                                                                          │
-│  • 9090: Metrics Manager API + SSE                                               │
-│  • 9273: Telegraf Prometheus metrics                                             │
-│  • 8186: Telegraf HTTP listener (InfluxDB Line Protocol)                         │
-└──────────────────────────────────────────────────────────────────────────────────┘
-```
+![Metrics Manager Runtime Dataflow](./docs/user-guide/_assets/metrics-mgr-runtime-topology-v2.drawio.svg "metrics manager runtime dataflow")
 
 ## Quick Start
 
@@ -163,7 +137,7 @@ helm install metrics-manager \
 
 The chart exposes Telegraf and the REST/SSE API as a `Service`, supports
 `Deployment` or `DaemonSet` mode, and integrates with Prometheus Operator
-via an opt-in `ServiceMonitor`. See the [Helm Depoloyment Guide](./docs/user-guide/get-started/deploy-with-helm.md) for the
+via an opt-in `ServiceMonitor`. See the [Helm Deployment Guide](./docs/user-guide/get-started/deploy-with-helm.md) for the
 complete reference.
 
 ## Building the Image
@@ -372,13 +346,13 @@ metrics-manager/
 | [Troubleshooting](./docs/user-guide/troubleshooting.md)                         | Common issues and solutions                                         |
 | [Release Notes](./docs/user-guide/release-notes.md)                             | Version history and changelog                                       |
 
-## License
-
-Copyright (C) 2025-2026 Intel Corporation
-SPDX-License-Identifier: Apache-2.0
-
 ## Reporting issues
 
 Please open issues and feature requests in the upstream repository:
 <https://github.com/open-edge-platform/edge-ai-libraries/issues>
 (label them `metrics-manager`).
+
+## License
+
+Copyright (C) 2025-2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
