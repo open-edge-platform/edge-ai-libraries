@@ -1,0 +1,155 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# =============================================================================
+# Metrics Manager - Docker Compose Configuration
+# =============================================================================
+#
+# This compose file provides flexible deployment options:
+#
+# 1. Full stack (service + collector in one container)
+# 2. Service-only (connect external collector)
+# 3. With custom Telegraf configuration
+#
+# Usage:
+#   docker compose up              # Start full stack
+#   docker compose up --build      # Build and start
+#   docker compose -f compose.yaml -f compose.custom.yaml up  # With custom config
+#
+# =============================================================================
+
+name: ${PROJECT_NAME:-metrics-manager}
+
+services:
+  # ---------------------------------------------------------------------------
+  # Metrics Manager - Main service container
+  # ---------------------------------------------------------------------------
+  metrics-manager:
+    image: ${REGISTRY:-}metrics-manager:${TAG:-2026.1.0}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Image version label (matches the tag, sourced from ./VERSION)
+        VERSION: ${TAG:-2026.1.0}
+        # Pass proxy settings to Docker build
+        http_proxy: ${http_proxy:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        https_proxy: ${https_proxy:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        no_proxy: ${no_proxy:-}
+        NO_PROXY: ${NO_PROXY:-}
+    container_name: metrics-manager
+
+    # Environment configuration
+    environment:
+      # Proxy settings
+      - no_proxy=localhost,127.0.0.1,${no_proxy:-}
+      - NO_PROXY=localhost,127.0.0.1,${NO_PROXY:-}
+      - http_proxy=${http_proxy:-}
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - https_proxy=${https_proxy:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+
+      # Service configuration (internal ports are fixed)
+      - METRICS_PORT=9090
+      - TELEGRAF_PORT=9273
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+
+      # Stable host label for Telegraf, qmassa_reader and npu_reader.
+      # When unset all three fall back to the kernel hostname; set it to a
+      # fixed value (e.g. an asset tag) to keep Grafana dashboards stable
+      # across reboots where the kernel hostname may change.
+      - METRICS_MANAGER_HOSTNAME=${METRICS_MANAGER_HOSTNAME:-}
+
+      # Metrics configuration
+      - CUSTOM_METRICS_DIR=/app/custom-metrics
+      - TELEGRAF_CONFIG_PATH=/etc/telegraf/telegraf.conf
+      - METRICS_RETENTION_SECONDS=${METRICS_RETENTION_SECONDS:-300}
+      - MAX_METRICS_BATCH_SIZE=${MAX_METRICS_BATCH_SIZE:-1000}
+
+    # Port mappings (external:internal - internal ports are fixed)
+    ports:
+      - "${HOST_METRICS_PORT:-9090}:9090"      # Metrics Manager API
+      - "${HOST_TELEGRAF_PORT:-9273}:9273"     # Telegraf Prometheus
+      - "${HOST_TELEGRAF_HTTP_PORT:-8186}:8186" # Telegraf HTTP listener
+
+    # Device access for system metrics
+    privileged: ${PRIVILEGED:-true}
+
+    # Security: Disable AppArmor (required when /proc is read-only or in nested containers)
+    security_opt:
+      - apparmor:unconfined
+
+    devices:
+      - "/dev/dri:/dev/dri"  # GPU devices
+    volumes:
+      # System paths for metrics collection (read-only bind mounts)
+      - /sys:/sys:ro
+      # Note: /proc is accessible via pid:host, no mount needed
+      # Mounting /proc:ro would break AppArmor
+      - /run:/run:ro
+      # Custom Telegraf configuration (optional)
+      - ${TELEGRAF_CONFIG:-./telegraf.conf}:/etc/telegraf/telegraf.conf:ro
+      # Additional Telegraf configs (optional)
+      - ${TELEGRAF_CONFIG_DIR:-./telegraf.d}:/etc/telegraf/telegraf.d:ro
+      # Custom metrics storage - mount point for user-provided Telegraf input scripts/configs
+      - custom-metrics:/app/custom-metrics
+    pid: host
+
+    # Health check (used by depends_on: condition: service_healthy)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Networking
+    networks:
+      - metric-network
+
+  # ---------------------------------------------------------------------------
+  # Metrics Manager Tests - runs pytest and exits
+  # ---------------------------------------------------------------------------
+  metrics-manager-test:
+    image: ${REGISTRY:-}metrics-manager-test:${TAG:-2026.1.0}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+      args:
+        VERSION: ${TAG:-2026.1.0}
+        http_proxy: ${http_proxy:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        https_proxy: ${https_proxy:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        no_proxy: ${no_proxy:-}
+        NO_PROXY: ${NO_PROXY:-}
+    container_name: metrics-manager-test
+    restart: "no"
+    profiles:
+      - test
+    networks:
+      - metric-network
+
+# -----------------------------------------------------------------------------
+# Volumes
+# -----------------------------------------------------------------------------
+volumes:
+  custom-metrics:
+    driver: local
+    # Mount point for user-provided Telegraf input scripts (.sh, .py)
+    # Scripts should output InfluxDB Line Protocol format on stdout
+    # Example: /app/custom-metrics/my_sensor.py → telegraf executes and injects output
+
+# -----------------------------------------------------------------------------
+# Networks
+# -----------------------------------------------------------------------------
+networks:
+  metric-network:
+    driver: bridge

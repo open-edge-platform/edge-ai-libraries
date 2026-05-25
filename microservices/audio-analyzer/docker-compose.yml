@@ -1,0 +1,25 @@
+services:
+  audio-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: audio-analyzer
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    ports:
+      - "8010:8010"
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+    environment:
+      HF_HOME: /app/audio_analyzer/.cache/huggingface
+    volumes:
+      - ./config.yaml:/app/audio_analyzer/config.yaml:ro
+      - ./models:/app/audio_analyzer/models
+      - ./chunks:/app/audio_analyzer/chunks
+      - ./storage:/app/audio_analyzer/storage
+      - ./.cache/huggingface:/app/audio_analyzer/.cache/huggingface
+    restart: unless-stopped
+    # Uncomment the next lines if you also need microphone capture from the host.
+    # devices:
+    #   - /dev/snd:/dev/snd

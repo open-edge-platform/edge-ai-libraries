@@ -125,23 +125,19 @@ ViPPET currently supports only models defined in:
 
 - [supported_models.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml)
 
-A user can try to extend this file with new models whose `source` is either `public` or `pipeline-zoo-models`, but
-there is **no guarantee** that such models will work out of the box.
+A user can try to extend this file with new models, but there is **no guarantee** that
+such models will work out of the box. New entries must point to a `source` that the
+`model-download` microservice knows how to handle (for example `huggingface`,
+`ultralytics`, `openvino`, `pipeline-zoo-models`, `geti`, `hls`).
 
-- Models with `source: public` must be supported by the following script:
-  [download_public_models.sh](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/download_public_models.md)
-- Models with `source: pipeline-zoo-models` must already exist in this repository:
-  [pipeline-zoo-models](https://github.com/dlstreamer/pipeline-zoo-models)
-
-After adding new models to `supported_models.yaml`, you must:
+After adding new models to `supported_models.yaml`, restart the stack so the backend
+picks up the updated model set, then install the new models from the **Models** page
+in the UI (or via the `/api/v1/models` API):
 
 ```bash
 make stop
-make install-models-force
 make run
 ```
-
-Only then will ViPPET rescan and manage the updated model set.
 
 ---
 

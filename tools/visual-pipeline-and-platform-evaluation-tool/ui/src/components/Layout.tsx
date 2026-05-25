@@ -1,4 +1,4 @@
-import { Outlet, useLocation, matchPath } from "react-router";
+import { Outlet, useLocation, matchPath, Link } from "react-router";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { usePipelinesLoader } from "@/hooks/usePipelines.ts";
 import { useModelsLoader } from "@/hooks/useModels.ts";
@@ -20,6 +20,9 @@ import { BackgroundJobsProvider } from "@/contexts/BackgroundJobsContext";
 import { BackgroundJobsWidget } from "@/components/BackgroundJobsWidget";
 import { useEffect, useState } from "react";
 import { SERVERS_BASE_URL, ADMIN_API_KEY } from "@/api/apiSlice.ts";
+import { useAppSelector } from "@/store/hooks";
+import { selectIsAnyModelDownloaded } from "@/store/reducers/models";
+import { toast } from "@/lib/toast";
 
 const Layout = () => {
   usePipelinesLoader();
@@ -28,6 +31,7 @@ const Layout = () => {
   const { theme, setTheme } = useTheme();
   const location = useLocation();
   const [isServerRole, setIsServerRole] = useState(false);
+  const hasModels = useAppSelector(selectIsAnyModelDownloaded);
 
   useEffect(() => {
     fetch(`${SERVERS_BASE_URL}/servers/db-status`, {
@@ -39,6 +43,29 @@ const Layout = () => {
       .then((data) => setIsServerRole(data?.role === "vippet_server"))
       .catch(() => setIsServerRole(false));
   }, []);
+
+  useEffect(() => {
+    if (!hasModels) {
+      toast.warning("There are no models in the system.", {
+        id: "no-models-warning",
+        closeButton: false,
+        description: (
+          <span>
+            Go to the{" "}
+            <Link
+              to="/models"
+              className="font-semibold underline underline-offset-2"
+            >
+              Models
+            </Link>{" "}
+            page and download models.
+          </span>
+        ),
+      });
+    } else {
+      toast.dismiss("no-models-warning");
+    }
+  }, [hasModels]);
 
   return (
     <BackgroundJobsProvider>

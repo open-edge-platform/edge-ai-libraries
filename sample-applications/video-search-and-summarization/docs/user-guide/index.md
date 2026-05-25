@@ -34,6 +34,9 @@ along with the required microservices are as follows.
   - [How to Build from Source](./build-from-source.md): How to build from source code.
   - [How to Deploy with Helm](./deploy-with-helm.md): How to deploy using the Helm chart.
 
+- **AI Agents Integration**
+  - [MCP Server](./mcp-server.md): Connect AI agents and IDE extensions to VSS using the Model Context Protocol (MCP).
+
 - **API Reference**
   - [API Reference](./api-reference.md): Comprehensive reference for the available REST API endpoints.
 
@@ -51,6 +54,7 @@ deploy-with-helm
 Deploy VSS with vLLM <helm-installation-vLLM-guide>
 directory-watcher-guide
 api-reference
+mcp-server
 troubleshooting
 release-notes
 :::

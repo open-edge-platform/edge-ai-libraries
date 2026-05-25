@@ -30,6 +30,8 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `EMBEDDING_PROCESSING_MODE` | ✅ | `sdk` | Selects optimized in-process execution (`sdk`) or HTTP-based execution (`api`). |
 | `SDK_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration in SDK mode. Set `false` to stay on PyTorch. |
 | `VDMS_DATAPREP_DEVICE` | Optional | `CPU` | Processing device for embeddings, and object detection (`CPU` or `GPU`). |
+| `EMBEDDING_BATCH_SIZE` | Optional | `32` | Number of items sent per SDK embedding batch. |
+| `MAX_PARALLEL_WORKERS` | Optional | _(auto)_ | Hard cap for SDK parallel workers when auto-scaling is too aggressive for the host. |
 | `FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
 | `ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles YOLOX-based crop extraction. |
 | `DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |
@@ -37,6 +39,18 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `ROI_CONSOLIDATION_IOU_THRESHOLD` | Optional | `0.2` | IoU threshold used to group overlapping boxes into a single ROI. |
 | `ROI_CONSOLIDATION_CLASS_AWARE` | Optional | `false` | Merge only boxes of the same class when `true`. |
 | `ROI_CONSOLIDATION_CONTEXT_SCALE` | Optional | `0.2` | Expands merged ROIs by this fraction of their width/height. |
+| `SDK_VIDEO_SHM_MAX_BLOCKS` | Optional | `512` | Shared memory block count for SDK video decode and embedding pipeline. |
+| `SDK_VIDEO_SHM_BLOCK_SIZE` | Optional | `6220800` | Per-block shared memory size in bytes (default sized for 1080p RGB frames). |
+| `SDK_VIDEO_EXTRACTION_BATCH_SIZE` | Optional | `256` | Decoder-side batch size used when extracting frames for SDK processing. |
+| `SDK_PIPELINE_QUEUE_MAXSIZE` | Optional | `16` | Queue capacity for inter-stage SDK pipeline buffers. |
+| `SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE` | Optional | `1` | Queue capacity for completion/result handoff stage. |
+| `SDK_DETECTION_WORKER_THREADS` | Optional | `2` | Local thread count used by object-detection worker stage. |
+| `SDK_EMBED_WORKER_THREADS` | Optional | `2` | Local thread count used by embedding worker stage. |
+| `SDK_PIPELINE_QUEUE_GET_TIMEOUT_S` | Optional | `1.0` | Timeout in seconds for pipeline queue reads before retry loops. |
+| `SAVE_RUNTIME_PIPELINE_STATS` | Optional | `false` | Persist batch/stream runtime stats JSON artifacts for debugging and profiling. |
+| `SDK_ENABLE_TRACING` | Optional | `false` | Enables trace emission for SDK decode/detect/embed/store stages. |
+| `VIDEO_FRAME_DECODER_WORKERS` | Optional | `2` | Number of decoder workers used in frame extraction utilities. |
+| `VIDEO_FRAME_LOG_LEVEL` | Optional | `INFO` | Log level for decoder internals (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
 | `OV_MODELS_DIR` | Optional | `/app/ov_models` | Persistent mount that caches OpenVINO-optimized models. |
 | `ALLOW_ORIGINS`, `ALLOW_METHODS`, `ALLOW_HEADERS` | Optional | `*` | CORS configuration applied by FastAPI. |
 
@@ -47,6 +61,10 @@ Additional environment variables are available for high-throughput scenarios:
 - `ENABLE_PARALLEL_PIPELINE` (default `true`) — disable to force single-threaded embedding.
 - `MAX_PARALLEL_WORKERS` — hard cap on SDK worker threads (auto-calculated when unset).
 - `OV_PERFORMANCE_MODE`, `OV_PERFORMANCE_HINT_NUM_REQUESTS`, `OV_NUM_STREAMS` — forward performance hints to OpenVINO when running on CPU or GPU.
+- `SDK_VIDEO_SHM_MAX_BLOCKS`, `SDK_VIDEO_SHM_BLOCK_SIZE` — tune shared-memory capacity for frame transport.
+- `SDK_VIDEO_EXTRACTION_BATCH_SIZE`, `SDK_PIPELINE_QUEUE_MAXSIZE`, `SDK_PIPELINE_QUEUE_GET_TIMEOUT_S` — tune decode and queue backpressure behavior.
+- `SDK_DETECTION_WORKER_THREADS`, `SDK_EMBED_WORKER_THREADS` — tune stage-local worker counts.
+- `SAVE_RUNTIME_PIPELINE_STATS`, `SDK_ENABLE_TRACING`, `VIDEO_FRAME_LOG_LEVEL` — enable diagnostics and control verbosity.
 
 Export overrides before sourcing the setup script:
 

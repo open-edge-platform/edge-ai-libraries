@@ -11,7 +11,7 @@ of AI inference pipelines (GStreamer + OpenVINO™ + DLStreamer), collecting har
 ```text
 tools/visual-pipeline-and-platform-evaluation-tool/
 ├── vippet/               # Backend: Python/FastAPI application
-│   ├── api/              # REST + WebSocket API (FastAPI, port 7860)
+│   ├── api/              # REST API (FastAPI, port 7860)
 │   │   ├── main.py       # App entrypoint, router registration
 │   │   ├── api_schemas.py # Pydantic request/response models
 │   │   └── routes/       # API route handlers (pipelines, models, jobs, etc.)
@@ -36,8 +36,6 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 │   ├── vite.config.ts    # Vite config with API proxy rules
 │   └── Dockerfile        # Nginx-based production image
 ├── video_generator/      # Synthetic test video generator (Python + GStreamer)
-├── models/               # Model download and management scripts
-│   └── model_manager.sh  # Interactive/automated model installer
 ├── shared/               # Runtime-mounted volumes (videos, models, scripts)
 ├── compose.yml           # Main Docker Compose file
 ├── compose.dev.yml       # Dev override (disables healthcheck, mounts source)
@@ -75,10 +73,7 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 # 2. Set up shared directories
 make env-setup
 
-# 3. Install AI models (interactive)
-make install-models-once
-
-# 4. Build and run all services
+# 3. Build and run all services
 make build
 make run
 ```
@@ -118,14 +113,10 @@ make format      # Auto-format with ruff
 
 ## API
 
-Services are accessible both locally and from external networks:
-
-- **Backend API**: `http://localhost:7860/api/v1/` or `http://<HOST-IP>:7860/api/v1/` (FastAPI, auto-documented at `/docs`)
-- **UI**: `http://localhost:80` or `http://<HOST-IP>:80`
-- **RTSP live streams**: `rtsp://localhost:8554/{stream_name}` or `rtsp://<HOST-IP>:8554/{stream_name}` (via mediamtx)
-- **WebSocket metrics**: `ws://localhost:7860/metrics/ws` or `ws://<HOST-IP>:7860/metrics/ws`
-
-All services bind to `0.0.0.0` (all network interfaces) to enable external access. Ensure firewall rules allow connections to required ports.
+- **Backend API**: `http://localhost:7860/api/v1/` (FastAPI, auto-documented at `/docs`)
+- **UI**: `http://localhost:80`
+- **RTSP live streams**: `rtsp://localhost:8554/{stream_name}` (via mediamtx)
+- **SSE metrics stream**: `http://localhost/metrics/stream` (proxied by nginx to metrics-manager)
 
 The OpenAPI schema can be regenerated with:
 
@@ -135,13 +126,13 @@ make generate_openapi
 
 ## Docker Compose Services
 
-| Service           | Description                               | Port(s)           | External Access |
-|-------------------|-------------------------------------------|-------------------|-----------------|
-| `vippet`          | Backend (FastAPI)                         | 7860              | 0.0.0.0:7860    |
-| `vippet-ui`       | Frontend (Nginx)                          | 80                | 0.0.0.0:80      |
-| `mediamtx`        | RTSP server                               | 8554, 8889, 8189  | 0.0.0.0:*       |
-| `models`          | Model installer (profile: `do-not-start`) | -                 | N/A             |
-| `metrics-service` | Metrics collector                         | 9090, 9273        | 0.0.0.0:*       |
+| Service           | Description                               | Port |
+|-------------------|-------------------------------------------|------|
+| `vippet`          | Backend (FastAPI)                         | 7860 |
+| `vippet-ui`       | Frontend (Nginx)                          | 80   |
+| `mediamtx`        | RTSP server                               | 8554 |
+| `model-download`  | Model download microservice               | 8000 |
+| `metrics-manager` | Metrics collector                         | 9090 |
 
 Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automatically by `setup_env.sh`.
 
@@ -190,6 +181,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `UPLOAD_ALLOWED_CODECS`          | Comma-separated allow-list of upload video codecs            | `h264,h265`                                                |
 | `UPLOAD_MAX_SIZE_BYTES`          | Maximum accepted upload body size in bytes                   | `2147483648` (2 GiB)                                       |
 | `OUTPUT_VIDEO_DIR`               | Path to output videos                                        | `/videos/output`                                           |
+| `UPLOADED_IMAGES_DIR`            | Path to user-uploaded image sets                             | `/images/input/uploaded`                                   |
 | `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | Glob patterns for elements shown in simplified pipeline view | `*src,urisourcebin,gva*,*sink,source`                      |
 | `SIMPLE_VIEW_INVISIBLE_ELEMENTS` | Element names hidden from simplified pipeline view           | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` |
 | `LIVE_STREAM_SERVER_HOST`        | RTSP server hostname                                         | `mediamtx`                                                 |
@@ -204,7 +196,8 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 - The `vippet/` Python package uses relative imports — always run from the container context
 - GStreamer pipelines are executed as **subprocesses** via `gst_runner.py`, not directly in Python
 - Hardware device detection happens at startup via `device.py` (OpenVINO Core)
-- The `models` service must be run separately before `vippet` to install required AI models
+- AI models are installed at runtime via the `model-download` microservice;
+  vippet-app exposes `/api/v1/models` endpoints (and the UI Models page) to trigger installs
 - Video input sources: files from `shared/videos/input/`, USB cameras (`/dev/video*`), RTSP/ONVIF cameras
 
 ## Documentation Standards
@@ -401,7 +394,8 @@ Optional[str]
 
 ## Common Issues
 
-- **Models not found**: Run `make install-models-once` first
+- **Models not found**: Install required models through the UI (Models page) or the `/api/v1/models` endpoints;
+  vippet-app proxies installs to the `model-download` service
 - **Permission denied on /dev/video***: Add user to `video` group
 - **GPU not detected**: Check `setup_env.sh` output and Docker GPU support
 - **Port conflicts**: Check if ports 80, 7860, 8554 are available

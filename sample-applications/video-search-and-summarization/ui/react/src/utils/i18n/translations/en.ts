@@ -176,6 +176,8 @@ export const enTranslations = {
   AudioModels: 'Audio Models',
   UseAudioSummary: 'Summarize audio transcript for final summary',
   UseAudioSummaryInfo: 'When enabled, the full audio transcript is first summarized by the LLM, then the resulting audio summary is included alongside chunk captions in the final video summary. This improves accuracy for dialogue-heavy or narrated videos.',
+  ProduceFinalSummary: 'Produce final video summary',
+  ProduceFinalSummaryInfo: 'When enabled, all chunk-level frame summaries are combined using LLM map-reduce into a single comprehensive video summary. When disabled, only individual chunk summaries are kept.',
 
   drawerTitle: 'Drawer Title',
   confirm: 'Confirm',
