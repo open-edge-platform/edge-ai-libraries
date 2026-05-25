@@ -58,13 +58,13 @@ PMT_GUID_ARL_H = '0x1306a0b2' # Arrow Lake-H telemetry GUID
 PMT_GUID_ARL_S = '0x1306a0b4' # Arrow Lake-S telemetry GUID
 PMT_GUID_LNL = '0x3072005'    # Lunar Lake telemetry GUID
 PMT_GUID_PTL = '0x3086000'    # Panther Lake telemetry GUID
+PMT_GUID_WCL = '0x308d100'    # Wildcat Lake telemetry GUID
 
 def get_mtl_regs():
     return {
         'VPU_ENERGY': 0x628,
         'SOC_TEMPERATURES': 0x98,
         'VPU_WORKPOINT': 0x68,
-        'VPU_MEMORY_BW': 0x0,
     }
 
 def get_arl_regs():
@@ -75,7 +75,7 @@ def get_lnl_regs():
         'VPU_ENERGY': 0x5d0,
         'SOC_TEMPERATURES': 0x70,
         'VPU_WORKPOINT': 0x18,
-        'VPU_MEMORY_BW': 0xc18
+        'VPU_MEMORY_BW': [0xc18],
     }
 
 def get_ptl_regs():
@@ -83,7 +83,15 @@ def get_ptl_regs():
         'VPU_ENERGY': 0x670,
         'SOC_TEMPERATURES': 0x78,
         'VPU_WORKPOINT': 0x18,
-        'VPU_MEMORY_BW': 0xc18
+        'VPU_MEMORY_BW': [0xc18, 0xc20],
+    }
+
+def get_wcl_regs():
+    return {
+        'VPU_ENERGY': 0x670,
+        'SOC_TEMPERATURES': 0x78,
+        'VPU_WORKPOINT': 0x18,
+        'VPU_MEMORY_BW': [0xc18],
     }
 
 class CpuGen(enum.IntEnum):
@@ -91,6 +99,7 @@ class CpuGen(enum.IntEnum):
     ARL = 1
     LNL = 2
     PTL = 3
+    WCL = 4
 
     def __str__(self):
         if self == CpuGen.MTL:
@@ -101,6 +110,8 @@ class CpuGen(enum.IntEnum):
             return "Lunar Lake"
         if self == CpuGen.PTL:
             return "Panther Lake"
+        if self == CpuGen.WCL:
+            return "Wildcat Lake"
         return ""
 
 def run_command(command: str, timeout: Optional[float] = None) -> subprocess.CompletedProcess:
@@ -129,51 +140,53 @@ class PmtTelemetry:
         self.cpu_gen: Optional[CpuGen] = None
 
         # Check if PMT sysfs exists
-        if not os.path.exists(self.pmt_root):
+        if os.path.exists(self.pmt_root):
+            for telem_dir in os.listdir(self.pmt_root):
+                if not telem_dir.startswith('telem'):
+                    continue
+    
+                telem_path = os.path.join(self.pmt_root, telem_dir)
+                guid_path = os.path.join(telem_path, 'guid')
+                telemetry_path = os.path.join(telem_path, 'telem')
+                size_path = os.path.join(telem_path, 'size')
+                offset_path = os.path.join(telem_path, 'offset')
+    
+                if not all(os.path.exists(p) for p in [guid_path, telemetry_path, size_path, offset_path]):
+                    continue
+    
+                guid = fdump(guid_path)
+                telem_size = int(fdump(size_path))
+                telem_offset = int(fdump(offset_path))
+    
+                LOG.debug('Found PMT device %s with GUID %s, size %d, offset %d',
+                         telem_dir, guid, telem_size, telem_offset)
+    
+                self.telemetry_path = telemetry_path
+                if guid == PMT_GUID_MTL:
+                    self.cpu_gen = CpuGen.MTL
+                    self.regs = get_mtl_regs()
+                    break
+                if guid in (PMT_GUID_ARL, PMT_GUID_ARL_H, PMT_GUID_ARL_S):
+                    self.cpu_gen = CpuGen.ARL
+                    self.regs = get_arl_regs()
+                    break
+                if guid == PMT_GUID_LNL:
+                    self.cpu_gen = CpuGen.LNL
+                    self.regs = get_lnl_regs()
+                    break
+                if guid == PMT_GUID_PTL:
+                    self.cpu_gen = CpuGen.PTL
+                    self.regs = get_ptl_regs()
+                    break
+                if guid == PMT_GUID_WCL:
+                    self.cpu_gen = CpuGen.WCL
+                    self.regs = get_wcl_regs()
+                    break
+        else:
             LOG.error('PMT sysfs interface not found at %s', self.pmt_root)
-            sys.exit(1)
-
-        for telem_dir in os.listdir(self.pmt_root):
-            if not telem_dir.startswith('telem'):
-                continue
-
-            telem_path = os.path.join(self.pmt_root, telem_dir)
-            guid_path = os.path.join(telem_path, 'guid')
-            telemetry_path = os.path.join(telem_path, 'telem')
-            size_path = os.path.join(telem_path, 'size')
-            offset_path = os.path.join(telem_path, 'offset')
-
-            if not all(os.path.exists(p) for p in [guid_path, telemetry_path, size_path, offset_path]):
-                continue
-
-            guid = fdump(guid_path)
-            telem_size = int(fdump(size_path))
-            telem_offset = int(fdump(offset_path))
-
-            LOG.debug('Found PMT device %s with GUID %s, size %d, offset %d',
-                     telem_dir, guid, telem_size, telem_offset)
-
-            self.telemetry_path = telemetry_path
-            if guid == PMT_GUID_MTL:
-                self.cpu_gen = CpuGen.MTL
-                self.regs = get_mtl_regs()
-                break
-            if guid in (PMT_GUID_ARL, PMT_GUID_ARL_H, PMT_GUID_ARL_S):
-                self.cpu_gen = CpuGen.ARL
-                self.regs = get_arl_regs()
-                break
-            if guid == PMT_GUID_LNL:
-                self.cpu_gen = CpuGen.LNL
-                self.regs = get_lnl_regs()
-                break
-            if guid == PMT_GUID_PTL:
-                self.cpu_gen = CpuGen.PTL
-                self.regs = get_ptl_regs()
-                break
 
         if self.cpu_gen is None:
-            LOG.error('No CPU telemetry devices found with known GUIDs')
-            sys.exit(1)
+            LOG.error(f'No CPU telemetry devices found with known GUIDs: {guid}')
 
         LOG.debug('CPU generation detected: %s', self.cpu_gen)
 
@@ -183,7 +196,7 @@ class PmtTelemetry:
         buf = self.buffer
         if buf is None:
             LOG.error('Telemetry buffer is empty; ensure update_buffer() succeeded before read().')
-            sys.exit(1)
+            return 0
         # read 8 bytes from buffer from offset and convert it to 64 bit little endian integer
         data = int.from_bytes(buf[offset:offset + 8],
                               byteorder='little')
@@ -202,11 +215,10 @@ class PmtTelemetry:
                 self.buffer = fd.read()
         except (FileNotFoundError, PermissionError, OSError) as e:
             LOG.error('Failed to read telemetry data: %s', e)
-            sys.exit(1)
 
     def get_freq(self) -> float:
         """Get VPU frequency in MHz."""
-        raw = self.read(self.regs['VPU_WORKPOINT'], 7, 0)
+        raw = self.read(self.regs['VPU_WORKPOINT'], 7, 0) if 'VPU_WORKPOINT' in self.regs else 0
         if self.cpu_gen == CpuGen.MTL:
             return 2 * raw / 3 / 10
         return 0.05 * raw
@@ -218,26 +230,26 @@ class PmtTelemetry:
 
     def get_voltage(self) -> int:
         """Get VPU voltage reading."""
-        return self.read(self.regs['VPU_WORKPOINT'], 15, 8)
+        return self.read(self.regs['VPU_WORKPOINT'], 15, 8) if 'VPU_WORKPOINT' in self.regs else 0
 
     def get_tile_config(self) -> int:
         """Get NPU tile configuration."""
-        return self.read(self.regs['VPU_WORKPOINT'], 23, 16)
+        return self.read(self.regs['VPU_WORKPOINT'], 23, 16) if 'VPU_WORKPOINT' in self.regs else 0
 
     def get_npu_temperature(self) -> int:
         """Get NPU temperature in Celsius."""
-        return self.read(self.regs['SOC_TEMPERATURES'], 47, 40)
+        return self.read(self.regs['SOC_TEMPERATURES'], 47, 40) if 'SOC_TEMPERATURES' in self.regs else 0
 
     def get_npu_energy(self) -> float:
         """Get NPU energy consumption in joules (U32.18.14 fixed-point format)."""
-        val = self.read(self.regs['VPU_ENERGY'], 63, 0)
+        val = self.read(self.regs['VPU_ENERGY'], 63, 0) if 'VPU_ENERGY' in self.regs else 0
         int_part = val >> 14
         float_part = (val & ((1 << 14) - 1)) / (1 << 14)
         return int_part + float_part
 
     def get_noc_bandwidth(self) -> float:
         """Get NoC (Network on Chip) bandwidth in MB/s."""
-        val = self.read(self.regs['VPU_MEMORY_BW'], 31, 0)
+        val = sum([self.read(reg1, 31, 0) for reg1 in self.regs.get('VPU_MEMORY_BW',[])])
         return val / 1e3
 
 def logging_setup(args) -> None:
@@ -340,7 +352,7 @@ def main(): # pylint: disable=too-many-branches
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             csv_file_path = os.path.join(output_dir, f'npu_{timestamp}.csv')
             csv_file = open(csv_file_path, 'w', encoding='utf-8')
-            csv_file.write('timestamp,power,frequency,bandwidth,tile_config,temperature,utilization,memory_usage\n')
+            csv_file.write('timestamp,power,frequency,bandwidth,tile_config,temperature,utilization,memory_usage,device\n')
             LOG.info(f'CSV output enabled. Writing to: {csv_file_path}')
 
         while True:
@@ -406,8 +418,8 @@ def main(): # pylint: disable=too-many-branches
                 bw_unit = 'MB/s'
 
             if csv_file:
-                timestamp = int(time_module.time())
-                csv_file.write(f'{timestamp},{power:.3f},{freq_hz:.0f},{bandwidth:.3f},{tile_config},{temp},{utilization},{mem_util_mb:.2f}\n')
+                timestamp = time_module.time()
+                csv_file.write(f'{timestamp},{power},{freq_hz},{bandwidth_delta},{tile_config},{temp},{utilization},{mem_util_mb},{pciid}\n')
                 csv_file.flush()
 
             print( '+-----------------------------------------------------------------------------------------------+')
