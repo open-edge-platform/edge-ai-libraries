@@ -17,7 +17,7 @@ _recorded_api_calls: set[tuple[str, str]] = set()
 # device ``family``, rooted at PROJECT_ROOT); variants skipped if path missing.
 _EXTERNAL_MODEL_PATH_TEMPLATES: dict[str, str] = {
     "Video Summarization VLM": (
-        "shared/models/output/openvino_models/{family}/INT4/google/gemma-3-4b-it"
+        "shared/models/output/openvino_models/{family}/int4/google/gemma-3-4b-it"
     ),
 }
 
