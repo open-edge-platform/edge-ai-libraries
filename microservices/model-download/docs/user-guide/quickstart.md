@@ -12,10 +12,8 @@
 Download and run directly — no repo clone needed. The script starts a temporary Docker container, downloads the model to your local disk, and **automatically removes the container** once the operation completes.
 
 ```bash
-curl -sSLO https://raw.githubusercontent.com/yogeshmpandey/edge-ai-libraries/feat/ephemeral-container/microservices/model-download/scripts/get_model.sh |  source ./get_model.sh --model-name sentence-transformers/all-MiniLM-L6-v2 --hub huggingface --plugins huggingface
+curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/model-download/scripts/get_model.sh |  source ./get_model.sh --model-name sentence-transformers/all-MiniLM-L6-v2 --hub huggingface --plugins huggingface
 ```
-
----
 
 ## Quick Examples
 
