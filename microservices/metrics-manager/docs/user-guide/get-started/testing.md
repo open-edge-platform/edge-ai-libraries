@@ -103,7 +103,7 @@ pytest tests/test_models.py -v
 | `test_models.py`               | Pydantic models: Metric, SimpleMetric, MetricsBatch, InfluxDB/OTLP parsing |
 | `test_store.py`                | MetricsStore CRUD, persistence, cleanup, eviction, statistics              |
 | `test_routes.py`               | REST API endpoints: health, ingestion, queries, Prometheus                 |
-| `test_settings.py`             | Pydantic Settings loading, env var overrides, validation                   |
+| `test_settings.py`             | Pydantic Settings loading, environment variables overrides, validation     |
 | `test_logging_config.py`       | Structured logging setup (JSON and text formats)                           |
 | `test_main.py`                 | FastAPI middleware, lifespan, correlation ID handling                      |
 | `test_metrics.py`              | Internal service metrics counters and uptime                               |
@@ -111,7 +111,7 @@ pytest tests/test_models.py -v
 | `test_sse.py`                  | SSE endpoint `/metrics/stream`: streaming, parsing, errors                 |
 | `test_npu_monitor_tool.py`     | NPU bit slicing, register maps, value decoding                             |
 | `test_npu_reader.py`           | `npu_reader.py` syntax, Telegraf wiring, InfluxDB fields                   |
-| `test_telegraf_integration.py` | Telegraf config mounting and custom-metrics (integration)                  |
+| `test_telegraf_integration.py` | Telegraf configuration mounting and custom-metrics (integration)           |
 
 ---
 

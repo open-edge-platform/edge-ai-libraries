@@ -194,7 +194,7 @@ docker exec metrics-manager telegraf -config /etc/telegraf/telegraf.conf -test
 
 | Issue                            | Solution                                                   |
 | -------------------------------- | ---------------------------------------------------------- |
-| Telegraf config error            | Check logs: `docker logs metrics-manager \| grep -i error` |
+| Telegraf configuration error     | Check logs: `docker logs metrics-manager \| grep -i error` |
 | CPU metrics disabled             | Verify `[[inputs.cpu]]` block in `telegraf.conf`           |
 | Prometheus output not configured | Verify `[[outputs.prometheus_client]]` in `telegraf.conf`  |
 
