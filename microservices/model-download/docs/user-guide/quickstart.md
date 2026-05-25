@@ -1,5 +1,7 @@
 # Quick Start
 
+In this the microservice can be run as an ephemeral (one-shot) container that downloads or converts a model and exits automatically. This is useful for CI/CD pipelines, pre-provisioning model caches, or scripted workflows.
+
 ## Prerequisites
 
 - Docker installed and running. Installation guide [here](https://docs.docker.com/engine/install/ubuntu/)
