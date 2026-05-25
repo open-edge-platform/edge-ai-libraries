@@ -55,7 +55,7 @@ The FastAPI application provides:
 - `GET /api/v1/metrics/names` — Metric name list
 - `DELETE /api/v1/metrics` — Clear all custom metrics
 - `GET /health` — Basic health check
-- `GET /api/health` — Detailed health with stats
+- `GET /api/health` — Detailed health with service statistics
 - `GET /metrics` — Prometheus format (custom metrics only)
 
 **SSE Stream Endpoint:**

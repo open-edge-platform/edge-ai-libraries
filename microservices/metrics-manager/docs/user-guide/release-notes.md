@@ -49,7 +49,7 @@
   - **Impact**: Easy integration with log aggregators (ELK, Datadog, etc.)
 
 - **Rate Limiting** — Per-IP token bucket rate limiting (default 1000 requests/minute per IP)
-  - **Impact**: Protection against accidental/malicious floods; health and stats endpoints exempt
+  - **Impact**: Protection against accidental/malicious floods; health and statistics endpoints exempt
 
 - **Correlation IDs** — Every request gets a correlation ID (auto-generated UUID or from `X-Correlation-ID` header) for distributed tracing
   - **Impact**: Easy to track requests through logs and multiple services

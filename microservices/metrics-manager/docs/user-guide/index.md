@@ -31,7 +31,7 @@ hide_directive-->
 - **Structured JSON logging** with correlation IDs for distributed tracing
 - **Health checks** — basic and detailed endpoints with service statistics
 - **Memory protection** — automatic eviction of oldest metrics when limit reached (default 100k metrics)
-- **Flexible configuration** — 30+ environment variables for tuning a wide-range of aspects
+- **Flexible configuration** — 30+ environment variables for tuning a wide range of aspects
 - **Docker Compose & Kubernetes** — production-ready `compose.yaml` and Helm chart included
 
 ## Use Cases
