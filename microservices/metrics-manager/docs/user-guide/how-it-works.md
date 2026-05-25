@@ -10,52 +10,7 @@ Metrics Manager is a unified metrics platform that collects, stores, and streams
 2. **Custom Metrics** — REST API accepts JSON, InfluxDB Line Protocol, OpenTelemetry formats
 3. **Real-time Streaming** — Server-Sent Events (SSE) broadcasts metrics to live dashboards
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│                        INPUT SOURCES                               │
-│                                                                    │
-│  ┌────────────────────┐ ┌────────────────────┐ ┌──────────────┐    │
-│  │  System Metrics    │ │  Custom Metrics    │ │ Intel        │    │
-│  │  (/proc, /sys)     │ │  (REST API)        │ │ Hardware     │    │
-│  └────────┬───────────┘ └────────┬───────────┘ │ (qmassa,NPU) │    │
-│           │                      │             └────────┬─────┘    │
-│           │                      │                      │          │
-└───────────┼──────────────────────┼──────────────────────┼──────────┘
-            │                      │                      │
-            ▼                      ▼                      ▼
-┌────────────────────────────────────────────────────────────────────┐
-│                      COLLECTOR (Telegraf)                          │
-│  - Runs every 1 second (system metrics)                            │
-│  - Aggregates CPU, RAM, temperature, GPU, NPU telemetry            │
-│  - Exposes on :9273/metrics (Prometheus format)                    │
-└────────────────────────────────────────────────────────────────────┘
-            │
-            ▼
-┌────────────────────────────────────────────────────────────────────┐
-│                   METRICS MANAGER (FastAPI)                        │
-│                                                                    │
-│  REST API (:9090)              In-Memory Store                     │
-│  ├─ /api/v1/metrics/simple     ├─ JSON-serializable                │
-│  ├─ /api/v1/metrics            │   list per metric name            │
-│  ├─ /api/v1/metrics/influx     ├─ Automatic cleanup                │
-│  ├─ /api/v1/metrics/otlp       │   (300s default)                  │
-│  ├─ /api/v1/metrics/latest     ├─ Memory limit                     │
-│  ├─ /health                    │   (100k default)                  │
-│  └─ /metrics                   └─ Eviction on overflow             │
-│                                                                    │
-│  SSE Stream (:9090)                                                │
-│  └─ /metrics/stream                                                │
-│     (polls :9273 every 500ms)                                      │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
-            │
-    ┌───────┴──────────┬──────────────────┐
-    ▼                  ▼                  ▼
-┌──────────────┐ ┌────────────────┐ ┌───────────────┐
-│  Dashboards  │ │  Prometheus    │ │ Live Clients  │
-│  (HTML UI)   │ │  Scraping      │ │ (EventSource) │
-└──────────────┘ └────────────────┘ └───────────────┘
-```
+![Metrics Manager High-Level Architecture](./_assets/metrics-mgr-high-lev-arch.drawio.svg "high-level architecture")
 
 ---
 
@@ -505,15 +460,15 @@ Used for:
 - **Rate limit exceeded**: Returns `429 Too Many Requests`
 - **Graceful shutdown**: Completes in-flight requests, closes aiohttp session, logs uptime
 
-## License
-
-Copyright (C) 2025-2026 Intel Corporation
-
-SPDX-License-Identifier: Apache-2.0
-
 ## Supporting Resources
 
 - [API Reference](./api-reference.md)
 - [Architecture Overview](./index.md)
 - [Environment Variables](./get-started/environment-variables.md)
 - [Troubleshooting](./troubleshooting.md)
+
+## License
+
+Copyright (C) 2025-2026 Intel Corporation
+
+SPDX-License-Identifier: Apache-2.0
