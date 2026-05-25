@@ -371,7 +371,7 @@ fi
 if [ "$EPHEMERAL_MODE" = true ]; then
     print_header "Running in Ephemeral Mode"
     print_info "Executing one-shot download/conversion..."
-    exec /opt/scripts/run_ephemeral.sh --internal "${EPHEMERAL_ARGS[@]}"
+    exec /opt/scripts/get_model.sh --internal "${EPHEMERAL_ARGS[@]}"
 elif [ "$START_SERVICE" = true ]; then
     print_header "Starting Model Download Service"
     cd /opt

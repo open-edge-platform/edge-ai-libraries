@@ -55,9 +55,9 @@ GETI_TOKEN="${GETI_TOKEN:-}"
 GETI_WORKSPACE_ID="${GETI_WORKSPACE_ID:-}"
 
 # Error log file
-ERROR_LOG_DIR="${PWD}/.ephemeral-logs"
+ERROR_LOG_DIR="${PWD}/.model_download_logs"
 mkdir -p "$ERROR_LOG_DIR" 2>/dev/null || ERROR_LOG_DIR="/tmp"
-ERROR_LOG_FILE="${ERROR_LOG_DIR}/ephemeral_$(date +%Y%m%d_%H%M%S).log"
+ERROR_LOG_FILE="${ERROR_LOG_DIR}/model_download_$(date +%Y%m%d_%H%M%S).log"
 HAS_ERROR=false
 
 log_info()    { echo -e "${BLUE}INFO:${NC} $1"; }
@@ -99,7 +99,7 @@ write_failure_logs() {
 show_usage() {
     echo -e "${BOLD}Ephemeral Model Download${NC}"
     echo -e "Run a one-shot model download/conversion and exit.\n"
-    echo -e "${BOLD}Usage:${NC} scripts/run_ephemeral.sh [options]\n"
+    echo -e "${BOLD}Usage:${NC} scripts/get_model.sh [options]\n"
     echo -e "${BOLD}Required:${NC}"
     echo -e "  ${CYAN}--model-name${NC} <name>        Model identifier (e.g. meta-llama/Llama-2-7b-hf)"
     echo -e "  ${CYAN}--hub${NC} <hub>                Source hub: huggingface, ultralytics, ollama, openvino, geti, hls\n"

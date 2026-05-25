@@ -12,7 +12,7 @@
 Download and run directly — no repo clone needed. The script starts a temporary Docker container, downloads the model to your local disk, and **automatically removes the container** once the operation completes.
 
 ```bash
-curl -sSLO https://raw.githubusercontent.com/yogeshmpandey/edge-ai-libraries/feat/ephemeral-container/microservices/model-download/scripts/run_ephemeral.sh |  source ./run_ephemeral.sh --model-name sentence-transformers/all-MiniLM-L6-v2 --hub huggingface --plugins huggingface
+curl -sSLO https://raw.githubusercontent.com/yogeshmpandey/edge-ai-libraries/feat/ephemeral-container/microservices/model-download/scripts/get_model.sh |  source ./get_model.sh --model-name sentence-transformers/all-MiniLM-L6-v2 --hub huggingface --plugins huggingface
 ```
 
 ---
@@ -22,7 +22,7 @@ curl -sSLO https://raw.githubusercontent.com/yogeshmpandey/edge-ai-libraries/fea
 ### Download a HuggingFace model
 
 ```bash
-. ./run_ephemeral.sh \
+. ./get_model.sh \
   --model-name sentence-transformers/all-MiniLM-L6-v2 \
   --hub huggingface --plugins huggingface
 ```
@@ -30,7 +30,7 @@ curl -sSLO https://raw.githubusercontent.com/yogeshmpandey/edge-ai-libraries/fea
 ### Download and convert to OpenVINO (OVMS-ready)
 
 ```bash
-. ./run_ephemeral.sh \
+. ./get_model.sh \
   --model-name meta-llama/Llama-3.2-1B \
   --hub openvino \
   --type llm \
@@ -43,7 +43,7 @@ curl -sSLO https://raw.githubusercontent.com/yogeshmpandey/edge-ai-libraries/fea
 ### Download an Ollama model
 
 ```bash
-. ./run_ephemeral.sh \
+. ./get_model.sh \
   --model-name llama3.2 \
   --hub ollama \
   --plugins ollama
@@ -52,7 +52,7 @@ curl -sSLO https://raw.githubusercontent.com/yogeshmpandey/edge-ai-libraries/fea
 ### Download an Ultralytics model
 
 ```bash
-. ./run_ephemeral.sh \
+. ./get_model.sh \
   --model-name yolov8s \
   --hub ultralytics \
   --plugins ultralytics
@@ -101,7 +101,7 @@ curl -sSLO https://raw.githubusercontent.com/yogeshmpandey/edge-ai-libraries/fea
 On failure, the script creates an error log at:
 
 ```
-.ephemeral-logs/ephemeral_YYYYMMDD_HHMMSS.log
+.model_download_logs/model_download_YYYYMMDD_HHMMSS.log
 ```
 
 The log path is printed at the end of a failed run.
@@ -113,7 +113,7 @@ The log file contains structured sections:
 ```
 ===== Model Download Ephemeral Mode - Error Log =====
 Timestamp: 2026-05-22T12:46:17+05:30
-Command: source ./run_ephemeral.sh --model-name ... --hub ...
+Command: source ./get_model.sh --model-name ... --hub ...
 Image: model-download:latest
 Model Path: /home/user/models
 Plugins: huggingface,openvino
@@ -142,7 +142,7 @@ Access to Gated or private models is restricted. You must be authenticated.
 Fix: Set `HF_TOKEN` with a token that has access to the model:
 ```bash
 export HF_TOKEN="hf_..."
-source ./run_ephemeral.sh --model-name meta-llama/Llama-2-7b-hf --hub huggingface
+source ./get_model.sh --model-name meta-llama/Llama-2-7b-hf --hub huggingface
 ```
 
 **Container failed to start**
