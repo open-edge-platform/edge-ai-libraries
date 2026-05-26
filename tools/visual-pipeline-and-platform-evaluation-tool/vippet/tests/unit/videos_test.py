@@ -1447,6 +1447,31 @@ class TestDownloadVideo(unittest.TestCase):
         self.assertIsNone(result)
         self.assertTrue(any("Failed to download" in m for m in cm.output))
 
+    def test_successful_download_writes_file_and_logs(self):
+        """A 200 response is streamed in chunks and moved into auto dir."""
+        with self._patch_dirs():
+            manager = self._make_manager()
+
+            # Fake response: 200 OK, two chunks then EOF.
+            fake_response = MagicMock()
+            fake_response.status = 200
+            fake_response.read.side_effect = [b"part-1", b"part-2", b""]
+            fake_response.__enter__.return_value = fake_response
+            fake_response.__exit__.return_value = False
+
+            with patch("videos.urllib.request.urlopen", return_value=fake_response):
+                with self.assertLogs("videos", level="INFO") as cm:
+                    result = manager._download_video("http://x", "good.mp4")
+
+        # File ended up in AUTO_VIDEO_DIR with the streamed content.
+        expected = os.path.join(self.auto_dir, "good.mp4")
+        self.assertEqual(result, expected)
+        self.assertTrue(os.path.isfile(expected))
+        with open(expected, "rb") as f:
+            self.assertEqual(f.read(), b"part-1part-2")
+        # Final INFO log confirms the successful download.
+        self.assertTrue(any("Downloaded 'good.mp4'" in m for m in cm.output))
+
 
 class TestStaticHelpers(unittest.TestCase):
     """Unit tests for the small static helpers on VideosManager."""
@@ -1821,6 +1846,89 @@ class TestRegisterUploadedVideoFailures(unittest.TestCase):
         # Rollback cleaned the in-memory entry and files from disk.
         self.assertNotIn("rb.mp4", manager._videos)
         self.assertFalse(os.path.isfile(os.path.join(self.uploaded_dir, "rb.mp4")))
+
+    def test_target_filename_race_raises_runtime_error(self):
+        """A concurrent upload that already reserved the target raises."""
+        temp_path = os.path.join(self.temp_dir, ".upload-race.mp4")
+        with open(temp_path, "w") as f:
+            f.write("x")
+
+        # Pre-create the target file to simulate a concurrent upload that
+        # already won the O_CREAT|O_EXCL reservation. The os.open call inside
+        # register_uploaded_video must then raise FileExistsError, which the
+        # method translates into a RuntimeError.
+        existing = os.path.join(self.uploaded_dir, "race.mp4")
+        with open(existing, "w") as f:
+            f.write("already there")
+
+        with self._patch_dirs():
+            manager = self._make_manager()
+            # filename_exists is bypassed here on purpose: we want the
+            # atomic os.open guard to fire, not the early in-memory check.
+            with self.assertRaises(RuntimeError) as ctx:
+                manager.register_uploaded_video(temp_path, "race.mp4")
+
+        self.assertIn("already exists", str(ctx.exception))
+        # The placeholder file we created is left intact (it was not ours).
+        self.assertTrue(os.path.isfile(existing))
+        # The temp file is also left where it was (caller cleans it up).
+        self.assertTrue(os.path.isfile(temp_path))
+
+    def test_successful_upload_produces_four_files_on_disk(self):
+        """After a successful upload the uploaded dir holds 4 expected files:
+
+        - the original video file
+        - its metadata JSON (<name>.<ext>.json)
+        - the TS companion (<base>.ts)
+        - the TS metadata JSON (<base>.ts.json)
+        """
+        temp_path = os.path.join(self.temp_dir, ".upload-four.mp4")
+        with open(temp_path, "w") as f:
+            f.write("x")
+
+        with self._patch_dirs():
+            manager = self._make_manager()
+            info = VideoFileInfo(
+                width=1280,
+                height=720,
+                fps=30.0,
+                frame_count=300,
+                fourcc=ord("a") | (ord("v") << 8) | (ord("c") << 16) | (ord("1") << 24),
+            )
+            with patch.object(
+                VideosManager, "_extract_video_file_info", return_value=info
+            ):
+                # Simulate the TS conversion by physically creating the .ts
+                # file - the manager then registers it and writes its own
+                # metadata JSON.
+                def fake_convert(src, ts_path, *a, **kw):
+                    with open(ts_path, "w") as f:
+                        f.write("ts")
+                    return True
+
+                with patch.object(
+                    VideosManager, "_convert_to_ts", side_effect=fake_convert
+                ):
+                    original, ts_video = manager.register_uploaded_video(
+                        temp_path, "four.mp4"
+                    )
+
+        # All four expected files must exist next to each other.
+        self.assertTrue(os.path.isfile(os.path.join(self.uploaded_dir, "four.mp4")))
+        self.assertTrue(
+            os.path.isfile(os.path.join(self.uploaded_dir, "four.mp4.json"))
+        )
+        self.assertTrue(os.path.isfile(os.path.join(self.uploaded_dir, "four.ts")))
+        self.assertTrue(os.path.isfile(os.path.join(self.uploaded_dir, "four.ts.json")))
+        # Sanity: only those 4 files (plus nothing else) live in uploaded.
+        self.assertEqual(
+            sorted(os.listdir(self.uploaded_dir)),
+            ["four.mp4", "four.mp4.json", "four.ts", "four.ts.json"],
+        )
+        # Both Video records were returned and point to the right files.
+        self.assertEqual(original.filename, "four.mp4")
+        assert ts_video is not None
+        self.assertEqual(ts_video.filename, "four.ts")
 
 
 class TestCollectVideoOutputsFromDirs(unittest.TestCase):
