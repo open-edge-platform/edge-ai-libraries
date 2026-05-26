@@ -102,12 +102,6 @@ SPDX-License-Identifier: Apache-2.0
 :hidden:
 
 ./get-started.md
-./get-started/system-requirements.md
-./get-started/testing.md
-./get-started/environment-variables.md
-./get-started/custom-metrics.md
-./get-started/deploy-with-helm.md
-./get-started/build-from-source.md
 ./how-it-works.md
 ./api-reference.md
 ./troubleshooting.md

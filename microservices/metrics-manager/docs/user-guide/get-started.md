@@ -420,3 +420,17 @@ See [Troubleshooting](./troubleshooting.md) for more issues.
 Copyright (C) 2025-2026 Intel Corporation
 
 SPDX-License-Identifier: Apache-2.0
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started/system-requirements.md
+./get-started/build-from-source.md
+./get-started/deploy-with-helm.md
+./get-started/environment-variables.md
+./get-started/custom-metrics.md
+./get-started/testing.md
+
+:::
+hide_directive-->
