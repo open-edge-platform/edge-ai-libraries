@@ -424,7 +424,7 @@ Used for:
 
 ### JSON Batch Format (REST API Input)
 
-```json
+```text
 {
   "metrics": [
     {
