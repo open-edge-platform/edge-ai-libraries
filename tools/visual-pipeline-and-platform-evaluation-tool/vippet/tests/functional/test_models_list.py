@@ -12,8 +12,13 @@ logger = logging.getLogger(__name__)
 
 type ModelDict = dict[str, Any]
 
-VALID_MODEL_CATEGORIES: set[str] = {"detection", "classification", "segmentation"}
-VALID_MODEL_PRECISIONS: set[str] = {"FP32", "FP16", "INT8"}
+VALID_MODEL_CATEGORIES: set[str] = {
+    "detection",
+    "classification",
+    "segmentation",
+    "genai",
+}
+VALID_MODEL_PRECISIONS: set[str] = {"FP32", "FP16", "INT8", "INT4"}
 
 
 def _expand_model_precisions(models: list[ModelDict]) -> list[ModelDict]:
