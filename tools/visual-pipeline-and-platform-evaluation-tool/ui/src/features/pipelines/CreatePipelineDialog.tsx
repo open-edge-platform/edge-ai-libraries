@@ -671,14 +671,18 @@ export const CreatePipelineDialog = ({
                                 ?.filter(
                                   (model) => model.category === "detection",
                                 )
-                                .map((model) => (
-                                  <SelectItem
-                                    key={model.display_name}
-                                    value={model.display_name}
-                                  >
-                                    {model.display_name}
-                                  </SelectItem>
-                                ))}
+                                .flatMap((model) =>
+                                  (model.variants ?? [])
+                                    .filter((variant) => variant.installed)
+                                    .map((variant) => (
+                                      <SelectItem
+                                        key={variant.display_name}
+                                        value={variant.display_name}
+                                      >
+                                        {variant.display_name}
+                                      </SelectItem>
+                                    )),
+                                )}
                             </SelectContent>
                           </Select>
                           <FieldError
@@ -713,14 +717,18 @@ export const CreatePipelineDialog = ({
                                       (model) =>
                                         model.category === "classification",
                                     )
-                                    .map((model) => (
-                                      <SelectItem
-                                        key={model.display_name}
-                                        value={model.display_name}
-                                      >
-                                        {model.display_name}
-                                      </SelectItem>
-                                    ))}
+                                    .flatMap((model) =>
+                                      (model.variants ?? [])
+                                        .filter((variant) => variant.installed)
+                                        .map((variant) => (
+                                          <SelectItem
+                                            key={variant.display_name}
+                                            value={variant.display_name}
+                                          >
+                                            {variant.display_name}
+                                          </SelectItem>
+                                        )),
+                                    )}
                                 </SelectContent>
                               </Select>
                               <FieldError

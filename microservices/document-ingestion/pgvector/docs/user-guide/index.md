@@ -60,6 +60,7 @@ support other vectorDBs.
 get-started
 how-to-customize
 api-reference.md
+Release Notes <release-notes.md>
 
 :::
 hide_directive-->

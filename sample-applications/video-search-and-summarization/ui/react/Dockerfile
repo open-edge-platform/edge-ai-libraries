@@ -3,6 +3,8 @@
 
 FROM node:25-slim AS vite-app
 
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /user/app
 
 COPY package*.json /user/app/
@@ -15,6 +17,9 @@ RUN ["npm", "run", "build"]
 
 FROM nginxinc/nginx-unprivileged:1.29
 USER root
+
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 ARG DOCROOT=/user/share/nginx/html
 
 COPY --from=vite-app --chown=nginx:nginx /user/app/dist ${DOCROOT}

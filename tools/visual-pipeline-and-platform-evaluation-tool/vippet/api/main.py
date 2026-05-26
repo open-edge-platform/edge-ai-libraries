@@ -13,6 +13,7 @@ from api.routes import health
 from images import ImagesManager
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
+from managers.model_manager import ModelManager
 from managers.pipeline_manager import PipelineManager
 from managers.pipeline_template_manager import PipelineTemplateManager
 from videos import VideosManager
@@ -38,6 +39,14 @@ for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("APP_LOG_LEVEL", "INFO").upper())
 logger.handlers = [handler]
+
+# Silence noisy third-party HTTP client loggers that emit one INFO line
+# per outbound request (e.g. polling model-download job status during
+# downloads). Keep them at WARNING so genuine errors still surface.
+for _noisy in ("httpx", "httpcore"):
+    logging.getLogger(_noisy).setLevel(
+        os.environ.get("HTTPX_LOG_LEVEL", "WARNING").upper()
+    )
 
 
 def _initialize_in_background(app: FastAPI) -> None:
@@ -68,6 +77,11 @@ def _initialize_in_background(app: FastAPI) -> None:
 
         # Initialize PipelineTemplateManager - loads pipeline templates
         PipelineTemplateManager()
+
+        # Initialize ModelManager - reads supported_models.yaml and the
+        # installed-models registry. Must run after PipelineManager so
+        # that ``GET /models`` can compute ``used_by_pipelines``.
+        ModelManager()
 
         # Register remaining routers after VideosManager, PipelineManager, and PipelineTemplateManager are initialized
         register_routers(app)

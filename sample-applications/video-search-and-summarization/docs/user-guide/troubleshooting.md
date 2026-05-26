@@ -27,14 +27,14 @@ This should resolve OpenCV-related dependency issues and allow the summary stack
 
 ## Search returns no results after changing embedding model
 
-**Problem**: The UI displays `No videos found matching your search query. Try using different keywords or check if videos have been uploaded.` even though videos were ingested in `--search` or `--all` mode.
+**Problem**: The UI displays `No videos found matching your search query. Try using different keywords or check if videos have been uploaded.` even though videos were ingested after running the setup script.
 
 **Cause**: Either no videos have been processed yet, or the embedding model was switched to one with a different embedding dimension. Previously indexed vectors stay in the database, and their dimensions must match the active model. A mismatch prevents similarity lookups from returning any results.
 
 **Solution**:
 
 1. Verify at least one video has been uploaded or a summary run completed after the model change.
-2. If you recently changed `EMBEDDING_MODEL_NAME`, re-run ingestion so embeddings are recreated with the new dimensions. You can clean existing data with `source setup.sh --clean-data` and then re-run your desired mode.
+2. If you recently changed `MULTIMODAL_EMBEDDING_MODEL` or `TEXT_EMBEDDING_MODEL`, re-run ingestion so embeddings are recreated with the new dimensions. You can clean existing data with `source setup.sh --clean-data` and then bring the application back up with `source setup.sh --search`.
 3. Review the supported embedding models and their dimensions in [Supported Models for Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before switching models.
 
 ## VLM Microservice Model Loading Issues
@@ -233,3 +233,12 @@ Alternatively, switch to a model with a larger context window.
    source setup.sh --down
    source setup.sh --summary
    ```
+
+## Accuracy of search results
+The accuracy of search results vary based on the embedding model used, configuration on frame sampling, object detection enabled or disabled, and the diversity of the video contents. The user is encouraged to check on these aspects in case the accuracy of the search results is not found to be satisfactory. Note that higher accuracy is normally a tradeoff with performance. Some specific pointers are provided below:
+1. Model selection: Among the supported models, models with higher dimensionality will provide better results.
+2. Higher frame sampling leads to better accuracy but at the cost of higher compute requirements.
+3. Enabling object detection normally provides a better accuracy. Consider this option in alignment with selected model capability.
+4. If the video diversity is very low, any query will seem to return the same results. Example: Same camera feed or video used for testing will return results from the same video irrespective of the query. Check the relevance score to determine how strong the match is.
+
+Raise an issue in case of continued challenges faced. 

@@ -4,6 +4,8 @@ This article covers performance testing in ViPPET. Users can test single pipelin
 running concurrently. Both testing modes provide the same metrics and optional output videos, allowing users to
 evaluate system performance under different workload conditions.
 
+![Performance Results](../_assets/ViPPET-UI-Performance-Results-light.png)
+
 ## Test a single pipeline
 
 First, navigate to the Performance page. Then, select the pipeline you want to test and specify the number of streams
@@ -13,9 +15,6 @@ configured, click *Run performance test*. While testing, real-time system metric
 The application reports both *Total FPS* and *Per Stream FPS* metrics, and provides the output video from the test
 if Save output was enabled.
 
-![Performance Testing](../_assets/performance-testing-p1.gif)
-*Figure 1: Performance testing of a single pipeline*
-
 ## Test multiple pipelines
 
 You can test multiple pipelines running concurrently. To run this type of test, select a pipeline from the list,
@@ -24,6 +23,3 @@ click *Run performance test*. While testing, real-time system metrics are displa
 
 As in the previous case, the application reports *Total FPS* and *Per Stream FPS* metrics, and provides the output
 videos from the test if *Save output* was enabled.
-
-![Performance Testing](../_assets/performance-testing-p2.gif)
-*Figure 2: Performance testing of multiple pipelines*

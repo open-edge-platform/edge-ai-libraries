@@ -24,15 +24,7 @@ data:
   MINIO_SECURE: "false"
   DEFAULT_BUCKET_NAME: {{ .Values.defaultBucketName | default .Values.global.env.DEFAULT_BUCKET_NAME | default "video-summary" | quote }}
   MULTIMODAL_EMBEDDING_ENDPOINT: {{ .Values.multimodalEmbeddingEndpoint | default .Values.global.env.MULTIMODAL_EMBEDDING_ENDPOINT | default "http://multimodal-embedding-ms:8000/embeddings" | quote }}
-  {{- $embeddingModel := dict "value" "" }}
-  {{- if .Values.multimodalEmbeddingModelName }}
-  {{- $_ := set $embeddingModel "value" .Values.multimodalEmbeddingModelName }}
-  {{- else if (dig "embedding" "preferTextModel" false .Values.global) }}
-  {{- $_ := set $embeddingModel "value" (required "Set global.env.TEXT_EMBEDDING_MODEL_NAME when global.embedding.preferTextModel is true." (dig "env" "TEXT_EMBEDDING_MODEL_NAME" "" .Values.global)) }}
-  {{- else }}
-  {{- $_ := set $embeddingModel "value" (required "Set global.env.EMBEDDING_MODEL_NAME (or override vdmsdataprep.multimodalEmbeddingModelName) before deploying the chart." (dig "env" "EMBEDDING_MODEL_NAME" "" .Values.global)) }}
-  {{- end }}
-  MULTIMODAL_EMBEDDING_MODEL_NAME: {{ $embeddingModel.value | quote }}
+  MULTIMODAL_EMBEDDING_MODEL_NAME: {{ required "global.embeddingModelName is required" .Values.global.embeddingModelName | quote }}
   EMBEDDING_PROCESSING_MODE: {{ .Values.embedding.processingMode | default .Values.global.env.EMBEDDING_PROCESSING_MODE | quote }}
   {{- if $dpUsesGpu }}
   SDK_USE_OPENVINO: "true"

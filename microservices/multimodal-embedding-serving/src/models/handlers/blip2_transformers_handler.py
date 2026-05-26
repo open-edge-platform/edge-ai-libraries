@@ -440,37 +440,40 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
             images = [images]
         total_images = len(images)
 
-        if self.use_openvino and self.async_infer is not None:
+        if self.use_openvino:
             # Use OpenVINO image encoder with async inference
             # The converted model already includes Q-Former + projection + normalization
             logger.info(f"====AsyncInferQueue====")
             preprocess_stream = self.parallel_preprocessor.preprocess_stream(images)
             try:
                 infer_start = time.perf_counter()
-                embeddings = self.async_infer.infer_stream(batch_generator=preprocess_stream, total_images=total_images)
+                image_features = self.async_infer.infer_stream(
+                    batch_generator=preprocess_stream, total_images=total_images
+                )
                 infer_end = time.perf_counter()
             finally:
                 preprocess_stream.close()
-                del images
 
-            logger.info(f"Inference time for batch of {total_images} images: {infer_end - infer_start:.4f} seconds")
+            image_features = torch.from_numpy(image_features)
 
-            if metrics_out:
-                return {
-                    "embeddings": embeddings,
-                    "inference_time_s": infer_end - infer_start,
-                    "processed_images": total_images
-                }
-            image_features = torch.from_numpy(embeddings)
         else:
             # Use PyTorch model (already includes projection + normalization)
+            infer_start = time.perf_counter()
             if isinstance(images, torch.Tensor):
                 pixel_values = images
             else:
                 inputs = self.processor(images=images, return_tensors="pt")
                 pixel_values = inputs.pixel_values
             image_features = self.model.encode_image(pixel_values)
-        
+            infer_end = time.perf_counter()
+
+        if metrics_out:
+            return {
+                "embeddings": image_features,
+                "inference_time_s": infer_end - infer_start,
+                "processed_images": total_images,
+            }
+
         return image_features
 
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:

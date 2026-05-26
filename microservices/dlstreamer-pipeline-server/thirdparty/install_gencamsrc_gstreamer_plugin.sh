@@ -23,10 +23,12 @@
 source /opt/intel/dlstreamer/setupvars.sh
 
 echo "Installing gencamsrc plugin"
-cd src-gst-gencamsrc && \
-   autoreconf -i
-
-   ./setup.sh
+cd src-gst-gencamsrc
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+cmake --install build
+ldconfig
 
 echo "Removing gencamsrc plugin sources"
+cd ..
 rm -rf src-gst-gencamsrc

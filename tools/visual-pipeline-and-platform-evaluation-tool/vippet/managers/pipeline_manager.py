@@ -211,6 +211,55 @@ class PipelineManager:
         with self._pipelines_lock:
             return [deepcopy(p) for p in self.pipelines]
 
+    def get_model_display_names_used_by_pipelines(self) -> dict[str, list[str]]:
+        """
+        Return a mapping from model display name to the list of pipeline
+        ids that reference it.
+
+        Iterates every variant of every loaded pipeline and collects the
+        values of the ``model`` data property on inference nodes
+        (``gvadetect``, ``gvaclassify``, ``gvainference``, ``gvagenai``,
+        ...). The graphs hold model **display names** rather than
+        filesystem paths because pipeline ingest replaces paths with
+        display names (see ``_model_path_to_display_name`` in
+        ``graph.py``); callers that need the canonical model ``name``
+        from ``supported_models.yaml`` must resolve the display name via
+        ``SupportedModelsManager``.
+
+        Returns:
+            dict[str, list[str]]: Mapping ``display_name -> [pipeline_id, ...]``.
+                Pipeline ids appear at most once per key. Models referenced
+                with an empty ``model`` value are skipped.
+        """
+        # Inference-style elements that carry a model reference in node.data["model"].
+        # ``gvagenai`` uses ``model-path`` natively but graphs normalize to ``model``.
+        inference_types = {
+            "gvadetect",
+            "gvaclassify",
+            "gvainference",
+            "gvagenai",
+            "gvaaudiodetect",
+        }
+
+        result: dict[str, list[str]] = {}
+        with self._pipelines_lock:
+            for pipeline in self.pipelines:
+                seen_in_pipeline: set[str] = set()
+                for variant in pipeline.variants:
+                    graph = variant.pipeline_graph
+                    # Iterate every node looking for inference elements
+                    for node in getattr(graph, "nodes", []) or []:
+                        if node.type not in inference_types:
+                            continue
+                        model_value = (node.data or {}).get("model", "").strip()
+                        if not model_value:
+                            continue
+                        if model_value in seen_in_pipeline:
+                            continue
+                        seen_in_pipeline.add(model_value)
+                        result.setdefault(model_value, []).append(pipeline.id)
+        return result
+
     def get_pipeline_by_id(self, pipeline_id: str) -> InternalPipeline:
         """
         Retrieve a pipeline by its ID.
@@ -579,8 +628,12 @@ class PipelineManager:
             # Store the pipeline directory path for later video file collection
             video_output_paths[pipeline_id] = video_pipeline_dir
 
-            # Replace decodebin3 with parsebin + specific decoder based on input codec and target device
-            if base_graph.has_decodebin3():
+            # Replace decodebin3 with parsebin + specific decoder based on input codec and target device.
+            # Image-set sources also need this pass even without decodebin3, because
+            # video-centric templates (parsebin, avdec_h264, container muxers, ...)
+            # have to be adapted to the raw-video stream produced by the dedicated
+            # image decoder; ``apply_decodebin3_replacement`` handles both cases.
+            if base_graph.has_decodebin3() or base_graph.has_image_set_source():
                 codec = base_graph.determine_input_codec()
                 target_device = base_graph.get_target_device()
                 base_graph = base_graph.apply_decodebin3_replacement(
@@ -690,8 +743,12 @@ class PipelineManager:
                                 f"Pipeline '{pipeline_name}' (id: {pipeline_id}) is missing required output sink. "
                                 f"Please add 'fakesink name=default_output_sink' at the end of the pipeline definition."
                             )
-                        logger.debug(
-                            "Metadata-only pipeline detected with unnamed fakesink. Skipping output injection."
+                        # Metadata-only pipelines do not have a video sink to redirect.Metadata still flows out via
+                        # gvametapublish, so the requested video output_mode cannot be honored.
+                        logger.warning(
+                            f"Pipeline '{pipeline_name}' (id: {pipeline_id}) is metadata-only; "
+                            f"ignoring output_mode={output_mode.value} — no video file/stream will be produced "
+                            f"(metadata output is unaffected)."
                         )
                     else:
                         if output_subpipeline is None:

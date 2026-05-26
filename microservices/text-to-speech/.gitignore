@@ -1,0 +1,12 @@
+**/__pycache__
+**/*.pyc
+**/*venv
+models/*
+!models/.gitkeep
+storage/*
+!storage/.gitkeep
+.cache/*
+!.cache/.gitkeep
+!.cache/huggingface/
+.cache/huggingface/*
+!.cache/huggingface/.gitkeep

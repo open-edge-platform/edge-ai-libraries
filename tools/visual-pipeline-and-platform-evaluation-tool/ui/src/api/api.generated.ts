@@ -184,9 +184,49 @@ const injectedRtkApi = api
         }),
         providesTags: ["jobs"],
       }),
+      getModelDownloadStatuses: build.query<
+        GetModelDownloadStatusesApiResponse,
+        GetModelDownloadStatusesApiArg
+      >({
+        query: () => ({ url: `/jobs/models/status` }),
+        providesTags: ["jobs"],
+      }),
+      getModelDownloadJobSummary: build.query<
+        GetModelDownloadJobSummaryApiResponse,
+        GetModelDownloadJobSummaryApiArg
+      >({
+        query: (queryArg) => ({ url: `/jobs/models/${queryArg.jobId}` }),
+        providesTags: ["jobs"],
+      }),
+      getModelDownloadJobStatus: build.query<
+        GetModelDownloadJobStatusApiResponse,
+        GetModelDownloadJobStatusApiArg
+      >({
+        query: (queryArg) => ({ url: `/jobs/models/${queryArg.jobId}/status` }),
+        providesTags: ["jobs"],
+      }),
       getModels: build.query<GetModelsApiResponse, GetModelsApiArg>({
         query: () => ({ url: `/models` }),
         providesTags: ["models"],
+      }),
+      uploadModel: build.mutation<UploadModelApiResponse, UploadModelApiArg>({
+        query: (queryArg) => ({
+          url: `/models/upload`,
+          method: "POST",
+          body: queryArg.bodyUploadModel,
+        }),
+        invalidatesTags: ["models"],
+      }),
+      startModelDownload: build.mutation<
+        StartModelDownloadApiResponse,
+        StartModelDownloadApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/models/download`,
+          method: "POST",
+          body: queryArg.modelDownloadRequest,
+        }),
+        invalidatesTags: ["models"],
       }),
       getPipelineTemplates: build.query<
         GetPipelineTemplatesApiResponse,
@@ -226,7 +266,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/pipelines/validate`,
           method: "POST",
-          body: queryArg.pipelineValidationInput,
+          body: queryArg.pipelineValidation,
         }),
         invalidatesTags: ["pipelines"],
       }),
@@ -519,9 +559,36 @@ export type GetValidationJobStatusApiResponse =
 export type GetValidationJobStatusApiArg = {
   jobId: string;
 };
+export type GetModelDownloadStatusesApiResponse =
+  /** status 200 Successful Response */ ModelDownloadJobStatus[];
+export type GetModelDownloadStatusesApiArg = void;
+export type GetModelDownloadJobSummaryApiResponse =
+  /** status 200 Successful Response */ ModelDownloadJobSummary;
+export type GetModelDownloadJobSummaryApiArg = {
+  jobId: string;
+};
+export type GetModelDownloadJobStatusApiResponse =
+  /** status 200 Successful Response */ ModelDownloadJobStatus;
+export type GetModelDownloadJobStatusApiArg = {
+  jobId: string;
+};
 export type GetModelsApiResponse =
   /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
+export type UploadModelApiResponse = /** status 200 Successful Response */
+  | any
+  | /** status 201 Model uploaded successfully */ ModelUploadResponse;
+export type UploadModelApiArg = {
+  bodyUploadModel: BodyUploadModel;
+};
+export type StartModelDownloadApiResponse =
+  /** status 200 Successful Response */
+    | any
+    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+export type StartModelDownloadApiArg = {
+  modelDownloadRequest: ModelDownloadRequest;
+};
 export type GetPipelineTemplatesApiResponse =
   /** status 200 List of all available pipeline templates */ Pipeline[];
 export type GetPipelineTemplatesApiArg = void;
@@ -541,7 +608,7 @@ export type CreatePipelineApiArg = {
 export type ValidatePipelineApiResponse =
   /** status 202 Pipeline validation started */ ValidationJobResponse;
 export type ValidatePipelineApiArg = {
-  pipelineValidationInput: PipelineValidation2;
+  pipelineValidation: PipelineValidation;
 };
 export type GetPipelineApiResponse =
   /** status 200 Pipeline details retrieved successfully */ Pipeline;
@@ -838,12 +905,93 @@ export type ValidationJobSummary = {
   id: string;
   request: PipelineValidation;
 };
+export type ModelSource =
+  | "huggingface"
+  | "ultralytics"
+  | "pipeline-zoo-models"
+  | "omz"
+  | "custom";
+export type ModelDownloadJobState = "RUNNING" | "COMPLETED" | "FAILED";
+export type ModelDownloadJobStatus = {
+  id: string;
+  model_name: string;
+  source: ModelSource;
+  start_time: number;
+  elapsed_time: number;
+  state: ModelDownloadJobState;
+  details: string[];
+  progress_message?: string | null;
+  model_path?: string | null;
+};
+export type ModelDownloadJobSummary = {
+  id: string;
+  model_name: string;
+  source: ModelSource;
+};
 export type ModelCategory = "classification" | "detection" | "genai";
-export type Model = {
+export type ModelInstallStatus =
+  | "installed"
+  | "not_installed"
+  | "installing"
+  | "failed";
+export type ModelVariant = {
+  /** Stable variant identifier. */
   name: string;
+  /** Human-readable variant label including precision suffix. */
   display_name: string;
-  category: ModelCategory | null;
-  precision: string | null;
+  /** Precision label. */
+  precision: string;
+  /** Whether the underlying artefacts for this exact variant are present on disk. */
+  installed?: boolean;
+};
+export type Model = {
+  /** Internal model identifier. */
+  name: string;
+  /** Human-readable model name. */
+  display_name: string;
+  /** Logical model category, or null when unknown. */
+  category?: ModelCategory | null;
+  /** Upstream hub the model is downloaded from. */
+  source: ModelSource;
+  /** Current install status of the model on the local disk. */
+  install_status: ModelInstallStatus;
+  /** Selectable variants (one per precision / model-proc). */
+  variants?: ModelVariant[];
+  /** List of predefined-pipeline ids that reference this model. Non-empty means the model is recommended. */
+  used_by_pipelines?: string[];
+  /** Whether the model is marked as a default install candidate in supported_models.yaml. The Models page uses this flag to pre-select recommended models in the bulk-install UI. */
+  default?: boolean;
+  /** Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist. */
+  unsupported_devices?: string | null;
+};
+export type ModelUploadResponse = {
+  /** Newly registered model entry. */
+  model: Model;
+};
+export type BodyUploadModel = {
+  model_name: string;
+  category: ModelCategory;
+  file: string;
+};
+export type ModelDownloadJobItem = {
+  /** Model name. */
+  name: string;
+  /** Identifier of the created model-download job, or null when the request was rejected for this model. */
+  job_id?: string | null;
+  /** HTTP-like per-model status code. */
+  status_code: number;
+  /** Human-readable status description. */
+  message: string;
+};
+export type ModelDownloadJobResponse = {
+  /** Per-model outcome keyed by the requested model name. */
+  jobs: {
+    [key: string]: ModelDownloadJobItem;
+  };
+};
+export type ModelDownloadRequest = {
+  /** List of supported-model names to install. Must be non-empty and unique. */
+  names: string[];
 };
 export type PipelineSource = "PREDEFINED" | "USER_CREATED" | "TEMPLATE";
 export type Variant = {
@@ -903,12 +1051,6 @@ export type PipelineDefinition = {
 export type ValidationJobResponse = {
   /** Identifier of the created validation job. */
   job_id: string;
-};
-export type PipelineValidation2 = {
-  pipeline_graph: PipelineGraph;
-  parameters?: {
-    [key: string]: any;
-  } | null;
 };
 export type PipelineUpdate = {
   name?: string | null;
@@ -1052,14 +1194,48 @@ export type BodyUploadVideo = {
 export type ImageSet = {
   /** Name of the image set directory. */
   name: string;
-  /** Number of image files in the directory. */
+  /** Original uploaded archive filename. */
+  source_archive?: string;
+  /** Number of image files in the set. */
   image_count: number;
+  /** Lowercase canonical image extension shared by every image. */
+  extension?: string;
+  /** Common image width in pixels. */
+  width?: number;
+  /** Common image height in pixels. */
+  height?: number;
+  /** ISO-8601 UTC timestamp of when the set was created. */
+  uploaded_at?: string;
 };
 export type ImageSetExistsResponse = {
   /** True if the image set directory exists, False otherwise. */
   exists: boolean;
   /** The image set name (directory) that was checked. */
   name: string;
+};
+export type ImageUploadErrorKind =
+  | "missing_filename"
+  | "unsupported_archive_format"
+  | "invalid_archive_name"
+  | "archive_too_large"
+  | "archive_corrupted"
+  | "archive_contains_subdirectories"
+  | "archive_contains_no_images"
+  | "archive_mixed_image_extensions"
+  | "archive_disallowed_image_extension"
+  | "archive_mixed_image_resolutions"
+  | "archive_uncompressed_too_large"
+  | "image_set_already_exists"
+  | "unsafe_archive_path";
+export type ImageUploadError = {
+  /** Human-readable error message suitable for UI display. */
+  detail: string;
+  /** Machine-readable error kind. */
+  error: ImageUploadErrorKind;
+  /** Value that actually failed validation, or null. */
+  found?: any | null;
+  /** List of accepted values for the failed check, or null. */
+  allowed?: any[] | null;
 };
 export type BodyUploadImageArchive = {
   file: string;
@@ -1154,8 +1330,16 @@ export const {
   useLazyGetValidationJobSummaryQuery,
   useGetValidationJobStatusQuery,
   useLazyGetValidationJobStatusQuery,
+  useGetModelDownloadStatusesQuery,
+  useLazyGetModelDownloadStatusesQuery,
+  useGetModelDownloadJobSummaryQuery,
+  useLazyGetModelDownloadJobSummaryQuery,
+  useGetModelDownloadJobStatusQuery,
+  useLazyGetModelDownloadJobStatusQuery,
   useGetModelsQuery,
   useLazyGetModelsQuery,
+  useUploadModelMutation,
+  useStartModelDownloadMutation,
   useGetPipelineTemplatesQuery,
   useLazyGetPipelineTemplatesQuery,
   useGetPipelineTemplateQuery,

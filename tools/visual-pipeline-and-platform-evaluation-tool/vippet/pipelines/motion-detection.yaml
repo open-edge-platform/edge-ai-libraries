@@ -11,11 +11,11 @@ variants:
       filesrc location=/videos/input/traffic.mp4 !
       decodebin3 !
       gvamotiondetect motion-threshold=0.07 min-persistence=2 !
-      gvadetect 
-        device=CPU 
-        model=/models/output/public/yolov8n/INT8/yolov8n.xml 
+      gvadetect
+        device=CPU
+        model=/models/output/public/yolov8n/INT8/yolov8n.xml
         pre-process-backend=opencv
-        inference-region=roi-list 
+        inference-region=roi-list
         model-instance-id=detect-cpu !
       gvametaconvert format=json !
       gvametapublish method=file file-format=json-lines file-path=/dev/null !
@@ -28,7 +28,7 @@ variants:
       filesrc location=/videos/input/traffic.mp4 !
       decodebin3 !
       gvamotiondetect motion-threshold=0.07 min-persistence=2 !
-      gvadetect 
+      gvadetect
         device=GPU
         model=/models/output/public/yolov8n/INT8/yolov8n.xml
         pre-process-backend=va-surface-sharing
@@ -39,14 +39,34 @@ variants:
       gvafpscounter starting-frame=100 !
       gvawatermark !
       fakesink name=default_output_sink sync=false async=false
+  - name: GPU (WSL)
+    pipeline_description: >-
+      filesrc location=/videos/input/traffic.mp4 !
+      parsebin !
+      avdec_h264 !
+      videoconvert !
+      video/x-raw !
+      gvamotiondetect motion-threshold=0.07 min-persistence=2 !
+      gvadetect
+        device=GPU
+        model=/models/output/public/yolov8n/INT8/yolov8n.xml
+        pre-process-backend=opencv
+        inference-region=roi-list
+        model-instance-id=detect-gpu !
+      gvametaconvert format=json !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      videoconvert !
+      fakesink name=default_output_sink sync=false async=false
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/traffic.mp4 !
       decodebin3 !
       gvamotiondetect motion-threshold=0.07 min-persistence=2 !
-      gvadetect 
-        device=NPU 
-        model=/models/output/public/yolov8n/INT8/yolov8n.xml 
+      gvadetect
+        device=NPU
+        model=/models/output/public/yolov8n/INT8/yolov8n.xml
         pre-process-backend=opencv
         inference-region=roi-list
         model-instance-id=detect-npu !

@@ -42,6 +42,7 @@ import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 import type { Pipeline } from "@/api/api.generated";
 import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
+import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
@@ -224,6 +225,10 @@ const DemoMode = () => {
   const [densityJobId, setDensityJobId] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
   const [performanceJobId, setPerformanceJobId] = useState<string | null>(null);
+
+  useActiveJobSync(
+    activeTest === "performance-test" ? performanceJobId : densityJobId,
+  );
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
     total_streams: number | null;
@@ -438,7 +443,6 @@ const DemoMode = () => {
         ? fpsSeries.slice(firstPositiveFpsIndex)
         : fpsSeries;
     const fpsAvg = avg(fpsValuesForAverage);
-    const cpuAvg = avg(frozenMetrics.map((point) => point.cpu ?? 0));
     const memoryAvg = avg(frozenMetrics.map((point) => point.memory ?? 0));
 
     const gpuIds = Array.from(
@@ -472,7 +476,7 @@ const DemoMode = () => {
 
     return {
       fps: frozenPerStreamFps ?? fpsAvg,
-      cpu: cpuAvg,
+      cpu: 0,
       memory: memoryAvg,
       availableGpuIds: gpuIds,
       gpuDetailedMetrics,
@@ -926,8 +930,15 @@ const DemoMode = () => {
             : null;
 
       if (!category) return null;
-      const match = models.find((model) => model.category === category);
-      return match ? (match.display_name ?? match.name) : null;
+      // Pick the first installed variant of the first matching model.
+      // Variants expose the per-precision display_name expected by the
+      // pipeline graph (e.g. "YOLO v8n 640x640 (FP16)").
+      for (const model of models) {
+        if (model.category !== category) continue;
+        const variant = (model.variants ?? []).find((v) => v.installed);
+        if (variant) return variant.display_name;
+      }
+      return null;
     };
 
     const getPipelineVariantForRun = (pipelineId: string) =>
@@ -1806,21 +1817,36 @@ const DemoMode = () => {
                                                                         ?.params
                                                                         ?.filter,
                                                                   )
-                                                                  .map(
-                                                                    (model) => (
-                                                                      <option
-                                                                        key={
-                                                                          model.name
-                                                                        }
-                                                                        value={
-                                                                          model.display_name ??
-                                                                          model.name
-                                                                        }
-                                                                      >
-                                                                        {model.display_name ??
-                                                                          model.name}
-                                                                      </option>
-                                                                    ),
+                                                                  .flatMap(
+                                                                    (model) =>
+                                                                      (
+                                                                        model.variants ??
+                                                                        []
+                                                                      )
+                                                                        .filter(
+                                                                          (
+                                                                            variant,
+                                                                          ) =>
+                                                                            variant.installed,
+                                                                        )
+                                                                        .map(
+                                                                          (
+                                                                            variant,
+                                                                          ) => (
+                                                                            <option
+                                                                              key={
+                                                                                variant.display_name
+                                                                              }
+                                                                              value={
+                                                                                variant.display_name
+                                                                              }
+                                                                            >
+                                                                              {
+                                                                                variant.display_name
+                                                                              }
+                                                                            </option>
+                                                                          ),
+                                                                        ),
                                                                   )}
                                                               </select>
                                                             ) : isSourceLocationField &&

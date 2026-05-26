@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
+import {
+  useFrozenMetrics,
+  aggregateLatencyTracerMetrics,
+} from "@/hooks/useFrozenMetrics";
 import {
   useGetPerformanceJobStatusQuery,
   useRunPerformanceTestMutation,
@@ -10,6 +13,7 @@ import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
+import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
@@ -91,6 +95,7 @@ export const PerformanceTests = () => {
   const [loopingRuntimeInput, setLoopingRuntimeInput] = useState(
     String(DEFAULT_LOOPING_RUNTIME_SECONDS),
   );
+  const [latencyMetricsEnabled, setLatencyMetricsEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
@@ -98,11 +103,14 @@ export const PerformanceTests = () => {
   const {
     execute: runTest,
     isLoading: isRunning,
+    jobId,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunPerformanceTestMutation,
     statusCheckHook: useGetPerformanceJobStatusQuery,
   });
+
+  useActiveJobSync(jobId);
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
 
@@ -220,6 +228,7 @@ export const PerformanceTests = () => {
               : loopingEnabled
                 ? loopingRuntimeSeconds
                 : 0,
+            enable_latency_metrics: latencyMetricsEnabled,
           },
           pipeline_performance_specs: pipelineSelections.map((selection) => ({
             pipeline: {
@@ -238,7 +247,10 @@ export const PerformanceTests = () => {
         video_output_paths: status.video_output_paths,
       });
       setErrorMessage(null);
-      freezeSnapshot(status.total_fps ?? status.per_stream_fps);
+      freezeSnapshot({
+        fps: status.per_stream_fps,
+        ...aggregateLatencyTracerMetrics(status.latency_tracer_metrics),
+      });
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
@@ -482,6 +494,25 @@ export const PerformanceTests = () => {
                 <p>Run test in loop mode for a selected duration</p>
               </TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                  <Checkbox
+                    checked={latencyMetricsEnabled}
+                    disabled={isRunning}
+                    onCheckedChange={(checked) =>
+                      setLatencyMetricsEnabled(checked === true)
+                    }
+                  />
+                  <span className="text-sm font-medium">
+                    Enable latency metrics
+                  </span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Collect pipeline latency measurements during the test</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
 
           {loopingEnabled && (
@@ -560,9 +591,7 @@ export const PerformanceTests = () => {
             <p className="text-sm font-medium text-status-fg mb-2">
               Test Failed
             </p>
-            <p className="text-xs text-status-fg">
-              {errorMessage}
-            </p>
+            <p className="text-xs text-status-fg">{errorMessage}</p>
           </div>
         )}
 
@@ -695,7 +724,9 @@ export const PerformanceTests = () => {
                     </div>
                   )}
 
-                <MetricsDashboard />
+                <MetricsDashboard
+                  enableLatencyMetrics={latencyMetricsEnabled}
+                />
               </div>
             )}
           </div>
@@ -707,6 +738,7 @@ export const PerformanceTests = () => {
               Frozen Metrics Snapshot
             </p>
             <MetricsDashboard
+              enableLatencyMetrics={latencyMetricsEnabled}
               historyOverride={frozenHistory}
               metricsOverride={frozenSummary}
             />
