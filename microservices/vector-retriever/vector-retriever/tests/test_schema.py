@@ -4,7 +4,7 @@
 from datetime import datetime, timezone
 import pytest
 
-from src.common.schema import QueryRequest, TimeRange
+from src.common.schema import QueryRequest, TimeRange, ImageUrlInput, ImageBase64Input
 
 
 def test_time_range_validation():
@@ -159,4 +159,71 @@ def test_where_rejects_timezone_naive_datetime_strings():
                 "op": "between",
                 "value": ["2026-03-01T00:00:00", "2026-03-02T00:00:00"],
             },
+        )
+
+
+# ── Image query modality tests ──────────────────────────────────────
+
+
+def test_query_request_accepts_image_url():
+    """QueryRequest should accept an image_url input without text query."""
+    request = QueryRequest(
+        image={"type": "image_url", "image_url": "https://example.com/photo.jpg"},
+    )
+    assert request.query is None
+    assert request.image is not None
+    assert request.image.type == "image_url"
+    assert request.image.image_url == "https://example.com/photo.jpg"
+
+
+def test_query_request_accepts_image_base64():
+    """QueryRequest should accept a base64-encoded image input."""
+    request = QueryRequest(
+        image={"type": "image_base64", "image_base64": "aWFtYW5pbWFnZQ=="},
+    )
+    assert request.query is None
+    assert request.image is not None
+    assert request.image.type == "image_base64"
+
+
+def test_query_request_rejects_both_query_and_image():
+    """QueryRequest should reject payloads with both text and image."""
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        QueryRequest(
+            query="person near car",
+            image={"type": "image_url", "image_url": "https://example.com/photo.jpg"},
+        )
+
+
+def test_query_request_rejects_neither_query_nor_image():
+    """QueryRequest should reject payloads with no query modality."""
+    with pytest.raises(ValueError, match="either query.*or image must be provided"):
+        QueryRequest(top_k=5)
+
+
+def test_query_request_image_with_filters():
+    """Image queries should still accept filter payloads."""
+    request = QueryRequest(
+        image={"type": "image_url", "image_url": "https://example.com/photo.jpg"},
+        where={"field": "video_id", "op": "eq", "value": "v1"},
+        top_k=5,
+    )
+    assert request.image is not None
+    assert request.where is not None
+    assert request.top_k == 5
+
+
+def test_query_request_rejects_empty_image_url():
+    """Image URL input must be non-empty."""
+    with pytest.raises(ValueError):
+        QueryRequest(
+            image={"type": "image_url", "image_url": ""},
+        )
+
+
+def test_query_request_rejects_empty_image_base64():
+    """Image base64 input must be non-empty."""
+    with pytest.raises(ValueError):
+        QueryRequest(
+            image={"type": "image_base64", "image_base64": ""},
         )

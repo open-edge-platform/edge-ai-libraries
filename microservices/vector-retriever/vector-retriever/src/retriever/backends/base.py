@@ -17,6 +17,15 @@ class VectorStoreBackend(Protocol):
         """Run similarity search and return `(document, score)` tuples."""
         ...
 
+    def similarity_search_with_score_by_vector(
+        self,
+        embedding: list[float],
+        k: int = 4,
+        **kwargs: Any,
+    ) -> list[tuple[Any, float]]:
+        """Run similarity search from a pre-computed vector."""
+        ...
+
 
 @dataclass(frozen=True)
 class BackendSpec:

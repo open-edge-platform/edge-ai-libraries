@@ -21,6 +21,7 @@ from src.retriever.filters import (
     build_filters,
 )
 from src.retriever.backend_factory import get_vectordb, clear_vectordb_cache
+from src.retriever.embedding_client import EmbeddingAPI
 from src.retriever.backends.registry import (
     BACKEND_PUSHDOWN_OPERATORS as BACKEND_NATIVE_PUSHDOWN_OPERATORS,
 )
@@ -43,16 +44,47 @@ def _serialize_log_value(value: Any) -> Any:
     return value
 
 
+def _filter_kwargs(params: inspect.BoundArguments, query_filter: Any) -> dict[str, Any]:
+    """Return the correct keyword for the backend filter parameter.
+
+    LangChain backends use either ``filter`` (FAISS, PGVector, VDMS) or
+    ``expr`` (Milvus) as the filter parameter name.  Passing ``filter`` as
+    a **kwarg to a method that expects ``expr`` causes pymilvus to receive
+    ``filter`` twice and raise a ``TypeError``.  This helper inspects the
+    method signature and returns the appropriate keyword dict.
+    """
+    sig_params = params.signature.parameters
+    if "expr" in sig_params:
+        return {"expr": query_filter}
+    return {"filter": query_filter}
+
+
 def _do_search(db: Any, query: str, resolved_top_k: int, fetch_k: int, query_filter: Any) -> list:
     """Call similarity_search_with_score, using fetch_k only when supported."""
-    if "fetch_k" in inspect.signature(db.similarity_search_with_score).parameters:
+    sig = inspect.signature(db.similarity_search_with_score)
+    fkw = _filter_kwargs(sig.bind_partial(), query_filter)
+    if "fetch_k" in sig.parameters:
         return db.similarity_search_with_score(
             query,
             k=resolved_top_k,
             fetch_k=fetch_k,
-            filter=query_filter,
+            **fkw,
         )
-    return db.similarity_search_with_score(query, k=fetch_k, filter=query_filter)
+    return db.similarity_search_with_score(query, k=fetch_k, **fkw)
+
+
+def _do_vector_search(db: Any, embedding: list[float], resolved_top_k: int, fetch_k: int, query_filter: Any) -> list:
+    """Call similarity_search_with_score_by_vector with a pre-computed embedding."""
+    sig = inspect.signature(db.similarity_search_with_score_by_vector)
+    fkw = _filter_kwargs(sig.bind_partial(), query_filter)
+    if "fetch_k" in sig.parameters:
+        return db.similarity_search_with_score_by_vector(
+            embedding,
+            k=resolved_top_k,
+            fetch_k=fetch_k,
+            **fkw,
+        )
+    return db.similarity_search_with_score_by_vector(embedding, k=fetch_k, **fkw)
 
 
 def _similarity_search_with_reconnect(
@@ -80,6 +112,27 @@ def _similarity_search_with_reconnect(
         clear_vectordb_cache()
         fresh_db = get_vectordb()
         return _do_search(fresh_db, query, resolved_top_k, fetch_k, query_filter)
+
+
+def _vector_search_with_reconnect(
+    db: Any,
+    embedding: list[float],
+    resolved_top_k: int,
+    fetch_k: int,
+    query_filter: Any,
+) -> list:
+    """Execute vector similarity search with a single reconnect retry on failure."""
+    try:
+        return _do_vector_search(db, embedding, resolved_top_k, fetch_k, query_filter)
+    except Exception as exc:
+        logger.warning(
+            "Backend vector query failed (%s: %s); evicting cache and retrying with fresh connection.",
+            type(exc).__name__,
+            exc,
+        )
+        clear_vectordb_cache()
+        fresh_db = get_vectordb()
+        return _do_vector_search(fresh_db, embedding, resolved_top_k, fetch_k, query_filter)
 
 
 def _extract_iso_datetime(metadata: dict[str, Any], field_name: str) -> datetime | None:
@@ -370,19 +423,33 @@ def _build_pushdown_filters(
     )
 
 
+def _get_query_label(query_request: QueryRequest) -> str:
+    """Return a human-readable label for the query modality."""
+    if query_request.query is not None:
+        return query_request.query
+    assert query_request.image is not None
+    return f"[{query_request.image.type}]"
+
+
 def execute_single_query(query_request: QueryRequest) -> QueryResultBlock:
     """Execute one semantic query against the active backend.
+
+    Supports both text and image query modalities.  Text queries use the
+    backend's built-in ``similarity_search_with_score`` which embeds
+    internally.  Image queries compute the embedding vector explicitly
+    via the embedding service and then call
+    ``similarity_search_by_vector_with_score``.
 
     Backend-native filters are applied at query time, then a consistent
     fallback filter pass is applied to returned metadata to enforce behavior
     across heterogeneous backend filter implementations.
     """
-    resolved_query_id = query_request.query_id or query_request.query
+    query_label = _get_query_label(query_request)
+    resolved_query_id = query_request.query_id or query_label
     requested_top_k = (
         query_request.top_k if query_request.top_k is not None else settings.DEFAULT_TOP_K
     )
-    resolved_top_k = requested_top_k
-    resolved_top_k = max(1, min(resolved_top_k, settings.MAX_TOP_K))
+    resolved_top_k = max(1, min(requested_top_k, settings.MAX_TOP_K))
 
     normalized_where, rewritten_clauses = _normalize_request_where(query_request)
     (
@@ -408,9 +475,12 @@ def execute_single_query(query_request: QueryRequest) -> QueryResultBlock:
     fallback_filter_active = normalized_where is not None
     overfetch_active = fetch_k > resolved_top_k
 
+    is_image_query = query_request.image is not None
+
     logger.info(
-        "Executing query_id=%s top_k=%d has_where=%s pushdown_tags=%s pushdown_time=%s pushdown_generic=%s warnings=%d",
+        "Executing query_id=%s modality=%s top_k=%d has_where=%s pushdown_tags=%s pushdown_time=%s pushdown_generic=%s warnings=%d",
         resolved_query_id,
+        "image" if is_image_query else "text",
         resolved_top_k,
         bool(normalized_where),
         bool(pushdown_tags),
@@ -422,7 +492,7 @@ def execute_single_query(query_request: QueryRequest) -> QueryResultBlock:
         logger.debug(
             "Final query execution inputs query_id=%s query=%r normalized_where=%r compiled_backend_filter=%r pushdown_tags=%r pushdown_time_filter=%r pushdown_generic_filters=%r top_k=%d fetch_k=%d fallback_filter_active=%s overfetch_active=%s warnings=%r",
             resolved_query_id,
-            query_request.query,
+            query_label,
             _serialize_log_value(normalized_where),
             _serialize_log_value(query_filter),
             _serialize_log_value(pushdown_tags),
@@ -436,15 +506,28 @@ def execute_single_query(query_request: QueryRequest) -> QueryResultBlock:
         )
 
     db = get_vectordb()
-    # `fetch_k` is only supported by FAISS for ANN over-fetching. For other
-    # backends, over-fetch by passing fetch_k as k directly.
-    docs_with_score = _similarity_search_with_reconnect(
-        db=db,
-        query=query_request.query,
-        resolved_top_k=resolved_top_k,
-        fetch_k=fetch_k,
-        query_filter=query_filter,
-    )
+
+    if is_image_query:
+        embedding_client = EmbeddingAPI(
+            api_url=settings.EMBEDDINGS_ENDPOINT,
+            model_name=settings.EMBEDDING_MODEL_NAME,
+        )
+        image_embedding = embedding_client.embed_image(query_request.image)
+        docs_with_score = _vector_search_with_reconnect(
+            db=db,
+            embedding=image_embedding,
+            resolved_top_k=resolved_top_k,
+            fetch_k=fetch_k,
+            query_filter=query_filter,
+        )
+    else:
+        docs_with_score = _similarity_search_with_reconnect(
+            db=db,
+            query=query_request.query,
+            resolved_top_k=resolved_top_k,
+            fetch_k=fetch_k,
+            query_filter=query_filter,
+        )
 
     items: list[QueryResultItem] = []
     for doc, score in docs_with_score:
@@ -466,7 +549,7 @@ def execute_single_query(query_request: QueryRequest) -> QueryResultBlock:
 
     return QueryResultBlock(
         query_id=resolved_query_id,
-        query=query_request.query,
+        query=query_label,
         count=len(items),
         items=items,
         applied_filters=AppliedFilters(

@@ -212,11 +212,33 @@ class WhereClause(BaseModel):
 WhereClause.model_rebuild()
 
 
+class ImageUrlInput(BaseModel):
+    """Image query input provided as a URL."""
+
+    type: Literal["image_url"]
+    image_url: str = Field(min_length=1)
+
+
+class ImageBase64Input(BaseModel):
+    """Image query input provided as base64-encoded data."""
+
+    type: Literal["image_base64"]
+    image_base64: str = Field(min_length=1)
+
+
+ImageInput = ImageUrlInput | ImageBase64Input
+"""Discriminated union for image query inputs (URL or base64)."""
+
+
 class QueryRequest(BaseModel):
-    """Single retrieval query payload accepted by the batch API."""
+    """Single retrieval query payload accepted by the batch API.
+
+    Exactly one of ``query`` (text) or ``image`` must be provided.
+    """
 
     query_id: str | None = None
-    query: str = Field(min_length=1)
+    query: str | None = Field(default=None, min_length=1)
+    image: ImageInput | None = Field(default=None, discriminator="type")
     tags: list[str] | None = None
     time_filter: TimeRange | None = None
     filters: dict[str, "FilterCondition"] | None = None
@@ -226,12 +248,25 @@ class QueryRequest(BaseModel):
 
     @field_validator("query")
     @classmethod
-    def validate_query(cls, value: str) -> str:
+    def validate_query(cls, value: str | None) -> str | None:
         """Normalize and validate the query text value."""
+        if value is None:
+            return value
         cleaned = value.strip()
         if not cleaned:
             raise ValueError("query must be a non-empty string")
         return cleaned
+
+    @model_validator(mode="after")
+    def validate_query_modality(self) -> "QueryRequest":
+        """Enforce that exactly one of query (text) or image is provided."""
+        has_text = self.query is not None
+        has_image = self.image is not None
+        if has_text and has_image:
+            raise ValueError("query and image are mutually exclusive; provide exactly one")
+        if not has_text and not has_image:
+            raise ValueError("either query (text) or image must be provided")
+        return self
 
     @field_validator("tags")
     @classmethod

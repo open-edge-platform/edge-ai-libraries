@@ -57,6 +57,43 @@ Batch query endpoint. Accepts a list of `QueryRequest` objects and returns per-q
 
 Compatibility aliases remain supported for now (`tags`, `time_filter`, `filters`) and are normalized into `where`.
 
+### Image query variants
+
+Instead of a text `query`, you can supply an `image` object for visual similarity search.
+The `image` field uses a discriminated union on the `type` property.
+
+Image URL input:
+
+```json
+[
+  {
+    "query_id": "img-url-1",
+    "image": {
+      "type": "image_url",
+      "image_url": "https://example.com/photo.jpg"
+    },
+    "top_k": 5
+  }
+]
+```
+
+Base64-encoded image input:
+
+```json
+[
+  {
+    "query_id": "img-b64-1",
+    "image": {
+      "type": "image_base64",
+      "image_base64": "<base64-encoded-image-data>"
+    },
+    "top_k": 5
+  }
+]
+```
+
+> **_NOTE:_** `query` and `image` are mutually exclusive. Providing both in the same query block returns a `422` validation error. When using `image`, the response `query` field is set to `[image_url]` or `[image_base64]` to indicate the input modality.
+
 ### Quick contract reference
 
 Top-level request fields:
@@ -64,7 +101,8 @@ Top-level request fields:
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `query_id` | string | No | Optional per-query identifier. Defaults to the `query` text when omitted. |
-| `query` | string | Yes | User search text. |
+| `query` | string | Conditional | User search text. Required unless `image` is provided. Mutually exclusive with `image`. |
+| `image` | object | Conditional | Image input for visual similarity search. Required unless `query` is provided. Mutually exclusive with `query`. Uses discriminated union with `type` field (`image_url` or `image_base64`). |
 | `top_k` | integer | No | Result count cap for this query. |
 | `where` | object | No | Primary filter grammar object. |
 | `explain_filters` | boolean | No | When true, response includes backend filter payload and rewrite details. |
@@ -201,7 +239,7 @@ Optional query parameter:
   "backends": [
     {
       "backend": "vdms",
-      "top_level_fields": ["query", "top_k", "where"],
+      "top_level_fields": ["query", "image", "top_k", "where"],
       "logical_blocks": ["all", "any", "not"],
       "supported_operators": ["eq", "in", "contains", "starts_with", "gt", "gte", "lt", "lte", "between", "contains_any", "contains_all", "exists", "missing"],
       "pushdown_operators": ["gte"],

@@ -16,11 +16,13 @@ The API exposes four endpoints:
 Each query can include:
 
 - optional `query_id`
-- `query` text
+- `query` text **or** `image` input (mutually exclusive)
 - primary `where` filters
 - compatibility aliases: `tags`, `time_filter`, `filters`
 - optional `top_k`
 - optional `explain_filters`
+
+Image input supports two formats via a discriminated union: `image_url` (remote URL) and `image_base64` (base64-encoded data). The embedding service computes the image embedding, and the retriever performs vector similarity search against stored document embeddings.
 
 ## Key Capabilities
 

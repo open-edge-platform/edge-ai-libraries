@@ -4,7 +4,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.common.logger import get_logger
@@ -58,8 +58,115 @@ async def readiness_check() -> HealthResponse:
         raise HTTPException(status_code=503, detail="Service not ready")
 
 
-@app.post("/query", response_model=BatchQueryResponse)
-async def query_endpoint(request: Request, payload: list[QueryRequest]) -> BatchQueryResponse:
+_QUERY_EXAMPLES = {
+    "textQuery": {
+        "summary": "Text query with filter",
+        "value": [
+            {
+                "query_id": "q1",
+                "query": "red car at intersection",
+                "where": {"field": "tags", "op": "contains_any", "value": ["traffic"]},
+                "top_k": 10,
+            }
+        ],
+    },
+    "imageQuery": {
+        "summary": "Image query (base64)",
+        "value": [
+            {
+                "query_id": "img1",
+                "image": {
+                    "type": "image_base64",
+                    "image_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAY"
+                    "AAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+                },
+                "top_k": 5,
+            }
+        ],
+    },
+    "imageUrlQuery": {
+        "summary": "Image query (URL)",
+        "value": [
+            {
+                "query_id": "img2",
+                "image": {"type": "image_url", "image_url": "https://example.com/photo.jpg"},
+                "top_k": 5,
+            }
+        ],
+    },
+}
+
+_400_RESPONSE = {
+    "description": "Empty payload — the request body must contain at least one query object. Send `[]` to trigger.",
+    "content": {
+        "application/json": {
+            "example": {"detail": "Request body must contain at least one query"},
+        }
+    },
+}
+
+_422_RESPONSE = {
+    "description": (
+        "Request validation failed. Common causes: missing both query and image, "
+        "providing both at once, empty query string, invalid where clause."
+    ),
+    "content": {
+        "application/json": {
+            "examples": {
+                "missingQueryAndImage": {
+                    "summary": "Neither query nor image provided",
+                    "description": 'Send [{"query_id":"q1","top_k":10}] to trigger.',
+                    "value": {
+                        "detail": [
+                            {
+                                "loc": ["body", 0],
+                                "msg": "Value error, either query (text) or image must be provided",
+                                "type": "value_error",
+                            }
+                        ]
+                    },
+                },
+                "bothQueryAndImage": {
+                    "summary": "Both query and image provided",
+                    "description": 'Send [{"query_id":"q1","query":"hello","image":{"type":"image_base64","image_base64":"abc"}}] to trigger.',
+                    "value": {
+                        "detail": [
+                            {
+                                "loc": ["body", 0],
+                                "msg": "Value error, query and image are mutually exclusive; provide exactly one",
+                                "type": "value_error",
+                            }
+                        ]
+                    },
+                },
+                "invalidWhereClause": {
+                    "summary": "Where clause missing op",
+                    "description": 'Send [{"query_id":"q1","query":"test","where":{"field":"tags"}}] to trigger.',
+                    "value": {
+                        "detail": [
+                            {
+                                "loc": ["body", 0, "where"],
+                                "msg": "Value error, where predicate must include op",
+                                "type": "value_error",
+                            }
+                        ]
+                    },
+                },
+            }
+        }
+    },
+}
+
+
+@app.post(
+    "/query",
+    response_model=BatchQueryResponse,
+    responses={400: _400_RESPONSE, 422: _422_RESPONSE},
+)
+async def query_endpoint(
+    request: Request,
+    payload: list[QueryRequest] = Body(..., openapi_examples=_QUERY_EXAMPLES),
+) -> BatchQueryResponse:
     """Execute a batch of semantic retrieval queries."""
     if not payload:
         raise HTTPException(status_code=400, detail="Request body must contain at least one query")

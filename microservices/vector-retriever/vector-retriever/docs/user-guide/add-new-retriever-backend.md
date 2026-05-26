@@ -14,7 +14,7 @@ Each backend owns two modules under `src/retriever/backends/<backend_name>/`:
 
 The backend registry (`src/retriever/backends/registry.py`) dynamically loads these callables and advertises backend filter capabilities.
 
-The runtime calls `similarity_search_with_score(query, k, fetch_k=..., filter=...)` on the object returned by `get_vectordb()`.
+The runtime calls `similarity_search_with_score(query, k, fetch_k=..., filter=...)` on the object returned by `get_vectordb()`. For image queries, the runtime calls `similarity_search_with_score_by_vector(embedding, k, ...)` with a pre-computed embedding vector. The filter keyword varies by backend (`filter` for most, `expr` for Milvus).
 
 ## Step-by-step
 
@@ -28,8 +28,8 @@ cp -r src/retriever/backends/_template src/retriever/backends/<backend_name>
 
     Required behavior:
 
-    - Return an object implementing `similarity_search_with_score(query, k, **kwargs)`.
-    - Ensure compatibility with keyword arguments used by the service (`fetch_k`, `filter`).
+    - Return an object implementing `similarity_search_with_score(query, k, **kwargs)` and `similarity_search_with_score_by_vector(embedding, k, **kwargs)`.
+    - Ensure compatibility with keyword arguments used by the service (`fetch_k`, `filter` or `expr`).
     - Perform lazy imports for optional dependencies.
     - Raise clear `ImportError` messages when an optional package is missing.
     - Use `@lru_cache(maxsize=1)` where appropriate to avoid repeated client initialization.

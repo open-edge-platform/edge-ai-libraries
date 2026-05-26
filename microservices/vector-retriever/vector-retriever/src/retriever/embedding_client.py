@@ -1,13 +1,18 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+from __future__ import annotations
+
 from urllib.parse import urlparse
-from typing import List
+from typing import TYPE_CHECKING, List
 import requests
 from langchain_core.embeddings import Embeddings
 
 from src.common.logger import get_logger
 from src.common.settings import settings
+
+if TYPE_CHECKING:
+    from src.common.schema import ImageInput
 
 
 logger = get_logger()
@@ -79,6 +84,32 @@ class EmbeddingAPI(Embeddings):
         }
         embeddings = self._post_embeddings(payload)
         return embeddings[0]
+
+    def embed_image_url(self, url: str) -> List[float]:
+        """Generate embedding for an image specified by URL."""
+        payload = {
+            "model": self.model_name,
+            "input": {"type": "image_url", "image_url": url},
+            "encoding_format": "float",
+        }
+        embeddings = self._post_embeddings(payload)
+        return embeddings[0]
+
+    def embed_image_base64(self, data: str) -> List[float]:
+        """Generate embedding for a base64-encoded image."""
+        payload = {
+            "model": self.model_name,
+            "input": {"type": "image_base64", "image_base64": data},
+            "encoding_format": "float",
+        }
+        embeddings = self._post_embeddings(payload)
+        return embeddings[0]
+
+    def embed_image(self, image: ImageInput) -> List[float]:
+        """Generate embedding for an image input (URL or base64)."""
+        if image.type == "image_url":
+            return self.embed_image_url(image.image_url)
+        return self.embed_image_base64(image.image_base64)
 
     def get_embedding_length(self) -> int:
         """Resolve and cache embedding vector dimensionality."""

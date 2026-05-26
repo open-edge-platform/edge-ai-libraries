@@ -2,7 +2,7 @@
 
 `vector-retriever` provides OpenAI-style semantic retrieval over multiple vector backends with a unified query contract, backend pushdown where possible, and deterministic fallback filtering where required.
 
-The microservice supports batch queries, rich metadata filtering through the `where` grammar, legacy compatibility aliases (`tags`, `time_filter`, `filters`), per-query `top_k`, and optional explain output (`explain_filters`) for pushdown diagnostics.
+The microservice supports batch queries, rich metadata filtering through the `where` grammar, legacy compatibility aliases (`tags`, `time_filter`, `filters`), per-query `top_k`, image query input (base64 or URL as an alternative to text), and optional explain output (`explain_filters`) for pushdown diagnostics.
 
 ## Documentation
 

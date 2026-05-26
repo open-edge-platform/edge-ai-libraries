@@ -43,7 +43,7 @@ Milvus backend:
 
 | Variable | Required | Default |
 | --- | --- | --- |
-| `MILVUS_URI` | Yes for `milvus` | `http://milvus-standalone:19530` |
+| `MILVUS_URI` | Yes for `milvus` | `http://milvus-server:19530` |
 | `MILVUS_TOKEN` | No | _(empty)_ |
 | `MILVUS_DB_NAME` | No | _(empty)_ |
 | `MILVUS_INDEX_TYPE` | No | `FLAT` |
@@ -111,7 +111,7 @@ export VDMS_VDB_PORT=55555
 
 # Milvus backend
 export RETRIEVER_BACKEND=milvus
-export MILVUS_URI=http://milvus-standalone:19530
+export MILVUS_URI=http://milvus-server:19530
 
 # PGVector backend
 export RETRIEVER_BACKEND=pgvector
@@ -280,6 +280,42 @@ curl --location 'http://localhost:6008/query' \
 
 `where` is the preferred filter contract. Legacy `tags`, `time_filter`, and `filters`
 fields are still accepted for backward compatibility.
+
+### Query with Image Input (base64)
+
+```bash
+curl --location 'http://localhost:6008/query' \
+--header 'Content-Type: application/json' \
+--data '[
+  {
+    "query_id": "img1",
+    "image": {
+      "type": "image_base64",
+      "image_base64": "<base64-encoded-image-data>"
+    },
+    "top_k": 5
+  }
+]'
+```
+
+### Query with Image Input (URL)
+
+```bash
+curl --location 'http://localhost:6008/query' \
+--header 'Content-Type: application/json' \
+--data '[
+  {
+    "query_id": "img2",
+    "image": {
+      "type": "image_url",
+      "image_url": "https://example.com/photo.jpg"
+    },
+    "top_k": 5
+  }
+]'
+```
+
+> **_NOTE:_** `query` and `image` are mutually exclusive. Providing both returns `422`.
 
 ### Query with Time Filter
 

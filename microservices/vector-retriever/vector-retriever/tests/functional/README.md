@@ -44,6 +44,7 @@ API-level assertions per backend:
 - Batch query → 2 queries in one request, both results correct
 - `explain_filters=True` → `compiled_backend_filter` present in response
 - `top_k` limiting → `top_k=2` returns exactly 2 items
+- Image query → base64 image input returns results; image with `where` filter works; mutual exclusivity with `query` returns `422`
 
 ## Run
 

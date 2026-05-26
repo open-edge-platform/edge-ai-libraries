@@ -90,6 +90,7 @@ Across all four notebooks, the expected scenarios match `tests/functional/data.p
 - logical composition through `all`, `any`, and `not`
 - legacy request aliases: `tags`, `time_filter`, and `filters`
 - regression-style checks such as zero-result filters, nested `all`, batch queries, `top_k`, and `explain_filters`
+- image query input: base64-encoded image search, image with `where` filter, and mutual exclusivity validation with `query`
 
 ## Rerun and cleanup guidance
 

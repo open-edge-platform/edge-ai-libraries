@@ -14,12 +14,21 @@ class _FakeVectorDb:
     def __init__(self, docs_with_score):
         self.docs_with_score = docs_with_score
         self.last_call = None
+        self.last_vector_call = None
 
     def similarity_search_with_score(self, query, k, fetch_k, filter):
         self.last_call = {
             "query": query,
             "k": k,
             "fetch_k": fetch_k,
+            "filter": filter,
+        }
+        return self.docs_with_score
+
+    def similarity_search_with_score_by_vector(self, embedding, k, filter=None):
+        self.last_vector_call = {
+            "embedding": embedding,
+            "k": k,
             "filter": filter,
         }
         return self.docs_with_score
@@ -340,6 +349,115 @@ def test_execute_single_query_matches_timezone_aware_eq_filters(monkeypatch):
             top_k=2,
         )
     )
+
+    assert result.count == 1
+    assert result.items[0].metadata["video_id"] == "v-match"
+
+
+# ── Image query tests ────────────────────────────────────────────────
+
+
+class _FakeEmbeddingAPI:
+    """Stub embedding client that returns deterministic image embeddings."""
+
+    def __init__(self, api_url="", model_name=""):
+        self.last_image = None
+
+    def embed_image(self, image):
+        self.last_image = image
+        return [0.1, 0.2, 0.3]
+
+
+def test_execute_single_query_image_url(monkeypatch):
+    """Image URL queries should compute embedding and use vector search."""
+    docs = [
+        (
+            types.SimpleNamespace(
+                metadata={"video_id": "v1"},
+                page_content="frame-a",
+            ),
+            0.95,
+        )
+    ]
+    fake_db = _FakeVectorDb(docs)
+    fake_embed = _FakeEmbeddingAPI()
+
+    monkeypatch.setattr(service_module, "get_vectordb", lambda: fake_db)
+    monkeypatch.setattr(service_module, "EmbeddingAPI", lambda **kw: fake_embed)
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "vdms")
+
+    request = QueryRequest(
+        image={"type": "image_url", "image_url": "https://example.com/photo.jpg"},
+        top_k=5,
+    )
+    result = service_module.execute_single_query(request)
+
+    assert result.count == 1
+    assert result.query == "[image_url]"
+    assert fake_db.last_vector_call is not None
+    assert fake_db.last_vector_call["embedding"] == [0.1, 0.2, 0.3]
+    assert fake_db.last_call is None  # text search not called
+
+
+def test_execute_single_query_image_base64(monkeypatch):
+    """Image base64 queries should compute embedding and use vector search."""
+    docs = [
+        (
+            types.SimpleNamespace(
+                metadata={"video_id": "v2"},
+                page_content="frame-b",
+            ),
+            0.88,
+        )
+    ]
+    fake_db = _FakeVectorDb(docs)
+    fake_embed = _FakeEmbeddingAPI()
+
+    monkeypatch.setattr(service_module, "get_vectordb", lambda: fake_db)
+    monkeypatch.setattr(service_module, "EmbeddingAPI", lambda **kw: fake_embed)
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "vdms")
+
+    request = QueryRequest(
+        image={"type": "image_base64", "image_base64": "aWFtYW5pbWFnZQ=="},
+    )
+    result = service_module.execute_single_query(request)
+
+    assert result.count == 1
+    assert result.query == "[image_base64]"
+    assert fake_db.last_vector_call is not None
+
+
+def test_execute_single_query_image_with_where_filter(monkeypatch):
+    """Image queries should apply where filters in fallback path."""
+    docs = [
+        (
+            types.SimpleNamespace(
+                metadata={"video_id": "v-match", "tags": ["traffic"]},
+                page_content="frame-keep",
+            ),
+            0.95,
+        ),
+        (
+            types.SimpleNamespace(
+                metadata={"video_id": "v-drop", "tags": ["night"]},
+                page_content="frame-drop",
+            ),
+            0.9,
+        ),
+    ]
+    fake_db = _FakeVectorDb(docs)
+    fake_embed = _FakeEmbeddingAPI()
+
+    monkeypatch.setattr(service_module, "get_vectordb", lambda: fake_db)
+    monkeypatch.setattr(service_module, "EmbeddingAPI", lambda **kw: fake_embed)
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "vdms")
+
+    request = QueryRequest(
+        image={"type": "image_url", "image_url": "https://example.com/photo.jpg"},
+        where={"field": "video_id", "op": "eq", "value": "v-match"},
+        top_k=2,
+    )
+    result = service_module.execute_single_query(request)
 
     assert result.count == 1
     assert result.items[0].metadata["video_id"] == "v-match"

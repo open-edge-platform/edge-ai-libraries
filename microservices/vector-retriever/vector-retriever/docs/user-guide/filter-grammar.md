@@ -8,7 +8,8 @@ Use `where` as the primary filter object.
 
 Primary filter-related query fields are:
 
-- `query`
+- `query` (text input, mutually exclusive with `image`)
+- `image` (image input, mutually exclusive with `query`)
 - `top_k`
 - `where`
 

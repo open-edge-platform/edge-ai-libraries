@@ -10,6 +10,7 @@ Highlights:
 - Primary `where` filter grammar with compatibility aliases (`tags`, `time_filter`, `filters`)
 - Filter capability discovery endpoint (`GET /capabilities/filters`)
 - Batch query API with partial error handling
+- Image query modality: send an image (base64 or URL) instead of text for visual similarity search, with mutually exclusive `query`/`image` fields
 - Developer template and guide for adding new backends
 
 For sample-application integration context, see the Video Search and Summarization release notes in the corresponding sample application documentation.

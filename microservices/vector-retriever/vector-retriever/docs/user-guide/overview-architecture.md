@@ -17,12 +17,13 @@ The retriever service translates user queries into vector similarity searches an
 
 1. Client sends `POST /query` with a list of query blocks.
 2. Service validates schema and filter operators.
-3. Service normalizes the primary `where` contract plus compatibility aliases (`tags`, `time_filter`, `filters`).
-4. Backend-specific pushdown filters are built from the safe subset of predicates.
-5. Service computes candidate retrieval size (`fetch_k`), including over-fetch when pushdown is partial or absent.
-6. Selected vector store executes similarity search with score.
-7. Service applies fallback filtering against returned metadata for consistency across backends.
-8. Results are sorted and returned as `BatchQueryResponse` with partial errors when needed.
+3. Service detects query modality: text (`query`) or image (`image`).
+4. Service normalizes the primary `where` contract plus compatibility aliases (`tags`, `time_filter`, `filters`).
+5. Backend-specific pushdown filters are built from the safe subset of predicates.
+6. Service computes candidate retrieval size (`fetch_k`), including over-fetch when pushdown is partial or absent.
+7. For text queries, the selected vector store executes similarity search with score. For image queries, the service computes the image embedding via the embedding API and performs vector search by embedding.
+8. Service applies fallback filtering against returned metadata for consistency across backends.
+9. Results are sorted and returned as `BatchQueryResponse` with partial errors when needed.
 
 ### Pushdown and fallback model
 
