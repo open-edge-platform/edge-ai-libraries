@@ -300,29 +300,28 @@ class OpenVINOConverter(ModelDownloadPlugin):
         export_type = export_type_map[model_type]
 
         # Validate that HF token is provided for OVMS conversion
-        if not huggingface_token:
-            raise RuntimeError(
-                "Hugging Face token is required for OVMS conversion"
-            )
-
-        # Step 1: Log in to Hugging Face,
-        logger.info(f"Logging in to Hugging Face with token...")
+        # Step 1: Check Hugging Face authentication
         check_login = subprocess.run(
             ["hf", "auth", "whoami"],
             capture_output=True,
             text=True
         )
-        
+
         if check_login.returncode != 0:
-            # Not logged in, proceed with login
-            logger.info("Not logged in, authenticating with Hugging Face...")
-            result = subprocess.run(["hf", "auth", "login", "--token", huggingface_token])
-            if result.returncode != 0:
-                raise RuntimeError(
-                    "Failed to authenticate with Hugging Face. Please check your token."
+            if not huggingface_token:
+                logger.warning(
+                    "No Hugging Face token provided and no cached login found. "
+                    "Set HF_TOKEN or HUGGINGFACEHUB_API_TOKEN environment variable. "
+                    "Proceeding without authentication — this may fail for gated models."
                 )
+            else:
+                # Not logged in, proceed with login using provided token
+                logger.info("Not logged in, authenticating with Hugging Face...")
+                result = subprocess.run(["hf", "auth", "login", "--token", huggingface_token])
+                if result.returncode != 0:
+                    logger.error("Failed to authenticate with Hugging Face. Please check your token.")
         else:
-            logger.info(f"Already logged in to Hugging Face as: {check_login.stdout.strip()}")
+            logger.info(f"Already logged in to Hugging Face: {check_login.stdout.strip()}")
 
         # Export the model using export_model.py with intelligent parameter handling
         logger.info(f"Exporting model: {model_name} with weight format: {weight_format} and export type: {export_type}...")

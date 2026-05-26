@@ -23,7 +23,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
 - Sufficient disk space for model storage.
 - See [System Requirements](./get-started/system-requirements.md)
 
-## Quick Start with Setup Script
+## Start with Setup Script
 
 ### 1. Clone the repository
 
@@ -473,6 +473,7 @@ Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metric
 4. Use appropriate model types and configurations for OpenVINO model server conversion.
 5. For Ultralytics INT8 exports, submit one model per request and verify `config.quantize` is provided only when INT8 is intended.
 
+
 ## Run in Kubernetes Cluster
 
 See [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md) for details. Address the prerequisites mentioned on this page before deploying with Helm chart.
@@ -481,6 +482,7 @@ See [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md) for detail
 
 For alternative ways to set up the sample application, see:
 
+- [ Quick start](./quickstart.md)
 - [How to Build from Source](./get-started/build-from-source.md)
 
 <!--hide_directive
