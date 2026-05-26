@@ -135,10 +135,6 @@ cleanup() {
         if docker ps -aq --filter "name=${CONTAINER_NAME}" 2>/dev/null | grep -q .; then
             docker rm -f "${CONTAINER_NAME}" > /dev/null 2>&1 || true
         fi
-        if [[ -n "${CONTAINER_PID:-}" ]] && kill -0 "$CONTAINER_PID" 2>/dev/null; then
-            kill "$CONTAINER_PID" 2>/dev/null || true
-            wait "$CONTAINER_PID" 2>/dev/null || true
-        fi
     else
         # Internal mode: stop background uvicorn
         if [[ -n "${SERVICE_PID:-}" ]] && kill -0 "$SERVICE_PID" 2>/dev/null; then
@@ -266,21 +262,23 @@ start_service_host() {
         DOCKER_ENV_ARGS+=(-e "GETI_WORKSPACE_ID=${GETI_WORKSPACE_ID}")
     fi
 
-    # Start the container
-    log_info "Starting container: ${BOLD}${CONTAINER_NAME}${NC}"
+    # Start the container (detached — docker handles image pull synchronously)
+    log_info "Starting container: ${BOLD}${CONTAINER_NAME}${NC} (pulling image if needed)..."
 
-    docker run --rm \
+    CONTAINER_ID=$(docker run -d --rm \
         --name "${CONTAINER_NAME}" \
         "${DOCKER_ENV_ARGS[@]}" \
         -v "${MODEL_PATH}:/opt/models" \
         -p "0:${SERVICE_PORT}" \
         --group-add "$(id -g)" \
         "${FULL_IMAGE}" \
-        --plugins "${PLUGINS}" &
-    CONTAINER_PID=$!
+        --plugins "${PLUGINS}" 2>&1)
 
-    # Get the mapped host port
-    sleep 5
+    if [[ $? -ne 0 ]]; then
+        log_error "Failed to start container: $CONTAINER_ID"
+        exit 1
+    fi
+
     HOST_PORT=$(docker port "${CONTAINER_NAME}" "${SERVICE_PORT}/tcp" 2>/dev/null | head -1 | cut -d: -f2)
     if [[ -z "$HOST_PORT" ]]; then
         log_error "Failed to get mapped port for container."
