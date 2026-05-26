@@ -150,7 +150,7 @@ async def context_retriever_fn(chain_inputs: dict):
     if not question:
         return {}  # to keep shape consistent
 
-    retrieved_docs = await retriever.aget_relevant_documents(question)
+    retrieved_docs = await retriever.ainvoke(question)
     return retrieved_docs     # context: list[Document]
 
 # Format the context in a readable way

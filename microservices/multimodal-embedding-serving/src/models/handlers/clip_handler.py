@@ -231,25 +231,35 @@ class CLIPHandler(BaseEmbeddingModel):
             images = [images]
         total_images = len(images)
 
-        logger.info(f"====AsyncInferQueue====")
-        preprocess_stream = self.parallel_preprocessor.preprocess_stream(images)
-        try:
-            infer_start = time.perf_counter()
-            embeddings = self.async_infer.infer_stream(batch_generator=preprocess_stream, total_images=total_images)
-            infer_end = time.perf_counter()
-        finally:
-            preprocess_stream.close()
-            del images
+        if self.use_openvino:
+            logger.info(f"====AsyncInferQueue====")
+            preprocess_stream = self.parallel_preprocessor.preprocess_stream(images)
+            try:
+                infer_start = time.perf_counter()
+                embeddings = self.async_infer.infer_stream(
+                    batch_generator=preprocess_stream, total_images=total_images
+                )
+                infer_end = time.perf_counter()
+            finally:
+                preprocess_stream.close()
 
-        logger.info(f"Inference time for batch of {total_images} images: {infer_end - infer_start:.4f} seconds")
+            image_features = F.normalize(torch.from_numpy(embeddings), dim=-1)
+
+        else:
+            infer_start = time.perf_counter()
+            with torch.no_grad():
+                image_tensor = torch.stack([self.preprocess(img) for img in images])
+                image_features = self.model.encode_image(image_tensor)
+            infer_end = time.perf_counter()
+            image_features = F.normalize(image_features, dim=-1)
 
         if metrics_out:
             return {
-                "embeddings": embeddings,
+                "embeddings": image_features,
                 "inference_time_s": infer_end - infer_start,
-                "processed_images": total_images
+                "processed_images": total_images,
             }
-        return torch.from_numpy(embeddings)
+        return image_features
 
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:
         """Convert CLIP model to OpenVINO format using Optimum Intel for robust conversion."""

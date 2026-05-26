@@ -8,7 +8,7 @@ import { useEffect, useCallback } from "react";
 import { useAppDispatch } from "@/store/hooks";
 import { toast } from "sonner";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
-import { MultiFileUploader } from "@/components/shared/MultiFileUploader.tsx";
+import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
 import { Folder } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card.tsx";
 import { Link } from "react-router";
@@ -87,6 +87,7 @@ export const ImageSets = () => {
 
       <MultiFileUploader
         accept=".zip,.tar,.tar.gz,.tgz,application/zip,application/x-tar,application/gzip,application/x-gzip"
+        maxSize={2 * 1024 * 1024 * 1024} // 2 GB
         uploadEndpoint={ENDPOINTS.UPLOAD_IMAGE_ARCHIVE}
         checkFileExists={handleCheckFileExists}
         onUploadProgress={handleUploadProgress}

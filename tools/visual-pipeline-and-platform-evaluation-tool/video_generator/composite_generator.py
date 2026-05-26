@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-from PIL import Image, ImageSequence
+from PIL import Image, ImageSequence  # pyright: ignore[reportMissingImports]
 
 logger = logging.getLogger()
 

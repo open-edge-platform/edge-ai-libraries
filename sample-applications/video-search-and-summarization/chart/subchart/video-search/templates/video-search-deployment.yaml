@@ -59,18 +59,10 @@ spec:
               value: "{{ .Values.videosearch.env.VDMS_VDB_PORT }}"
             - name: INDEX_NAME
               value: {{ .Values.global.vdmsIndexName | quote }}
-            {{- $vsEmbeddingModel := dict "value" "" }}
-            {{- if .Values.videosearch.env.EMBEDDINGS_MODEL_NAME }}
-            {{- $_ := set $vsEmbeddingModel "value" .Values.videosearch.env.EMBEDDINGS_MODEL_NAME }}
-            {{- else if (dig "embedding" "preferTextModel" false .Values.global) }}
-            {{- $_ := set $vsEmbeddingModel "value" (required "Set global.env.TEXT_EMBEDDING_MODEL_NAME when global.embedding.preferTextModel is true." (dig "env" "TEXT_EMBEDDING_MODEL_NAME" "" .Values.global)) }}
-            {{- else }}
-            {{- $_ := set $vsEmbeddingModel "value" (required "Set global.env.EMBEDDING_MODEL_NAME (or override videosearch.env.EMBEDDINGS_MODEL_NAME) before deploying the chart." (dig "env" "EMBEDDING_MODEL_NAME" "" .Values.global)) }}
-            {{- end }}
             - name: EMBEDDINGS_ENDPOINT
               value: {{ .Values.videosearch.env.EMBEDDINGS_ENDPOINT | default .Values.global.env.MULTIMODAL_EMBEDDING_ENDPOINT | quote }}
             - name: EMBEDDINGS_MODEL_NAME
-              value: {{ $vsEmbeddingModel.value | quote }}
+              value: {{ required "global.embeddingModelName is required" .Values.global.embeddingModelName | quote }}
             - name: SEARCH_ENGINE
               value: {{ .Values.videosearch.env.SEARCH_ENGINE | quote }}
             - name: DISTANCE_STRATEGY

@@ -39,10 +39,10 @@ NODE_VERSION := 22
 # ==============================================================================
 
 DEFAULT_REGISTRY := intel/
-DEFAULT_UI_TAG := core_1.3.2
-DEFAULT_BACKEND_TAG := core_1.3.2
-DEFAULT_GPU_TAG := core_gpu_1.3.2
-DEFAULT_OLLAMA_TAG := core_ollama_1.3.2
+DEFAULT_UI_TAG := core_1.3.3
+DEFAULT_BACKEND_TAG := core_1.3.3
+DEFAULT_GPU_TAG := core_gpu_1.3.3
+DEFAULT_OLLAMA_TAG := core_ollama_1.3.3
 
 # ==============================================================================
 # Component Configuration

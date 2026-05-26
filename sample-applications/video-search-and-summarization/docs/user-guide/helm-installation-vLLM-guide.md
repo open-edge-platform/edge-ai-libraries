@@ -72,7 +72,7 @@ nano user_values_override.yaml
 | `global.env.MINIO_ROOT_PASSWORD` | MinIO password (min 8 chars) | `<secure-password>` |
 | `global.env.RABBITMQ_DEFAULT_USER` | RabbitMQ username | `guest` |
 | `global.env.RABBITMQ_DEFAULT_PASS` | RabbitMQ password | `<secure-password>` |
-| `global.env.EMBEDDING_MODEL_NAME` | Multimodal embedding model | `CLIP/clip-vit-b-32` (search) or `QwenText/qwen3-embedding-0.6b` (unified) |
+| `global.embeddingModelName` | Multimodal embedding model | `CLIP/clip-vit-b-32` (search) or `QwenText/qwen3-embedding-0.6b` (unified) |
 
 For the full parameter catalog across all deployment modes, see [Deploy with Helm](./deploy-with-helm.md).
 
@@ -148,7 +148,7 @@ helm install vss . \
 
 ### Option B: Unified Video Search and Summarization
 
-Deploys both the search and summarization pipelines with vLLM. Before installing, ensure `global.env.TEXT_EMBEDDING_MODEL_NAME` is set and `global.embedding.preferTextModel: true` in `user_values_override.yaml` (built into `unified_summary_search.yaml`).
+Deploys both the search and summarization pipelines with vLLM. Before installing, ensure `global.embeddingModelName` is set to a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`) in `user_values_override.yaml`.
 
 ```bash
 helm install vss . \
@@ -158,14 +158,14 @@ helm install vss . \
   -n ${NAMESPACE}
 ```
 
-> **Requirement:** The chart will raise an error if `global.env.TEXT_EMBEDDING_MODEL_NAME` is omitted while unified mode is enabled. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+> **Requirement:** The chart will raise an error if `global.embeddingModelName` is not set. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 **Understanding the override files:**
 
 | File | Purpose |
 | --- | --- |
 | `summary_override.yaml` | Enables the summarization pipeline |
-| `unified_summary_search.yaml` | Enables combined search and summarization; sets `preferTextModel: true` |
+| `unified_summary_search.yaml` | Enables combined search and summarization |
 | `xeon_vllm_values.yaml` | Enables vLLM, disables VLM Microservice, sets Xeon-optimized resource allocations |
 | `user_values_override.yaml` | Your credentials, model selections, and environment-specific overrides |
 

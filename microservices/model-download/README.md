@@ -22,3 +22,6 @@ Below, you'll find links to detailed documentation to help you get started, conf
 
 - **Release Notes**
   - [Release Notes](./docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.
+
+- **Ephemeral Container**
+  - [Running as an Ephemeral Container](./docs/user-guide/get-started.md#running-as-an-ephemeral-container): Run a one-shot model download or conversion without keeping the service alive.

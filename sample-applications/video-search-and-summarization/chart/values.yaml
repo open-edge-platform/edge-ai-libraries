@@ -23,6 +23,9 @@ global:
   # Leave empty to reuse the VLM model as the shared single OVMS model.
   llmName: ""
 
+  # Embedding model used by Multimodal Embedding MS, DataPrep, and Video Search.
+  embeddingModelName: ""
+
   # Per-service device configuration
   # Each service independently configures its accelerator needs
   devices:
@@ -64,8 +67,6 @@ global:
     OTLP_ENDPOINT_TRACE: ""
     DEFAULT_BUCKET_NAME: "video-summary"
     MULTIMODAL_EMBEDDING_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
-    EMBEDDING_MODEL_NAME: ""
-    TEXT_EMBEDDING_MODEL_NAME: ""
     EMBEDDING_PROCESSING_MODE: "sdk"
     SDK_USE_OPENVINO: true
     VDMS_DATAPREP_DEVICE: "CPU"
@@ -74,8 +75,6 @@ global:
     OV_PERFORMANCE_MODE: "THROUGHPUT"
     VDMS_DATAPREP_LOG_LEVEL: "INFO"
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart
-  embedding:
-    preferTextModel: false
 
 # sharedClaimSize is the storage size claimed by shared PVC used by VDMS Dataprep and Multimodal-Embedding-MS subcharts.
 sharedClaimSize: "7Gi"
@@ -135,7 +134,7 @@ pipelinemanager:
     PRODUCE_FINAL_SUMMARY: "true"
     OTLP_TRACE_URL: ""
     USE_VLLM: "CONFIG_OFF"
-    SUMMARY_FEATURE: "FEATURE_ON"
+    SUMMARY_FEATURE: "FEATURE_OFF"
     SEARCH_FEATURE: "FEATURE_OFF"
     SEARCH_DATAPREP_TIMEOUT_MS: "600000"
   nodeSelector: {}
@@ -264,3 +263,9 @@ vsscollector:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+# VSS UI subchart alias conditions. Detailed defaults come from subchart/vss-ui/values.yaml.
+summaryui:
+  enabled: false
+searchui:
+  enabled: false

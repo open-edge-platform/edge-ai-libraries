@@ -13,13 +13,13 @@ global:
 
   # Common release tags to be used for several dependencies
   commonTag: ""
+  embeddingModelName: ""
 
   proxy:
     # setup proxy settings
     no_proxy: ""
     http_proxy: ""
     https_proxy: ""
-
 replicaCount: 1
 
 image:

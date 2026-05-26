@@ -21,7 +21,6 @@ This page provides detailed hardware, software, and platform requirements to hel
 -->
 **Operating Systems**
 - Ubuntu 22.04.2 LTS
-- If GPU is available, refer to the official [documentation](https://dgpu-docs.intel.com/devices/hardware-table.html) for details on the required kernel version. For the listed hardware platforms, the kernel requirement translates to Ubuntu OS version 24.04 or Ubuntu OS version 24.10, depending on the GPU used.
 - Validation on latest version of EMT-S and EMT-D is also done periodically though there could be gaps in validation regression. Raise an issue if any defects are observed.
 
 **Hardware Platforms**

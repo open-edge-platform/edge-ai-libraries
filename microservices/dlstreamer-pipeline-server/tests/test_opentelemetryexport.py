@@ -6,7 +6,6 @@ import requests
 from unittest import mock
 from src.opentelemetry.opentelemetryexport import OpenTelemetryExporter
 
-
 @pytest.fixture
 def otel_exporter():
     """Fixture to create an OpenTelemetryExporter instance."""

@@ -128,7 +128,7 @@ export function ImagesInSet() {
                 <TableCell>{formatBytes(image.size_bytes)}</TableCell>
                 <TableCell>
                   <img
-                    src={`/assets/images/input/${imageSetName}/${image.filename}`}
+                    src={`/assets/images/input/uploaded/${imageSetName}/${image.filename}`}
                     alt={image.filename}
                     className="w-32 h-auto object-contain"
                   />
