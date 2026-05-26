@@ -10,6 +10,12 @@ This guide describes how to build, start, and stop the Time Series Analytics Mic
 
 ---
 
+## Configure Environment Variables
+
+Before building or starting the services, update the InfluxDB credentials `INFLUXDB_USERNAME` and `INFLUXDB_PASSWORD` in `setup_env.sh`.
+
+---
+
 ## Build, Start, and Stop
 
 ### Build
