@@ -7,10 +7,28 @@ import pytest
 import requests
 import yaml
 
-from helpers.config import DEFAULT_RECORDINGS_YAML, SUPPORTED_MODELS_YAML
+from helpers.config import DEFAULT_RECORDINGS_YAML, PROJECT_ROOT, SUPPORTED_MODELS_YAML
 
 # Session-wide accumulator: (HTTP_METHOD, full_url_without_query_string)
 _recorded_api_calls: set[tuple[str, str]] = set()
+
+
+# Pipelines with externally pre-downloaded models (path template uses lowercase
+# device ``family``, rooted at PROJECT_ROOT); variants skipped if path missing.
+_EXTERNAL_MODEL_PATH_TEMPLATES: dict[str, str] = {
+    "Video Summarization VLM": (
+        "shared/models/output/openvino_models/{family}/int4/google/gemma-3-4b-it"
+    ),
+}
+
+
+# Pipelines with no video encoder/muxer branch; ``output_mode=file`` returns
+# an empty ``video_output_paths`` list, so the file-output test is skipped.
+_NO_FILE_VIDEO_OUTPUT_PIPELINES: frozenset[str] = frozenset(
+    {
+        "Video Summarization VLM",
+    }
+)
 
 
 # API call recording – used by test_z_api_coverage.py to verify that all
@@ -62,3 +80,49 @@ def default_recordings_config() -> list[dict[str, Any]]:
         data = yaml.safe_load(f)
     assert isinstance(data, list), "default_recordings.yaml must be a list"
     return data
+
+
+@pytest.fixture(autouse=True)
+def _skip_when_external_model_missing(request: pytest.FixtureRequest) -> None:
+    """Skip parametrized pipeline cases whose pre-downloaded model is absent.
+
+    Applies to pipelines listed in ``_EXTERNAL_MODEL_PATH_TEMPLATES`` (e.g. the
+    VLM Video Summarization pipeline, which hard-codes its model path instead
+    of going through ``supported_models.yaml``).
+    """
+    case = getattr(request.node, "callspec", None)
+    case_value = case.params.get("case") if case is not None else None
+    pipeline_name = getattr(case_value, "pipeline_name", None)
+    if pipeline_name not in _EXTERNAL_MODEL_PATH_TEMPLATES:
+        return
+
+    family = getattr(case_value, "device_family", "").lower()
+    model_path = PROJECT_ROOT / _EXTERNAL_MODEL_PATH_TEMPLATES[pipeline_name].format(
+        family=family
+    )
+    if not model_path.is_dir():
+        pytest.skip(
+            f"Pre-downloaded model for pipeline '{pipeline_name}' "
+            f"({getattr(case_value, 'device_family', '')}) not found at {model_path}. "
+            "Download the model before running this test."
+        )
+
+
+@pytest.fixture(autouse=True)
+def _skip_file_output_for_pipelines_without_video_sink(
+    request: pytest.FixtureRequest,
+) -> None:
+    """Skip ``output_mode=file`` tests for pipelines listed in
+    ``_NO_FILE_VIDEO_OUTPUT_PIPELINES`` (no encoder branch -> empty
+    ``video_output_paths``).
+    """
+    if "file_output" not in request.node.name:
+        return
+    case = getattr(request.node, "callspec", None)
+    case_value = case.params.get("case") if case is not None else None
+    pipeline_name = getattr(case_value, "pipeline_name", None)
+    if pipeline_name in _NO_FILE_VIDEO_OUTPUT_PIPELINES:
+        pytest.skip(
+            f"Pipeline '{pipeline_name}' has no video encoder branch; "
+            "file-output mode produces no recorded video files."
+        )
