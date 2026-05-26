@@ -165,7 +165,21 @@ export const getSafePreviewVideoUrl = (
   }
 
   if (url.startsWith('blob:')) {
-    return url;
+    try {
+      const blobUrl = new URL(url);
+      if (blobUrl.protocol !== 'blob:') {
+        return null;
+      }
+      // Validate the origin embedded in the blob URL is http(s) or opaque
+      const origin = url.slice('blob:'.length);
+      if (origin && !origin.startsWith('http://') && !origin.startsWith('https://') && !origin.startsWith('null/')) {
+        return null;
+      }
+      // Return parsed href to break taint chain
+      return blobUrl.href;
+    } catch {
+      return null;
+    }
   }
 
   if (!assetsEndpoint) {
@@ -186,11 +200,13 @@ export const getSafePreviewVideoUrl = (
     if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
       return null;
     }
+    // Return reconstructed URL to break taint chain and normalize
+    return parsedUrl.href;
   } catch {
     return null;
   }
 
-  return url;
+  return null;
 };
 
 export const capitalize = (input: string): string => {
