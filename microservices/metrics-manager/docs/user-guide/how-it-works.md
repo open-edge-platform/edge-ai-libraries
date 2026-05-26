@@ -164,46 +164,7 @@ HTTP POST client
 
 The Metrics Manager FastAPI application uses a layered middleware stack to handle cross-cutting concerns like request tracing, compression, rate limiting, and CORS. Middleware is applied in the order shown below (outer to inner):
 
-```
-Request from client
-       │
-       ▼
-┌──────────────────────────────────────────────────────┐
-│ CorrelationIdMiddleware                              │
-│  - Adds X-Correlation-ID header (auto-generates UUID)│
-│  - Stores ID in context variable for logs            │
-└──────────────────────────────────────────────────────┘
-       │
-       ▼
-┌──────────────────────────────────────────────────────┐
-│ GZipMiddleware                                       │
-│  - Compresses responses >1KB (if enabled)            │
-│  - Saves bandwidth for SSE streams                   │
-└──────────────────────────────────────────────────────┘
-       │
-       ▼
-┌──────────────────────────────────────────────────────┐
-│ RateLimitMiddleware                                  │
-│  - Token bucket per client IP (default 1000 req/min) │
-│  - Exempts /health and /api/v1/stats                 │
-│  - Returns 429 (Too Many Requests) if exceeded       │
-└──────────────────────────────────────────────────────┘
-       │
-       ▼
-┌──────────────────────────────────────────────────────┐
-│ CORSMiddleware                                       │
-│  - Adds Access-Control-* headers                     │
-│  - Configurable allowed origins (default *)          │
-│  - Handles preflight OPTIONS requests                │
-└──────────────────────────────────────────────────────┘
-       │
-       ▼
-   Route Handlers
-   (routes.py + sse.py)
-       │
-       ▼
-Response back to client (with correlation ID + compression)
-```
+![FastAPI Middleware Stack](./_assets/metrics-mgr-fast-api-middleware.drawio.svg "fastapi middleware stack diagram")
 
 **Important Details:**
 
@@ -218,20 +179,7 @@ See [Environment Variables](./get-started/environment-variables.md#security) for
 
 ## System Metrics Collection
 
-```
-/proc/stat ──────────────┐
-/proc/meminfo ───────────┤
-/sys/class/thermal ──────┤
-read_cpu_freq.sh ────────┼──► [[inputs.exec]]      ─┐
-qmassa → FIFO → reader   ┤   [[inputs.execd]]       │
-/sys/class/intel_pmt ────┤   [[inputs.execd]]       ├──► Starlark Processor
-                         │                          │    (temperature filter)
-                         └──► [[outputs.prometheus_client]]
-                                    │
-                                    ▼
-                               :9273/metrics
-                            (Prometheus format)
-```
+![Telegraf Metrics Collection Flow](./_assets/metrics-mgr-sys-metrics-collect.drawio.svg "telegraf metrics collection flow")
 
 **Telegraf Inputs:**
 
