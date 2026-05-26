@@ -1,0 +1,17 @@
+name: Wind Turbine Anomaly Detection
+definition: >
+  Time-series anomaly detection pipeline that ingests wind turbine sensor data (grid active power, wind speed),
+  processes it through the Time Series Analytics Microservice (TSAM) using a trained anomaly detection model,
+  and outputs anomaly classification results. Uses Intel Edge AI time-series analytics for real-time inference on CPU.
+tags:
+  - Industrial
+  - Time Series
+thumbnail: images/wind-turbine-anomaly-detection.png
+variants:
+  - name: CPU
+    pipeline_description: >-
+      datasrc location=/app/input/wind-turbine-anomaly-detection.csv topic=wind-turbine-data !
+      tsam-ingestion host=ia-time-series-analytics-microservice port=5000 !
+      tsam-udf udf-name=windturbine_anomaly_detector udf-model=windturbine_anomaly_detector.pkl device=cpu !
+      tsam-output method=rest endpoint=/output topic=wind-turbine-data !
+      fakesink name=default_output_sink

@@ -49,7 +49,7 @@ x-vippet: &vippet
     UPLOAD_ALLOWED_CODECS: "h264,h265"
     UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
     METADATA_DIR: /metadata
-    SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
+    SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source,tsam-udf"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
@@ -73,6 +73,8 @@ x-vippet: &vippet
     # venv so the legacy 2024.x ``openvino`` package never collides
     # with the OpenVINO 2026.x runtime used for inference.
     OMZ_VIRTUAL_ENV: ${OMZ_VIRTUAL_ENV:-/home/dlstreamer/.omz-venv}
+    TSAM_HOST: ${TSAM_HOST:-ia-time-series-analytics-microservice}
+    TSAM_KAPACITOR_PORT: ${TSAM_KAPACITOR_PORT:-9092}
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download"
@@ -80,8 +82,11 @@ x-vippet: &vippet
     # Broad access to USB devices is required to support a wide range of USB cameras.
     - 'c 189:* rmw'
     - 'a 189:* rwm'
+  group_add:
+    - "${DOCKER_GID:-984}"
   volumes:
     - "/dev:/dev"
+    - /var/run/docker.sock:/var/run/docker.sock:ro
     - ./shared/images/:/images
     - ./shared/models/:/models
     - ./shared/videos/:/videos
@@ -268,7 +273,6 @@ services:
         TIMESERIES_UID: ${TIMESERIES_UID}
     container_name: ia-timeseries-ingestion
     image: ${DOCKER_REGISTRY}intel/ia-timeseries-ingestion:2026.1.0
-    read_only: true
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -276,11 +280,13 @@ services:
       HOST: ia-time-series-analytics-microservice
       PORT: 5000
       TOPIC: wind-turbine-data
+      METADATA_DIR: /metadata
       no_proxy: "ia-time-series-analytics-microservice,${no_proxy}"
       NO_PROXY: "ia-time-series-analytics-microservice,${no_proxy}"
       PYTHONUNBUFFERED: 1
     volumes:
       - ./timeseries-ingestion/input:/app/input:ro
+      - ./shared/metadata/:/metadata
   ia-influxdb:
     user: "${TIMESERIES_UID}:${TIMESERIES_UID}"
     image: influxdb:1.12.4
@@ -341,7 +347,7 @@ services:
       KAPACITOR_INFLUXDB_0_USERNAME: ${INFLUXDB_USERNAME}
       KAPACITOR_INFLUXDB_0_PASSWORD: ${INFLUXDB_PASSWORD}
       PROFILING_MODE: "false"
-      KAPACITOR_URL: http://ia-time-series-analytics-microservice:9092/
+      KAPACITOR_URL: http://ia-time-series-analytics-microservice:9092
       KAPACITOR_UNSAFE_SSL: "true"
       KAPACITOR_INFLUXDB_0_URLS_0: http://ia-influxdb:8086/
       INFLUXDB_PORT: 8086
