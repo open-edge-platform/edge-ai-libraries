@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
+import {
+  useFrozenMetrics,
+  aggregateLatencyTracerMetrics,
+} from "@/hooks/useFrozenMetrics";
 import {
   type PipelineStreamSpec,
   useGetDensityJobStatusQuery,
@@ -11,6 +14,7 @@ import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStream
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
+import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import {
   Select,
   SelectContent,
@@ -66,6 +70,7 @@ export const DensityTests = () => {
   const [loopingRuntimeInput, setLoopingRuntimeInput] = useState(
     String(DEFAULT_LOOPING_RUNTIME_SECONDS),
   );
+  const [latencyMetricsEnabled, setLatencyMetricsEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
@@ -74,11 +79,14 @@ export const DensityTests = () => {
   const {
     execute: runTest,
     isLoading: isRunning,
+    jobId,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunDensityTestMutation,
     statusCheckHook: useGetDensityJobStatusQuery,
   });
+
+  useActiveJobSync(jobId);
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -197,6 +205,7 @@ export const DensityTests = () => {
           execution_config: {
             output_mode: "disabled",
             max_runtime: loopingEnabled ? loopingRuntimeSeconds : 0,
+            enable_latency_metrics: latencyMetricsEnabled,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => ({
@@ -217,7 +226,10 @@ export const DensityTests = () => {
         video_output_paths: status.video_output_paths,
       });
       setErrorMessage(null);
-      freezeSnapshot(status.per_stream_fps);
+      freezeSnapshot({
+        fps: status.per_stream_fps,
+        ...aggregateLatencyTracerMetrics(status.latency_tracer_metrics),
+      });
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
@@ -388,6 +400,28 @@ export const DensityTests = () => {
               <TooltipTrigger asChild>
                 <label className="flex items-center gap-2 cursor-pointer h-[2.625rem]">
                   <Checkbox
+                    checked={latencyMetricsEnabled}
+                    disabled={isRunning}
+                    onCheckedChange={(checked) =>
+                      setLatencyMetricsEnabled(checked === true)
+                    }
+                  />
+                  <span className="text-sm font-medium">
+                    Enable latency metrics
+                  </span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Collect pipeline latency measurements during the test</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          <div className="flex items-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                  <Checkbox
                     checked={loopingEnabled}
                     disabled={isRunning}
                     onCheckedChange={(checked) => {
@@ -484,37 +518,16 @@ export const DensityTests = () => {
                     Running density test...
                   </span>
                 </div>
-                <MetricsDashboard />
+                <MetricsDashboard
+                  enableLatencyMetrics={latencyMetricsEnabled}
+                />
               </div>
             )}
           </div>
         )}
 
-        {!isRunning && frozenSummary && (
-          <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
-            <p className="text-sm font-medium text-status-fg mb-2">
-              Frozen Metrics Snapshot
-            </p>
-            <MetricsDashboard
-              historyOverride={frozenHistory}
-              metricsOverride={frozenSummary}
-            />
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="status-error my-4 p-3 bg-status-bg border border-status-border">
-            <p className="text-sm font-medium text-status-fg mb-2">
-              Test Failed
-            </p>
-            <p className="text-xs text-status-fg">
-              {errorMessage}
-            </p>
-          </div>
-        )}
-
         {testResult && (
-          <div className="status-success my-4 p-3 bg-status-bg border border-status-border">
+          <div className="status-success m-4 p-3 bg-status-bg border border-status-border">
             <p className="text-sm font-medium text-status-fg mb-2">
               Test Completed Successfully
             </p>
@@ -541,7 +554,29 @@ export const DensityTests = () => {
             </div>
           </div>
         )}
+
+        {!isRunning && frozenSummary && (
+          <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
+              Frozen Metrics Snapshot
+            </p>
+            <MetricsDashboard
+              historyOverride={frozenHistory}
+              metricsOverride={frozenSummary}
+            />
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="status-error my-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
+              Test Failed
+            </p>
+            <p className="text-xs text-status-fg">{errorMessage}</p>
+          </div>
+        )}
       </div>
+      <div className="pb-4" />
     </div>
   );
 };

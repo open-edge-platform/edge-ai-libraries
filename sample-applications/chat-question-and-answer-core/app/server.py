@@ -168,6 +168,9 @@ async def ingest_document(
                         detail="Error creating embedding. No text data from the document.",
                     )
 
+            except HTTPException:
+                raise
+
             except Exception as err:
                 logger.exception("Error creating embedding.")
                 raise HTTPException(

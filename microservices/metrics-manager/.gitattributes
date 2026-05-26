@@ -1,0 +1,24 @@
+# Default: auto line endings
+* text=auto
+
+# Always LF — these files run inside Linux containers
+*.sh text eol=lf
+*.py text eol=lf
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.conf text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+
+# Binary — never touch line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary

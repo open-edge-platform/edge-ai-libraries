@@ -7,15 +7,7 @@ metadata:
   labels:
     {{- include "multimodal-embedding-ms.labels" . | nindent 4 }}
 data:
-  {{- $embeddingModel := dict "value" "" }}
-  {{- if .Values.embeddingModelName }}
-  {{- $_ := set $embeddingModel "value" .Values.embeddingModelName }}
-  {{- else if (dig "embedding" "preferTextModel" false .Values.global) }}
-  {{- $_ := set $embeddingModel "value" (required "Set global.env.TEXT_EMBEDDING_MODEL_NAME when global.embedding.preferTextModel is true." (dig "env" "TEXT_EMBEDDING_MODEL_NAME" "" .Values.global)) }}
-  {{- else }}
-  {{- $_ := set $embeddingModel "value" (required "Set global.env.EMBEDDING_MODEL_NAME (or override multimodalembeddingms.embeddingModelName) before deploying the chart." (dig "env" "EMBEDDING_MODEL_NAME" "" .Values.global)) }}
-  {{- end }}
-  EMBEDDING_MODEL_NAME: {{ $embeddingModel.value | quote }}
+  EMBEDDING_MODEL_NAME: {{ required "global.embeddingModelName is required" .Values.global.embeddingModelName | quote }}
   {{- if $mmUsesGpu }}
   EMBEDDING_DEVICE: "GPU"
   EMBEDDING_USE_OV: "true"
@@ -34,6 +26,13 @@ data:
   DEFAULT_START_OFFSET_SEC: {{ .Values.defaultStartOffsetSec | quote }}
   DEFAULT_CLIP_DURATION: {{ .Values.defaultClipDuration | quote }}
   DEFAULT_NUM_FRAMES: {{ .Values.defaultNumFrames | quote }}
+  INFER_BATCH_SIZE: {{ .Values.inferBatchSize | default .Values.global.env.INFER_BATCH_SIZE | default 32 | quote }}
+  PREPROCESS_WORKERS: {{ .Values.preprocessWorkers | default .Values.global.env.PREPROCESS_WORKERS | default 8 | quote }}
+  VIDEO_FRAME_BATCH_SIZE: {{ .Values.videoFrameBatchSize | default .Values.global.env.VIDEO_FRAME_BATCH_SIZE | default 64 | quote }}
+  VIDEO_FRAME_QUEUE_SIZE: {{ .Values.videoFrameQueueSize | default .Values.global.env.VIDEO_FRAME_QUEUE_SIZE | default 32 | quote }}
+  VIDEO_FRAME_SHM_POOL_BLOCK_SIZE: {{ .Values.videoFrameShmPoolBlockSize | default .Values.global.env.VIDEO_FRAME_SHM_POOL_BLOCK_SIZE | default 6220800 | int | quote }}
+  VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER: {{ .Values.videoFrameShmPoolBlocksMultiplier | default .Values.global.env.VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER | default 2 | quote }}
+  VIDEO_FRAME_LOG_LEVEL: {{ .Values.videoFrameLogLevel | default .Values.global.env.VIDEO_FRAME_LOG_LEVEL | default "INFO" | quote }}
   OV_PERFORMANCE_MODE: {{ .Values.ovPerformanceMode | default .Values.global.env.OV_PERFORMANCE_MODE | default "THROUGHPUT" | quote }}
   HF_HOME: "/home/appuser/.cache/huggingface"
   TRANSFORMERS_CACHE: "/home/appuser/.cache/huggingface"

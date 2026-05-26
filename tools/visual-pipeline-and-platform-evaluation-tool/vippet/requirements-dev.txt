@@ -1,7 +1,7 @@
 -r requirements.txt
 
 # Development dependencies
-ruff==0.15.4
-pyright==1.1.408
-coverage==7.13.4
-pytest==9.0.2
+ruff==0.15.13
+pyright==1.1.409
+coverage==7.14.0
+pytest==9.0.3

@@ -37,7 +37,9 @@
 #include "genicam.h"
 #include "gstgencamsrc.h"
 
-GST_DEBUG_CATEGORY_EXTERN (gst_gencamsrc_debug_category);
+/* On MSVC the debug category is defined in a .c TU (C linkage); the extern
+ * declaration must match that linkage so the linker can resolve it. */
+extern "C" { GST_DEBUG_CATEGORY_EXTERN (gst_gencamsrc_debug_category); }
 #define GST_CAT_DEFAULT gst_gencamsrc_debug_category
 
 using namespace std;

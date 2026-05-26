@@ -148,11 +148,12 @@ class DeviceFamily(str, Enum):
 
 class ModelCategory(str, Enum):
     """
-    **Model category for classification or detection tasks.**
+    **Model category for classification, detection, or GenAI tasks.**
 
     ## Values
     - `CLASSIFICATION` - Classification model
     - `DETECTION` - Detection model
+    - `GENAI` - Generative AI model (for example VLM)
 
     ### Example
     ```json
@@ -162,6 +163,7 @@ class ModelCategory(str, Enum):
 
     CLASSIFICATION = "classification"
     DETECTION = "detection"
+    GENAI = "genai"
 
 
 class OptimizationType(str, Enum):
@@ -232,6 +234,61 @@ class VideoUploadErrorKind(str, Enum):
     UNSUPPORTED_CODEC = "unsupported_codec"
     INVALID_VIDEO = "invalid_video"
     FILE_EXISTS = "file_exists"
+
+
+class ImageUploadErrorKind(str, Enum):
+    """
+    **Machine-readable reason why an image archive upload was rejected.**
+
+    Returned in the `error` field of the `ImageUploadError` response body
+    together with a human-readable `detail` message. Mirrors the
+    `VideoUploadErrorKind` enum used for video uploads.
+
+    ## Values
+    - `MISSING_FILENAME` - The multipart part did not carry a filename.
+    - `UNSUPPORTED_ARCHIVE_FORMAT` - Archive extension is not in the
+      allow-list.
+    - `INVALID_ARCHIVE_NAME` - Archive filename sanitizes to an empty
+      value or carries no supported archive extension.
+    - `ARCHIVE_TOO_LARGE` - Archive request body exceeds the size cap.
+    - `ARCHIVE_CORRUPTED` - Archive could not be opened or one image
+      could not be decoded.
+    - `ARCHIVE_CONTAINS_SUBDIRECTORIES` - Archive must contain only
+      top-level files.
+    - `ARCHIVE_CONTAINS_NO_IMAGES` - Archive does not contain any
+      supported image files.
+    - `ARCHIVE_MIXED_IMAGE_EXTENSIONS` - Archive contains images of
+      more than one extension family.
+    - `ARCHIVE_DISALLOWED_IMAGE_EXTENSION` - Archive contains a file
+      with an extension outside the allow-list.
+    - `ARCHIVE_MIXED_IMAGE_RESOLUTIONS` - Archive contains images that
+      do not all share the same resolution.
+    - `ARCHIVE_UNCOMPRESSED_TOO_LARGE` - Total uncompressed size of the
+      archive exceeds the configured zip-bomb guard.
+    - `IMAGE_SET_ALREADY_EXISTS` - An image set with the derived name
+      already exists.
+    - `UNSAFE_ARCHIVE_PATH` - Archive contains a member with a
+      path-traversal attempt or a non-regular file entry.
+
+    ### Example
+    ```json
+    "archive_contains_subdirectories"
+    ```
+    """
+
+    MISSING_FILENAME = "missing_filename"
+    UNSUPPORTED_ARCHIVE_FORMAT = "unsupported_archive_format"
+    INVALID_ARCHIVE_NAME = "invalid_archive_name"
+    ARCHIVE_TOO_LARGE = "archive_too_large"
+    ARCHIVE_CORRUPTED = "archive_corrupted"
+    ARCHIVE_CONTAINS_SUBDIRECTORIES = "archive_contains_subdirectories"
+    ARCHIVE_CONTAINS_NO_IMAGES = "archive_contains_no_images"
+    ARCHIVE_MIXED_IMAGE_EXTENSIONS = "archive_mixed_image_extensions"
+    ARCHIVE_DISALLOWED_IMAGE_EXTENSION = "archive_disallowed_image_extension"
+    ARCHIVE_MIXED_IMAGE_RESOLUTIONS = "archive_mixed_image_resolutions"
+    ARCHIVE_UNCOMPRESSED_TOO_LARGE = "archive_uncompressed_too_large"
+    IMAGE_SET_ALREADY_EXISTS = "image_set_already_exists"
+    UNSAFE_ARCHIVE_PATH = "unsafe_archive_path"
 
 
 class CameraType(str, Enum):
@@ -1784,31 +1841,448 @@ class Device(BaseModel):
     gpu_id: Optional[int]
 
 
+class ModelInstallStatus(str, Enum):
+    """
+    **Current install status of a model on the local disk.**
+
+    ## Values
+    - `INSTALLED` - Model files are present on disk and ready to use
+    - `NOT_INSTALLED` - Model is supported but not present on disk
+    - `INSTALLING` - Model is currently being downloaded/installed
+    - `FAILED` - Most recent install attempt failed
+
+    ### Example
+    ```json
+    "installed"
+    ```
+    """
+
+    INSTALLED = "installed"
+    NOT_INSTALLED = "not_installed"
+    INSTALLING = "installing"
+    FAILED = "failed"
+
+
+class ModelSource(str, Enum):
+    """
+    **Upstream hub a model is downloaded from.**
+
+    Mirrors the `hub` value used by the model-download microservice and
+    adds `CUSTOM` for user-uploaded models.
+
+    ## Values
+    - `HUGGINGFACE` - HuggingFace Hub
+    - `ULTRALYTICS` - Ultralytics model zoo
+    - `PIPELINE_ZOO_MODELS` - OpenVINO Pipeline Zoo models
+    - `OMZ` - OpenVINO Open Model Zoo (handled locally by vippet-app)
+    - `CUSTOM` - User-uploaded model
+
+    ### Example
+    ```json
+    "huggingface"
+    ```
+    """
+
+    HUGGINGFACE = "huggingface"
+    ULTRALYTICS = "ultralytics"
+    PIPELINE_ZOO_MODELS = "pipeline-zoo-models"
+    OMZ = "omz"
+    CUSTOM = "custom"
+
+
+class ModelDownloadJobState(str, Enum):
+    """
+    **State of a model download job tracked by vippet-app.**
+
+    Mirrors optimization/validation job state machines. No cancellation.
+
+    ## Values
+    - `RUNNING` - Download is in progress
+    - `COMPLETED` - Download finished successfully
+    - `FAILED` - Download finished unsuccessfully
+
+    ### Example
+    ```json
+    "RUNNING"
+    ```
+    """
+
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class ModelVariant(BaseModel):
+    """
+    **Single selectable variant of a supported model.**
+
+    A variant identifies one concrete (model, precision, model-proc)
+    combination. The pipeline builder uses variants to populate the
+    inference-element model dropdown so every precision (and every
+    extra model-proc) appears as a separate entry; the canonical
+    `Model` still represents the collapsed view shown on the install
+    page.
+
+    No filesystem paths are exposed; the backend resolves
+    `display_name` back to the underlying artefacts when ingesting or
+    running a pipeline graph.
+
+    ## Attributes
+    - `name` - Stable per-variant identifier (matches
+      `SupportedModel.name`, e.g. `efficientnet-b0_INT8`)
+    - `display_name` - Human-readable variant label with precision
+      (and optional `[model-proc: ...]`) suffix, used as the dropdown
+      value in the pipeline builder
+    - `precision` - Precision label (e.g. `FP32`, `FP16`, `INT8`,
+      `FP16-INT8`, `INT4`)
+    - `installed` - Whether the underlying artefacts for this exact
+      variant are present on disk. The pipeline builder filters its
+      dropdown by this flag.
+    """
+
+    name: str = Field(..., description="Stable variant identifier.")
+    display_name: str = Field(
+        ...,
+        description="Human-readable variant label including precision suffix.",
+    )
+    precision: str = Field(..., description="Precision label.")
+    installed: bool = Field(
+        default=False,
+        description=(
+            "Whether the underlying artefacts for this exact variant "
+            "are present on disk."
+        ),
+    )
+
+
 class Model(BaseModel):
     """
-    **Description of a single model exposed by the models API.**
+    **Description of a single supported model exposed by the models API.**
+
+    Lists every model known to vippet-app: both entries from
+    `supported_models.yaml` (regardless of whether they are installed) and
+    user-uploaded models. Use `install_status` to know if the model is
+    ready to use, and `used_by_pipelines` to know whether installing it is
+    recommended (non-empty list means at least one predefined pipeline
+    references it).
+
+    The `variants` array enumerates every selectable (precision,
+    model-proc) combination — used by the pipeline builder to populate
+    the model dropdown. The install page collapses them under a single
+    `display_name` and shows the unique precisions only.
 
     ## Attributes
     - `name` - Internal model identifier used by the backend
-    - `display_name` - Human readable model name suitable for UI
-    - `category` - Logical model category (classification, detection), or null when the type from configuration is unknown or unsupported
-    - `precision` - Model precision string (e.g., "FP32", "INT8"), or null when not specified
+    - `display_name` - Human-readable model name suitable for UI
+    - `category` - Logical model category (`classification`, `detection`, `genai`) or null when unknown
+    - `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)
+    - `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)
+    - `variants` - Selectable variants of this model (one per precision and optional model-proc)
+    - `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation
+    - `default` - Whether the model is marked as a default install candidate in `supported_models.yaml`. Used by the Models page to pre-select recommended models in the bulk-install UI.
+    - `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)
 
     ### Example
     ```json
     {
-      "name": "vehicle-detection-0202",
-      "display_name": "Vehicle Detection",
+      "name": "yolo11n",
+      "display_name": "YOLO 11n 640x640",
       "category": "detection",
-      "precision": "FP32"
+      "source": "ultralytics",
+      "install_status": "installed",
+      "variants": [
+        {"name": "yolo11n_INT8", "display_name": "YOLO 11n 640x640 (INT8)", "precision": "INT8"},
+        {"name": "yolo11n_FP16", "display_name": "YOLO 11n 640x640 (FP16)", "precision": "FP16"}
+      ],
+      "used_by_pipelines": ["smart-nvr", "goods-detection"],
+      "unsupported_devices": null
     }
     ```
     """
 
-    name: str
-    display_name: str
-    category: Optional[ModelCategory]
-    precision: Optional[str]
+    name: str = Field(..., description="Internal model identifier.")
+    display_name: str = Field(..., description="Human-readable model name.")
+    category: Optional[ModelCategory] = Field(
+        default=None,
+        description="Logical model category, or null when unknown.",
+    )
+    source: ModelSource = Field(
+        ...,
+        description="Upstream hub the model is downloaded from.",
+    )
+    install_status: ModelInstallStatus = Field(
+        ...,
+        description="Current install status of the model on the local disk.",
+    )
+    variants: List[ModelVariant] = Field(
+        default_factory=list,
+        description="Selectable variants (one per precision / model-proc).",
+    )
+    used_by_pipelines: List[str] = Field(
+        default_factory=list,
+        description=(
+            "List of predefined-pipeline ids that reference this "
+            "model. Non-empty means the model is recommended."
+        ),
+    )
+    default: bool = Field(
+        default=False,
+        description=(
+            "Whether the model is marked as a default install "
+            "candidate in supported_models.yaml. The Models page uses "
+            "this flag to pre-select recommended models in the bulk-"
+            "install UI."
+        ),
+    )
+    unsupported_devices: Optional[str] = Field(
+        default=None,
+        description=(
+            "Comma-separated list of devices on which the model "
+            "cannot run (e.g. 'NPU'), or null when no restrictions exist."
+        ),
+    )
+
+
+class ModelUploadResponse(BaseModel):
+    """
+    **Response body returned after a model has been successfully uploaded.**
+
+    The response is the freshly registered `Model` entry so that the UI
+    can update its state without an extra `GET /models` round-trip.
+
+    ## Attributes
+    - `model` - Newly registered model entry
+
+    ### Example
+    ```json
+    {
+      "model": {
+        "name": "my-custom-detector",
+        "display_name": "My Custom Detector",
+        "category": "detection",
+        "source": "custom",
+        "install_status": "installed",
+        "variants": [{"name": "my-custom-detector", "display_name": "My Custom Detector (FP32)", "precision": "FP32"}],
+        "used_by_pipelines": [],
+        "unsupported_devices": null
+      }
+    }
+    ```
+    """
+
+    model: Model = Field(..., description="Newly registered model entry.")
+
+
+class ModelDownloadRequest(BaseModel):
+    """
+    **Request body for starting a batch of model download jobs.**
+
+    Each name must match an entry in `supported_models.yaml`. Names are
+    validated as a unique set: duplicates are rejected with 422 so the
+    per-name map returned by the endpoint stays unambiguous. An empty
+    list is also rejected (`min_length=1`).
+
+    Each name is processed independently — one model-download job per
+    name — and the per-model status is returned in
+    `ModelDownloadJobResponse.jobs[name]`.
+
+    ## Attributes
+    - `names` - List of supported-model names to install. Must be non-empty and unique.
+
+    ### Example
+    ```json
+    {
+      "names": ["yolo11n", "yolov8n"]
+    }
+    ```
+    """
+
+    names: list[str] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "List of supported-model names to install. Must be non-empty and unique."
+        ),
+        examples=[["yolo11n", "yolov8n"]],
+    )
+
+    @model_validator(mode="after")
+    def _validate_unique_names(self) -> "ModelDownloadRequest":
+        # Reject duplicates so the per-name response map cannot collide.
+        seen: set[str] = set()
+        duplicates: list[str] = []
+        for name in self.names:
+            if not name:
+                raise ValueError("Model names must be non-empty strings.")
+            if name in seen:
+                duplicates.append(name)
+            seen.add(name)
+        if duplicates:
+            raise ValueError(
+                f"Duplicate model names are not allowed: {sorted(set(duplicates))}"
+            )
+        return self
+
+
+class ModelDownloadJobItem(BaseModel):
+    """
+    **Per-model outcome of a multi-model download request.**
+
+    Returned as one entry per requested name in
+    `ModelDownloadJobResponse.jobs`. ``job_id`` is set only when the
+    backend accepted the request (status 202); for other status codes
+    it is ``null`` and ``message`` describes why.
+
+    ## Attributes
+    - `name` - Model name (matches the key in the parent map; repeated
+      for convenience when consumers iterate the values)
+    - `job_id` - Identifier of the created model-download job, or null
+      when the request was rejected for this model
+    - `status_code` - HTTP-like per-model status (`202` accepted,
+      `400` no `download_request`, `404` unknown model, `409` already
+      installed or in progress)
+    - `message` - Human-readable status description
+
+    ### Example
+    ```json
+    {
+      "name": "yolo11n",
+      "job_id": "mdl001",
+      "status_code": 202,
+      "message": "Download started (job mdl001)"
+    }
+    ```
+    """
+
+    name: str = Field(..., description="Model name.")
+    job_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Identifier of the created model-download job, or null "
+            "when the request was rejected for this model."
+        ),
+    )
+    status_code: int = Field(
+        ...,
+        description="HTTP-like per-model status code.",
+        examples=[202, 400, 404, 409],
+    )
+    message: str = Field(
+        ...,
+        description="Human-readable status description.",
+    )
+
+
+class ModelDownloadJobResponse(BaseModel):
+    """
+    **Envelope returned by `POST /models/download` for a batch request.**
+
+    The `jobs` map is keyed by the model names from the request body.
+    Each value reports the outcome for that specific model — accepted
+    requests carry a `job_id` (use it with `/jobs/models/{job_id}` to
+    poll progress); rejected ones carry a non-202 `status_code` and an
+    explanatory `message`.
+
+    The outer HTTP status mirrors the aggregate result:
+    - `202` when **all** models were accepted,
+    - `207` Multi-Status when **some** were accepted and some rejected,
+    - the worst per-model error code (`400`/`404`/`409`) when **all**
+      were rejected.
+
+    ## Attributes
+    - `jobs` - Per-model outcome keyed by the requested model name.
+
+    ### Example
+    ```json
+    {
+      "jobs": {
+        "yolo11n": {
+          "name": "yolo11n",
+          "job_id": "mdl001",
+          "status_code": 202,
+          "message": "Download started (job mdl001)"
+        },
+        "yolov8n": {
+          "name": "yolov8n",
+          "job_id": null,
+          "status_code": 409,
+          "message": "Model 'yolov8n' is already installed"
+        }
+      }
+    }
+    ```
+    """
+
+    jobs: dict[str, ModelDownloadJobItem] = Field(
+        ...,
+        description="Per-model outcome keyed by the requested model name.",
+    )
+
+
+class ModelDownloadJobStatus(BaseModel):
+    """
+    **Detailed status of a model download job.**
+
+    ## Attributes
+    - `id` - Job identifier
+    - `model_name` - Name of the supported model being installed
+    - `source` - Origin hub the model is being downloaded from
+    - `start_time` - Start time in milliseconds since epoch
+    - `elapsed_time` - Elapsed time in milliseconds
+    - `state` - Current job state (`RUNNING`, `COMPLETED`, `FAILED`)
+    - `details` - Human-readable messages for the current state
+    - `progress_message` - Last status text reported by the downloader (or null)
+    - `model_path` - Filesystem path of the installed model, set only when state is `COMPLETED`
+
+    ### Example
+    ```json
+    {
+      "id": "mdl001",
+      "model_name": "yolo11n",
+      "source": "ultralytics",
+      "start_time": 1715000000000,
+      "elapsed_time": 4321,
+      "state": "RUNNING",
+      "details": ["Downloading yolo11n from Ultralytics"],
+      "progress_message": "Fetching weights...",
+      "model_path": null
+    }
+    ```
+    """
+
+    id: str
+    model_name: str
+    source: ModelSource
+    start_time: int
+    elapsed_time: int
+    state: ModelDownloadJobState
+    details: list[str]
+    progress_message: Optional[str] = None
+    model_path: Optional[str] = None
+
+
+class ModelDownloadJobSummary(BaseModel):
+    """
+    **Short summary of a model download job.**
+
+    ## Attributes
+    - `id` - Job identifier
+    - `model_name` - Name of the supported model being installed
+    - `source` - Origin hub the model is being downloaded from
+
+    ### Example
+    ```json
+    {
+      "id": "mdl001",
+      "model_name": "yolo11n",
+      "source": "ultralytics"
+    }
+    ```
+    """
+
+    id: str
+    model_name: str
+    source: ModelSource
 
 
 class MetricSample(BaseModel):
@@ -1966,6 +2440,65 @@ class VideoUploadError(BaseModel):
     )
 
 
+class ImageUploadError(BaseModel):
+    """
+    **Structured error body returned when an image archive upload is rejected.**
+
+    Returned with HTTP 422 by `POST /images/upload` when the submitted
+    archive fails any validation step (extension, size, layout, content,
+    duplicate name, ...). Mirrors the shape of `VideoUploadError`: a
+    human-readable `detail` plus a machine-readable `error` /
+    `found` / `allowed` triple. The `found` and `allowed` fields are
+    typed loosely (`Any` / `list[Any]`) because some checks return
+    composite values such as a list of detected extensions or a pair of
+    resolutions.
+
+    ## Attributes
+    - `detail` - Human-readable error message suitable for direct UI
+      display.
+    - `error` - Machine-readable error kind (see `ImageUploadErrorKind`).
+    - `found` - Optional value that actually failed validation.
+    - `allowed` - Optional list of accepted values for the failed check.
+
+    ### Example (mixed image extensions)
+    ```json
+    {
+      "detail": "Archive must contain images of exactly one type. Found multiple: ['jpg', 'png'].",
+      "error": "archive_mixed_image_extensions",
+      "found": ["jpg", "png"],
+      "allowed": null
+    }
+    ```
+
+    ### Example (subdirectories not allowed)
+    ```json
+    {
+      "detail": "Archive must contain only files at the top level. Found nested entry 'subdir/foo.jpg'.",
+      "error": "archive_contains_subdirectories",
+      "found": "subdir/foo.jpg",
+      "allowed": null
+    }
+    ```
+    """
+
+    detail: str = Field(
+        ...,
+        description="Human-readable error message suitable for UI display.",
+    )
+    error: ImageUploadErrorKind = Field(
+        ...,
+        description="Machine-readable error kind.",
+    )
+    found: Optional[Any] = Field(
+        default=None,
+        description="Value that actually failed validation, or null.",
+    )
+    allowed: Optional[List[Any]] = Field(
+        default=None,
+        description="List of accepted values for the failed check, or null.",
+    )
+
+
 class VideoExistsResponse(BaseModel):
     """
     **Response indicating whether a video file exists.**
@@ -1999,20 +2532,55 @@ class ImageSet(BaseModel):
     **Metadata for a single image set (directory of images).**
 
     ## Attributes
-    - `name` - Name of the image set (directory name under INPUT_IMAGES_DIR)
-    - `image_count` - Number of image files in the directory
+    - `name` - Name of the image set (directory name under
+      `UPLOADED_IMAGES_DIR`; identical to the sanitized archive trunk).
+    - `source_archive` - Original uploaded archive filename.
+    - `image_count` - Number of image files in the set.
+    - `extension` - Lowercase canonical extension shared by every image
+      (`jpg`, `png`, `bmp` or `tif`).
+    - `width` - Common image width in pixels.
+    - `height` - Common image height in pixels.
+    - `uploaded_at` - ISO-8601 UTC timestamp of when the set was created.
 
     ### Example
     ```json
     {
       "name": "traffic_dataset",
-      "image_count": 120
+      "source_archive": "traffic_dataset.zip",
+      "image_count": 120,
+      "extension": "png",
+      "width": 1920,
+      "height": 1080,
+      "uploaded_at": "2026-04-27T10:00:00Z"
     }
     ```
     """
 
     name: str = Field(..., description="Name of the image set directory.")
-    image_count: int = Field(..., description="Number of image files in the directory.")
+    source_archive: str = Field(
+        default="",
+        description="Original uploaded archive filename.",
+    )
+    image_count: int = Field(
+        ...,
+        description="Number of image files in the set.",
+    )
+    extension: str = Field(
+        default="",
+        description="Lowercase canonical image extension shared by every image.",
+    )
+    width: int = Field(
+        default=0,
+        description="Common image width in pixels.",
+    )
+    height: int = Field(
+        default=0,
+        description="Common image height in pixels.",
+    )
+    uploaded_at: str = Field(
+        default="",
+        description="ISO-8601 UTC timestamp of when the set was created.",
+    )
 
 
 class ImageSetExistsResponse(BaseModel):

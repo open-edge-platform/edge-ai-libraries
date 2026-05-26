@@ -67,6 +67,80 @@ class Settings(BaseSettings):
     )
     OV_MODELS_DIR: str = "/app/ov_models"  # Directory for OpenVINO models (used by both SDK and embedding service)
 
+    # SDK video pipeline settings
+    SDK_VIDEO_SHM_MAX_BLOCKS: int = Field(
+        default=512,
+        ge=1,
+        description="Shared memory pool block count for SDK video frame pipeline",
+        env="SDK_VIDEO_SHM_MAX_BLOCKS",
+    )
+    SDK_VIDEO_SHM_BLOCK_SIZE: int = Field(
+        default=1920 * 1080 * 3,
+        ge=1,
+        description="Shared memory block size in bytes for SDK video frame pipeline",
+        env="SDK_VIDEO_SHM_BLOCK_SIZE",
+    )
+    SDK_VIDEO_EXTRACTION_BATCH_SIZE: int = Field(
+        default=256,
+        ge=1,
+        description="Frame extraction batch size for SDK video decoding",
+        env="SDK_VIDEO_EXTRACTION_BATCH_SIZE",
+    )
+    SDK_PIPELINE_QUEUE_MAXSIZE: int = Field(
+        default=16,
+        ge=1,
+        description="Max queue size for SDK pipeline inter-stage queues",
+        env="SDK_PIPELINE_QUEUE_MAXSIZE",
+    )
+    SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE: int = Field(
+        default=1,
+        ge=1,
+        description="Max queue size for SDK pipeline completion queue",
+        env="SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE",
+    )
+    SDK_DETECTION_WORKER_THREADS: int = Field(
+        default=2,
+        ge=1,
+        description="Thread count for detection worker local pool",
+        env="SDK_DETECTION_WORKER_THREADS",
+    )
+    SDK_EMBED_WORKER_THREADS: int = Field(
+        default=2,
+        ge=1,
+        description="Thread count for embed worker local pool",
+        env="SDK_EMBED_WORKER_THREADS",
+    )
+    SDK_PIPELINE_QUEUE_GET_TIMEOUT_S: float = Field(
+        default=1.0,
+        gt=0,
+        description="Queue get timeout in seconds for SDK pipeline workers",
+        env="SDK_PIPELINE_QUEUE_GET_TIMEOUT_S",
+    )
+
+    SAVE_RUNTIME_PIPELINE_STATS: bool = Field(
+        default=False,
+        description="Whether to save runtime pipeline statistics",
+        env="SAVE_RUNTIME_PIPELINE_STATS",
+    )
+
+    SDK_ENABLE_TRACING: bool = Field(
+        default=False,
+        description="Whether to enable detailed tracing in SDK processing mode",
+        env="SDK_ENABLE_TRACING",
+    )
+
+    VIDEO_FRAME_DECODER_WORKERS: int = Field(
+        default=2,
+        ge=1,
+        description="Thread count for video frame decoder workers",
+        env="VIDEO_FRAME_DECODER_WORKERS",
+    )
+    VIDEO_FRAME_LOG_LEVEL: str = Field(
+        default="INFO",
+        description="Logging level for video frame decoding components",
+        env="VIDEO_FRAME_LOG_LEVEL",
+    )
+
     # Frame-based processing settings
     FRAME_INTERVAL: int = 15
     ENABLE_OBJECT_DETECTION: bool = True

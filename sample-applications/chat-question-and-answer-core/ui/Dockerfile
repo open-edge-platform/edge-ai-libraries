@@ -37,7 +37,7 @@ RUN ["npm", "run", "build"]
 # -----------------------------------------------------------------------------
 # Stage 2: Serve the built app using Nginx (unprivileged)
 # -----------------------------------------------------------------------------
-FROM nginxinc/nginx-unprivileged:1.29.5
+FROM nginxinc/nginx-unprivileged:1.29.8
 
 # Copy the built app from the previous stage
 COPY --from=vite-app /user/app/dist /opt/share/nginx/html
@@ -48,6 +48,12 @@ COPY ./nginx.conf /etc/nginx/nginx.conf
 
 # Ensure the entrypoint script is executable
 USER root
+
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN chmod +x /docker-entrypoint.d/env.sh
 
 # Revert to the unprivileged nginx user (UID/GID 101)

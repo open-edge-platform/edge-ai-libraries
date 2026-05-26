@@ -144,8 +144,8 @@ class PipelineRunner:
     including timeout enforcement, output parsing, and error handling.
     """
 
-    # Default metrics-service URL for pushing FPS metrics
-    DEFAULT_METRICS_SERVICE_URL = "http://metrics-service:9090"
+    # Default metrics-manager URL for pushing FPS metrics
+    DEFAULT_METRICS_MANAGER_URL = "http://metrics-manager:9090"
 
     # ------------------------------------------------------------------
     # Shared worker pool for fire-and-forget metric pushes.
@@ -167,7 +167,7 @@ class PipelineRunner:
     # Shared at the class level (not per-instance) on purpose: many
     # runners may exist in the same process (density `Benchmark`
     # reuses one, the validation path creates one per job, etc.) and
-    # metrics-service traffic is I/O-bound, so one pool is enough to
+    # metrics-manager traffic is I/O-bound, so one pool is enough to
     # absorb all of them and no coordination is needed across
     # instances. The executor is created lazily on first push so
     # importing this module stays side-effect free.
@@ -291,7 +291,7 @@ class PipelineRunner:
             job_id: Identifier of the owning job. When provided, every
                 metric pushed by this runner — both FPS and
                 ``pipeline_latency`` — carries a ``tags.job_id`` field
-                so metrics-service can partition data per job; this is
+                so metrics-manager can partition data per job; this is
                 how concurrent jobs are distinguished in the metrics
                 backend. When ``None`` (default), the ``job_id`` tag is
                 omitted from every payload (FPS pushes then carry no
@@ -308,7 +308,7 @@ class PipelineRunner:
         self.poll_interval = poll_interval
         self.inactivity_timeout = inactivity_timeout
         self.hard_timeout = hard_timeout
-        # Resolve the metrics-service base URL once and pre-compute the
+        # Resolve the metrics-manager base URL once and pre-compute the
         # two endpoint URLs used by the push helpers. Trailing slashes
         # on the configured base are stripped so concatenation with the
         # fixed paths cannot produce `//api/v1/...`, which some proxies
@@ -321,13 +321,13 @@ class PipelineRunner:
         #     {name, fields, tags} entries, used for latency pushes
         #     so all four tracer fields travel in one request per
         #     stream sample.
-        self.metrics_service_url = os.environ.get(
-            "METRICS_SERVICE_URL", self.DEFAULT_METRICS_SERVICE_URL
+        self.metrics_manager_url = os.environ.get(
+            "METRICS_MANAGER_URL", self.DEFAULT_METRICS_MANAGER_URL
         ).rstrip("/")
-        self._metrics_service_fps_url = (
-            f"{self.metrics_service_url}/api/v1/metrics/simple"
+        self._metrics_manager_fps_url = (
+            f"{self.metrics_manager_url}/api/v1/metrics/simple"
         )
-        self._metrics_service_batch_url = f"{self.metrics_service_url}/api/v1/metrics"
+        self._metrics_manager_batch_url = f"{self.metrics_manager_url}/api/v1/metrics"
         self.enable_latency_metrics = enable_latency_metrics
         self.job_id = job_id
         self.logger = logging.getLogger("PipelineRunner")
@@ -681,7 +681,7 @@ class PipelineRunner:
 
                             latest_fps = result["per_stream_fps"]
 
-                            # Push latest FPS to metrics-service
+                            # Push latest FPS to metrics-manager
                             self._push_fps_metric(latest_fps)
 
                         # ----------------------------------------------------------
@@ -932,11 +932,11 @@ class PipelineRunner:
             self.logger.error(f"Pipeline execution error: {e}")
             raise
         finally:
-            # Push 0.0 to metrics-service after pipeline completion (success or failure)
+            # Push 0.0 to metrics-manager after pipeline completion (success or failure)
             self._push_fps_metric(0.0)
             # Re-push the last observed latency sample per stream so
             # that at least one final pipeline_latency point per stream
-            # reaches metrics-service even if the last in-flight live
+            # reaches metrics-manager even if the last in-flight live
             # push raced with pipeline teardown. No-op when the tracer
             # was disabled or produced no samples.
             self._push_final_latency_metrics()
@@ -948,12 +948,12 @@ class PipelineRunner:
         description: str,
     ) -> None:
         """
-        Fire-and-forget HTTP POST to metrics-service.
+        Fire-and-forget HTTP POST to metrics-manager.
 
         Submits the POST to a shared class-level
         ``ThreadPoolExecutor`` (see ``_get_metrics_executor``) so the
         pipeline hot loop is never blocked by a slow or unavailable
-        metrics-service. The pool caps concurrency at
+        metrics-manager. The pool caps concurrency at
         ``_METRICS_EXECUTOR_WORKERS`` and reuses threads across
         pushes, which avoids the unbounded-thread-spawn pattern a
         per-push ``threading.Thread`` would create under load (many
@@ -1037,7 +1037,7 @@ class PipelineRunner:
 
     def _push_fps_metric(self, fps: float) -> None:
         """
-        Push the given FPS value to metrics-service.
+        Push the given FPS value to metrics-manager.
 
         Called:
         - During pipeline execution, every time a new average FPS line
@@ -1047,7 +1047,7 @@ class PipelineRunner:
 
         Uses the ``/api/v1/metrics/simple`` endpoint: one metric name
         and one scalar value per request. When ``self.job_id`` is set,
-        the payload carries ``tags.job_id`` so metrics-service can
+        the payload carries ``tags.job_id`` so metrics-manager can
         partition data per job; otherwise the ``tags`` field is omitted.
 
         Args:
@@ -1058,7 +1058,7 @@ class PipelineRunner:
             payload["tags"] = {"job_id": self.job_id}
 
         self._post_metrics_async(
-            url=self._metrics_service_fps_url,
+            url=self._metrics_manager_fps_url,
             payload=payload,
             description="fps",
         )
@@ -1067,7 +1067,7 @@ class PipelineRunner:
         self, stream_id: str, sample: "LatencyTracerSample"
     ) -> None:
         """
-        Push a single ``latency_tracer`` sample to metrics-service.
+        Push a single ``latency_tracer`` sample to metrics-manager.
 
         Called live from the stdout hot loop every time a new
         ``latency_tracer_pipeline_interval`` line is parsed for an
@@ -1084,7 +1084,7 @@ class PipelineRunner:
 
         Fields sent: ``avg_ms``, ``min_ms``, ``max_ms``, ``latency_ms``.
         ``interval_ms`` is intentionally omitted — the emission cadence
-        is fixed at 1000 ms and metrics-service timestamps each sample
+        is fixed at 1000 ms and metrics-manager timestamps each sample
         on receipt, so the field would only add noise. ``fps`` is also
         intentionally omitted because it is already reported by
         ``gvafpscounter`` via ``_push_fps_metric`` — re-sending it
@@ -1120,7 +1120,7 @@ class PipelineRunner:
         }
 
         self._post_metrics_async(
-            url=self._metrics_service_batch_url,
+            url=self._metrics_manager_batch_url,
             payload=payload,
             description="latency",
         )
@@ -1134,7 +1134,7 @@ class PipelineRunner:
         iterating the in-memory ``latency_tracer_metrics`` map and
         re-pushing the last observed sample for every stream. This
         guarantees that at least one final sample per stream reaches
-        metrics-service even if the last in-flight per-sample push
+        metrics-manager even if the last in-flight per-sample push
         raced with pipeline teardown.
 
         No-op when ``enable_latency_metrics`` is False (the map stays
@@ -1216,13 +1216,13 @@ class PipelineRunner:
         )
         self.latency_tracer_metrics[stream_id] = metrics
 
-        # Live push: forward every new sample to metrics-service as
+        # Live push: forward every new sample to metrics-manager as
         # soon as it is parsed. The call is fire-and-forget (runs on
         # a daemon thread in `_post_metrics_async`) so a slow or
         # unavailable backend can never stall the stdout reader.
         self._push_latency_sample(stream_id, metrics)
 
-        # Per-sample log is kept at DEBUG level: metrics-service is
+        # Per-sample log is kept at DEBUG level: metrics-manager is
         # now the primary surface for tracer values, so this log is
         # only useful for local troubleshooting when the backend is
         # unavailable or the payload shape is under review.

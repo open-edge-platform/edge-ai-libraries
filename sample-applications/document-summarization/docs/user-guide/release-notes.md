@@ -2,10 +2,10 @@
 
 ## Current Release
 
-**Version**: 1.0.5
-**Release Date**: 25 Mar 2026
+**Version**: 2026.1.0-rc1
+**Release Date**: May 14, 2026
 
-- Updated few package version to fix vulnerabilities
+- Fix LlamaIndex import issue by replacing deprecated BaseLlamaPack dependency with updated import structure.
 
 ## Known Issues/Behaviour (Consolidated):
 
@@ -13,6 +13,11 @@
 - Summary time depends on the size and complexity (image, tables, cross references) of the document - Open
 
 ## Previous Releases
+
+**Version**: 1.0.5
+**Release Date**: 25 Mar 2026
+
+- Fix security vulnerabilities by updating several package versions.
 
 **Version**: 1.0.4
 **Release Date**: 17 Feb 2026

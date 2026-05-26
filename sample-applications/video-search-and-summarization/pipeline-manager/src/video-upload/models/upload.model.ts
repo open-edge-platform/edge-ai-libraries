@@ -53,6 +53,7 @@ export interface SystemConfig {
 
   audioModel?: string;
   audioUseFullTranscriptSummary?: boolean;
+  produceFinalSummary?: boolean;
   audioSummaryMapPrompt?: string;
   audioSummaryReducePrompt?: string;
   audioSummarySinglePrompt?: string;

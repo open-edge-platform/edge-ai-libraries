@@ -1,14 +1,16 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.12.12-slim AS build
+FROM python:3.12-slim AS build
+
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
 
 RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
 
-RUN pip install poetry==2.1.3
+RUN pip install poetry==2.4.1
 
 RUN poetry config virtualenvs.create false
 

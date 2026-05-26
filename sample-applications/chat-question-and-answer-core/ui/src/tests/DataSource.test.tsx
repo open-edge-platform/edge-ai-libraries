@@ -133,6 +133,34 @@ describe('DataSource Component test suite', () => {
     });
   });
 
+  it('should show backend upload error message when upload fails', async () => {
+    renderComponent();
+
+    const file = new File(['dummy content'], 'image-only.pdf', {
+      type: 'application/pdf',
+    });
+    const fileInput = screen.getByTestId('file-input-field');
+
+    vi.mocked(unwrapResult).mockImplementationOnce(() => {
+      throw {
+        message: 'Error creating embedding. No text data from the document.',
+      };
+    });
+
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    const uploadButton = screen.getByTestId('file-upload-button');
+    fireEvent.click(uploadButton);
+
+    await waitFor(() => {
+      expect(notify).toHaveBeenNthCalledWith(
+        2,
+        'Error creating embedding. No text data from the document.',
+        NotificationSeverity.ERROR,
+      );
+    });
+  });
+
   it('should handle invalid file format', () => {
     renderComponent();
 

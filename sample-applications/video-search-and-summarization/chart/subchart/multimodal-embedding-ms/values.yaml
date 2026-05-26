@@ -13,13 +13,13 @@ global:
 
   # Common release tags to be used for several dependencies
   commonTag: ""
+  embeddingModelName: ""
 
   proxy:
     # setup proxy settings
     no_proxy: ""
     http_proxy: ""
     https_proxy: ""
-
 replicaCount: 1
 
 image:
@@ -116,3 +116,10 @@ defaultStartOffsetSec: 0
 defaultClipDuration: -1
 defaultNumFrames: 64
 ovPerformanceMode: "THROUGHPUT"
+inferBatchSize: 32
+preprocessWorkers: 8
+videoFrameBatchSize: 64
+videoFrameQueueSize: 32
+videoFrameShmPoolBlockSize: 6220800
+videoFrameShmPoolBlocksMultiplier: 2
+videoFrameLogLevel: "INFO"

@@ -1,0 +1,58 @@
+name: Video Summarization VLM
+definition: >
+  Video summarization pipeline using gvagenai with a vision-language model to generate concise scene-level summaries from sampled frames.
+tags:
+  - GenAi
+thumbnail: images/video-summary.png
+variants:
+  - name: CPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 !
+      videoconvert !
+      video/x-raw,format=RGB !
+      gvagenai
+        model-path=/models/output/openvino_models/cpu/INT4/google/gemma-3-4b-it
+        device=CPU
+        prompt="Summarize this video in one sentence."
+        generation-config="max_new_tokens=64"
+        frame-rate=1
+        chunk-size=4
+        metrics=false !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=10 !
+      fakesink sync=false async=false
+  - name: GPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 !
+      videoconvert !
+      video/x-raw,format=RGB !
+      gvagenai
+        model-path=/models/output/openvino_models/gpu/INT4/google/gemma-3-4b-it
+        device=GPU
+        prompt="Summarize this video in one sentence."
+        generation-config="max_new_tokens=64"
+        frame-rate=1
+        chunk-size=4
+        metrics=false !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=10 !
+      fakesink sync=false async=false
+  - name: NPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 !
+      videoconvert !
+      video/x-raw,format=RGB !
+      gvagenai
+        model-path=/models/output/openvino_models/npu/INT4/google/gemma-3-4b-it
+        device=NPU
+        prompt="Summarize this video in one sentence."
+        generation-config="max_new_tokens=64"
+        frame-rate=1
+        chunk-size=4
+        metrics=false !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      gvafpscounter starting-frame=10 !
+      fakesink sync=false async=false

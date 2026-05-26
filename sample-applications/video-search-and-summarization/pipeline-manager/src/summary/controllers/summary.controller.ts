@@ -168,6 +168,11 @@ export class SummaryController {
         reqBody.audio.useFullTranscriptSummary ?? systemConfig.audioUseFullTranscriptSummary;
     }
 
+    // Setup Final Summary Flag
+    if (reqBody.produceFinalSummary !== undefined) {
+      systemConfig.produceFinalSummary = reqBody.produceFinalSummary;
+    }
+
     let stateId: string | null = null;
 
     if (video) {

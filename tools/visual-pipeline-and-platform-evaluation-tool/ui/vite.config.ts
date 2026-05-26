@@ -40,14 +40,6 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: false,
         },
-        "/model-download": {
-          target: env.VITE_MODEL_DOWNLOAD_URL || "http://localhost:8000",
-          changeOrigin: true,
-          secure: false,
-          ws: false,
-          rewrite: (path: string) =>
-            path.replace(/^\/model-download/, "/api/v1"),
-        },
         "/api": {
           target: env.VITE_API_URL || "http://localhost:7860",
           changeOrigin: true,
@@ -64,11 +56,18 @@ export default defineConfig(({ mode }) => {
             });
           },
         },
-        "/metrics/ws": {
+        "/metrics/stream": {
           target: env.VITE_METRICS_URL || "http://localhost:9090",
           changeOrigin: true,
           secure: false,
-          ws: true,
+          ws: false,
+          configure: (proxy) => {
+            // Disable response buffering so SSE events stream through immediately
+            proxy.on("proxyRes", (proxyRes) => {
+              proxyRes.headers["cache-control"] = "no-cache";
+              proxyRes.headers["x-accel-buffering"] = "no";
+            });
+          },
         },
       },
     },

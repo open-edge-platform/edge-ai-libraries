@@ -19,10 +19,12 @@ import PipelineEditorCanvas, {
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
+import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
+import { aggregateLatencyTracerMetrics } from "@/hooks/useFrozenMetrics";
 import { toast } from "@/lib/toast";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
 import { PipelineActionsMenu } from "@/features/pipeline-editor/PipelineActionsMenu";
@@ -53,6 +55,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft,
+  Braces,
   Eye,
   Film,
   Infinity as InfinityIcon,
@@ -88,7 +91,11 @@ const normalizeSourceNodeData = (
 
   if (node.type === "source") {
     const normalizedKind = String(rawData.kind ?? "").toLowerCase();
-    if (normalizedKind === "camera" || normalizedKind === "file") {
+    if (
+      normalizedKind === "camera" ||
+      normalizedKind === "video" ||
+      normalizedKind === "image_set"
+    ) {
       normalizedData.kind = normalizedKind;
     }
 
@@ -135,6 +142,8 @@ export const Pipelines = () => {
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
   const [livePreviewEnabled, setLivePreviewEnabled] = useState(false);
+  const [latencyMetricsEnabled, setLatencyMetricsEnabled] = useState(false);
+  const [metadataEnabled, setMetadataEnabled] = useState(false);
   const [loopingEnabled, setLoopingEnabled] = useState(false);
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
@@ -189,11 +198,14 @@ export const Pipelines = () => {
     execute: runPipeline,
     isLoading: isPipelineRunning,
     isJobCancelled,
+    jobId,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunPerformanceTestMutation,
     statusCheckHook: useGetPerformanceJobStatusQuery,
   });
+
+  useActiveJobSync(jobId);
 
   // Reset editor state when variant changes
   useEffect(() => {
@@ -341,7 +353,9 @@ export const Pipelines = () => {
           execution_config: {
             output_mode: outputMode,
             max_runtime: maxRuntimeSeconds,
-            metadata_mode: hasMetadata ? "file" : "disabled",
+            metadata_mode:
+              hasMetadata && metadataEnabled ? "file" : "disabled",
+            enable_latency_metrics: latencyMetricsEnabled,
           },
         },
       });
@@ -452,6 +466,10 @@ export const Pipelines = () => {
           : 0;
     const currentVariantData = data.variants.find((v) => v.id === variant);
     const isReadOnly = currentVariantData?.read_only ?? false;
+    const pipelineHasMetadata =
+      currentVariantData?.pipeline_graph.nodes.some(
+        (n) => n.type === "gvametapublish",
+      ) ?? false;
 
     const editorContent = (
       <div className="w-full h-full relative">
@@ -579,10 +597,7 @@ export const Pipelines = () => {
                   </TooltipContent>
                 </Tooltip>
 
-                <PopoverContent
-                  align="start"
-                  className="w-72 p-3 rounded-none"
-                >
+                <PopoverContent align="start" className="w-72 p-3 rounded-none">
                   <div className="space-y-3">
                     <div className="space-y-2">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -682,7 +697,10 @@ export const Pipelines = () => {
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="bottom">
-                              <p>Continuously restart the pipeline for a set duration</p>
+                              <p>
+                                Continuously restart the pipeline for a set
+                                duration
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                           <Switch
@@ -796,6 +814,30 @@ export const Pipelines = () => {
                           }}
                         />
                       </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Timer className="h-4 w-4 text-muted-foreground" />
+                          <span>Latency metrics</span>
+                        </div>
+                        <Switch
+                          checked={latencyMetricsEnabled}
+                          onCheckedChange={setLatencyMetricsEnabled}
+                        />
+                      </div>
+
+                      {pipelineHasMetadata && (
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Braces className="h-4 w-4 text-muted-foreground" />
+                            <span>Metadata JSON</span>
+                          </div>
+                          <Switch
+                            checked={metadataEnabled}
+                            onCheckedChange={setMetadataEnabled}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </PopoverContent>
@@ -876,9 +918,21 @@ export const Pipelines = () => {
                       completedVideoPath={completedVideoPath}
                       livePreviewEnabled={livePreviewEnabled}
                       videoOutputEnabled={videoOutputEnabled}
+                      enableLatencyMetrics={latencyMetricsEnabled}
+                      enableMetadata={metadataEnabled && pipelineHasMetadata}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
+                      }
+                      resultOverrides={
+                        jobStatus
+                          ? {
+                              fps: jobStatus.per_stream_fps,
+                              ...aggregateLatencyTracerMetrics(
+                                jobStatus.latency_tracer_metrics,
+                              ),
+                            }
+                          : null
                       }
                     />
                   </div>

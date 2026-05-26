@@ -38,6 +38,7 @@ def _build_stage_timings(
 	frame_extraction_seconds: float,
 	detection_seconds: float,
 	embedding_seconds: float,
+	embedding_inference_seconds: float,
 	storage_seconds: float,
 	total_wall_seconds: float,
 ) -> List[TelemetryStageTiming]:
@@ -45,6 +46,7 @@ def _build_stage_timings(
 		("extraction", frame_extraction_seconds),
 		("detection", detection_seconds),
 		("embedding", embedding_seconds),
+		("embedding_inference", embedding_inference_seconds),
 		("storage", storage_seconds),
 	]
 	safe_wall = max(total_wall_seconds, 1e-9)
@@ -57,7 +59,7 @@ def _build_stage_timings(
 	parallel_total = sum(
 		max(seconds, 0.0)
 		for name, seconds in stages
-		if name != "extraction"
+		if name not in ("extraction", "embedding_inference")
 	)
 
 	results: List[TelemetryStageTiming] = []
@@ -84,14 +86,16 @@ def _convert_batches(raw_batches: Iterable[Dict[str, Any]]) -> List[TelemetryBat
 	for idx, batch in enumerate(raw_batches, start=1):
 		details.append(
 			TelemetryBatchDetail(
-				batch_index=batch.get("batch_index", idx),
-				input_frames=batch.get("input_frames", 0),
-				items_after_detection=batch.get("items_after_detection", 0),
-				detection_seconds=float(batch.get("detection_time", 0.0)),
-				embedding_seconds=float(batch.get("embedding_time", 0.0)),
-				storage_seconds=float(batch.get("storage_time", 0.0)),
-				total_seconds=float(batch.get("processing_time", 0.0)),
-				embeddings_stored=int(batch.get("embeddings_count", 0)),
+				stream_id=batch.get("stream_id", -1),
+				batch_index=batch.get("batch_id", -1),
+				input_frames=batch.get("batch_size", -1),
+				items_after_detection=batch.get("total", 0) - batch.get("batch_size", 0),
+				detection_seconds=float(batch.get("stats", {}).get("detect")[2]),
+				embedding_seconds=float(batch.get("stats", {}).get("embed")[2]),
+				embedding_infer_seconds=float(batch.get("stats", {}).get("embed_inference_time", 0.0)),
+				storage_seconds=float(batch.get("stats", {}).get("store")[2]),
+				total_seconds=float(batch.get("stats", {}).get("total")),
+				embeddings_stored=int(batch.get("total", 0)),
 			)
 		)
 	return details
@@ -107,49 +111,20 @@ def record_video_telemetry(
 	"""Build, persist, and return a telemetry entry."""
 
 	try:
-		total_wall = float(pipeline_stats.get("total_wall_seconds", 0.0))
-		extraction_seconds = float(pipeline_stats.get("frame_extraction_seconds", 0.0))
-		detection_seconds = float(pipeline_stats.get("detection_seconds", 0.0))
-		embedding_seconds = float(pipeline_stats.get("embedding_seconds_total", 0.0))
-		storage_seconds = float(pipeline_stats.get("storage_seconds_total", 0.0))
-		frame_count = int(pipeline_stats.get("frames_extracted", 0))
-		items_after_detection = int(pipeline_stats.get("items_after_detection", 0))
-		embeddings_stored = int(pipeline_stats.get("embeddings_stored", 0))
-
-		stages = _build_stage_timings(
-			frame_extraction_seconds=extraction_seconds,
-			detection_seconds=detection_seconds,
-			embedding_seconds=embedding_seconds,
-			storage_seconds=storage_seconds,
-			total_wall_seconds=total_wall,
-		)
+		total_wall = float(pipeline_stats.get("stage_duration", {}).get("total_wall_seconds", 0.0))
+		stream_id = int(pipeline_stats.get("properties", {}).get("stream_id", 0))
+		frame_count = int(pipeline_stats.get("properties", {}).get("frames_extracted", 0))
+		items_after_detection = int(pipeline_stats.get("properties", {}).get("items_after_detection", 0))
+		embeddings_stored = int(pipeline_stats.get("properties", {}).get("embeddings_stored", 0))
 
 		batches = _convert_batches(pipeline_stats.get("batches", []))
+		del pipeline_stats["batches"]
 
 		counts = TelemetryCounts(
+			stream_id=stream_id,
 			frames_extracted=frame_count,
 			items_after_detection=items_after_detection,
 			embeddings_stored=embeddings_stored,
-		)
-
-		embedding_stage_pct = next(
-			(stage.percent_of_total for stage in stages if stage.name == "embedding"),
-			0.0,
-		)
-		effective_embedding_seconds = total_wall * (embedding_stage_pct / 100.0)
-		if effective_embedding_seconds <= 0:
-			effective_embedding_seconds = total_wall
-
-		throughput = TelemetryThroughput(
-			embeddings_per_second=_safe_div(embeddings_stored, effective_embedding_seconds),
-			embedding_stage_embeddings_per_second=_safe_div(
-				embeddings_stored, embedding_seconds
-			),
-			wall_time_embeddings_per_second=_safe_div(embeddings_stored, total_wall),
-			frames_per_second=_safe_div(
-				frame_count,
-				extraction_seconds if extraction_seconds > 0 else total_wall,
-			),
 		)
 
 		timestamps = TelemetryTimestamps(
@@ -188,8 +163,9 @@ def record_video_telemetry(
 			video=video,
 			config=processing_config,
 			counts=counts,
-			stages=stages,
-			throughput=throughput,
+			pipeline_stats=pipeline_stats.get("pipeline_metrics", {}),
+			stage_duration=pipeline_stats.get("stage_duration", {}),
+			stage_throughput=pipeline_stats.get("stage_throughput", {}),
 			batches=batches,
 		)
 
