@@ -7,7 +7,7 @@ This guide explains how to build Metrics Manager from source code for developmen
 Before building, ensure you have:
 
 - **System Requirements**: See [System Requirements](./system-requirements.md)
-- **Source code**: Cloned the repository (`git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main`)
+- **Source code**: Cloned the repository (`git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.1.0`)
 - **Platform familiarity**: Basic understanding of Docker and Docker Compose
 
 ## Building in a Docker Container (Recommended)
@@ -80,7 +80,7 @@ If you want to run the service locally without Docker, use the following approac
 ### Step 1: Clone and Navigate
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.1.0
 cd edge-ai-libraries/metrics-manager
 ```
 
