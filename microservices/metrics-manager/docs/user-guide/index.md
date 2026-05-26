@@ -63,8 +63,6 @@ hide_directive-->
 
 ![Metrics Manager Microservice Architecture](./_assets/metrics-mgr-microsvc-arch.drawio.svg "microservice architecture diagram")
 
-## How It Works
-
 Metrics flow through three main channels:
 
 1. **System Metrics**: Telegraf agents collect CPU, memory, GPU, NPU data every 1 second and expose them on `:9273/metrics` in Prometheus format
@@ -77,12 +75,14 @@ All metrics are available on three endpoints:
 - `GET /api/v1/metrics/latest` — JSON format with latest values
 - `GET /metrics/stream` — SSE stream for live dashboards (system + custom)
 
+For details, see [How It Works](./how-it-works.md).
+
 ## Supporting Resources
 
 - [Get Started Guide](./get-started.md)
 - [System Requirements](./get-started/system-requirements.md)
 - [Testing Guide](./get-started/testing.md)
-- [How It Works (Architecture Deep Dive)](./how-it-works.md)
+- [How It Works (Architecture Details)](./how-it-works.md)
 - [API Reference](./api-reference.md)
 - [Environment Variables](./get-started/environment-variables.md)
 - [Custom Metrics Scripts](./get-started/custom-metrics.md)
