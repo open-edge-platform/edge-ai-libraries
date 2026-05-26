@@ -107,6 +107,34 @@ NODE_KIND_KEY = "__node_kind"
 NODE_KIND_CAPS = "caps"
 
 
+# Per-node-type overrides for elements whose model property does not follow
+# the default ``model=...`` convention.
+#
+# Convention: ``node.data`` always stores the model under the key
+# ``"model"``, no matter how the GStreamer element spells it on the wire
+# (e.g. ``gvagenai`` uses ``model-path=...``). Each spec carries:
+#   - ``model_key``: the wire key used when parsing from / emitting to a
+#     pipeline string.
+#   - ``uses_model_proc``: whether ``model-proc=...`` should be injected
+#     after ``model`` when rebuilding the runnable pipeline.
+@dataclass(frozen=True)
+class NodeModelSpec:
+    model_key: str = "model"
+    uses_model_proc: bool = True
+
+
+NODE_MODEL_SPECS: dict[str, NodeModelSpec] = {
+    "gvagenai": NodeModelSpec(model_key="model-path", uses_model_proc=False),
+}
+
+_DEFAULT_NODE_MODEL_SPEC = NodeModelSpec()
+
+
+def _model_spec(node_type: str) -> NodeModelSpec:
+    """Return the model spec for ``node_type`` (default spec if not listed)."""
+    return NODE_MODEL_SPECS.get(node_type, _DEFAULT_NODE_MODEL_SPEC)
+
+
 class InputKind(str, Enum):
     """Enum for input source types."""
 
@@ -3667,12 +3695,14 @@ def _build_chain(
             # used by the graph layer for round-tripping between simple and
             # advanced views; they must never reach the GStreamer command line.
             result_parts.append(node.type)
+            spec = _model_spec(node.type)
             for key, value in node.data.items():
                 if key.startswith("__"):
                     continue
-                output_key = (
-                    "model-path" if node.type == "gvagenai" and key == "model" else key
-                )
+                # Remap the canonical in-memory key ``model`` back to the wire key
+                # declared in NODE_MODEL_SPECS for this node type (e.g. ``model-path``
+                # for ``gvagenai``). All other keys pass through unchanged.
+                output_key = spec.model_key if key == "model" else key
                 result_parts.append(f"{output_key}={value}")
 
         targets = edges_from.get(current_id, [])
@@ -3714,6 +3744,13 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
     This is used when ingesting a pipeline description so that stored graphs
     reference logical model identifiers instead of absolute filesystem paths.
 
+    The canonical in-memory key is always ``model``, regardless of how the
+    source pipeline string named it. For node types whose wire key is not
+    ``model`` (see ``NODE_MODEL_SPECS``, e.g. ``gvagenai`` uses
+    ``model-path``), the original wire key is read from ``node.data`` and
+    then removed; the resulting display name is always stored under
+    ``node.data["model"]``.
+
     Args:
         nodes: List of nodes to process (modified in place)
 
@@ -3731,7 +3768,8 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
         Output: node.data["model"] = "YOLOv8 License Plate Detector"
     """
     for node in nodes:
-        model_key = "model-path" if node.type == "gvagenai" else "model"
+        spec = _model_spec(node.type)
+        model_key = spec.model_key
         model_path = node.data.get(model_key)
         if model_path is None:
             continue
@@ -3752,7 +3790,8 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
         )
 
         if model is not None:
-            # Use "model" as canonical key in graph/UI for all node types.
+            # Canonical in-memory key is always ``model`` regardless of how
+            # the source pipeline string named it (see NodeModelSpec).
             node.data["model"] = model.display_name
             if model_key != "model":
                 node.data.pop(model_key, None)
@@ -3812,7 +3851,8 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
 
         node.data["model"] = model.model_path_full
 
-        if node.type != "gvagenai" and model.model_proc_full:
+        spec = _model_spec(node.type)
+        if spec.uses_model_proc and model.model_proc_full:
             _insert_model_proc_after_model(node, model.model_proc_full)
 
         logger.debug(
