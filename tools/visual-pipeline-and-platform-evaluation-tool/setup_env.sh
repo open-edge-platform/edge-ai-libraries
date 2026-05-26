@@ -9,6 +9,38 @@ RENDER_GROUP_ID=""
 TIMESERIES_ANALYTICS_MICROSERVICE_IMAGE_SUFFIX="2026.1.0"
 TIMESERIES_ANALYTICS_MICROSERVICE_WEEKLY_BUILD_DATE=""
 
+# The INFLUXDB_USERNAME must contain only alphabets and be at least 5 characters minimum
+# Do not set INFLUXDB_USERNAME to 'admin'.
+INFLUXDB_USERNAME=
+
+# The INFLUXDB_PASSWORD length must be a minimum of 10 alphanumeric characters with at least one digit
+# Do not use the following special characters in the INFLUXDB_PASSWORD "~:'+[/@^{%(-"*|,&<`}._=}!>;?#$)\"
+INFLUXDB_PASSWORD=
+
+if [[ -z "${INFLUXDB_USERNAME}" ]]; then
+    echo "Error: INFLUXDB_USERNAME cannot be blank." >&2
+    exit 1
+fi
+if [ "${INFLUXDB_USERNAME}" = "admin" ]; then
+    echo "Error: INFLUXDB_USERNAME must not be admin." >&2
+    exit 1
+fi
+if ! echo "${INFLUXDB_USERNAME}" | grep -Eq "^[A-Za-z]{5,}$"; then
+    echo "Error: INFLUXDB_USERNAME must contain only alphabets and be at least 5 characters minimum." >&2
+    exit 1
+fi
+
+if [[ -z "${INFLUXDB_PASSWORD}" ]]; then
+    echo "Error: INFLUXDB_PASSWORD cannot be blank." >&2
+    exit 1
+fi
+if ! echo "${INFLUXDB_PASSWORD}" | grep -Eq "^[A-Za-z0-9]{10,}$" || \
+   ! echo "${INFLUXDB_PASSWORD}" | grep -q "[0-9]" || \
+   ! echo "${INFLUXDB_PASSWORD}" | grep -q "[A-Za-z]"; then
+    echo "Error: INFLUXDB_PASSWORD length must be a minimum of 10 alphanumeric characters with at least one digit." >&2
+    exit 1
+fi
+
 # Get host IP addresses as a comma-separated list
 HOST_IPS="$(hostname -I | xargs | tr ' ' ',')"
 
@@ -43,4 +75,6 @@ IMAGE_SUFFIX=${TIMESERIES_ANALYTICS_MICROSERVICE_IMAGE_SUFFIX}
 WEEKLY_BUILD_DATE=${TIMESERIES_ANALYTICS_MICROSERVICE_WEEKLY_BUILD_DATE}
 TIMESERIES_UID=2999
 TIMESERIES_USER_NAME=timeseries_user
+INFLUXDB_USERNAME=${INFLUXDB_USERNAME}
+INFLUXDB_PASSWORD=${INFLUXDB_PASSWORD}
 EOF
