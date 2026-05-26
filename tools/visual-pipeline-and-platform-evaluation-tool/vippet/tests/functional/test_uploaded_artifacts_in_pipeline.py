@@ -54,16 +54,39 @@ logger = logging.getLogger(__name__)
 # the same reason ``test_performance_job_usb_camera`` excludes them.
 _FILE_SOURCE_UNSUPPORTED: frozenset[str] = frozenset({"Simple NVR", "Smart NVR"})
 
-# Pipelines that have no support for an image-set source. The
-# ``source`` node in their simple graph always wires through a video
-# decoder so feeding it a still-image set is meaningless.
-_IMAGE_SET_SUPPORTED: frozenset[str] = frozenset(
+# Pipelines that cannot meaningfully run with an image-set source. We
+# exclude:
+#   * Simple NVR / Smart NVR: multi-stream RTSP templates, not single
+#     file/image-set inputs.
+#   * Motion Detection: ``gvamotiondetect`` is a temporal element and
+#     produces no detections on the same still frame repeated; the
+#     backend can still build a runnable pipeline but the test would
+#     be a tautology.
+#   * Video Summarization VLM: requires a temporally-coherent video
+#     stream as input and a heavyweight VLM model that is not part of
+#     the default install (already skipped via the model-presence
+#     fixture, but listed here for clarity).
+_IMAGE_SET_UNSUPPORTED: frozenset[str] = frozenset(
     {
-        # Only object detection / classification style pipelines are
-        # known to operate on image sets. We pick one pipeline that is
-        # always installed by default.
-        "Object Detection",
+        "Simple NVR",
+        "Smart NVR",
+        "Motion Detection",
+        "Video Summarization VLM",
     }
+)
+
+# Image extensions the ``/images/upload`` endpoint accepts. Mirrors the
+# allow-list in ``vippet/images.py::IMAGE_EXTENSIONS`` and is used to
+# parametrize the image-set test so we cover every supported image
+# decoder the backend may select (jpegdec / pngdec / avdec_bmp /
+# avdec_tiff).
+_IMAGE_EXTENSIONS: tuple[str, ...] = (
+    "jpg",
+    "jpeg",
+    "png",
+    "bmp",
+    "tif",
+    "tiff",
 )
 
 # Seconds to wait before retrying a failed job, mirroring the other
@@ -210,17 +233,25 @@ def test_uploaded_video_runs_in_performance_job(
 _IMAGE_CASES = [
     case
     for case in PIPELINE_CASES
-    if isinstance(case, PipelineCase) and case.pipeline_name in _IMAGE_SET_SUPPORTED
+    if isinstance(case, PipelineCase)
+    and case.pipeline_name not in _IMAGE_SET_UNSUPPORTED
 ]
 
 
-def _image_param_or_skip() -> tuple[list[PipelineCase | object], list[str]]:
-    """Return parametrize values + ids for the uploaded-image-set test."""
+def _image_param_or_skip() -> tuple[list[object], list[str]]:
+    """Return pytest parameter tuples ``(case, ext)`` and ids.
+
+    The image-set test runs the cartesian product of every runnable
+    pipeline/variant on this system × every accepted image extension,
+    so a regression in the backend's image-decoder adaptation (e.g.
+    ``pngdec`` not being followed by a ``videoconvert``) trips the
+    test on at least one matrix cell.
+    """
     if not _IMAGE_CASES:
         return (
             [
                 pytest.param(
-                    None,
+                    (None, None),
                     marks=pytest.mark.skip(
                         reason="no image-set-capable pipeline cases on this system"
                     ),
@@ -228,27 +259,44 @@ def _image_param_or_skip() -> tuple[list[PipelineCase | object], list[str]]:
             ],
             ["no-cases"],
         )
-    return list(_IMAGE_CASES), [c.case_id for c in _IMAGE_CASES]
+    params: list[object] = []
+    ids: list[str] = []
+    for case in _IMAGE_CASES:
+        for ext in _IMAGE_EXTENSIONS:
+            params.append((case, ext))
+            ids.append(f"{case.case_id}-{ext}")
+    return params, ids
 
 
 _IMAGE_PARAMS, _IMAGE_IDS = _image_param_or_skip()
 
 
 @pytest.mark.full
-@pytest.mark.parametrize("case", _IMAGE_PARAMS, ids=_IMAGE_IDS)
+@pytest.mark.parametrize("case_and_ext", _IMAGE_PARAMS, ids=_IMAGE_IDS)
 def test_uploaded_image_set_runs_in_performance_job(
     http_client: requests.Session,
     make_zip_archive,
     upload_run_id: str,
-    case: PipelineCase | None,
+    case_and_ext: tuple[PipelineCase | None, str | None],
 ) -> None:
     """Upload an image archive, patch the pipeline ``source`` node to
     point at the resulting set, and assert the performance job
-    completes successfully."""
-    assert case is not None
+    completes successfully.
 
-    archive_bytes, _ = make_zip_archive(ext="png", count=6)
-    archive_filename = f"upload_{upload_run_id}_{case.case_id}.zip"
+    Parametrized over the cartesian product of:
+      * every runnable pipeline/variant (minus pipelines that make no
+        sense on a still-image input - see ``_IMAGE_SET_UNSUPPORTED``);
+      * every image extension the upload endpoint accepts (jpg/jpeg/
+        png/bmp/tif/tiff). The backend selects a different software
+        decoder per extension (jpegdec/pngdec/avdec_bmp/avdec_tiff),
+        each with its own output caps; this matrix verifies the
+        decoder -> DLStreamer adaptation works for every combination.
+    """
+    case, ext = case_and_ext
+    assert case is not None and ext is not None
+
+    archive_bytes, _ = make_zip_archive(ext=ext, count=6)
+    archive_filename = f"upload_{upload_run_id}_{case.case_id}_{ext}.zip"
     upload_response = upload_image_archive(
         http_client,
         archive_filename,
@@ -270,7 +318,7 @@ def test_uploaded_image_set_runs_in_performance_job(
         lambda: _attempt_job(http_client, _build_payload(advanced)),
         retry_delay_seconds=RETRY_DELAY_SECONDS,
     )
-    label = f"pipeline_id={case.pipeline_id} variant_id={case.variant_id}"
+    label = f"pipeline_id={case.pipeline_id} variant_id={case.variant_id} ext={ext}"
     assert final.get("state") == "COMPLETED", (
         f"{label} finished in unexpected state {final.get('state')} "
         f"(error: {final.get('error_message')})"

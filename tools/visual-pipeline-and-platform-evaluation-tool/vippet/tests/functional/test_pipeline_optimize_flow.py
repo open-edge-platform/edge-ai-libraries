@@ -15,7 +15,7 @@ from helpers.config import BASE_URL
 logger = logging.getLogger(__name__)
 
 
-PIPELINE_ID = "license-plate-recognition"
+PIPELINE_ID = "smart-parking"
 PIPELINE_VARIANT = "cpu"
 
 OPTIMIZATION_CASES = [

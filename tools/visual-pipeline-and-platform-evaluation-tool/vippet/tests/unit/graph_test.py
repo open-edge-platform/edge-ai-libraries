@@ -6680,15 +6680,31 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         ]
         self.assertEqual(warnings_emitted, ["sentinel"])
 
-        # decodebin3 must be gone; the chain is multifilesrc -> jpegdec -> fakesink.
+        # decodebin3 must be gone; the CPU adaptation also injects a
+        # ``videoconvert ! video/x-raw,format=I420`` bridge right after
+        # the software image decoder so every downstream DLStreamer
+        # plugin negotiates a single, uniform raw-video format.
         types_in_order = [n.type for n in result.nodes]
         self.assertNotIn("decodebin3", types_in_order)
-        self.assertEqual(types_in_order, ["multifilesrc", "jpegdec", "fakesink"])
+        self.assertEqual(
+            types_in_order,
+            ["multifilesrc", "jpegdec", "videoconvert", "video/x-raw", "fakesink"],
+        )
 
-        # The edge that used to leave decodebin3 now leaves jpegdec.
+        # The I420 caps node is what now feeds fakesink; the
+        # ``videoconvert`` sits between jpegdec and the caps node.
+        videoconvert_id = next(n.id for n in result.nodes if n.type == "videoconvert")
+        caps_node = next(
+            n
+            for n in result.nodes
+            if n.type == "video/x-raw" and n.data.get("format") == "I420"
+        )
         edges = [(e.source, e.target) for e in result.edges]
         self.assertIn(("0", "13"), edges)
-        self.assertIn(("13", "2"), edges)
+        self.assertIn(("13", videoconvert_id), edges)
+        self.assertIn((videoconvert_id, caps_node.id), edges)
+        self.assertIn((caps_node.id, "2"), edges)
+        # No edge to the pruned decodebin3 (id="1") should remain.
         self.assertNotIn(("13", "1"), edges)
         self.assertNotIn(("1", "2"), edges)
 
@@ -7259,8 +7275,20 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
         self.assertEqual(types_by_id["7"], "identity")
         # The image decoder itself must be preserved.
         self.assertEqual(types_by_id["1"], "jpegdec")
-        # No new nodes were added (encoder was unavailable).
-        self.assertEqual(len(graph.nodes), 11)
+        # The CPU adaptation also injects a ``videoconvert ! video/x-raw,
+        # format=I420`` pair right after the image decoder (step 0), so
+        # the node count grows by exactly 2 compared with the original
+        # graph (11 + 2 == 13).
+        self.assertEqual(len(graph.nodes), 13)
+        self.assertEqual(sum(1 for n in graph.nodes if n.type == "videoconvert"), 1)
+        self.assertEqual(
+            sum(
+                1
+                for n in graph.nodes
+                if n.type == "video/x-raw" and n.data.get("format") == "I420"
+            ),
+            1,
+        )
 
     def test_encoder_chain_inserted_before_splitmuxsink(self) -> None:
         graph = self._smart_nvr_like_graph()
@@ -7282,11 +7310,20 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
         )
 
         # Connectivity check: queue(4) -> videoconvert -> encoder ->
-        # h264parse -> splitmuxsink(5).
+        # h264parse -> splitmuxsink(5). The CPU adaptation also injects
+        # a separate ``videoconvert ! I420`` pair right after the
+        # image decoder (step 0), so there are now TWO ``videoconvert``
+        # nodes in the graph; we have to pick the one that actually
+        # links to the encoder.
         edges = [(e.source, e.target) for e in graph.edges]
-        videoconvert_id = next(n.id for n in graph.nodes if n.type == "videoconvert")
         encoder_id = next(n.id for n in graph.nodes if "openh264enc" in n.type)
         h264parse_id = next(n.id for n in graph.nodes if n.type == "h264parse")
+        # ``videoconvert`` directly upstream of the encoder.
+        videoconvert_id = next(src for src, tgt in edges if tgt == encoder_id)
+        self.assertEqual(
+            next(n.type for n in graph.nodes if n.id == videoconvert_id),
+            "videoconvert",
+        )
 
         self.assertIn(("4", videoconvert_id), edges)
         self.assertIn((videoconvert_id, encoder_id), edges)
@@ -7540,10 +7577,13 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
         with patch("video_encoder.VideoEncoder._select_element", return_value=None):
             graph._adapt_image_set_video_pipeline()
 
-        # A videoconvert and an NV12 caps node must have been
-        # inserted in front of gvamotiondetect.
+        # Two ``videoconvert`` elements must end up in the graph:
+        #   - one inserted by step 0 right after the image decoder
+        #     (followed by an I420 capsfilter);
+        #   - one inserted by step 3 right in front of gvamotiondetect
+        #     (followed by an NV12 capsfilter).
         videoconvert_nodes = [n for n in graph.nodes if n.type == "videoconvert"]
-        self.assertEqual(len(videoconvert_nodes), 1)
+        self.assertEqual(len(videoconvert_nodes), 2)
         nv12_caps_nodes = [
             n
             for n in graph.nodes
@@ -7551,17 +7591,27 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
             and str(n.data.get("format", "")).upper() == "NV12"
         ]
         self.assertEqual(len(nv12_caps_nodes), 1)
-
-        videoconvert_id = videoconvert_nodes[0].id
-        caps_id = nv12_caps_nodes[0].id
+        i420_caps_nodes = [
+            n
+            for n in graph.nodes
+            if n.type == "video/x-raw"
+            and str(n.data.get("format", "")).upper() == "I420"
+        ]
+        self.assertEqual(len(i420_caps_nodes), 1)
 
         edges = [(e.source, e.target) for e in graph.edges]
-        # jpegdec(1) -> videoconvert -> caps -> gvamotiondetect(2)
-        self.assertIn(("1", videoconvert_id), edges)
-        self.assertIn((videoconvert_id, caps_id), edges)
-        self.assertIn((caps_id, "2"), edges)
-        # The original direct jpegdec -> gvamotiondetect edge is gone.
-        self.assertNotIn(("1", "2"), edges)
+        # Identify the videoconvert that feeds the NV12 capsfilter -
+        # that is the step 3 one, sitting in front of gvamotiondetect.
+        nv12_caps_id = nv12_caps_nodes[0].id
+        nv12_videoconvert_id = next(src for src, tgt in edges if tgt == nv12_caps_id)
+        self.assertEqual(
+            next(n.type for n in graph.nodes if n.id == nv12_videoconvert_id),
+            "videoconvert",
+        )
+        # jpegdec(1) -> [step 0 videoconvert] -> [I420 caps] ->
+        #   [step 3 videoconvert] -> [NV12 caps] -> gvamotiondetect(2)
+        self.assertIn((nv12_videoconvert_id, nv12_caps_id), edges)
+        self.assertIn((nv12_caps_id, "2"), edges)
 
     def test_nv12_caps_not_reinjected_when_already_present(self) -> None:
         """
