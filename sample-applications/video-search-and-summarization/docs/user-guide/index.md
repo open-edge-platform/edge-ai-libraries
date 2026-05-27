@@ -1,4 +1,4 @@
-# Video Search and Summarization (VSS) Sample Application
+# Video Search and Summarization
 
 <!--hide_directive
 <div class="component_card_widget">

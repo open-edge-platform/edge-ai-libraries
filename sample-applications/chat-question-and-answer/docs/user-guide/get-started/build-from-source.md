@@ -85,7 +85,7 @@ Before you begin, ensure that you have the following prerequisites:
     source setup.sh llm=<model-server> embed=<embedding>
     # Below are the options
     # model-server: VLLM(deprecated) , OVMS, TGI(deprecated)
-    # embedding: OVMS, TEI
+    # embedding: OVMS
     ```
 
 5. **Build the Docker Image**:

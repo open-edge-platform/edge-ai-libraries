@@ -1202,7 +1202,7 @@ class TestLatencyTracerIntervalParser(unittest.TestCase):
 class TestLatencyMetricsPush(unittest.TestCase):
     """Tests for the live + final latency push to metrics-manager.
 
-    Covers the runner behaviour introduced by ITEP-89980:
+    Covers the following runner behavior:
     ``_push_latency_sample`` fires on every parsed interval line, and
     ``_push_final_latency_metrics`` re-pushes the last sample per
     stream once the subprocess exits. The shared metrics-push

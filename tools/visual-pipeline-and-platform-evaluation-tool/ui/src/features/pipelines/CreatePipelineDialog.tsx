@@ -206,7 +206,7 @@ export const CreatePipelineDialog = ({
 
       // Step 2: Validate pipeline graph
       await validatePipeline({
-        pipelineValidationInput: {
+        pipelineValidation: {
           pipeline_graph: graphResponse.pipeline_graph,
         },
       });

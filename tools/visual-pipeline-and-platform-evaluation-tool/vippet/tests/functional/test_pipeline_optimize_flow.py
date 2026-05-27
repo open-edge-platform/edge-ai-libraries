@@ -16,18 +16,31 @@ logger = logging.getLogger(__name__)
 
 
 PIPELINE_ID = "license-plate-recognition"
-PIPELINE_VARIANT = "cpu"
 
+# Functional cases cover both:
+#   * preprocess and optimize request types,
+#   * a device-named variant ("cpu" -> optimizer search restricted to CPU)
+#     and a non-device variant ("gpu_npu" -> optimizer keeps default scope).
 OPTIMIZATION_CASES = [
     (
-        "preprocess",
+        "preprocess-cpu-variant",
+        "cpu",
         {
             "type": "preprocess",
             "parameters": {"search_duration": 10, "sample_duration": 3},
         },
     ),
     (
-        "optimize",
+        "optimize-cpu-variant",
+        "cpu",
+        {
+            "type": "optimize",
+            "parameters": {"search_duration": 10, "sample_duration": 3},
+        },
+    ),
+    (
+        "optimize-non-device-variant",
+        "gpu_npu",
         {
             "type": "optimize",
             "parameters": {"search_duration": 10, "sample_duration": 3},
@@ -38,15 +51,22 @@ OPTIMIZATION_CASES = [
 
 @pytest.mark.full
 @pytest.mark.parametrize(
-    "case_id,payload", OPTIMIZATION_CASES, ids=[c[0] for c in OPTIMIZATION_CASES]
+    "case_id,variant_id,payload",
+    OPTIMIZATION_CASES,
+    ids=[c[0] for c in OPTIMIZATION_CASES],
 )
 def test_pipeline_optimize_flow(
     http_client: requests.Session,
     case_id: str,
+    variant_id: str,
     payload: JsonDict,
 ) -> None:
-    logger.info("Running pipeline optimize flow case '%s'", case_id)
-    job_id = start_optimization_job(http_client, PIPELINE_ID, PIPELINE_VARIANT, payload)
+    logger.info(
+        "Running pipeline optimize flow case '%s' on variant '%s'",
+        case_id,
+        variant_id,
+    )
+    job_id = start_optimization_job(http_client, PIPELINE_ID, variant_id, payload)
     status_url = f"{BASE_URL}/jobs/optimization/{job_id}/status"
     final_status = wait_for_job_completion(
         http_client,
