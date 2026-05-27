@@ -118,5 +118,5 @@ flowchart LR
 
 All runtime behavior is driven by `config.yaml`, shared by both standalone
 and container runs, with targeted overrides via `TEXT_TO_SPEECH__...`
-environment variables. See [configuration.md](configuration.md) for the
+environment variables. See [Configuration Guide](./get-started/configuration.md) for the
 full list of fields.

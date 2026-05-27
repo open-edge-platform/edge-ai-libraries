@@ -92,7 +92,11 @@ associated with a `session_id` returned in the `X-Session-ID` header. The
 corresponding WAV and metadata are written under
 `storage/<session_id>/`.
 
-## Related
+## Supporting Resources
 
-- Configuration of model, runtime, and device:
-  [configuration.md](configuration.md)
+- Startup and deployment guides:
+  - [Get Started](./get-started.md)
+  - [Run with Docker](./get-started/run-container.md)
+  - [Run on Host](./get-started/run-standalone.md)
+- Configuration of ASR and sentiment backends:
+  - [Configuration Guide](./get-started/configuration.md)

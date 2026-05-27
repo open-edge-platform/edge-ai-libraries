@@ -1,4 +1,4 @@
-# Release Notes
+# Release Notes: Text To Speech
 
 This page tracks releases of the Text To Speech microservice. The most
 recent release is listed first; older entries are preserved for history.
@@ -9,7 +9,7 @@ Initial release of the Text To Speech microservice: an
 OpenAI-API-compatible speech synthesis service with multi-runtime support
 and selectable models, built for edge deployment on Intel hardware.
 
-**New features**
+**New**
 
 - OpenAI-compatible speech endpoint (`POST /v1/audio/speech`) returning
   either raw `audio/wav` or a JSON envelope with metadata and a
@@ -25,9 +25,6 @@ and selectable models, built for edge deployment on Intel hardware.
 - Optional persistence of synthesized output to `storage/<session_id>/`
   with `X-Session-ID` returned in the response headers.
 - Health endpoint (`GET /health`) for readiness probes.
-
-**Performance & deployment**
-
 - Models are warm-loaded once per process and reused across requests to
   keep per-request synthesis latency low.
 - OpenVINO acceleration on Intel CPUs, integrated/discrete GPUs, and NPUs.
@@ -37,13 +34,7 @@ and selectable models, built for edge deployment on Intel hardware.
   Python mode binds `127.0.0.1:8011` on the host.
 - Container runs as a non-root user (UID 1000).
 
-**Documentation**
-
-- New user-guide doc set (`overview`, `get-started`, `how-it-works` with
-  architecture diagram, `configuration`, `api-reference`,
-  `troubleshooting`, etc.) and a restructured `README.md`.
-
-**Known limitations**
+**Known issues**
 
 - English-only synthesis. Requests with any other language are rejected
   with HTTP `400`.

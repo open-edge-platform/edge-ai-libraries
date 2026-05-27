@@ -19,6 +19,15 @@
 - **Microphone (optional)**: ALSA-compatible capture device if you intend
   to list devices via `GET /devices` or pass `/dev/snd` into the container.
 
+| Device                | Minimum              | Recommended                                                                                         |
+| --------------------- | -------------------- | --------------------------------------------------------------------------------------------------- |
+| CPU                   | x86_64               | Intel Core Ultra (Meteor Lake) or newer                                                             |
+| Memory                | 16 GB RAM            | 32 GB RAM                                                                                           |
+| Disk                  | 20 GB free SSD space | NVMe storage                                                                                        |
+| GPU (optional)        | Not applicable       | Intel integrated GPU (Meteor Lake or newer iGPU) or a supported discrete GPU exposed via `/dev/dri` |
+| NPU (optional)        | Not applicable       | Intel Core Ultra NPU configured via `NPU` device fields                                             |
+| Microphone (optional) | Not applicable       | ALSA-compatible capture device with `/dev/snd` access when needed                                   |
+
 ## Software Requirements
 
 ### Operating System
