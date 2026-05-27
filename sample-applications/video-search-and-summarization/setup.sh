@@ -513,6 +513,13 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
         echo -e "${YELLOW}This is required for --unified/--all mode.${NC}" >&2
         return 1
     fi
+
+    # Validate OVMS_CACHE_SIZE_GB if user has set it
+    if [[ -n "${OVMS_CACHE_SIZE_GB:-}" ]] && ! [[ "$OVMS_CACHE_SIZE_GB" =~ ^[1-9][0-9]*$ ]]; then
+        echo -e "${RED}ERROR: OVMS_CACHE_SIZE_GB must be a positive integer (got '${OVMS_CACHE_SIZE_GB}').${NC}" >&2
+        echo -e "${YELLOW}This value sets the OVMS KV cache size in GB (e.g., 4, 8, 10).${NC}" >&2
+        return 1
+    fi
     
 fi
 
@@ -584,9 +591,14 @@ convert_object_detection_models() {
 
 get_ovms_cache_size() {
     local target_device="$1"
+    # Allow user override via OVMS_CACHE_SIZE_GB environment variable (validated at startup)
+    if [[ -n "${OVMS_CACHE_SIZE_GB:-}" ]]; then
+        echo "$OVMS_CACHE_SIZE_GB"
+        return
+    fi
     case "$target_device" in
         *GPU*|*NPU*)
-            echo "2"
+            echo "4"
             ;;
         *)
             echo "10"

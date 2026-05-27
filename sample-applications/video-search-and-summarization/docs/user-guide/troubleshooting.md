@@ -234,6 +234,44 @@ Alternatively, switch to a model with a larger context window.
    source setup.sh --summary
    ```
 
+## OVMS KV Cache Exhaustion
+
+**Problem**: LLM or VLM inference requests are slow, produce incomplete responses, or fail under concurrent usage.
+
+**Cause**: The OVMS KV cache is fully consumed. The KV cache holds intermediate attention state during text generation; when it is exhausted, OVMS must preempt or reject new requests.
+
+**Symptoms**:
+
+- OVMS logs show cache usage at or near 100 %:
+  ```
+  llm_executor.hpp:104] All requests: 1; Scheduled requests: 1; Cache type: static, cache usage: 100.0% of 4.0 GB;
+  ```
+- Requests take significantly longer than expected or time out
+- Under concurrent requests, some are rejected or produce truncated output
+
+**Diagnosis**:
+
+1. Check OVMS container logs for cache usage lines:
+
+   ```bash
+   docker logs <ovms-container-name> 2>&1 | grep "cache usage"
+   ```
+
+2. If usage is consistently at or near **100 %**, the cache is too small for your workload.
+
+**Solution**:
+
+Increase the KV cache size by setting the `OVMS_CACHE_SIZE_GB` environment variable before running the setup script. The default is **4 GB** for GPU/NPU and **10 GB** for CPU.
+
+```bash
+# Example: set KV cache to 8 GB
+export OVMS_CACHE_SIZE_GB=8
+source setup.sh --down
+source setup.sh --summary   # or --search
+```
+
+> **Note:** On integrated GPUs (iGPU), memory is shared with the system. Setting a very large cache size may leave insufficient memory for model weights and cause `CL_OUT_OF_RESOURCES` errors. Start with modest increases (e.g., 4 → 6 → 8 GB) and monitor both cache usage and GPU memory utilization.
+
 ## Accuracy of search results
 The accuracy of search results vary based on the embedding model used, configuration on frame sampling, object detection enabled or disabled, and the diversity of the video contents. The user is encouraged to check on these aspects in case the accuracy of the search results is not found to be satisfactory. Note that higher accuracy is normally a tradeoff with performance. Some specific pointers are provided below:
 1. Model selection: Among the supported models, models with higher dimensionality will provide better results.
