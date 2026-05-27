@@ -63,7 +63,11 @@ If it returns information about the plugin it is installed successfully and can 
 5. **GStreamer MSVC x86_64** — install both the *runtime* and *development* packages from [gstreamer.freedesktop.org](https://gstreamer.freedesktop.org/download/)
 6. **DLStreamer runtime environment** — download the latest `dlstreamer-<version>-win64.exe` from the [Intel DL Streamer releases page](https://github.com/open-edge-platform/dlstreamer/releases) and follow the [Windows installation guide](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/get_started/install/install_guide_windows.md).
 
-   > **Note:** By default, DL Streamer installs to `C:\Program Files\Intel\dlstreamer`.
+   > **Note:** Set `$dlsRoot` once to your DLStreamer installation root before running any of the commands below. The default path is shown; adjust if you installed elsewhere:
+   >
+   > ```powershell
+   > $dlsRoot = "C:\Program Files\Intel\dlstreamer"  # adjust if installed elsewhere
+   > ```
 7. **Camera vendor GenTL producer** — install the SDK for your camera (e.g. Basler pylon, Balluff Impact Acquire, or HikRobot MVS). The installer registers the GenTL producer path.
 
 The GenICam SDK is **not** a prerequisite — the build script downloads it automatically.
@@ -118,10 +122,10 @@ The built DLL will be at `build\bin\Release\gstgencamsrc.dll`.
 
 #### Install
 
-Copy the plugin DLL to the DLStreamer plugin directory (`C:\Program Files\Intel\dlstreamer\bin\` extracted by dlstreamer-<version>-win64.exe):
+Copy the plugin DLL to the DLStreamer `bin` directory (uses `$dlsRoot` declared in Prerequisites above):
 
 ```powershell
-Copy-Item "build\bin\Release\gstgencamsrc.dll" "C:\Program Files\Intel\dlstreamer\bin\gstgencamsrc.dll" -Force
+Copy-Item "build\bin\Release\gstgencamsrc.dll" "$dlsRoot\bin\gstgencamsrc.dll" -Force
 ```
 
 Verify the installation (see [Windows Runtime Setup](#windows-runtime-setup) first for required environment variables):
@@ -141,8 +145,8 @@ $genicamRuntime = "C:\p\gencamsrc\plugins\genicam-core\genicam_win\Runtime\bin\W
 # GStreamer MSVC x86_64 installation
 $gstRoot = "C:\Program Files\gstreamer\1.0\msvc_x86_64"
 
-# DLStreamer plugin directory (extracted by dlstreamer-<version>-win64.exe)
-$dls = "C:\Program Files\Intel\dlstreamer\bin"
+# DLStreamer plugin directory (uses $dlsRoot declared in Prerequisites)
+$dls = "$dlsRoot\bin"
 
 $env:PATH = "$genicamRuntime;$gstRoot\bin;$dls;" + $env:PATH
 $env:GST_PLUGIN_PATH = $dls
