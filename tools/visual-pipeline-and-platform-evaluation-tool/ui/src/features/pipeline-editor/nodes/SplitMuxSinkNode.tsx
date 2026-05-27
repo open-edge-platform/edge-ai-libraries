@@ -10,7 +10,7 @@ type SplitMuxSinkNodeProps = {
 
 const SplitMuxSinkNode = ({ data }: SplitMuxSinkNodeProps) => (
   <PipelineNodeCard
-    title="Splitmuxsink"
+    title="Video output"
     nodeType="splitmuxsink"
     roleClasses={PIPELINE_NODE_ROLE_CLASSES.sink}
     minWidthClass="min-w-[15.9375rem]"
