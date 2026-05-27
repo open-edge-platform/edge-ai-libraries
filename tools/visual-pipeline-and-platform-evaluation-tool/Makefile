@@ -143,6 +143,10 @@ stop: ## Stop the docker compose services
 clean: ## Clean all build artifacts
 	rm -rf shared/models/output/ shared/model-download/ shared/onvif/onvif_cameras.json shared/videos/input shared/videos/output shared/videos/video-generator
 
+clean-model-download: ## Clean only model-download artifacts
+	docker run --rm -v shared/model-download/:/mnt/model-download/ python:3.12-slim sh -c 'rm -r /mnt/model-download/cache/ /mnt/model-download/venv-*/'
+	rm -r shared/model-download/
+
 clean-output-videos: ## Clean only output videos
 	rm -rf shared/videos/output/*
 
