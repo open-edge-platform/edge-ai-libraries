@@ -88,6 +88,6 @@ session-level sentiment summary.
 - Startup and deployment guides:
   - [Get Started](./get-started.md)
   - [Run with Docker](./get-started/run-container.md)
-  - [Run without Docker](./get-started/run-standalone.md)
+  - [Run on Host](./get-started/run-standalone.md)
 - Configuration of ASR and sentiment backends:
   - [Configuration Guide](./get-started/configuration.md)

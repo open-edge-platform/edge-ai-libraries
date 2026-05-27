@@ -1,4 +1,4 @@
-# Run Without Docker
+# Run On Host
 
 Use this path when you want to run the service directly with Python on the host.
 
