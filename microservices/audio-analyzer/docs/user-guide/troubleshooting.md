@@ -111,6 +111,6 @@ deployments.
 
 ## Where to Look Next
 
-- [Configuration reference](configuration.md)
-- [API reference](api-reference.md)
-- [System requirements](system-requirements.md)
+- [Configuration reference](./get-started/configuration.md)
+- [API reference](./api-reference.md)
+- [System requirements](./get-started/system-requirements.md)
