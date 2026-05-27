@@ -2938,6 +2938,14 @@ class Graph:
                ``gvafpscounter``, ``gvawatermark``, ...) into VA memory
                with the canonical NV12 format that every VA-aware
                DLStreamer plugin understands. GPU/NPU only.
+               For RGB-emitting decoders (``pngdec``, ``avdec_bmp``,
+               ``avdec_tiff``) an additional ``videoconvert !
+               video/x-raw,format=NV12`` is interposed *before*
+               ``vapostproc`` (step 3a) - on some Intel GPU stacks
+               (Battlemage / BMG) ``vapostproc`` refuses to negotiate a
+               direct RGB-sysmem -> VAMemory-NV12 link, so the pipeline
+               needs a CPU-side NV12 normalisation first. ``jpegdec``
+               emits I420 natively and skips this bridge.
             5. Swap any reachable software H264 encoder
                (``openh264enc`` / ``x264enc``) for a VA-API counterpart
                (``vah264lpenc`` / ``vah264enc`` / ``vaapih264lpenc`` /
@@ -3053,10 +3061,73 @@ class Graph:
             # ``pre-process-backend=va-surface-sharing`` rejects with
             # "For system memory only supports ie, opencv image
             # preprocessors".
+            #
+            # Step 3a (RGB-emitting decoders only): some software image
+            # decoders emit RGB-family caps in system memory:
+            #   - pngdec     -> RGB / RGBA / GRAY
+            #   - avdec_bmp  -> BGRx / BGRA / RGB
+            #   - avdec_tiff -> RGB / RGBA
+            # ``vapostproc`` on some Intel GPU stacks (observed on
+            # Battlemage / BMG) refuses to negotiate a direct
+            # ``video/x-raw,format={RGB,RGBA,BGRx},memory:SystemMemory``
+            # -> ``video/x-raw(memory:VAMemory),format=NV12`` link and
+            # the pipeline dies at start with
+            # "streaming stopped, reason not-negotiated (-4)".
+            # ``jpegdec`` is unaffected because it emits I420 (a
+            # native VA-friendly YUV format).
+            # The fix is to interpose a CPU-side ``videoconvert !
+            # video/x-raw,format=NV12`` so ``vapostproc`` always sees a
+            # plain sysmem-NV12 input, which every Intel GPU driver
+            # uploads to VAMemory reliably. The conversion runs once
+            # per frame and the image-set use case is bounded to a few
+            # frames, so the CPU cost is negligible.
+            rgb_emitting_decoders = {"pngdec", "avdec_bmp", "avdec_tiff"}
+            needs_sysmem_nv12_bridge = decoder_node.type in rgb_emitting_decoders
+
             existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
                 int(e.id) for e in self.edges if e.id.isdigit()
             ]
             next_id_int = (max(existing_ids) + 1) if existing_ids else 0
+
+            # Optional pre-stage: videoconvert ! video/x-raw,format=NV12
+            pre_videoconvert_node: Node | None = None
+            pre_caps_node: Node | None = None
+            pre_edges: list[Edge] = []
+            upload_source_id = decoder_id
+            if needs_sysmem_nv12_bridge:
+                pre_videoconvert_id = str(next_id_int)
+                next_id_int += 1
+                pre_videoconvert_node = Node(
+                    id=pre_videoconvert_id,
+                    type="videoconvert",
+                    data={},
+                )
+
+                pre_caps_id = str(next_id_int)
+                next_id_int += 1
+                pre_caps_node = Node(
+                    id=pre_caps_id,
+                    type="video/x-raw",
+                    data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "NV12"},
+                )
+
+                pre_edges.append(
+                    Edge(
+                        id=str(next_id_int),
+                        source=decoder_id,
+                        target=pre_videoconvert_id,
+                    )
+                )
+                next_id_int += 1
+                pre_edges.append(
+                    Edge(
+                        id=str(next_id_int),
+                        source=pre_videoconvert_id,
+                        target=pre_caps_id,
+                    )
+                )
+                next_id_int += 1
+                upload_source_id = pre_caps_id
 
             vapostproc_id = str(next_id_int)
             next_id_int += 1
@@ -3070,9 +3141,9 @@ class Graph:
                 data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "NV12"},
             )
 
-            edge_decoder_to_vapostproc = Edge(
+            edge_upload_in = Edge(
                 id=str(next_id_int),
-                source=decoder_id,
+                source=upload_source_id,
                 target=vapostproc_id,
             )
             next_id_int += 1
@@ -3083,31 +3154,47 @@ class Graph:
             )
             next_id_int += 1
 
-            # Insert vapostproc + caps right after the decoder for
-            # readability in any debug dump.
-            for i, n in enumerate(self.nodes):
-                if n.id == decoder_id:
-                    self.nodes[i + 1 : i + 1] = [vapostproc_node, caps_node]
-                    break
-
             # Rewire: every edge that previously left the decoder now
-            # leaves the caps node (after we add the new bridging
+            # leaves the final caps node (after we add the new bridging
             # edges below).
             for edge in self.edges:
                 if edge.source == decoder_id:
                     edge.source = caps_id
-            self.edges.append(edge_decoder_to_vapostproc)
+
+            # Insert nodes right after the decoder for readability in
+            # any debug dump.
+            inserted_nodes: list[Node] = []
+            if pre_videoconvert_node is not None and pre_caps_node is not None:
+                inserted_nodes.extend([pre_videoconvert_node, pre_caps_node])
+            inserted_nodes.extend([vapostproc_node, caps_node])
+            for i, n in enumerate(self.nodes):
+                if n.id == decoder_id:
+                    self.nodes[i + 1 : i + 1] = inserted_nodes
+                    break
+
+            self.edges.extend(pre_edges)
+            self.edges.append(edge_upload_in)
             self.edges.append(edge_vapostproc_to_caps)
 
-            logger.debug(
-                "Inserted 'vapostproc ! video/x-raw"
-                "(memory:VAMemory),format=NV12' (nodes %s, %s) "
-                "after software image decoder (node %s) to lift "
-                "frames into VA memory",
-                vapostproc_id,
-                caps_id,
-                decoder_id,
-            )
+            if needs_sysmem_nv12_bridge:
+                logger.debug(
+                    "Inserted 'videoconvert ! video/x-raw,format=NV12 ! "
+                    "vapostproc ! video/x-raw(memory:VAMemory),format=NV12' "
+                    "after RGB-emitting decoder '%s' (node %s) to lift "
+                    "frames into VA memory via a sysmem-NV12 bridge",
+                    decoder_node.type,
+                    decoder_id,
+                )
+            else:
+                logger.debug(
+                    "Inserted 'vapostproc ! video/x-raw"
+                    "(memory:VAMemory),format=NV12' (nodes %s, %s) "
+                    "after software image decoder (node %s) to lift "
+                    "frames into VA memory",
+                    vapostproc_id,
+                    caps_id,
+                    decoder_id,
+                )
 
             # Refresh adjacency for steps 5 / 6.
             edges_from = {}

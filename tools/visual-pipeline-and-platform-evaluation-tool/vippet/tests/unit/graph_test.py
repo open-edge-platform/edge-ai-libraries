@@ -6754,7 +6754,11 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
     def test_gpu_target_inserts_vapostproc_when_no_va_decoder(self) -> None:
         # PNG has no VA decoder in stock GStreamer, so the upgrade path
         # must insert vapostproc + VAMemory NV12 caps after the
-        # software decoder.
+        # software decoder. ``pngdec`` emits RGB in system memory, so
+        # the upgrade path also interposes a ``videoconvert !
+        # video/x-raw,format=NV12`` bridge between ``pngdec`` and
+        # ``vapostproc`` (some Intel GPU drivers fail to negotiate a
+        # direct RGB-sysmem -> VAMemory-NV12 link, observed on BMG).
         graph = self._build_graph("png")
 
         fake_inspector = MagicMock()
@@ -6769,26 +6773,37 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         types_in_order = [n.type for n in result.nodes]
         # Software pngdec kept.
         self.assertIn("pngdec", types_in_order)
-        # vapostproc + VAMemory caps inserted right after the decoder.
+        # Sysmem NV12 bridge + VA upload stage inserted in order.
+        self.assertIn("videoconvert", types_in_order)
+        self.assertIn("video/x-raw", types_in_order)
         self.assertIn("vapostproc", types_in_order)
         self.assertIn("video/x-raw(memory:VAMemory)", types_in_order)
         idx_pngdec = types_in_order.index("pngdec")
+        idx_videoconvert = types_in_order.index("videoconvert")
+        idx_sysmem_caps = types_in_order.index("video/x-raw")
         idx_vapostproc = types_in_order.index("vapostproc")
         idx_caps = types_in_order.index("video/x-raw(memory:VAMemory)")
-        self.assertEqual(idx_vapostproc, idx_pngdec + 1)
+        self.assertEqual(idx_videoconvert, idx_pngdec + 1)
+        self.assertEqual(idx_sysmem_caps, idx_videoconvert + 1)
+        self.assertEqual(idx_vapostproc, idx_sysmem_caps + 1)
         self.assertEqual(idx_caps, idx_vapostproc + 1)
         # decodebin3 pruned.
         self.assertNotIn("decodebin3", types_in_order)
 
-        # Connectivity: pngdec -> vapostproc -> caps -> fakesink.
+        # Connectivity: pngdec -> videoconvert -> sysmem-caps ->
+        # vapostproc -> VAMemory-caps -> fakesink.
         edges = [(e.source, e.target) for e in result.edges]
         pngdec_id = next(n.id for n in result.nodes if n.type == "pngdec")
+        videoconvert_id = next(n.id for n in result.nodes if n.type == "videoconvert")
+        sysmem_caps_id = next(n.id for n in result.nodes if n.type == "video/x-raw")
         vapostproc_id = next(n.id for n in result.nodes if n.type == "vapostproc")
         caps_id = next(
             n.id for n in result.nodes if n.type == "video/x-raw(memory:VAMemory)"
         )
         fakesink_id = next(n.id for n in result.nodes if n.type == "fakesink")
-        self.assertIn((pngdec_id, vapostproc_id), edges)
+        self.assertIn((pngdec_id, videoconvert_id), edges)
+        self.assertIn((videoconvert_id, sysmem_caps_id), edges)
+        self.assertIn((sysmem_caps_id, vapostproc_id), edges)
         self.assertIn((vapostproc_id, caps_id), edges)
         self.assertIn((caps_id, fakesink_id), edges)
 
