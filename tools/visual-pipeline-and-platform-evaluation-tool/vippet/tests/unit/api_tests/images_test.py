@@ -450,7 +450,7 @@ class TestParseIntEnv(unittest.TestCase):
 
 class TestUploadErrorResponseFallback(unittest.TestCase):
     """Guard the fallback inside ``_upload_error_response`` for an
-    unknown ``kind`` value (linie 114-115)."""
+    unknown ``kind`` value."""
 
     def test_unknown_kind_falls_back_to_archive_corrupted(self) -> None:
         # ``_upload_error_response`` accepts any literal; force-feed a

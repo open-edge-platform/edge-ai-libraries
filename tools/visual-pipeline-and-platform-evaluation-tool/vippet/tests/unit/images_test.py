@@ -905,7 +905,7 @@ class TestSafeExtractTarBranches(_BaseImagesTest):
 
 class TestEnforceSingleResolutionDecodeFailure(_BaseImagesTest):
     """If cv2 returns None for one of the extracted files, the manager
-    must raise ``archive_corrupted`` (linia 864)."""
+    must raise ``archive_corrupted``."""
 
     def test_undecodable_image_triggers_corrupted(self) -> None:
         # A file with a valid .png extension but garbage payload makes
@@ -988,7 +988,7 @@ class TestCommitStaging(_BaseImagesTest):
 
 
 class TestWriteSetJsonChmodFailure(_BaseImagesTest):
-    """The ``_write_set_json`` chmod fallback (linie 940-941)."""
+    """The ``_write_set_json`` chmod fallback."""
 
     def test_chmod_set_json_failure_is_warning_only(self) -> None:
         entries = {"a.png": _png_bytes(), "b.png": _png_bytes()}
