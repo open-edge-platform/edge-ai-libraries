@@ -8,7 +8,7 @@ Use this path when you want the service to run in a container and expose the API
 - The Compose setup mounts `config.yaml`, `models/`, `chunks/`, `storage/`, and the Hugging Face cache into the container.
 - The repository includes placeholder files so fresh clones already contain those mount roots. If you remove any of those directories, recreate them as your user before starting Compose or Docker may recreate the missing host paths as `root`.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
-- The image defaults to UID/GID `1000:1000`, and Compose also runs the container as `1000:1000` unless you override `LOCAL_UID` and `LOCAL_GID`. If your host user is different, see [troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders) before starting.
+- The image defaults to UID/GID `1000:1000`, and Compose also runs the container as `1000:1000` unless you override `LOCAL_UID` and `LOCAL_GID`. If your host user is different, see [troubleshooting.md](../troubleshooting.md#permission-errors-on-mounted-folders) before starting.
 
 ## Start
 
@@ -27,7 +27,7 @@ curl --noproxy '*' http://127.0.0.1:8010/health
 
 ## API Use Cases and Examples
 
-For API use cases, request examples, and endpoint details, see [api-reference.md](api-reference.md).
+For API use cases, request examples, and endpoint details, see [api-reference.md](../api-reference.md).
 
 ## Follow Logs
 

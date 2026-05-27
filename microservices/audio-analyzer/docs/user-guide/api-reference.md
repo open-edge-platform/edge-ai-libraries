@@ -85,6 +85,6 @@ session-level sentiment summary.
 
 ## Related
 
-- Startup and deployment guides: [get-started.md](get-started.md), [run-container.md](run-container.md), [run-standalone.md](run-standalone.md)
+- Startup and deployment guides: [get-started.md](./get-started.md), [run-container.md](./get-started/run-container.md), [run-standalone.md](./get-started/run-standalone.md)
 - Configuration of ASR and sentiment backends:
-  [configuration.md](configuration.md)
+  [configuration.md](./get-started/configuration.md)
