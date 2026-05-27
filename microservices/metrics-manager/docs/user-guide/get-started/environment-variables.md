@@ -1,4 +1,4 @@
-# Configuration Guide
+# Environment Variables
 
 Configuration is managed via environment variables. All variables map directly to Pydantic Settings field names (case-insensitive). The `.env` file is loaded automatically by `docker compose up`.
 
@@ -42,7 +42,7 @@ Configuration is managed via environment variables. All variables map directly t
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENABLE_GZIP_COMPRESSION` | `true` | Enable gzip compression for HTTP responses >1 KB. Reduces bandwidth but increases CPU |
+| `ENABLE_GZIP_COMPRESSION` | `true` | Enable gzip compression for HTTP responses >1 KB. Reduces bandwidth but increases CPU usage |
 
 ## Security
 
@@ -54,7 +54,7 @@ Configuration is managed via environment variables. All variables map directly t
 
 ## Telegraf Settings (Application Configuration)
 
-These variables configure the application's knowledge of where Telegraf is running:
+These variables configure the Telegraf locations for the application to use:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -68,7 +68,7 @@ The SSE endpoint (`/metrics/stream`) polls the Telegraf Prometheus endpoint for 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PROMETHEUS_POLLER_INTERVAL_MS` | `500` | Polling interval in milliseconds (100–5000). Lower values = more frequent SSE events but higher CPU per client. Recommended: 500 ms |
+| `PROMETHEUS_POLLER_INTERVAL_MS` | `500` | Polling interval in milliseconds (100–5000). Lower values = more frequent SSE events but higher CPU usage per client. Recommended: 500 ms |
 | `PROMETHEUS_TELEGRAF_ENDPOINT` | `http://localhost:9273` | Telegraf Prometheus endpoint polled by SSE clients. Must be accessible from the app container |
 
 ## Docker Compose Variables
@@ -137,15 +137,15 @@ NO_PROXY=localhost,127.0.0.1
 
 ## Custom Metrics Scripts
 
-The image ships with a Telegraf [`inputs.exec`](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/exec/README.md) block that, every 10 seconds, runs **every executable `*.sh` and `*.py` file** it finds in `/app/custom-metrics/` and feeds the stdout straight into the Prometheus endpoint on `:9273`.
+The image ships with a Telegraf [`inputs.exec`](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/exec/README.md) block that, every 10 seconds, runs **every executable `*.sh` and `*.py` file** it finds in `/app/custom-metrics/` and feeds the stdout straight into the Prometheus endpoint on `:9273`. For details, see [Custom Metrics Scripts](./custom-metrics.md).
 
-This is the easiest way to publish a metric the service does not collect by default — no API call, no client library, just drop a script into a directory.
+Simply dropping a script into the directory is the easiest way to publish a metric the service does not collect by default.
 
 ### How the Directory is Wired
 
 - The directory is created by the Dockerfile (`/app/custom-metrics`)
-- In `compose.yaml` it is mounted as a named volume `custom-metrics:` so scripts survive container restarts
-- `telegraf.conf` ships this block (do not edit unless you know what you're doing):
+- In `compose.yaml` it is mounted as a named volume `custom-metrics:`, so scripts survive container restarts
+- `telegraf.conf` ships this block (do not edit unless you know what you are doing):
 
 ```toml
 [[inputs.exec]]
@@ -158,21 +158,22 @@ This is the easiest way to publish a metric the service does not collect by defa
 ### Script Requirements
 
 Each script must:
+
 - Be **executable** (`chmod +x`)
 - Print **InfluxDB Line Protocol** on stdout, one metric per line
 - Finish **within 5 seconds** (Telegraf kills longer runs)
 - Produce clean output (no debug prints, banners, or stderr)
-- Handle errors gracefully (non-zero exit codes don't crash Telegraf)
+- Handle errors gracefully (non-zero exit codes do not crash Telegraf)
 
 ### Example: Fan RPM Metric
 
-See [Custom Metrics Scripts](./custom-metrics.md) for a complete end-to-end example.
+See [Custom Metrics Scripts](./custom-metrics.md#end-to-end-example-fan-rpm-metric) for a complete end-to-end example.
 
 ---
 
 ## Optional Components
 
-The Metrics Manager image includes several optional components that are bundled but not always active:
+The Metrics Manager image includes optional components that are bundled but not active by default:
 
 ### qmmd (Prometheus GPU Exporter)
 
@@ -211,7 +212,7 @@ The container's bundled `supervisord.conf` contains an `[include]` section:
 files=/etc/supervisor/conf.d/*.conf
 ```
 
-Any `*.conf` file dropped into `/etc/supervisor/conf.d/` is picked up automatically at supervisord start, so you don't need to fork or edit `supervisord.conf` to add your own programs.
+Any `*.conf` file dropped into `/etc/supervisor/conf.d/` is picked up automatically at supervisord start, so you do not need to fork or edit `supervisord.conf` to add your own programs.
 
 ### Pattern: Add a Program in Your Downstream Image
 

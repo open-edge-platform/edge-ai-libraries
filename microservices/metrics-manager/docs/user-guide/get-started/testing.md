@@ -45,7 +45,7 @@ docker compose --profile test run --rm metrics-manager-test \
 
 ### Setup
 
-1. **Create virtual environment:**
+1. **Create a virtual environment:**
 
    ```bash
    uv venv
@@ -58,7 +58,7 @@ docker compose --profile test run --rm metrics-manager-test \
    uv sync --group test
    ```
 
-3. **Configure environment:**
+3. **Configure the environment:**
 
    ```bash
    cp .env.example .env
@@ -98,20 +98,20 @@ pytest tests/test_models.py -v
 
 ## Test Categories
 
-| Test File | Description |
-|-----------|-------------|
-| `test_models.py` | Pydantic models: Metric, SimpleMetric, MetricsBatch, InfluxDB/OTLP parsing |
-| `test_store.py` | MetricsStore CRUD, persistence, cleanup, eviction, statistics |
-| `test_routes.py` | REST API endpoints: health, ingestion, queries, Prometheus |
-| `test_settings.py` | Pydantic Settings loading, env var overrides, validation |
-| `test_logging_config.py` | Structured logging setup (JSON and text formats) |
-| `test_main.py` | FastAPI middleware, lifespan, correlation ID handling |
-| `test_metrics.py` | Internal service metrics counters and uptime |
-| `test_rate_limit.py` | IP-based rate limiting middleware |
-| `test_sse.py` | SSE endpoint `/metrics/stream`: streaming, parsing, errors |
-| `test_npu_monitor_tool.py` | NPU bit slicing, register maps, value decoding |
-| `test_npu_reader.py` | `npu_reader.py` syntax, Telegraf wiring, InfluxDB fields |
-| `test_telegraf_integration.py` | Telegraf config mounting and custom-metrics (integration) |
+| Test File                      | Description                                                                |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| `test_models.py`               | Pydantic models: Metric, SimpleMetric, MetricsBatch, InfluxDB/OTLP parsing |
+| `test_store.py`                | MetricsStore CRUD, persistence, cleanup, eviction, statistics              |
+| `test_routes.py`               | REST API endpoints: health, ingestion, queries, Prometheus                 |
+| `test_settings.py`             | Pydantic Settings loading, environment variables overrides, validation     |
+| `test_logging_config.py`       | Structured logging setup (JSON and text formats)                           |
+| `test_main.py`                 | FastAPI middleware, lifespan, correlation ID handling                      |
+| `test_metrics.py`              | Internal service metrics counters and uptime                               |
+| `test_rate_limit.py`           | IP-based rate limiting middleware                                          |
+| `test_sse.py`                  | SSE endpoint `/metrics/stream`: streaming, parsing, errors                 |
+| `test_npu_monitor_tool.py`     | NPU bit slicing, register maps, value decoding                             |
+| `test_npu_reader.py`           | `npu_reader.py` syntax, Telegraf wiring, InfluxDB fields                   |
+| `test_telegraf_integration.py` | Telegraf configuration mounting and custom-metrics (integration)           |
 
 ---
 
@@ -257,18 +257,18 @@ ruff check app/
 
 ## Troubleshooting Tests
 
-| Issue | Solution |
-|-------|----------|
-| `Module not found: app` | Ensure you're in `metrics-manager/` directory and ran `uv sync` |
-| `Connection refused on :9090` | Telegraf not running. Start it: `telegraf --config telegraf.conf` |
-| `Test fixtures failed` | Clear cache: `pytest --cache-clear` |
-| `telegraf_integration skipped` | Expected if not in Docker. Other tests still pass |
+| Issue                          | Solution                                                          |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `Module not found: app`        | Ensure you are in `metrics-manager/` directory and ran `uv sync`  |
+| `Connection refused on :9090`  | Telegraf not running. Start it: `telegraf --config telegraf.conf` |
+| `Test fixtures failed`         | Clear cache: `pytest --cache-clear`                               |
+| `telegraf_integration skipped` | Expected if not in Docker. Other tests still pass                 |
 
 ## Supporting Resources
 
-- [Building from Source](./build-from-source.md)
-- [Installation Guide](./installation.md)
+- [Get Started Guide](../get-started.md)
 - [System Requirements](./system-requirements.md)
+- [Building from Source](./build-from-source.md)
 - [Troubleshooting](../troubleshooting.md)
 
 ## License
