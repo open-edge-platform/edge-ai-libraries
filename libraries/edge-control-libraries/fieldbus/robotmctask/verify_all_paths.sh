@@ -4,8 +4,8 @@ echo ""
 
 # Path 1: Apt-Repositories.rst
 echo "1. Apt-Repositories.rst:"
-if [ -f "../../plcopen-motion-control/docs/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst" ]; then
-    echo "   ✓ PASS: ../../plcopen-motion-control/docs/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst"
+if [ -f "../../plcopen-motion-control/docs/user-guide/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst" ]; then
+    echo "   ✓ PASS: ../../plcopen-motion-control/docs/user-guide/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst"
 else
     echo "   ✗ FAIL: Path not found"
 fi
