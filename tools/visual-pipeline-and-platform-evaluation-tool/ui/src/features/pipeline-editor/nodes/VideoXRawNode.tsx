@@ -2,7 +2,7 @@ import { PipelineNodeCard, PIPELINE_NODE_ROLE_CLASSES } from "./shared";
 
 const VideoXRawNode = () => (
   <PipelineNodeCard
-    title="Resize"
+    title="Video/x-raw"
     nodeType="video/x-raw(memory:VAMemory)"
     roleClasses={PIPELINE_NODE_ROLE_CLASSES.media}
     details={
