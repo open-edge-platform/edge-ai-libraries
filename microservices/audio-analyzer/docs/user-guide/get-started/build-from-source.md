@@ -5,7 +5,7 @@ both Docker and standalone host execution.
 
 ## Prerequisites
 
-- Verify the [system requirements](./system-requirements.md).
+- Verify the [System Requirements](./system-requirements.md).
 - Clone the repository and `cd` into the `audio_analyzer/` directory.
 
 ## Build the Docker Image
