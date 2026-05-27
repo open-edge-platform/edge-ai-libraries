@@ -227,7 +227,9 @@ class EmbeddingModel:
             raise RuntimeError("Video embeddings are not supported by the active model")
         try:
             logger.debug("Getting video embedding from local file input")
-            safe_video_path = resolve_safe_local_path(video_path, Path(tempfile.gettempdir()))
+            safe_video_path = resolve_safe_local_path(
+                os.path.basename(video_path), Path(tempfile.gettempdir())
+            )
             if not os.path.exists(safe_video_path):
                 raise FileNotFoundError(f"Video file not found: {safe_video_path}")
 
@@ -261,7 +263,7 @@ class EmbeddingModel:
         try:
             logger.debug("Getting video embedding from frames manifest input")
             safe_manifest_path = resolve_safe_local_path(
-                manifest_path, Path(tempfile.gettempdir())
+                os.path.basename(manifest_path), Path(tempfile.gettempdir())
             )
             
             # Validate manifest file exists
@@ -298,7 +300,7 @@ class EmbeddingModel:
             safe_manifest_video_path = None
             if video_path:
                 safe_manifest_video_path = resolve_safe_local_path(
-                    video_path, Path(tempfile.gettempdir())
+                    os.path.basename(video_path), Path(tempfile.gettempdir())
                 )
 
             if safe_manifest_video_path and os.path.exists(safe_manifest_video_path):
