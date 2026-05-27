@@ -3,8 +3,8 @@
 
 import { KeyboardEventHandler, SyntheticEvent, useEffect, useRef, useState } from 'react'
 import styleClasses from "../../styles/components/conversation.module.scss"
-import { ActionIcon, Group, Textarea, rem, Anchor } from '@mantine/core'
-import { IconArrowRight, IconFilePlus, IconMessagePlus } from '@tabler/icons-react'
+import { ActionIcon, Textarea, rem, Anchor } from '@mantine/core'
+import { IconArrowRight } from '@tabler/icons-react'
 import { conversationSelector, doConversation, newConversation, fetchModelName } from '../../redux/Conversation/ConversationSlice'
 import { ConversationMessage } from '../Message/conversationMessage'
 import { useAppDispatch, useAppSelector } from '../../redux/store'
@@ -14,16 +14,12 @@ import { useDisclosure } from '@mantine/hooks'
 import DataSource from '../Drawer/DataSource'
 import { ConversationSideBar } from './ConversationSideBar'
 
-type ConversationProps = {
-  title: string
-}
-
-const Conversation = ({ title }: ConversationProps) => {
+const Conversation = () => {
 
   const [prompt, setPrompt] = useState<string>("")
   const [hasLLMResponse, setHasLLMResponse] = useState<boolean>(false)
   const promptInputRef = useRef<HTMLTextAreaElement>(null)
-  const [fileUploadOpened, { open: openFileUpload, close: closeFileUpload }] = useDisclosure(false);
+  const [fileUploadOpened, { close: closeFileUpload }] = useDisclosure(false);
 
   const { conversations, onGoingResults, selectedConversationId, modelName, isGenerating } = useAppSelector(conversationSelector)
   const dispatch = useAppDispatch();
