@@ -82,7 +82,7 @@ The application flow is illustrated in the flow diagram below. The diagram shows
 The Chat Q&A sample application is designed with modularity in mind, allowing developers to:
 
 1. **Change inference microservices**:
-   - The default option is OVMS for LLM and TEI for embeddings and reranker.
+   - The default option is OVMS for LLM and embeddings, and TEI for the reranker.
    - (*Deprecated effective 2025.2.0*) Use other model servers like vLLM with OpenVINO backend, and TGI to host LLM models.
    - Mandatory requirement is OpenAI API compliance. Note that other model servers are not guaranteed to provide same performance as default options.
 2. **Load different LLM, Embedding, and Reranker models**:
