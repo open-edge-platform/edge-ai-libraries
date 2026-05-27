@@ -1,4 +1,4 @@
-# Video Search and Summarization (VSS) Sample Application
+# Video Search and Summarization
 
 Use the Video Search and Summarization (VSS) sample application to search through your videos, summarize them, and more.
 
