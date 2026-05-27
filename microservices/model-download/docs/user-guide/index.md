@@ -110,7 +110,7 @@ This service does not replace full model registry solutions and has the followin
 
 ## Learn More
 
-- [**Quick Start**](./quickstart.md) 
+- [**Quick Start**](./quickstart.md)
 - [**Get Started Guide**](./get-started.md)
 - [**API Reference**](./api-reference.md)
 
@@ -119,6 +119,7 @@ This service does not replace full model registry solutions and has the followin
 :hidden:
 
 ./get-started.md
+./quickstart.md
 ./running-tests.md
 ./api-reference.md
 Release Notes <./release-notes.md>

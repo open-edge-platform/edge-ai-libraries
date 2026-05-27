@@ -17,6 +17,12 @@ from internal_types import (
 DEFAULT_SEARCH_DURATION = 300  # seconds
 DEFAULT_SAMPLE_DURATION = 10  # seconds
 
+# Variant names (case-insensitive) that map directly to a single OpenVINO
+# device. When a variant has one of these names, the optimizer search scope
+# is restricted to that device via DLSOptimizer.set_allowed_devices().
+# Any other variant name keeps the optimizer's default (all devices).
+DEVICE_VARIANT_NAMES: frozenset[str] = frozenset({"CPU", "GPU", "NPU"})
+
 logger = logging.getLogger("optimization_manager")
 
 
@@ -82,7 +88,11 @@ class OptimizationRunner:
         )
 
     def run_optimization(
-        self, pipeline_description: str, search_duration: int, sample_duration: int
+        self,
+        pipeline_description: str,
+        search_duration: int,
+        sample_duration: int,
+        allowed_devices: list[str] | None = None,
     ) -> PipelineOptimizationResult:
         """
         Run the full optimization process on the provided GStreamer pipeline string.
@@ -94,6 +104,9 @@ class OptimizationRunner:
             pipeline_description: Original GStreamer pipeline string to optimize.
             search_duration: Duration in seconds for the optimization search phase.
             sample_duration: Duration in seconds for measuring each configuration.
+            allowed_devices: Optional list of device strings (e.g. ["CPU"]) used to
+                restrict the optimizer's device search scope. When None, the
+                optimizer keeps its default scope (all detected devices).
 
         Returns:
             PipelineOptimizationResult: Result containing the optimized GStreamer
@@ -105,6 +118,22 @@ class OptimizationRunner:
 
         opt = optimizer.DLSOptimizer()
         opt.set_sample_duration(sample_duration)
+
+        # Restrict the device search scope only when an explicit list is
+        # provided. Calling set_allowed_devices with None would override the
+        # default behavior, which is undesirable.
+        if allowed_devices is not None:
+            opt.set_allowed_devices(allowed_devices)
+
+        # Log the exact values that are about to be forwarded to
+        # DLSOptimizer so the search time budget can be verified end-to-end
+        # in the application log.
+        self.logger.info(
+            f"Calling DLSOptimizer.optimize_for_fps with "
+            f"search_duration={search_duration}s, "
+            f"sample_duration={sample_duration}s, "
+            f"allowed_devices={allowed_devices}"
+        )
 
         optimized_pipeline, total_fps = opt.optimize_for_fps(
             pipeline_description, search_duration=search_duration
@@ -171,6 +200,30 @@ class OptimizationManager:
         """
         return uuid.uuid1().hex
 
+    @staticmethod
+    def _resolve_allowed_devices(variant_name: str) -> list[str] | None:
+        """
+        Map a variant name to the optimizer's allowed device list.
+
+        The match is case-insensitive. Only the names "CPU", "GPU" and "NPU"
+        are recognized as device names. Any other variant name returns None,
+        meaning the optimizer should keep its default device search scope
+        (all detected devices).
+
+        Args:
+            variant_name: Name of the variant being optimized.
+
+        Returns:
+            A single-element list with the device string (e.g. ["CPU"]) when
+            the variant name matches a known device, otherwise None.
+        """
+        if not variant_name:
+            return None
+        normalized = variant_name.strip().upper()
+        if normalized in DEVICE_VARIANT_NAMES:
+            return [normalized]
+        return None
+
     def run_optimization(
         self,
         variant: InternalVariant,
@@ -185,6 +238,10 @@ class OptimizationManager:
         * converts the pipeline graph to a GStreamer pipeline string,
         * creates a new :class:`InternalOptimizationJobStatus` with RUNNING state,
         * spawns a background thread that executes the optimization.
+
+        The variant name is also forwarded to the background worker so the
+        optimizer can restrict its device search scope when the name matches
+        a known device (CPU/GPU/NPU).
 
         Args:
             variant: InternalVariant with Graph objects to optimize.
@@ -213,10 +270,12 @@ class OptimizationManager:
         with self._jobs_lock:
             self.jobs[job_id] = job
 
-        # Start execution in background thread
+        # Start execution in background thread. The variant name is passed
+        # down so _execute_optimization can map it to an allowed device list
+        # for the optimizer (only relevant for full OPTIMIZE jobs).
         thread = threading.Thread(
             target=self._execute_optimization,
-            args=(job_id, pipeline_description, optimization_request),
+            args=(job_id, pipeline_description, optimization_request, variant.name),
             daemon=True,
         )
         thread.start()
@@ -294,6 +353,7 @@ class OptimizationManager:
         job_id: str,
         pipeline_description: str,
         optimization_request: InternalPipelineRequestOptimize,
+        variant_name: str = "",
     ) -> None:
         """
         Execute the optimization process in a background thread.
@@ -301,6 +361,12 @@ class OptimizationManager:
         The method chooses between preprocessing or full optimization,
         delegates work to :class:`OptimizationRunner` and then updates
         the corresponding :class:`InternalOptimizationJobStatus` accordingly.
+
+        For full OPTIMIZE jobs, the variant name is used to restrict the
+        optimizer's device search scope: variant names equal (case-insensitive)
+        to "CPU", "GPU" or "NPU" map to a single-device allowed list. Any
+        other variant name keeps the optimizer's default search scope.
+        The PREPROCESS type is not affected by this mapping.
 
         After successful optimization, both advanced and simple views
         are generated from the optimized GStreamer pipeline string as
@@ -318,6 +384,8 @@ class OptimizationManager:
             job_id: Unique identifier of the optimization job.
             pipeline_description: GStreamer pipeline string to optimize.
             optimization_request: Internal optimization parameters and type.
+            variant_name: Name of the variant being optimized. Used to map
+                to an allowed device list for the OPTIMIZE type.
 
         Returns:
             None (updates job status in place via self.jobs[job_id])
@@ -358,14 +426,37 @@ class OptimizationManager:
                 )
             else:  # InternalOptimizationType.OPTIMIZE
                 params = optimization_request.parameters or {}
+                # Map the variant name to a device allow-list. Only "CPU",
+                # "GPU" and "NPU" (case-insensitive) are recognized as
+                # device names; other names keep the default search scope.
+                allowed_devices = self._resolve_allowed_devices(variant_name)
+                if allowed_devices is not None:
+                    self.logger.info(
+                        f"Restricting optimizer device search to {allowed_devices} "
+                        f"for job {job_id} (variant name: {variant_name!r})"
+                    )
+                # Resolve effective values once so they can be both logged
+                # and forwarded to the runner. This makes it easy to verify
+                # in the logs that the values from the request (or defaults)
+                # actually reach DLSOptimizer.
+                effective_search_duration = params.get(
+                    "search_duration", DEFAULT_SEARCH_DURATION
+                )
+                effective_sample_duration = params.get(
+                    "sample_duration", DEFAULT_SAMPLE_DURATION
+                )
+                self.logger.info(
+                    f"Starting DLSOptimizer for job {job_id} with "
+                    f"search_duration={effective_search_duration}s, "
+                    f"sample_duration={effective_sample_duration}s, "
+                    f"allowed_devices={allowed_devices} "
+                    f"(raw parameters={params!r})"
+                )
                 results = runner.run_optimization(
                     pipeline_description=pipeline_description,
-                    search_duration=params.get(
-                        "search_duration", DEFAULT_SEARCH_DURATION
-                    ),
-                    sample_duration=params.get(
-                        "sample_duration", DEFAULT_SAMPLE_DURATION
-                    ),
+                    search_duration=effective_search_duration,
+                    sample_duration=effective_sample_duration,
+                    allowed_devices=allowed_devices,
                 )
 
             # Update job with results
