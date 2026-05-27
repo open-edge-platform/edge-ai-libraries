@@ -6,11 +6,15 @@ Pick one of the two deployment paths and follow the linked guide.
 ## Before You Begin
 
 - Confirm that your machine meets the
-  [system requirements](./get-started/system-requirements.md).
-- Review the [configuration guide](./get-started/configuration.md) if you plan to change
+  [System Requirements](./get-started/system-requirements.md).
+- Review the [Configuration Guide](./get-started/configuration.md) if you plan to change
   models, devices, or chunking behavior.
 
-## Path 1: Run in Docker (Recommended)
+## Choose Deployment Path
+
+<!--hide_directive::::{tab-set}
+:::{tab-item}hide_directive--> **Run in Docker (Recommended)**
+<!--hide_directive:sync: Docker hide_directive-->
 
 The container image exposes the API on host port `8010` and mounts shared
 folders for models, chunks, storage, and the Hugging Face cache.
@@ -18,7 +22,7 @@ Fresh clones include placeholder directories for these mount roots. If you
 delete them and then start Compose, Docker may recreate the missing host
 paths as `root` before the container starts.
 
-See [run-container.md](./get-started/run-container.md) for the full step-by-step guide.
+See [Run with Docker Compose](./get-started/run-container.md) for the full step-by-step guide.
 
 Quick start:
 
@@ -29,14 +33,16 @@ curl --noproxy '*' http://127.0.0.1:8010/health
 
 If you hit permission errors on `models/`, `chunks/`, `storage/`, or
 `.cache/huggingface/`, see
-[troubleshooting.md](./troubleshooting.md#permission-errors-on-mounted-folders).
+[Troubleshooting](./troubleshooting.md#permission-errors-on-mounted-folders).
 
-## Path 2: Run on the Host
+<!--hide_directive:::
+:::{tab-item}hide_directive--> **Run on the Host**
+<!--hide_directive:sync: Host hide_directive-->
 
 Run the service directly with Python. This path is useful for development or
 when you do not want to use Docker.
 
-See [run-standalone.md](./get-started/run-standalone.md) for the full step-by-step guide.
+See [Run on the Host](./get-started/run-standalone.md) for the full step-by-step guide.
 
 Quick start:
 
@@ -46,6 +52,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python main.py
 ```
+<!--hide_directive:::
+::::hide_directive-->
 
 ## Verify
 
@@ -64,7 +72,7 @@ Expected response:
 ## Next Steps
 
 - [API Reference](./api-reference.md) for endpoint details and examples
-- [Configuration](./get-started/configuration.md) to customize models and devices
+- [Configuration Guide](./get-started/configuration.md) to customize models and devices
 - [Troubleshooting](./troubleshooting.md) for common startup issues
 
 <!--hide_directive
@@ -72,8 +80,8 @@ Expected response:
 :hidden:
 
 ./get-started/system-requirements.md
-./get-started/build-from-source.md
 ./get-started/configuration.md
+./get-started/build-from-source.md
 ./get-started/run-container.md
 ./get-started/run-standalone.md
 
