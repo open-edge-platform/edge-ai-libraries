@@ -197,8 +197,8 @@ sudo apt-get update
 sudo apt-get install -y libsndfile1
 ```
 
-## Where To Look Next
+## Supporting Resources
 
-- [Configuration reference](configuration.md)
-- [API reference](api-reference.md)
-- [System requirements](system-requirements.md)
+- [Configuration Guide](./get-started/configuration.md)
+- [API Reference](./api-reference.md)
+- [System Requirements](./get-started/system-requirements.md)
