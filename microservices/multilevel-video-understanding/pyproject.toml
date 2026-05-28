@@ -12,7 +12,7 @@ packages = [{include = "video_analyzer"}]
 # ------------------------------------------------------------
 [tool.poetry.dependencies]
 python = "^3.10"
-Pillow = "11.3.0"
+Pillow = "^12.2.0"
 transformers = "^4.53.1"
 fastapi = "^0.121.1"
 uvicorn = "^0.32.1"
