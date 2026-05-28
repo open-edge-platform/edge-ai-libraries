@@ -7,7 +7,6 @@ x-nginx-common: &nginx-common
     - ../nginx_config/nginx.conf:/etc/nginx/nginx.conf:ro
 
 x-chatqna-core-common: &chatqna-core-common
-  image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-latest}
   build:
     context: ../
     dockerfile: docker/Dockerfile
@@ -53,12 +52,14 @@ services:
     <<: *chatqna-core-common
     profiles:
       - OPENVINO
+    image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-core_2026.1.0-rc1}
     container_name: chatqna-core-ov-cpu
 
   chatqna-core-ov-gpu:
     <<: *chatqna-core-common
     profiles:
       - OPENVINO-GPU
+    image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-core_gpu_2026.1.0-rc1}
     container_name: chatqna-core-ov-gpu
     build:
       context: ../
@@ -75,6 +76,7 @@ services:
     <<: *chatqna-core-common
     profiles:
       - OLLAMA
+    image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-core_ollama_2026.1.0-rc1}
     container_name: chatqna-core-ollama
     build:
       context: ../
@@ -85,7 +87,7 @@ services:
       no_proxy: ${no_proxy},127.0.0.1
 
   chatqna-core-ui:
-    image: ${REGISTRY:-}chatqna-ui:${UI_TAG:-latest}
+    image: ${REGISTRY:-}chatqna-ui:${UI_TAG:-core_2026.1.0-rc1}
     container_name: chatqna-core-ui
     build:
       context: ../ui/
