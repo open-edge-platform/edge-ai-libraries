@@ -9,6 +9,7 @@ Use this path when you want the service to run in a container and expose the API
 - The repository includes placeholder files so fresh clones already contain those mount roots. If you remove any of those directories, recreate them as your user before starting Compose or Docker may recreate the missing host paths as `root`.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
 - The image defaults to UID/GID `1000:1000`, and Compose also runs the container as `1000:1000` unless you override `LOCAL_UID` and `LOCAL_GID`. If your host user is different, see [troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders) before starting.
+- The image tag is read from the `RELEASE_TAG` variable in `.env` (defaults to `latest` if unset). The committed `.env` pins the current release tag; override it for local builds by exporting `RELEASE_TAG` or editing `.env`.
 
 ## Start
 
@@ -17,6 +18,8 @@ From the `audio_analyzer/` directory:
 ```bash
 docker compose up -d --build
 ```
+
+The built image will be tagged `audio-analyzer:${RELEASE_TAG}` (e.g. `audio-analyzer:v2026.1.0-rc1`).
 
 ## Check Status
 

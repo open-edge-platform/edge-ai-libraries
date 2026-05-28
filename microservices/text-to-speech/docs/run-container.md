@@ -7,6 +7,7 @@ Use this path when you want the service to run in a container and expose the API
 - Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see [configuration.md](configuration.md).
 - The Compose setup mounts `config.yaml`, `models/`, `storage/`, and the Hugging Face cache into the container.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
+- The image tag is read from the `RELEASE_TAG` variable in `.env` (defaults to `latest` if unset). The committed `.env` pins the current release tag; override it for local builds by exporting `RELEASE_TAG` or editing `.env`.
 
 ## Start
 
@@ -15,6 +16,8 @@ From the `text-to-speech/` directory:
 ```bash
 docker compose up -d --build
 ```
+
+The built image will be tagged `text-to-speech:${RELEASE_TAG}` (e.g. `text-to-speech:v2026.1.0-rc1`).
 
 ## Check Status
 
