@@ -13,5 +13,5 @@
 # such as ``mobilenet-v2-pytorch``.
 --extra-index-url https://download.pytorch.org/whl/cpu
 openvino-dev[onnx]==2024.6.0
-torch==2.4.1
-torchvision==0.19.1
+torch==2.8.0
+torchvision==0.23.0

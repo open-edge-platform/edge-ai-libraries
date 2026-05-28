@@ -20,13 +20,13 @@ The service uses Linux-specific paths (`/sys`, `/proc`, `/dev/dri`) mounted into
 
 ## Minimum Requirements
 
-| Component | Minimum | Recommended |
-|-----------|---------|------------|
-| Processor | 2 cores @ 1 GHz | 4 cores @ 2 GHz |
-| Memory (RAM) | 512 MB | 2 GB |
-| Disk Space | 2 GB (for build) | 10 GB (with headroom) |
-| Docker | 24.0+ | 26.0+ |
-| Docker Compose | 2.20+ | 2.25+ |
+| Component      | Minimum          | Recommended           |
+| -------------- | ---------------- | --------------------- |
+| Processor      | 2 cores @ 1 GHz  | 4 cores @ 2 GHz       |
+| Memory (RAM)   | 512 MB           | 2 GB                  |
+| Disk Space     | 2 GB (for build) | 10 GB (with headroom) |
+| Docker         | 24.0+            | 26.0+                 |
+| Docker Compose | 2.20+            | 2.25+                 |
 
 ## Software Requirements
 
@@ -52,6 +52,7 @@ The service uses Linux-specific paths (`/sys`, `/proc`, `/dev/dri`) mounted into
 - The qmassa reader (`scripts/qmassa_reader.py`) automatically detects the GPU and publishes metrics
 
 **Collected metrics:**
+
 - Engine usage (compute, render, copy, video, video-enhance)
 - GPU frequency
 - GPU power consumption
@@ -65,13 +66,14 @@ If GPU is absent, qmassa logs `No DRM devices found` and exits gracefully. Other
 - Requires `/sys/class/intel_pmt/` to be accessible inside the container (provided by `privileged: true` and `/sys:/sys:ro` in `compose.yaml`)
 
 **Collected metrics:**
+
 - NPU power draw (watts)
 - NPU frequency
 - NPU temperature
 - NPU utilization (%)
 - NPU bandwidth
 - Tile configuration
-- Memory usage (MB) — reports `-1` on MTL/ARL (sysfs node doesn't exist)
+- Memory usage (MB) — reports `-1` on MTL/ARL (sysfs node does not exist)
 
 If NPU is absent or driver is not loaded, the NPU reader logs a warning and enters idle mode. Other metrics continue normally.
 
@@ -85,7 +87,7 @@ If NPU is absent or driver is not loaded, the NPU reader logs a warning and ente
 - [ ] (Optional) Intel GPU: `lspci | grep -i intel | grep -i graphics`
 - [ ] (Optional) Intel NPU driver: `ls /sys/bus/pci/drivers/intel_vpu/`
 
-If all checks pass, you're ready to proceed with the [Installation Guide](./installation.md) or [Get Started Guide](../get-started.md).
+If all checks pass, you are ready to proceed with the [Get Started Guide](../get-started.md).
 
 ## License
 

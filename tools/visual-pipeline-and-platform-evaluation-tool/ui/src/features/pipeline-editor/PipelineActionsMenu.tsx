@@ -260,7 +260,7 @@ export const PipelineActionsMenu = ({
       toast.info("Validating pipeline...");
 
       const validationStatus = await executeValidation({
-        pipelineValidationInput: {
+        pipelineValidation: {
           pipeline_graph: pipelineGraph,
         },
       });

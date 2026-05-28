@@ -11,6 +11,7 @@ cleanup behaviour as well.
 """
 
 import io
+import json
 import os
 import shutil
 import tempfile
@@ -313,6 +314,65 @@ class TestUploadStreaming(_BaseImagesAPITest):
 
         self.assertEqual(response.status_code, 500)
 
+    def test_missing_filename_rejected(self) -> None:
+        """An upload whose ``filename`` is empty/None is rejected
+        before the manager is touched.
+
+        FastAPI's multipart parser does not surface an empty
+        ``filename=`` field as an empty string - it can drop the part
+        entirely. To exercise the route's own ``not raw_filename``
+        guard reliably, we call the coroutine directly with a stub
+        ``UploadFile`` whose ``filename`` is ``None``.
+        """
+        import asyncio
+        from fastapi.responses import JSONResponse
+
+        # Build a minimal UploadFile-like stub. The route only reads
+        # ``file.filename`` before returning.
+        stub = MagicMock()
+        stub.filename = None
+
+        with patch("api.routes.images.ImagesManager") as mock_cls:
+            instance = MagicMock()
+            mock_cls.return_value = instance
+            response = asyncio.run(images_route.upload_image_archive(file=stub))
+
+        # The handler returns a JSONResponse directly when the
+        # filename is missing.
+        assert isinstance(response, JSONResponse)
+        self.assertEqual(response.status_code, 422)
+        body = json.loads(bytes(response.body).decode("utf-8"))
+        self.assertEqual(body["error"], "missing_filename")
+        # The manager must never be invoked when the filename is absent.
+        instance.derive_trunk.assert_not_called()
+
+    def test_temp_cleanup_swallows_os_error(self) -> None:
+        """An ``OSError`` from the best-effort ``os.remove`` after
+        validation rejection must not propagate to the client."""
+        from images import ImageUploadError
+
+        with patch("api.routes.images.ImagesManager") as mock_cls:
+            instance = MagicMock()
+            instance.derive_trunk.return_value = "cleanfail"
+            instance.image_set_exists.return_value = False
+            # Force the manager to reject so the cleanup branch runs.
+            instance.register_uploaded_archive.side_effect = ImageUploadError(
+                "archive_corrupted",
+                "bad bytes",
+            )
+            mock_cls.return_value = instance
+
+            with patch(
+                "api.routes.images.os.remove",
+                side_effect=OSError("denied"),
+            ):
+                response = self._post("cleanfail.zip", b"x" * 32)
+
+        # The original rejection still surfaces with 422; the cleanup
+        # failure is swallowed and only logged.
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error"], "archive_corrupted")
+
 
 # --------------------------------------------------------------------------- #
 # GET /images/{name}
@@ -355,6 +415,59 @@ class TestListImagesInSet(_BaseImagesAPITest):
             mock_cls.return_value = instance
             response = self.client.get("/images/x")
         self.assertEqual(response.status_code, 500)
+
+
+# --------------------------------------------------------------------------- #
+# Small helper functions (env parsing, error envelope fallback).
+# --------------------------------------------------------------------------- #
+
+
+class TestParseIntEnv(unittest.TestCase):
+    """Same parser as in api/routes/videos.py - keep it explicitly
+    covered here so the route stays self-contained for refactors."""
+
+    def test_missing_returns_default(self) -> None:
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("__VIPPET_IMG_INT__", None)
+            self.assertEqual(images_route._parse_int_env("__VIPPET_IMG_INT__", 5), 5)
+
+    def test_blank_returns_default(self) -> None:
+        with patch.dict(os.environ, {"__VIPPET_IMG_INT__": "  "}):
+            self.assertEqual(images_route._parse_int_env("__VIPPET_IMG_INT__", 7), 7)
+
+    def test_valid_integer(self) -> None:
+        with patch.dict(os.environ, {"__VIPPET_IMG_INT__": "42"}):
+            self.assertEqual(images_route._parse_int_env("__VIPPET_IMG_INT__", 0), 42)
+
+    def test_invalid_returns_default_and_warns(self) -> None:
+        with patch.dict(os.environ, {"__VIPPET_IMG_INT__": "not-int"}):
+            with self.assertLogs("api.routes.images", level="WARNING") as cm:
+                self.assertEqual(
+                    images_route._parse_int_env("__VIPPET_IMG_INT__", 99), 99
+                )
+        self.assertTrue(any("Invalid integer" in m for m in cm.output))
+
+
+class TestUploadErrorResponseFallback(unittest.TestCase):
+    """Guard the fallback inside ``_upload_error_response`` for an
+    unknown ``kind`` value."""
+
+    def test_unknown_kind_falls_back_to_archive_corrupted(self) -> None:
+        # ``_upload_error_response`` accepts any literal; force-feed a
+        # bogus value to trip the safety net.
+        with self.assertLogs("api.routes.images", level="ERROR") as cm:
+            resp = images_route._upload_error_response(
+                "totally_unknown_kind",  # type: ignore[arg-type]
+                "fallback",
+            )
+        # The response should still be a valid 422 with the fallback
+        # ``archive_corrupted`` error code so clients can keep parsing.
+        self.assertEqual(resp.status_code, 422)
+        # JSONResponse stores raw bytes; decode to inspect.
+        body = json.loads(bytes(resp.body).decode("utf-8"))
+        self.assertEqual(body["error"], "archive_corrupted")
+        self.assertEqual(body["detail"], "fallback")
+        self.assertTrue(any("Unknown image upload error kind" in m for m in cm.output))
 
 
 if __name__ == "__main__":

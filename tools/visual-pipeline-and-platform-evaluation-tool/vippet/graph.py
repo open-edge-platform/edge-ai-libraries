@@ -2359,6 +2359,209 @@ class Graph:
                 # node from the multifilesrc.
                 image_decoder_ids.add(tgt)
 
+        # Step 0 (CPU only): force a uniform, DLStreamer-friendly raw
+        # video format right after every software image decoder by
+        # injecting ``videoconvert ! video/x-raw,format=I420`` between
+        # the decoder and its current successors.
+        #
+        # Different image decoders expose very different sink caps for
+        # downstream elements:
+        #
+        #   * ``pngdec``     -> only RGB / RGBA / GRAY8 / GRAY16_BE,
+        #     none of which ``gvadetect`` / ``gvaclassify`` accept
+        #     (their sink template is BGRx / BGRA / BGR / NV12 / I420).
+        #     Without this step the pipeline fails to parse with
+        #     "could not link pngdec0 to gvadetect0".
+        #   * ``jpegdec``    -> I420 / RGB / BGR / xRGB / ...  - matches
+        #     gvadetect natively, but a caps mismatch is still possible
+        #     if the next element happens to renegotiate to a format
+        #     the decoder cannot honour.
+        #   * ``avdec_bmp``  -> a very long list including I420.
+        #   * ``avdec_tiff`` -> a very long list including I420.
+        #
+        # ``I420`` is the lowest common denominator: every supported
+        # software image decoder can output it directly, every
+        # DLStreamer plugin used in the built-in pipelines
+        # (``gvadetect``, ``gvaclassify``, ``gvatrack``,
+        # ``gvawatermark``, ``gvafpscounter``, ``gvametaconvert``)
+        # accepts it on input, the software H264 encoders
+        # (``openh264enc`` / ``x264enc``) we pick for the file-output
+        # branch take I420 natively, and the dedicated step 3 below
+        # still gets to insert an extra ``videoconvert ! NV12`` in
+        # front of NV12-only consumers (such as ``gvamotiondetect``).
+        # The result is a single, deterministic raw-video format on
+        # the wire between the decoder and the rest of the chain.
+        #
+        # GPU/NPU paths skip this step:
+        # ``_upgrade_image_set_for_va_memory`` lifts the whole chain
+        # into ``video/x-raw(memory:VAMemory),format=NV12`` via a
+        # ``vapostproc`` bridge right after the image decoder, which
+        # already gives every downstream plugin a uniform, DLStreamer-
+        # friendly format.
+        #
+        # The injection is idempotent: if the decoder is already
+        # followed by ``videoconvert`` or by an explicit format caps
+        # node we skip it, so calling ``_adapt_image_set_video_pipeline``
+        # twice on the same graph (or running the same conversion
+        # repeatedly in the UI) does not stack up adapter pairs.
+        _device_norm_step0 = (target_device or "").upper()
+        _skip_cpu_format_force = _device_norm_step0 in {"GPU", "NPU"}
+
+        def _successor_already_forces_format(decoder_id: str) -> bool:
+            """Return ``True`` iff the decoder is immediately followed
+            by a ``videoconvert`` element or by an explicit
+            ``video/x-raw[,format=...]`` capsfilter."""
+            for nxt_id in edges_from.get(decoder_id, []):
+                nxt_node = nodes_by_id.get(nxt_id)
+                if nxt_node is None:
+                    continue
+                if nxt_node.type == "videoconvert":
+                    return True
+                is_caps_node = nxt_node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
+                looks_like_raw_caps = nxt_node.type.startswith("video/x-raw")
+                has_format = bool(str(nxt_node.data.get("format", "")).strip())
+                if (is_caps_node or looks_like_raw_caps) and has_format:
+                    return True
+            return False
+
+        if not _skip_cpu_format_force:
+            sw_image_decoders_step0 = {
+                "jpegdec",
+                "pngdec",
+                "avdec_bmp",
+                "avdec_tiff",
+            }
+
+            # Sub-step 0a: prune a redundant ``decodebin3`` sitting
+            # right after the image decoder. This mirrors the same
+            # prune step in ``_upgrade_image_set_for_va_memory`` (which
+            # only runs on GPU/NPU paths) and must happen here on the
+            # CPU path before we inject the format-forcing
+            # ``videoconvert``/caps pair below - otherwise the new
+            # nodes would sit *between* the decoder and ``decodebin3``
+            # and prevent the GPU/NPU prune from kicking in if this
+            # method is later called with a different target. For CPU
+            # the ``decodebin3`` is also a no-op (the dedicated image
+            # decoder already produced raw frames), and leaving it in
+            # the graph causes the same caps negotiation issues that
+            # motivated the prune on GPU/NPU.
+            for d_id in list(image_decoder_ids):
+                decoder_node = nodes_by_id.get(d_id)
+                if (
+                    decoder_node is None
+                    or decoder_node.type not in sw_image_decoders_step0
+                ):
+                    continue
+                successors = list(edges_from.get(d_id, []))
+                if len(successors) != 1:
+                    continue
+                db_id = successors[0]
+                db_node = nodes_by_id.get(db_id)
+                if db_node is None or db_node.type != "decodebin3":
+                    continue
+                # Rewire every edge leaving decodebin3 to leave the
+                # image decoder, drop the decoder->decodebin3 edge and
+                # the decodebin3 node itself.
+                for edge in self.edges:
+                    if edge.source == db_id:
+                        edge.source = d_id
+                self.edges = [
+                    e
+                    for e in self.edges
+                    if not (e.source == d_id and e.target == db_id)
+                ]
+                self.nodes = [n for n in self.nodes if n.id != db_id]
+                reachable.discard(db_id)
+                logger.debug(
+                    "Image-set adaptation (CPU): pruned redundant "
+                    "decodebin3 (node %s) after image decoder (node %s)",
+                    db_id,
+                    d_id,
+                )
+                # Refresh local adjacency / id map after the prune.
+                edges_from = {}
+                for edge in self.edges:
+                    edges_from.setdefault(edge.source, []).append(edge.target)
+                nodes_by_id = {n.id: n for n in self.nodes}
+
+            decoders_to_adapt: list[Node] = [
+                nodes_by_id[d_id]
+                for d_id in image_decoder_ids
+                if d_id in nodes_by_id
+                and nodes_by_id[d_id].type in sw_image_decoders_step0
+                and not _successor_already_forces_format(d_id)
+            ]
+
+            for decoder in decoders_to_adapt:
+                existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
+                    int(e.id) for e in self.edges if e.id.isdigit()
+                ]
+                next_int = (max(existing_ids) + 1) if existing_ids else 0
+
+                videoconvert_id = str(next_int)
+                next_int += 1
+                caps_id = str(next_int)
+                next_int += 1
+
+                videoconvert_node = Node(
+                    id=videoconvert_id, type="videoconvert", data={}
+                )
+                caps_node = Node(
+                    id=caps_id,
+                    type="video/x-raw",
+                    data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "I420"},
+                )
+
+                logger.debug(
+                    "Image-set adaptation: injecting 'videoconvert ! "
+                    "video/x-raw,format=I420' right after image decoder "
+                    "'%s' (node %s) to give every downstream DLStreamer "
+                    "consumer a uniform raw-video format",
+                    decoder.type,
+                    decoder.id,
+                )
+
+                # Insert the new chain in the node list right after the
+                # decoder to keep debug dumps readable.
+                insert_at = next(
+                    (i for i, n in enumerate(self.nodes) if n.id == decoder.id),
+                    len(self.nodes) - 1,
+                )
+                self.nodes[insert_at + 1 : insert_at + 1] = [
+                    videoconvert_node,
+                    caps_node,
+                ]
+
+                # Rewire: every edge that previously originated at the
+                # decoder now originates at ``caps`` instead, and we
+                # add the new bridge ``decoder -> videoconvert -> caps``.
+                for edge in self.edges:
+                    if edge.source == decoder.id:
+                        edge.source = caps_id
+                self.edges.append(
+                    Edge(
+                        id=str(next_int),
+                        source=decoder.id,
+                        target=videoconvert_id,
+                    )
+                )
+                next_int += 1
+                self.edges.append(
+                    Edge(id=str(next_int), source=videoconvert_id, target=caps_id)
+                )
+
+                # Refresh adjacency / id map / reachability for
+                # subsequent steps.
+                edges_from = {}
+                for edge in self.edges:
+                    edges_from.setdefault(edge.source, []).append(edge.target)
+                nodes_by_id = {n.id: n for n in self.nodes}
+                # The new nodes are reachable from an image-set source
+                # by construction; add them so later steps that gate
+                # on ``reachable`` see them too.
+                reachable.add(videoconvert_id)
+                reachable.add(caps_id)
+
         for node in self.nodes:
             if node.id not in reachable:
                 continue
@@ -2735,6 +2938,14 @@ class Graph:
                ``gvafpscounter``, ``gvawatermark``, ...) into VA memory
                with the canonical NV12 format that every VA-aware
                DLStreamer plugin understands. GPU/NPU only.
+               For RGB-emitting decoders (``pngdec``, ``avdec_bmp``,
+               ``avdec_tiff``) an additional ``videoconvert !
+               video/x-raw,format=NV12`` is interposed *before*
+               ``vapostproc`` (step 3a) - on some Intel GPU stacks
+               (Battlemage / BMG) ``vapostproc`` refuses to negotiate a
+               direct RGB-sysmem -> VAMemory-NV12 link, so the pipeline
+               needs a CPU-side NV12 normalisation first. ``jpegdec``
+               emits I420 natively and skips this bridge.
             5. Swap any reachable software H264 encoder
                (``openh264enc`` / ``x264enc``) for a VA-API counterpart
                (``vah264lpenc`` / ``vah264enc`` / ``vaapih264lpenc`` /
@@ -2850,10 +3061,73 @@ class Graph:
             # ``pre-process-backend=va-surface-sharing`` rejects with
             # "For system memory only supports ie, opencv image
             # preprocessors".
+            #
+            # Step 3a (RGB-emitting decoders only): some software image
+            # decoders emit RGB-family caps in system memory:
+            #   - pngdec     -> RGB / RGBA / GRAY
+            #   - avdec_bmp  -> BGRx / BGRA / RGB
+            #   - avdec_tiff -> RGB / RGBA
+            # ``vapostproc`` on some Intel GPU stacks (observed on
+            # Battlemage / BMG) refuses to negotiate a direct
+            # ``video/x-raw,format={RGB,RGBA,BGRx},memory:SystemMemory``
+            # -> ``video/x-raw(memory:VAMemory),format=NV12`` link and
+            # the pipeline dies at start with
+            # "streaming stopped, reason not-negotiated (-4)".
+            # ``jpegdec`` is unaffected because it emits I420 (a
+            # native VA-friendly YUV format).
+            # The fix is to interpose a CPU-side ``videoconvert !
+            # video/x-raw,format=NV12`` so ``vapostproc`` always sees a
+            # plain sysmem-NV12 input, which every Intel GPU driver
+            # uploads to VAMemory reliably. The conversion runs once
+            # per frame and the image-set use case is bounded to a few
+            # frames, so the CPU cost is negligible.
+            rgb_emitting_decoders = {"pngdec", "avdec_bmp", "avdec_tiff"}
+            needs_sysmem_nv12_bridge = decoder_node.type in rgb_emitting_decoders
+
             existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
                 int(e.id) for e in self.edges if e.id.isdigit()
             ]
             next_id_int = (max(existing_ids) + 1) if existing_ids else 0
+
+            # Optional pre-stage: videoconvert ! video/x-raw,format=NV12
+            pre_videoconvert_node: Node | None = None
+            pre_caps_node: Node | None = None
+            pre_edges: list[Edge] = []
+            upload_source_id = decoder_id
+            if needs_sysmem_nv12_bridge:
+                pre_videoconvert_id = str(next_id_int)
+                next_id_int += 1
+                pre_videoconvert_node = Node(
+                    id=pre_videoconvert_id,
+                    type="videoconvert",
+                    data={},
+                )
+
+                pre_caps_id = str(next_id_int)
+                next_id_int += 1
+                pre_caps_node = Node(
+                    id=pre_caps_id,
+                    type="video/x-raw",
+                    data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "NV12"},
+                )
+
+                pre_edges.append(
+                    Edge(
+                        id=str(next_id_int),
+                        source=decoder_id,
+                        target=pre_videoconvert_id,
+                    )
+                )
+                next_id_int += 1
+                pre_edges.append(
+                    Edge(
+                        id=str(next_id_int),
+                        source=pre_videoconvert_id,
+                        target=pre_caps_id,
+                    )
+                )
+                next_id_int += 1
+                upload_source_id = pre_caps_id
 
             vapostproc_id = str(next_id_int)
             next_id_int += 1
@@ -2867,9 +3141,9 @@ class Graph:
                 data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "NV12"},
             )
 
-            edge_decoder_to_vapostproc = Edge(
+            edge_upload_in = Edge(
                 id=str(next_id_int),
-                source=decoder_id,
+                source=upload_source_id,
                 target=vapostproc_id,
             )
             next_id_int += 1
@@ -2880,31 +3154,47 @@ class Graph:
             )
             next_id_int += 1
 
-            # Insert vapostproc + caps right after the decoder for
-            # readability in any debug dump.
-            for i, n in enumerate(self.nodes):
-                if n.id == decoder_id:
-                    self.nodes[i + 1 : i + 1] = [vapostproc_node, caps_node]
-                    break
-
             # Rewire: every edge that previously left the decoder now
-            # leaves the caps node (after we add the new bridging
+            # leaves the final caps node (after we add the new bridging
             # edges below).
             for edge in self.edges:
                 if edge.source == decoder_id:
                     edge.source = caps_id
-            self.edges.append(edge_decoder_to_vapostproc)
+
+            # Insert nodes right after the decoder for readability in
+            # any debug dump.
+            inserted_nodes: list[Node] = []
+            if pre_videoconvert_node is not None and pre_caps_node is not None:
+                inserted_nodes.extend([pre_videoconvert_node, pre_caps_node])
+            inserted_nodes.extend([vapostproc_node, caps_node])
+            for i, n in enumerate(self.nodes):
+                if n.id == decoder_id:
+                    self.nodes[i + 1 : i + 1] = inserted_nodes
+                    break
+
+            self.edges.extend(pre_edges)
+            self.edges.append(edge_upload_in)
             self.edges.append(edge_vapostproc_to_caps)
 
-            logger.debug(
-                "Inserted 'vapostproc ! video/x-raw"
-                "(memory:VAMemory),format=NV12' (nodes %s, %s) "
-                "after software image decoder (node %s) to lift "
-                "frames into VA memory",
-                vapostproc_id,
-                caps_id,
-                decoder_id,
-            )
+            if needs_sysmem_nv12_bridge:
+                logger.debug(
+                    "Inserted 'videoconvert ! video/x-raw,format=NV12 ! "
+                    "vapostproc ! video/x-raw(memory:VAMemory),format=NV12' "
+                    "after RGB-emitting decoder '%s' (node %s) to lift "
+                    "frames into VA memory via a sysmem-NV12 bridge",
+                    decoder_node.type,
+                    decoder_id,
+                )
+            else:
+                logger.debug(
+                    "Inserted 'vapostproc ! video/x-raw"
+                    "(memory:VAMemory),format=NV12' (nodes %s, %s) "
+                    "after software image decoder (node %s) to lift "
+                    "frames into VA memory",
+                    vapostproc_id,
+                    caps_id,
+                    decoder_id,
+                )
 
             # Refresh adjacency for steps 5 / 6.
             edges_from = {}
