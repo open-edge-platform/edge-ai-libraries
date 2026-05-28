@@ -102,6 +102,100 @@ def fetch_videos(session: requests.Session) -> list[JsonDict]:
     return payload
 
 
+def check_video_input_exists(session: requests.Session, filename: str) -> JsonDict:
+    """Call ``GET /videos/check-video-input-exists?filename=...``.
+
+    The endpoint always returns ``200``; the payload carries the ``exists``
+    boolean. Tests use it to assert both the truthy and falsy branches.
+    """
+    response = session.get(
+        f"{BASE_URL}/videos/check-video-input-exists",
+        params={"filename": filename},
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def upload_video(
+    session: requests.Session,
+    filename: str,
+    payload: bytes,
+    *,
+    content_type: str = "video/mp4",
+) -> requests.Response:
+    """POST ``payload`` as a video file to ``/videos/upload``.
+
+    Returns the raw ``requests.Response`` so callers can assert both the
+    success path (201 + ``Video`` body) and any of the structured 422
+    rejection bodies.
+    """
+    files = {"file": (filename, payload, content_type)}
+    response = session.post(f"{BASE_URL}/videos/upload", files=files, timeout=120)
+    logger.info(
+        "POST /videos/upload filename=%s status=%d", filename, response.status_code
+    )
+    return response
+
+
+def fetch_image_sets(session: requests.Session) -> list[JsonDict]:
+    """Return the raw list of image sets from GET /images."""
+    logger.info("Fetching image sets from %s/images", BASE_URL)
+    response = session.get(f"{BASE_URL}/images", timeout=30)
+    response.raise_for_status()
+    payload = response.json()
+    assert isinstance(payload, list), (
+        f"Expected list response, got {type(payload).__name__}"
+    )
+    logger.info("Retrieved %d image sets", len(payload))
+    return payload
+
+
+def check_image_set_exists(session: requests.Session, name: str) -> JsonDict:
+    """Call ``GET /images/check-image-set-exists?name=...``.
+
+    Always returns 200; the payload contains an ``exists`` boolean.
+    """
+    response = session.get(
+        f"{BASE_URL}/images/check-image-set-exists",
+        params={"name": name},
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def list_images_in_set(session: requests.Session, name: str) -> requests.Response:
+    """Call ``GET /images/{name}``.
+
+    Returns the raw response so callers can assert both 200 (with a list
+    payload) and 404 (with a ``MessageResponse`` body).
+    """
+    response = session.get(f"{BASE_URL}/images/{name}", timeout=30)
+    logger.info("GET /images/%s status=%d", name, response.status_code)
+    return response
+
+
+def upload_image_archive(
+    session: requests.Session,
+    filename: str,
+    payload: bytes,
+    *,
+    content_type: str = "application/octet-stream",
+) -> requests.Response:
+    """POST ``payload`` as an image archive to ``/images/upload``.
+
+    Returns the raw response so callers can assert both 201 success and
+    the various structured 422 rejection bodies.
+    """
+    files = {"file": (filename, payload, content_type)}
+    response = session.post(f"{BASE_URL}/images/upload", files=files, timeout=120)
+    logger.info(
+        "POST /images/upload filename=%s status=%d", filename, response.status_code
+    )
+    return response
+
+
 def fetch_models(session: requests.Session) -> list[JsonDict]:
     """Return the raw list of models from GET /models."""
     logger.info("Fetching models from %s/models", BASE_URL)

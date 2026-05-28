@@ -4,7 +4,7 @@ echo ""
 
 # Test the .rst file path
 echo "1. Testing Apt-Repositories.rst path:"
-if [ -f "../../plcopen-motion-control/docs/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst" ]; then
+if [ -f "../../plcopen-motion-control/docs/user-guide/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst" ]; then
     echo "   ✓ Path is correct: ../../plcopen-motion-control/docs/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst"
 else
     echo "   ✗ Path NOT found"
@@ -34,4 +34,4 @@ fi
 
 echo ""
 echo "3. Full path verification:"
-realpath ../../plcopen-motion-control/docs/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst 2>/dev/null || echo "   Could not resolve path"
+realpath ../../plcopen-motion-control/docs/user-guide/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst 2>/dev/null || echo "   Could not resolve path"

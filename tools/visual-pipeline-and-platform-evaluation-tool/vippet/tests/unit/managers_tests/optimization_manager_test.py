@@ -671,7 +671,175 @@ class TestOptimizationManager(unittest.TestCase):
             pipeline_description="filesrc ! decodebin3 ! sink",
             search_duration=42,
             sample_duration=7,
+            allowed_devices=None,
         )
+
+    # ------------------------------------------------------------------
+    # Variant-name -> allowed devices mapping
+    # ------------------------------------------------------------------
+
+    def _run_optimize_with_variant_name(
+        self, mock_runner_cls, mock_graph_cls, variant_name: str
+    ) -> MagicMock:
+        """
+        Helper to run _execute_optimization with InternalOptimizationType.OPTIMIZE
+        and a given variant_name. Returns the mocked runner so the caller can
+        inspect run_optimization call arguments.
+        """
+        manager = OptimizationManager()
+        graph = _create_test_graph()
+        request = self._make_internal_request(
+            InternalOptimizationType.OPTIMIZE,
+            parameters={"search_duration": 10, "sample_duration": 2},
+        )
+
+        job_id = f"job-variant-{variant_name}"
+        job = InternalOptimizationJobStatus(
+            id=job_id,
+            original_pipeline_graph=graph,
+            original_pipeline_graph_simple=graph,
+            original_pipeline_description="filesrc ! decodebin3 ! sink",
+            request=request,
+            state=InternalOptimizationJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+        )
+        manager.jobs[job_id] = job
+
+        mock_runner = MagicMock()
+        mock_result = MagicMock()
+        mock_result.optimized_pipeline_description = "optimized ! sink"
+        mock_result.total_fps = 10.0
+        mock_runner.run_optimization.return_value = mock_result
+        mock_runner.is_cancelled.return_value = False
+        mock_runner_cls.return_value = mock_runner
+
+        mock_optimized_graph = MagicMock(spec=Graph)
+        mock_simple_graph = MagicMock(spec=Graph)
+        mock_optimized_graph.to_simple_view.return_value = mock_simple_graph
+        mock_graph_cls.from_pipeline_description.return_value = mock_optimized_graph
+
+        manager._execute_optimization(
+            job_id,
+            pipeline_description="filesrc ! decodebin3 ! sink",
+            optimization_request=request,
+            variant_name=variant_name,
+        )
+
+        return mock_runner
+
+    @patch("managers.optimization_manager.Graph")
+    @patch("managers.optimization_manager.OptimizationRunner")
+    def test_execute_optimization_cpu_variant_passes_cpu_allowed_devices(
+        self, mock_runner_cls, mock_graph_cls
+    ):
+        """Variant name "CPU" (case-insensitive) should pass allowed_devices=["CPU"]."""
+        for name in ("CPU", "cpu", "Cpu"):
+            mock_runner_cls.reset_mock()
+            mock_graph_cls.reset_mock()
+            mock_runner = self._run_optimize_with_variant_name(
+                mock_runner_cls, mock_graph_cls, name
+            )
+            mock_runner.run_optimization.assert_called_once()
+            kwargs = mock_runner.run_optimization.call_args.kwargs
+            self.assertEqual(kwargs.get("allowed_devices"), ["CPU"])
+
+    @patch("managers.optimization_manager.Graph")
+    @patch("managers.optimization_manager.OptimizationRunner")
+    def test_execute_optimization_gpu_variant_passes_gpu_allowed_devices(
+        self, mock_runner_cls, mock_graph_cls
+    ):
+        """Variant name "GPU" (case-insensitive) should pass allowed_devices=["GPU"]."""
+        mock_runner = self._run_optimize_with_variant_name(
+            mock_runner_cls, mock_graph_cls, "gpu"
+        )
+        mock_runner.run_optimization.assert_called_once()
+        kwargs = mock_runner.run_optimization.call_args.kwargs
+        self.assertEqual(kwargs.get("allowed_devices"), ["GPU"])
+
+    @patch("managers.optimization_manager.Graph")
+    @patch("managers.optimization_manager.OptimizationRunner")
+    def test_execute_optimization_npu_variant_passes_npu_allowed_devices(
+        self, mock_runner_cls, mock_graph_cls
+    ):
+        """Variant name "NPU" (case-insensitive) should pass allowed_devices=["NPU"]."""
+        mock_runner = self._run_optimize_with_variant_name(
+            mock_runner_cls, mock_graph_cls, "NPU"
+        )
+        mock_runner.run_optimization.assert_called_once()
+        kwargs = mock_runner.run_optimization.call_args.kwargs
+        self.assertEqual(kwargs.get("allowed_devices"), ["NPU"])
+
+    @patch("managers.optimization_manager.Graph")
+    @patch("managers.optimization_manager.OptimizationRunner")
+    def test_execute_optimization_other_variant_passes_none_allowed_devices(
+        self, mock_runner_cls, mock_graph_cls
+    ):
+        """Any non-device variant name should leave allowed_devices as None."""
+        for name in ("my-pipeline", "default", "", "CPU+GPU"):
+            mock_runner_cls.reset_mock()
+            mock_graph_cls.reset_mock()
+            mock_runner = self._run_optimize_with_variant_name(
+                mock_runner_cls, mock_graph_cls, name
+            )
+            mock_runner.run_optimization.assert_called_once()
+            kwargs = mock_runner.run_optimization.call_args.kwargs
+            self.assertIsNone(kwargs.get("allowed_devices"))
+
+    @patch("managers.optimization_manager.Graph")
+    @patch("managers.optimization_manager.OptimizationRunner")
+    def test_execute_optimization_preprocess_ignores_variant_name(
+        self, mock_runner_cls, mock_graph_cls
+    ):
+        """PREPROCESS type must not call run_optimization and must not pass allowed_devices."""
+        manager = OptimizationManager()
+        graph = _create_test_graph()
+        request = self._make_internal_request(InternalOptimizationType.PREPROCESS)
+
+        job_id = "job-preprocess-variant"
+        job = InternalOptimizationJobStatus(
+            id=job_id,
+            original_pipeline_graph=graph,
+            original_pipeline_graph_simple=graph,
+            original_pipeline_description="filesrc ! decodebin3 ! sink",
+            request=request,
+            state=InternalOptimizationJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+        )
+        manager.jobs[job_id] = job
+
+        mock_runner = MagicMock()
+        mock_result = MagicMock()
+        mock_result.optimized_pipeline_description = "filesrc ! decodebin3 ! sink"
+        mock_result.total_fps = None
+        mock_runner.run_preprocessing.return_value = mock_result
+        mock_runner.is_cancelled.return_value = False
+        mock_runner_cls.return_value = mock_runner
+
+        mock_optimized_graph = MagicMock(spec=Graph)
+        mock_simple_graph = MagicMock(spec=Graph)
+        mock_optimized_graph.to_simple_view.return_value = mock_simple_graph
+        mock_graph_cls.from_pipeline_description.return_value = mock_optimized_graph
+
+        manager._execute_optimization(
+            job_id,
+            pipeline_description="filesrc ! decodebin3 ! sink",
+            optimization_request=request,
+            variant_name="CPU",
+        )
+
+        # PREPROCESS path must not call run_optimization at all
+        mock_runner.run_optimization.assert_not_called()
+        mock_runner.run_preprocessing.assert_called_once()
+
+    def test_resolve_allowed_devices_mapping(self):
+        """_resolve_allowed_devices should map known device names case-insensitively."""
+        self.assertEqual(OptimizationManager._resolve_allowed_devices("CPU"), ["CPU"])
+        self.assertEqual(OptimizationManager._resolve_allowed_devices("cpu"), ["CPU"])
+        self.assertEqual(OptimizationManager._resolve_allowed_devices("Gpu"), ["GPU"])
+        self.assertEqual(OptimizationManager._resolve_allowed_devices(" npu "), ["NPU"])
+        self.assertIsNone(OptimizationManager._resolve_allowed_devices(""))
+        self.assertIsNone(OptimizationManager._resolve_allowed_devices("default"))
+        self.assertIsNone(OptimizationManager._resolve_allowed_devices("my-pipeline"))
 
     @patch("managers.optimization_manager.OptimizationRunner")
     def test_execute_optimization_cancelled_job_marks_failed(self, mock_runner_cls):
@@ -799,13 +967,24 @@ class TestOptimizationRunner(unittest.TestCase):
         self.fake_optimizer.preprocess_pipeline = lambda pipeline: pipeline.upper()
 
         class FakeDLSOptimizer:
+            def __init__(self) -> None:
+                # Track set_allowed_devices calls so tests can assert them
+                self.allowed_devices_calls: list[list[str]] = []
+
             def set_sample_duration(self, duration: int) -> None:
                 pass
+
+            def set_allowed_devices(self, devices: list[str]) -> None:
+                # Record the call for later assertions
+                self.allowed_devices_calls.append(list(devices))
 
             def optimize_for_fps(self, pipeline: str, search_duration: int = 300):
                 return (pipeline + " ! OPTIMIZED", 99.9)
 
-        self.fake_optimizer.DLSOptimizer = FakeDLSOptimizer
+        self.FakeDLSOptimizer = FakeDLSOptimizer
+        # Single shared instance so tests can inspect it after the run
+        self._fake_opt_instance = FakeDLSOptimizer()
+        self.fake_optimizer.DLSOptimizer = lambda: self._fake_opt_instance
 
         self.optimizer_patcher = patch.dict(
             "sys.modules", {"optimizer": self.fake_optimizer}
@@ -830,6 +1009,30 @@ class TestOptimizationRunner(unittest.TestCase):
 
         self.assertEqual(result.optimized_pipeline_description, "pipeline ! OPTIMIZED")
         self.assertEqual(result.total_fps, 99.9)
+        # No allowed_devices argument -> set_allowed_devices must NOT be called
+        self.assertEqual(self._fake_opt_instance.allowed_devices_calls, [])
+
+    def test_run_optimization_forwards_allowed_devices(self):
+        """When allowed_devices is provided, set_allowed_devices must be called once with that list."""
+        runner = OptimizationRunner()
+        runner.run_optimization(
+            "pipeline",
+            search_duration=10,
+            sample_duration=2,
+            allowed_devices=["CPU"],
+        )
+        self.assertEqual(self._fake_opt_instance.allowed_devices_calls, [["CPU"]])
+
+    def test_run_optimization_does_not_call_set_allowed_devices_when_none(self):
+        """When allowed_devices is None, set_allowed_devices must not be called."""
+        runner = OptimizationRunner()
+        runner.run_optimization(
+            "pipeline",
+            search_duration=10,
+            sample_duration=2,
+            allowed_devices=None,
+        )
+        self.assertEqual(self._fake_opt_instance.allowed_devices_calls, [])
 
     def test_cancel_and_is_cancelled(self):
         runner = OptimizationRunner()

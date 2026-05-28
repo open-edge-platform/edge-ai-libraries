@@ -31,6 +31,7 @@ You can also adjust element parameters and prepare variants for testing.
 Related article:
 
 - [Configure Pipeline](./how-to-guides/configure-pipelines.md)
+- [Optimize Pipelines](./how-to-guides/optimize-pipelines.md)
 - [How To Use Gvapython Scripts](./how-to-guides/use-gvapython-scripts.md)
 
 ## Performance
@@ -97,6 +98,7 @@ Related article:
 ./how-to-guides/performance-testing
 ./how-to-guides/density-testing.md
 ./how-to-guides/use-cameras
+./how-to-guides/optimize-pipelines
 ./how-to-guides/use-video-generator
 ./how-to-guides/use-gvapython-scripts
 
