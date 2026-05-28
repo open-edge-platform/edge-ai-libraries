@@ -57,33 +57,67 @@ _REFERENCE_MODELS: tuple[str, ...] = (
 )
 
 
-def _resolve_job_id(
+def _resolve_job_ids(
     http_client: requests.Session,
     download_response: requests.Response,
     requested_names: list[str],
-) -> str | None:
-    """Extract a job id from the download response.
+) -> list[str]:
+    """Extract all job ids from the download response.
 
-    The response shape is one entry per requested model with either a
-    ``job_id`` or a ``status_code`` of 409 (already installed). When at
-    least one job was created, return its id; otherwise return ``None``
-    so the caller can skip the polling portion of the test.
+    The API returns a ``ModelDownloadJobResponse`` whose shape is
+    ``{"jobs": {model_name: {"job_id": ..., "status_code": ...}, ...}}``.
+    Some legacy clients also accept a list of items (``[{...}, {...}]``)
+    or the bare dict variant - we support all three. Models that come
+    back with ``status_code == 409`` (already installed) contribute no
+    job id and are silently skipped.
+
+    If the parsed body yields nothing (e.g. the download finished
+    synchronously between the POST and our parsing), we fall back to
+    ``GET /jobs/models/status`` and pick up any job whose ``model_name``
+    matches the requested batch.
     """
-    body = download_response.json()
-    items = body if isinstance(body, list) else body.get("items", [])
-    for item in items:
-        job_id = item.get("job_id")
-        if job_id:
-            return str(job_id)
+    job_ids: list[str] = []
 
-    # No job was created - fall back to the live job list in case the
-    # download finished synchronously between the POST and our parsing.
+    try:
+        body = download_response.json()
+    except ValueError:
+        body = None
+
+    def _take(entry: dict) -> None:
+        job_id = entry.get("job_id")
+        if job_id:
+            job_ids.append(str(job_id))
+
+    if isinstance(body, dict):
+        jobs_field = body.get("jobs")
+        if isinstance(jobs_field, dict):
+            for entry in jobs_field.values():
+                if isinstance(entry, dict):
+                    _take(entry)
+        elif isinstance(jobs_field, list):
+            for entry in jobs_field:
+                if isinstance(entry, dict):
+                    _take(entry)
+        else:
+            # Bare-dict variant: {"face-detection-...": {"job_id": ...}}
+            for entry in body.values():
+                if isinstance(entry, dict):
+                    _take(entry)
+    elif isinstance(body, list):
+        for entry in body:
+            if isinstance(entry, dict):
+                _take(entry)
+
+    if job_ids:
+        return job_ids
+
+    # Fallback: scan the live job list.
     for job in fetch_model_jobs(http_client):
         if job.get("model_name") in requested_names:
             job_id = job.get("job_id")
             if job_id:
-                return str(job_id)
-    return None
+                job_ids.append(str(job_id))
+    return job_ids
 
 
 @pytest.mark.full
@@ -106,37 +140,47 @@ def test_models_download_reference_models_and_track_jobs(
         f"{response.status_code}: {response.text}"
     )
 
-    job_id = _resolve_job_id(http_client, response, list(_REFERENCE_MODELS))
+    job_ids = _resolve_job_ids(http_client, response, list(_REFERENCE_MODELS))
 
     # GET /jobs/models/status must always be exercised so the
     # coverage test passes regardless of whether a job was created.
     jobs = fetch_model_jobs(http_client)
     assert isinstance(jobs, list)
-    logger.info("/jobs/models/status returned %d active job(s)", len(jobs))
+    logger.info(
+        "/jobs/models/status returned %d active job(s); resolved %d new job id(s)",
+        len(jobs),
+        len(job_ids),
+    )
 
-    if job_id is None:
+    if not job_ids:
         logger.info("All reference models were already installed; skipping wait.")
     else:
-        # Per-job summary (synchronous; just confirm shape + 200).
-        summary_response = get_model_job_summary(http_client, job_id)
-        assert summary_response.status_code == 200, summary_response.text
-        summary = summary_response.json()
-        assert summary.get("job_id") == job_id
+        for job_id in job_ids:
+            # Per-job summary (synchronous; just confirm shape + 200).
+            summary_response = get_model_job_summary(http_client, job_id)
+            assert summary_response.status_code == 200, summary_response.text
+            summary = summary_response.json()
+            # The summary endpoint identifies the job under ``id`` while
+            # the live-status endpoint uses ``job_id``; accept either so
+            # the test does not break if the schema is harmonised later.
+            assert summary.get("job_id") == job_id or summary.get("id") == job_id, (
+                f"Summary for {job_id} does not echo the job id: {summary}"
+            )
 
-        # Per-job live status: at least one poll must succeed.
-        status_response = get_model_job_status(http_client, job_id)
-        assert status_response.status_code == 200, status_response.text
-        assert status_response.json().get("state") in {
-            "RUNNING",
-            "COMPLETED",
-            "FAILED",
-        }
+            # Per-job live status: at least one poll must succeed.
+            status_response = get_model_job_status(http_client, job_id)
+            assert status_response.status_code == 200, status_response.text
+            assert status_response.json().get("state") in {
+                "RUNNING",
+                "COMPLETED",
+                "FAILED",
+            }
 
-        final = wait_for_model_download_completion(http_client, job_id)
-        assert final.get("state") == "COMPLETED", (
-            f"Model download job {job_id} ended in unexpected state "
-            f"{final.get('state')!r}: {final.get('error_message')!r}"
-        )
+            final = wait_for_model_download_completion(http_client, job_id)
+            assert final.get("state") == "COMPLETED", (
+                f"Model download job {job_id} ended in unexpected state "
+                f"{final.get('state')!r}: {final.get('error_message')!r}"
+            )
 
     # Regardless of the path taken above, both reference models must
     # now be visible in GET /models as INSTALLED.
