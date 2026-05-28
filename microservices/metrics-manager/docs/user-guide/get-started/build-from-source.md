@@ -7,8 +7,8 @@ This guide explains how to build Metrics Manager from source code for developmen
 Before building, ensure you have:
 
 - **System Requirements**: See [System Requirements](./system-requirements.md)
-- **Source code**: Cloned the repository (`git clone https://github.com/open-edge-platform/edge-ai-libraries.git`)
-- **Familiarity**: Basic understanding of Docker and Docker Compose
+- **Source code**: Cloned the repository (`git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.1.0`)
+- **Platform familiarity**: Basic understanding of Docker and Docker Compose
 
 ## Building in a Docker Container (Recommended)
 
@@ -72,19 +72,19 @@ If you want to run the service locally without Docker, use the following approac
 ### Prerequisites
 
 - **Python 3.10+** (`python3 --version`)
-- **uv** (fast Python package manager): `pip install uv` or see https://docs.astral.sh/uv/
+- **uv** (fast Python package manager): `pip install uv` or see [UV Documentation](https://docs.astral.sh/uv/)
 - **Telegraf** installed on the system (for system metrics)
-- **qmassa binary** (for GPU metrics) — compile from https://github.com/ulissesf/qmassa or skip if not needed
+- **qmassa binary** (for GPU metrics) — compile from [qmassa GitHub](https://github.com/ulissesf/qmassa) or skip if not needed
 - **Git**
 
 ### Step 1: Clone and Navigate
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.1.0
 cd edge-ai-libraries/metrics-manager
 ```
 
-### Step 2: Create Virtual Environment
+### Step 2: Create a Virtual Environment
 
 ```bash
 python3 -m venv .venv
@@ -110,7 +110,7 @@ Or with pip:
 pip install -e ".[test]"
 ```
 
-### Step 4: Configure Environment
+### Step 4: Configure the Environment
 
 ```bash
 cp .env.example .env
@@ -219,7 +219,7 @@ ruff check app/
 
 ## Building the Helm Chart
 
-If you're deploying to Kubernetes:
+If you are deploying to Kubernetes:
 
 ```bash
 # Lint the Helm chart
@@ -244,7 +244,7 @@ The `telegraf.conf` file controls system metric collection. To customize:
 2. Or mount a custom config: `TELEGRAF_CONFIG=./my-telegraf.conf docker compose up`
 3. Or drop additional `.conf` files in the `telegraf.d/` directory
 
-See [Configuration Guide](./environment-variables.md) for Telegraf customization examples.
+See [Environment Variables](./environment-variables.md) for Telegraf customization examples.
 
 ### Extending with Custom Inputs
 
@@ -264,20 +264,20 @@ The script runs every 10 seconds and outputs InfluxDB Line Protocol.
 
 ## Troubleshooting Build Issues
 
-| Error | Solution |
-|-------|----------|
-| `Rust toolchain not found` | First Docker build compiles Rust. Try `docker compose build --no-cache`. |
-| `Module not found: app` | Ensure you're in the `metrics-manager/` directory and have run `uv sync` or `pip install -e .` |
-| `Port 9090 already in use` | Change port in `.env`: `HOST_METRICS_PORT=19090` |
-| `Telegraf not found` | Install Telegraf: `apt-get install telegraf` (Debian/Ubuntu) or use Docker |
-| `Permission denied on /sys` | Ensure you run with `--privileged` (Docker) or as root (local) |
+| Error                       | Solution                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| `Rust toolchain not found`  | First Docker build compiles Rust. Try `docker compose build --no-cache`.                       |
+| `Module not found: app`     | Ensure you're in the `metrics-manager/` directory and have run `uv sync` or `pip install -e .` |
+| `Port 9090 already in use`  | Change port in `.env`: `HOST_METRICS_PORT=19090`                                               |
+| `Telegraf not found`        | Install Telegraf: `apt-get install telegraf` (Debian/Ubuntu) or use Docker                     |
+| `Permission denied on /sys` | Ensure you run with `--privileged` (Docker) or as root (local)                                 |
 
 ## Supporting Resources
 
-- [Installation Guide](./installation.md)
+- [Get Started Guide](../get-started.md)
 - [System Requirements](./system-requirements.md)
 - [Testing Guide](./testing.md)
-- [Configuration Guide](./environment-variables.md)
+- [Environment Variables](./environment-variables.md)
 - [Helm Deployment](./deploy-with-helm.md)
 - [Troubleshooting](../troubleshooting.md)
 

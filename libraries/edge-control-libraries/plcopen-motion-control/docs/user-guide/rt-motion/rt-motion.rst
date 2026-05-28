@@ -128,7 +128,7 @@ RTmotion provides basic trajectory interpolation and motion control in real-time
   * ``MC_CamTableSelect``: Selects the CAM tables by setting the connections to the relevant tables.
 - State Management
 
-  * RTmotion manages the axis states through a motion kernel in accordance with the state diagram defined in the section 2.1 of the PLCopen motion control part `1&2 <https://plcopen.org/downloads/plcopen-motion-control-part-1-version-20>`__.
+  * RTmotion manages the axis states through a motion kernel in accordance with the state diagram defined in the section 2.1 of the PLCopen motion control part `1&2 <https://www.plcopen.org/download_file/force/9f19d854-2dbf-4e07-a2ff-e5ff1a3e293a/342/>`__.
 - S-Curve Trajectory Plan
 
   * RTmotion supports trajectory planning with the continuous of acceleration to avoid generating torque spike that could damage the servo motor or influence control accuracy. Please refer to Level-2 5.1 for the details of s-curve planning.

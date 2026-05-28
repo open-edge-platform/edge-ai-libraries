@@ -80,7 +80,7 @@ services:
     command: --model-id ${RERANKER_MODEL} --auto-truncate
 
   dataprep_pgvector:
-    image: ${REGISTRY:-}document-ingestion:latest
+    image: ${REGISTRY:-}document-ingestion:2026.1.0-rc1
     container_name: dataprep_pgvector
     environment:
       no_proxy: ${no_proxy},tei-embedding-service

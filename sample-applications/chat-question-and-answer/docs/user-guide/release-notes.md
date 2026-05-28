@@ -6,8 +6,12 @@
 **May 14, 2026**
 
 **New**
-    - EMF deployment package support has been removed.
-    - Security fixes.
+- EMF deployment package support has been removed.
+- Security fixes.
+
+**Deprecated**
+
+- TEI as an embedding model server is no longer supported and will be removed in the next release. Use OVMS for embeddings.
 
 **Known Issues**
 

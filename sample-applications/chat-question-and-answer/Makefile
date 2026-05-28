@@ -35,7 +35,7 @@ SHELL := bash -eu -o pipefail
 # ==============================================================================
 
 SERVICE_NAME := chatqna
-VERSION ?= latest
+VERSION ?= 2026.1.0-rc1
 PYTHON_VERSION := 3.12
 NODE_VERSION := 22
 

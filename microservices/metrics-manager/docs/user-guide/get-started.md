@@ -1,4 +1,4 @@
-# Installation Guide
+# Get Started
 
 This guide provides step-by-step instructions to install and run Metrics Manager on your machine using Docker Compose.
 
@@ -10,7 +10,7 @@ This guide provides step-by-step instructions to install and run Metrics Manager
 - **RAM**: 512 MB free
 - **Disk**: 2 GB free (for build)
 
-See [System Requirements](./system-requirements.md) for detailed hardware/software requirements.
+See [System Requirements](./get-started/system-requirements.md) for detailed hardware/software requirements.
 
 ---
 
@@ -23,6 +23,7 @@ docker pull intel/metrics-manager:2026.1.0
 ```
 
 The image is based on `python:3.12-slim` and includes:
+
 - Telegraf 1.37.3 (system metrics agent)
 - qmassa 1.3.1 (Intel® GPU telemetry)
 - Intel® NPU reader (`npu_reader.py`)
@@ -40,7 +41,7 @@ The image is based on `python:3.12-slim` and includes:
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.1.0
 cd edge-ai-libraries/metrics-manager
 ```
 
@@ -210,7 +211,7 @@ docker run --rm \
   intel/metrics-manager:2026.1.0
 ```
 
-See [Configuration Guide](./environment-variables.md) for all available variables.
+See [Environment Variables](./get-started/environment-variables.md) for all available variables.
 
 ### With Custom Metrics Directory (Volume Mount)
 
@@ -379,46 +380,57 @@ docker compose down --rmi local
 
 ## Exposed Ports
 
-| Port | Protocol | Description |
-|------|----------|-------------|
-| `9090` | HTTP / SSE | Metrics Manager REST API, SSE stream |
-| `9273` | HTTP | Telegraf Prometheus endpoint (system + custom metrics) |
-| `8186` | HTTP | Telegraf HTTP listener (InfluxDB Line Protocol) |
+| Port   | Protocol   | Description                                            |
+| ------ | ---------- | ------------------------------------------------------ |
+| `9090` | HTTP / SSE | Metrics Manager REST API, SSE stream                   |
+| `9273` | HTTP       | Telegraf Prometheus endpoint (system + custom metrics) |
+| `8186` | HTTP       | Telegraf HTTP listener (InfluxDB Line Protocol)        |
 
 ---
 
 ## Troubleshooting Installation
 
-| Issue | Solution |
-|-------|----------|
-| Port already in use | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
-| Build fails | Run `docker builder prune` to clear cache |
-| Container won't start | Check logs: `docker logs metrics-manager` |
-| No GPU/NPU metrics | Expected if hardware not present; other metrics continue |
+| Issue                 | Solution                                                 |
+| --------------------- | -------------------------------------------------------- |
+| Port already in use   | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
+| Build fails           | Run `docker builder prune` to clear cache                |
+| Container won't start | Check logs: `docker logs metrics-manager`                |
+| No GPU/NPU metrics    | Expected if hardware not present; other metrics continue |
 
-See [Troubleshooting](../troubleshooting.md) for more issues.
+See [Troubleshooting](./troubleshooting.md) for more issues.
 
 ---
 
 ## Next Steps
 
-- **Push metrics**: See [API Reference](../api-reference.md)
+- **Push metrics**: See [API Reference](./api-reference.md)
 - **Stream live**: Open `http://localhost:9090/metrics/stream` in a browser
-- **Configure**: See [Configuration Guide](./environment-variables.md)
-- **Custom metrics**: See [Custom Metrics Scripts](./custom-metrics.md)
-- **Kubernetes**: See [Helm Deployment](./deploy-with-helm.md)
+- **Configure**: See [Environment Variables](./get-started/environment-variables.md)
+- **Custom metrics**: See [Custom Metrics Scripts](./get-started/custom-metrics.md)
+- **Kubernetes**: See [Helm Deployment](./get-started/deploy-with-helm.md)
 
 ## Supporting Resources
 
-- [System Requirements](./system-requirements.md)
-- [Configuration Guide](./environment-variables.md)
-- [Custom Metrics Scripts](./custom-metrics.md)
-- [Building from Source](./build-from-source.md)
-- [Helm Deployment](./deploy-with-helm.md)
-- [Troubleshooting](../troubleshooting.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [Building from Source](./get-started/build-from-source.md)
+- [Troubleshooting](./troubleshooting.md)
 
 ## License
 
 Copyright (C) 2025-2026 Intel Corporation
 
 SPDX-License-Identifier: Apache-2.0
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started/system-requirements.md
+./get-started/build-from-source.md
+./get-started/deploy-with-helm.md
+./get-started/environment-variables.md
+./get-started/custom-metrics.md
+./get-started/testing.md
+
+:::
+hide_directive-->

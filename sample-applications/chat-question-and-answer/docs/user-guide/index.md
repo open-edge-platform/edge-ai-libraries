@@ -59,9 +59,8 @@ is used to efficiently run large language models on Intel hardware. Developers a
 model serving options if required; vLLM with OpenVINO backend and TGI are the options provided.
 (*Note: vLLM and TGI are deprecated effective 2025.2.0 release.*)
 - **Embedding inference microservice**: Intel's optimized [OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server)
-and Huggingface [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference)
-microservice are the options provided to run embedding models efficiently on target Intel
-hardware. OVMS is the default option due to performance benefits on Intel hardware.
+is used to run embedding models efficiently on target Intel hardware,
+delivering optimal performance on Intel platforms.
 - **Reranking inference microservice**: Huggingface [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference)
 microservice is the model serving choice available.
 - **Document ingestion microservice**: The sample [document ingestion](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.1.0/microservices/document-ingestion/pgvector)

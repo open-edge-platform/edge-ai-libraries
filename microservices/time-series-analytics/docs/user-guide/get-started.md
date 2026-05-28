@@ -95,7 +95,7 @@ By default, we have a simple UDF python script at `edge-ai-libraries/microservic
 inferencing, it just does a simple check to filter the temperature points which are less than 20 OR greater than 25.
 The corresponding tick script is available at `edge-ai-libraries/microservices/time-series-analytics/temperature_classifier.tick`.
 
-Directory (`edge-ai-libraries/microservices/time-series-analytics/`) details is as below:
+Directory (`edge-ai-libraries/microservices/time-series-analytics/`) details are as follows::
 
 ### `config.json`
 
@@ -134,7 +134,7 @@ The `mqtt` section specifies the MQTT broker details for sending alerts.
 
 ### `udfs/`
 
-Contains the python script to process the incoming data.
+Contains the Python script to process the incoming data.
 
 ### `tick_scripts/`
 
@@ -187,7 +187,7 @@ python3 simulator/temperature_input.py --port 5000
 
 ## Verify the Temperature Classifier Results
 
-Run below commands to see the filtered temperature results:
+Run the following commands to see the filtered temperature results:
 
 ``` bash
 docker logs -f ia-time-series-analytics-microservice
