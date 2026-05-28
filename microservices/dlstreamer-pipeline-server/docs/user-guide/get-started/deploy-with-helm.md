@@ -30,7 +30,7 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
     `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 2026.1.0-helm-rc1.1`
 - unzip the package using the following command
 
-    `tar -xvf dlstreamer-pipeline-server-2026.1.0-helm-rc1.1`
+    `tar -xvf dlstreamer-pipeline-server-2026.1.0-helm-rc1.1.tgz`
 - Get into the helm directory
 
     `cd dlstreamer-pipeline-server`
