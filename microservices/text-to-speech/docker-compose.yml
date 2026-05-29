@@ -5,6 +5,9 @@ services:
       dockerfile: Dockerfile
     image: ${REGISTRY:-intel}/text-to-speech:${RELEASE_TAG:-latest}
     container_name: text-to-speech
+    # Hardcoded to match the image's baked-in app user and the
+    # ownership of the named volumes. Do not change.
+    user: "1000:1000"
     ports:
       - "8011:8011"
     devices:
