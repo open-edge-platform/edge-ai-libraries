@@ -14,11 +14,10 @@ from PIL import Image
 from detector import Detector
 from utils import generate_unique_id, encode_image_to_base64
 from milvus_client import MilvusClientWrapper
+from embedding_client import create_embedding_client
 
 
 DEVICE = os.getenv("DEVICE", "CPU")
-EMBEDDING_BASE_URL = os.getenv("EMBEDDING_BASE_URL", None)
-EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "openai/clip-vit-base-patch32")
 
 
 def create_milvus_data(embedding, meta=None):
@@ -35,8 +34,7 @@ class Indexer:
         #     print("DB service is not available. Exiting.")
         #     exit(1)
 
-        self.model_name = EMBEDDING_MODEL_NAME
-        self.embed_url = EMBEDDING_BASE_URL
+        self.embedding_client = create_embedding_client()
 
         self.detector = Detector(device=DEVICE)
 
@@ -135,32 +133,28 @@ class Indexer:
         self.id_map.clear()
 
         return res, ids
-    
-    def get_image_embedding(self, image):
-        base64_img = encode_image_to_base64(image)
-        headers = { 'Content-Type': 'application/json'}
 
-        payload = {
-            "model": EMBEDDING_MODEL_NAME,
-            "encoding_format": "float",
-            "input": {
-                "type": "image_base64",
-                "image_base64": base64_img
-            }
-        }
-    
-        response = requests.post(f"{self.embed_url}/embeddings", json=payload, headers=headers, timeout=10)
-        data = response.json()
-        embedding = data["embedding"]
-        return embedding
-        
-    def process_video(self, video_path, meta, frame_interval=15, minimal_duration=1, do_detect_and_crop=True):
+    def _build_entities_from_embeddings(self, embeddings, metas):
+        """Build entity list from embeddings and metadata, initializing DB if needed."""
         entities = []
-        video = VideoFileClip(video_path)
+        for embedding, meta_data in zip(embeddings, metas):
+            if not self.db_inited:
+                self.init_db_client(len(embedding))
+            node = create_milvus_data(embedding, meta_data)
+            entities.append(node)
+            self.update_id_map(meta_data["file_path"], node["id"])
+        return entities
 
-        frame_counter = 0
+    def process_video(self, video_path, meta, frame_interval=15, minimal_duration=1, do_detect_and_crop=True):
+        video = VideoFileClip(video_path)
         frame_interval = int(frame_interval)
         fps = video.fps
+
+        # First pass: collect all images and metadata
+        pending_images = []
+        pending_metas = []
+
+        frame_counter = 0
         for frame in video.iter_frames():
             if frame_counter % frame_interval == 0:
                 image = Image.fromarray(frame)
@@ -170,44 +164,39 @@ class Indexer:
                 if do_detect_and_crop:
                     crops = self.detector.get_cropped_images(image)
                     for crop in crops:
-                        embedding = self.get_image_embedding(crop)
-                        if not self.db_inited:
-                            self.init_db_client(len(embedding))
-                        node = create_milvus_data(embedding, meta_data)
-                        entities.append(node)
-                        self.update_id_map(meta_data["file_path"], node["id"])
+                        pending_images.append(crop)
+                        pending_metas.append(copy.deepcopy(meta_data))
 
-                embedding = self.get_image_embedding(image)
-                if not self.db_inited:
-                    self.init_db_client(len(embedding))
-                node = create_milvus_data(embedding, meta_data)
-                entities.append(node)
-                self.update_id_map(meta_data["file_path"], node["id"])
+                pending_images.append(image)
+                pending_metas.append(meta_data)
             frame_counter += 1
-            
-        return entities
+
+        video.close()
+
+        # Second pass: embed in batch and build entities
+        if not pending_images:
+            return []
+        embeddings = self.embedding_client.embed_images(pending_images)
+        return self._build_entities_from_embeddings(embeddings, pending_metas)
 
     def process_image(self, image_path, meta, do_detect_and_crop=True):
-        entities = []
         image = Image.open(image_path).convert('RGB')
         meta_data = copy.deepcopy(meta)
+
+        pending_images = []
+        pending_metas = []
+
         if do_detect_and_crop:
             crops = self.detector.get_cropped_images(image)
             for crop in crops:
-                embedding = self.get_image_embedding(crop)
-                if not self.db_inited:
-                    self.init_db_client(len(embedding))
-                node = create_milvus_data(embedding, meta_data)
-                entities.append(node)
-                self.update_id_map(meta_data["file_path"], node["id"])
+                pending_images.append(crop)
+                pending_metas.append(copy.deepcopy(meta_data))
         
-        embedding = self.get_image_embedding(image)
-        if not self.db_inited:
-            self.init_db_client(len(embedding))
-        node = create_milvus_data(embedding, meta_data)
-        entities.append(node)
-        self.update_id_map(meta_data["file_path"], node["id"])
-        return entities
+        pending_images.append(image)
+        pending_metas.append(meta_data)
+
+        embeddings = self.embedding_client.embed_images(pending_images)
+        return self._build_entities_from_embeddings(embeddings, pending_metas)
 
     def add_embedding(self, files, metas, **kwargs):
         if len(files) != len(metas):
@@ -239,10 +228,6 @@ class Indexer:
             )
         return res
 
-
-    def _submit_embedding(self, entities):
-        # aync thread which collects embeddings and insert to db in batch
-        pass
 
     def _build_index(self):
         # build index
