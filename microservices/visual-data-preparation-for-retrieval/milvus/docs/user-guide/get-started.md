@@ -19,17 +19,39 @@ Clone the source code repository if you don't have it
 
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git
-cd edge-ai-libraries/microservices
+cd edge-ai-libraries/microservices/visual-data-preparation-for-retrieval/milvus
 ```
 
-Run the command to build images:
+Build the dataprep image using the bundled `build.sh` (recommended). The script rebuilds the in-process `multimodal_embedding_serving` wheel from the sibling `multimodal-embedding-serving/` source tree, drops it into `src/wheels/`, syncs `src/requirements.txt`, and then runs `docker build` with the correct multi-stage layout.
 
 ```bash
-docker build -t dataprep-visualdata-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f visual-data-preparation-for-retrieval/milvus/src/Dockerfile .
+# Optional: override registry / tag (defaults: no registry, tag=latest)
+export REGISTRY="intel/"
+export TAG="latest"
 
-# build the dependency image
+./build.sh
+```
+
+Requirements: [`poetry`](https://python-poetry.org/docs/#installation) (used to build the embedding wheel) and docker with buildkit. Proxy env vars (`http_proxy`/`https_proxy`/`no_proxy`) are forwarded automatically if set.
+
+If you would rather drive docker yourself, the equivalent manual build is:
+
+```bash
+cd ../..   # back to microservices/
+docker build -t dataprep-visualdata-milvus:latest \
+  --build-arg https_proxy=$https_proxy \
+  --build-arg http_proxy=$http_proxy \
+  --build-arg no_proxy=$no_proxy \
+  -f visual-data-preparation-for-retrieval/milvus/src/Dockerfile .
+
+# build the dependency image (only required if you want to run MME as a
+# separate service; in SDK embedding mode dataprep loads the model itself)
 cd multimodal-embedding-serving
-docker build -t multimodal-embedding-serving:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f docker/Dockerfile .
+docker build -t multimodal-embedding-serving:latest \
+  --build-arg https_proxy=$https_proxy \
+  --build-arg http_proxy=$http_proxy \
+  --build-arg no_proxy=$no_proxy \
+  -f docker/Dockerfile .
 ```
 
 #### Option 2: use remote prebuilt images
@@ -45,7 +67,7 @@ export TAG="latest"
 
 ### Step 2: Prepare host directories for data
 
-```
+```text
 mkdir -p $HOME/data
 ```
 
@@ -95,6 +117,28 @@ Note: supported media types: jpg, png, mp4
 
 It might take a while to start the services for the first time, as there are some models to be prepare.
 
+#### Embedding mode: in-process SDK (default) vs remote HTTP
+
+Dataprep can produce CLIP embeddings two ways:
+
+- **SDK mode (default, `USE_SDK_EMBEDDING=true`)**: loads the embedding model in-process via the `multimodal_embedding_serving` Python wheel and batches raw `PIL.Image` frames through a single `encode_image` call. No HTTP traffic to the embedding service is required.
+- **HTTP mode (`USE_SDK_EMBEDDING=false`)**: posts each image, base64 encoded, to the standalone `multimodal-embedding-serving` container. Set `EMBEDDING_BASE_URL` and `MAX_CONCURRENT_EMBEDDINGS` to tune.
+
+Relevant environment variables (all have safe defaults):
+
+| Variable                    | Default                | Description                                          |
+| --------------------------- | ---------------------- | ---------------------------------------------------- |
+| `USE_SDK_EMBEDDING`         | `true`                 | `true` = in-process SDK, `false` = HTTP to MME       |
+| `EMBEDDING_MODEL_NAME`      | `CLIP/clip-vit-h-14`   | Model id (see MME supported models)                  |
+| `EMBEDDING_DEVICE`          | `${DEVICE:-CPU}`       | OpenVINO device (`CPU`, `GPU`, ...)                  |
+| `EMBEDDING_USE_OV`          | `false`                | Use OpenVINO IR backend                              |
+| `EMBEDDING_OV_MODELS_DIR`   | `/home/user/ov_models` | Where OV IR files are cached                         |
+| `EMBEDDING_BATCH_SIZE`      | `32`                   | Images per `encode_image` call in SDK mode           |
+| `EMBEDDING_BASE_URL`        | `http://...:9777`      | MME endpoint (HTTP mode only)                        |
+| `MAX_CONCURRENT_EMBEDDINGS` | `8`                    | Concurrent in-flight HTTP requests (HTTP mode only)  |
+
+The compose file shares an `ov-models` named volume with the embedding service, so model weights and OpenVINO IR caches are warmed once and then reused across container restarts. The YOLOX detector model (downloaded on first start under `/home/user/models`) is cached on the same volume.
+
 Check if all microservices are up and runnning
 `bash
     docker compose -f compose_milvus.yaml ps
@@ -102,7 +146,7 @@ Check if all microservices are up and runnning
 
 Output
 
-```
+```text
 NAME                         COMMAND                  SERVICE                                 STATUS              PORTS
 dataprep-visualdata-milvus   "uvicorn dataprep_vi…"   dataprep-visualdata-milvus              running (healthy)   0.0.0.0:9990->9990/tcp, :::9990->9990/tcp
 milvus-etcd                  "etcd -advertise-cli…"   milvus-etcd                             running (healthy)   2379-2380/tcp
@@ -136,6 +180,7 @@ curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/info
   ```
 
 - For Single File:
+
   ```curl
   curl -X POST http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
   -H "Content-Type: application/json" \
