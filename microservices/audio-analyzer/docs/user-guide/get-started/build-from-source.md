@@ -1,17 +1,25 @@
 # Build From Source
 
-This page covers building the Audio Analyzer microservice from source for
-both Docker and standalone host execution.
+This page covers building the Audio Analyzer microservice from source.
+Use this path when you need a code change. To run the prebuilt image
+from Docker Hub without rebuilding, see
+[run-container.md](run-container.md).
 
 ## Prerequisites
 
-- Verify the [System Requirements](./system-requirements.md).
-- Clone the repository and `cd` into the `audio_analyzer/` directory.
+- Verify the [system requirements](system-requirements.md).
+- Clone the repository and `cd` into the `audio-analyzer/` directory.
 
 ## Build the Docker Image
 
-The repository ships a `Dockerfile` and a `docker-compose.yml`. To build the
-image as part of the Compose stack:
+The repository ships a `Dockerfile` and a `docker-compose.yml`. The
+compose file declares both `image:` and `build:` for the service:
+
+- `docker compose pull && docker compose up -d` runs the prebuilt
+  image from Docker Hub.
+- `docker compose build && docker compose up -d` rebuilds from source
+  and tags the result as the same `${REGISTRY}/audio-analyzer:${RELEASE_TAG}`,
+  so subsequent `docker compose up` calls reuse the local build.
 
 ```bash
 docker compose build
@@ -24,15 +32,13 @@ To build the image directly with `docker`:
 docker build -t audio-analyzer:local .
 ```
 
-The Compose setup mounts `config.yaml`, `models/`, `chunks/`, `storage/`,
-and the Hugging Face cache into the container, and passes `/dev/dri`
-through for host Intel iGPU access by default. The container
-runs as UID/GID `1000:1000` by default; see
-[Troubleshooting](../troubleshooting.md#permission-errors-on-mounted-folders)
+The Compose setup bind-mounts `config.yaml` and stores model, chunk,
+storage, and Hugging Face cache data in named Docker volumes
+(`audio_analyzer_{models,chunks,storage,cache}`), and passes `/dev/dri`
+through for host Intel iGPU access by default. The container runs as
+UID/GID `1000:1000` by default; see
+[troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders)
 if your host user differs.
-Fresh clones include placeholder files for the expected mount roots. If you
-remove those directories and then start Compose, Docker may recreate the
-missing host paths as `root` before the container starts.
 
 ## Build a Python Environment (Standalone)
 

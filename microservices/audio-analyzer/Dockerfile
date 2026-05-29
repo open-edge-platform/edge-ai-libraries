@@ -22,7 +22,18 @@ RUN python3 -m pip install --upgrade pip \
 
 COPY . .
 
-RUN chown -R ${APP_UID}:${APP_GID} /app/audio_analyzer
+# Ensure all relevant directories exist, are not empty, and are chowned
+RUN mkdir -p /app/audio_analyzer/models/openvino \
+    && mkdir -p /app/audio_analyzer/models/dummy \
+    && mkdir -p /app/audio_analyzer/chunks/dummy \
+    && mkdir -p /app/audio_analyzer/storage/dummy \
+    && mkdir -p /app/audio_analyzer/.cache/dummy \
+    && touch /app/audio_analyzer/models/.keep \
+    && touch /app/audio_analyzer/models/openvino/.keep \
+    && touch /app/audio_analyzer/chunks/.keep \
+    && touch /app/audio_analyzer/storage/.keep \
+    && touch /app/audio_analyzer/.cache/.keep \
+    && chown -R ${APP_UID}:${APP_GID} /app/audio_analyzer
 
 USER ${APP_UID}:${APP_GID}
 

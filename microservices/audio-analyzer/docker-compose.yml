@@ -3,8 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: ${REGISTRY:-intel}/audio-analyzer:${RELEASE_TAG:-latest}
     container_name: audio-analyzer
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    # Hardcoded to match the image's baked-in app user and the
+    # ownership of the named volumes. Do not change.
+    user: "1000:1000"
     ports:
       - "8010:8010"
     devices:
@@ -18,11 +21,26 @@ services:
       HF_HOME: /home/openvino/.cache/huggingface
     volumes:
       - ./config.yaml:/app/audio_analyzer/config.yaml:ro
-      - ./models:/app/audio_analyzer/models
-      - ./chunks:/app/audio_analyzer/chunks
-      - ./storage:/app/audio_analyzer/storage
-      - ./.cache:/home/openvino/.cache
+      - audio_analyzer_models:/app/audio_analyzer/models
+      - audio_analyzer_chunks:/app/audio_analyzer/chunks
+      - audio_analyzer_storage:/app/audio_analyzer/storage
+      - audio_analyzer_cache:/app/audio_analyzer/.cache
+    # Whisper warmup on GPU can take ~120s; override the image healthcheck
+    # so connection-refused during boot doesn't trip `unhealthy`.
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health', timeout=5).read()"]
+      interval: 15s
+      timeout: 10s
+      start_period: 240s
+      retries: 5
     restart: unless-stopped
     # Uncomment the next lines if you also need microphone capture from the host.
     # devices:
     #   - /dev/snd:/dev/snd
+
+volumes:
+  audio_analyzer_models:
+  audio_analyzer_chunks:
+  audio_analyzer_storage:
+  audio_analyzer_cache:

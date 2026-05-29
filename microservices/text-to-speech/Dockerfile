@@ -20,9 +20,18 @@ COPY requirements.txt ./requirements.txt
 RUN python3 -m pip install --upgrade pip \
     && python3 -m pip install -r requirements.txt
 
+
 COPY . .
 
-RUN chown -R ${APP_UID}:${APP_GID} /app/text-to-speech
+# Ensure all relevant directories exist and contain a .keep file so Docker copies ownership
+RUN mkdir -p /app/text-to-speech/models/openvino \
+    && mkdir -p /app/text-to-speech/storage/dummy \
+    && mkdir -p /app/text-to-speech/.cache/dummy \
+    && touch /app/text-to-speech/models/.keep \
+    && touch /app/text-to-speech/models/openvino/.keep \
+    && touch /app/text-to-speech/storage/.keep \
+    && touch /app/text-to-speech/.cache/.keep \
+    && chown -R ${APP_UID}:${APP_GID} /app/text-to-speech
 
 USER ${APP_UID}:${APP_GID}
 

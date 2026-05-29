@@ -37,50 +37,28 @@ cached artifacts.
 
 ## Permission Errors on Mounted Folders
 
-The container runs as UID/GID `1000:1000` by default (set via
-`user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"` in `docker-compose.yml`).
-If your host user has a different UID/GID, the container will write into
-the mounted folders (`models/`, `chunks/`, `storage/`,
-`.cache/huggingface/`) as `1000:1000`, which can lead to errors such as:
+The container runs as UID/GID `1000:1000` (baked into the image).
+Model, chunk, storage, and Hugging Face cache data are kept in named
+Docker volumes (`audio_analyzer_{models,chunks,storage,cache}`)
+initialized with that ownership, so this rarely fails on a fresh
+install. If you do see:
 
 ```
 PermissionError: [Errno 13] Permission denied: '/app/audio_analyzer/storage/...'
 ```
 
-or, on the host side:
-
-```
-mkdir: cannot create directory 'models/...': Permission denied
-```
-
-This can also happen when a bind-mount source path does not exist on the host.
-Docker Compose may create the missing directory as `root` before the
-container starts. Fresh clones of this repository include placeholder files
-for the expected mount roots, but if you deleted `models/`, `chunks/`,
-`storage/`, or `.cache/huggingface/`, recreate them as your user first.
-
-To fix this, start the container with your host user's UID/GID so the
-mounted folders stay writable from both Docker and standalone runs:
+you are most likely reusing volumes that were initialized by a previous
+run as a different UID (for example by an older root-only run). Reset
+them:
 
 ```bash
-LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose up -d --build
-```
-
-Or persist it by creating a local `.env` file in the `audio_analyzer/`
-directory:
-
-```bash
-LOCAL_UID=$(id -u)
-LOCAL_GID=$(id -g)
-```
-
-After that, plain `docker compose up -d --build` will pick up your IDs.
-
-If the directories already exist as `root`, repair them once on the host:
-
-```bash
-mkdir -p models chunks storage .cache/huggingface
-sudo chown -R "$(id -u):$(id -g)" models chunks storage .cache
+docker compose down
+docker volume rm \
+  audio-analyzer_audio_analyzer_models \
+  audio-analyzer_audio_analyzer_chunks \
+  audio-analyzer_audio_analyzer_storage \
+  audio-analyzer_audio_analyzer_cache
+docker compose up -d
 ```
 
 ## Microphone / `GET /devices` Returns Empty
