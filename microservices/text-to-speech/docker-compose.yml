@@ -20,7 +20,12 @@ services:
       HF_HOME: /app/text-to-speech/.cache/huggingface
     volumes:
       - ./config.yaml:/app/text-to-speech/config.yaml:ro
-      - ./models:/app/text-to-speech/models
-      - ./storage:/app/text-to-speech/storage
-      - ./.cache:/app/text-to-speech/.cache
+      - text_to_speech_models:/app/text-to-speech/models
+      - text_to_speech_storage:/app/text-to-speech/storage
+      - text_to_speech_cache:/app/text-to-speech/.cache
     restart: unless-stopped
+
+volumes:
+  text_to_speech_models:
+  text_to_speech_storage:
+  text_to_speech_cache:

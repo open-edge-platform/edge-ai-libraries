@@ -19,10 +19,10 @@ services:
       HF_HOME: /app/audio_analyzer/.cache/huggingface
     volumes:
       - ./config.yaml:/app/audio_analyzer/config.yaml:ro
-      - ./models:/app/audio_analyzer/models
-      - ./chunks:/app/audio_analyzer/chunks
-      - ./storage:/app/audio_analyzer/storage
-      - ./.cache:/app/audio_analyzer/.cache
+      - audio_analyzer_models:/app/audio_analyzer/models
+      - audio_analyzer_chunks:/app/audio_analyzer/chunks
+      - audio_analyzer_storage:/app/audio_analyzer/storage
+      - audio_analyzer_cache:/app/audio_analyzer/.cache
     # Whisper warmup on GPU can take ~120s; override the image healthcheck
     # so connection-refused during boot doesn't trip `unhealthy`.
     healthcheck:
@@ -36,3 +36,9 @@ services:
     # Uncomment the next lines if you also need microphone capture from the host.
     # devices:
     #   - /dev/snd:/dev/snd
+
+volumes:
+  audio_analyzer_models:
+  audio_analyzer_chunks:
+  audio_analyzer_storage:
+  audio_analyzer_cache:

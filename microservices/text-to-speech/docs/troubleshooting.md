@@ -154,25 +154,29 @@ The container runs as UID/GID `1000:1000` by default through:
 user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
 ```
 
-If your host user uses different IDs, mounted folders such as `models/`,
-`storage/`, and `.cache/huggingface/` may become unwritable.
-
-Typical errors:
+Model, storage, and Hugging Face cache data are kept in named Docker
+volumes (`text_to_speech_{models,storage,cache}`), which Docker
+initializes with the container user's ownership, so this rarely fails on a
+fresh install. If you do hit:
 
 ```text
 PermissionError: [Errno 13] Permission denied: '/app/text-to-speech/storage/...'
-mkdir: cannot create directory 'models/...': Permission denied
 ```
 
-Fix:
+you are most likely reusing volumes that were initialized by a previous run
+as a different UID. Reset them:
 
 ```bash
-LOCAL_UID=$(id -u)
-LOCAL_GID=$(id -g)
-docker compose up -d --build
+docker compose down
+docker volume rm \
+  text-to-speech_text_to_speech_models \
+  text-to-speech_text_to_speech_storage \
+  text-to-speech_text_to_speech_cache
+docker compose up -d
 ```
 
-Or persist them in `.env`:
+If you want the in-container user to match your host user, persist both IDs
+in a local `.env`:
 
 ```bash
 LOCAL_UID=$(id -u)
