@@ -3,7 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: text-to-speech:${RELEASE_TAG:-latest}
+      args:
+        APP_UID: ${LOCAL_UID:-1000}
+        APP_GID: ${LOCAL_GID:-1000}
+    image: ${REGISTRY:-intel}/text-to-speech:${RELEASE_TAG:-latest}
     container_name: text-to-speech
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     ports:

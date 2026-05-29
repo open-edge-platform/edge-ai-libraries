@@ -1,23 +1,30 @@
 # Run With Docker Compose
 
-Use this path when you want the service to run in a container and expose the API on port `8011`.
+Use this path to run the service in a container using the prebuilt image
+published on Docker Hub. The API is exposed on port `8011`.
+
+To rebuild the image from source instead of pulling, see
+[build-from-source.md](build-from-source.md).
 
 ## Before You Start
 
 - Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see [configuration.md](configuration.md).
 - The Compose setup mounts `config.yaml`, `models/`, `storage/`, and the Hugging Face cache into the container.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
-- The image tag is read from the `RELEASE_TAG` variable in `.env` (defaults to `latest` if unset). The committed `.env` pins the current release tag; override it for local builds by exporting `RELEASE_TAG` or editing `.env`.
+- The image reference is `${REGISTRY}/text-to-speech:${RELEASE_TAG}`, both read from `.env`. Defaults are `REGISTRY=intel` and the committed `RELEASE_TAG` pins the current release.
 
-## Start
+## Pull And Start
 
 From the `text-to-speech/` directory:
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
-The built image will be tagged `text-to-speech:${RELEASE_TAG}` (e.g. `text-to-speech:v2026.1.0-rc1`).
+`docker compose pull` fetches `intel/text-to-speech:${RELEASE_TAG}` from
+Docker Hub. `docker compose up -d` starts the container without
+rebuilding.
 
 ## Check Status
 
@@ -45,17 +52,18 @@ If you changed only `config.yaml`:
 docker compose restart text-to-speech
 ```
 
-If you changed code or dependencies:
+To pull a newer release tag, edit `RELEASE_TAG` in `.env`, then:
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 For a clean restart:
 
 ```bash
 docker compose down
-docker compose up -d --build
+docker compose up -d
 ```
 
 ## Stop
@@ -70,4 +78,3 @@ docker compose down
 - The service loads `config.yaml` (bind-mounted from the host); the same file is used in standalone mode
 - First startup can take longer because model download or conversion may happen during startup
 - Linux iGPU access depends on the host exposing `/dev/dri` and having Intel/OpenVINO host GPU support installed
-- On a new machine, Intel/OpenVINO host GPU support is still a separate prerequisite from Python dependency installation

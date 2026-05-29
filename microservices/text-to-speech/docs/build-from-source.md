@@ -1,7 +1,9 @@
 # Build From Source
 
-This page covers building the Text To Speech microservice from source for
-both Docker and standalone host execution.
+This page covers building the Text To Speech microservice from source.
+Use this path when you need a code change. To run the prebuilt image
+from Docker Hub without rebuilding, see
+[run-container.md](run-container.md).
 
 ## Prerequisites
 
@@ -10,8 +12,14 @@ both Docker and standalone host execution.
 
 ## Build the Docker Image
 
-The repository ships a `Dockerfile` and a `docker-compose.yml`. To build
-the image as part of the Compose stack:
+The repository ships a `Dockerfile` and a `docker-compose.yml`. The
+compose file declares both `image:` and `build:` for the service:
+
+- `docker compose pull && docker compose up -d` runs the prebuilt
+  image from Docker Hub.
+- `docker compose build && docker compose up -d` rebuilds from source
+  and tags the result as the same `${REGISTRY}/text-to-speech:${RELEASE_TAG}`,
+  so subsequent `docker compose up` calls reuse the local build.
 
 ```bash
 docker compose build
