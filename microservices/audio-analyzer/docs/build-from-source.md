@@ -32,15 +32,13 @@ To build the image directly with `docker`:
 docker build -t audio-analyzer:local .
 ```
 
-The Compose setup mounts `config.yaml`, `models/`, `chunks/`, `storage/`,
-and the Hugging Face cache into the container, and passes `/dev/dri`
-through for host Intel iGPU access by default. The container
-runs as UID/GID `1000:1000` by default; see
+The Compose setup bind-mounts `config.yaml` and stores model, chunk,
+storage, and Hugging Face cache data in named Docker volumes
+(`audio_analyzer_{models,chunks,storage,cache}`), and passes `/dev/dri`
+through for host Intel iGPU access by default. The container runs as
+UID/GID `1000:1000` by default; see
 [troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders)
 if your host user differs.
-Fresh clones include placeholder files for the expected mount roots. If you
-remove those directories and then start Compose, Docker may recreate the
-missing host paths as `root` before the container starts.
 
 ## Build a Python Environment (Standalone)
 
