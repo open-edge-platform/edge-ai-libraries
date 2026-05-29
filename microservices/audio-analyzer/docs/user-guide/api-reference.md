@@ -83,8 +83,11 @@ A session is identified by `session_id` and corresponds to the directory
 append transcript state and (when sentiment is enabled) update the
 session-level sentiment summary.
 
-## Related
+## Supporting Resources
 
-- Startup and deployment guides: [get-started.md](get-started.md), [run-container.md](run-container.md), [run-standalone.md](run-standalone.md)
+- Startup and deployment guides:
+  - [Get Started](./get-started.md)
+  - [Run with Docker](./get-started/run-container.md)
+  - [Run on Host](./get-started/run-standalone.md)
 - Configuration of ASR and sentiment backends:
-  [configuration.md](configuration.md)
+  - [Configuration Guide](./get-started/configuration.md)

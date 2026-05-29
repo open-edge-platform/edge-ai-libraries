@@ -1,4 +1,4 @@
-# Release Notes
+# Release Notes: Audio Analyzer
 
 This page tracks releases of the Audio Analyzer microservice. The most
 recent release is listed first; older entries are preserved for history.
@@ -6,10 +6,10 @@ recent release is listed first; older entries are preserved for history.
 ## v1.4.0
 
 First release of the Audio Analyzer as a self-contained,
-OpenAI-API-compatible speech-to-text microservice with optional voice
+OpenAI API-compatible speech-to-text microservice with optional voice
 sentiment analysis, built for edge deployment on Intel hardware.
 
-**New features**
+**New**
 
 - OpenAI-compatible transcription API (`POST /v1/audio/transcriptions`)
   and a streaming NDJSON variant (`/stream`).
@@ -23,7 +23,7 @@ sentiment analysis, built for edge deployment on Intel hardware.
 - Session continuation via `session_id` (returned in `X-Session-ID`).
 - Health (`/health`) and ALSA device listing (`/devices`) endpoints.
 
-**Performance & deployment**
+**Improved**
 
 - OpenVINO CPU/GPU acceleration on Intel hardware; models warm-loaded
   once per process.
@@ -31,13 +31,7 @@ sentiment analysis, built for edge deployment on Intel hardware.
   `AUDIO_ANALYZER__...`) and Docker Compose deployment on port `8010`.
 - Container now runs as a non-root user (UID 1000).
 
-**Documentation**
-
-- New user-guide doc set (`overview`, `get-started`, `how-it-works`
-  with architecture diagram, `configuration`, `api-reference`,
-  `troubleshooting`, etc.) and a restructured `README.md`.
-
-**Known limitations**
+**Known issues**
 
 - `whispercpp` backend is wired into configuration but not yet
   enabled at runtime.

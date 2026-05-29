@@ -93,7 +93,7 @@ flowchart LR
    `POST /v1/audio/transcriptions` (single response) or
    `POST /v1/audio/transcriptions/stream` (NDJSON event stream).
 2. **Session resolution** — If `session_id` is supplied, the service reuses
-   the existing session directory under `storage/<session_id>/`. Otherwise it
+   the existing session directory under `storage/<session_id>/`. Otherwise, it
    creates a new session and returns the id in the `X-Session-ID` response
    header.
 3. **Preprocessing** — FFmpeg decodes the upload and produces audio chunks
@@ -125,5 +125,5 @@ flowchart LR
 
 All runtime behavior is driven by `config.yaml`, shared by both standalone
 and container runs, with targeted overrides via `AUDIO_ANALYZER__...`
-environment variables. See [configuration.md](configuration.md) for the
+environment variables. See the [Configuration Guide](./get-started/configuration.md) for the
 full list of fields.

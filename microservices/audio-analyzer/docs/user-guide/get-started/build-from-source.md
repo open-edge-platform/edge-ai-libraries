@@ -5,7 +5,7 @@ both Docker and standalone host execution.
 
 ## Prerequisites
 
-- Verify the [system requirements](system-requirements.md).
+- Verify the [System Requirements](./system-requirements.md).
 - Clone the repository and `cd` into the `audio_analyzer/` directory.
 
 ## Build the Docker Image
@@ -28,7 +28,7 @@ The Compose setup mounts `config.yaml`, `models/`, `chunks/`, `storage/`,
 and the Hugging Face cache into the container, and passes `/dev/dri`
 through for host Intel iGPU access by default. The container
 runs as UID/GID `1000:1000` by default; see
-[troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders)
+[Troubleshooting](../troubleshooting.md#permission-errors-on-mounted-folders)
 if your host user differs.
 Fresh clones include placeholder files for the expected mount roots. If you
 remove those directories and then start Compose, Docker may recreate the

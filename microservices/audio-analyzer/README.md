@@ -13,42 +13,42 @@ configure, and deploy the microservice.
 
 - Overview
 
-  - [Overview](docs/overview.md): A high-level introduction to the
+  - [Overview](./docs/user-guide/index.md): A high-level introduction to the
     microservice and its capabilities.
-  - [How It Works](docs/how-it-works.md): Internal request flow and the main
+  - [How It Works](./docs/user-guide/how-it-works.md): Internal request flow and the main
     components of the service.
 
 - Getting Started
 
-  - [Get Started](docs/get-started.md): Step-by-step entry point that walks
+  - [Get Started](./docs/user-guide/get-started.md): Step-by-step entry point that walks
     you through your first run.
-  - [System Requirements](docs/system-requirements.md): Hardware, OS, and
+  - [System Requirements](./docs/user-guide/get-started/system-requirements.md): Hardware, OS, and
     runtime prerequisites.
-  - [Run in Docker](docs/run-container.md): Step-by-step guide to running
+  - [Run in Docker](./docs/user-guide/get-started/run-container.md): Step-by-step guide to running
     the microservice in a container.
-  - [Run on the Host](docs/run-standalone.md): Step-by-step guide to
+  - [Run on the Host](./docs/user-guide/get-started/run-standalone.md): Step-by-step guide to
     running the microservice directly on the host.
 
 - Deployment
 
-  - [Build From Source](docs/build-from-source.md): Instructions for
+  - [Build From Source](./docs/user-guide/get-started/build-from-source.md): Instructions for
     building the microservice from source.
-  - [Configuration](docs/configuration.md): Instructions for changing the
+  - [Configuration](./docs/user-guide/get-started/configuration.md): Instructions for changing the
     microservice configuration.
 
 - API Reference
 
-  - [API Reference](docs/api-reference.md): Comprehensive reference for the
+  - [API Reference](./docs/user-guide/api-reference.md): Comprehensive reference for the
     available REST API endpoints.
 
 - Support
 
-  - [Troubleshooting](docs/troubleshooting.md): Common issues and how to
+  - [Troubleshooting](./docs/user-guide/troubleshooting.md): Common issues and how to
     resolve them.
 
 - Release Notes
 
-  - [Release Notes](docs/release-notes.md): Notable updates, improvements,
+  - [Release Notes](./docs/user-guide/release-notes.md): Notable updates, improvements,
     and known limitations.
 
 ## Notes
@@ -56,4 +56,3 @@ configure, and deploy the microservice.
 - Do not use this page as the run guide; use the linked docs above.
 - The service exposes `X-Session-ID`; clients should read it if they want
   multi-upload sessions.
-

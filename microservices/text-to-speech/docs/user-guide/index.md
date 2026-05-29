@@ -1,4 +1,15 @@
-# Overview
+# Text To Speech
+
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/text-to-speech">
+     GitHub
+  </a>
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/text-to-speech/README.md">
+     Readme
+  </a>
+</div>
+hide_directive-->
 
 The Text To Speech microservice turns text into natural-sounding speech. It
 is designed to be dropped into voice-enabled applications (kiosks,
@@ -31,6 +42,22 @@ return either raw WAV audio or a JSON payload with metadata.
 - Runtimes: `openvino` (recommended on Intel hardware) and `pytorch`.
 - English-only synthesis in the current service build.
 
-See [configuration.md](configuration.md) for how to select the model,
-runtime, device, precision, and default speaker, and
-[how-it-works.md](how-it-works.md) for the internal request flow.
+## Next Steps
+
+- [Get Started](./get-started.md) - a step-by-step guide to your first run.
+- [Configuration](./get-started/configuration.md) - how to select models, devices,
+and precision.
+- [How It Works](./how-it-works.md) - learn about the internal request flow.
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started.md
+./how-it-works.md
+./api-reference.md
+./troubleshooting.md
+Release Notes <./release-notes.md>
+
+:::
+hide_directive-->

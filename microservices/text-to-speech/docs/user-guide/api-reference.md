@@ -13,7 +13,7 @@ Liveness probe.
 Response:
 
 ```json
-{"status": "ok"}
+{ "status": "ok" }
 ```
 
 ## `GET /v1/audio/voices`
@@ -33,14 +33,14 @@ Synthesize speech from text.
 
 JSON body fields:
 
-| Field             | Required | Description                                                                                              |
-| ----------------- | -------- | -------------------------------------------------------------------------------------------------------- |
-| `model`           | Yes      | Required for OpenAI API compatibility; the configured service model is always used.                       |
-| `input`           | Yes      | Text to synthesize.                                                                                      |
-| `voice`           | No       | Speaker name; defaults to the configured speaker.                                                        |
-| `language`        | No       | Only `English` is currently accepted.                                                                    |
-| `instructions`    | No       | Optional speaking style guidance (where supported by the model).                                         |
-| `response_format` | No       | `wav` (raw `audio/wav`) or `json` (metadata + base64-encoded WAV).                                       |
+| Field             | Required | Description                                                                         |
+| ----------------- | -------- | ----------------------------------------------------------------------------------- |
+| `model`           | Yes      | Required for OpenAI API compatibility; the configured service model is always used. |
+| `input`           | Yes      | Text to synthesize.                                                                 |
+| `voice`           | No       | Speaker name; defaults to the configured speaker.                                   |
+| `language`        | No       | Only `English` is currently accepted.                                               |
+| `instructions`    | No       | Optional speaking style guidance (where supported by the model).                    |
+| `response_format` | No       | `wav` (raw `audio/wav`) or `json` (metadata + base64-encoded WAV).                  |
 
 Example — SpeechT5 (set `models.tts.name` to `microsoft/speecht5_tts` in
 `config.yaml`):
@@ -61,7 +61,7 @@ status=$(
 if [ "$status" = "200" ]; then echo "Success: saved audio to speech.wav"; else echo "Failure: HTTP $status"; cat speech.wav; rm -f speech.wav; fi
 ```
 
-> SpeechT5 accepts only the configured `voice` and `language`. Passing
+> **Note:** SpeechT5 accepts only the configured `voice` and `language`. Passing
 > other values, or any `instructions`, returns an OpenAI-style error.
 
 Example — Qwen TTS (set `models.tts.name` to a Qwen model in `config.yaml`):
@@ -92,7 +92,11 @@ associated with a `session_id` returned in the `X-Session-ID` header. The
 corresponding WAV and metadata are written under
 `storage/<session_id>/`.
 
-## Related
+## Supporting Resources
 
-- Configuration of model, runtime, and device:
-  [configuration.md](configuration.md)
+- Startup and deployment guides:
+  - [Get Started](./get-started.md)
+  - [Run with Docker](./get-started/run-container.md)
+  - [Run on the Host](./get-started/run-standalone.md)
+- Configuration of ASR and sentiment backends:
+  - [Configuration Guide](./get-started/configuration.md)

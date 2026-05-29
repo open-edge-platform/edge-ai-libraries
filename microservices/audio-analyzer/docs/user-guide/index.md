@@ -1,6 +1,17 @@
-# Overview
+# Audio Analyzer
 
-The Audio Analyzer is a microservice that turns spoken audio into text and,
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/audio-analyzer">
+     GitHub
+  </a>
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/audio-analyzer/README.md">
+     Readme
+  </a>
+</div>
+hide_directive-->
+
+Audio Analyzer is a microservice that turns spoken audio into text and,
 optionally, into a high-level sentiment summary. It is designed to be dropped
 into voice-enabled applications (kiosks, assistants, call analytics, meeting
 notes) where a simple HTTP upload should return either a final transcript or
@@ -34,9 +45,25 @@ a live stream of partial results.
 **Sentiment (optional, voice-based):**
 
 - Default: `speechbrain/emotion-recognition-wav2vec2-IEMOCAP`.
-- Any compatible HuggingFace model can be configured via `sentiment.model`,
+- Any compatible Hugging Face model can be configured via `sentiment.model`,
   served through the `openvino` or `pytorch` provider.
 
-See [configuration.md](configuration.md) for how to select models, devices,
-and precision, and [how-it-works.md](how-it-works.md) for the internal
-request flow.
+## Next Steps
+
+- [Get Started](./get-started.md) - a step-by-step guide to your first run.
+- [Configuration](./get-started/configuration.md) - how to select models, devices,
+and precision.
+- [How It Works](./how-it-works.md) - learn about the internal request flow.
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started.md
+./how-it-works.md
+./api-reference.md
+./troubleshooting.md
+Release Notes <./release-notes.md>
+
+:::
+hide_directive-->
