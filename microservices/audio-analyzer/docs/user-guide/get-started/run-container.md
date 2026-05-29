@@ -4,13 +4,15 @@ Use this path when you want the service to run in a container and expose the API
 
 ## Before You Start
 
-- Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see [configuration.md](configuration.md).
+- Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see the [Configuration Guide](./configuration.md).
 - The Compose setup mounts `config.yaml`, `models/`, `chunks/`, `storage/`, and the Hugging Face cache into the container.
 - The repository includes placeholder files so fresh clones already contain those mount roots. If you remove any of those directories, recreate them as your user before starting Compose or Docker may recreate the missing host paths as `root`.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
-- The image defaults to UID/GID `1000:1000`, and Compose also runs the container as `1000:1000` unless you override `LOCAL_UID` and `LOCAL_GID`. If your host user is different, see [troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders) before starting.
+- The image defaults to UID/GID `1000:1000`, and Compose also runs the container as `1000:1000` unless you override `LOCAL_UID` and `LOCAL_GID`. If your host user is different, see [Troubleshooting](../troubleshooting.md#permission-errors-on-mounted-folders) before starting.
 
-## Start
+## Running the Service
+
+### Start
 
 From the `audio_analyzer/` directory:
 
@@ -18,24 +20,20 @@ From the `audio_analyzer/` directory:
 docker compose up -d --build
 ```
 
-## Check Status
+### Check Status
 
 ```bash
 docker compose ps
 curl --noproxy '*' http://127.0.0.1:8010/health
 ```
 
-## API Use Cases and Examples
-
-For API use cases, request examples, and endpoint details, see [api-reference.md](api-reference.md).
-
-## Follow Logs
+### Follow Logs
 
 ```bash
 docker compose logs -f audio-analyzer
 ```
 
-## Restart
+### Restart
 
 If you changed only `config.yaml`:
 
@@ -56,11 +54,15 @@ docker compose down
 docker compose up -d --build
 ```
 
-## Stop
+### Stop
 
 ```bash
 docker compose down
 ```
+
+## API Use Cases and Examples
+
+For API use cases, request examples, and endpoint details, see the [API Reference](../api-reference.md).
 
 ## Notes
 

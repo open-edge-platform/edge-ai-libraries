@@ -109,8 +109,8 @@ Session files live under `storage/<session_id>/`. Confirm that directory is
 writable by the process and is on a persistent volume in container
 deployments.
 
-## Where to Look Next
+## Supporting Resources
 
-- [Configuration reference](configuration.md)
-- [API reference](api-reference.md)
-- [System requirements](system-requirements.md)
+- [Configuration Guide](./get-started/configuration.md)
+- [API Reference](./api-reference.md)
+- [System Requirements](./get-started/system-requirements.md)

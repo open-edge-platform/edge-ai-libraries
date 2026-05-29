@@ -1,13 +1,23 @@
 """Shared fixtures for VIPPET functional tests."""
 
+import io
+import logging
+import tarfile
+import urllib.request
+import uuid
+import zipfile
 from collections.abc import Generator
 from typing import Any
 
+import cv2
+import numpy as np
 import pytest
 import requests
 import yaml
 
 from helpers.config import DEFAULT_RECORDINGS_YAML, PROJECT_ROOT, SUPPORTED_MODELS_YAML
+
+logger = logging.getLogger(__name__)
 
 # Session-wide accumulator: (HTTP_METHOD, full_url_without_query_string)
 _recorded_api_calls: set[tuple[str, str]] = set()
@@ -126,3 +136,175 @@ def _skip_file_output_for_pipelines_without_video_sink(
             f"Pipeline '{pipeline_name}' has no video encoder branch; "
             "file-output mode produces no recorded video files."
         )
+
+
+# --------------------------------------------------------------------------- #
+# Upload fixtures - real video + image archives produced from a small,
+# publicly available mp4. Generated lazily, cached for the whole pytest
+# session so multiple tests share the same on-disk artifacts.
+# --------------------------------------------------------------------------- #
+
+# Public sample used as the source for the upload fixtures. It is already
+# listed in ``shared/videos/default_recordings.yaml`` so it is a well-known,
+# stable URL.
+_SAMPLE_VIDEO_URL: str = (
+    "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/"
+    "data/data/video/people.mp4"
+)
+
+
+@pytest.fixture(scope="session")
+def sample_video_bytes(tmp_path_factory: pytest.TempPathFactory) -> bytes:
+    """Download a small public mp4 once per session and return its bytes.
+
+    The result is cached under the pytest session ``tmp_path`` so a re-run
+    of the suite within the same session does not re-download. Network
+    failures are surfaced as ``pytest.skip`` because the upload tests are
+    not meaningful without a real video payload.
+    """
+    cache_dir = tmp_path_factory.mktemp("vippet-upload-fixtures")
+    cached = cache_dir / "people.mp4"
+    if cached.is_file():
+        return cached.read_bytes()
+
+    logger.info("Downloading sample video from %s", _SAMPLE_VIDEO_URL)
+    try:
+        request = urllib.request.Request(
+            _SAMPLE_VIDEO_URL,
+            headers={"User-Agent": "Mozilla/5.0 vippet-tests"},
+        )
+        with urllib.request.urlopen(request, timeout=120) as response:
+            if response.status != 200:
+                pytest.skip(f"Could not download sample video: HTTP {response.status}")
+            payload = response.read()
+    except Exception as exc:  # noqa: BLE001 - propagate as skip below.
+        pytest.skip(f"Could not download sample video: {exc}")
+
+    cached.write_bytes(payload)
+    logger.info(
+        "Cached sample video at %s (%.2f MB)", cached, len(payload) / (1024 * 1024)
+    )
+    return payload
+
+
+@pytest.fixture(scope="session")
+def sample_frame_bgr(
+    sample_video_bytes: bytes, tmp_path_factory: pytest.TempPathFactory
+) -> "np.ndarray[Any, Any]":
+    """Decode one frame (around frame 10) from the sample mp4 with OpenCV.
+
+    Returned as a BGR ``numpy`` array suitable for ``cv2.imencode``. The
+    intermediate file is dropped once decoding succeeds.
+    """
+    cache_dir = tmp_path_factory.mktemp("vippet-sample-frame")
+    mp4_path = cache_dir / "people.mp4"
+    mp4_path.write_bytes(sample_video_bytes)
+
+    cap = cv2.VideoCapture(str(mp4_path))
+    if not cap.isOpened():
+        cap.release()
+        pytest.skip("OpenCV cannot open the downloaded sample video")
+    ok: bool = False
+    frame: Any = None
+    try:
+        # Seek a few frames in so we never grab a black opening frame.
+        for _ in range(10):
+            ok, frame = cap.read()
+            if not ok:
+                break
+        if not ok or frame is None:
+            pytest.skip("Sample video has fewer than 10 decodable frames")
+    finally:
+        cap.release()
+    return frame
+
+
+def _encode_frame(frame: "np.ndarray[Any, Any]", suffix: str) -> bytes:
+    """Encode a BGR frame to bytes using ``cv2.imencode``. ``suffix`` must
+    start with a dot, e.g. ``.png``."""
+    ok, buf = cv2.imencode(suffix, frame)
+    if not ok:
+        pytest.skip(f"cv2.imencode failed for suffix={suffix!r}")
+    return buf.tobytes()
+
+
+def _build_zip(entries: dict[str, bytes]) -> bytes:
+    """Pack ``{arcname: payload}`` into a flat zip archive."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for arcname, payload in entries.items():
+            zf.writestr(arcname, payload)
+    return buf.getvalue()
+
+
+def _build_tar(entries: dict[str, bytes], *, gz: bool = False) -> bytes:
+    """Pack ``{arcname: payload}`` into a flat tar (optionally gzipped)."""
+    buf = io.BytesIO()
+    mode = "w:gz" if gz else "w"
+    with tarfile.open(fileobj=buf, mode=mode) as tf:
+        for arcname, payload in entries.items():
+            info = tarfile.TarInfo(name=arcname)
+            info.size = len(payload)
+            tf.addfile(info, io.BytesIO(payload))
+    return buf.getvalue()
+
+
+@pytest.fixture(scope="session")
+def upload_run_id() -> str:
+    """Return a short unique identifier for the current test run.
+
+    Used by upload tests to namespace their artifacts (image set names,
+    video filenames) so a re-run inside the same shared volume does not
+    collide with leftovers from a previous run. A separate CI job is
+    expected to wipe the shared volume between runs - the tests
+    themselves do not delete what they upload because the API does not
+    expose a DELETE endpoint for either resource.
+    """
+    return uuid.uuid4().hex[:8]
+
+
+@pytest.fixture
+def make_zip_archive(sample_frame_bgr: "np.ndarray[Any, Any]"):
+    """Factory returning ``(bytes, archive_filename)`` for a zip archive.
+
+    The caller controls the image extension (``"png"``/``"jpg"``/``"bmp"``)
+    and the number of frames. Every frame is the same decoded sample so
+    the resolution check inside ``ImagesManager`` always passes.
+    """
+
+    def _make(
+        *,
+        ext: str = "png",
+        count: int = 3,
+        archive_name: str | None = None,
+    ) -> tuple[bytes, str]:
+        encoded = _encode_frame(sample_frame_bgr, f".{ext}")
+        # Pad the index so alphabetical sort matches numeric order.
+        entries = {f"img_{i:04d}.{ext}": encoded for i in range(1, count + 1)}
+        return _build_zip(entries), archive_name or f"set_{ext}_{count}.zip"
+
+    return _make
+
+
+@pytest.fixture
+def make_tar_archive(sample_frame_bgr: "np.ndarray[Any, Any]"):
+    """Factory returning ``(bytes, archive_filename)`` for a tar archive.
+
+    ``gz=True`` produces a ``.tar.gz`` archive instead of an uncompressed
+    ``.tar`` one. Same single-frame trick as ``make_zip_archive``.
+    """
+
+    def _make(
+        *,
+        ext: str = "png",
+        count: int = 3,
+        gz: bool = False,
+        archive_name: str | None = None,
+    ) -> tuple[bytes, str]:
+        encoded = _encode_frame(sample_frame_bgr, f".{ext}")
+        entries = {f"img_{i:04d}.{ext}": encoded for i in range(1, count + 1)}
+        payload = _build_tar(entries, gz=gz)
+        suffix = "tar.gz" if gz else "tar"
+        return payload, archive_name or f"set_{ext}_{count}.{suffix}"
+
+    return _make

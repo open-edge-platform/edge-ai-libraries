@@ -15,7 +15,7 @@ from helpers.config import BASE_URL
 logger = logging.getLogger(__name__)
 
 
-PIPELINE_ID = "license-plate-recognition"
+PIPELINE_ID = "smart-parking"
 
 # Functional cases cover both:
 #   * preprocess and optimize request types,

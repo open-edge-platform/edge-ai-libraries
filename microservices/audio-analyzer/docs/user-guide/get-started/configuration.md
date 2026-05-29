@@ -16,7 +16,7 @@ The same `config.yaml` is used for both Docker and standalone runs. In Docker, `
 ## Environment Variables
 
 - `AUDIO_ANALYZER_CONFIG_PATH`: alternate base config file (advanced)
-- `AUDIO_ANALYZER_ENV_FILE`: optional dotenv file to preload before config parsing
+- `AUDIO_ANALYZER_ENV_FILE`: optional `.env` file to preload before config parsing
 - `AUDIO_ANALYZER_SERVER_HOST`: host used by `python main.py`
 - `AUDIO_ANALYZER_SERVER_PORT`: port used by `python main.py`
 
