@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     MILVUS_DB_NAME: str = ""
     MILVUS_INDEX_TYPE: str = "FLAT"
     MILVUS_METRIC_TYPE: str = "L2"
+    MILVUS_TEXT_FIELD: str = "text"
+    MILVUS_METADATA_FIELD: str = ""
 
     # PGVector backend settings
     PGVECTOR_CONNECTION_STRING: str = ""

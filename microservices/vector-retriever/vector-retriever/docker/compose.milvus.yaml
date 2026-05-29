@@ -104,6 +104,8 @@ services:
       MILVUS_DB_NAME: ${MILVUS_DB_NAME:-}
       MILVUS_INDEX_TYPE: ${MILVUS_INDEX_TYPE:-FLAT}
       MILVUS_METRIC_TYPE: ${MILVUS_METRIC_TYPE:-L2}
+      MILVUS_TEXT_FIELD: ${MILVUS_TEXT_FIELD:-text}
+      MILVUS_METADATA_FIELD: ${MILVUS_METADATA_FIELD:-}
     depends_on:
       - multimodal-embedding-serving
       - milvus-etcd

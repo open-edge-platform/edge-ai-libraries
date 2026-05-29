@@ -32,10 +32,18 @@ services:
       MILVUS_DB_NAME: ${MILVUS_DB_NAME:-}
       MILVUS_INDEX_TYPE: ${MILVUS_INDEX_TYPE:-FLAT}
       MILVUS_METRIC_TYPE: ${MILVUS_METRIC_TYPE:-L2}
+      MILVUS_TEXT_FIELD: ${MILVUS_TEXT_FIELD:-text}
+      MILVUS_METADATA_FIELD: ${MILVUS_METADATA_FIELD:-}
       PGVECTOR_CONNECTION_STRING: ${PGVECTOR_CONNECTION_STRING:-}
       FAISS_INDEX_PATH: ${FAISS_INDEX_PATH:-}
     ports:
       - '${VECTOR_RETRIEVER_HOST_PORT:-6008}:8000'
+    healthcheck:
+      test: ['CMD-SHELL', "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')\""]
+      interval: 60s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
     networks:
       - vr_network
 

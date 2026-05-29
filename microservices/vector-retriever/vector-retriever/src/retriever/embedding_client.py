@@ -42,8 +42,11 @@ class EmbeddingAPI(Embeddings):
 
     def _post_embeddings(self, payload: dict) -> List[List[float]]:
         """Send embedding request payload and normalize response shape."""
+        # Use empty-string proxies to explicitly bypass (proxies=None would
+        # fall back to env-var resolution where uppercase NO_PROXY may not
+        # include Docker service hostnames).
         proxies = (
-            None
+            {"http": "", "https": ""}
             if should_use_no_proxy(self.api_url)
             else {"http": settings.http_proxy, "https": settings.https_proxy}
         )

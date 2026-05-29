@@ -137,18 +137,27 @@ def get_vectordb() -> VectorStoreBackend:
     )
     _register_milvus_orm_alias()
 
-    store = Milvus(
-        embedding_function=embeddings,
-        collection_name=settings.INDEX_NAME,
-        connection_args=connection_args,
-        index_params={
+    # When a dedicated metadata_field is configured (e.g. a JSON column),
+    # disable dynamic fields so langchain-milvus actually honours it;
+    # enable_dynamic_field=True causes metadata_field to be silently ignored.
+    use_dynamic = not settings.MILVUS_METADATA_FIELD
+
+    milvus_kwargs: dict[str, Any] = {
+        "embedding_function": embeddings,
+        "collection_name": settings.INDEX_NAME,
+        "connection_args": connection_args,
+        "index_params": {
             "index_type": settings.MILVUS_INDEX_TYPE,
             "metric_type": settings.MILVUS_METRIC_TYPE,
         },
-        # Dynamic fields skip schema inference, allowing arbitrary metadata types
-        # (including list<string> for the `tags` field) without pre-declaration.
-        enable_dynamic_field=True,
-    )
+        "enable_dynamic_field": use_dynamic,
+        "text_field": settings.MILVUS_TEXT_FIELD,
+    }
+    if settings.MILVUS_METADATA_FIELD:
+        milvus_kwargs["metadata_field"] = settings.MILVUS_METADATA_FIELD
+
+    store = Milvus(**milvus_kwargs)
+
     return MilvusAdapter(store)
 
 
