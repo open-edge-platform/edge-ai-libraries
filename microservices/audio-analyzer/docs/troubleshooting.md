@@ -37,19 +37,19 @@ cached artifacts.
 
 ## Permission Errors on Mounted Folders
 
-The container runs as UID/GID `1000:1000` by default (set via
-`user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"` in `docker-compose.yml`).
-Model, chunk, storage, and Hugging Face cache data are kept in named Docker
-volumes (`audio_analyzer_{models,chunks,storage,cache}`), which Docker
-initializes with the container user's ownership, so this rarely fails on a
-fresh install. If you do see:
+The container runs as UID/GID `1000:1000` (baked into the image).
+Model, chunk, storage, and Hugging Face cache data are kept in named
+Docker volumes (`audio_analyzer_{models,chunks,storage,cache}`)
+initialized with that ownership, so this rarely fails on a fresh
+install. If you do see:
 
 ```
 PermissionError: [Errno 13] Permission denied: '/app/audio_analyzer/storage/...'
 ```
 
-you are most likely reusing volumes that were initialized by a previous run
-as a different UID. Reset them:
+you are most likely reusing volumes that were initialized by a previous
+run as a different UID (for example by an older root-only run). Reset
+them:
 
 ```bash
 docker compose down
@@ -60,17 +60,6 @@ docker volume rm \
   audio-analyzer_audio_analyzer_cache
 docker compose up -d
 ```
-
-If you want the in-container user to match your host user (for example so you
-can poke at the volume contents from inside the container without `sudo`),
-set both IDs in a local `.env` file in the `audio-analyzer/` directory:
-
-```bash
-LOCAL_UID=$(id -u)
-LOCAL_GID=$(id -g)
-```
-
-After that, plain `docker compose up -d` will pick up your IDs.
 
 ## Microphone / `GET /devices` Returns Empty
 
