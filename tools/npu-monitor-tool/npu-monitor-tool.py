@@ -58,7 +58,7 @@ PMT_GUID_ARL_H = '0x1306a0b2' # Arrow Lake-H telemetry GUID
 PMT_GUID_ARL_S = '0x1306a0b4' # Arrow Lake-S telemetry GUID
 PMT_GUID_LNL = '0x3072005'    # Lunar Lake telemetry GUID
 PMT_GUID_PTL = '0x3086000'    # Panther Lake telemetry GUID
-PMT_GUID_WCL = '0x308d100'    # Wildcat Lake telemetry GUID
+PMT_GUID_WCL = '0x308d000'    # Wildcat Lake telemetry GUID
 
 def get_mtl_regs():
     return {
