@@ -1,0 +1,30 @@
+services:
+  alert-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: alert-service
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    volumes:
+      - ../config:/app/config:ro
+    restart: unless-stopped
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: alert-mqtt
+    profiles:
+      - embedded
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ../mosquitto/config:/mosquitto/config:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:
