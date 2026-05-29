@@ -285,7 +285,7 @@
   display_name: YOLO 26s Segmentation
   source: public
   hub: ultralytics
-  type: segmentation
+  type: detection
   precisions:
     - precision: FP32
       model_path: ultralytics/public/yolo26s-seg/FP32/yolo26s-seg.xml
