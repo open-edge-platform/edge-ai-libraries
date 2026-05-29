@@ -119,7 +119,7 @@ class SDKEmbeddingClient(BaseEmbeddingClient):
         device: str = "CPU",
         use_openvino: bool = False,
         ov_models_dir: Optional[str] = None,
-        batch_size: int = 16,
+        batch_size: int = 32,
     ):
         if not model_name:
             raise ValueError("SDKEmbeddingClient requires EMBEDDING_MODEL_NAME to be set")
@@ -218,7 +218,7 @@ def create_embedding_client() -> BaseEmbeddingClient:
             device=os.getenv("EMBEDDING_DEVICE", os.getenv("DEVICE", "CPU")),
             use_openvino=_env_bool("EMBEDDING_USE_OV", False),
             ov_models_dir=os.getenv("EMBEDDING_OV_MODELS_DIR", "/home/user/models"),
-            batch_size=_env_int("EMBEDDING_BATCH_SIZE", 16),
+            batch_size=_env_int("EMBEDDING_BATCH_SIZE", 32),
         )
 
     return HTTPEmbeddingClient(

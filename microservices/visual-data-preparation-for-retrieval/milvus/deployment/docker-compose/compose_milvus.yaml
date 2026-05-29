@@ -130,6 +130,12 @@ services:
       - MILVUS_PORT=${MILVUS_PORT}
       - EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL}
       - EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}
+      - USE_SDK_EMBEDDING=${USE_SDK_EMBEDDING:-true}
+      - EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-${DEVICE:-CPU}}
+      - EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-false}
+      - EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-/home/user/ov_models}
+      - EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
+      - MAX_CONCURRENT_EMBEDDINGS=${MAX_CONCURRENT_EMBEDDINGS:-8}
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri
@@ -149,6 +155,8 @@ services:
       - milvus-standalone
       - multimodal-embedding-serving
     volumes:
+      - ov-models:/home/user/.cache/huggingface
+      - ov-models:/home/user/ov_models
       - ov-models:/home/user/models
       - ${HOST_DATA_PATH}:/home/user/data:rw
 
