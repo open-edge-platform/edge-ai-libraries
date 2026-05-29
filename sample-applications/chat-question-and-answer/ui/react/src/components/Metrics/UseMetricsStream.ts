@@ -7,15 +7,24 @@ import { METRICS_URL } from "../../config";
 
 type MetricValue = number | "N/A";
 
+export const GPU_ENGINES = ["bcs", "rcs", "ccs", "vcs", "vecs"] as const;
+export type GpuEngine = (typeof GPU_ENGINES)[number];
+
+export type GpuMetricsPoint = Record<GpuEngine, MetricValue>;
+
 export type MetricsPoint = {
   timestamp: string;
   cpu: MetricValue;
-  gpu: MetricValue;
+  gpu: GpuMetricsPoint;
   npu: MetricValue;
   ram: MetricValue;
 };
 
 const MAX_POINTS = 20;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 function normalizeValue(value: unknown): MetricValue {
   if (typeof value === "number") {
@@ -28,6 +37,28 @@ function normalizeValue(value: unknown): MetricValue {
   }
 
   return "N/A";
+}
+
+function normalizeGpuMetrics(value: unknown): GpuMetricsPoint {
+  const gpuValue = isRecord(value) ? value : {};
+
+  return {
+    bcs: normalizeValue(gpuValue.bcs),
+    rcs: normalizeValue(gpuValue.rcs),
+    ccs: normalizeValue(gpuValue.ccs),
+    vcs: normalizeValue(gpuValue.vcs),
+    vecs: normalizeValue(gpuValue.vecs),
+  };
+}
+
+export function parseMetricsPoint(raw: Record<string, unknown>): MetricsPoint {
+  return {
+    timestamp: typeof raw.timestamp === "string" ? raw.timestamp : "",
+    cpu: normalizeValue(raw.cpu),
+    gpu: normalizeGpuMetrics(raw.gpu),
+    npu: normalizeValue(raw.npu),
+    ram: normalizeValue(raw.ram),
+  };
 }
 
 export function useMetricsStream(ramType: "gb" | "percent" = "percent") {
@@ -56,15 +87,12 @@ export function useMetricsStream(ramType: "gb" | "percent" = "percent") {
           return;
         }
 
-        const raw = JSON.parse(event.data);
+        const raw = JSON.parse(event.data) as unknown;
+        if (!isRecord(raw)) {
+          return;
+        }
 
-        const point: MetricsPoint = {
-          timestamp: raw.timestamp,
-          cpu: normalizeValue(raw.cpu),
-          gpu: normalizeValue(raw.gpu),
-          npu: normalizeValue(raw.npu),
-          ram: normalizeValue(raw.ram),
-        };
+        const point = parseMetricsPoint(raw);
 
         setPoints((prev) => [...prev, point].slice(-MAX_POINTS));
       },

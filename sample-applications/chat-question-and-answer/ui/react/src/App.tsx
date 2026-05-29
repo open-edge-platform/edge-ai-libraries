@@ -9,8 +9,6 @@ import { Notifications } from '@mantine/notifications';
 import { Navbar } from "./components/Navbar/Navbar";
 import { MetricsPanel } from "./components/Metrics/MetricsPanel"
 
-const title = "ChatQnA"
-
 function App() {
   return (
     <MantineProvider>
@@ -20,7 +18,7 @@ function App() {
         <Navbar />
 
         <div className="chat-container">
-          <Conversation title={title} />
+          <Conversation />
         </div>
         
          <MetricsPanel />

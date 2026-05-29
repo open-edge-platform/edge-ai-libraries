@@ -1,15 +1,19 @@
+import { GpuMetricCard } from "./GpuMetricCard"
 import { MetricCard } from "./MetricCard"
 import classes from "./MetricsPanel.module.scss"
-import { useMetricsStream, MetricsPoint } from "./UseMetricsStream"
+import { GPU_ENGINES, GpuEngine, MetricsPoint, useMetricsStream } from "./UseMetricsStream"
 
 const getNumericData = (
   points: MetricsPoint[],
-  key: "cpu" | "gpu" | "npu" | "ram"
+  key: "cpu" | "npu" | "ram"
 ) => points.map((p) => p[key]).filter((v): v is number => typeof v === "number")
+
+const getGpuEngineData = (points: MetricsPoint[], engine: GpuEngine) =>
+  points.map((point) => point.gpu[engine]).filter((value): value is number => typeof value === "number")
 
 const latestValue = (
   points: MetricsPoint[],
-  key: "cpu" | "gpu" | "npu" | "ram"
+  key: "cpu" | "npu" | "ram"
 ) => {
   const value = points.at(-1)?.[key]
   return typeof value === "number" ? `${value.toFixed(1)}%` : "N/A"
@@ -27,7 +31,7 @@ export function MetricsPanel() {
     },
     {
       label: "NPU",
-      color: "#C442CF",
+      color: "#62CE58",
       data: getNumericData(points, "npu"),
       value: latestValue(points, "npu"),
     },
@@ -37,13 +41,21 @@ export function MetricsPanel() {
       data: getNumericData(points, "ram"),
       value: latestValue(points, "ram"),
     },
-    {
-      label: "GPU",
-      color: "#62CE58",
-      data: getNumericData(points, "gpu"),
-      value: latestValue(points, "gpu"),
-    },
   ]
+
+  const gpuColors: Record<GpuEngine, string> = {
+    bcs: "#C442CF",
+    rcs: "#00A3F6",
+    ccs: "#62CE58",
+    vcs: "#F3AD26",
+    vecs: "#E42222",
+  }
+
+  const gpuEngineSeries = GPU_ENGINES.map((engine) => ({
+    label: engine,
+    color: gpuColors[engine],
+    data: getGpuEngineData(points, engine),
+  }))
 
   return (
     <section className={classes.chartsPanel}>
@@ -62,6 +74,8 @@ export function MetricsPanel() {
             data={metric.data}
           />
         ))}
+
+        <GpuMetricCard series={gpuEngineSeries} />
       </div>
     </section>
   )

@@ -1,7 +1,7 @@
 .chartsPanel {
-    flex: 0 0 195px;
-    height: 195px;
-    min-height: 195px;
+    flex: 0 0 300px;
+    height: 300px;
+    min-height: 300px;
     width: 100%;
     overflow: hidden;
 
@@ -17,11 +17,19 @@
     margin-bottom: 8px;
 }
 
-.liveDot {
+.liveDot,
+.offlineDot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
+}
+
+.liveDot {
     background: #62ce58;
+}
+
+.offlineDot {
+    background: #e42222;
 }
 
 .chartsTitle {
@@ -33,13 +41,15 @@
 
 .chartsGrid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
     gap: 10px;
     height: calc(100% - 24px);
     min-height: 0;
 }
 
-.chartCard {
+.chartCard,
+.gpuCard {
     min-width: 0;
     min-height: 0;
     overflow: hidden;
@@ -59,7 +69,8 @@
     flex-shrink: 0;
 }
 
-.chartCardLabel {
+.chartCardLabel,
+.gpuTitle {
     font-size: 10px;
     color: #8899cc;
     font-weight: 500;
@@ -77,4 +88,39 @@
     flex: 1;
     min-height: 0;
     width: 100%;
+}
+
+.gpuCard {
+    grid-column: 1 / -1;
+}
+
+.gpuHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.gpuLegend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.gpuLegendItem {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #6a85a8;
+    text-transform: lowercase;
+}
+
+.gpuLegendDot {
+    width: 8px;
+    height: 2px;
+    border-radius: 999px;
+    flex-shrink: 0;
 }
