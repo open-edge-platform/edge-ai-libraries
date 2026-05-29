@@ -1,3 +1,4 @@
+import { usePipelineEditorContext } from "../PipelineEditorContext";
 import { PipelineNodeCard, PIPELINE_NODE_ROLE_CLASSES } from "./shared";
 
 export const SplitMuxSinkNodeWidth = 255;
@@ -8,9 +9,12 @@ type SplitMuxSinkNodeProps = {
   };
 };
 
-const SplitMuxSinkNode = ({ data }: SplitMuxSinkNodeProps) => (
+const SplitMuxSinkNode = ({ data }: SplitMuxSinkNodeProps) => {
+  const { simpleGraph } = usePipelineEditorContext();
+  
+  return (
   <PipelineNodeCard
-    title="Splitmuxsink"
+    title={simpleGraph ? "Video output" : "Splitmuxsink"}
     nodeType="splitmuxsink"
     roleClasses={PIPELINE_NODE_ROLE_CLASSES.sink}
     minWidthClass="min-w-[15.9375rem]"
@@ -33,6 +37,6 @@ const SplitMuxSinkNode = ({ data }: SplitMuxSinkNodeProps) => (
       />
     }
   />
-);
-
+  );
+};
 export default SplitMuxSinkNode;

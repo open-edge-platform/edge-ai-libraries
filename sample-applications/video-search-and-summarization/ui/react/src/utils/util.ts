@@ -177,7 +177,20 @@ export const getSafePreviewVideoUrl = (
     return null;
   }
 
-  return url.startsWith(`${normalizedAssetsEndpoint}/`) ? url : null;
+  if (!url.startsWith(`${normalizedAssetsEndpoint}/`)) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return url;
 };
 
 export const capitalize = (input: string): string => {

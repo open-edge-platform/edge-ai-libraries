@@ -98,10 +98,8 @@ export const MetricChart = ({
       (lastPoint.timestamp - firstPoint.timestamp) / 1000,
     );
 
-    if (seconds >= 60) {
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return `${minutes}m ${remainingSeconds}s`;
+    if (seconds >= 58) {
+      return "1m 0s";
     }
 
     return `${seconds}s`;

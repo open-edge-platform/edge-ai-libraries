@@ -743,8 +743,12 @@ class PipelineManager:
                                 f"Pipeline '{pipeline_name}' (id: {pipeline_id}) is missing required output sink. "
                                 f"Please add 'fakesink name=default_output_sink' at the end of the pipeline definition."
                             )
-                        logger.debug(
-                            "Metadata-only pipeline detected with unnamed fakesink. Skipping output injection."
+                        # Metadata-only pipelines do not have a video sink to redirect.Metadata still flows out via
+                        # gvametapublish, so the requested video output_mode cannot be honored.
+                        logger.warning(
+                            f"Pipeline '{pipeline_name}' (id: {pipeline_id}) is metadata-only; "
+                            f"ignoring output_mode={output_mode.value} — no video file/stream will be produced "
+                            f"(metadata output is unaffected)."
                         )
                     else:
                         if output_subpipeline is None:
