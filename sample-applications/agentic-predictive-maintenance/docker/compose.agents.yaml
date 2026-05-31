@@ -1,0 +1,63 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Agent service: LangGraph meta-agent + 4 worker agents.
+# Depends on: storage-service, mqtt-broker (compose.base.yaml)
+
+services:
+  apm-agent:
+    image: ${REGISTRY:-intel/}apm-agent-service:${TAG:-1.0.0}
+    container_name: apm-agent
+    hostname: apm-agent
+    build:
+      context: ../services/agent-service
+      dockerfile: Dockerfile
+    environment:
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: ${no_proxy:-},apm-storage,apm-vlm,mqtt-broker,localhost
+      # Storage service
+      STORAGE_SERVICE_URL: http://apm-storage:5001
+      # LLM service (vlm-openvino-serving)
+      LLM_BASE_URL: http://apm-vlm:8000/v1
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME}
+      LLM_MODE: ${LLM_MODE:-server}
+      # MQTT (from dlstreamer-pipeline-server detections)
+      MQTT_HOST: mqtt-broker
+      MQTT_PORT: 1883
+      MQTT_TOPIC: ${MQTT_DETECTION_TOPIC:-apm/detections}
+      # Use-case config
+      USE_CASE_ID: ${USE_CASE}
+      AGENTS_CONFIG_PATH: /app/config/agents.yaml
+      PROMPTS_DIR: /app/prompts
+      POLICY_FALLBACK_PATH: /app/config/policy_fallback.json
+      # Outputs
+      OUTPUT_DIR: /app/output
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ${USE_CASE_CONFIGS_DIR}/agents.yaml:/app/config/agents.yaml:ro
+      - ${USE_CASE_CONFIGS_DIR}/policy_fallback.json:/app/config/policy_fallback.json:ro
+      - ${USE_CASE_PROMPTS_DIR}:/app/prompts:ro
+      - apm_agent_output:/app/output
+    ports:
+      - "${AGENT_PORT:-5002}:5002"
+    depends_on:
+      apm-storage:
+        condition: service_healthy
+      mqtt-broker:
+        condition: service_healthy
+    networks:
+      - apm_network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  apm_agent_output:
+    driver: local

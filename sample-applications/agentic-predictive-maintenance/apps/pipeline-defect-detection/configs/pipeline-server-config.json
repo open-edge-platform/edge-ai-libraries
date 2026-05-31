@@ -1,0 +1,27 @@
+{
+  "config": [
+    {
+      "name": "pipeline_defect_detection",
+      "source": "file:///videos/pipeline_sample.mp4",
+      "destination": {
+        "type": "mqtt",
+        "host": "${MQTT_HOST}",
+        "port": "${MQTT_PORT}",
+        "topic": "dlstreamer/detections"
+      },
+      "parameters": {
+        "model-instance-id": "pipeline_defect_model",
+        "device": "${DL_DEVICE}",
+        "inference-interval": 1
+      },
+      "pipeline": "object_detection/base",
+      "publish-metadata": true
+    }
+  ],
+  "models": {
+    "pipeline_defect_model": {
+      "model": "${MODEL_PATH}/pipeline-defect-detection/FP16/pipeline-defect-detection.xml",
+      "labels": "${MODEL_PATH}/pipeline-defect-detection/labels.txt"
+    }
+  }
+}

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic Predictive Maintenance — {{ use_case_id }}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <span class="logo">&#9632; Intel</span>
+      <h1>Agentic Predictive Maintenance</h1>
+      <span class="use-case-badge">{{ use_case_id }}</span>
+    </div>
+  </header>
+
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/detections">Detections</a>
+  </nav>
+
+  <main>
+    <section class="card">
+      <h2>Detection Summary</h2>
+      {% if summary and summary.by_class %}
+      <table>
+        <thead><tr><th>Class</th><th>Count</th><th>Avg Confidence</th><th>Max Confidence</th></tr></thead>
+        <tbody>
+          {% for cls in summary.by_class %}
+          <tr>
+            <td><span class="label-badge">{{ cls.label }}</span></td>
+            <td>{{ cls.count }}</td>
+            <td>{{ "%.3f"|format(cls.avg_confidence) }}</td>
+            <td>{{ "%.3f"|format(cls.max_confidence) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty">No detections yet. Start the DL Streamer pipeline to begin.</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <h2>Agent Pipeline</h2>
+      <form method="POST" action="/run">
+        <button type="submit" class="btn-primary">&#9654; Run Agents</button>
+      </form>
+      <form method="POST" action="/clear-detections" style="display:inline-block; margin-left:1rem;">
+        <button type="submit" class="btn-danger" onclick="return confirm('Clear all detections?')">&#10005; Clear Detections</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Recent Runs</h2>
+      {% if runs %}
+      <table>
+        <thead><tr><th>Run ID</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          {% for run in runs[-10:]|reverse %}
+          <tr>
+            <td><code>{{ run.run_id[:8] }}…</code></td>
+            <td><span class="status-badge status-{{ run.status }}">{{ run.status }}</span></td>
+            <td>
+              {% if run.status == "completed" %}
+              <a href="/results/{{ run.run_id }}">View Results</a>
+              {% elif run.status == "running" %}
+              <a href="/results/{{ run.run_id }}">Waiting…</a>
+              {% else %}
+              <a href="/results/{{ run.run_id }}">View Error</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty">No runs yet.</p>
+      {% endif %}
+    </section>
+  </main>
+
+  <footer>
+    <p>&#169; Intel Corporation — Agentic Predictive Maintenance Blueprint</p>
+  </footer>
+</body>
+</html>

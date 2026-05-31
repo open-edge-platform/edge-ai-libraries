@@ -1,0 +1,28 @@
+use_case_id: pipeline-defect-detection
+
+# Agent configuration for pipeline defect detection
+analysis:
+  min_confidence: 0.5
+  max_detections_per_run: 500
+
+policy:
+  # Labels emitted by the DL Streamer model
+  defect_classes:
+    - Rupture
+    - Deformation
+    - Disconnect
+    - Obstacle
+  alert_threshold: 0.7     # confidence above which a detection is a violation
+  critical_classes:         # these always trigger HIGH priority ticket
+    - Rupture
+    - Disconnect
+
+evidence:
+  retention_frames: 1000    # keep evidence for last N frames
+
+ticketing:
+  # Ticket priority rules (fallback mode)
+  priority_rules:
+    high:   ["Rupture", "Disconnect"]
+    medium: ["Deformation"]
+    low:    ["Obstacle"]

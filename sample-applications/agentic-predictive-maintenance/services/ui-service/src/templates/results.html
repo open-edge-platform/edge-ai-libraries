@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Results — {{ run_id[:8] }} — {{ use_case_id }}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  {% if result.get("status") == "running" %}
+  <meta http-equiv="refresh" content="3">
+  {% endif %}
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <span class="logo">&#9632; Intel</span>
+      <h1>Agentic Predictive Maintenance</h1>
+      <span class="use-case-badge">{{ use_case_id }}</span>
+    </div>
+  </header>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/detections">Detections</a>
+  </nav>
+
+  <main>
+    <section class="card">
+      <h2>Run <code>{{ run_id[:8] }}…</code></h2>
+      {% if result.get("status") == "running" %}
+        <p class="info">&#9203; Pipeline is running… page auto-refreshes every 3 seconds.</p>
+      {% elif result.get("error") %}
+        <p class="error">&#10005; Error: {{ result.error }}</p>
+      {% else %}
+
+        {% if result.get("ticket") %}
+        <div class="result-section">
+          <h3>&#127882; Maintenance Ticket</h3>
+          {% set t = result.ticket %}
+          {% if t.get("mode") == "fallback" %}
+          <table>
+            <tr><th>Ticket ID</th><td><code>{{ t.ticket_id }}</code></td></tr>
+            <tr><th>Priority</th><td><span class="priority-badge priority-{{ t.priority|lower }}">{{ t.priority }}</span></td></tr>
+            <tr><th>Summary</th><td>{{ t.summary }}</td></tr>
+            <tr><th>Recommendation</th><td>{{ t.recommended_action }}</td></tr>
+          </table>
+          {% else %}
+          <pre class="llm-output">{{ t.ticket }}</pre>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% if result.get("policy") %}
+        <div class="result-section">
+          <h3>&#128220; Policy</h3>
+          {% set p = result.policy %}
+          {% if p.get("mode") == "fallback" %}
+            {% if p.violations %}
+            <p class="warn">&#9888; {{ p.violations|length }} policy violation(s) detected.</p>
+            <ul>{% for v in p.violations %}<li>{{ v.label }} — avg confidence {{ "%.3f"|format(v.avg_confidence) }} &gt; threshold {{ v.threshold }}</li>{% endfor %}</ul>
+            {% else %}
+            <p class="ok">&#10003; No policy violations. Recommendation: {{ p.recommendation }}</p>
+            {% endif %}
+          {% else %}
+          <pre class="llm-output">{{ p.policy }}</pre>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% if result.get("analysis") %}
+        <div class="result-section">
+          <h3>&#128202; Analysis</h3>
+          {% set a = result.analysis %}
+          {% if a.get("mode") == "fallback" %}
+          <p>Total detections: <strong>{{ a.total_detections }}</strong></p>
+          <table>
+            <thead><tr><th>Label</th><th>Count</th></tr></thead>
+            <tbody>{% for c in a.by_class %}<tr><td>{{ c.label }}</td><td>{{ c.count }}</td></tr>{% endfor %}</tbody>
+          </table>
+          {% else %}
+          <pre class="llm-output">{{ a.report }}</pre>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% if result.get("evidence") %}
+        <div class="result-section">
+          <h3>&#128196; Evidence Audit Trail</h3>
+          {% set e = result.evidence %}
+          {% if e.get("mode") == "fallback" %}
+          <p>Records: {{ e.record_count }} | Labels: {{ e.unique_labels|join(", ") }}</p>
+          {% else %}
+          <pre class="llm-output">{{ e.evidence }}</pre>
+          {% endif %}
+        </div>
+        {% endif %}
+
+      {% endif %}
+    </section>
+    <p><a href="/">&larr; Back to Dashboard</a></p>
+  </main>
+
+  <footer><p>&#169; Intel Corporation — Agentic Predictive Maintenance Blueprint</p></footer>
+</body>
+</html>

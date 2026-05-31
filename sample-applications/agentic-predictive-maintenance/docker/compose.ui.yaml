@@ -1,0 +1,39 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# UI service: Web interface for pipeline execution, agent outputs, and chat.
+
+services:
+  apm-ui:
+    image: ${REGISTRY:-intel/}apm-ui-service:${TAG:-1.0.0}
+    container_name: apm-ui
+    hostname: apm-ui
+    build:
+      context: ../services/ui-service
+      dockerfile: Dockerfile
+    environment:
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: ${no_proxy:-},apm-agent,apm-storage,localhost
+      AGENT_SERVICE_URL: http://apm-agent:5002
+      STORAGE_SERVICE_URL: http://apm-storage:5001
+      USE_CASE_ID: ${USE_CASE}
+      HOST: 0.0.0.0
+      PORT: 5003
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${UI_PORT:-5003}:5003"
+    depends_on:
+      apm-agent:
+        condition: service_healthy
+    networks:
+      - apm_network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
