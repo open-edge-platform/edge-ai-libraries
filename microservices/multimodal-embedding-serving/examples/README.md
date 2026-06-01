@@ -97,7 +97,7 @@ curl -X POST http://localhost:8080/embed_documents \
 ```bash
 curl -X POST http://localhost:8080/embed_image_url \
   -H "Content-Type: application/json" \
-  -d '{"image_url": "https://example.com/image.jpg"}'
+  -d '{"image_url": "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image/coco_bike.jpg"}'
 ```
 
 ## Supported Models

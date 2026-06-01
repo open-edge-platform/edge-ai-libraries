@@ -152,7 +152,7 @@ def curl_examples():
     print("4. Image Embedding from URL:")
     print("   curl -X POST http://localhost:8080/embed_image_url \\")
     print('     -H "Content-Type: application/json" \\')
-    print('     -d \'{"image_url": "https://example.com/image.jpg"}\'')
+    print('     -d \'{"image_url": "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image/coco_bike.jpg"}\'')
     print()
 
 

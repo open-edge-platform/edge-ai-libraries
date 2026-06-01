@@ -238,6 +238,8 @@ docker compose -f docker/compose.yaml down
 
 The following samples mirror the accompanying Postman collection. All requests target `http://localhost:9777`.
 
+`encoding_format` is optional for `/embeddings`; if omitted, the service defaults it to `float`.
+
 ### Text Embedding
 
 ```bash
@@ -248,8 +250,7 @@ curl --location 'http://localhost:9777/embeddings' \
     "type": "text",
     "text": "Sample input text1"
   },
-  "model": "CLIP/clip-vit-b-32",
-  "encoding_format": "float"
+  "model": "CLIP/clip-vit-b-32"
 }'
 ```
 
@@ -276,7 +277,7 @@ curl --location 'http://localhost:9777/embeddings' \
 --data '{
   "input": {
     "type": "image_url",
-    "image_url": "https://i.ytimg.com/vi/H_8J2YfMpY0/sddefault.jpg"
+    "image_url": "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image/coco_bike.jpg"
   },
   "model": "CLIP/clip-vit-b-32",
   "encoding_format": "float"
@@ -311,7 +312,7 @@ curl --location 'http://localhost:9777/embeddings' \
     "video_frames": [
       {
         "type": "image_url",
-        "image_url": "https://i.ytimg.com/vi/H_8J2YfMpY0/sddefault.jpg"
+        "image_url": "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image/coco_bike.jpg"
       },
       {
         "type": "image_base64",
@@ -332,7 +333,7 @@ curl --location 'http://localhost:9777/embeddings' \
   "encoding_format": "float",
   "input": {
     "type": "video_url",
-    "video_url": "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_10mb.mp4",
+    "video_url": "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/refs/heads/master/car-detection.mp4",
     "segment_config": {
       "startOffsetSec": 0,
       "clip_duration": -1,
