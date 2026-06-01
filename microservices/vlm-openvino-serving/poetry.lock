@@ -1628,6 +1628,45 @@ typing_extensions = ">=4.7.1"
 reference = ["Pillow"]
 
 [[package]]
+name = "onnx-ir"
+version = "0.2.1"
+description = "Efficient in-memory representation for ONNX"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "onnx_ir-0.2.1-py3-none-any.whl", hash = "sha256:c7285da889312f91882de2092e298a9eeeefbfc1d1951c49d983992967eb09a7"},
+    {file = "onnx_ir-0.2.1.tar.gz", hash = "sha256:8b8b10a93f43e65962104de6070c43c5dacb0e3cdfefc7c8059dd83c9db64f35"},
+]
+
+[package.dependencies]
+ml_dtypes = ">=0.5.0"
+numpy = "*"
+onnx = ">=1.16"
+sympy = ">=1.13"
+typing_extensions = ">=4.10"
+
+[[package]]
+name = "onnxscript"
+version = "0.7.0"
+description = "Naturally author ONNX functions and models using a subset of Python"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "onnxscript-0.7.0-py3-none-any.whl", hash = "sha256:5b356907d4501e9919f8599c91d8da967406a37b1fac2b40caa55a49acf242ea"},
+    {file = "onnxscript-0.7.0.tar.gz", hash = "sha256:c95ed7b339b02cface56ee27689565c46612e1fc542c562298dddfdad5268dc5"},
+]
+
+[package.dependencies]
+ml_dtypes = "*"
+numpy = "*"
+onnx = ">=1.17"
+onnx_ir = ">=0.1.16,<2"
+packaging = "*"
+typing_extensions = ">=4.10"
+
+[[package]]
 name = "openvino"
 version = "2026.2.0"
 description = "OpenVINO(TM) Runtime"
@@ -1739,15 +1778,13 @@ transformers = ["tiktoken (>=0.3.0)", "transformers[sentencepiece] (>=4.36.0)"]
 
 [[package]]
 name = "optimum"
-version = "2.1.0"
+version = "2.1.0.dev0"
 description = "Optimum Library is an extension of the Hugging Face Transformers library, providing a framework to integrate third-party libraries from Hardware Partners and interface with their specific functionality."
 optional = false
 python-versions = ">=3.9.0"
 groups = ["main"]
-files = [
-    {file = "optimum-2.1.0-py3-none-any.whl", hash = "sha256:bc3af32e1236a9b2c2ca1d27ed9d3ab1b6591e24c6bcd47f9671a8198a30ea88"},
-    {file = "optimum-2.1.0.tar.gz", hash = "sha256:0a2a13f91500e41d34863ffdb08fcb886b3ce68a84a386e59653e3064a45dd4b"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 huggingface_hub = ">=0.8.0"
@@ -1776,54 +1813,73 @@ quality = ["black (>=23.1,<24.0)", "ruff (==0.1.5)"]
 quanto = ["optimum-quanto (>=0.2.4)"]
 tests = ["Pillow", "accelerate", "einops", "hf_xet", "parameterized", "pytest", "pytest-xdist", "requests", "rjieba", "sacremoses", "scikit-learn", "sentencepiece", "timm", "torchaudio", "torchvision"]
 
+[package.source]
+type = "git"
+url = "https://github.com/huggingface/optimum"
+reference = "HEAD"
+resolved_reference = "83c88b8fc51e791f263a954e3568e1d2a02aa003"
+
 [[package]]
 name = "optimum-intel"
-version = "1.27.0"
+version = "1.27.0.dev0+371f91b22"
 description = "Optimum Library is an extension of the Hugging Face Transformers library, providing a framework to integrate third-party libraries from Hardware Partners and interface with their specific functionality."
 optional = false
 python-versions = "*"
 groups = ["main"]
-files = [
-    {file = "optimum_intel-1.27.0-py3-none-any.whl", hash = "sha256:a999059367a131a419c85bc24978c89969612a8994df0d87412d04c5a2c18fe7"},
-    {file = "optimum_intel-1.27.0.tar.gz", hash = "sha256:06c2b38c90912d231677118888388b8e8b073f8bd240e9e1279f48708341b3de"},
-]
+files = []
+develop = false
 
 [package.dependencies]
-optimum-onnx = ">=0.1.0,<0.2.0"
+huggingface-hub = ">=0.23.2,<2.0"
+nncf = ">=2.19.0"
+openvino = ">=2026.0"
+openvino-tokenizers = ">=2026.0"
+optimum-onnx = {git = "https://github.com/huggingface/optimum-onnx.git", rev = "transformers-v5"}
+requests = ">=2.33,<3.0"
+setuptools = "*"
 torch = ">=2.1"
-transformers = ">=4.45,<4.58"
+transformers = ">=4.45,<5.1"
 
 [package.extras]
 diffusers = ["diffusers"]
-ipex = ["accelerate", "intel-extension-for-pytorch (>=2.8)", "transformers (>4.54,<4.56)"]
-neural-compressor = ["accelerate", "datasets", "neural-compressor[pt] (>=3.4.1)", "transformers (<4.46)"]
 nncf = ["nncf (>=2.19.0)"]
-openvino = ["nncf (>=2.19.0)", "openvino (>=2025.4.0)", "openvino-tokenizers (>=2025.4.0)"]
+openvino = ["nncf (>=2.19.0)", "openvino (>=2026.0)", "openvino-tokenizers (>=2026.0)"]
 quality = ["black (>=23.1,<24.0)", "ruff (==0.4.4)"]
-tests = ["Pillow", "accelerate", "datasets[audio] (>=1.4.0,<4.0.0)", "einops", "evaluate", "hf_xet", "invisible-watermark (>=0.2.0)", "langchain-huggingface", "num2words", "open_clip_torch (>=2.26.1)", "openvino-genai", "parameterized", "peft", "py-cpuinfo", "pytest (>=7.2.0,<8.0.0)", "rjieba", "sacremoses", "sentence-transformers", "sentencepiece", "tbb", "tiktoken", "timm", "torchaudio", "transformers_stream_generator", "vector_quantize_pytorch", "vocos"]
+tests = ["Pillow", "accelerate", "av", "datasets (>=1.4.0,<4.0.0)", "decord", "einops", "evaluate", "hf_xet", "imageio", "invisible-watermark (>=0.2.0)", "kokoro", "langchain-huggingface", "num2words", "open_clip_torch (>=2.26.1)", "openvino-genai", "parameterized", "peft", "py-cpuinfo", "pytest (>=7.2.0,<8.0.0)", "rjieba", "sacremoses", "sentence-transformers (<5.4.0)", "sentencepiece", "tbb", "tiktoken", "timm", "torchaudio", "transformers_stream_generator", "vector_quantize_pytorch", "vocos"]
+
+[package.source]
+type = "git"
+url = "https://github.com/huggingface/optimum-intel.git"
+reference = "371f91b22afac38a199f9dcc39fe865ced08b520"
+resolved_reference = "371f91b22afac38a199f9dcc39fe865ced08b520"
 
 [[package]]
 name = "optimum-onnx"
-version = "0.1.0"
+version = "0.1.0.dev0"
 description = "Optimum ONNX is an interface between the Hugging Face libraries and ONNX / ONNX Runtime"
 optional = false
 python-versions = ">=3.9.0"
 groups = ["main"]
-files = [
-    {file = "optimum_onnx-0.1.0-py3-none-any.whl", hash = "sha256:0301ec7a6ec5c77a57581e9970d380a6dc104bdb8f15b282e05af40d829c2eda"},
-    {file = "optimum_onnx-0.1.0.tar.gz", hash = "sha256:182c54b25eddaded1618af7b58516da34749393a987ec7111f74677f249676f9"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 onnx = "*"
-optimum = ">=2.1.0,<2.2.0"
-transformers = ">=4.36,<4.58.0"
+onnxscript = "*"
+optimum = {git = "https://github.com/huggingface/optimum"}
+transformers = ">=4.36,<5.6"
 
 [package.extras]
 onnxruntime = ["onnxruntime (>=1.18.0)"]
 onnxruntime-gpu = ["onnxruntime-gpu (>=1.18.0)"]
 quality = ["ruff (==0.12.3)"]
 tests = ["Pillow", "accelerate (>=0.26.0)", "datasets", "einops", "hf_xet", "onnxslim (>=0.1.60)", "parameterized", "pytest", "pytest-xdist", "rjieba", "sacremoses", "safetensors", "scipy", "sentencepiece", "timm"]
+
+[package.source]
+type = "git"
+url = "https://github.com/huggingface/optimum-onnx.git"
+reference = "transformers-v5"
+resolved_reference = "d16609c333b65c082aaf699cf3c492e4d8772245"
 
 [[package]]
 name = "packaging"
@@ -3473,4 +3529,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11,<3.14"
-content-hash = "4f64816450c43079fb2e5d3b87ff5bf9544a382fb331eba9715fb42c6c65c283"
+content-hash = "84d6e3130d24427104486cca97c61a22014bf6950359b54731b292114d03b8f5"

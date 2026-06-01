@@ -5,6 +5,10 @@ FROM python:3.12-slim AS build
 
 RUN pip install --upgrade --no-cache-dir pip setuptools
 
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir poetry
 
 WORKDIR /app
