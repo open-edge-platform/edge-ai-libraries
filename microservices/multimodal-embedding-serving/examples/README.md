@@ -123,7 +123,7 @@ The service supports multiple model families:
 - `SigLIP/siglip2-so400m-patch16-384`
 
 ### BLIP2 Models
-- `Blip2/blip2_transformers`
+- `Blip2/blip2`
 
 ## Environment Variables
 

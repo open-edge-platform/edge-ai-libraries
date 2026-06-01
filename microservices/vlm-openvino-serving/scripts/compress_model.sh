@@ -9,7 +9,13 @@ VLM_COMPRESSION_WEIGHT_FORMAT=$2
 HUGGINGFACE_TOKEN=${3:-}
 
 MODEL_DIR=$(echo $VLM_MODEL_NAME | awk -F/ '{print $NF}')
-MODEL_DIR="ov-model/$MODEL_DIR/$VLM_COMPRESSION_WEIGHT_FORMAT"
+
+# OpenVINO namespace models are already converted; no compression subfolder needed.
+if [[ "$VLM_MODEL_NAME" == OpenVINO/* ]]; then
+    MODEL_DIR="ov-model/$MODEL_DIR"
+else
+    MODEL_DIR="ov-model/$MODEL_DIR/$VLM_COMPRESSION_WEIGHT_FORMAT"
+fi
 
 echo "Model Name: $VLM_MODEL_NAME"
 echo "Compression Weight Format: $VLM_COMPRESSION_WEIGHT_FORMAT"
@@ -22,27 +28,46 @@ if [ -n "$HUGGINGFACE_TOKEN" ] && [ "$HUGGINGFACE_TOKEN" != "none" ]; then
 fi
 
 if [ ! -d "$MODEL_DIR" ]; then
-    echo "Model directory does not exist. Exporting model..."
-    echo "Starting model compression..."
-    EXPORT_CMD=(
-        optimum-cli export openvino
-        --trust-remote-code
-        --model "$VLM_MODEL_NAME"
-        "$MODEL_DIR"
-        --weight-format "$VLM_COMPRESSION_WEIGHT_FORMAT"
-    )
+    echo "Model directory does not exist. Preparing model..."
 
-    if [[ "$VLM_MODEL_NAME" == openbmb/MiniCPM-o-2_6* ]]; then
-        echo "openbmb/MiniCPM-o-2_6 model detected. Forcing image-text-to-text export task."
-        EXPORT_CMD+=(--task image-text-to-text)
-    fi
+    # Models under the OpenVINO HF namespace are already in IR format;
+    # download them directly instead of running optimum-cli export.
+    if [[ "$VLM_MODEL_NAME" == OpenVINO/* ]]; then
+        echo "OpenVINO namespace model detected. Downloading pre-converted IR model..."
+        DOWNLOAD_CMD=(
+            hf download
+            "$VLM_MODEL_NAME"
+            --local-dir "$MODEL_DIR"
+        )
 
-    if ! "${EXPORT_CMD[@]}"; then
-        echo "Model export failed. Removing partial artifacts in $MODEL_DIR" >&2
-        rm -rf "$MODEL_DIR"
-        exit 1
+        if ! "${DOWNLOAD_CMD[@]}"; then
+            echo "Model download failed. Removing partial artifacts in $MODEL_DIR" >&2
+            rm -rf "$MODEL_DIR"
+            exit 1
+        fi
+        echo "Model downloaded successfully to $MODEL_DIR"
+    else
+        echo "Starting model compression..."
+        EXPORT_CMD=(
+            optimum-cli export openvino
+            --trust-remote-code
+            --model "$VLM_MODEL_NAME"
+            "$MODEL_DIR"
+            --weight-format "$VLM_COMPRESSION_WEIGHT_FORMAT"
+        )
+
+        if [[ "$VLM_MODEL_NAME" == openbmb/MiniCPM-o-2_6* ]]; then
+            echo "openbmb/MiniCPM-o-2_6 model detected. Forcing image-text-to-text export task."
+            EXPORT_CMD+=(--task image-text-to-text)
+        fi
+
+        if ! "${EXPORT_CMD[@]}"; then
+            echo "Model export failed. Removing partial artifacts in $MODEL_DIR" >&2
+            rm -rf "$MODEL_DIR"
+            exit 1
+        fi
+        echo "Model exported successfully to $MODEL_DIR"
     fi
-    echo "Model exported successfully to $MODEL_DIR"
 else
     echo "Model directory already exists. Skipping export."
 fi

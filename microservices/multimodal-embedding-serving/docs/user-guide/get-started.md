@@ -17,7 +17,7 @@ This guide assumes basic familiarity with Docker commands and terminal usage.
 ### Model Configuration
 
 - **EMBEDDING_MODEL_NAME** - The model to use (e.g., "CLIP/clip-vit-b-16"). Refer to the [Supported Models](./supported-models.md) list for additional choices.
-- **EMBEDDING_DEVICE** - Device for inference (CPU/GPU, default: CPU)
+- **EMBEDDING_DEVICE** - Device for inference (CPU/GPU/NPU, default: CPU)
 - **EMBEDDING_USE_OV** - Enable OpenVINO optimization (true/false, default: false)
 - **EMBEDDING_OV_MODELS_DIR** - Directory for OpenVINO models (default: ./ov-models)
 
@@ -129,7 +129,7 @@ export EMBEDDING_DEVICE=CPU
 #### For Inference Performance
 1. Increase `INFER_BATCH_SIZE` and `PREPROCESS_WORKERS`
 2. Enable OpenVINO: `EMBEDDING_USE_OV=true`
-3. Use GPU if available: `EMBEDDING_DEVICE=GPU`
+3. Use GPU or NPU if available: `EMBEDDING_DEVICE=GPU` or `EMBEDDING_DEVICE=NPU`
 
 ### Set the environment variables
 
@@ -184,6 +184,43 @@ docker compose -f docker/compose.yaml up -d
 ### 4. Verify GPU Configuration
 
 ```bash
+# Check service health
+curl --location --request GET 'http://localhost:9777/health'
+
+# Inspect active model capabilities
+curl --location --request GET 'http://localhost:9777/model/capabilities'
+```
+
+## Running the Server with NPU
+
+### 1. Configure NPU Device
+
+```bash
+export EMBEDDING_DEVICE=NPU
+```
+
+> **Note**: NPU support is model-dependent. Verify that the selected model is supported on NPU by checking the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html).
+
+### 2. Run Setup Script
+
+```bash
+source setup.sh
+```
+
+> **Note**: When `EMBEDDING_DEVICE=NPU` is set, `setup.sh` automatically enables `EMBEDDING_USE_OV=true`.
+
+### 3. Start the Service
+
+```bash
+docker compose -f docker/compose.yaml up -d
+```
+
+### 4. Verify NPU Configuration
+
+```bash
+# Verify /dev/accel/accel0 is available on the host
+ls -l /dev/accel/accel0
+
 # Check service health
 curl --location --request GET 'http://localhost:9777/health'
 
@@ -366,6 +403,17 @@ curl --location --request GET 'http://localhost:9777/model/capabilities'
     ```
 
   - Confirm `EMBEDDING_USE_OV=true` for best performance with OpenVINO on GPU.
+
+4. **NPU acceleration inactive**
+
+  - Confirm `/dev/accel/accel0` is available on the host:
+
+    ```bash
+    ls -l /dev/accel/accel0
+    ```
+
+  - Ensure `EMBEDDING_DEVICE=NPU` is set and `EMBEDDING_USE_OV=true`.
+  - Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
 
 ## Supporting Resources
 

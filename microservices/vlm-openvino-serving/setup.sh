@@ -31,6 +31,10 @@ if [[ "$VLM_DEVICE" == "GPU" ]]; then
     export WORKERS=1
 fi
 
+if [[ "$VLM_DEVICE" == "NPU" ]]; then
+    export WORKERS=1
+fi
+
 # Export current user and group IDs for container user
 export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)

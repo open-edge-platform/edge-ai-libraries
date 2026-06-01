@@ -29,7 +29,7 @@ export VLM_MODEL_NAME="microsoft/Phi-3.5-vision-instruct"
 
 **Default**: `CPU`
 
-**Supported Values**: `CPU`, `GPU`, `GPU.0`, `GPU.1`, etc.
+**Supported Values**: `CPU`, `GPU`, `GPU.0`, `GPU.1`, etc., `NPU`
 
 **Examples**:
 
@@ -43,12 +43,16 @@ export VLM_DEVICE=GPU
 # Use specific GPU device (if multiple GPUs available)
 export VLM_DEVICE=GPU.0
 export VLM_DEVICE=GPU.1
+
+# Use NPU for inference (if available)
+export VLM_DEVICE=NPU
 ```
 
 **Device Selection Guidelines**:
 
 - **CPU**: Best for development, testing, and when GPU is not available
 - **GPU**: Recommended for production workloads when GPU acceleration is available
+- **NPU**: Use for efficient low-power inference on systems with an Intel NPU. Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page
 - **Multi-GPU**: When multiple GPUs are available, specify which one to use
 
 **Note**: When using GPU, the setup script automatically adjusts compression format to `int4` and sets workers to 1 for optimal GPU performance.
@@ -388,6 +392,16 @@ source setup.sh
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 export VLM_DEVICE=GPU.0
 export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT", "CACHE_DIR": "/tmp/ov_cache"}'
+source setup.sh
+```
+
+### NPU Acceleration
+
+```bash
+# NPU configuration
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export VLM_COMPRESSION_WEIGHT_FORMAT=int8
+export VLM_DEVICE=NPU
 source setup.sh
 ```
 

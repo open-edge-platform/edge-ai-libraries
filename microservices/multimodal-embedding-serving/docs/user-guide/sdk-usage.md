@@ -223,7 +223,7 @@ mobile_handler = get_model_handler("MobileCLIP/mobileclip_b")
 mobile_model = EmbeddingModel(mobile_handler)
 
 # BLIP-2 for advanced multimodal understanding
-blip2_handler = get_model_handler("Blip2/blip2_transformers")
+blip2_handler = get_model_handler("Blip2/blip2")
 blip2_model = EmbeddingModel(blip2_handler)
 ```
 

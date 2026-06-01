@@ -41,6 +41,11 @@ export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 export VLM_DEVICE=GPU
 
+# NPU acceleration
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export VLM_COMPRESSION_WEIGHT_FORMAT=int8
+export VLM_DEVICE=NPU
+
 # Performance optimization
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
@@ -53,7 +58,7 @@ export VLM_ACCESS_LOG_FILE="/dev/null"
 
 **Key Environment Variables**:
 
-- **VLM_DEVICE**: Set to `CPU` (default) or `GPU` for device selection
+- **VLM_DEVICE**: Set to `CPU` (default), `GPU`, or `NPU` for device selection
 - **OV_CONFIG**: JSON string for OpenVINO performance tuning
 - **VLM_LOG_LEVEL**: Control logging verbosity (`debug`, `info`, `warning`, `error`)
 - **VLM_MAX_COMPLETION_TOKENS**: Limit response length
@@ -134,6 +139,45 @@ curl --location --request GET 'http://localhost:9764/device'
 ```
 
 > **Note**: For detailed GPU configuration options, device discovery, and performance tuning recommendations, refer to the `Device Configuration` section in [Environment Variables Guide](./environment-variables.md#device-configuration).
+
+## Running the Server with NPU
+
+To run the server with NPU acceleration, follow these steps:
+
+### 1. Configure NPU Device
+
+```bash
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export VLM_COMPRESSION_WEIGHT_FORMAT=int8
+export VLM_DEVICE=NPU
+```
+
+> **Note**: NPU support is model-dependent. Verify that the selected model is listed as NPU-supported at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
+
+### 2. Run Setup Script
+
+```bash
+source setup.sh
+```
+
+### 3. Start the Service
+
+```bash
+docker compose -f docker/compose.yaml up -d
+```
+
+### 4. Verify NPU Configuration
+
+```bash
+# Verify /dev/accel/accel0 is available on the host
+ls -l /dev/accel/accel0
+
+# Check service health
+curl --location --request GET 'http://localhost:9764/health'
+
+# Check available devices and current configuration
+curl --location --request GET 'http://localhost:9764/device'
+```
 
 ## Stop the VLM OpenVINO Serving microservice
 

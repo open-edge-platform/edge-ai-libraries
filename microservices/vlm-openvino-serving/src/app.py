@@ -471,7 +471,10 @@ def initialize_model():
     model_dir = Path("ov-model") / model_dir
     model_dir.mkdir(parents=True, exist_ok=True)
     weight = settings.VLM_COMPRESSION_WEIGHT_FORMAT.lower()
-    model_dir = model_dir / weight
+
+    # OpenVINO namespace models are pre-converted; skip the weight subfolder.
+    if not model_name.startswith("OpenVINO/"):
+        model_dir = model_dir / weight
     logger.info(f"Model_name: {model_name} \b Compression_Weight_Format: {weight}")
 
     try:
@@ -489,6 +492,7 @@ def initialize_model():
     try:
         model_config = load_model_config(model_name.split("/")[-1].lower())
         ov_config = settings.get_ov_config_dict()
+        logger.info(f"Using device: {settings.VLM_DEVICE.upper()}")
         logger.debug(f"Using OpenVINO configuration: {ov_config}")
         if ModelNames.SMOLVLM in model_name.lower():
             pipe = OVModelForVisualCausalLM.from_pretrained(

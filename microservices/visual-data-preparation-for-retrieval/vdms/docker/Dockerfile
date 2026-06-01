@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 ARG ARCH="cpu"
-ARG INSTALL_DRIVER_VERSION="25.48.36300"
+ARG INSTALL_DRIVER_VERSION="26.09.37435"
 FROM python:3.12.12-slim AS python-base
 ARG ARCH
 # Setting env vars for python, pip and poetry
@@ -125,9 +125,9 @@ RUN chmod +x /entrypoint.sh /install_ubuntu_gpu_drivers.sh && \
 
 RUN mkdir -p /tmp/npu_deps && cd /tmp/npu_deps && \
     apt-get update && apt-get install -y --no-install-recommends libtbb12 && \
-    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.28.0/linux-npu-driver-v1.28.0.20251218-20347000698-ubuntu2404.tar.gz && \
-    tar -xf linux-npu-driver-v1.28.0.20251218-20347000698-ubuntu2404.tar.gz && \
-    curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.24.2/level-zero_1.24.2+u24.04_amd64.deb ; \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.32.1/linux-npu-driver-v1.32.1.20260422-24767473183-ubuntu2404.tar.gz && \
+    tar -xf linux-npu-driver-v1.32.1.20260422-24767473183-ubuntu2404.tar.gz && \
+    curl -L -O https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260324T100000Z/pool/main/l/level-zero-loader/libze1_1.27.0-1~24.04~ppa2_amd64.deb ; \
     dpkg -i ./*.deb && rm -Rf /tmp/npu_deps && \
     apt-get clean ; \
     rm -rf /var/lib/apt/lists/*

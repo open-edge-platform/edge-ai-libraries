@@ -107,7 +107,8 @@ class MobileCLIPHandler(BaseEmbeddingModel):
 
         self._embedding_dim: Optional[int] = None
         infer_batch_size = model_config.get("infer_batch_size", os.getenv("INFER_BATCH_SIZE", 64))
-        self.preprocess_shape = (infer_batch_size, 3, self.image_size, self.image_size)  # Default shape for CLIP image encoder input
+        num_channels = model_config.get("num_channels", 3)
+        self.preprocess_shape = (infer_batch_size, num_channels, self.image_size, self.image_size)
         self._preprocess_workers = model_config.get("preprocess_workers", os.getenv("PREPROCESS_WORKERS", min(16, (os.cpu_count() or 4) * 2)))
         self.async_infer = None
         self.parallel_preprocessor: Optional[ParallelImagePreprocessor] = None
@@ -207,8 +208,15 @@ class MobileCLIPHandler(BaseEmbeddingModel):
             convert_func=self.convert_to_openvino,
             ov_models_dir=self.ov_models_dir
         )
+        self.tokenizer = mobileclip.get_tokenizer(self.model_name)
+
+        # Probe tokenizer to determine the text encoder's static input shape
+        text_seq_len = self.tokenizer(["sample"]).shape[-1]
+        text_reshape_shape = (1, text_seq_len)
+
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
-            image_encoder_path, text_encoder_path, self.device, self.preprocess_shape
+            image_encoder_path, text_encoder_path, self.device,
+            self.preprocess_shape, text_reshape_shape
         )
         # Always load preprocessing and tokenizer for OpenVINO inference
         _, _, self.preprocess = mobileclip.create_model_and_transforms(
@@ -228,7 +236,7 @@ class MobileCLIPHandler(BaseEmbeddingModel):
             preprocess_shape=self.preprocess_shape
         )
 
-        self.tokenizer = mobileclip.get_tokenizer(self.model_name)
+        # Get tokenizer (lightweight operation - already loaded above)
         logger.info(f"MobileCLIP OpenVINO models loaded successfully on device: {self.device}")
     
     def encode_text(self, texts: Union[str, List[str]]) -> torch.Tensor:

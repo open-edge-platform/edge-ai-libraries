@@ -74,13 +74,15 @@ class CNClipHandler(BaseEmbeddingModel):
         self.use_openvino = model_config.get("use_openvino", False)
         self.device = model_config.get("device", "CPU")
         self.ov_models_dir = model_config.get("ov_models_dir", "ov-models")
+        self.image_size = model_config.get("image_size", 224)
         
         # OpenVINO models
         self.ov_image_encoder = None
         self.ov_text_encoder = None
         self._embedding_dim: Optional[int] = None
         infer_batch_size = model_config.get("infer_batch_size", os.getenv("INFER_BATCH_SIZE", 64))
-        self.preprocess_shape = (infer_batch_size, 3, 224, 224)  # Default shape for CN-CLIP image encoder input
+        num_channels = model_config.get("num_channels", 3)
+        self.preprocess_shape = (infer_batch_size, num_channels, self.image_size, self.image_size)
         self._preprocess_workers = model_config.get("preprocess_workers", os.getenv("PREPROCESS_WORKERS", min(16, (os.cpu_count() or 4) * 2)))
         self.async_infer = None
         self.parallel_preprocessor: Optional[ParallelImagePreprocessor] = None
@@ -127,8 +129,15 @@ class CNClipHandler(BaseEmbeddingModel):
             convert_func=self.convert_to_openvino,
             ov_models_dir=self.ov_models_dir
         )
+        self.tokenizer = cn_clip.tokenize
+
+        # Probe tokenizer to determine the text encoder's static input shape
+        text_seq_len = self.tokenizer(["sample"]).shape[-1]
+        text_reshape_shape = (1, text_seq_len)
+
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
-            image_encoder_path, text_encoder_path, self.device, self.preprocess_shape
+            image_encoder_path, text_encoder_path, self.device,
+            self.preprocess_shape, text_reshape_shape
         )
         
         # Load preprocessing and tokenizer for OpenVINO inference
@@ -146,7 +155,7 @@ class CNClipHandler(BaseEmbeddingModel):
             preprocess_shape=self.preprocess_shape
         )
 
-        self.tokenizer = cn_clip.tokenize
+        # Tokenizer already loaded above
         logger.info(f"CN-CLIP OpenVINO models loaded successfully on device: {self.device}")
     
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:

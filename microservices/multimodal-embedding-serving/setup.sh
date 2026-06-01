@@ -51,6 +51,11 @@ if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
     export VIDEO_FRAME_BATCH_SIZE=${VIDEO_FRAME_BATCH_SIZE:-256}
 fi
 
+# If EMBEDDING_DEVICE is NPU, set EMBEDDING_USE_OV to true
+if [ "$EMBEDDING_DEVICE" = "NPU" ]; then
+    export EMBEDDING_USE_OV=true
+fi
+
 export EMBEDDING_SERVER_PORT=9777
 
 # Model configuration - REQUIRED: User must set EMBEDDING_MODEL_NAME
@@ -82,7 +87,7 @@ case "$EMBEDDING_MODEL_NAME" in
     "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b"|"MobileCLIP/mobileclip_blt")
         echo "Using MobileCLIP model: $EMBEDDING_MODEL_NAME"
         ;;
-    "Blip2/blip2_transformers")
+    "Blip2/blip2")
         echo "Using BLIP2 model: $EMBEDDING_MODEL_NAME"
         ;;
     *)
