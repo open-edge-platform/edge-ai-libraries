@@ -39,6 +39,7 @@ from ..utils import (
     check_and_convert_openvino_models,
     load_openvino_models,
     AsyncBatchInference,
+    infer_with_batch_support,
 )
 
 
@@ -133,7 +134,7 @@ class CNClipHandler(BaseEmbeddingModel):
 
         # Probe tokenizer to determine the text encoder's static input shape
         text_seq_len = self.tokenizer(["sample"]).shape[-1]
-        text_reshape_shape = (1, text_seq_len)
+        text_reshape_shape = (max(1, int(self.preprocess_shape[0])), text_seq_len)
 
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
             image_encoder_path, text_encoder_path, self.device,
@@ -254,9 +255,12 @@ class CNClipHandler(BaseEmbeddingModel):
     def _encode_text_openvino(self, texts: List[str]) -> torch.Tensor:
         """Encode text using OpenVINO model."""
         text_tokens = self.tokenizer(texts)
-        # Use OpenVINO inference with infer_new_request for thread safety
-        result = self.ov_text_encoder.infer_new_request({self.ov_text_encoder.inputs[0]: text_tokens.numpy()})
-        text_features = torch.from_numpy(result[self.ov_text_encoder.outputs[0]])
+        text_features = torch.from_numpy(
+            infer_with_batch_support(
+                self.ov_text_encoder,
+                {self.ov_text_encoder.inputs[0]: text_tokens},
+            )
+        )
         # Convert to torch tensor and normalize
         text_features = F.normalize(text_features, p=2, dim=1)
         return text_features

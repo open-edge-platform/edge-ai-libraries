@@ -41,7 +41,8 @@ from ...utils import logger, ParallelImagePreprocessor
 from ..utils import (
     check_and_convert_openvino_models,
     load_openvino_models,
-    AsyncBatchInference
+    AsyncBatchInference,
+    infer_with_batch_support,
 )
 
 
@@ -356,7 +357,10 @@ class BLIP2Handler(BaseEmbeddingModel):
 
         # Probe tokenizer to determine the text encoder's static input shape
         sample_tokens = processor(text=["sample"], return_tensors="pt", padding=True, truncation=True)
-        text_reshape_shape = tuple(sample_tokens.input_ids.shape)
+        text_reshape_shape = (
+            max(1, int(self.preprocess_shape[0])),
+            int(sample_tokens.input_ids.shape[-1]),
+        )
 
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
             image_encoder_path, text_encoder_path, self.device,
@@ -423,11 +427,15 @@ class BLIP2Handler(BaseEmbeddingModel):
         if self.use_openvino and self.ov_text_encoder is not None:
             # Use OpenVINO text encoder with infer_new_request for thread safety
             # The converted model already includes Q-Former + projection + normalization
-            result = self.ov_text_encoder.infer_new_request({
-                self.ov_text_encoder.inputs[0]: tokenized["input_ids"].numpy(),
-                self.ov_text_encoder.inputs[1]: tokenized["attention_mask"].numpy()
-            })
-            text_features = torch.from_numpy(result[self.ov_text_encoder.outputs[0]])
+            text_features = torch.from_numpy(
+                infer_with_batch_support(
+                    self.ov_text_encoder,
+                    {
+                        self.ov_text_encoder.inputs[0]: tokenized["input_ids"],
+                        self.ov_text_encoder.inputs[1]: tokenized["attention_mask"],
+                    },
+                )
+            )
         else:
             # Use PyTorch model (already includes projection + normalization)
             text_features = self.model.encode_text(

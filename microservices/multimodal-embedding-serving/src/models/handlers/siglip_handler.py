@@ -38,6 +38,7 @@ from ..utils import (
     check_and_convert_openvino_models,
     load_openvino_models,
     AsyncBatchInference,
+    infer_with_batch_support,
 )
 
 
@@ -120,7 +121,7 @@ class SigLIPHandler(BaseEmbeddingModel):
 
         # Probe tokenizer to determine the text encoder's static input shape
         text_seq_len = self.tokenizer(["sample"]).shape[-1]
-        text_reshape_shape = (1, text_seq_len)
+        text_reshape_shape = (max(1, int(self.preprocess_shape[0])), text_seq_len)
 
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
             image_encoder_path, text_encoder_path, self.device,
@@ -155,9 +156,12 @@ class SigLIPHandler(BaseEmbeddingModel):
         tokenized = self.tokenizer(texts)
         
         if self.use_openvino and self.ov_text_encoder is not None:
-            # Use OpenVINO inference with infer_new_request for thread safety
-            result = self.ov_text_encoder.infer_new_request({self.ov_text_encoder.inputs[0]: tokenized})
-            text_features = torch.from_numpy(result[self.ov_text_encoder.outputs[0]])
+            text_features = torch.from_numpy(
+                infer_with_batch_support(
+                    self.ov_text_encoder,
+                    {self.ov_text_encoder.inputs[0]: tokenized},
+                )
+            )
         else:
             # Use PyTorch model
             with torch.no_grad():

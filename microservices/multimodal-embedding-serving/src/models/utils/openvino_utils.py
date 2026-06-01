@@ -21,6 +21,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 import time
+from typing import Any, Dict
 
 import numpy as np
 import openvino as ov
@@ -316,6 +317,76 @@ def load_openvino_models(
     )
 
     return ov_image_encoder, ov_text_encoder
+
+
+def infer_with_batch_support(
+    compiled_model: ov.CompiledModel,
+    model_inputs: Dict[Any, Any],
+    output_index: int = 0,
+) -> np.ndarray:
+    """
+    Run OpenVINO inference while handling static batch-size constraints.
+
+    For static-shape models (common on NPU/GPU), this helper splits oversized
+    batches into chunks and pads undersized chunks to the compiled batch size,
+    then slices outputs back to the original request size.
+    """
+    if not model_inputs:
+        raise ValueError("model_inputs must not be empty")
+
+    def _to_numpy(value: Any) -> np.ndarray:
+        if isinstance(value, np.ndarray):
+            return value
+        if hasattr(value, "detach"):
+            return value.detach().cpu().numpy()
+        return np.asarray(value)
+
+    normalized_inputs: Dict[Any, np.ndarray] = {
+        key: _to_numpy(value) for key, value in model_inputs.items()
+    }
+    first_input = next(iter(normalized_inputs.values()))
+    if first_input.ndim == 0:
+        result = compiled_model.infer_new_request(normalized_inputs)
+        return result[compiled_model.outputs[output_index]]
+
+    total_samples = int(first_input.shape[0])
+    batch_dim = compiled_model.inputs[0].get_partial_shape()[0]
+
+    if not batch_dim.is_static:
+        result = compiled_model.infer_new_request(normalized_inputs)
+        return result[compiled_model.outputs[output_index]]
+
+    compiled_batch_size = max(1, int(batch_dim.get_length()))
+    if total_samples == compiled_batch_size:
+        result = compiled_model.infer_new_request(normalized_inputs)
+        return result[compiled_model.outputs[output_index]]
+
+    def _pad_to_batch(arr: np.ndarray, expected_batch_size: int) -> np.ndarray:
+        current = int(arr.shape[0])
+        if current >= expected_batch_size:
+            return arr
+        pad_width = [(0, expected_batch_size - current)] + [(0, 0)] * (arr.ndim - 1)
+        return np.pad(arr, pad_width, mode="constant")
+
+    outputs = []
+    for start in range(0, total_samples, compiled_batch_size):
+        end = min(start + compiled_batch_size, total_samples)
+        samples_in_chunk = end - start
+
+        chunk_inputs = {
+            key: value[start:end] for key, value in normalized_inputs.items()
+        }
+        if samples_in_chunk < compiled_batch_size:
+            chunk_inputs = {
+                key: _pad_to_batch(value, compiled_batch_size)
+                for key, value in chunk_inputs.items()
+            }
+
+        chunk_result = compiled_model.infer_new_request(chunk_inputs)
+        chunk_output = chunk_result[compiled_model.outputs[output_index]]
+        outputs.append(chunk_output[:samples_in_chunk])
+
+    return np.concatenate(outputs, axis=0)
 
 
 class AsyncBatchInference:
