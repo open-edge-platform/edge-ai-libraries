@@ -54,7 +54,6 @@ async def upload_and_process_video(
     tags: Annotated[
         Optional[List[str]],
         Query(
-            default_factory=list,
             description="List of tags to be associated with the video. Useful for filtering the search.",
         ),
     ] = None,
@@ -265,7 +264,6 @@ async def process_rtsp_streams(
     tags: Annotated[
         Optional[List[str]],
         Query(
-            default_factory=list,
             description="List of tags to be associated with the videos. Useful for filtering the search.",
         ),
     ] = None,
