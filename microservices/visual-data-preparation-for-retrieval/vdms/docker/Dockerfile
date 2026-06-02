@@ -1,10 +1,8 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-ARG ARCH="cpu"
 ARG INSTALL_DRIVER_VERSION="26.09.37435"
 FROM python:3.12.12-slim AS python-base
-ARG ARCH
 # Setting env vars for python, pip and poetry
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -36,7 +34,6 @@ RUN pip install --upgrade pip
 
 # `builder-base` image used to install build dependecies and required packages 
 FROM python-base AS builder-base
-ARG ARCH
 RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
     curl \
     build-essential \
@@ -50,11 +47,10 @@ COPY poetry.lock pyproject.toml ./
 COPY wheels ./wheels
 
 
-# Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
-# If value of ARCH is cpu, install with optional cpu dependencies else install main dependencies
-RUN if [ "${ARCH}" = "cpu" ]; \
-    then poetry install --no-root --with cpu; \
-    else poetry install --no-root --only main; fi
+# Install runtime deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
+# torch/torchvision/numpy are pinned to CPU wheels (OpenVINO handles CPU/Intel
+# GPU/NPU acceleration, so a CUDA torch build is never needed).
+RUN poetry install --no-root
 
 # Install additional packages that have dependency conflicts with --no-deps
 # These are required for the multimodal embedding service SDK
@@ -64,48 +60,8 @@ RUN poetry run pip install git+https://github.com/apple/ml-mobileclip.git salesf
 RUN chown -R appuser:appuser $POETRY_HOME $SETUP_PATH
 
 
-# `dev` image is used during development / testing
-FROM python-base AS dev
-ENV FASTAPI_ENV=development
-WORKDIR $SETUP_PATH
-
-# Copy the poetry installation and the virtual env to current image
-COPY --from=builder-base $POETRY_HOME $POETRY_HOME
-COPY --from=builder-base $SETUP_PATH $SETUP_PATH
-
-# Install dev dependencies. Prod dependencies are already installed.
-RUN poetry install --no-root --with dev
-
-# Copy the entrypoint script and makeit executable
-COPY ./scripts/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-# Source code will be mounted here
-WORKDIR /app
-
-# Create temporary directory to store app artifacts. Ownership is changed to appuser later.
-RUN mkdir -p /tmp/dataprep
-
-# Create model directory for persistent storage mount
-RUN mkdir -p /app/models/yolox /app/ov_models
-
-# Set ownership of directories to appuser
-RUN chown -R appuser:appuser /app /tmp/dataprep /entrypoint.sh
-
-# Switch to non-root user
-USER appuser
-
-EXPOSE 8000
-
-ENTRYPOINT [ "/entrypoint.sh" ] 
-CMD [ "poetry", "run", "uvicorn", "--host", "0.0.0.0", "--port", "8000", "--reload", "src.main:app" ]
-
-# `prod` image used for runtime
-# NOTE: This stage is placed before lint/test stages to ensure the legacy Docker
-# builder (non-BuildKit) can build prod without executing lint checks. BuildKit
-# skips unneeded stages automatically, but the legacy builder executes stages
-# in order. Keep prod before lint to support both builders.
-FROM python-base AS prod
+# Runtime image
+FROM python-base
 
 ARG INSTALL_DRIVER_VERSION
 
@@ -193,29 +149,3 @@ EXPOSE 8000
 
 ENTRYPOINT [ "/entrypoint.sh" ]
 CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.main:app", "--timeout", "1200", "--log-level", "debug"]
-
-# Linter stage to lint code in dev image
-FROM dev AS lint
-
-USER root
-COPY --chown=appuser:appuser . .
-USER appuser
-
-RUN black --config ./pyproject.toml --check tests src
-RUN isort --settings-path ./pyproject.toml --check-only .
-
-# Final dev stage after passing linting and tests criteria.
-FROM lint AS final-dev
-ARG COVERAGE_REQ
-RUN coverage run --rcfile ./pyproject.toml -m pytest ./tests
-RUN coverage report -m --fail-under $COVERAGE_REQ
-
-# Generate test coverage report on lint stage and serve it using python http server.
-FROM lint AS report
-# Copy script with proper ownership from the start
-USER root
-COPY --chown=appuser:appuser ./scripts/reporter.sh /reporter.sh
-RUN chmod +x /reporter.sh
-USER appuser
-
-CMD [ "/reporter.sh" ]

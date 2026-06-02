@@ -13,8 +13,6 @@ NC='\033[0m' # No Color
 
 # Common env vars ---------------------------------------------------
 export PROJECT_NAME=${PROJECT_NAME}
-export COVERAGE_REQ=80
-export PROJ_TEST_DIR=./tests
 host_ip=$(ip route get 1 | awk '{print $7}')
 export HOST_IP=$host_ip
 export TAG=${TAG:-latest}
@@ -103,7 +101,11 @@ else
     configure_device "CPU"
 fi
 
-# VDMS_DATAPREP_DEVICE remains the single source of truth unless explicitly overridden below
+# VDMS_DATAPREP_DEVICE remains the single source of truth unless explicitly overridden below.
+# Capture whether each component device was explicitly provided (before applying the fallback)
+# so the summary can show whether the baseline device is actually used by anything.
+_embedding_device_explicit=${EMBEDDING_DEVICE:+yes}
+_detection_device_explicit=${DETECTION_DEVICE:+yes}
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
 export DETECTION_DEVICE=${DETECTION_DEVICE:-$VDMS_DATAPREP_DEVICE}
 
@@ -186,9 +188,24 @@ echo -e "${BLUE}Current Configuration:${NC}"
 echo -e "   Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC}"
 echo -e "   Registry: ${YELLOW}${REGISTRY}${NC}"
 echo -e "   Model: ${YELLOW}${EMBEDDING_MODEL_NAME}${NC}"
-echo -e "   DataPrep Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC}"
-echo -e "   Embedding Device: ${YELLOW}${EMBEDDING_DEVICE}${NC}"
-echo -e "   Detection Device: ${YELLOW}${DETECTION_DEVICE}${NC}"
+
+# The baseline device (VDMS_DATAPREP_DEVICE) is only a fallback: it is applied to a
+# component when that component's device is not explicitly set. If both embedding and
+# detection are overridden, nothing actually runs on the baseline device.
+if [[ -n "${_embedding_device_explicit}" && -n "${_detection_device_explicit}" ]]; then
+    _baseline_note="not used — embedding and detection are both explicitly set"
+else
+    _baseline_components=""
+    [[ -z "${_embedding_device_explicit}" ]] && _baseline_components="embedding"
+    [[ -z "${_detection_device_explicit}" ]] && _baseline_components="${_baseline_components:+${_baseline_components}, }detection"
+    _baseline_note="used by: ${_baseline_components}"
+fi
+[[ -n "${_embedding_device_explicit}" ]] && _embedding_src="explicit override" || _embedding_src="inherited from baseline"
+[[ -n "${_detection_device_explicit}" ]] && _detection_src="explicit override" || _detection_src="inherited from baseline"
+
+echo -e "   Baseline Device (VDMS_DATAPREP_DEVICE): ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${_baseline_note})"
+echo -e "   Embedding Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (${_embedding_src})"
+echo -e "   Detection Device: ${YELLOW}${DETECTION_DEVICE}${NC} (${_detection_src})"
 echo -e "   OpenVINO: ${YELLOW}${SDK_USE_OPENVINO}${NC}"
 echo -e "   OpenVINO Performance Mode: ${YELLOW}${OV_PERFORMANCE_MODE}${NC}"
 echo -e "   DataPrep Log Level: ${YELLOW}${VDMS_DATAPREP_LOG_LEVEL}${NC}"

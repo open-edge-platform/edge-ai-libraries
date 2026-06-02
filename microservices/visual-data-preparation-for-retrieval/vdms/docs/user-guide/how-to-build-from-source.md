@@ -60,16 +60,10 @@ This will output docker compose configs with all the environment variables resol
 5. Spin up the services. Please go through different ways to spin up the services.
 
 ```bash
-# Run the development environment in daemon mode
-source ./setup.sh --dev
-
-# Run the development environment in non-daemon mode
-source ./setup.sh --dev --nd
-
-# Run the production environment in daemon mode
+# Run all services in daemon mode
 source ./setup.sh
 
-# Run the production environment in non-daemon mode
+# Run all services in non-daemon mode (logs on STDOUT)
 source ./setup.sh --nd
 ```
 

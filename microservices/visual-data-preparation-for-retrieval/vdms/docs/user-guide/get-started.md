@@ -56,7 +56,39 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `OV_MODELS_DIR` | Optional | `/app/ov_models` | Persistent mount that caches OpenVINO-optimized models. |
 | `ALLOW_ORIGINS`, `ALLOW_METHODS`, `ALLOW_HEADERS` | Optional | `*` | CORS configuration applied by FastAPI. |
 
-`VDMS_DATAPREP_DEVICE` is the single source of truth for DataPrep device selection unless you explicitly override component-level execution with `EMBEDDING_DEVICE` and/or `DETECTION_DEVICE`.
+### Device selection (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, `DETECTION_DEVICE`)
+
+`VDMS_DATAPREP_DEVICE` is the single source of truth for DataPrep device selection. The per-component
+variables inherit from it unless you explicitly override them. Effective precedence (highest first):
+
+1. Explicit `EMBEDDING_DEVICE` / `DETECTION_DEVICE` (per-component override).
+2. `VDMS_DATAPREP_DEVICE` (baseline applied to both components).
+3. `CPU` (final fallback).
+
+> **Important:** The inheritance is applied by the setup scripts (`setup.sh` /
+> `setup-with-embedding.sh`), which export `EMBEDDING_DEVICE`/`DETECTION_DEVICE` as
+> `${VAR:-$VDMS_DATAPREP_DEVICE}`. You must `source` the setup script for `VDMS_DATAPREP_DEVICE` to
+> cascade. If you run `docker compose up` directly (bypassing the script), the compose files default
+> the per-component variables to `CPU`, so setting only `VDMS_DATAPREP_DEVICE` has no effect — set
+> `EMBEDDING_DEVICE` and `DETECTION_DEVICE` explicitly in that case.
+
+Examples (run before sourcing the setup script):
+
+```bash
+# Offload detection to NPU and embedding to GPU (independent per-component devices)
+export DETECTION_DEVICE=NPU
+export EMBEDDING_DEVICE=GPU
+
+# Offload everything to GPU
+export VDMS_DATAPREP_DEVICE=GPU
+
+# Baseline GPU, but keep detection on CPU
+export VDMS_DATAPREP_DEVICE=GPU
+export DETECTION_DEVICE=CPU
+```
+
+When targeting `NPU`, confirm the selected model supports NPU inference via the
+[OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
 
 ### Advanced tuning
 

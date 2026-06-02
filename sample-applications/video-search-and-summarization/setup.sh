@@ -374,6 +374,10 @@ else
     configure_device "CPU"
 fi
 
+# Capture whether each component device was explicitly set BEFORE applying the
+# baseline fallback, so the summary can distinguish overrides from inherited values.
+_embedding_device_explicit=${EMBEDDING_DEVICE:+yes}
+_detection_device_explicit=${DETECTION_DEVICE:+yes}
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
 export DETECTION_DEVICE=${DETECTION_DEVICE:-$VDMS_DATAPREP_DEVICE}
 echo -e "[vdms-dataprep] ${BLUE}Device resolution:${NC} VDMS_DATAPREP_DEVICE is the single source of truth unless EMBEDDING_DEVICE and/or DETECTION_DEVICE are explicitly overridden."
@@ -381,9 +385,14 @@ echo -e "[vdms-dataprep] ${BLUE}Device resolution:${NC} VDMS_DATAPREP_DEVICE is 
 export MULTIMODAL_EMBEDDING_HOST=multimodal-embedding-serving
 export MULTIMODAL_EMBEDDING_ENDPOINT=http://$MULTIMODAL_EMBEDDING_HOST:8000/embeddings
 
-processing_scope="vdms-dataprep video decoding, YOLOX detection, and embedding execution"
-if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
-    processing_scope+=", plus the multimodal-embedding-serving container"
+# The baseline device (VDMS_DATAPREP_DEVICE) always handles video decoding. Detection and
+# SDK-mode embedding run on it only when their per-component devices are not overridden.
+processing_scope="vdms-dataprep video decoding"
+if [[ -z "${_detection_device_explicit}" ]]; then
+    processing_scope+=", YOLOX detection"
+fi
+if [[ "${EMBEDDING_PROCESSING_MODE}" != "api" && -z "${_embedding_device_explicit}" ]]; then
+    processing_scope+=", embedding execution"
 fi
 
 if [ $1 != "--summary" ]; then
@@ -401,10 +410,13 @@ if [ $1 != "--summary" ]; then
         embedding_mode_details="API mode routes embeddings to multimodal-embedding-serving at ${embedding_endpoint_display}."
     fi
 
+    [[ -n "${_embedding_device_explicit}" ]] && _embedding_src="explicit override" || _embedding_src="inherited from baseline"
+    [[ -n "${_detection_device_explicit}" ]] && _detection_src="explicit override" || _detection_src="inherited from baseline"
+
     echo -e "[vdms-dataprep] ${BLUE}Runtime Summary:${NC}"
-    echo -e "   • [vdms-dataprep] Processing Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${processing_scope})."
-    echo -e "   • [vdms-dataprep] Embedding Device: ${YELLOW}${EMBEDDING_DEVICE}${NC}"
-    echo -e "   • [vdms-dataprep] Detection Device: ${YELLOW}${DETECTION_DEVICE}${NC}"
+    echo -e "   • [vdms-dataprep] Baseline Device (VDMS_DATAPREP_DEVICE): ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (runs ${processing_scope})."
+    echo -e "   • [vdms-dataprep] Embedding Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (${_embedding_src})"
+    echo -e "   • [vdms-dataprep] Detection Device: ${YELLOW}${DETECTION_DEVICE}${NC} (${_detection_src})"
     if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
         echo -e "   • [multimodal-embedding-serving] Embedding Service Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (HTTP mode container)."
     fi
