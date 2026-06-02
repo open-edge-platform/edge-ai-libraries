@@ -24,13 +24,17 @@ export interface MetricHistoryPoint {
   cpuAvgFrequency?: number;
   cpuTemp?: number;
   memory?: number;
+  npuUsage?: number;
+  npuFrequency?: number;
+  npuPower?: number;
+  npuTemperature?: number;
   latencyAvg?: number;
   latencyMin?: number;
   latencyMax?: number;
   gpus: Record<string, GpuMetrics>;
 }
 
-const MAX_HISTORY_POINTS = 60;
+const MAX_HISTORY_WINDOW_MS = 60_000;
 
 export const useMetricHistory = () => {
   const metrics = useMetrics();
@@ -76,6 +80,10 @@ export const useMetricHistory = () => {
         cpuAvgFrequency: metrics.cpuDetailed.avgFrequency,
         cpuTemp: metrics.cpuDetailed.temp,
         memory: metrics.memory,
+        npuUsage: metrics.npu || undefined,
+        npuFrequency: metrics.npuDetailed.frequency,
+        npuPower: metrics.npuDetailed.power,
+        npuTemperature: metrics.npuDetailed.temperature,
         latencyAvg: metrics.latency?.avgMs,
         latencyMin: metrics.latency?.minMs,
         latencyMax: metrics.latency?.maxMs,
@@ -83,12 +91,8 @@ export const useMetricHistory = () => {
       };
 
       const updated = [...prev, newPoint];
-
-      if (updated.length > MAX_HISTORY_POINTS) {
-        return updated.slice(updated.length - MAX_HISTORY_POINTS);
-      }
-
-      return updated;
+      const cutoff = now - MAX_HISTORY_WINDOW_MS;
+      return updated.filter((point) => point.timestamp >= cutoff);
     });
   }, [
     isConnected,
@@ -99,6 +103,8 @@ export const useMetricHistory = () => {
     metrics.cpuDetailed.avgFrequency,
     metrics.cpuDetailed.temp,
     metrics.memory,
+    metrics.npu,
+    metrics.npuDetailed,
     metrics.availableGpuIds,
     metrics.gpuDetailedMetrics,
     metrics.latency,

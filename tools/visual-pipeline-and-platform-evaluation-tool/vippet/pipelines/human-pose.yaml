@@ -1,0 +1,79 @@
+# Reference: This is the official reference for Human Pose pipeline
+name: Human Pose Detection
+definition: >
+  Human Pose Detection is a classic physical security use case that detects human poses in real-time. 
+  It is particularly useful in use cases such as slip-and-fall detection in elderly care facilities, hospitals, and public spaces to enhance safety and provide timely assistance. 
+  The pipeline utilizes pre-trained deep learning models to identify human poses and can be deployed on various hardware platforms for efficient processing.
+
+tags:
+  - Smart Cities
+thumbnail: images/human-pose.png
+variants:
+  - name: CPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 !
+      gvadetect
+      model=/models/output/ultralytics/public/yolo26n-pose/FP16/yolo26n-pose.xml
+      pre-process-backend=opencv
+      ie-config=CPU_THROUGHPUT_STREAMS=2
+      device=CPU
+      batch-size=0
+      nireq=0
+      inference-interval=1
+      threshold=0.75
+      inference-region=full-frame !
+      queue !
+      gvatrack tracking-type=zero-term-imageless !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      queue !
+      gvametaconvert timestamp-utc=true json-indent=-1 !
+      gvametapublish method=file file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false
+  - name: GPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 ! 
+      gvadetect
+      model=/models/output/ultralytics/public/yolo26n-pose/FP16/yolo26n-pose.xml
+      pre-process-backend=va-surface-sharing
+      device=GPU
+      ie-config=GPU_THROUGHPUT_STREAMS=2
+      batch-size=0
+      nireq=0
+      inference-interval=1
+      threshold=0.75
+      inference-region=full-frame !
+      queue !
+      gvatrack tracking-type=zero-term-imageless !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      queue !
+      gvametaconvert timestamp-utc=true json-indent=-1 !
+      gvametapublish method=file file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false
+  - name: NPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 ! 
+      gvadetect
+      model=/models/output/ultralytics/public/yolo26n-pose/FP16/yolo26n-pose.xml
+      pre-process-backend=va
+      device=NPU
+      batch-size=1
+      nireq=2
+      inference-interval=1
+      threshold=0.75
+      inference-region=full-frame !
+      queue !
+      gvatrack tracking-type=zero-term-imageless !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      queue !
+      gvametaconvert timestamp-utc=true json-indent=-1 !
+      gvametapublish method=file file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false

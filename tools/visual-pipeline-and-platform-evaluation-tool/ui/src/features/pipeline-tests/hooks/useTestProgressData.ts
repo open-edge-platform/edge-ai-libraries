@@ -1,7 +1,10 @@
 /*SPDX-License-Identifier: Apache-2.0*/
 
 import { useMemo } from "react";
-import type { GpuMetrics, MetricHistoryPoint } from "@/hooks/useMetricHistory.ts";
+import type {
+  GpuMetrics,
+  MetricHistoryPoint,
+} from "@/hooks/useMetricHistory.ts";
 import {
   CHART_MAX_DATA_POINTS,
   ENGINE_COLORS,
@@ -92,18 +95,19 @@ export const useTestProgressData = ({
   }, [gpuData]);
 
   const gpuChartData = useMemo(() => {
-    const normalizedGpuChartData: Array<{ timestamp: number } & Record<string, number>> =
-      gpuData.map((point) => {
-        const chartPoint: { timestamp: number } & Record<string, number> = {
-          timestamp: point.timestamp,
-        };
+    const normalizedGpuChartData: Array<
+      { timestamp: number } & Record<string, number>
+    > = gpuData.map((point) => {
+      const chartPoint: { timestamp: number } & Record<string, number> = {
+        timestamp: point.timestamp,
+      };
 
-        availableEngines.forEach((engine) => {
-          chartPoint[engine] = point[engine] ?? 0;
-        });
-
-        return chartPoint;
+      availableEngines.forEach((engine) => {
+        chartPoint[engine] = point[engine] ?? 0;
       });
+
+      return chartPoint;
+    });
 
     return normalizedGpuChartData;
   }, [gpuData, availableEngines]);

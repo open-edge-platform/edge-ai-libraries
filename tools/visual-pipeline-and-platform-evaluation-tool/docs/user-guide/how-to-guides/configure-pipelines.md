@@ -4,7 +4,7 @@ This article explains step-by-step how to configure and test AI pipelines using 
 from creating a new pipeline using DLStreamer launch string, editing the pipeline elements, to demonstrating
 running pipelines on both CPU and GPU to compare performance.
 
-## Step 1. Add new pipeline
+## Add new pipeline
 
 First, you need to add a new pipeline. To do this, click on *Add New Pipeline* button and provide the following
 information:
@@ -16,12 +16,11 @@ information:
 Once you provide this information, click the *Add* button. Once the pipeline description is validated, the pipeline
 is shown as a graph in the Pipeline Builder view.
 
-
 > **Note:** To view the output video or live stream in ViPPET, your pipeline must include a `fakesink` element with
 > the `name=default_output_sink` property. This serves as a placeholder that ViPPET automatically replaces with the
 > appropriate output configuration when you run the pipeline. For example: `... ! gvawatermark ! fakesink name=default_output_sink`.
 
-## Step 2. Edit pipeline parameters
+## Edit pipeline parameters
 
 In the Pipeline Builder, you can view and configure the elements of the pipeline. For example, you can change
 the *model* and *device* parameters in GVADetect and GVAClassify elements.
@@ -29,12 +28,12 @@ the *model* and *device* parameters in GVADetect and GVAClassify elements.
 ![Pipleline Editor](../_assets/ViPPET-UI-PB-light.png)\
 *Edit pipeline parameters*
 
-## Step 3. Run pipeline on CPU
+## Run pipeline on CPU
 
 You can run the pipeline and save the output video using CPU-based encoding. Once the pipeline starts,
 CPU utilization should visibly increase. The generated output video is then available for inspection.
 
-## Step 4. Run pipeline on GPU
+## Run pipeline on GPU
 
 You can run the pipeline on a GPU to evaluate potential performance improvements. This requires updating the device
 settings in the detection and classification components. After configuring the pipeline, you execute it and record
@@ -45,4 +44,3 @@ with output saving disabled to measure the impact of I/O overhead.
 
 ![Pipeline Builder Results](../_assets/ViPPET-UI-PB-Results-light.png)\
 *Check CPU and GPU performance*
-
