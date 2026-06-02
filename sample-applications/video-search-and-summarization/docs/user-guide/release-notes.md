@@ -3,7 +3,7 @@
 ## Current Release
 
 **Version**: 2026.1.0
-**Release Date**: 17 June 2026
+**Release Date**: June 17, 2026
 
 **New:**
 
