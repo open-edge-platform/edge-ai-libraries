@@ -2,6 +2,8 @@
 
 ## Version 2026.1.0
 
+**June 17th, 2026**
+
 **Fixed**
 
 - Docker base images for both the visual data preparation for retrieval and vector retriever Milvus services updated from the pinned `python:3.12.12-slim` to the rolling `python:3.12-slim`; the build now runs a full apt-get upgrade to apply all available OS-level security patches, and apt-get clean is performed to reduce image size.
