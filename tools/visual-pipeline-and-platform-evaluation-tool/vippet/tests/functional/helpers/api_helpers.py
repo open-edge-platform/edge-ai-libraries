@@ -448,3 +448,133 @@ def run_job_with_retry(
         time.sleep(retry_delay_seconds)
         status = attempt_fn()
     return status
+
+
+# --------------------------------------------------------------------------- #
+# Model management helpers (downloads, uploads, job polling).
+# --------------------------------------------------------------------------- #
+
+
+# OMZ downloads in CI can be slow; allow generous default.
+MODEL_DOWNLOAD_TIMEOUT_SECONDS: float = 120.0
+
+
+def start_model_download(
+    session: requests.Session, names: list[str]
+) -> requests.Response:
+    """POST ``/models/download`` with the batch body ``{"names": [...]}``.
+
+    Returns the raw response so callers can branch on the aggregate
+    status code (202 / 207 / 400 / 404 / 409).
+    """
+    response = session.post(
+        f"{BASE_URL}/models/download", json={"names": names}, timeout=60
+    )
+    logger.info("POST /models/download names=%s status=%d", names, response.status_code)
+    return response
+
+
+def fetch_model_jobs(session: requests.Session) -> list[JsonDict]:
+    """Return the list from ``GET /jobs/models/status``."""
+    response = session.get(f"{BASE_URL}/jobs/models/status", timeout=30)
+    response.raise_for_status()
+    payload = response.json()
+    assert isinstance(payload, list), (
+        f"Expected list response, got {type(payload).__name__}"
+    )
+    return payload
+
+
+def get_model_job_summary(session: requests.Session, job_id: str) -> requests.Response:
+    """Return the raw response of ``GET /jobs/models/{job_id}``."""
+    response = session.get(f"{BASE_URL}/jobs/models/{job_id}", timeout=30)
+    logger.info("GET /jobs/models/%s status=%d", job_id, response.status_code)
+    return response
+
+
+def get_model_job_status(session: requests.Session, job_id: str) -> requests.Response:
+    """Return the raw response of ``GET /jobs/models/{job_id}/status``."""
+    response = session.get(f"{BASE_URL}/jobs/models/{job_id}/status", timeout=30)
+    logger.info("GET /jobs/models/%s/status status=%d", job_id, response.status_code)
+    return response
+
+
+def wait_for_model_download_completion(
+    session: requests.Session,
+    job_id: str,
+    *,
+    timeout: float = MODEL_DOWNLOAD_TIMEOUT_SECONDS,
+    poll_interval: float = POLL_INTERVAL_SECONDS,
+) -> JsonDict:
+    """Poll the model download job until it leaves ``RUNNING`` state.
+
+    Returns the final status payload (``COMPLETED`` or ``FAILED``).
+    Fails the test if the job is still ``RUNNING`` after ``timeout``.
+    """
+    deadline = time.monotonic() + timeout
+    last_status: JsonDict = {}
+    while time.monotonic() < deadline:
+        response = get_model_job_status(session, job_id)
+        if response.status_code == 404:
+            pytest.fail(
+                f"Model job {job_id} disappeared before reaching a terminal state"
+            )
+        response.raise_for_status()
+        last_status = response.json()
+        state = last_status.get("state")
+        logger.info(
+            "Model job %s state=%s elapsed=%s",
+            job_id,
+            state,
+            last_status.get("elapsed_time"),
+        )
+        if state != "RUNNING":
+            return last_status
+        time.sleep(poll_interval)
+
+    pytest.fail(
+        f"Model job {job_id} did not finish within {timeout:.0f}s "
+        f"(last state={last_status.get('state')!r})"
+    )
+
+
+def upload_model_file(
+    session: requests.Session,
+    model_name: str,
+    category: str,
+    payload: bytes,
+    *,
+    filename: str | None = None,
+    content_type: str = "application/zip",
+) -> requests.Response:
+    """POST a multipart upload to ``/models/upload``.
+
+    ``filename`` defaults to ``"<model_name>.zip"`` so the server has a
+    stable basename to log/track. Returns the raw response so callers
+    can assert both the 201 happy path and the 4xx/5xx error cases.
+    """
+    files = {"file": (filename or f"{model_name}.zip", payload, content_type)}
+    data = {"model_name": model_name, "category": category}
+    response = session.post(
+        f"{BASE_URL}/models/upload", data=data, files=files, timeout=120
+    )
+    logger.info(
+        "POST /models/upload model_name=%s category=%s status=%d",
+        model_name,
+        category,
+        response.status_code,
+    )
+    return response
+
+
+def find_model_in_list(
+    models: list[JsonDict], name_or_display_name: str
+) -> JsonDict | None:
+    """Return the first model whose ``name`` or ``display_name`` matches."""
+    for entry in models:
+        if (
+            entry.get("name") == name_or_display_name
+            or entry.get("display_name") == name_or_display_name
+        ):
+            return entry
+    return None

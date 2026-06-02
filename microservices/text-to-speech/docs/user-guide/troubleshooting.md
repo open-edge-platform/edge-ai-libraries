@@ -118,11 +118,9 @@ Check these in order:
    This service runs as a non-root user, so it must be given the host render
    group ID explicitly.
 
-   Set these in `.env`:
+   Set this in `.env`:
 
    ```bash
-   LOCAL_UID=$(id -u)
-   LOCAL_GID=$(id -g)
    RENDER_GID=$(stat -c '%g' /dev/dri/render* | head -1)
    ```
 
@@ -148,35 +146,26 @@ guarantee that Qwen GPU initialization will also succeed.
 
 ## Permission Errors On Mounted Folders
 
-The container runs as UID/GID `1000:1000` by default through:
-
-```text
-user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-```
-
-If your host user uses different IDs, mounted folders such as `models/`,
-`storage/`, and `.cache/huggingface/` may become unwritable.
-
-Typical errors:
+The container runs as UID/GID `1000:1000` (baked into the image).
+Model, storage, and Hugging Face cache data are kept in named Docker
+volumes (`text_to_speech_{models,storage,cache}`) initialized with that
+ownership, so this rarely fails on a fresh install. If you do hit:
 
 ```text
 PermissionError: [Errno 13] Permission denied: '/app/text-to-speech/storage/...'
-mkdir: cannot create directory 'models/...': Permission denied
 ```
 
-Fix:
+you are most likely reusing volumes that were initialized by a previous
+run as a different UID (for example by an older root-only run). Reset
+them:
 
 ```bash
-LOCAL_UID=$(id -u)
-LOCAL_GID=$(id -g)
-docker compose up -d --build
-```
-
-Or persist them in `.env`:
-
-```bash
-LOCAL_UID=$(id -u)
-LOCAL_GID=$(id -g)
+docker compose down
+docker volume rm \
+  text-to-speech_text_to_speech_models \
+  text-to-speech_text_to_speech_storage \
+  text-to-speech_text_to_speech_cache
+docker compose up -d
 ```
 
 ## Standalone Import Or Audio Dependency Errors
