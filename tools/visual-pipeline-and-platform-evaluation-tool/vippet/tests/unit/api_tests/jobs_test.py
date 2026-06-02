@@ -8,6 +8,10 @@ from unittest.mock import patch, MagicMock
 import api.api_schemas as schemas
 from graph import Graph
 from internal_types import (
+    InternalModelDownloadJobState,
+    InternalModelDownloadJobStatus,
+    InternalModelDownloadJobSummary,
+    InternalModelSource,
     InternalOptimizationJobStatus,
     InternalOptimizationJobState,
     InternalOptimizationJobSummary,
@@ -927,3 +931,221 @@ class TestJobsAPI(unittest.TestCase):
 
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0], ("job-1", 7))
+
+
+class TestModelDownloadJobsAPI(unittest.TestCase):
+    """Unit tests for ``/jobs/models/*`` routes.
+
+    The routes are thin adapters around ``ModelManager``: list jobs,
+    fetch a summary, fetch a full status. Tests mock the manager and
+    assert the HTTP envelope plus the internal->API conversion done by
+    ``_model_job_to_api_status`` / ``_model_job_summary_to_api``.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        app = FastAPI()
+        app.include_router(jobs_router, prefix="/jobs")
+        cls.client = TestClient(app)
+
+    @staticmethod
+    def _make_job(
+        *,
+        job_id: str = "mdl-1",
+        model_name: str = "yolo11n",
+        state: InternalModelDownloadJobState | None = None,
+        start_time: int = 1_000_000,
+        end_time: int | None = None,
+        details: list[str] | None = None,
+        progress_message: str | None = None,
+        model_path: str | None = None,
+    ) -> InternalModelDownloadJobStatus:
+        """Build a minimal ``InternalModelDownloadJobStatus`` for tests."""
+
+        return InternalModelDownloadJobStatus(
+            id=job_id,
+            model_name=model_name,
+            source=InternalModelSource.ULTRALYTICS,
+            state=state or InternalModelDownloadJobState.RUNNING,
+            start_time=start_time,
+            end_time=end_time,
+            details=details if details is not None else ["working..."],
+            progress_message=progress_message,
+            model_path=model_path,
+        )
+
+    # ------------------------------------------------------------------
+    # GET /jobs/models/status — list all
+    # ------------------------------------------------------------------
+
+    @patch("api.routes.jobs.ModelManager")
+    def test_list_model_jobs_empty(self, mock_manager_cls):
+        """No jobs -> empty list with 200 OK."""
+        mock_manager = MagicMock()
+        mock_manager.get_all_jobs.return_value = []
+        mock_manager_cls.return_value = mock_manager
+
+        response = self.client.get("/jobs/models/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
+    @patch("api.routes.jobs.ModelManager")
+    def test_list_model_jobs_returns_converted_entries(self, mock_manager_cls):
+        """Each job is converted via _model_job_to_api_status."""
+
+        running = self._make_job(
+            job_id="mdl-1",
+            state=InternalModelDownloadJobState.RUNNING,
+            progress_message="Fetching weights",
+        )
+        completed = self._make_job(
+            job_id="mdl-2",
+            model_name="yolov8n",
+            state=InternalModelDownloadJobState.COMPLETED,
+            end_time=1_000_500,
+            details=["installed"],
+            model_path="/models/output/ultralytics/yolov8n",
+        )
+        mock_manager = MagicMock()
+        mock_manager.get_all_jobs.return_value = [running, completed]
+        mock_manager_cls.return_value = mock_manager
+
+        response = self.client.get("/jobs/models/status")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]["id"], "mdl-1")
+        self.assertEqual(data[0]["state"], "RUNNING")
+        self.assertEqual(data[0]["progress_message"], "Fetching weights")
+        self.assertEqual(data[1]["id"], "mdl-2")
+        self.assertEqual(data[1]["state"], "COMPLETED")
+        self.assertEqual(data[1]["model_path"], "/models/output/ultralytics/yolov8n")
+        # Completed jobs report a deterministic ``elapsed_time`` derived
+        # from the recorded ``end_time``/``start_time`` pair.
+        self.assertEqual(data[1]["elapsed_time"], 500)
+
+    # ------------------------------------------------------------------
+    # GET /jobs/models/{job_id} — summary
+    # ------------------------------------------------------------------
+
+    @patch("api.routes.jobs.ModelManager")
+    def test_get_model_job_summary_404_when_missing(self, mock_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.get_job_summary.return_value = None
+        mock_manager_cls.return_value = mock_manager
+
+        response = self.client.get("/jobs/models/unknown")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("not found", response.json()["message"])
+
+    @patch("api.routes.jobs.ModelManager")
+    def test_get_model_job_summary_returns_api_shape(self, mock_manager_cls):
+
+        mock_manager = MagicMock()
+        mock_manager.get_job_summary.return_value = InternalModelDownloadJobSummary(
+            id="mdl-1",
+            model_name="yolo11n",
+            source=InternalModelSource.ULTRALYTICS,
+        )
+        mock_manager_cls.return_value = mock_manager
+
+        response = self.client.get("/jobs/models/mdl-1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"id": "mdl-1", "model_name": "yolo11n", "source": "ultralytics"},
+        )
+
+    # ------------------------------------------------------------------
+    # GET /jobs/models/{job_id}/status — full status
+    # ------------------------------------------------------------------
+
+    @patch("api.routes.jobs.ModelManager")
+    def test_get_model_job_status_404_when_missing(self, mock_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.get_job.return_value = None
+        mock_manager_cls.return_value = mock_manager
+
+        response = self.client.get("/jobs/models/unknown/status")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("not found", response.json()["message"])
+
+    @patch("api.routes.jobs.ModelManager")
+    def test_get_model_job_status_running_uses_wallclock_elapsed(
+        self, mock_manager_cls
+    ):
+        """For a RUNNING job, elapsed_time is computed against ``time.time()``."""
+
+        job = self._make_job(
+            job_id="mdl-running",
+            start_time=2_000_000,
+            state=InternalModelDownloadJobState.RUNNING,
+            progress_message="processing",
+        )
+        mock_manager = MagicMock()
+        mock_manager.get_job.return_value = job
+        mock_manager_cls.return_value = mock_manager
+
+        # Freeze ``time.time`` so elapsed becomes deterministic.
+        with patch("api.routes.jobs.time.time", return_value=2_000.0 + 1.234):
+            response = self.client.get("/jobs/models/mdl-running/status")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["state"], "RUNNING")
+        self.assertEqual(body["start_time"], 2_000_000)
+        # 2_001_234 ms - 2_000_000 ms = 1234 ms
+        self.assertEqual(body["elapsed_time"], 1234)
+        self.assertEqual(body["progress_message"], "processing")
+        self.assertIsNone(body["model_path"])
+
+    @patch("api.routes.jobs.ModelManager")
+    def test_get_model_job_status_completed_uses_end_time(self, mock_manager_cls):
+        """For a completed job, elapsed_time uses ``end_time - start_time``."""
+
+        job = self._make_job(
+            job_id="mdl-done",
+            start_time=10_000,
+            end_time=12_500,
+            state=InternalModelDownloadJobState.COMPLETED,
+            details=["installed"],
+            model_path="/models/output/x",
+        )
+        mock_manager = MagicMock()
+        mock_manager.get_job.return_value = job
+        mock_manager_cls.return_value = mock_manager
+
+        response = self.client.get("/jobs/models/mdl-done/status")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["state"], "COMPLETED")
+        self.assertEqual(body["elapsed_time"], 2_500)
+        self.assertEqual(body["model_path"], "/models/output/x")
+
+    @patch("api.routes.jobs.ModelManager")
+    def test_get_model_job_status_failed_state(self, mock_manager_cls):
+        """A FAILED job exposes the failure details verbatim."""
+
+        job = self._make_job(
+            job_id="mdl-fail",
+            start_time=1000,
+            end_time=2000,
+            state=InternalModelDownloadJobState.FAILED,
+            details=["HTTP error: 502"],
+        )
+        mock_manager = MagicMock()
+        mock_manager.get_job.return_value = job
+        mock_manager_cls.return_value = mock_manager
+
+        response = self.client.get("/jobs/models/mdl-fail/status")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["state"], "FAILED")
+        self.assertEqual(body["details"], ["HTTP error: 502"])

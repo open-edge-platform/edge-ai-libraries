@@ -34,7 +34,10 @@ export const LatencySummaryPanel = ({
   return (
     <div className={cn("rounded-xl p-4 shadow-lg", containerClassName)}>
       <h3
-        className={cn("text-[10px] font-semibold uppercase tracking-widest mb-3", titleClassName)}
+        className={cn(
+          "text-[10px] font-semibold uppercase tracking-widest mb-3",
+          titleClassName,
+        )}
       >
         Latency Summary
       </h3>
@@ -47,7 +50,10 @@ export const LatencySummaryPanel = ({
                 {item.label}
               </p>
               <p
-                className={cn("text-lg font-bold", isDarkTheme ? "text-white" : "text-foreground")}
+                className={cn(
+                  "text-lg font-bold",
+                  isDarkTheme ? "text-white" : "text-foreground",
+                )}
               >
                 {item.value.toFixed(2)}
                 <span className="text-xs ml-1 text-muted-foreground">

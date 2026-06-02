@@ -1,29 +1,59 @@
-# Text To Speech
+# Text To Speech Microservice
 
-FastAPI service for text-to-speech generation with OpenVINO and PyTorch runtime support.
+This repository provides a FastAPI-based microservice for text-to-speech
+generation with OpenVINO and PyTorch runtime support. It accepts text input,
+synthesizes speech with the configured TTS model, and returns either raw WAV
+audio or JSON metadata plus a base64-encoded WAV payload.
 
-## Start Here
+Below, you'll find links to detailed documentation to help you get started,
+configure, and deploy the microservice.
 
-This page is intentionally brief. Use the links below for the actual run steps, configuration details, and API examples.
+## Documentation
 
-- Run in Docker: [docs/run-container.md](docs/run-container.md)
-- Run on the host: [docs/run-standalone.md](docs/run-standalone.md)
-- Change configuration: [docs/configuration.md](docs/configuration.md)
-- API use cases and examples: [docs/api.md](docs/api.md)
+- Overview
 
-## What It Does
+  - [Overview](./docs/user-guide/index.md): A high-level introduction to the
+    microservice and its capabilities.
+  - [How It Works](./docs/user-guide/how-it-works.md): Internal request flow and the main
+    components of the service.
 
-The service accepts text input, synthesizes speech with the configured TTS model, and returns either raw WAV audio or JSON metadata plus a base64-encoded WAV payload.
+- Getting Started
 
-It supports:
+  - [Get Started](./docs/user-guide/get-started.md): Step-by-step entry point that walks
+    you through your first run.
+  - [System Requirements](./docs/user-guide/get-started/system-requirements.md): Hardware, OS, and
+    runtime prerequisites.
+  - [Run in Docker](./docs/user-guide/get-started/run-container.md): Step-by-step guide to running
+    the microservice in a container.
+  - [Run on the Host](./docs/user-guide/get-started/run-standalone.md): Step-by-step guide to
+    running the microservice directly on the host.
 
-- Speech generation API at `POST /v1/audio/speech`
-- Voice and model metadata at `GET /v1/audio/voices`
-- Health check at `GET /health`
-- OpenVINO and PyTorch runtimes for supported models
-- Persisted outputs under `storage/<session_id>/` when enabled
+- Deployment
+
+  - [Build From Source](./docs/user-guide/get-started/build-from-source.md): Instructions for
+    building the microservice from source.
+  - [Configuration](./docs/user-guide/get-started/configuration.md): Instructions for changing the
+    microservice configuration.
+
+- API Reference
+
+  - [API Reference](./docs/user-guide/api-reference.md): Comprehensive reference for the
+    available REST API endpoints.
+
+- Support
+
+  - [Troubleshooting](./docs/user-guide/troubleshooting.md): Common issues and how to
+    resolve them.
+
+- Release Notes
+
+  - [Release Notes](./docs/user-guide/release-notes.md): Notable updates, improvements,
+    and known limitations.
 
 ## Notes
 
 - Do not use this page as the run guide; use the linked docs above.
-- First startup can be slow because model download or conversion may happen during startup.
+- The service currently supports English only; other languages return HTTP
+  `400`.
+- First startup can be slow because model download or conversion may happen
+  during startup.

@@ -1,11 +1,12 @@
 app:
   name: Audio Analyzer
   cleanup_on_exit: true
+  clear_storage_on_startup: true  # delete all session folders under storage/ at startup
   use_ov_genai: True # True or False, applicable for provider: openvino
 
 models:
   asr:
-    provider: openai # openai | openvino | whispercpp
+    provider: openai # openai | openvino
     name: whisper-tiny  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
     device: CPU # CPU recommended; CPU or GPU for openvino provider
     weight_format: int8 # Optional OpenVINO export precision, e.g. int8 | fp16; ignored for provider: openai
@@ -17,10 +18,28 @@ models:
     # Hallucination filtering — openai provider uses native no_speech_prob/avg_logprob.
     # whispercpp derives the same values from per-token plog and ptsum.
     # openvino genai pipelines do not expose these fields; filtering is skipped.
-    no_speech_threshold: 0.6
-    logprob_threshold: -1.0
-    min_duration_sec: 0.25
-    min_words: 2
+    #
+    # Values below are tuned for live microphone input (noisy environment).
+    # Lower no_speech_threshold → stricter: flags more segments as potential noise.
+    # Higher logprob_threshold  → stricter: drops low-confidence transcriptions.
+    # Higher min_duration_sec / min_words → harder for noise bursts to earn the
+    #   "definitely speech, keep" safety net in _is_silent_segment().
+    no_speech_threshold: 0.35
+    logprob_threshold: -0.5
+    min_duration_sec: 0.5
+    min_words: 3
+
+    # openai-whisper transcribe() native param: skip generation over silent
+    # regions longer than this many seconds.  Directly targets the
+    # noise-transcribed-as-text problem.  null = disabled.
+    hallucination_silence_threshold: 2.0
+
+    # Post-processing repetition filter (all providers).
+    # 1.0 = disabled. Any value > 1.0 enables consecutive repeated-phrase
+    # removal (word n-gram dedup, window 1-8) and duplicate-segment stripping.
+    # Note: openai-whisper's DecodingOptions has no repetition_penalty field;
+    # this is applied after transcription, not inside the decoder.
+    repetition_penalty: 1.5
 
     # whisper.cpp specific — only used when provider: whispercpp
     beam_size: 5

@@ -27,9 +27,12 @@ def _mock_get_video_path(filename: str) -> str:
     return os.path.join("/tmp", filename)
 
 
-def _mock_find_installed_model_by_model_and_proc_path(
-    model_path: str, model_proc_path: Optional[str] = None
+def _mock_find_model_by_model_and_proc_path(
+    model_path: str,
+    model_proc_path: Optional[str] = None,
+    installed_only: bool = True,
 ):
+    del installed_only  # tolerated for parity with the real signature
     mapped_names = [
         "yolov8_license_plate_detector",
         "ch_PP-OCRv4_rec_infer",
@@ -76,8 +79,8 @@ def _mock_find_model_by_display_name(name: str):
     return mock_model
 
 
-mock_models_manager_instance.find_installed_model_by_model_and_proc_path.side_effect = (
-    _mock_find_installed_model_by_model_and_proc_path
+mock_models_manager_instance.find_model_by_model_and_proc_path.side_effect = (
+    _mock_find_model_by_model_and_proc_path
 )
 mock_models_manager_instance.find_installed_model_by_display_name.side_effect = (
     _mock_find_model_by_display_name
@@ -6677,15 +6680,31 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         ]
         self.assertEqual(warnings_emitted, ["sentinel"])
 
-        # decodebin3 must be gone; the chain is multifilesrc -> jpegdec -> fakesink.
+        # decodebin3 must be gone; the CPU adaptation also injects a
+        # ``videoconvert ! video/x-raw,format=I420`` bridge right after
+        # the software image decoder so every downstream DLStreamer
+        # plugin negotiates a single, uniform raw-video format.
         types_in_order = [n.type for n in result.nodes]
         self.assertNotIn("decodebin3", types_in_order)
-        self.assertEqual(types_in_order, ["multifilesrc", "jpegdec", "fakesink"])
+        self.assertEqual(
+            types_in_order,
+            ["multifilesrc", "jpegdec", "videoconvert", "video/x-raw", "fakesink"],
+        )
 
-        # The edge that used to leave decodebin3 now leaves jpegdec.
+        # The I420 caps node is what now feeds fakesink; the
+        # ``videoconvert`` sits between jpegdec and the caps node.
+        videoconvert_id = next(n.id for n in result.nodes if n.type == "videoconvert")
+        caps_node = next(
+            n
+            for n in result.nodes
+            if n.type == "video/x-raw" and n.data.get("format") == "I420"
+        )
         edges = [(e.source, e.target) for e in result.edges]
         self.assertIn(("0", "13"), edges)
-        self.assertIn(("13", "2"), edges)
+        self.assertIn(("13", videoconvert_id), edges)
+        self.assertIn((videoconvert_id, caps_node.id), edges)
+        self.assertIn((caps_node.id, "2"), edges)
+        # No edge to the pruned decodebin3 (id="1") should remain.
         self.assertNotIn(("13", "1"), edges)
         self.assertNotIn(("1", "2"), edges)
 
@@ -6735,7 +6754,11 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
     def test_gpu_target_inserts_vapostproc_when_no_va_decoder(self) -> None:
         # PNG has no VA decoder in stock GStreamer, so the upgrade path
         # must insert vapostproc + VAMemory NV12 caps after the
-        # software decoder.
+        # software decoder. ``pngdec`` emits RGB in system memory, so
+        # the upgrade path also interposes a ``videoconvert !
+        # video/x-raw,format=NV12`` bridge between ``pngdec`` and
+        # ``vapostproc`` (some Intel GPU drivers fail to negotiate a
+        # direct RGB-sysmem -> VAMemory-NV12 link, observed on BMG).
         graph = self._build_graph("png")
 
         fake_inspector = MagicMock()
@@ -6750,26 +6773,37 @@ class TestApplyDecodebin3ReplacementImageSet(unittest.TestCase):
         types_in_order = [n.type for n in result.nodes]
         # Software pngdec kept.
         self.assertIn("pngdec", types_in_order)
-        # vapostproc + VAMemory caps inserted right after the decoder.
+        # Sysmem NV12 bridge + VA upload stage inserted in order.
+        self.assertIn("videoconvert", types_in_order)
+        self.assertIn("video/x-raw", types_in_order)
         self.assertIn("vapostproc", types_in_order)
         self.assertIn("video/x-raw(memory:VAMemory)", types_in_order)
         idx_pngdec = types_in_order.index("pngdec")
+        idx_videoconvert = types_in_order.index("videoconvert")
+        idx_sysmem_caps = types_in_order.index("video/x-raw")
         idx_vapostproc = types_in_order.index("vapostproc")
         idx_caps = types_in_order.index("video/x-raw(memory:VAMemory)")
-        self.assertEqual(idx_vapostproc, idx_pngdec + 1)
+        self.assertEqual(idx_videoconvert, idx_pngdec + 1)
+        self.assertEqual(idx_sysmem_caps, idx_videoconvert + 1)
+        self.assertEqual(idx_vapostproc, idx_sysmem_caps + 1)
         self.assertEqual(idx_caps, idx_vapostproc + 1)
         # decodebin3 pruned.
         self.assertNotIn("decodebin3", types_in_order)
 
-        # Connectivity: pngdec -> vapostproc -> caps -> fakesink.
+        # Connectivity: pngdec -> videoconvert -> sysmem-caps ->
+        # vapostproc -> VAMemory-caps -> fakesink.
         edges = [(e.source, e.target) for e in result.edges]
         pngdec_id = next(n.id for n in result.nodes if n.type == "pngdec")
+        videoconvert_id = next(n.id for n in result.nodes if n.type == "videoconvert")
+        sysmem_caps_id = next(n.id for n in result.nodes if n.type == "video/x-raw")
         vapostproc_id = next(n.id for n in result.nodes if n.type == "vapostproc")
         caps_id = next(
             n.id for n in result.nodes if n.type == "video/x-raw(memory:VAMemory)"
         )
         fakesink_id = next(n.id for n in result.nodes if n.type == "fakesink")
-        self.assertIn((pngdec_id, vapostproc_id), edges)
+        self.assertIn((pngdec_id, videoconvert_id), edges)
+        self.assertIn((videoconvert_id, sysmem_caps_id), edges)
+        self.assertIn((sysmem_caps_id, vapostproc_id), edges)
         self.assertIn((vapostproc_id, caps_id), edges)
         self.assertIn((caps_id, fakesink_id), edges)
 
@@ -7256,8 +7290,20 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
         self.assertEqual(types_by_id["7"], "identity")
         # The image decoder itself must be preserved.
         self.assertEqual(types_by_id["1"], "jpegdec")
-        # No new nodes were added (encoder was unavailable).
-        self.assertEqual(len(graph.nodes), 11)
+        # The CPU adaptation also injects a ``videoconvert ! video/x-raw,
+        # format=I420`` pair right after the image decoder (step 0), so
+        # the node count grows by exactly 2 compared with the original
+        # graph (11 + 2 == 13).
+        self.assertEqual(len(graph.nodes), 13)
+        self.assertEqual(sum(1 for n in graph.nodes if n.type == "videoconvert"), 1)
+        self.assertEqual(
+            sum(
+                1
+                for n in graph.nodes
+                if n.type == "video/x-raw" and n.data.get("format") == "I420"
+            ),
+            1,
+        )
 
     def test_encoder_chain_inserted_before_splitmuxsink(self) -> None:
         graph = self._smart_nvr_like_graph()
@@ -7279,11 +7325,20 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
         )
 
         # Connectivity check: queue(4) -> videoconvert -> encoder ->
-        # h264parse -> splitmuxsink(5).
+        # h264parse -> splitmuxsink(5). The CPU adaptation also injects
+        # a separate ``videoconvert ! I420`` pair right after the
+        # image decoder (step 0), so there are now TWO ``videoconvert``
+        # nodes in the graph; we have to pick the one that actually
+        # links to the encoder.
         edges = [(e.source, e.target) for e in graph.edges]
-        videoconvert_id = next(n.id for n in graph.nodes if n.type == "videoconvert")
         encoder_id = next(n.id for n in graph.nodes if "openh264enc" in n.type)
         h264parse_id = next(n.id for n in graph.nodes if n.type == "h264parse")
+        # ``videoconvert`` directly upstream of the encoder.
+        videoconvert_id = next(src for src, tgt in edges if tgt == encoder_id)
+        self.assertEqual(
+            next(n.type for n in graph.nodes if n.id == videoconvert_id),
+            "videoconvert",
+        )
 
         self.assertIn(("4", videoconvert_id), edges)
         self.assertIn((videoconvert_id, encoder_id), edges)
@@ -7537,10 +7592,13 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
         with patch("video_encoder.VideoEncoder._select_element", return_value=None):
             graph._adapt_image_set_video_pipeline()
 
-        # A videoconvert and an NV12 caps node must have been
-        # inserted in front of gvamotiondetect.
+        # Two ``videoconvert`` elements must end up in the graph:
+        #   - one inserted by step 0 right after the image decoder
+        #     (followed by an I420 capsfilter);
+        #   - one inserted by step 3 right in front of gvamotiondetect
+        #     (followed by an NV12 capsfilter).
         videoconvert_nodes = [n for n in graph.nodes if n.type == "videoconvert"]
-        self.assertEqual(len(videoconvert_nodes), 1)
+        self.assertEqual(len(videoconvert_nodes), 2)
         nv12_caps_nodes = [
             n
             for n in graph.nodes
@@ -7548,17 +7606,27 @@ class TestAdaptImageSetVideoPipeline(unittest.TestCase):
             and str(n.data.get("format", "")).upper() == "NV12"
         ]
         self.assertEqual(len(nv12_caps_nodes), 1)
-
-        videoconvert_id = videoconvert_nodes[0].id
-        caps_id = nv12_caps_nodes[0].id
+        i420_caps_nodes = [
+            n
+            for n in graph.nodes
+            if n.type == "video/x-raw"
+            and str(n.data.get("format", "")).upper() == "I420"
+        ]
+        self.assertEqual(len(i420_caps_nodes), 1)
 
         edges = [(e.source, e.target) for e in graph.edges]
-        # jpegdec(1) -> videoconvert -> caps -> gvamotiondetect(2)
-        self.assertIn(("1", videoconvert_id), edges)
-        self.assertIn((videoconvert_id, caps_id), edges)
-        self.assertIn((caps_id, "2"), edges)
-        # The original direct jpegdec -> gvamotiondetect edge is gone.
-        self.assertNotIn(("1", "2"), edges)
+        # Identify the videoconvert that feeds the NV12 capsfilter -
+        # that is the step 3 one, sitting in front of gvamotiondetect.
+        nv12_caps_id = nv12_caps_nodes[0].id
+        nv12_videoconvert_id = next(src for src, tgt in edges if tgt == nv12_caps_id)
+        self.assertEqual(
+            next(n.type for n in graph.nodes if n.id == nv12_videoconvert_id),
+            "videoconvert",
+        )
+        # jpegdec(1) -> [step 0 videoconvert] -> [I420 caps] ->
+        #   [step 3 videoconvert] -> [NV12 caps] -> gvamotiondetect(2)
+        self.assertIn((nv12_videoconvert_id, nv12_caps_id), edges)
+        self.assertIn((nv12_caps_id, "2"), edges)
 
     def test_nv12_caps_not_reinjected_when_already_present(self) -> None:
         """
@@ -7681,6 +7749,106 @@ class TestInternalMarkersStrippedFromPipelineDescription(unittest.TestCase):
         self.assertNotIn("__internal_marker", description)
         self.assertNotIn("should-not-leak", description)
         self.assertIn("num-buffers=10", description)
+
+
+class TestUploadedModelFallback(unittest.TestCase):
+    """Cover the ``ModelManager`` fallback added to ``_model_path_to_display_name``
+    and ``_model_display_name_to_path`` so uploaded (custom) models keep
+    working through the simple-graph / convert-to-advanced flow.
+    """
+
+    def _node(self, model_value: str, model_proc: str | None = None) -> Node:
+        data: dict[str, str] = {"model": model_value}
+        if model_proc is not None:
+            data["model-proc"] = model_proc
+        return Node(id="n1", type="gvadetect", data=data)
+
+    # --- path -> display name ---------------------------------------
+
+    def test_path_to_display_name_falls_back_to_model_manager(self) -> None:
+        from graph import _model_path_to_display_name
+
+        node = self._node("/models/output/custom_uploaded_models/face-custom/model.xml")
+
+        yaml_manager = MagicMock()
+        yaml_manager.find_model_by_model_and_proc_path.return_value = None
+        mm = MagicMock()
+        mm.find_uploaded_model_by_path.return_value = MagicMock(
+            display_name="face-custom"
+        )
+
+        with (
+            patch("graph.SupportedModelsManager", return_value=yaml_manager),
+            patch("managers.model_manager.ModelManager", return_value=mm),
+        ):
+            _model_path_to_display_name([node])
+
+        self.assertEqual(node.data["model"], "face-custom")
+        # model-proc must be stripped after conversion.
+        self.assertNotIn("model-proc", node.data)
+        mm.find_uploaded_model_by_path.assert_called_once()
+
+    def test_path_to_display_name_empty_when_neither_resolves(self) -> None:
+        from graph import _model_path_to_display_name
+
+        node = self._node("/totally/unknown.xml")
+        yaml_manager = MagicMock()
+        yaml_manager.find_model_by_model_and_proc_path.return_value = None
+        mm = MagicMock()
+        mm.find_uploaded_model_by_path.return_value = None
+
+        with (
+            patch("graph.SupportedModelsManager", return_value=yaml_manager),
+            patch("managers.model_manager.ModelManager", return_value=mm),
+        ):
+            _model_path_to_display_name([node])
+
+        self.assertEqual(node.data["model"], "")
+
+    # --- display name -> path ---------------------------------------
+
+    def test_display_name_to_path_falls_back_to_model_manager(self) -> None:
+        from graph import _model_display_name_to_path
+
+        node = self._node("my-uploaded-model")
+        yaml_manager = MagicMock()
+        yaml_manager.find_installed_model_by_display_name.return_value = None
+
+        uploaded = MagicMock()
+        uploaded.model_path_full = "/abs/path/my-uploaded-model.xml"
+        uploaded.model_proc_full = ""  # uploads have no model-proc
+        mm = MagicMock()
+        mm.find_installed_uploaded_model_by_display_name.return_value = uploaded
+
+        with (
+            patch("graph.SupportedModelsManager", return_value=yaml_manager),
+            patch("managers.model_manager.ModelManager", return_value=mm),
+        ):
+            _model_display_name_to_path([node])
+
+        self.assertEqual(node.data["model"], "/abs/path/my-uploaded-model.xml")
+        # No model-proc must be injected when the model has none.
+        self.assertNotIn("model-proc", node.data)
+        mm.find_installed_uploaded_model_by_display_name.assert_called_once_with(
+            "my-uploaded-model"
+        )
+
+    def test_display_name_to_path_raises_when_unknown_everywhere(self) -> None:
+        from graph import _model_display_name_to_path
+
+        node = self._node("ghost-model")
+        yaml_manager = MagicMock()
+        yaml_manager.find_installed_model_by_display_name.return_value = None
+        mm = MagicMock()
+        mm.find_installed_uploaded_model_by_display_name.return_value = None
+
+        with (
+            patch("graph.SupportedModelsManager", return_value=yaml_manager),
+            patch("managers.model_manager.ModelManager", return_value=mm),
+        ):
+            with self.assertRaises(ValueError) as cm:
+                _model_display_name_to_path([node])
+        self.assertIn("ghost-model", str(cm.exception))
 
 
 if __name__ == "__main__":

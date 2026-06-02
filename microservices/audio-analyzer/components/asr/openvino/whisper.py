@@ -44,8 +44,15 @@ class Whisper(BaseASR):
             f"{self.model_path}/openvino_decoder_model.xml",
             self.device
         )
+        # Store supported decoder input names for runtime variant safety
+        self.decoder_input_names = set()
+        for port in self.decoder.inputs:
+            try:
+                self.decoder_input_names.update(port.get_names())
+            except Exception:
+                pass
 
-        logger.info("OpenVINO Whisper models loaded successfully")
+        logger.info(f"OpenVINO Whisper models loaded successfully. Decoder inputs: {self.decoder_input_names}")
  
     def transcribe(self, audio_path: str, temperature: float = 0.0, language: str | None = None) -> dict:
         
@@ -72,15 +79,15 @@ class Whisper(BaseASR):
             inp = np.array(tokens, dtype=np.int64)[None, :]
             seq_len = inp.shape[1]
 
-            cache_position = np.arange(seq_len, dtype=np.int64)
-            beam_idx = np.zeros((1,), dtype=np.int32)
-
-            inputs_map = {
+            # Prepare all possible inputs
+            possible_inputs = {
                 "input_ids": inp,
                 "encoder_hidden_states": encoder_output,
-                "cache_position": cache_position,
-                "beam_idx": beam_idx,
+                "cache_position": np.arange(seq_len, dtype=np.int64),
+                "beam_idx": np.zeros((1,), dtype=np.int32),
             }
+            # Only include those supported by the model
+            inputs_map = {k: v for k, v in possible_inputs.items() if k in self.decoder_input_names}
 
             req = self.decoder.create_infer_request()
             req.infer(inputs_map)

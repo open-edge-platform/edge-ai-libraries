@@ -94,7 +94,12 @@ class BaseTTSService(PipelineComponent, ABC):
         language: str | None,
         speaker: str | None,
     ) -> tuple[str, str]:
-        return language or self.config.default_language, speaker or self.config.default_speaker
+        chosen_language = language or self.config.default_language
+        if chosen_language.strip().lower() != self.config.default_language.strip().lower():
+            raise ValueError(
+                f"Only {self.config.default_language} is currently supported for speech synthesis."
+            )
+        return self.config.default_language, speaker or self.config.default_speaker
 
     def _get_model_key(self, implementation_name: str) -> tuple[str, str, str, str, str]:
         return (
@@ -128,7 +133,7 @@ class BaseTTSService(PipelineComponent, ABC):
             "default_speaker": self.config.default_speaker,
             "default_language": self.config.default_language,
             "supported_speakers": _get("get_supported_speakers"),
-            "supported_languages": _get("get_supported_languages"),
+            "supported_languages": [self.config.default_language],
             "model_source": resolve_tts_model_source(),
             "local_checkpoint": cache_dir if os.path.isdir(cache_dir) and any(os.scandir(cache_dir)) else None,
         }

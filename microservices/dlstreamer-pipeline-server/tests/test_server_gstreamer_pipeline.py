@@ -10,7 +10,7 @@ from src.server.gstreamer_pipeline import GStreamerPipeline
 import time
 import json
 from gi.repository import Gst, GLib
-from collections import namedtuple
+from collections import deque, namedtuple 
 import os
 
 @pytest.fixture
@@ -295,20 +295,18 @@ class TestGStreamerPipeline:
         assert result == Gst.FlowReturn.ERROR
 
     @pytest.mark.parametrize(
-        "pts, sum_latency, count_latency",
+        "initial_latency_times, sum_latency, count_latency",
         [
-            (1234, 20, 1),
-            (123, 0, 0)
+            (deque([10]), 20, 1),
+            (deque(), 0, 0)
         ])
-    def test_appsink_probe_callback(self, mocker,Gst,gstreamer_pipeline,pts,sum_latency,count_latency):
+    def test_appsink_probe_callback(self, mocker,Gst,gstreamer_pipeline,initial_latency_times,sum_latency,count_latency):
         mocker.patch.object(time,'time',return_value = 30)
         mock_info = MagicMock()
         mock_buffer = MagicMock()
-        mock_buffer.pts = pts
         mock_info.get_buffer.return_value = mock_buffer
-        gstreamer_pipeline.latency_times = {1234: 10}
+        gstreamer_pipeline.latency_times = initial_latency_times
         result = gstreamer_pipeline.appsink_probe_callback(None, mock_info, gstreamer_pipeline)
-        mock_info.get_buffer.assert_called_once()
         assert gstreamer_pipeline.sum_pipeline_latency == sum_latency
         assert gstreamer_pipeline.count_pipeline_latency == count_latency
         assert result == Gst.PadProbeReturn.OK
@@ -333,8 +331,7 @@ class TestGStreamerPipeline:
         mock_info.get_buffer.return_value = mock_buffer
         mocker.patch.object(time,'time',return_value = 50)
         result = gstreamer_pipeline.source_probe_callback(None, mock_info, gstreamer_pipeline)
-        assert 10 in gstreamer_pipeline.latency_times
-        assert gstreamer_pipeline.latency_times[10] == 50
+        assert 50 in gstreamer_pipeline.latency_times
         assert result == Gst.PadProbeReturn.OK
 
     def test_source_pad_added_callback(self, mocker, gstreamer_pipeline,Gst):
@@ -514,6 +511,7 @@ class TestGStreamerPipeline:
         gstreamer_pipeline._frame_fps = 10
         gstreamer_pipeline.count_pipeline_latency = 2
         gstreamer_pipeline.sum_pipeline_latency = 50
+        gstreamer_pipeline._frame_latency = 20
         expected_status = {
             "id": "test_id",
             "state": mock_state,
@@ -522,7 +520,8 @@ class TestGStreamerPipeline:
             "start_time": 15,
             "elapsed_time": 0,
             "message": "Debug",
-            "avg_pipeline_latency": 25.0}
+            "avg_pipeline_latency": 25.0,
+            "frame_latency": 20.0}
         result = gstreamer_pipeline.status()
         assert result == expected_status
 

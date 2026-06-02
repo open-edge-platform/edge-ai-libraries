@@ -1,6 +1,9 @@
+import time
+
 from components.base_component import PipelineComponent
 import os
 from utils.config_loader import config
+from utils.latency_store import asr_latency
 from utils.storage_manager import StorageManager
 from utils.app_paths import get_session_dir
 from components.asr.openai.whisper import Whisper as OA_Whisper
@@ -63,11 +66,13 @@ class ASRComponent(PipelineComponent):
 
             for chunk_data in input_generator:
                 chunk_path = chunk_data["chunk_path"]
+                _t0 = time.monotonic()
                 transcription = self.asr.transcribe(
                     chunk_path,
                     temperature=self.temperature,
                     language=language,
                 )
+                asr_latency.record((time.monotonic() - _t0) * 1000)
 
                 ui_segments = []
                 transcribed_text = ""

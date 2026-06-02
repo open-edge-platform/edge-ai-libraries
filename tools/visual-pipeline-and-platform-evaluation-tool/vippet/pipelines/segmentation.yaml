@@ -1,0 +1,35 @@
+name: Segmentation
+definition: >
+  This is a segmentation pipeline preview. Segmentation is used to identify individual objects and separate them from the original image.
+tags:
+  - Retail
+thumbnail: images/instance-segmentation.png
+variants:
+  - name: CPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 !
+      videoconvert !
+      video/x-raw,format=NV12 !
+      gvadetect
+        model=/models/output/ultralytics/public/yolo26s-seg/FP16/yolo26s-seg.xml
+        device=CPU !
+      queue !
+      gvawatermark ! 
+      gvafpscounter starting-frame=100 !
+      videoconvert !
+      video/x-raw,format=I420 !
+      gvametapublish method=file file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false
+  - name: GPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 !
+      gvadetect
+        model=/models/output/ultralytics/public/yolo26s-seg/FP16/yolo26s-seg.xml
+        device=GPU !
+      queue !
+      gvawatermark !
+      gvafpscounter starting-frame=100 !
+      gvametapublish method=file file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false

@@ -1,5 +1,8 @@
 FROM openvino/ubuntu22_runtime:2026.1.0
 
+ARG APP_UID=1000
+ARG APP_GID=1000
+
 USER root
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -18,6 +21,21 @@ RUN python3 -m pip install --upgrade pip \
     && python3 -m pip install -r requirements.txt
 
 COPY . .
+
+# Ensure all relevant directories exist, are not empty, and are chowned
+RUN mkdir -p /app/audio_analyzer/models/openvino \
+    && mkdir -p /app/audio_analyzer/models/dummy \
+    && mkdir -p /app/audio_analyzer/chunks/dummy \
+    && mkdir -p /app/audio_analyzer/storage/dummy \
+    && mkdir -p /app/audio_analyzer/.cache/dummy \
+    && touch /app/audio_analyzer/models/.keep \
+    && touch /app/audio_analyzer/models/openvino/.keep \
+    && touch /app/audio_analyzer/chunks/.keep \
+    && touch /app/audio_analyzer/storage/.keep \
+    && touch /app/audio_analyzer/.cache/.keep \
+    && chown -R ${APP_UID}:${APP_GID} /app/audio_analyzer
+
+USER ${APP_UID}:${APP_GID}
 
 EXPOSE 8010
 

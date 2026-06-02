@@ -12,21 +12,25 @@ packages = [{include = "video_analyzer"}]
 # ------------------------------------------------------------
 [tool.poetry.dependencies]
 python = "^3.10"
-Pillow = "11.3.0"
-transformers = "^4.53.1"
+Pillow = "^12.2.0"
+transformers = "^5.0.0rc3"
 fastapi = "^0.121.1"
 uvicorn = "^0.32.1"
 gunicorn = "^23.0.0"
-python-multipart = "^0.0.22"
+python-multipart = "^0.0.27"
 pydantic = "^2.11.5"
 pydantic-settings = "^2.9.1"
 setuptools = "^80.9.0"
 decord = "^0.6.0"
 openai = "^1.93.1"
 starlette = "^0.49.1"
-urllib3 = "^2.6.3"
-pytest = "^8.0.0"
-huggingface-hub = {version = "^0.30.2", extras = ["hf_xet"]}
+urllib3 = "^2.7.0"
+pytest = "^9.0.3"
+huggingface-hub = {version = "^1.3.0", extras = ["hf_xet"]}
+idna = "^3.15"
+python-dotenv = "^1.2.2"
+requests = "^2.33.0"
+Pygments = "^2.20.0"
 
 # ------------------------------------------------------------
 # Optional package sources (e.g., private PyPI mirrors)

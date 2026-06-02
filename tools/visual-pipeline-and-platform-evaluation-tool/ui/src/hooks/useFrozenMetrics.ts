@@ -28,8 +28,13 @@ export interface FrozenSnapshotOverrides {
  * into a single avg/min/max suitable for FrozenSnapshotOverrides.
  */
 export function aggregateLatencyTracerMetrics(
-  metrics: Record<string, { avg_ms: number; min_ms: number; max_ms: number }> | null | undefined,
-): Pick<FrozenSnapshotOverrides, "latencyAvg" | "latencyMin" | "latencyMax"> | undefined {
+  metrics:
+    | Record<string, { avg_ms: number; min_ms: number; max_ms: number }>
+    | null
+    | undefined,
+):
+  | Pick<FrozenSnapshotOverrides, "latencyAvg" | "latencyMin" | "latencyMax">
+  | undefined {
   if (!metrics) return undefined;
   const entries = Object.values(metrics);
   if (entries.length === 0) return undefined;
@@ -168,7 +173,7 @@ export function useFrozenMetrics() {
 
     return {
       fps: resultFps ?? lastFps,
-      cpu: avg(snapshot.map((p) => p.cpu ?? 0)),
+      cpu: 0,
       memory: avg(snapshot.map((p) => p.memory ?? 0)),
       availableGpuIds: gpuIds,
       gpuDetailedMetrics,

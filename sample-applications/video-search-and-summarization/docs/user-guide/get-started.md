@@ -330,27 +330,37 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 
 ## Using Edge Microvisor Toolkit
 
-If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit** — an Azure Linux-based build pipeline for Intel® platforms — follow the below listed guidelines. The guidelines vary based on the flavor of Edge Microvisor Toolkit used and the user is encouraged to refer to detailed documentation for [EMT-D](https://github.com/open-edge-platform/edge-microvisor-toolkit/blob/3.0/docs/developer-guide/emt-architecture-overview.md#developer-node-mutable-iso-image) and [EMT-S](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node). A few specific dependencies are called out below.
+If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit (EMT)** — an Azure Linux-based build pipeline for Intel® platforms — the deployment approach depends on the EMT flavor. Refer to the detailed documentation for [EMT-D](https://github.com/open-edge-platform/edge-microvisor-toolkit/blob/3.0/docs/developer-guide/emt-architecture-overview.md#developer-node-mutable-iso-image) and [EMT-S](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node) for full details.
 
-Install the `mesa-libGL` package. Installing `mesa-libGL` provides the OpenGL library which is needed by the `Audio Analyzer service`. Depending on `EMT-D` or `EMT-S`, the steps vary.
+### EMT-D (Mutable)
 
-For `EMT-D`, the following steps should work.
+EMT-D is a **mutable** image that supports standard package management. You can run the VSS `setup.sh` script directly on the node after installing the required dependencies.
+
+Install the `mesa-libGL` package (required by the Audio Analyzer service):
 
 ```bash
 sudo dnf install mesa-libGL
-# If you are using TDNF, you can use the following command to install:
-sudo tdnf search mesa-libGL
+# Or using TDNF:
 sudo tdnf install mesa-libGL
 ```
 
-For `EMT-S`,
+Install additional tools such as `git` and `wget` using the same package manager. Once dependencies are in place, proceed with [running the application](#run-the-application) normally.
+
+### EMT-S (Immutable)
+
+EMT-S is an **immutable** OS image — standard package managers such as `apt` are not available, and the VSS `setup.sh` script **cannot be run directly on the EMT-S node** (doing so will fail with `sudo: apt: command not found`). Use one of the following approaches:
+
+- **Option 1 (USB provisioning):** While preparing the USB drive, copy the required Docker images under `/opt/user-apps` on the image, then flash and deploy the Edge node.
+- **Option 2 (Remote copy):** On a Ubuntu development system, pull/build all required Docker images and prepare the project directory. Copy the entire directory to the EMT-S node without modifications and deploy from there. This approach has been verified to successfully bring up all VSS containers.
+
+When packages must be installed on EMT-S (for example, `mesa-libGL`), use the installroot method:
 
 ```bash
 sudo env no_proxy="localhost,127.0.0.1" dnf --installroot=/opt/user-apps/tools/ -y install mesa-libGL
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/user-apps/tools/usr/lib/
 ```
 
-Additional tools and packages that should be installed includes `git` and `wget`. The instructions for the same is available in the detailed `EMT-S` and `EMT-D` documentations. The instructions work for any other required packages too.
+The same method applies to any other required packages (for example, `git`, `wget`). Refer to the [EMT-S documentation](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node) for further details.
 
 ## Run the Application
 

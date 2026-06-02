@@ -4,7 +4,7 @@ FROM python:3.11-slim AS python-base
 
 # Define a build-time variable to determine if GPU drivers should be installed
 ARG USE_GPU=false
-ARG INSTALL_DRIVER_VERSION="25.48.36300"
+ARG INSTALL_DRIVER_VERSION="26.09.37435"
 ARG UID=1000
 ARG GID=1000
 
