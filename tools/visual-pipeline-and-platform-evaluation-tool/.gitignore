@@ -2,6 +2,8 @@ __pycache__
 .coverage
 .env
 .idea
+node_modules
+dist
 shared/images/input/*
 shared/images/output/*
 shared/models/output/*
