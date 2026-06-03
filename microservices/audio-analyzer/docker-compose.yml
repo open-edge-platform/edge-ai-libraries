@@ -14,6 +14,7 @@ services:
       - /dev/dri:/dev/dri
     group_add:
       - video
+      - "${RENDER_GID:-992}"
     environment:
       # Point HF cache under ~/.cache so a single ./.cache mount persists
       # HF downloads AND openai-whisper's ~/.cache/whisper *.pt files,
