@@ -161,21 +161,15 @@ class WhisperCpp(BaseASR):
             "logprob_thold": self.LOGPROB_THRESHOLD,
             "no_speech_thold": self.NO_SPEECH_THRESHOLD,
             "suppress_non_speech_tokens": True,
+            "greedy": {"best_of": self.best_of},
+            "beam_search": {"beam_size": self.beam_size, "patience": -1.0},
         }
 
-        if self.best_of and self.best_of > 1:
-            logger.debug(
-                "whispercpp runtime does not safely accept greedy/beam nested overrides; using installed decoder defaults"
-            )
         if language:
             transcribe_kwargs["language"] = language
         detected_language = language
 
-        try:
-            segments_raw = self.model.transcribe(audio_path, **transcribe_kwargs)
-        except TypeError:
-            transcribe_kwargs.pop("language", None)
-            segments_raw = self.model.transcribe(audio_path, **transcribe_kwargs)
+        segments_raw = self.model.transcribe(audio_path, **transcribe_kwargs)
 
         segments: List[Dict[str, Any]] = []
         dropped = 0
