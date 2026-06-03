@@ -2,13 +2,13 @@
 
 ## Version: 2026.1.0
 
-**June 17, 2026**
+June 17, 2026
 
-### New
+**New**
 
 - Added an exemplary pipeline configuration for NPU decode-and-inference (pallet_defect_detection pipeline using `1VA-API H.264` decode and gvadetect targeting the NPU device).
 
-### Improved
+**Improved**
 
 - Updated the base Docker image from `intel/dlstreamer:2025.2.0-ubuntu22` to `intel/dlstreamer:2026.0.0-ubuntu24`. The default published image is now Ubuntu 24.
 - Updated the bundled OpenVINO Python package to 2026.0.0.
@@ -16,7 +16,7 @@
 - Improved Swagger/OpenAPI documentation formatting and readability for all REST API endpoints.
 - Graceful GStreamer pipeline shutdown: pipelines now terminate cleanly with improved shutdown logging.
 
-### Fixed
+**Fixed**
 
 - Fixed a memory leak in the `latency_times` dictionary where per-pipeline entries accumulated indefinitely.
 - Replaced the `x264enc H.264` encoder with `openh264enc` in the WebRTC streaming path, removing a GPL-licensed codec dependency.
