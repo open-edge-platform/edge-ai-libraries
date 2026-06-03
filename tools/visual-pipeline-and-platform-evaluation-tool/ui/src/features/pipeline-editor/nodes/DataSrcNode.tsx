@@ -11,7 +11,7 @@ type DataSrcNodeProps = {
 
 const DataSrcNode = ({ data }: DataSrcNodeProps) => (
   <PipelineNodeCard
-    title="Data Source"
+    title="Input"
     nodeType="datasrc"
     roleClasses={PIPELINE_NODE_ROLE_CLASSES.source}
     minWidthClass="min-w-[17.5rem]"

@@ -161,6 +161,7 @@ export const Pipelines = () => {
   );
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
+  const [timeseriesStarted, setTimeseriesStarted] = useState(false);
   const nodeDetailsPanelSizeRef = useRef(24);
   const runPanelSizeRef = useRef(35);
   const detailsPanelRef = useRef<HTMLDivElement>(null);
@@ -267,12 +268,12 @@ export const Pipelines = () => {
   };
 
   const handleNodeSelect = (node: ReactFlowNode | null) => {
-    if (jobStatus?.state === "RUNNING") {
+    if (jobStatus?.state === "RUNNING" && !data?.tags?.includes("Time Series")) {
       return;
     }
 
     setSelectedNode(node);
-    setShowDetailsPanel(!!node);
+    setShowDetailsPanel(!!node || timeseriesStarted);
 
     if (node) {
       setCompletedVideoPath(null);
@@ -301,6 +302,7 @@ export const Pipelines = () => {
 
     // Time Series pipelines don't use GStreamer — just show the output panel
     if (data?.tags?.includes("Time Series")) {
+      setTimeseriesStarted(true);
       setShowDetailsPanel(true);
       setSelectedNode(null);
       return;
@@ -463,11 +465,13 @@ export const Pipelines = () => {
   if (isSuccess && data) {
     const isTimeSeriesPipeline = data.tags?.includes("Time Series") ?? false;
     const detailsPanelType: "node" | "run" | "timeseries" | null = showDetailsPanel
-      ? isTimeSeriesPipeline
-        ? "timeseries"
-        : selectedNode
-          ? "node"
-          : "run"
+      ? selectedNode
+        ? "node"
+        : isTimeSeriesPipeline && timeseriesStarted
+          ? "timeseries"
+          : isTimeSeriesPipeline
+            ? null
+            : "run"
       : null;
     const activePanelSize =
       detailsPanelType === "node"

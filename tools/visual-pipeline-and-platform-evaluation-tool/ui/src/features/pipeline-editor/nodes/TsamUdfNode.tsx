@@ -12,7 +12,7 @@ type TsamUdfNodeProps = {
 
 const TsamUdfNode = ({ data }: TsamUdfNodeProps) => (
   <PipelineNodeCard
-    title="Anomaly Detection UDF"
+    title="Anomaly Detection"
     nodeType="tsam-udf"
     roleClasses={PIPELINE_NODE_ROLE_CLASSES.aiDetect}
     minWidthClass="min-w-[20rem]"
