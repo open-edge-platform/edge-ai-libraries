@@ -88,7 +88,7 @@ data:
         }
 
         location /api {
-          proxy_pass http://docsum-api:8090/v1/docsum;
+          proxy_pass http://{{ .Values.global.backendApi.host }}:{{ .Values.global.backendApi.port }}{{ .Values.global.backendApi.path }};
           proxy_http_version 1.1;
           proxy_set_header Upgrade $http_upgrade;
           proxy_set_header Connection "Upgrade";

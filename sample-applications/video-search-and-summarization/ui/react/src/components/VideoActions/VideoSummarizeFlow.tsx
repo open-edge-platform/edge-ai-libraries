@@ -464,7 +464,8 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     }
 
     const base = ASSETS_ENDPOINT.replace(/\/$/, '');
-    return `${base}/${bucket}/${encodedPath}`;
+    const assetVideoUrl = `${base}/${bucket}/${encodedPath}`;
+    return getSafePreviewVideoUrl(assetVideoUrl, ASSETS_ENDPOINT);
   }, []);
 
   const validateAndPrepareSummaryName = () => {

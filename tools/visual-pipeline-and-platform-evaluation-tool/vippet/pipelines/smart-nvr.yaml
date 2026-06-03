@@ -90,6 +90,49 @@ variants:
       vapostproc !
       video/x-raw(memory:VAMemory),width=320,height=240 !
       fakesink name=default_output_sink
+  - name: GPU (WSL)
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      parsebin !
+      tee name=t0 !
+      queue !
+      splitmuxsink location=/tmp/people-output.mp4
+      t0. !
+      queue !
+      avdec_h264 !
+      video/x-raw !
+      gvafpscounter starting-frame=100 !
+      gvadetect
+        model=/models/output/public/yolo11s/INT8/yolo11s.xml
+        model-instance-id=detect0
+        pre-process-backend=opencv
+        device=GPU
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        batch-size=0
+        inference-interval=3
+        nireq=0 !
+      queue !
+      gvatrack tracking-type=short-term-imageless !
+      queue !
+      gvaclassify
+        model=/models/output/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+        model-proc=/models/output/omz/mobilenet-v2-pytorch/mobilenet-v2.json
+        model-instance-id=classify0
+        pre-process-backend=opencv
+        device=GPU
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        batch-size=0
+        inference-interval=3
+        nireq=0
+        inference-region=roi-list
+        reclassify-interval=1 !
+      queue !
+      gvawatermark !
+      gvametaconvert format=json !
+      gvametapublish method=file file-path=/dev/null !
+      videoscale !
+      video/x-raw,width=320,height=240 !
+      fakesink name=default_output_sink
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !

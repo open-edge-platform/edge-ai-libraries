@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Use DLStreamer as the base image
-FROM intel/dlstreamer:2026.1.0-20260505-weekly-ubuntu24
+FROM intel/dlstreamer:2026.1.0-ubuntu24-rc1.1
 
 # Switch to root user to install dependencies
 USER root
@@ -44,9 +44,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 COPY requirements.txt /usr/src/app
 
 # Install necessary Python dependencies
-RUN \
-    pip3 install --upgrade pip && \
-    pip3 install --disable-pip-version-check --no-cache-dir -r requirements.txt
+RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements.txt
 
 # Copy the Python scripts and configuration files into the container
 COPY background.gif config.json imagetovideo.py composite_generator.py /usr/src/app/

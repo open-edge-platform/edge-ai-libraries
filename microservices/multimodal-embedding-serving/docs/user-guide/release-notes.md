@@ -2,9 +2,9 @@
 
 This microservice supports features based on the requirements of Video Search and Summarization sample application, which uses this microservice. Refer to Video Search and Summarization [release notes](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/video-search-and-summarization/release-notes.html) for release details of this microservice.
 
-## Version 2026.1.0-rc1
+## Version 2026.1.0
 
-**14 May 2026**
+**June 17, 2026**
 
 **New**
 
@@ -16,7 +16,7 @@ This microservice supports features based on the requirements of Video Search an
 - **Inference metrics reporting**: All model handlers expose an optional `metrics_out=True` mode on `encode_image()` that returns timing and throughput metrics for both OV and native PyTorch execution paths.
 - **Configurable embedding pipeline via environment variables**: The following variables are now exposed and seeded by `setup.sh`.
 
-**Improvements**
+**Improved**
 
 - **PyTorch fallback for all model handlers**: CLIP, SigLIP, MobileCLIP, BLIP2-Transformers, and CN-CLIP handlers transparently fall back to native PyTorch inference when OpenVINO is not configured, controlled via `EMBEDDING_USE_OV`.
 - Significant runtime memory reduction (up to 8–10×) and improved end-to-end throughput through the shared memory pipeline and async batched inference.
@@ -25,29 +25,34 @@ This microservice supports features based on the requirements of Video Search an
 - Detailed logger format enriched with filename, function name, and line number for easier debugging.
 - `get-started.md` updated with full environment variable reference, preset configuration examples (GPU, high-throughput, memory-constrained, debug), and a performance tuning guide.
 
-**Breaking Changes**
+**Upgrade Notes**
+
+- `encode_image()` no longer accepts a pre-processed `torch.Tensor` as input; pass `PIL.Image` or `List[PIL.Image]` instead.*
+- `decord` has been removed as a dependency; replace any direct `decord` usage with `PyAV` (`av` package)..>*
 
 - `encode_image()` no longer accepts a pre-processed `torch.Tensor` as input; pass `PIL.Image` or `List[PIL.Image]` instead.
 - `decord` has been removed as a dependency; replace any direct `decord` usage with `PyAV` (`av` package).
 
-**Validated configuration**
+*Validated configuration:*
 
-- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU, Intel® Core™ Ultra Processors (Series 2 and 3)
-- Vanilla Kubernetes Cluster
+- *Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU, Intel® Core™ Ultra Processors (Series 2 and 3)*
+- *Vanilla Kubernetes Cluster*
+
+
 
 ## Version 1.3.2
 
-**20 March 2026**
+**March 20, 2026**
 
 **New**
 
 - Support for Intel® Core™ Ultra Processors (Series 3)
 - Provided support for data and time based search queries
 
-**Validated configuration**
+*Validated configuration*
 
-- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU, Intel® Core™ Ultra Processors (Series 2 and 3)
-- Vanilla Kubernetes Cluster
+- *Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU, Intel® Core™ Ultra Processors (Series 2 and 3)*
+- *Vanilla Kubernetes Cluster*
 
 ## Previous releases
 

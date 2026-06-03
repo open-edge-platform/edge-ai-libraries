@@ -15,6 +15,10 @@ def get_session_dir(session_id: str) -> str:
     return os.path.join(STORAGE_ROOT, session_id)
 
 
+def get_session_chunks_dir(session_id: str) -> str:
+    return os.path.join(get_session_dir(session_id), "chunks")
+
+
 def resolve_project_path(path: str) -> str:
     if os.path.isabs(path):
         return path

@@ -157,6 +157,11 @@ elif [ "$1" = "--stop" ] || [ "$1" = "--clean-data" ]; then
     # Remove volumes if --clean-data is specified
     if [ "$1" = "--clean-data" ]; then
         remove_volumes || return 1
+        # Remove the persistent OpenVINO venv
+        if [ -d "${OV_VENV_DIR:-.ov_venv}" ]; then
+            echo -e "${YELLOW}Removing OpenVINO venv at ${OV_VENV_DIR:-.ov_venv}...${NC}"
+            rm -rf "${OV_VENV_DIR:-.ov_venv}"
+        fi
         echo -e "${GREEN}Clean operation completed successfully! ${NC}"
     fi
     return 0
@@ -513,6 +518,13 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
         echo -e "${YELLOW}This is required for --unified/--all mode.${NC}" >&2
         return 1
     fi
+
+    # Validate OVMS_CACHE_SIZE_GB if user has set it
+    if [[ -n "${OVMS_CACHE_SIZE_GB:-}" ]] && ! [[ "$OVMS_CACHE_SIZE_GB" =~ ^[1-9][0-9]*$ ]]; then
+        echo -e "${RED}ERROR: OVMS_CACHE_SIZE_GB must be a positive integer (got '${OVMS_CACHE_SIZE_GB}').${NC}" >&2
+        echo -e "${YELLOW}This value sets the OVMS KV cache size in GB (e.g., 4, 8, 10).${NC}" >&2
+        return 1
+    fi
     
 fi
 
@@ -582,16 +594,113 @@ convert_object_detection_models() {
     rm -rf ov_model_venv
 }
 
+# Directory for the persistent OpenVINO virtual environment.
+# This venv is kept across runs so that get_ovms_cache_size can query GPU
+# properties without requiring the caller to activate a venv first.
+# Cleaned up by --clean-data.
+OV_VENV_DIR="${OV_VENV_DIR:-$(pwd)/.ov_venv}"
+
+# Ensure a lightweight Python venv with openvino is available.
+# Creates the venv on first call; subsequent calls are no-ops.
+ensure_ov_venv() {
+    if [ -x "${OV_VENV_DIR}/bin/python3" ] && "${OV_VENV_DIR}/bin/python3" -c "import openvino" 2>/dev/null; then
+        return 0
+    fi
+    echo -e "[ovms-service] ${BLUE}Creating persistent OpenVINO venv at ${OV_VENV_DIR}...${NC}" >&2
+    if ! dpkg-query -W -f='${Status}' python3-venv 2>/dev/null | grep -q "ok installed"; then
+        sudo apt install -y python3-venv || return 1
+    fi
+    python3 -m venv "$OV_VENV_DIR" || return 1
+    "${OV_VENV_DIR}/bin/pip" install --no-cache-dir -q openvino || return 1
+}
+
+# Compute the OVMS KV cache size (in GB) for a given target device.
+#
+# The KV cache stores intermediate attention state during LLM/VLM text
+# generation. Its size must balance inference quality (larger = more
+# concurrent/longer requests) against leaving enough memory for model
+# weights and the OS.
+#
+# Allocation strategy per device type:
+#   CPU  — 25% of system RAM, clamped to [2, 16] GB.
+#          Model weights live in the same RAM so we cap at 16 GB to
+#          leave headroom for weights + OS.
+#   iGPU — 25% of system RAM, clamped to [2, 6] GB.
+#          Integrated GPUs share system RAM with the OS and model
+#          weights. The lower upper clamp (6 GB) prevents starving
+#          the GPU driver's limited memory pool.
+#   dGPU — 33% of dedicated VRAM, clamped to [2, 16] GB.
+#          Discrete GPUs have their own VRAM (queried via OpenVINO).
+#          A higher percentage is safe because VRAM isn't shared with
+#          the OS, but we still reserve ~67% for model weights.
+#   NPU  — Not applicable; OVMS ignores cache_size for NPU stateful
+#          servables, so this function does not handle NPU.
+#
+# Users can override all of this by exporting OVMS_CACHE_SIZE_GB.
 get_ovms_cache_size() {
     local target_device="$1"
+    # Allow user override via OVMS_CACHE_SIZE_GB environment variable (validated at startup)
+    if [[ -n "${OVMS_CACHE_SIZE_GB:-}" ]]; then
+        echo -e "[ovms-service] ${YELLOW}OVMS_CACHE_SIZE_GB is set — overriding dynamic cache size with ${OVMS_CACHE_SIZE_GB} GB${NC}" >&2
+        echo "$OVMS_CACHE_SIZE_GB"
+        return
+    fi
+
+    local total_ram_gb
+    total_ram_gb=$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo)
+
+    local cache_gb
     case "$target_device" in
-        *GPU*|*NPU*)
-            echo "2"
+        *GPU*)
+            # Query the specific GPU device via OpenVINO Python API.
+            # This natively handles GPU / GPU.0 / GPU.1 device addressing and
+            # returns accurate VRAM size and device type (DISCRETE vs INTEGRATED)
+            # across all driver generations (i915, xe, future).
+            ensure_ov_venv || return 1
+            local ov_result=""
+            ov_result=$("${OV_VENV_DIR}/bin/python3" - "$target_device" <<'PY' 2>/dev/null
+import sys
+try:
+    import openvino as ov
+    core = ov.Core()
+    device = sys.argv[1]
+    dtype = str(core.get_property(device, "DEVICE_TYPE"))
+    mem_bytes = 0
+    if "DISCRETE" in dtype:
+        mem_bytes = core.get_property(device, "GPU_DEVICE_TOTAL_MEM_SIZE")
+    print(f"{dtype} {mem_bytes}")
+except Exception:
+    pass
+PY
+            )
+
+            local ov_device_type ov_mem_bytes
+            ov_device_type=$(echo "$ov_result" | awk '{print $1}')
+            ov_mem_bytes=$(echo "$ov_result" | awk '{print $2}')
+
+            if [[ -z "$ov_device_type" ]]; then
+                echo -e "${RED}ERROR: Failed to query GPU device '${target_device}' via OpenVINO.${NC}" >&2
+                echo -e "${YELLOW}Ensure the GPU device is available. You can override with OVMS_CACHE_SIZE_GB.${NC}" >&2
+                return 1
+            elif [[ "$ov_device_type" == *DISCRETE* && -n "$ov_mem_bytes" && "$ov_mem_bytes" -gt 0 ]] 2>/dev/null; then
+                # dGPU: ~33% of dedicated VRAM, clamped to [2, 16]
+                local dgpu_vram_gb=$((ov_mem_bytes / 1073741824))
+                cache_gb=$((dgpu_vram_gb * 33 / 100))
+                cache_gb=$(( cache_gb < 2 ? 2 : cache_gb > 16 ? 16 : cache_gb ))
+            else
+                # iGPU: ~25% of system RAM (shared memory), clamped to [2, 6]
+                cache_gb=$((total_ram_gb * 25 / 100))
+                cache_gb=$(( cache_gb < 2 ? 2 : cache_gb > 6 ? 6 : cache_gb ))
+            fi
             ;;
         *)
-            echo "10"
+            # CPU: ~25% of system RAM, clamped to [2, 16]
+            cache_gb=$((total_ram_gb * 25 / 100))
+            cache_gb=$(( cache_gb < 2 ? 2 : cache_gb > 16 ? 16 : cache_gb ))
             ;;
     esac
+
+    echo "$cache_gb"
 }
 
 # Get weight format based on target device
@@ -715,7 +824,6 @@ export_model_for_ovms() {
     local target_device="$2"
     local weight_format="$3"
     local pipeline_type="$4"
-    local cache_size="$5"
     local extra_args=()
     local export_status
     local storage_model_name
@@ -729,12 +837,17 @@ export_model_for_ovms() {
     storage_model_name=$(get_ovms_storage_model_name "$source_model" "$target_device" "$weight_format")
     echo -e "[ovms-service] ${BLUE}Storage model name: ${YELLOW}${storage_model_name}${NC}"
 
+    # Compute cache size before entering the subshell so the log is visible
+    local cache_size
+    cache_size=$(get_ovms_cache_size "$target_device") || return 1
+    echo -e "[ovms-service] ${BLUE}Cache size: ${YELLOW}${cache_size} GB${NC} for device ${YELLOW}${target_device}${NC}"
+
     if [ -n "$pipeline_type" ]; then
         extra_args+=(--pipeline_type "$pipeline_type")
     fi
     
-    # Export storage_model_name so it's available in subshell
-    export storage_model_name
+    # Export storage_model_name and cache_size so they're available in subshell
+    export storage_model_name cache_size
     
     (
         mkdir -p "${OVMS_CONFIG_DIR}"
@@ -761,7 +874,7 @@ export_model_for_ovms() {
             echo -e "${GREEN}Model '${source_model}' is from OpenVINO namespace (pre-converted).${NC}"
             echo -e "${YELLOW}Skipping full requirements installation - only need huggingface_hub for download.${NC}"
             
-            # Lightweight dependencies: huggingface_hub (<0.27 for huggingface-cli support) and jinja2 (for graph.pbtxt)
+            # Lightweight dependencies: huggingface_hub (<0.27 for huggingface-cli support) and jinja2 (for graph.pbtxt).
             # Note: huggingface_hub 0.27+ deprecated huggingface-cli in favor of 'hf' command
             if ! pip install --no-cache-dir 'huggingface_hub<0.27' jinja2; then
                 echo -e "${RED}ERROR: Failed to install minimal dependencies for OpenVINO model.${NC}" >&2
@@ -801,6 +914,8 @@ export_model_for_ovms() {
 
         mkdir -p models
 
+        # Use cache_size computed before entering the subshell
+
         # Use storage_model_name for --model_name to create device/format-specific folder
         # --source_model is the HuggingFace model ID for downloading
         # --model_name is the folder name where it will be stored
@@ -827,9 +942,6 @@ export_model_for_ovms() {
     if [ $export_status -ne 0 ]; then
         return $export_status
     fi
-    
-    # Return the storage model name for the caller to use
-    echo "$storage_model_name"
 }
 
 ensure_ovms_model() {
@@ -840,7 +952,6 @@ ensure_ovms_model() {
     local ovms_model_config="${OVMS_CONFIG_DIR}/models/config.json"
     local storage_model_name
     local model_path
-    local exported_name
 
     # Generate storage-aware model name (includes device and format)
     storage_model_name=$(get_ovms_storage_model_name "$model_name" "$target_device" "$weight_format")
@@ -852,6 +963,18 @@ ensure_ovms_model() {
     if [ -d "$model_path" ] && [ -f "${model_path}/graph.pbtxt" ]; then
         echo -e "[ovms-service] ${GREEN}Model ${YELLOW}${storage_model_name}${GREEN} already exists. Skipping export.${NC}"
         
+        # Compute the desired cache size and update graph.pbtxt if it differs
+        local desired_cache_size existing_cache_size
+        desired_cache_size=$(get_ovms_cache_size "$target_device") || return 1
+        existing_cache_size=$(grep -oP 'cache_size:\s*\K[0-9]+' "${model_path}/graph.pbtxt" 2>/dev/null)
+
+        if [[ -n "$existing_cache_size" && "$existing_cache_size" -ne "$desired_cache_size" ]]; then
+            sed -i "s/cache_size:\s*${existing_cache_size}/cache_size: ${desired_cache_size}/" "${model_path}/graph.pbtxt"
+            echo -e "[ovms-service] ${BLUE}Updated cache size: ${YELLOW}${existing_cache_size} → ${desired_cache_size} GB${NC} in graph.pbtxt"
+        else
+            echo -e "[ovms-service] ${BLUE}Cache size: ${YELLOW}${desired_cache_size} GB${NC}"
+        fi
+        
         # Ensure it's registered in config.json
         if [ -f "${ovms_model_config}" ] && ovms_config_has_model "${ovms_model_config}" "${storage_model_name}"; then
             echo -e "[ovms-service] ${GREEN}Model is registered in OVMS config.${NC}"
@@ -860,21 +983,15 @@ ensure_ovms_model() {
             # The model exists but config.json doesn't reference it - add it
             add_model_to_ovms_config "${ovms_model_config}" "${storage_model_name}" "${model_path}"
         fi
-        
-        # Export the storage model name for pipeline-manager
-        echo "$storage_model_name"
     else
         echo -e "[ovms-service] ${YELLOW}Model ${RED}${storage_model_name}${YELLOW} not found. Exporting...${NC}"
         
-        # Export returns the storage model name
-        exported_name=$(export_model_for_ovms \
+        # Export the model
+        export_model_for_ovms \
             "$model_name" \
             "$target_device" \
             "$weight_format" \
-            "$pipeline_type" \
-            "$(get_ovms_cache_size "$target_device")") || return 1
-        
-        echo "$exported_name"
+            "$pipeline_type" || return 1
     fi
 }
 
@@ -1068,8 +1185,8 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
                 export LLM_STORAGE_MODEL_NAME="$VLM_STORAGE_MODEL_NAME"
             fi
             
-            echo -e "[ovms-service] ${GREEN}VLM Storage Model: ${YELLOW}${VLM_STORAGE_MODEL_NAME}${NC}"
-            echo -e "[ovms-service] ${GREEN}LLM Storage Model: ${YELLOW}${LLM_STORAGE_MODEL_NAME}${NC}"
+            echo -e "[ovms-service] ${GREEN}VLM Model: ${YELLOW}${VLM_STORAGE_MODEL_NAME}${NC}"
+            echo -e "[ovms-service] ${GREEN}LLM Model: ${YELLOW}${LLM_STORAGE_MODEL_NAME}${NC}"
 
             if [ "$2" != "config" ]; then
                 # Reset OVMS config to only include storage model names needed for this run

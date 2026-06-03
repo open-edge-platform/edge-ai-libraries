@@ -1,11 +1,3 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table.tsx";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
@@ -19,9 +11,10 @@ import JSZip from "jszip";
 import { useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
-import { useLazyGetModelJobsQuery } from "@/api/api.model-download.generated.ts";
+import { ModelsTable } from "@/features/models/ModelsTable.tsx";
 
 const REQUIRED_MODEL_FILES = ["model.bin", "model.xml"];
+const ALLOWED_CATEGORIES = ["classification", "detection", "genai"] as const;
 
 const validateModelArchive = async (
   file: File,
@@ -57,8 +50,6 @@ export const Models = () => {
     };
   }, [registerJobGroup, unregisterJobGroup]);
 
-  const [getModelJobs] = useLazyGetModelJobsQuery();
-
   const handlePreUpload = useCallback(
     async (
       file: File,
@@ -69,18 +60,15 @@ export const Models = () => {
 
       const modelName = fields.model_name?.trim();
       if (modelName) {
-        try {
-          const result = await getModelJobs({ modelName }).unwrap();
-          const exists = result.jobs?.some((job) => job.status === "completed");
-          if (exists) return PRE_UPLOAD_MESSAGES.FILE_EXISTS;
-        } catch {
-          // if local check failed by any reason — proceed to upload
-        }
+        const exists = models.some(
+          (m) => m.name === modelName && m.install_status === "installed",
+        );
+        if (exists) return PRE_UPLOAD_MESSAGES.FILE_EXISTS;
       }
 
       return null;
     },
-    [getModelJobs],
+    [models],
   );
 
   const handleUploadProgress = useCallback(
@@ -132,36 +120,23 @@ export const Models = () => {
               label: "Model name",
               placeholder: "Enter model name",
               required: true,
-              regex: /^[a-zA-Z0-9_-\s]+$/,
+              regex: /^[a-zA-Z0-9_\s-]+$/,
               regexMessage:
                 "Only alphanumeric characters, spaces, underscores, and hyphens are allowed.",
+            },
+            {
+              name: "category",
+              label: "Category",
+              placeholder: "Select a category",
+              required: true,
+              type: "combobox" as const,
+              options: [...ALLOWED_CATEGORIES],
             },
           ]}
           className="mb-8"
         />
 
-        <Table className="mb-10">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[33%] truncate">Name</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Precision</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {models.map((model) => (
-              <TableRow key={model.display_name}>
-                <TableCell className="font-medium max-w-0">
-                  <div className="truncate" title={model.display_name}>
-                    {model.display_name}
-                  </div>
-                </TableCell>
-                <TableCell>{model.category}</TableCell>
-                <TableCell>{model.precision}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <ModelsTable />
       </div>
     );
   }

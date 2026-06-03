@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { useFrozenMetrics, aggregateLatencyTracerMetrics } from "@/hooks/useFrozenMetrics";
+import {
+  useFrozenMetrics,
+  aggregateLatencyTracerMetrics,
+} from "@/hooks/useFrozenMetrics";
 import {
   useGetPerformanceJobStatusQuery,
   useRunPerformanceTestMutation,
@@ -561,7 +564,6 @@ export const PerformanceTests = () => {
               <SaveOutputWarning />
             </div>
           )}
-
         </div>
 
         {isRunning ? (
@@ -589,9 +591,7 @@ export const PerformanceTests = () => {
             <p className="text-sm font-medium text-status-fg mb-2">
               Test Failed
             </p>
-            <p className="text-xs text-status-fg">
-              {errorMessage}
-            </p>
+            <p className="text-xs text-status-fg">{errorMessage}</p>
           </div>
         )}
 
