@@ -1,7 +1,7 @@
 Installation & Setup
 ====================
 
-|top_name| provides necessary steps to setup the environment.
+PLCopen Motion Control provides necessary steps to setup the environment.
 
 | Before getting installation, please check the prerequisites and make sure you have all the requirements.
 
