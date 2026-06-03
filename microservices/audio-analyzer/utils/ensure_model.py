@@ -10,6 +10,7 @@ _WHISPER_CPP_MODEL_MAP = {
     "whisper-small":  "ggml-small.bin",
     "whisper-medium": "ggml-medium.bin",
     "whisper-large":  "ggml-large-v3.bin",
+    "whisper-turbo":  "ggml-large-v3-turbo.bin",
 }
 
 _WHISPER_CPP_DEFAULT_QUANTIZATION = {
@@ -18,6 +19,7 @@ _WHISPER_CPP_DEFAULT_QUANTIZATION = {
     "whisper-small": "q5_1",
     "whisper-medium": "q5_0",
     "whisper-large": "q5_0",
+    "whisper-turbo": "q5_0",
 }
 
 _WHISPER_CPP_SUPPORTED_QUANTIZATION = {
@@ -26,6 +28,7 @@ _WHISPER_CPP_SUPPORTED_QUANTIZATION = {
     "whisper-small": {"q5_1", "q8_0"},
     "whisper-medium": {"q5_0", "q8_0"},
     "whisper-large": {"q5_0"},
+    "whisper-turbo": {"q5_0", "q8_0"},
 }
 
 
@@ -76,6 +79,20 @@ def _model_dir_name(model_name: str, weight_format: str | None = None) -> str:
     if weight_format:
         return f"{slug}-{weight_format}"
     return slug
+
+
+def get_sentiment_model_path() -> str:
+    sent_cfg = config.sentiment
+    model_name = sent_cfg.model
+    provider = getattr(sent_cfg, "provider", "openvino")
+    models_base = getattr(sent_cfg, "models_base_path", "models")
+    weight_format = getattr(sent_cfg, "weight_format", None)
+
+    # SpeechBrain OpenVINO uses the custom export path below, which ignores
+    # weight_format and expects the IR alongside the model snapshot files.
+    include_weight_format = provider == "openvino" and not model_name.startswith("speechbrain/")
+    slug = _model_dir_name(model_name, weight_format if include_weight_format else None)
+    return os.path.join(models_base, "sentiment", slug)
 
 def _ir_exists(output_dir: str) -> bool:
     """Check if exported OpenVINO IR files exist."""
@@ -178,7 +195,7 @@ def _export_speechbrain_sentiment_openvino(model_name: str, output_dir: str, dev
 
     logger.info(f"🚀  Converting SpeechBrain sentiment model to OpenVINO IR at {output_dir}")
 
-    run_device = "cuda" if str(device).upper() == "GPU" else "cpu"
+    run_device = "cpu"
     classifier = foreign_class(
         source=output_dir,
         savedir=output_dir,
@@ -232,17 +249,15 @@ def ensure_sentiment_model():
     sent_cfg = config.sentiment
     model_name = sent_cfg.model                      # e.g. speechbrain/emotion-recognition-wav2vec2-IEMOCAP
     provider = getattr(sent_cfg, "provider", "openvino")
-    models_base = getattr(sent_cfg, "models_base_path", "models")
     weight_format = getattr(sent_cfg, "weight_format", None)
-    slug = _model_dir_name(model_name, weight_format if provider == "openvino" else None)
-    output_dir = os.path.join(models_base, "sentiment", slug)
+    output_dir = get_sentiment_model_path()
 
     if provider == "openvino":
         logger.info(f"Ensuring sentiment model (openvino): {model_name} → {output_dir}")
         if model_name.startswith("speechbrain/"):
             if weight_format:
                 logger.warning("Ignoring sentiment.weight_format for SpeechBrain OpenVINO export; custom export path does not support it.")
-            _export_speechbrain_sentiment_openvino(model_name, output_dir, getattr(sent_cfg, "device", "CPU"))
+            _export_speechbrain_sentiment_openvino(model_name, output_dir, "CPU")
         else:
             _download_openvino_model(model_name, output_dir, weight_format)
     elif provider == "pytorch":

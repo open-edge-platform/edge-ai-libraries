@@ -11,7 +11,7 @@ from unittest.mock import patch
 from pipeline import Pipeline
 from components.asr.whispercpp.whisper import WhisperCpp
 from components.asr_component import ASRComponent
-from utils.ensure_model import get_asr_model_path, get_whispercpp_model_filename
+from utils.ensure_model import ensure_sentiment_model, get_asr_model_path, get_sentiment_model_path, get_whispercpp_model_filename
 from utils import app_paths
 from utils.audio_util import save_audio_file
 from utils.session_manager import normalize_session_id, resolve_requested_session_id
@@ -403,6 +403,35 @@ class WhisperCppQuantizationTests(unittest.TestCase):
                 asr = WhisperCpp(model_name="whisper-small", device="CPU")
 
         self.assertEqual(asr.n_threads, 22)
+
+
+class SentimentExportTests(unittest.TestCase):
+    def test_speechbrain_openvino_export_forces_cpu(self):
+        with patch("utils.ensure_model.config.sentiment.provider", "openvino"), patch(
+            "utils.ensure_model.config.sentiment.model", "speechbrain/emotion-recognition-wav2vec2-IEMOCAP"
+        ), patch("utils.ensure_model.config.sentiment.models_base_path", "models"), patch(
+            "utils.ensure_model.config.sentiment.weight_format", "int8"
+        ), patch("utils.ensure_model.config.sentiment.device", "GPU"), patch(
+            "utils.ensure_model._export_speechbrain_sentiment_openvino"
+        ) as export_cls:
+            ensure_sentiment_model()
+
+        export_cls.assert_called_once_with(
+            "speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
+            os.path.join("models", "sentiment", "speechbrain_emotion-recognition-wav2vec2-IEMOCAP"),
+            "CPU",
+        )
+
+    def test_speechbrain_openvino_model_path_ignores_weight_format(self):
+        with patch("utils.ensure_model.config.sentiment.provider", "openvino"), patch(
+            "utils.ensure_model.config.sentiment.model", "speechbrain/emotion-recognition-wav2vec2-IEMOCAP"
+        ), patch("utils.ensure_model.config.sentiment.models_base_path", "models"), patch(
+            "utils.ensure_model.config.sentiment.weight_format", "int8"
+        ):
+            self.assertEqual(
+                get_sentiment_model_path(),
+                os.path.join("models", "sentiment", "speechbrain_emotion-recognition-wav2vec2-IEMOCAP"),
+            )
 
 
 if __name__ == "__main__":
