@@ -30,7 +30,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
    ```bash
    # Clone the latest on the mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, clone a specific release branch
+   # Alternatively, clone the release branch
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.1.0
    ```
 
