@@ -77,6 +77,24 @@ class MinioClient:
             logger.error(f"Error with bucket operations: {ex}")
             raise Exception(f"Error while ensuring bucket {bucket_name} exists.")
 
+    @staticmethod
+    def _validate_object_component(value: str, field_name: str) -> str:
+        """Validate object-path components used to build MinIO object names."""
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise ValueError(f"{field_name} cannot be empty.")
+        if "/" in cleaned or "\\" in cleaned or ".." in cleaned:
+            raise ValueError(f"{field_name} contains unsafe path characters.")
+        if cleaned in {".", ".."}:
+            raise ValueError(f"{field_name} is not valid.")
+        return cleaned
+
+    def compose_object_name(self, video_id: str, object_name: str) -> str:
+        """Create a safe MinIO object name as <video_id>/<object_name>."""
+        safe_video_id = self._validate_object_component(video_id, "Video ID")
+        safe_object_name = self._validate_object_component(object_name, "Object name")
+        return f"{safe_video_id}/{safe_object_name}"
+
     def list_videos(self, bucket_name: str, prefix: str = "") -> List[str]:
         """List all video files in the specified bucket with the given prefix.
 
@@ -169,8 +187,9 @@ class MinioClient:
             Exception: If listing objects fails
         """
         try:
+            safe_video_id = self._validate_object_component(video_id, "Video ID")
             # Ensure video_id ends with "/"
-            prefix = f"{video_id}/" if not video_id.endswith("/") else video_id
+            prefix = f"{safe_video_id}/"
 
             # List all objects in the directory
             objects = self.client.list_objects(bucket_name, prefix=prefix, recursive=True)
@@ -321,14 +340,8 @@ class MinioClient:
             if not video_name.lower().endswith(".mp4"):
                 return False
 
-            # Check for invalid characters in object names (basic check)
-            invalid_chars = ["\\", "?", "#", "..", "/"]
-            for char in invalid_chars:
-                if char in video_id or char in video_name:
-                    return False
-
             # Check total length (Minio has a 1024 character limit for object names)
-            object_name = f"{video_id}/{video_name}"
+            object_name = self.compose_object_name(video_id, video_name)
             if len(object_name) > 1024:
                 return False
 
@@ -349,7 +362,7 @@ class MinioClient:
             bool: True if the object exists, False otherwise
         """
         try:
-            object_name = f"{video_id}/{video_name}"
+            object_name = self.compose_object_name(video_id, video_name)
             self.client.stat_object(bucket_name, object_name)
             return True
         except S3Error:
@@ -449,7 +462,7 @@ class MinioClient:
             self.ensure_bucket_exists(bucket_name)
 
             # Prepare object name
-            object_name = f"{video_id}/{filename}"
+            object_name = self.compose_object_name(video_id, filename)
 
             # Create BytesIO object
             data = io.BytesIO(metadata_content)
