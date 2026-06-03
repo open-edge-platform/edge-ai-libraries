@@ -52,7 +52,7 @@ def transcribe_audio(
     file: UploadFile = File(...),
     model: str = Form("whisper-1"),
     session_id: str | None = Form(None),
-    language: str | None = Form(None),
+    language: str | None = Form("en"),
     prompt: str | None = Form(None),
     response_format: str = Form("json"),
     temperature: float = Form(0.0),

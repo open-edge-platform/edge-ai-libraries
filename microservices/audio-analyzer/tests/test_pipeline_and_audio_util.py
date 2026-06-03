@@ -1,12 +1,17 @@
 import io
 import json
 import os
+import sys
 import tempfile
 import unittest
+from types import ModuleType
 from types import MethodType
 from unittest.mock import patch
 
 from pipeline import Pipeline
+from components.asr.whispercpp.whisper import WhisperCpp
+from components.asr_component import ASRComponent
+from utils.ensure_model import ensure_sentiment_model, get_asr_model_path, get_sentiment_model_path, get_whispercpp_model_filename
 from utils import app_paths
 from utils.audio_util import save_audio_file
 from utils.session_manager import normalize_session_id, resolve_requested_session_id
@@ -263,6 +268,170 @@ class AudioUploadTests(unittest.TestCase):
             self.assertNotEqual(first_path, second_path)
             self.assertTrue(os.path.isfile(first_path))
             self.assertTrue(os.path.isfile(second_path))
+
+
+class ASRBackendSelectionTests(unittest.TestCase):
+    def tearDown(self):
+        ASRComponent._model = None
+        ASRComponent._config = None
+
+    def test_whispercpp_backend_forces_cpu(self):
+        with patch("components.asr_component.WhisperCpp") as whispercpp_cls:
+            ASRComponent(session_id="test", provider="whispercpp", model_name="whisper-small", device="GPU")
+
+        whispercpp_cls.assert_called_once_with("whisper-small", "CPU", None)
+
+    def test_openvino_backend_honors_ov_genai_toggle(self):
+        with patch("components.asr_component.OVGenAIWhisper") as ov_genai_cls, patch(
+            "components.asr_component.OV_Whisper"
+        ) as ov_cls, patch("components.asr_component.config.app.use_ov_genai", True):
+            ASRComponent(session_id="test", provider="openvino", model_name="whisper-small", device="CPU")
+
+        ov_genai_cls.assert_called_once_with("whisper-small", "CPU", None)
+        ov_cls.assert_not_called()
+
+
+class WhisperCppTests(unittest.TestCase):
+    def _install_fake_pywhispercpp(self, model_factory):
+        package = ModuleType("pywhispercpp")
+        model_module = ModuleType("pywhispercpp.model")
+        model_module.Model = model_factory
+        package.model = model_module
+        return patch.dict(sys.modules, {"pywhispercpp": package, "pywhispercpp.model": model_module})
+
+    def test_whispercpp_transcribe_returns_language_and_meta(self):
+        class FakeSegment:
+            def __init__(self, text, start, end, probability, no_speech_prob=0.0):
+                self.text = text
+                self.t0 = int(start * 100)
+                self.t1 = int(end * 100)
+                self.probability = probability
+                self.no_speech_prob = no_speech_prob
+                self.tokens = []
+
+        class FakeModel:
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+                self.transcribe_kwargs = None
+
+            def transcribe(self, media, **kwargs):
+                del media
+                self.transcribe_kwargs = kwargs
+                return [
+                    FakeSegment("bonjour bonjour", 0.0, 0.8, 0.9),
+                    FakeSegment("bonjour bonjour", 0.8, 1.4, 0.9),
+                ]
+
+        with self._install_fake_pywhispercpp(FakeModel), patch(
+            "components.asr.whispercpp.whisper.os.path.isfile", return_value=True
+        ), patch("utils.ensure_model.get_asr_model_path", return_value="/tmp/models"):
+            asr = WhisperCpp(model_name="whisper-small", device="CPU")
+            result = asr.transcribe("/tmp/audio.wav", temperature=0.0, language=None)
+
+        self.assertIsNone(result["language"])
+        self.assertEqual(result["text"], "bonjour")
+        self.assertEqual(result["meta"]["segments_total"], 2)
+        self.assertEqual(result["meta"]["segments_kept"], 1)
+        self.assertEqual(result["meta"]["segments_dropped"], 0)
+        self.assertNotIn("language", asr.model.transcribe_kwargs)
+
+    def test_whispercpp_filters_hallucination_like_segments(self):
+        class FakeToken:
+            def __init__(self, plog, ptsum, token_id=1):
+                self.plog = plog
+                self.ptsum = ptsum
+                self.id = token_id
+
+        class FakeSegment:
+            def __init__(self, text, start, end, tokens):
+                self.text = text
+                self.t0 = int(start * 100)
+                self.t1 = int(end * 100)
+                self.tokens = tokens
+
+        class FakeModel:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def transcribe(self, media, **kwargs):
+                del media, kwargs
+                return [
+                    FakeSegment("uh", 0.0, 0.1, [FakeToken(-2.0, 0.95)]),
+                    FakeSegment("real speech", 0.1, 1.2, [FakeToken(-0.1, 0.1)]),
+                ]
+
+        with self._install_fake_pywhispercpp(FakeModel), patch(
+            "components.asr.whispercpp.whisper.os.path.isfile", return_value=True
+        ), patch("utils.ensure_model.get_asr_model_path", return_value="/tmp/models"):
+            asr = WhisperCpp(model_name="whisper-small", device="CPU")
+            result = asr.transcribe("/tmp/audio.wav", temperature=0.0, language="en")
+
+        self.assertEqual(result["language"], "en")
+        self.assertEqual(result["text"], "real speech")
+        self.assertEqual(len(result["segments"]), 1)
+        self.assertEqual(result["meta"]["segments_dropped"], 1)
+
+
+class WhisperCppQuantizationTests(unittest.TestCase):
+    def _install_fake_pywhispercpp(self, model_factory):
+        package = ModuleType("pywhispercpp")
+        model_module = ModuleType("pywhispercpp.model")
+        model_module.Model = model_factory
+        package.model = model_module
+        return patch.dict(sys.modules, {"pywhispercpp": package, "pywhispercpp.model": model_module})
+
+    def test_whispercpp_weight_format_aliases_resolve_expected_filename(self):
+        self.assertEqual(get_whispercpp_model_filename("whisper-medium", "q5"), "ggml-medium-q5_0.bin")
+        self.assertEqual(get_whispercpp_model_filename("whisper-small", "int8"), "ggml-small-q8_0.bin")
+
+    def test_whispercpp_model_path_includes_quantized_suffix(self):
+        with patch("utils.ensure_model.config.models.asr.provider", "whispercpp"), patch(
+            "utils.ensure_model.config.models.asr.name", "whisper-medium"
+        ), patch("utils.ensure_model.config.models.asr.weight_format", "q5"), patch(
+            "utils.ensure_model.config.models.asr.models_base_path", "models"
+        ):
+            self.assertEqual(get_asr_model_path(), os.path.join("models", "whispercpp", "whisper-medium-q5_0"))
+
+    def test_whispercpp_uses_all_cores_when_threads_not_positive(self):
+        with patch("components.asr.whispercpp.whisper.os.path.isfile", return_value=True), patch(
+            "utils.ensure_model.get_asr_model_path", return_value="/tmp/models"
+        ), patch("components.asr.whispercpp.whisper.os.cpu_count", return_value=22), patch(
+            "components.asr.whispercpp.whisper.config.models.asr.threads", 0
+        ):
+            with self._install_fake_pywhispercpp(lambda *args, **kwargs: type("FakeModel", (), {})()):
+                asr = WhisperCpp(model_name="whisper-small", device="CPU")
+
+        self.assertEqual(asr.n_threads, 22)
+
+
+class SentimentExportTests(unittest.TestCase):
+    def test_speechbrain_openvino_export_forces_cpu(self):
+        with patch("utils.ensure_model.config.sentiment.provider", "openvino"), patch(
+            "utils.ensure_model.config.sentiment.model", "speechbrain/emotion-recognition-wav2vec2-IEMOCAP"
+        ), patch("utils.ensure_model.config.sentiment.models_base_path", "models"), patch(
+            "utils.ensure_model.config.sentiment.weight_format", "int8"
+        ), patch("utils.ensure_model.config.sentiment.device", "GPU"), patch(
+            "utils.ensure_model._export_speechbrain_sentiment_openvino"
+        ) as export_cls:
+            ensure_sentiment_model()
+
+        export_cls.assert_called_once_with(
+            "speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
+            os.path.join("models", "sentiment", "speechbrain_emotion-recognition-wav2vec2-IEMOCAP"),
+            "CPU",
+        )
+
+    def test_speechbrain_openvino_model_path_ignores_weight_format(self):
+        with patch("utils.ensure_model.config.sentiment.provider", "openvino"), patch(
+            "utils.ensure_model.config.sentiment.model", "speechbrain/emotion-recognition-wav2vec2-IEMOCAP"
+        ), patch("utils.ensure_model.config.sentiment.models_base_path", "models"), patch(
+            "utils.ensure_model.config.sentiment.weight_format", "int8"
+        ):
+            self.assertEqual(
+                get_sentiment_model_path(),
+                os.path.join("models", "sentiment", "speechbrain_emotion-recognition-wav2vec2-IEMOCAP"),
+            )
 
 
 if __name__ == "__main__":
