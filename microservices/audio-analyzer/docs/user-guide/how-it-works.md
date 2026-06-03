@@ -101,8 +101,8 @@ flowchart LR
    detection, and optional denoising are controlled by the
    `audio_preprocessing` config section.
 4. **ASR inference** — Each chunk is transcribed by the configured ASR
-   backend (`openai` or `openvino`) on the configured device (typically
-   `CPU`, optionally `GPU` for supported OpenVINO paths).
+   backend (`openai`, `openvino`, or `whispercpp`) on the configured device
+   (typically `CPU`; `GPU` is available only for supported OpenVINO paths).
 5. **Sentiment (optional)** — When `sentiment.enabled` is true, the
    service runs the configured sentiment model (`openvino` or `pytorch`) and
    aggregates a session-level summary.

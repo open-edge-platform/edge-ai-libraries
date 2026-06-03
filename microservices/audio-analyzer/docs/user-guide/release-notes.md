@@ -13,8 +13,8 @@ sentiment analysis, built for edge deployment on Intel hardware.
 
 - OpenAI-compatible transcription API (`POST /v1/audio/transcriptions`)
   and a streaming NDJSON variant (`/stream`).
-- Multi-backend ASR: `openai` (PyTorch Whisper) and `openvino`
-  (Intel-optimized); `whispercpp` planned for a follow-up release.
+- Multi-backend ASR: `openai` (PyTorch Whisper), `openvino`
+  (Intel-optimized), and `whispercpp` (CPU-only).
 - Full Whisper model family supported (`tiny` → `large`).
 - Optional voice sentiment analysis with session-level aggregation
   (`openvino` or `pytorch` provider).
@@ -33,8 +33,6 @@ sentiment analysis, built for edge deployment on Intel hardware.
 
 **Known issues**
 
-- `whispercpp` backend is wired into configuration but not yet
-  enabled at runtime.
 - The `prompt` form field is accepted for API compatibility but
   currently ignored.
 - Compatibility with the Video Search and Summarization sample
