@@ -4079,6 +4079,19 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
             model_path, model_proc_path, installed_only=False
         )
 
+        # Fallback: uploaded (custom) models live in the ModelManager
+        # registry, not in supported_models.yaml. Without this, advanced
+        # graphs that reference an uploaded model would lose the
+        # display-name on ingestion and be rejected on conversion back
+        # to a runnable pipeline.
+        if model is None:
+            # Local import to avoid an import cycle with model_manager.
+            from managers.model_manager import ModelManager
+
+            model = ModelManager().find_uploaded_model_by_path(
+                model_path, model_proc_path
+            )
+
         if model is not None:
             # Canonical in-memory key is always ``model`` regardless of how
             # the source pipeline string named it (see NodeModelSpec).
@@ -4134,6 +4147,16 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
 
         # model handling
         model = SupportedModelsManager().find_installed_model_by_display_name(name)
+        if not model:
+            # Fallback: the display name may identify an uploaded (custom)
+            # model that is tracked by ModelManager rather than the YAML
+            # catalogue. Without this fallback the convert-to-advanced
+            # flow would reject any pipeline referencing an uploaded
+            # model, even though the UI happily lists it.
+            from managers.model_manager import ModelManager
+
+            model = ModelManager().find_installed_uploaded_model_by_display_name(name)
+
         if not model:
             raise ValueError(
                 f"Can't find model '{name}' for {node.type}. Choose an installed model or install it first."
@@ -4228,9 +4251,23 @@ def _validate_models_supported_on_devices(nodes: list[Node]) -> None:
             )
 
         if not SupportedModelsManager().is_model_supported_on_device(name, device):
-            raise ValueError(
-                f"Node {node.type}: model '{name}' is not supported on the '{device}' device"
-            )
+            # Uploaded (custom) models live in the ModelManager registry,
+            # not in supported_models.yaml. They carry no
+            # ``unsupported_devices`` metadata, so if the registry knows
+            # the display name we treat the model as supported on every
+            # device. Without this fallback convert-to-advanced would
+            # reject any graph that references an uploaded model.
+            from managers.model_manager import (
+                ModelManager,
+            )  # local import to avoid cycle
+
+            if (
+                ModelManager().find_installed_uploaded_model_by_display_name(name)
+                is None
+            ):
+                raise ValueError(
+                    f"Node {node.type}: model '{name}' is not supported on the '{device}' device"
+                )
 
         logger.debug(f"Model '{name}' is supported on the '{device}' device")
 

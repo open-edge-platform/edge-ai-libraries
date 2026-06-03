@@ -218,22 +218,24 @@ async def upload_model(
         },
         400: {
             "description": (
-                "All requested models were rejected with the same "
-                "client error (e.g. missing `download_request`)."
+                "All requested models were rejected and at least one was "
+                "a `400` (missing `download_request`). Takes precedence "
+                "over `404`/`409` in the envelope status."
             ),
             "model": schemas.ModelDownloadJobResponse,
         },
         404: {
             "description": (
-                "All requested models are unknown (not present in "
-                "`supported_models.yaml`)."
+                "All requested models were rejected with `404` only "
+                "(unknown / not in `supported_models.yaml`). Takes "
+                "precedence over `409` in the envelope status."
             ),
             "model": schemas.ModelDownloadJobResponse,
         },
         409: {
             "description": (
-                "All requested models are already installed or have a "
-                "download job already running."
+                "All requested models were rejected with `409` only "
+                "(already installed or a download job already running)."
             ),
             "model": schemas.ModelDownloadJobResponse,
         },
@@ -274,15 +276,21 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
 
     ## Response Codes
 
+    The envelope HTTP status is derived from the per-model
+    `status_code` values via `_aggregate_status`:
+
     | Code | When |
     |------|------|
     | 202  | Every requested model accepted (`status_code=202` for all entries) |
-    | 207  | Some accepted, some rejected (mixed `status_code` values) |
-    | 400  | All requested models share the same client error (e.g. no `download_request`) |
-    | 404  | All requested models are unknown |
-    | 409  | All requested models are already installed or in progress |
+    | 207  | At least one accepted **and** at least one rejected (mixed) |
+    | 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |
+    | 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |
+    | 409  | All requested models rejected with `409` only (already installed / in progress). |
     | 422  | Body validation failed (empty list, duplicate names, ...) |
     | 500  | Unexpected error |
+
+    Per-model outcomes are always available in `jobs[<name>].status_code`
+    regardless of the envelope status.
     """
     manager = ModelManager()
     try:

@@ -28,6 +28,8 @@ from helpers.config import BASE_URL
 from helpers.pipeline_case_helpers import (
     PipelineCase,
     collect_pipeline_cases,
+    missing_models_per_pipeline,
+    wrap_cases_for_pytest,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,6 +69,7 @@ def _discover_metadata_pipeline_cases() -> tuple[
         with requests.Session() as session:
             session.headers.update({"Accept": "application/json"})
             all_cases = collect_pipeline_cases(session)
+            missing = missing_models_per_pipeline(session)
             meta_cases = [
                 case
                 for case in all_cases
@@ -75,10 +78,11 @@ def _discover_metadata_pipeline_cases() -> tuple[
     except Exception:
         logger.exception("Failed to collect metadata pipeline cases from VIPPET API")
         meta_cases = []
+        missing = {}
 
     if not meta_cases:
         return [pytest.param(None, marks=pytest.mark.skip(reason=reason))], ["no-cases"]
-    return list(meta_cases), [case.case_id for case in meta_cases]
+    return wrap_cases_for_pytest(meta_cases, missing)
 
 
 METADATA_PIPELINE_CASES, METADATA_CASE_IDS = _discover_metadata_pipeline_cases()
