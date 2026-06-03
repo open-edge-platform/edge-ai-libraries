@@ -9,6 +9,8 @@ First release of the Audio Analyzer as a self-contained,
 OpenAI API-compatible speech-to-text microservice with optional voice
 sentiment analysis, built for edge deployment on Intel hardware.
 
+**June 17, 2026**
+
 **New**
 
 - OpenAI-compatible transcription API (`POST /v1/audio/transcriptions`)
