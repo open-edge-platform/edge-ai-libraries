@@ -14,7 +14,6 @@ from langchain_vdms.vectorstores import VDMS, VDMS_Client
 from langchain_core.embeddings import Embeddings
 
 from src.common import Strings, logger
-from src.core.utils.config_utils import read_config
 
 
 class DummyEmbedding(Embeddings):
@@ -22,31 +21,31 @@ class DummyEmbedding(Embeddings):
     Minimal dummy embedding class that satisfies VDMS requirements.
     We won't actually use these methods since we use add_from() directly.
     """
-    
+
     def __init__(self, dimensions: int = 512):
         self.dimensions = dimensions
-    
+
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Won't be called since we use add_from() directly."""
         raise NotImplementedError("Use add_from() method instead")
-    
+
     def embed_query(self, text: str) -> List[float]:
-        """Won't be called since we use add_from() directly.""" 
+        """Won't be called since we use add_from() directly."""
         raise NotImplementedError("Use add_from() method instead")
 
 
 class SimpleVDMSClient:
     """
     Dramatically simplified VDMS client that doesn't need any embedding service.
-    
+
     This client:
     1. Creates VDMS without embedding function (just provides dimensions)
     2. Gets embeddings directly from multimodal API
     3. Stores embeddings using add_from() method
-    
+
     Much simpler than the previous complex wrapper architecture!
     """
-    
+
     def __init__(
         self,
         host: str,
@@ -54,57 +53,74 @@ class SimpleVDMSClient:
         collection_name: str,
         embedding_dimensions: int = None,  # Make optional, will be auto-detected
         multimodal_api_url: str = None,
-        model_name: str = None  # Must be explicitly provided
+        model_name: str = None,  # Must be explicitly provided
     ):
         logger.debug("Initializing Simple VDMS Client...")
         if not model_name:
-            raise ValueError("Model name must be explicitly provided - no default model name is allowed")
+            raise ValueError(
+                "Model name must be explicitly provided - no default model name is allowed"
+            )
         self.host = host
         self.port = int(port)
         self.collection_name = collection_name
         self.multimodal_api_url = multimodal_api_url
         self.model_name = model_name
-        
+
         # Auto-detect embedding dimensions if not provided
         if embedding_dimensions is None:
             self.embedding_dimensions = self._detect_embedding_dimensions()
         else:
             self.embedding_dimensions = embedding_dimensions
-            
+
         logger.info(f"Using embedding dimensions: {self.embedding_dimensions}")
-        
+
         # Initialize VDMS without embedding function
         self.init_db()
+
+    @staticmethod
+    def _load_metadata_json(video_metadata_path: pathlib.Path) -> dict | None:
+        """Load frame metadata JSON from trusted temporary locations."""
+        metadata_path = pathlib.Path(video_metadata_path).expanduser().resolve(strict=False)
+        if metadata_path.suffix.lower() != ".json":
+            raise ValueError(f"Unsupported metadata file extension: {metadata_path.suffix}")
+
+        cwd_root = pathlib.Path.cwd().resolve(strict=False)
+        tmp_dataprep_root = pathlib.Path("/tmp/dataprep").resolve(strict=False)
+        allowed_roots = (cwd_root, tmp_dataprep_root)
+        if not any(metadata_path.is_relative_to(root) for root in allowed_roots):
+            raise ValueError(f"Unsupported metadata path location: {metadata_path}")
+
+        with open(metadata_path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
 
     def _detect_embedding_dimensions(self) -> int:
         """
         Auto-detect embedding dimensions by sending a dummy request to the multimodal API.
-        
+
         Returns:
             int: The detected embedding dimensions
-            
+
         Raises:
             Exception: If dimensions cannot be detected or API is not available
         """
         if not self.multimodal_api_url:
             logger.warning("No multimodal API URL provided, using default 512 dimensions")
             return 512
-            
+
         try:
-            logger.info(f"Auto-detecting embedding dimensions from multimodal API: {self.multimodal_api_url}")
+            logger.info(
+                f"Auto-detecting embedding dimensions from multimodal API: {self.multimodal_api_url}"
+            )
             logger.info(f"Using model: {self.model_name}")
-            
+
             # Send a dummy text to get embedding dimensions
             payload = {
                 "model": self.model_name,
-                "input": {
-                    "type": "text",
-                    "text": "Sample input text for dimension detection"
-                },
+                "input": {"type": "text", "text": "Sample input text for dimension detection"},
                 "encoding_format": "float",
             }
             logger.debug(f"Sending request payload: {payload}")
-            
+
             response = requests.post(
                 self.multimodal_api_url,
                 json=payload,
@@ -112,15 +128,17 @@ class SimpleVDMSClient:
             )
             logger.info(f"Response status: {response.status_code}")
             response.raise_for_status()
-            
+
             result = response.json()
             embedding = result["embedding"]
             dimensions = len(embedding)
-            
+
             logger.info(f"Auto-detected embedding dimensions: {dimensions}")
-            logger.debug(f"First 5 embedding values: {embedding[:5] if len(embedding) > 5 else embedding}")
+            logger.debug(
+                f"First 5 embedding values: {embedding[:5] if len(embedding) > 5 else embedding}"
+            )
             return dimensions
-            
+
         except requests.RequestException as ex:
             logger.error(f"Failed to auto-detect embedding dimensions: {ex}")
             logger.error(f"Request URL: {self.multimodal_api_url}")
@@ -128,7 +146,9 @@ class SimpleVDMSClient:
             return 512
         except (KeyError, TypeError) as ex:
             logger.error(f"Invalid response format from multimodal API: {ex}")
-            logger.error(f"Response content: {response.text if 'response' in locals() else 'No response'}")
+            logger.error(
+                f"Response content: {response.text if 'response' in locals() else 'No response'}"
+            )
             logger.warning("Falling back to default 512 dimensions")
             return 512
 
@@ -142,7 +162,7 @@ class SimpleVDMSClient:
             # Use minimal dummy embedding to satisfy VDMS requirements
             # We won't actually use it since we call add_from() directly
             dummy_embedding = DummyEmbedding(self.embedding_dimensions)
-            
+
             self.video_db = VDMS(
                 client=self.client,
                 embedding=dummy_embedding,  # Minimal dummy embedding
@@ -150,7 +170,7 @@ class SimpleVDMSClient:
                 engine="FaissFlat",
                 distance_strategy="IP",
                 # distance_strategy="L2",
-                embedding_dimensions=self.embedding_dimensions
+                embedding_dimensions=self.embedding_dimensions,
             )
             logger.info("VDMS initialized successfully with dummy embedding (won't be used)")
 
@@ -161,13 +181,13 @@ class SimpleVDMSClient:
     def _clean_metadata_for_vdms(self, metadata: dict) -> dict:
         """
         Clean metadata for VDMS storage by converting complex types to VDMS-compatible formats.
-        
+
         VDMS accepts:
         - Integers (123)
         - Doubles (123.45)
         - Booleans (true/false)
         - Strings ("hello")
-        
+
         VDMS does NOT accept:
         - Arrays/lists (must be converted to strings)
         - Objects/nested structures (must be flattened or converted to strings)
@@ -191,11 +211,12 @@ class SimpleVDMSClient:
             elif isinstance(value, dict):
                 # Convert objects to JSON strings
                 import json
+
                 cleaned[key] = json.dumps(value)
             else:
                 # Convert any other type to string
                 cleaned[key] = str(value)
-        
+
         return cleaned
 
     def _store_embeddings(
@@ -266,24 +287,31 @@ class SimpleVDMSClient:
         logger.info("Stored %d embeddings in VDMS", len(generated_ids))
         return generated_ids
 
-    def store_frame_embeddings(self, embeddings: List[List[float]], frame_metadatas: List[dict]) -> List[str]:
+    def store_frame_embeddings(
+        self, embeddings: List[List[float]], frame_metadatas: List[dict]
+    ) -> List[str]:
         """
         Store frame embeddings using optimized approach similar to SDK mode.
-        
+
         Args:
             embeddings: Pre-computed embeddings from multimodal service
             frame_metadatas: Metadata for each frame
-            
+
         Returns:
             List of IDs for stored embeddings
         """
         try:
             start_time = time.time()
             logger.info("Storing %d frame embeddings...", len(embeddings))
-            logger.debug("Embedding sample length: %s", len(embeddings[0]) if embeddings and embeddings[0] else "unknown")
+            logger.debug(
+                "Embedding sample length: %s",
+                len(embeddings[0]) if embeddings and embeddings[0] else "unknown",
+            )
 
             if len(embeddings) != len(frame_metadatas):
-                raise ValueError(f"Mismatch: {len(embeddings)} embeddings vs {len(frame_metadatas)} metadata entries")
+                raise ValueError(
+                    f"Mismatch: {len(embeddings)} embeddings vs {len(frame_metadatas)} metadata entries"
+                )
 
             frame_texts = []
             cleaned_metadatas = []
@@ -300,7 +328,9 @@ class SimpleVDMSClient:
                     if isinstance(date_time_obj, dict) and "_date" in date_time_obj:
                         metadata["created_at"] = date_time_obj.get("_date")
                     else:
-                        metadata["created_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                        metadata["created_at"] = datetime.datetime.now(
+                            datetime.timezone.utc
+                        ).isoformat()
 
                 if frame_type == "detected_crop" and crop_index is not None:
                     frame_text = f"frame_{frame_num}_crop_{crop_index}_{video_id}"
@@ -333,14 +363,14 @@ class SimpleVDMSClient:
     def store_embeddings_from_manifest(self, video_metadata_path: pathlib.Path) -> dict:
         """
         Process frame metadata and store embeddings, returning timing metrics.
-        
+
         Args:
             video_metadata_path: Path to video metadata file
-            
+
         Returns:
             Dictionary containing stored IDs and stage timings
         """
-        metadata = read_config(video_metadata_path, type="json")
+        metadata = self._load_metadata_json(video_metadata_path)
         if metadata is None:
             raise Exception(Strings.metadata_read_error)
 
@@ -424,7 +454,9 @@ class SimpleVDMSClient:
             embeddings = response.json()["embedding"]
 
             elapsed = time.time() - start_time
-            logger.info("Retrieved %d embeddings from multimodal API in %.3fs", len(embeddings), elapsed)
+            logger.info(
+                "Retrieved %d embeddings from multimodal API in %.3fs", len(embeddings), elapsed
+            )
             return embeddings
 
         except requests.RequestException as ex:
@@ -553,15 +585,17 @@ class SimpleVDMSClient:
             logger.error(f"Error storing text embedding: {ex}")
             raise Exception(Strings.embedding_error)
 
-    def store_text_embedding_with_vector(self, text: str, embedding_vector: List[float], metadata: dict = {}) -> List[str]:
+    def store_text_embedding_with_vector(
+        self, text: str, embedding_vector: List[float], metadata: dict = {}
+    ) -> List[str]:
         """
         Store text with pre-computed embedding vector (e.g., from Qwen).
-        
+
         Args:
             text: The text content
             embedding_vector: Pre-computed embedding vector
             metadata: Metadata dictionary
-            
+
         Returns:
             List of IDs of the stored embeddings
         """

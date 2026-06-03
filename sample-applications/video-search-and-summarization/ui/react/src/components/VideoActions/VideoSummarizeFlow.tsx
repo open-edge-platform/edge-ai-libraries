@@ -38,6 +38,7 @@ import { PromptInput } from '../Prompts/PromptInput';
 import { NotificationSeverity, notify } from '../Notification/notify';
 import { getSafePreviewVideoUrl } from '../../utils/util';
 import axios from 'axios';
+import type { MouseEvent } from 'react';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -703,6 +704,10 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     () => getSafePreviewVideoUrl(videoPreviewUrl, ASSETS_ENDPOINT),
     [videoPreviewUrl]
   );
+  const encodedSafeVideoPreviewUrl = useMemo(
+    () => (safeVideoPreviewUrl ? encodeURI(safeVideoPreviewUrl) : null),
+    [safeVideoPreviewUrl]
+  );
   const shouldKeepTagsMenuOpenRef = useRef(false);
 
   const calculatedMultiFrame = useMemo(
@@ -1039,7 +1044,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                       <MainButton 
                         kind="tertiary" 
                         style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto' }}
-                        onClick={(e) => {
+                        onClick={(e: MouseEvent<HTMLButtonElement>) => {
                           e.stopPropagation();
                           if (videoPreviewUrlRef.current) {
                             URL.revokeObjectURL(videoPreviewUrlRef.current);
@@ -1366,16 +1371,16 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                   width: '100%'
                 }}>
                   {/* Video Preview inside the details box */}
-                  {safeVideoPreviewUrl && (
+                  {encodedSafeVideoPreviewUrl && (
                     <VideoPreviewContainer>
                       <StyledVideoPlayer controls>
-                        <source src={safeVideoPreviewUrl} type="video/mp4" />
+                        <source src={encodedSafeVideoPreviewUrl} type="video/mp4" />
                         Your browser does not support the video tag.
                       </StyledVideoPlayer>
                     </VideoPreviewContainer>
                   )}
                   
-                  <div style={{ marginTop: safeVideoPreviewUrl ? '1rem' : '0' }}>
+                  <div style={{ marginTop: encodedSafeVideoPreviewUrl ? '1rem' : '0' }}>
                     <div><strong>{t('summaryTitle')}:</strong> {summaryName}</div>
                     {videoTags && videoTags.trim().length > 0 && (
                       <div><strong>{t('customVideoTags')}:</strong> {videoTags}</div>
