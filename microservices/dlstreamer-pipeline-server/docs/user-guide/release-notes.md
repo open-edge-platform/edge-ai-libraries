@@ -1,5 +1,6 @@
 # Release Notes
 
+- [December 2025](./release-notes/december-2025.md)
 - [August 2025](./release-notes/august-2025.md)
 - [April 2025](./release-notes/april-2025.md)
 - [March 2025](./release-notes/march-2025.md)
@@ -14,6 +15,7 @@
 :::{toctree}
 :hidden:
 
+./release-notes/december-2025.md
 ./release-notes/august-2025.md
 ./release-notes/april-2025.md
 ./release-notes/march-2025.md
