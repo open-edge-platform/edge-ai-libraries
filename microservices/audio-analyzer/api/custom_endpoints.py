@@ -44,7 +44,7 @@ def asr_performance():
 def stream_transcribe_audio(
     file: UploadFile = File(...),
     session_id: str | None = Form(None),
-    language: str | None = Form(None),
+    language: str | None = Form("en"),
     temperature: float = Form(0.0),
 ):
     if audio_pipeline_lock.locked():

@@ -3,18 +3,20 @@
 This page tracks releases of the Audio Analyzer microservice. The most
 recent release is listed first; older entries are preserved for history.
 
-## v1.4.0
+## Version 1.4.0
 
 First release of the Audio Analyzer as a self-contained,
 OpenAI API-compatible speech-to-text microservice with optional voice
 sentiment analysis, built for edge deployment on Intel hardware.
 
+**June 17, 2026**
+
 **New**
 
 - OpenAI-compatible transcription API (`POST /v1/audio/transcriptions`)
   and a streaming NDJSON variant (`/stream`).
-- Multi-backend ASR: `openai` (PyTorch Whisper) and `openvino`
-  (Intel-optimized); `whispercpp` planned for a follow-up release.
+- Multi-backend ASR: `openai` (PyTorch Whisper), `openvino`
+  (Intel-optimized), and `whispercpp` (CPU-only).
 - Full Whisper model family supported (`tiny` → `large`).
 - Optional voice sentiment analysis with session-level aggregation
   (`openvino` or `pytorch` provider).
@@ -22,6 +24,7 @@ sentiment analysis, built for edge deployment on Intel hardware.
   RNNoise denoising.
 - Session continuation via `session_id` (returned in `X-Session-ID`).
 - Health (`/health`) and ALSA device listing (`/devices`) endpoints.
+- New User Guide doc set, including: overview, get-started, how-it-works  configuration, api-reference, and troubleshooting Markdown files, plus an architecture diagram and a restructured README.md.
 
 **Improved**
 
@@ -33,8 +36,6 @@ sentiment analysis, built for edge deployment on Intel hardware.
 
 **Known issues**
 
-- `whispercpp` backend is wired into configuration but not yet
-  enabled at runtime.
 - The `prompt` form field is accepted for API compatibility but
   currently ignored.
 - Compatibility with the Video Search and Summarization sample
