@@ -31,7 +31,7 @@ This guide assumes basic familiarity with Git commands and terminal usage. For m
 1. **Clone the repository**:
 
    ```bash
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
    cd ./edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
    ```
 
