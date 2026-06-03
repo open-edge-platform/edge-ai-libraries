@@ -1,1 +1,4 @@
 @import "@vippet/ui/styles.css";
+
+@source "../../ui-lib/src/**/*.tsx";
+@source "../node_modules/@vippet/ui/dist/**/*.js";
