@@ -10,7 +10,68 @@ _WHISPER_CPP_MODEL_MAP = {
     "whisper-small":  "ggml-small.bin",
     "whisper-medium": "ggml-medium.bin",
     "whisper-large":  "ggml-large-v3.bin",
+    "whisper-turbo":  "ggml-large-v3-turbo.bin",
 }
+
+_WHISPER_CPP_DEFAULT_QUANTIZATION = {
+    "whisper-tiny": "q5_1",
+    "whisper-base": "q5_1",
+    "whisper-small": "q5_1",
+    "whisper-medium": "q5_0",
+    "whisper-large": "q5_0",
+    "whisper-turbo": "q5_0",
+}
+
+_WHISPER_CPP_SUPPORTED_QUANTIZATION = {
+    "whisper-tiny": {"q5_1", "q8_0"},
+    "whisper-base": {"q5_1", "q8_0"},
+    "whisper-small": {"q5_1", "q8_0"},
+    "whisper-medium": {"q5_0", "q8_0"},
+    "whisper-large": {"q5_0"},
+    "whisper-turbo": {"q5_0", "q8_0"},
+}
+
+
+def _normalize_whispercpp_weight_format(model_name: str, weight_format: str | None) -> str | None:
+    if weight_format is None:
+        return None
+
+    normalized = str(weight_format).strip().lower()
+    if normalized in {"", "none", "null", "default", "full", "fp16", "fp32"}:
+        return None
+    if normalized in {"int5", "q5"}:
+        normalized = _WHISPER_CPP_DEFAULT_QUANTIZATION[model_name]
+    elif normalized in {"int8", "q8"}:
+        normalized = "q8_0"
+
+    supported = _WHISPER_CPP_SUPPORTED_QUANTIZATION.get(model_name)
+    if supported is None:
+        raise ValueError(
+            f"Unknown whisper.cpp model name: '{model_name}'. "
+            f"Valid names: {list(_WHISPER_CPP_MODEL_MAP)}"
+        )
+    if normalized not in supported:
+        raise ValueError(
+            f"Unsupported whisper.cpp weight_format '{weight_format}' for {model_name}. "
+            f"Supported values: null, q5/int5, q8/int8, and explicit {sorted(supported)}"
+        )
+    return normalized
+
+
+def get_whispercpp_model_filename(model_name: str, weight_format: str | None = None) -> str:
+    base_filename = _WHISPER_CPP_MODEL_MAP.get(model_name)
+    if not base_filename:
+        raise ValueError(
+            f"Unknown whisper.cpp model name: '{model_name}'. "
+            f"Valid names: {list(_WHISPER_CPP_MODEL_MAP)}"
+        )
+
+    quantized_suffix = _normalize_whispercpp_weight_format(model_name, weight_format)
+    if not quantized_suffix:
+        return base_filename
+
+    stem, ext = os.path.splitext(base_filename)
+    return f"{stem}-{quantized_suffix}{ext}"
 
 
 def _model_dir_name(model_name: str, weight_format: str | None = None) -> str:
@@ -18,6 +79,20 @@ def _model_dir_name(model_name: str, weight_format: str | None = None) -> str:
     if weight_format:
         return f"{slug}-{weight_format}"
     return slug
+
+
+def get_sentiment_model_path() -> str:
+    sent_cfg = config.sentiment
+    model_name = sent_cfg.model
+    provider = getattr(sent_cfg, "provider", "openvino")
+    models_base = getattr(sent_cfg, "models_base_path", "models")
+    weight_format = getattr(sent_cfg, "weight_format", None)
+
+    # SpeechBrain OpenVINO uses the custom export path below, which ignores
+    # weight_format and expects the IR alongside the model snapshot files.
+    include_weight_format = provider == "openvino" and not model_name.startswith("speechbrain/")
+    slug = _model_dir_name(model_name, weight_format if include_weight_format else None)
+    return os.path.join(models_base, "sentiment", slug)
 
 def _ir_exists(output_dir: str) -> bool:
     """Check if exported OpenVINO IR files exist."""
@@ -62,14 +137,9 @@ def _download_openvino_model(
     logger.info("✅ Export successful" if success else "❌ Export incomplete")
     return success, output_dir
 
-def _download_whispercpp_model(model_name: str, output_dir: str) -> bool:
+def _download_whispercpp_model(model_name: str, output_dir: str, weight_format: str | None = None) -> bool:
     """Download a whisper.cpp GGUF model from HuggingFace."""
-    filename = _WHISPER_CPP_MODEL_MAP.get(model_name)
-    if not filename:
-        raise ValueError(
-            f"Unknown whisper.cpp model name: '{model_name}'. "
-            f"Valid names: {list(_WHISPER_CPP_MODEL_MAP)}"
-        )
+    filename = get_whispercpp_model_filename(model_name, weight_format)
     dest = os.path.join(output_dir, filename)
     if os.path.isfile(dest):
         logger.info(f"⚡ Using cached whisper.cpp model at {dest}")
@@ -125,7 +195,7 @@ def _export_speechbrain_sentiment_openvino(model_name: str, output_dir: str, dev
 
     logger.info(f"🚀  Converting SpeechBrain sentiment model to OpenVINO IR at {output_dir}")
 
-    run_device = "cuda" if str(device).upper() == "GPU" else "cpu"
+    run_device = "cpu"
     classifier = foreign_class(
         source=output_dir,
         savedir=output_dir,
@@ -162,8 +232,11 @@ def ensure_model():
         weight_format = getattr(config.models.asr, "weight_format", None)
         _download_openvino_model(f"openai/{config.models.asr.name}", output_dir, weight_format)
     elif provider == "whispercpp":
+        if str(getattr(config.models.asr, "device", "CPU")).upper() != "CPU":
+            logger.warning("whispercpp backend is CPU-only; ignoring configured device %s", config.models.asr.device)
         output_dir = get_asr_model_path()
-        _download_whispercpp_model(config.models.asr.name, output_dir)
+        weight_format = getattr(config.models.asr, "weight_format", None)
+        _download_whispercpp_model(config.models.asr.name, output_dir, weight_format)
 
     # Sentiment model download (if enabled)
     sent_cfg = getattr(config, "sentiment", None)
@@ -176,17 +249,15 @@ def ensure_sentiment_model():
     sent_cfg = config.sentiment
     model_name = sent_cfg.model                      # e.g. speechbrain/emotion-recognition-wav2vec2-IEMOCAP
     provider = getattr(sent_cfg, "provider", "openvino")
-    models_base = getattr(sent_cfg, "models_base_path", "models")
     weight_format = getattr(sent_cfg, "weight_format", None)
-    slug = _model_dir_name(model_name, weight_format if provider == "openvino" else None)
-    output_dir = os.path.join(models_base, "sentiment", slug)
+    output_dir = get_sentiment_model_path()
 
     if provider == "openvino":
         logger.info(f"Ensuring sentiment model (openvino): {model_name} → {output_dir}")
         if model_name.startswith("speechbrain/"):
             if weight_format:
                 logger.warning("Ignoring sentiment.weight_format for SpeechBrain OpenVINO export; custom export path does not support it.")
-            _export_speechbrain_sentiment_openvino(model_name, output_dir, getattr(sent_cfg, "device", "CPU"))
+            _export_speechbrain_sentiment_openvino(model_name, output_dir, "CPU")
         else:
             _download_openvino_model(model_name, output_dir, weight_format)
     elif provider == "pytorch":
@@ -199,7 +270,15 @@ def ensure_sentiment_model():
 
 def get_asr_model_path() -> str:
     provider = config.models.asr.provider
-    weight_format = getattr(config.models.asr, "weight_format", None) if provider == "openvino" else None
+    if provider == "openvino":
+        weight_format = getattr(config.models.asr, "weight_format", None)
+    elif provider == "whispercpp":
+        weight_format = _normalize_whispercpp_weight_format(
+            config.models.asr.name,
+            getattr(config.models.asr, "weight_format", None),
+        )
+    else:
+        weight_format = None
     return os.path.join(
         config.models.asr.models_base_path,
         provider,

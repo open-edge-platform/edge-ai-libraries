@@ -6,10 +6,10 @@ app:
 
 models:
   asr:
-    provider: openai # openai | openvino
-    name: whisper-tiny  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
-    device: CPU # CPU recommended; CPU or GPU for openvino provider
-    weight_format: int8 # Optional OpenVINO export precision, e.g. int8 | fp16; ignored for provider: openai
+    provider: whispercpp # openai | openvino | whispercpp
+    name: whisper-base  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
+    device: CPU # CPU recommended; CPU only for whispercpp, CPU or GPU for openvino provider
+    weight_format: q5 # OpenVINO: int8 | fp16 | null. whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
     temperature: 0.0
     diarization: False
     hf_token: None   # needed only if diarization=true
@@ -42,10 +42,10 @@ models:
     repetition_penalty: 1.5
 
     # whisper.cpp specific — only used when provider: whispercpp
-    beam_size: 5
-    best_of: 5
+    beam_size: 1
+    best_of: 1
     word_timestamps: false
-    threads: 4
+    threads: 0
 
 audio_preprocessing:
   chunk_duration_sec: 15

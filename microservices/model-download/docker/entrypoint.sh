@@ -166,7 +166,7 @@ install_dependencies() {
         ultralytics)
             echo -e "${BLUE}INFO:${NC} Downloading Ultralytics public models script from GitHub"
             mkdir -p /opt/scripts
-            if curl -fsSL -o /opt/scripts/download_public_models.sh https://raw.githubusercontent.com/open-edge-platform/dlstreamer/v2026.0.0/samples/download_public_models.sh; then
+            if curl -fsSL -o /opt/scripts/download_public_models.sh https://raw.githubusercontent.com/open-edge-platform/dlstreamer/v2026.1.0-rc2/samples/download_public_models.sh; then
                 chmod +x /opt/scripts/download_public_models.sh
                 echo -e "${GREEN} SUCCESS:${NC} Ultralytics public models script downloaded to /opt/scripts/download_public_models.sh"
             else
@@ -250,6 +250,9 @@ run_plugins_parallel() {
 # Parse arguments
 PLUGINS=""
 START_SERVICE=true
+EPHEMERAL_MODE=false
+EPHEMERAL_ARGS=()
+EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -262,6 +265,13 @@ while [[ $# -gt 0 ]]; do
         --no-start)
             START_SERVICE=false
             shift
+            ;;
+        --ephemeral)
+            EPHEMERAL_MODE=true
+            shift
+            # Collect all remaining args for the ephemeral script
+            EPHEMERAL_ARGS=("$@")
+            break
             ;;
         *)
             shift
@@ -358,7 +368,11 @@ if [ -d "/opt/.venv" ]; then
 fi
 
 # Start the service if requested
-if [ "$START_SERVICE" = true ]; then
+if [ "$EPHEMERAL_MODE" = true ]; then
+    print_header "Running in Ephemeral Mode"
+    print_info "Executing one-shot download/conversion..."
+    exec /opt/scripts/get_model.sh --internal "${EPHEMERAL_ARGS[@]}"
+elif [ "$START_SERVICE" = true ]; then
     print_header "Starting Model Download Service"
     cd /opt
     print_info "Launching service at http://0.0.0.0:8000"

@@ -2,6 +2,7 @@ import io
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -104,6 +105,33 @@ class ApiHardeningTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["error"]["type"], "invalid_request_error")
         self.assertEqual(response.json()["error"]["param"], "file")
+
+    def test_openai_transcription_defaults_language_to_english(self):
+        with patch("main.ensure_model"), patch("main.preload_models"), patch(
+            "api.openai_endpoints.save_audio_file", return_value=("clip.wav", "/tmp/clip.wav")
+        ), patch("api.openai_endpoints.os.path.isfile", return_value=True), patch(
+            "api.openai_endpoints.resolve_requested_session_id", return_value=("session-id", False)
+        ), patch("api.openai_endpoints.Pipeline") as pipeline_cls:
+            pipeline = pipeline_cls.return_value
+            pipeline.session_id = "session-id"
+            pipeline.transcribe.return_value = {"text": "hello", "segments": []}
+
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/v1/audio/transcriptions",
+                    data={
+                        "model": "whisper-1",
+                        "temperature": "0.0",
+                        "response_format": "json",
+                    },
+                    files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        pipeline.transcribe.assert_called_once()
+        args, kwargs = pipeline.transcribe.call_args
+        self.assertIsInstance(args[0], SimpleNamespace)
+        self.assertEqual(kwargs["language"], "en")
 
 
 class AudioUploadValidationTests(unittest.TestCase):
