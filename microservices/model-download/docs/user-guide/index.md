@@ -119,7 +119,6 @@ This service does not replace full model registry solutions and has the followin
 :hidden:
 
 ./get-started.md
-./quickstart.md
 ./running-tests.md
 ./api-reference.md
 Release Notes <./release-notes.md>
