@@ -14,7 +14,7 @@ In this the microservice can be run as an ephemeral (one-shot) container that do
 Download and run directly — no repo clone needed. The script starts a temporary Docker container, downloads the model to your local disk, and **automatically removes the container** once the operation completes.
 
 ```bash
-curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.1.0/microservices/model-download/scripts/get_model.sh |  source ./get_model.sh --model-name sentence-transformers/all-MiniLM-L6-v2 --hub huggingface --plugins huggingface
+curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.1.0/microservices/model-download/scripts/get_model.sh && source ./get_model.sh --model-name sentence-transformers/all-MiniLM-L6-v2 --hub huggingface --plugins huggingface
 ```
 
 ## Quick Examples
