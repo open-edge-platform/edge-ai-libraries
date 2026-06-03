@@ -33,11 +33,8 @@
   --carbon-shade-1: oklch(0.381 0 0); /* #525252 */
   --carbon-shade-2: oklch(0.204 0 0); /* #262626 */
 
-  /* Grays */
-  --light-gray-100: oklch(0.9694 0.0011 197.14); /* #F4F5F5 */
-  --light-gray-200: oklch(0.9366 0.0017 247.84); /* #E9EAEB */
-  --dark-gray-100: oklch(0.3177 0.0072 274.75); /* #313236 */
-  --dark-gray-200: oklch(0.3634 0.0074 264.48); /* #3C3E42 */
+  /* Black */
+  --black: oklch(0 0 0); /* #000000 */
 
   /* Electric accent palette */
   --electric-geode: oklch(0.5794 0.2752 308.89); /* #A923F1 */
@@ -78,19 +75,6 @@
 /* UI Neutrals — used by shadcn surface/sidebar tokens */
 :root {
   --white: oklch(1 0 0); /* #FFFFFF */
-  --near-white: oklch(0.985 0 0); /* #FAFAFA */
-  --gray-97: oklch(0.97 0 0); /* #F5F5F5 - very light surface / muted bg */
-  --gray-92: oklch(0.922 0 0); /* #E5E5E5 - light border */
-  --gray-79: oklch(0.788 0 0); /* #BABABA - dark-mode muted text */
-  --gray-71: oklch(0.708 0 0); /* #A1A1A1 - focus ring */
-  --gray-56: oklch(0.556 0 0); /* #737373 - dark-mode focus ring */
-  --gray-50: oklch(0.5 0 0); /* #636363 - muted text */
-  --gray-27: oklch(0.269 0 0); /* #262626 - dark-mode muted bg */
-  --very-dark: oklch(0.205 0 0); /* #171717 - ≈ carbon-shade-2, secondary fg */
-  --near-black: oklch(0.145 0 0); /* #0A0A0A - default text */
-
-  /* Dark-mode page background (slight blue tint) */
-  --surface-dark: oklch(0.3053 0.0055 271.23); /* #2E2F32 */
 
   /* Destructive / error */
   --red: oklch(0.577 0.245 27.325); /* #E7000B - light mode */
