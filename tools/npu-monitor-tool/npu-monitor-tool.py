@@ -248,7 +248,12 @@ class PmtTelemetry:
         return int_part + float_part
 
     def get_noc_bandwidth(self) -> float:
-        """Get NoC (Network on Chip) bandwidth in MB/s."""
+        """Get NoC (Network on Chip) bandwidth in MB.
+
+        The PMT register reports a monotonically increasing counter (scaled in milli-MB), not an
+        instantaneous rate. Convert to a bandwidth rate by taking a delta between two reads and
+        dividing by elapsed time in seconds.
+        """
         val = sum([self.read(reg1, 31, 0) for reg1 in self.regs.get('VPU_MEMORY_BW',[])])
         return val / 1e3
 
@@ -392,6 +397,7 @@ def main(): # pylint: disable=too-many-branches
     prev_energy = pu.get_npu_energy()
     interval = args.interval if args.interval else DEFAULT_INTERVAL_MS
     prev_bandwidth = pu.get_noc_bandwidth()
+    prev_bandwidth_ts = time_module.monotonic()
 
     csv_file = None
     csv_file_path = None
@@ -461,12 +467,21 @@ def main(): # pylint: disable=too-many-branches
             temp = pu.get_npu_temperature()
 
             curr_bandwidth = pu.get_noc_bandwidth()
+            curr_bandwidth_ts = time_module.monotonic()
             bandwidth_delta = curr_bandwidth - prev_bandwidth
-            if curr_bandwidth > MB_TO_GB:
-                bandwidth = bandwidth_delta / MB_TO_GB
+            dt_s = curr_bandwidth_ts - prev_bandwidth_ts
+
+            # Guard against clock quirks and counter resets/wrap.
+            if dt_s <= 0:
+                bandwidth_mbps = 0.0
+            else:
+                bandwidth_mbps = max(0.0, bandwidth_delta / dt_s)
+
+            if bandwidth_mbps > MB_TO_GB:
+                bandwidth = bandwidth_mbps / MB_TO_GB
                 bw_unit = 'GB/s'
             else:
-                bandwidth = bandwidth_delta
+                bandwidth = bandwidth_mbps
                 bw_unit = 'MB/s'
 
             if csv_file:
@@ -487,6 +502,7 @@ def main(): # pylint: disable=too-many-branches
             print( '+-----------------------------------------------------------------------------------------------+')
             prev_busy_time = curr_busy_time
             prev_bandwidth = curr_bandwidth
+            prev_bandwidth_ts = curr_bandwidth_ts
 
             if not args.interval:
                 break
