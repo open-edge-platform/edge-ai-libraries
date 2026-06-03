@@ -1,6 +1,6 @@
-# Quick Start
+# Quick Start - Ephemeral Container
 
-In this the microservice can be run as an ephemeral (one-shot) container that downloads or converts a model and exits automatically. This is useful for CI/CD pipelines, pre-provisioning model caches, or scripted workflows.
+This microservice can be run as an ephemeral (one-shot) container that downloads or converts a model and exits automatically. This is useful for CI/CD pipelines, pre-provisioning model caches, or scripted workflows.
 
 ## Prerequisites
 
