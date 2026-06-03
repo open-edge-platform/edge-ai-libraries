@@ -252,6 +252,93 @@ class PmtTelemetry:
         val = sum([self.read(reg1, 31, 0) for reg1 in self.regs.get('VPU_MEMORY_BW',[])])
         return val / 1e3
 
+class NpuMonitor:
+    def __init__(self):
+        # get ID based on 0000 prefix from /sys/bus/pci/drivers/intel_vpu/
+        self.dev_path = "/sys/bus/pci/drivers/intel_vpu/"
+        self.debugfs = "/sys/kernel/debug/accel/"
+        self.npu_busy = None
+        if self.core_setup() == True:
+            self.pu = PmtTelemetry()
+        else:
+            self.pu = None
+
+    def get_pmt_telemetry(self) -> Optional[PmtTelemetry]:
+        return self.pu
+
+    def core_setup(self) -> bool:
+        if not os.path.exists(self.dev_path):
+            LOG.error("Intel NPU driver 'intel_vpu' seems not to be loaded.\n")
+            return False
+
+        for entry in os.listdir(self.dev_path):
+            if entry.startswith("0000:"):
+                self.dev_path = os.path.join(self.dev_path, entry)
+                self.debugfs = os.path.join(self.debugfs, entry)
+                break
+
+        if os.path.exists(os.path.join(self.dev_path, "npu_busy_time_us")):
+            self.npu_busy_path = os.path.join(self.dev_path, "npu_busy_time_us")
+        else:
+            self.npu_busy_path = None
+
+        if os.path.exists(os.path.join(self.dev_path, "npu_memory_utilization")):
+            self.mem_util_path = os.path.join(self.dev_path, "npu_memory_utilization")
+        else:
+            self.mem_util_path = None
+
+        if os.path.exists(os.path.join(self.dev_path, "device")):
+            self.pciid_path = os.path.join(self.dev_path, "device")
+        else:
+            self.pciid_path = None
+
+        if os.path.exists(os.path.join(self.debugfs, "fw_version")):
+            self.fw_version_path = os.path.join(self.debugfs, "fw_version")
+        else:
+            self.fw_version_path = None
+
+        return True
+
+    def read_fw_version(self) -> Optional[str]:
+        if self.fw_version_path is None:
+            return None
+        try:
+            return fdump(self.fw_version_path)
+        except (ValueError, RuntimeError) as err:
+            LOG.warning('Failed to read NPU firmware version: %s', err)
+            return None
+
+    def read_driver_version(self) -> str:
+        ver_str = run_command('modinfo -F version intel_vpu').stdout.strip()
+        return ver_str.split()[0] if ver_str else 'unknown'
+
+    def read_pciid(self) -> Optional[str]:
+        if self.pciid_path is None:
+            return None
+        try:
+            return fdump(self.pciid_path)
+        except (ValueError, RuntimeError):
+            LOG.warning('Failed to read PCI ID: %s', err)
+            return None
+
+    def read_busy_time(self) -> Optional[int]:
+        if self.npu_busy_path is None:
+            return None
+        try:
+            return int(fdump(self.npu_busy_path))
+        except (ValueError, RuntimeError) as err:
+            LOG.warning('Failed to read busy time: %s', err)
+            return None
+
+    def read_mem_util(self) -> Optional[str]:
+        if self.mem_util_path is None:
+            return None
+        try:
+            return fdump(self.mem_util_path)
+        except (ValueError, RuntimeError) as err:
+            LOG.warning('Failed to read memory utilization: %s', err)
+            return None
+
 def logging_setup(args) -> None:
     """Configure colored logging output."""
     log_format = '%(levelname)s: %(message)s'
@@ -289,54 +376,22 @@ def main(): # pylint: disable=too-many-branches
 
     logging_setup(args)
 
-    # get ID based on 0000 prefix from /sys/bus/pci/drivers/intel_vpu/
-    dev_path = "/sys/bus/pci/drivers/intel_vpu/"
-    debugfs = "/sys/kernel/debug/accel/"
-    pu = PmtTelemetry()
-    if not os.path.exists(dev_path):
+    npu_mon = NpuMonitor()
+    pu = npu_mon.get_pmt_telemetry()
+    if pu is None:
         print("Intel NPU driver 'intel_vpu' seems not to be loaded.\n")
         parser.print_help()
         sys.exit(1)
 
-    for entry in os.listdir(dev_path):
-        if entry.startswith("0000:"):
-            dev_path = os.path.join(dev_path, entry)
-            debugfs = os.path.join(debugfs, entry)
-            break
-
-    npu_busy = None
-    if os.path.exists(os.path.join(dev_path, "npu_busy_time_us")):
-        npu_busy = os.path.join(dev_path, "npu_busy_time_us")
-
-    def read_busy_time():
-        if npu_busy is None:
-            return None
-        try:
-            return int(fdump(npu_busy))
-        except (ValueError, RuntimeError) as err:
-            LOG.warning('Failed to read busy time: %s', err)
-            return None
-
-    try:
-        pciid = fdump(os.path.join(dev_path, "device"))
-        fw_version = fdump(os.path.join(debugfs, "fw_version"))
-    except RuntimeError as err:
-        LOG.error('Failed to read device metadata: %s', err)
-        sys.exit(1)
-
-    ver_str = run_command('modinfo -F version intel_vpu').stdout.strip()
-    driver_version = ver_str.split()[0] if ver_str else 'unknown'
+    pciid = npu_mon.read_pciid() or 'unknown'
+    fw_version = npu_mon.read_fw_version() or 'unknown'
+    driver_version = npu_mon.read_driver_version()
 
     pu.update_buffer()
-    prev_busy_time = read_busy_time()
+    prev_busy_time = npu_mon.read_busy_time()
     prev_energy = pu.get_npu_energy()
     interval = args.interval if args.interval else DEFAULT_INTERVAL_MS
     prev_bandwidth = pu.get_noc_bandwidth()
-
-    # Memory utilization sysfs isn't exposed on N-1 platforms (e.g., MTL/ARL).
-    # Only PTL and later platforms should attempt to read it.
-    mem_util_supported = (pu.cpu_gen is not None) and (pu.cpu_gen >= CpuGen.PTL)
-    mem_util_path = os.path.join(dev_path, "npu_memory_utilization")
 
     csv_file = None
     csv_file_path = None
@@ -357,7 +412,7 @@ def main(): # pylint: disable=too-many-branches
 
         while True:
             sleep(interval * 1e-3)
-            curr_busy_time = read_busy_time()
+            curr_busy_time = npu_mon.read_busy_time()
             if (args.interval or args.csv) and CLEAR_CMD:
                 subprocess.run([CLEAR_CMD], check=False) # nosec B603
 
@@ -374,28 +429,25 @@ def main(): # pylint: disable=too-many-branches
                 else:
                     utilization = min(100, int(100 * delta_us / interval_us))
 
-            mem_util_mb = -1.0
-            mem_util_str = f'{"N/A":>31} [--]'
-            if mem_util_supported:
-                if os.path.exists(mem_util_path):
-                    mem_util_raw = fdump(mem_util_path)
-                    # from bytes to MB
-                    try:
-                        mem_util_mb = float(int(mem_util_raw)) / KB / KB
-                    except (TypeError, ValueError) as err:
-                        LOG.warning('Failed to parse memory utilization: %s', err)
-                        mem_util_mb = -1.0
+            mem_util_raw = npu_mon.read_mem_util()
+            # from bytes to MB
+            try:
+                mem_util_mb = float(int(mem_util_raw)) / KB / KB
+            except (TypeError, ValueError) as err:
+                LOG.warning('Failed to parse memory utilization: %s', err)
+                mem_util_mb = -1.0
 
-                    if mem_util_mb >= 0:
-                        if mem_util_mb > MB_TO_GB:
-                            mem_util = mem_util_mb / MB_TO_GB
-                            mem_util_unit = 'GB'
-                        else:
-                            mem_util = mem_util_mb
-                            mem_util_unit = 'MB'
-                        mem_util_str = f'{mem_util:>31.2f} [{mem_util_unit}]'
+            if mem_util_mb >= 0:
+                if mem_util_mb > MB_TO_GB:
+                    mem_util = mem_util_mb / MB_TO_GB
+                    mem_util_unit = 'GB'
                 else:
-                    LOG.debug('Memory utilization sysfs node not found at %s', mem_util_path)
+                    mem_util = mem_util_mb
+                    mem_util_unit = 'MB'
+                mem_util_str = f'{mem_util:>31.2f} [{mem_util_unit}]'
+            else:
+                LOG.debug('Memory utilization sysfs node not found.')
+                mem_util_str = f'{"N/A":>31} [--]'
 
             pu.update_buffer()
 
