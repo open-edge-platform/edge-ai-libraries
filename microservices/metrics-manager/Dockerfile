@@ -61,11 +61,9 @@ RUN cargo install --locked qmmd@0.2.0
 # -----------------------------------------------------------------------------
 # Built from source (instead of the upstream .deb) to patch known CVEs in
 # bundled Go dependencies:
-#   - github.com/rclone/rclone  1.69.3 → 1.73.5  (CVE-2026-41176, CVE-2026-41179)
-#   - github.com/go-git/go-billy/v5 5.6.0 → 5.9.0 (CVE-2026-44973, CVE-2026-44740)
 # Using golang:1.26 (1.26.3+) also resolves stdlib CVEs fixed in Go 1.26.3.
 # Digest pinned for reproducible builds — decoupled from Docker Hub tag updates.
-FROM golang:1.26@sha256:2d6c80227255c3112a4d08e67ba98e58efd3846daf15d9d7d4c389565d881b1a AS telegraf-builder
+FROM golang:1.26.4@sha256:68cb6d68bed024785b69195b89af7ac7a444f27791435f98647edff595aa0479 AS telegraf-builder
 
 ARG TELEGRAF_VERSION=1.38.4
 
@@ -99,6 +97,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go get github.com/rclone/rclone@v1.73.5 && \
     go get github.com/go-git/go-billy/v5@v5.9.0 && \
     go mod tidy
+# NOTE: CVE-2026-34040 (HIGH) and CVE-2026-33997 (MEDIUM) in github.com/docker/docker
+# cannot be patched yet — fix requires v29.3.1 which does not exist in the Go
+# module proxy (latest: v28.5.2+incompatible). Transitive Telegraf dependency.
+# Revisit when moby/moby v29.3.1 is published to the Go module registry.
 
 # fs.LogOutput was removed from rclone/fs in rclone 1.71+; the remotefile
 # plugin used it only for trace logging so dropping the assignment is safe.
@@ -185,9 +187,6 @@ CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS production
 
-# Telegraf version - pinned for reproducible builds
-ARG TELEGRAF_VERSION=1.38.4
-
 # Proxy settings (passed from docker-compose build args)
 ARG http_proxy
 ARG HTTP_PROXY
@@ -215,7 +214,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
 RUN pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
-    dpkg --purge --force-remove-essential perl-base && \
+    (dpkg -s perl-base >/dev/null 2>&1 && dpkg --purge --force-remove-essential perl-base || true) && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
