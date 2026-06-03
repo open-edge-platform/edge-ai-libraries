@@ -41,7 +41,7 @@ CONFIG_JSON=""
 
 # Docker defaults (host mode only)
 DEFAULT_MODEL_PATH="$PWD/models"
-DEFAULT_IMAGE_TAG="latest"
+DEFAULT_IMAGE_TAG="2026.1.0-rc2"
 DEFAULT_IMAGE_REGISTRY="intel/"
 MODEL_PATH=""
 IMAGE_TAG=""
