@@ -107,7 +107,7 @@ Use `source ./setup.sh --conf` to print the resolved Docker Compose configuratio
 
 ## Quick Start with Docker
 
-> **Important:** Do not run `docker build` directly against `docker/Dockerfile`. The build depends on a wheel generated from the multimodal embedding serving microservice. Always execute `./build.sh` in the `vdms` directory first so the wheel is created under `wheels/` before building the container image.
+> **Important:** Do not run `docker build` directly against `docker/Dockerfile` from the `vdms` directory. Always execute `./build.sh` so the build uses the `microservices/` context and includes the local `multimodal-embedding-serving` source dependency.
 
 The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
 

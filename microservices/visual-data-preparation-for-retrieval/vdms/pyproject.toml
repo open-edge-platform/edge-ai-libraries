@@ -34,8 +34,8 @@ filelock = "^3.20.3"
 orjson = "^3.11.7"
 av = "^17.0.0"
 
-# Multimodal Embedding Service as wheel dependency
-multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-2.0.0-py3-none-any.whl"}
+# Multimodal Embedding Service from local sibling microservice
+multimodal-embedding-serving = { path = "../../multimodal-embedding-serving", develop = false }
 
 [tool.poetry.group.dev]
 optional = true
