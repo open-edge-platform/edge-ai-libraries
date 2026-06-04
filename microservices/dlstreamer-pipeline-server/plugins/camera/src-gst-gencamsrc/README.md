@@ -61,7 +61,7 @@ If it returns information about the plugin it is installed successfully and can 
 3. **Git** — [git-scm.com](https://git-scm.com/)
 4. **PowerShell** >= 7 — [github.com/PowerShell/PowerShell/releases](https://github.com/PowerShell/PowerShell/releases)
 5. **GStreamer MSVC x86_64** — install both the *runtime* and *development* packages from [gstreamer.freedesktop.org](https://gstreamer.freedesktop.org/download/)
-6. **DLStreamer runtime environment** — download the latest `dlstreamer-<version>-win64.exe` from the [Intel DL Streamer releases page](https://github.com/open-edge-platform/dlstreamer/releases) and follow the [Windows installation guide](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/get_started/install/install_guide_windows.md).
+6. **DLStreamer runtime environment** — Follow the [Windows installation guide](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/get_started/install/install_guide_windows.md) to install the latest dlstreamer.
 
    > **Note:** Set `$dlsRoot` once to your DLStreamer installation root before running any of the commands below. The default path is shown; adjust if you installed elsewhere:
    >
