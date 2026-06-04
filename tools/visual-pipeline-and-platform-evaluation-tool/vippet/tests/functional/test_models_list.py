@@ -86,7 +86,14 @@ def _assert_models_present_in_api(
 
 @pytest.mark.smoke
 def test_models_endpoint_returns_models(http_client: requests.Session) -> None:
-    """Basic schema validation: every entry returned by the API is well-formed."""
+    """Basic schema validation: every entry returned by the API is well-formed.
+
+    User-uploaded models (``source == "custom"``) are excluded from the
+    precision/category whitelist checks: they are free-form uploads
+    that do not carry a precision tag and may use a category outside
+    the catalogue allow-list. They are still required to satisfy the
+    name/display_name/variants structural invariants.
+    """
     models: list[ModelDict] = fetch_models(http_client)
 
     assert models, "Models endpoint returned an empty list"
@@ -99,10 +106,18 @@ def test_models_endpoint_returns_models(http_client: requests.Session) -> None:
             isinstance(model_entry.get("display_name"), str)
             and model_entry["display_name"]
         ), "Model entry has invalid display_name"
-        assert (
-            isinstance(model_entry.get("category"), str)
-            and model_entry["category"] in VALID_MODEL_CATEGORIES
-        ), f"Model entry has unsupported category: {model_entry.get('category')}"
+
+        is_custom = str(model_entry.get("source") or "").lower() == "custom"
+
+        category = model_entry.get("category")
+        assert isinstance(category, str) and category, (
+            "Model entry has missing or empty category"
+        )
+        if not is_custom:
+            assert category in VALID_MODEL_CATEGORIES, (
+                f"Model entry has unsupported category: {category}"
+            )
+
         variants = model_entry.get("variants")
         assert isinstance(variants, list) and variants, (
             "Model entry has missing or empty variants list"
@@ -115,10 +130,17 @@ def test_models_endpoint_returns_models(http_client: requests.Session) -> None:
             assert (
                 isinstance(variant.get("display_name"), str) and variant["display_name"]
             ), "Variant has invalid display_name"
-            assert (
-                isinstance(variant.get("precision"), str)
-                and variant["precision"] in VALID_MODEL_PRECISIONS
-            ), f"Variant has unsupported precision: {variant.get('precision')}"
+            if is_custom:
+                # Uploaded models do not advertise a precision; accept
+                # any string (including the empty string).
+                assert isinstance(variant.get("precision"), str), (
+                    "Variant precision must be a string"
+                )
+            else:
+                assert (
+                    isinstance(variant.get("precision"), str)
+                    and variant["precision"] in VALID_MODEL_PRECISIONS
+                ), f"Variant has unsupported precision: {variant.get('precision')}"
 
 
 @pytest.mark.smoke

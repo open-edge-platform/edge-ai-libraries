@@ -2,7 +2,37 @@
 
 Details about the changes, improvements, and known issues in this release of the application.
 
-## Current Release: [2026.0.0]
+## Current Release: [2026.1.0]
+
+**Release Date**: [2026-06-17]
+
+**New**:
+
+- **New predefined pipelines**: New pipelines for showcasing Video Summarization,
+  Motion Detection, Instance Segmentation and Pose Estimation.
+- **Pipeline Latency Reporting**: Support for reporting latency metrics to
+  show end-to-end pipeline processing time.
+- **NPU Metrics**: ViPPET now supports reporting NPU utilization.
+- **Video Upload Support**: Users can now upload their own video files and use
+  them as input for pipelines.
+- **Image-Set Upload Support**: Users can now upload image files and use them
+  as input for pipelines.
+- **Custom Model Upload Support**: Users can now upload OpenVINO models,
+  including models trained using Intel Geti platform.
+
+**Improved**:
+
+- Model management via the Model Download microservice - a centralized model
+  management system that downloads AI or machine learning models from various
+  model hubs while ensuring consistency and simplicity across applications.
+  The microservice stores the models, and handles optional format conversions.
+- Metrics collection with the Metrics Manager microservice - an open-source,
+  container-ready service for unified collection, ingestion, and real-time
+  relay of system and application metrics on edge and cloud nodes.
+
+---
+
+## 2026.0.0
 
 **Release Date**: [2026-03-25]
 

@@ -4,7 +4,7 @@ definition: >
   restricted to those motion ROIs via gvadetect.
 tags:
   - "Smart Cities"
-thumbnail: images/license-plate-recognition.png
+thumbnail: images/motion-detection.png
 variants:
   - name: CPU
     pipeline_description: >-

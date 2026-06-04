@@ -52,7 +52,7 @@ make install
 6. Install OpenVINO Toolkit using APT repository. For details, visit the [OpenVINO Toolkit Overview Website](https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html)
 
 ```shell
-sudo apt install openvino-2025.3.0
+sudo apt-get install openvino-2026.1.0
 ```
 
 7. Install robot_rviz
@@ -60,6 +60,13 @@ sudo apt install openvino-2025.3.0
 ```shell
 sudo apt install ros-<ROS2 codename>-ti5-rviz
 ```
+
+| ROS 2 Distribution | Package Name |
+|--------------------|--------------|
+| Humble | ros-humble-ti5-rviz |
+| Jazzy | ros-jazzy-ti5-rviz |
+
+
 
 # Build
 
@@ -81,6 +88,20 @@ Running the evaluation program using the following commands(simulation):
 ```shell
 cd <Robot Motion Control Task>/examples/
 sudo ../build/examples/mc_rl_sample -c config/robot_rl_ov.yaml -m 0 -s
+```
+
+**Note:** The configuration file `robot_rl_ov.yaml` specifies `inference_device`, which selects the OpenVINO target device used to run AI inference. It supports various devices, such as `CPU` for Intel CPUs, `GPU` for Intel integrated/discrete GPUs, `NPU` for Intel Neural Processing Units. You can modify the `inference_device` value in the configuration file to test different devices. For example, set `inference_device: "CPU"` to run the inference on CPU.
+
+**Note:** If you want to run the inference on NPU with high inference performance, please make sure to pinning the NPU IRQ to a specific CPU core using below method:
+1. Identify the NPU interrupt number(e.g. Panterlake/ArrowLake platform):
+
+```shell
+cat /sys/module/intel_vpu/drivers/pci\:intel_vpu/0000\:00\:0b.0/irq
+```
+2. Affinity the NPU IRQ to a specific CPU core (e.g., CPU core 11, which corresponds to the hexadecimal value `800` for CPU affinity):
+
+```shell
+echo 800 | sudo tee /proc/irq/<NPU_interrupt_number>/smp_affinity
 ```
 
 For RVIZ, please go to Motion Control Gateway to run ros2 node `robot_rviz`.

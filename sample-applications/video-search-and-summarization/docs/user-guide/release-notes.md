@@ -2,25 +2,29 @@
 
 ## Current Release
 
-**Version**: 2026.1.0-rc1 \
-**Release Date**: 15 May 2026
+**Version**: 2026.1.0
+**Release Date**: June 17, 2026
 
-**Changes:**
-- Introducing new Dual UI mode with a new `--summary --search` CLI argument for `setup.sh`. This runs both summary and search applications simultaneously at **/summary** and **/search** URI endpoints respectively.
-- New Dual UI setup for helm chart installation. This is implemented by enabling ways to provide values override file for summary and search mode simultaneously.
-- Updates to setup script and nginx configuration files for flexible UI routing for each mode of deployment - existing summary mode, search mode, Unified UI Mode and the new Dual UI mode.
+**New:**
+
+- Addeda a new Dual UI mode with a new `--summary --search` CLI argument for `setup.sh` that allows running both the summary and the search applications simultaneously at **/summary** and **/search** URI endpoints respectively.
+- Added Dual UI support for Helm chart installations by allowing a values override file to be provided for summary and search modes simultaneously.
+
+**Improved:**
+
+- Updated setup script and nginx configuration files to allow flexible UI routing for each existing mode of deployment (summary mode, search mode, Unified UI Mode) and the new Dual UI mode.
 - Refactored Helm chart to use a reusable `vssui` subchart with multi-mode nginx and consolidated embedding model config under `global.embeddingModelName`.
-- Bumped DLStreamer base image to 2026.1.0-ubuntu24-rc1 for Video Ingestion Microservice.
-- **Setup Script:** Updates in environment variable to setup embedding models. New MULTIMODAL_EMBEDDING_MODEL and existing TEXT_EMBEDDING_MODEL are used to provide embedding models in relevant modes.
-- **Docker Compose:** Replaced `curl` with Python `urllib` package in container healthcheck command for a lighter runtime footprint for Audio Analyzer.
-- **Docker Compose:** Replaced environment variables with hard coded mount paths. This helps in stopping containers without looking for preset variables.
-- **Build Script:** Removed Audio-Analyzer from the dependency build pipeline. A frozen version 1.3.3 will be used for the Audio Analyzer microservice for current and all subsequent releases.
-- **Setup Script:** Minor cleanup to remove unused environment variables and remove several environment variables being used as mount directories in Docker Compose files _(some of these environment variables are still used pertaining to design issues)_.
+- Updated DLStreamer base image to `2026.1.0-ubuntu24-rc1` for Video Ingestion Microservice.
+- **Setup Script:** Updated the environment variable to setup embedding models. New `MULTIMODAL_EMBEDDING_MODEL` and the existing `TEXT_EMBEDDING_MODEL` are used to provide embedding models in relevant modes.
+- **Docker Compose:** Replaced `curl` with Python `urllib` package in the container `healthcheck` command for a lighter runtime footprint for Audio Analyzer.
+- **Docker Compose:** Replaced environment variables with hard-coded mount paths. This helps in stopping containers without looking for preset variables.
+- **Build Script:** Removed Audio-Analyzer from the dependency build pipeline. A frozen version 1.3.3 will be used for the Audio Analyzer microservice for the current and all subsequent releases.
+- **Setup Script:** Removed unused environment variables and several environment variables being used as mount directories in Docker Compose files.
 
 ## Previous Release
 
 **Version**: 1.3.3-rc1 \
-**Release Date**: 05 May 2026  
+**Release Date**: 05 May 2026
 
 **Features**:
 
@@ -51,7 +55,7 @@
 ## Previous releases
 
 **Version**: 1.3.2 \
-**Release Date**: 17 Feb 2026  
+**Release Date**: 17 Feb 2026
 
 **Features**:
 
