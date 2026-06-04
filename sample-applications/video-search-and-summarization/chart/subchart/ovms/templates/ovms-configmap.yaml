@@ -73,14 +73,18 @@ data:
 
     # Generate storage model names
     vlm_storage_name=$(get_storage_model_name "$vlm_model" "$vlm_target_device" "$vlm_weight_format")
-    llm_storage_name=""
-    if [ -n "$llm_model" ] && [ "$llm_model" != "$vlm_model" ]; then
+    llm_storage_name="$vlm_storage_name"
+    split_model=false
+    if [ -n "$llm_model" ] && { [ "$llm_model" != "$vlm_model" ] || [ "$llm_target_device" != "$vlm_target_device" ] || [ "$llm_weight_format" != "$vlm_weight_format" ]; }; then
+        split_model=true
         llm_storage_name=$(get_storage_model_name "$llm_model" "$llm_target_device" "$llm_weight_format")
     fi
 
     echo "VLM Model: $vlm_model -> Storage: $vlm_storage_name (device: $vlm_target_device, format: $vlm_weight_format)"
-    if [ -n "$llm_storage_name" ]; then
+    if [ "$split_model" = true ]; then
         echo "LLM Model: $llm_model -> Storage: $llm_storage_name (device: $llm_target_device, format: $llm_weight_format)"
+    else
+        echo "LLM Model shares VLM storage model: $llm_storage_name"
     fi
 
     # Install dependencies based on model type
@@ -128,8 +132,8 @@ data:
         exit 1
     fi
 
-    # Export LLM model if different from VLM
-    if [ -n "${llm_model}" ] && [ "${llm_model}" != "${vlm_model}" ]; then
+    # Export LLM model when split-model mode is enabled.
+    if [ "$split_model" = true ]; then
         python export_model.py text_generation \
             --source_model "${llm_model}" \
             --model_name "${llm_storage_name}" \
@@ -148,10 +152,6 @@ data:
 
     # Write storage model names to a file for pipeline-manager to read
     echo "${vlm_storage_name}" > /opt/data/vlm_storage_name.txt
-    if [ -n "${llm_storage_name}" ]; then
-        echo "${llm_storage_name}" > /opt/data/llm_storage_name.txt
-    else
-        echo "${vlm_storage_name}" > /opt/data/llm_storage_name.txt
-    fi
+    echo "${llm_storage_name}" > /opt/data/llm_storage_name.txt
 
     echo "All the steps are completed successfully"
