@@ -1,5 +1,5 @@
 # Reference: This is the official reference for Pallet Defect Detection pipeline
-# https://github.com/open-edge-platform/edge-ai-suites/blob/main/manufacturing-ai-suite/industrial-edge-insights-vision/apps/pallet-defect-detection
+# https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.1.0/manufacturing-ai-suite/industrial-edge-insights-vision/apps/pallet-defect-detection
 name: Defect Detection
 definition: >
   AI-powered pipeline for automatic pallet defect detection using machine vision, enabling efficient quality control in manufacturing.

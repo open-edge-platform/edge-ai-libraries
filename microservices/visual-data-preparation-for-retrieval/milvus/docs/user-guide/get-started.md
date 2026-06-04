@@ -18,7 +18,7 @@
 Clone the source code repository if you don't have it
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.1.0
 cd edge-ai-libraries/microservices
 ```
 
@@ -38,7 +38,7 @@ Set a remote registry by exporting environment variables:
 
 ```bash
 export REGISTRY="intel/"
-export TAG="latest"
+export TAG="2025.2.0"
 ```
 
 **Note**: If you are using a release version package, you will have a pre-defined docker compose file where image registry and tag are already set to the release version. In such case, you do not need to set the environment variables above, simply move forward to the next step. You may refer to the release notes for details on the version number or check the docker compose file that is used in the steps below.

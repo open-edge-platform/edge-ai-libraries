@@ -30,7 +30,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
    ```bash
    # Clone the latest on the mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, clone a specific release branch
+   # Alternatively, clone the release branch
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.1.0
    ```
 
@@ -441,7 +441,6 @@ Volumes:
   docker logs <container-id>
   ```
 
-
 ## Run Unit Tests
 
 To validate changes locally before deploying:
@@ -473,7 +472,6 @@ Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metric
 4. Use appropriate model types and configurations for OpenVINO model server conversion.
 5. For Ultralytics INT8 exports, submit one model per request and verify `config.quantize` is provided only when INT8 is intended.
 
-
 ## Run in Kubernetes Cluster
 
 See [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md) for details. Address the prerequisites mentioned on this page before deploying with Helm chart.
@@ -482,7 +480,7 @@ See [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md) for detail
 
 For alternative ways to set up the sample application, see:
 
-- [ Quick start](./quickstart.md)
+- [Quick start](./get-started/quickstart.md)
 - [How to Build from Source](./get-started/build-from-source.md)
 
 <!--hide_directive
@@ -491,6 +489,7 @@ For alternative ways to set up the sample application, see:
 
 Migrate from Model Registry <./get-started/migration.md>
 ./get-started/system-requirements
+Ephemeral Container <./get-started/quickstart.md>
 ./get-started/build-from-source
 ./get-started/deploy-with-helm-chart
 

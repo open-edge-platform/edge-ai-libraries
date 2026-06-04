@@ -1,6 +1,6 @@
-# Quick Start
+# Quick Start - Ephemeral Container
 
-In this the microservice can be run as an ephemeral (one-shot) container that downloads or converts a model and exits automatically. This is useful for CI/CD pipelines, pre-provisioning model caches, or scripted workflows.
+This microservice can be run as an ephemeral (one-shot) container that downloads or converts a model and exits automatically. This is useful for CI/CD pipelines, pre-provisioning model caches, or scripted workflows.
 
 ## Prerequisites
 
@@ -55,7 +55,8 @@ curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 . ./get_model.sh \
   --model-name yolov8s \
   --hub ultralytics \
-  --plugins ultralytics
+  --plugins ultralytics \
+  --config-json '{"quantize":"coco128"}'
 ```
 
 ---
@@ -75,6 +76,7 @@ curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 | `--device <dev>` | Target device: `CPU`, `GPU`, `NPU` (default: `CPU`) | No |
 | `--cache-size <gb>` | KV cache size in GB (for LLM/VLM conversion) | No |
 | `--download-path <path>` | Sub-directory under models dir for downloads | No |
+| `--config-json <json>`  | Additional config as inline JSON string which needed like `quantize`,`extra_quantization_params` etc | No |
 
 ### Docker Options
 
