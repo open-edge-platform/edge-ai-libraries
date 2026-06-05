@@ -367,6 +367,15 @@ bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *
             {
               GenApi::IBoolean *p=dynamic_cast<GenApi::IBoolean *>(node);
 
+              if (p == nullptr)
+              {
+                if (exception)
+                {
+                  throw std::invalid_argument(std::string("Feature not boolean: ")+name);
+                }
+                break;
+              }
+
               std::string v=std::string(value);
               if (v == "true" || v == "True" || v == "TRUE")
               {
@@ -386,6 +395,15 @@ bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *
           case GenApi::intfIInteger:
             {
               GenApi::IInteger *p=dynamic_cast<GenApi::IInteger *>(node);
+
+              if (p == nullptr)
+              {
+                if (exception)
+                {
+                  throw std::invalid_argument(std::string("Feature not integer: ")+name);
+                }
+                break;
+              }
 
               switch (p->GetRepresentation())
               {
@@ -437,6 +455,16 @@ bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *
           case GenApi::intfIFloat:
             {
               GenApi::IFloat *p=dynamic_cast<GenApi::IFloat *>(node);
+
+              if (p == nullptr)
+              {
+                if (exception)
+                {
+                  throw std::invalid_argument(std::string("Feature not float: ")+name);
+                }
+                break;
+              }
+
               p->SetValue(std::stof(std::string(value)));
             }
             break;
@@ -444,6 +472,16 @@ bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *
           case GenApi::intfIEnumeration:
             {
               GenApi::IEnumeration *p=dynamic_cast<GenApi::IEnumeration *>(node);
+
+              if (p == nullptr)
+              {
+                if (exception)
+                {
+                  throw std::invalid_argument(std::string("Feature not enumeration: ")+name);
+                }
+                break;
+              }
+
               GenApi::IEnumEntry *entry=p->GetEntryByName(value);
 
               if (entry != 0)
@@ -461,6 +499,16 @@ bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *
           case GenApi::intfIString:
             {
               GenApi::IString *p=dynamic_cast<GenApi::IString *>(node);
+
+              if (p == nullptr)
+              {
+                if (exception)
+                {
+                  throw std::invalid_argument(std::string("Feature not string: ")+name);
+                }
+                break;
+              }
+
               p->SetValue(value);
             }
             break;
@@ -830,6 +878,14 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
           case GenApi::intfIBoolean:
             {
               GenApi::IBoolean *p=dynamic_cast<GenApi::IBoolean *>(node);
+              if (p == nullptr)
+              {
+                if (exception)
+                {
+                  throw std::invalid_argument(std::string("Feature not boolean: ")+name);
+                }
+                break;
+              }
               out << p->GetValue(false, igncache);
             }
             break;
@@ -837,6 +893,14 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
           case GenApi::intfIInteger:
             {
               GenApi::IInteger *p=dynamic_cast<GenApi::IInteger *>(node);
+              if (p == nullptr)
+              {
+                if (exception)
+                {
+                  throw std::invalid_argument(std::string("Feature not integer: ")+name);
+                }
+                break;
+              }
               int64_t value=p->GetValue(false, igncache);
 
               switch (p->GetRepresentation())
@@ -870,6 +934,14 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
           case GenApi::intfIFloat:
             {
               GenApi::IFloat *p=dynamic_cast<GenApi::IFloat *>(node);
+              if (p == nullptr)
+              {
+                if (exception)
+                {
+                  throw std::invalid_argument(std::string("Feature not float: ")+name);
+                }
+                break;
+              }
               out << p->GetValue(false, igncache);
             }
             break;
@@ -877,6 +949,14 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
           case GenApi::intfIEnumeration:
             {
               GenApi::IEnumeration *p=dynamic_cast<GenApi::IEnumeration *>(node);
+              if (p == nullptr)
+              {
+                if (exception)
+                {
+                  throw std::invalid_argument(std::string("Feature not enumeration: ")+name);
+                }
+                break;
+              }
               out << p->GetCurrentEntry()->GetSymbolic();
             }
             break;
@@ -884,6 +964,14 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
           case GenApi::intfIString:
             {
               GenApi::IString *p=dynamic_cast<GenApi::IString *>(node);
+              if (p == nullptr)
+              {
+                if (exception)
+                {
+                  throw std::invalid_argument(std::string("Feature not string: ")+name);
+                }
+                break;
+              }
               out << p->GetValue(false, igncache);
             }
             break;
@@ -986,7 +1074,7 @@ std::string getComponetOfPart(const std::shared_ptr<GenApi::CNodeMapRef> &nodema
             int64_t val=part->GetValue();
             if (val == ipart)
             {
-              component=dynamic_cast<GenApi::IEnumEntry *>(list[i])->GetSymbolic();
+              component=entry->GetSymbolic();
             }
           }
         }
