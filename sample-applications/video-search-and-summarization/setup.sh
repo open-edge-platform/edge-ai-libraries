@@ -565,12 +565,19 @@ fi
 # Function to convert object detection models
 convert_object_detection_models() {
     echo -e  "Setting up Python environment for object detection model conversion..."
-    # Check if python3-venv is already installed
-    if ! dpkg-query -W -f='${Status}' python3-venv 2>/dev/null | grep -q "ok installed"; then
+    # Check if python3-venv is already available
+    if ! python3 -m venv --help > /dev/null 2>&1; then
         echo -e  "Installing python3-venv package..."
-        sudo apt install -y python3-venv
+        if command -v apt-get > /dev/null 2>&1; then
+            sudo apt-get install -y python3-venv
+        elif command -v dnf > /dev/null 2>&1; then
+            sudo dnf install -y python3
+        else
+            echo -e "${RED}ERROR: Unsupported package manager. Please install python3-venv manually.${NC}"
+            return 1
+        fi
     else
-        echo -e  "python3-venv is already installed, skipping installation"
+        echo -e  "python3-venv is already available, skipping installation"
     fi
 
     # Create and activate virtual environment for model conversion
@@ -607,8 +614,15 @@ ensure_ov_venv() {
         return 0
     fi
     echo -e "[ovms-service] ${BLUE}Creating persistent OpenVINO venv at ${OV_VENV_DIR}...${NC}" >&2
-    if ! dpkg-query -W -f='${Status}' python3-venv 2>/dev/null | grep -q "ok installed"; then
-        sudo apt install -y python3-venv || return 1
+    if ! python3 -m venv --help > /dev/null 2>&1; then
+        if command -v apt-get > /dev/null 2>&1; then
+            sudo apt-get install -y python3-venv || return 1
+        elif command -v dnf > /dev/null 2>&1; then
+            sudo dnf install -y python3 || return 1
+        else
+            echo -e "${RED}ERROR: Unsupported package manager. Please install python3-venv manually.${NC}" >&2
+            return 1
+        fi
     fi
     python3 -m venv "$OV_VENV_DIR" || return 1
     "${OV_VENV_DIR}/bin/pip" install --no-cache-dir -q openvino || return 1
@@ -858,11 +872,18 @@ export_model_for_ovms() {
         curl -fsSL https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/export_model.py -o export_model.py || exit 1
 
         echo -e "Creating Python virtual environment for model export..."
-        if ! dpkg-query -W -f='${Status}' python3-venv 2>/dev/null | grep -q "ok installed"; then
+        if ! python3 -m venv --help > /dev/null 2>&1; then
             echo -e "Installing python3-venv package..."
-            sudo apt install -y python3-venv || exit 1
+            if command -v apt-get > /dev/null 2>&1; then
+                sudo apt-get install -y python3-venv || exit 1
+            elif command -v dnf > /dev/null 2>&1; then
+                sudo dnf install -y python3 || exit 1
+            else
+                echo -e "${RED}ERROR: Unsupported package manager. Please install python3-venv manually.${NC}"
+                exit 1
+            fi
         else
-            echo -e "python3-venv is already installed, skipping installation"
+            echo -e "python3-venv is already available, skipping installation"
         fi
 
         python3 -m venv ovms_venv || exit 1
