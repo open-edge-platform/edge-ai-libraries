@@ -163,7 +163,7 @@ class VideoSummaryHwSize(HttpUser):
 
             # Poll until complete
             state_url = f"{VideoSummaryHwSize.states_url}/{summary_id}"
-            video_summary_complete, summary_response = wait_for_video_summary_complete(
+            video_summary_complete, chunking_time, summary_response = wait_for_video_summary_complete(
                 state_url
             )
             if not video_summary_complete:
@@ -176,25 +176,33 @@ class VideoSummaryHwSize(HttpUser):
             )
 
             # Collect telemetry KPIs
-            telemetry_response = self.client.get(
-                f":{self.telemetry_endpoint}", headers=_JSON_HEADERS
-            )
-            if telemetry_response.status_code == 200:
-                telemetry_kpis, VideoSummaryHwSize.telemetry_details = (
-                    get_video_summary_telemetry_kpis(
+            # telemetry_response = self.client.get(
+            #     f":{self.telemetry_endpoint}", headers=_JSON_HEADERS
+            # )
+            # if telemetry_response.status_code == 200:
+            #     telemetry_kpis, VideoSummaryHwSize.telemetry_details = (
+            #         get_video_summary_telemetry_kpis(
+            #             summary_start,
+            #             summary_end,
+            #             telemetry_response.json(),
+            #             video_properties,
+            #         )
+            #     )
+            #     VideoSummaryHwSize.metrics.append(telemetry_kpis)
+            # else:
+            #     print(
+            #         f"Failed to retrieve telemetry data. "
+            #         f"Status code: {telemetry_response.status_code}"
+            #     )
+
+            telemetry_kpis = get_video_summary_telemetry_kpis(
                         summary_start,
                         summary_end,
-                        telemetry_response.json(),
+                        chunking_time,
                         video_properties,
                     )
-                )
-                VideoSummaryHwSize.metrics.append(telemetry_kpis)
-            else:
-                print(
-                    f"Failed to retrieve telemetry data. "
-                    f"Status code: {telemetry_response.status_code}"
-                )
-
+            VideoSummaryHwSize.metrics.append(telemetry_kpis)
+            
         except Exception as exc:
             print(f"Video summarization failed: {exc}")
 
@@ -209,14 +217,9 @@ def collect_metrics(environment, **kwargs) -> None:
     """Aggregate KPIs and write reports when Locust exits."""
     print("Collecting metrics...")
 
-    if not VideoSummaryHwSize.metrics or VideoSummaryHwSize.telemetry_details is None:
-        print("No metrics collected — skipping report generation.")
-        return
-
     output_file = save_video_summary_search_telemetry_kpis(
         VideoSummaryHwSize.report_dir,
-        VideoSummaryHwSize.metrics,
-        VideoSummaryHwSize.telemetry_details,
+        VideoSummaryHwSize.metrics
     )
     convert_summary_metrics_to_wsf_format(
         VideoSummaryHwSize.report_dir,
