@@ -156,7 +156,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-with patch("langchain_community.vectorstores.vdms.VDMS_Client") as mock_vdms_client:
+with patch("langchain_vdms.vectorstores.VDMS_Client") as mock_vdms_client:
     mock_vdms_client.return_value = Mock()
     from src.vdms_retriever.retriever import (
         calculate_segment_score,

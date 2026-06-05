@@ -120,7 +120,8 @@ Before running the application, you need to set several environment variables:
       export VLM_TARGET_DEVICE="GPU"  # Options: CPU, GPU, NPU, HETERO:GPU,CPU
 
       # (OPTIONAL) For OVMS split-model summarization, set a dedicated LLM model for final summary.
-      # If this is not set, OVMS uses VLM_MODEL_NAME for both chunk captioning and final summarization.
+      # If this is not set, OVMS falls back to VLM_MODEL_NAME as the LLM model source.
+      # OVMS uses shared mode only when model source, target device, and compression format all match.
       export OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3"  # or any other supported LLM model
       export LLM_TARGET_DEVICE="CPU"  # Options: CPU, GPU, NPU, HETERO:GPU,CPU
 
@@ -313,11 +314,11 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 | Deployment Option | Chunk-Wise Summary<sup>(1)</sup> Configuration | Final Summary<sup>(2)</sup> Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
 | OVMS shared-model CPU | OVMS-hosted VLM on CPU | Same OVMS-hosted VLM on CPU | Default | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | Default CPU-only summarization flow. |
-| OVMS shared-model GPU | OVMS-hosted VLM on GPU | Same OVMS-hosted VLM on GPU | `VLM_TARGET_DEVICE=GPU` | VLM: `OpenVINO/Phi-3.5-vision-instruct-int8-ov` | Single-model OVMS deployment with GPU acceleration. |
+| OVMS shared-model GPU | OVMS-hosted VLM on GPU | Same OVMS-hosted VLM on GPU | `VLM_TARGET_DEVICE=GPU` with `LLM_TARGET_DEVICE=GPU` | VLM: `OpenVINO/Phi-3.5-vision-instruct-int8-ov` | Single-model OVMS deployment with GPU acceleration. |
 | OVMS split-model CPU/CPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on CPU | `OVMS_LLM_MODEL_NAME=<llm-model>` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | One OVMS instance hosts separate VLM and LLM models on CPU. |
-| OVMS split-model GPU/CPU | OVMS-hosted VLM on GPU | OVMS-hosted LLM on CPU | `VLM_TARGET_DEVICE=GPU` with `OVMS_LLM_MODEL_NAME=<llm-model>` | VLM: `OpenVINO/Phi-3.5-vision-instruct-int8-ov`<br>LLM: `Intel/neural-chat-7b-v3-3` | Use GPU for captioning while keeping final summary on CPU. |
-| OVMS split-model CPU/GPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on GPU | `LLM_TARGET_DEVICE=GPU` with `OVMS_LLM_MODEL_NAME=<llm-model>` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | Use GPU for the final-summary LLM while keeping captioning on CPU. |
-| OVMS split-model CPU/NPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on NPU | `LLM_TARGET_DEVICE=NPU` with `OVMS_LLM_MODEL_NAME=<llm-model>` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `OpenVINO/Qwen3-8B-int4-cw-ov` | Use NPU for the final-summary LLM while keeping captioning on CPU. |
+| OVMS split-model GPU/CPU | OVMS-hosted VLM on GPU | OVMS-hosted LLM on CPU | `VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct` + `VLM_TARGET_DEVICE=GPU` + `LLM_TARGET_DEVICE=CPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Qwen/Qwen2.5-VL-3B-Instruct` (or dedicated `OVMS_LLM_MODEL_NAME`) | Use GPU for captioning while keeping final summary on CPU; also supports same-source split by device/weight. |
+| OVMS split-model CPU/GPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on GPU | `VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct` + `LLM_TARGET_DEVICE=GPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Qwen/Qwen2.5-VL-3B-Instruct` (or dedicated `OVMS_LLM_MODEL_NAME`) | Use GPU for final summary while keeping captioning on CPU; also supports same-source split by device/weight. |
+| OVMS split-model CPU/NPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on NPU | `LLM_TARGET_DEVICE=NPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>` for a dedicated LLM) | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `OpenVINO/Qwen3-8B-int4-cw-ov` | Use NPU for the final-summary LLM while keeping captioning on CPU. |
 | vLLM-only CPU | vLLM-hosted VLM on CPU | Same vLLM-hosted VLM on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | All-vLLM mode for CPU-only deployments. |
 
 > **Note:**
@@ -327,6 +328,8 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 > 3) Mixed OVMS+vLLM deployments are not supported in the compose setup. Choose either OVMS-only or vLLM-only for summarization.
 > 4) `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution.
 > 5) **NPU Support:** Not all models support NPU execution. Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
+> 6) OVMS mode selection is based on effective VLM/LLM settings: if model source, target device, and compression format are all identical, setup uses shared mode; otherwise it uses split mode.
+> 7) For same-source split examples (same model name on different devices/formats), prefer non-`OpenVINO/` source models (for example, `Qwen/Qwen2.5-VL-3B-Instruct`). `OpenVINO/` namespace models are pre-converted and use model-intrinsic/fixed weight formats.
 
 ## Using Edge Microvisor Toolkit
 
@@ -428,7 +431,8 @@ Follow these steps to run the application:
    - **To run Video Summarization with OVMS using a dedicated LLM for final summary:**
 
       ```bash
-      # Note: If OVMS_LLM_MODEL_NAME variable is not set, captioning and final summary both are done by a VLM.
+      # Note: If OVMS_LLM_MODEL_NAME is not set, setup falls back to VLM_MODEL_NAME for final summary model source.
+      # Shared vs split mode is then decided from effective model/device/compression equality.
 
       # For Summary mode
       OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3" source setup.sh --summary
@@ -493,10 +497,10 @@ Follow these steps to run the application:
    ```bash
    # for Summary mode
    VLM_TARGET_DEVICE=GPU source setup.sh --summary
-
+   
    # for Dual UI mode
    VLM_TARGET_DEVICE=GPU source setup.sh --summary --search
-
+   
    # for Unified UI mode
    VLM_TARGET_DEVICE=GPU source setup.sh --summary-and-search
    ```
