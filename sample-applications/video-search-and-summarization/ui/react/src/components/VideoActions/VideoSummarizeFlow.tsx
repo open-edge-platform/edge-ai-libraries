@@ -390,9 +390,9 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     const title = summaryName || (selectedFile ? selectedFile.name.replace(/\.mp4$/i, '') : '');
 
     const fallbackEvamPipeline =
-      (selectorRef?.current?.value as EVAMPipelines | undefined) ??
-      systemConfig?.meta?.evamPipelines?.[0]?.value ??
+      (selectedEvamPipeline as EVAMPipelines | undefined) ??
       systemConfig?.evamPipeline ??
+      systemConfig?.meta?.evamPipelines?.[0]?.value ??
       EVAMPipelines.OBJECT_DETECTION;
 
     const pipelineData: SummaryPipelineDTO = {
@@ -681,6 +681,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
   const [useAudioSummary, setUseAudioSummary] = useState(false);
   const [produceFinalSummary, setProduceFinalSummary] = useState(true);
   const [systemConfig, setSystemConfig] = useState<SystemConfigWithMeta>();
+  const [selectedEvamPipeline, setSelectedEvamPipeline] = useState<EVAMPipelines | undefined>();
 
   // Prompt State
   const [framePrompt, setFramePrompt] = useState('');
@@ -698,7 +699,6 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoLabelRef = useRef<HTMLInputElement>(null);
-  const selectorRef = useRef<HTMLSelectElement>(null);
   const videoPreviewUrlRef = useRef<string | null>(null);
   const safeVideoPreviewUrl = useMemo(
     () => getSafePreviewVideoUrl(videoPreviewUrl, ASSETS_ENDPOINT),
@@ -768,6 +768,11 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
         setSelectedAudioModel(res.data.meta?.defaultAudioModel ?? '');
         setUseAudioSummary(res.data.audioUseFullTranscriptSummary ?? false);
         setProduceFinalSummary(res.data.produceFinalSummary ?? true);
+        setSelectedEvamPipeline(
+          (res.data.evamPipeline ??
+            res.data.meta?.evamPipelines?.[0]?.value ??
+            EVAMPipelines.OBJECT_DETECTION) as EVAMPipelines
+        );
       }
     } catch (error) {
       console.error('Failed to load system config:', error);
@@ -1232,7 +1237,10 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                           <Select 
                             id='evam-pipeline-select' 
                             labelText={createLabelWithTooltip(t('Chunking Pipeline'), t('ChunkingPipelineInfo'))} 
-                            ref={selectorRef}
+                            value={selectedEvamPipeline}
+                            onChange={(event: React.ChangeEvent<HTMLSelectElement>) => {
+                              setSelectedEvamPipeline(event.target.value as EVAMPipelines);
+                            }}
                           >
                             {systemConfig.meta.evamPipelines.map((option: { name: string; value: string }) => (
                               <SelectItem key={option.value} text={option.name} value={option.value} />
@@ -1392,7 +1400,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                         <div style={{ marginTop: '1rem', fontWeight: 600 }}>{t('IngestionSettings')}</div>
                         <div><strong>{t('FramesOverlap')}:</strong> {frameOverlap}</div>
                         <div><strong>{t('MultiFrame')}:</strong> {calculatedMultiFrame}</div>
-                        <div><strong>{t('Chunking Pipeline')}:</strong> {selectorRef?.current?.value ?? ''}</div>
+                        <div><strong>{t('Chunking Pipeline')}:</strong> {selectedEvamPipeline ?? ''}</div>
                         {systemConfig.meta.defaultAudioModel && (
                           <>
                             <div style={{ marginTop: '1rem', fontWeight: 600 }}>{t('AudioSettings')}</div>
