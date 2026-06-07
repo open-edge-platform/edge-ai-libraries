@@ -27,7 +27,7 @@ models:
     no_speech_threshold: 0.3
     logprob_threshold: -0.3
     min_duration_sec: 0.5
-    min_words: 3
+    min_words: 2
 
     # openai-whisper transcribe() native param: skip generation over silent
     # regions longer than this many seconds.  Directly targets the
