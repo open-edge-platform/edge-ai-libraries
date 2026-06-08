@@ -23,12 +23,6 @@ USER root
 # Set environment variable to non-interactive mode (avoids some prompts)
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install necessary dependencies
-RUN apt-get update && \
-    apt-get install --yes --no-install-recommends gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
 # Set GStreamer plugin path
 ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/
 
