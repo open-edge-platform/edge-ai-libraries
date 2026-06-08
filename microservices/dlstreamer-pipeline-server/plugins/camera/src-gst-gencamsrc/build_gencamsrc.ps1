@@ -297,7 +297,8 @@ cmake `
     -DCMAKE_BUILD_TYPE="$BuildType" `
     -DGSTREAMER_ROOT="$GSTREAMER_ROOT" `
     -DGENICAM_ROOT="$GENICAM_ROOT" `
-    -DGENICAM_VC_VERSION="$VcVersion"
+    -DGENICAM_VC_VERSION="$VcVersion" `
+    -DPKG_CONFIG_EXECUTABLE="$GSTREAMER_ROOT\bin\pkg-config.exe"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "CMake configure failed (exit code $LASTEXITCODE)"
