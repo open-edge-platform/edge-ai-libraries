@@ -232,8 +232,6 @@ Write-Host "GStreamer root   : $GSTREAMER_ROOT"
 
 # Point pkg-config at GStreamer's own .pc files
 $env:PKG_CONFIG_PATH = "$GSTREAMER_ROOT\lib\pkgconfig"
-# Also add GStreamer's pkg-config.exe to PATH if not already there
-$env:PATH = "$GSTREAMER_ROOT\bin;$env:PATH"
 Write-Host "PKG_CONFIG_PATH  : $env:PKG_CONFIG_PATH"
 
 # ============================================================================
@@ -271,6 +269,10 @@ if (Test-Path $VSDEVSHELL) {
     Write-Error "VS Dev Shell script not found at $VSDEVSHELL"
     exit 1
 }
+
+# Re-add GStreamer bin after VS Dev Shell launch - Launch-VsDevShell.ps1
+# resets PATH to VS defaults, which drops anything added before it ran.
+$env:PATH = "$GSTREAMER_ROOT\bin;$env:PATH"
 
 # ============================================================================
 # CMake configure + build
