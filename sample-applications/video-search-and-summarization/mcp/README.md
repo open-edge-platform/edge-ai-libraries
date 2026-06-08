@@ -10,8 +10,8 @@ This is the **MCP (Model Context Protocol) server** for the [Video Search and Su
 
 ```
 mcp/                             ← cd here before running any commands
-├── pyproject.toml               # Project metadata and dependencies (uv-managed)
-├── uv.lock                      # Locked dependency tree
+├── pyproject.toml               # Project metadata and dependencies (poetry-managed)
+├── poetry.lock                  # Locked dependency tree
 ├── Dockerfile
 ├── search.json                  # Filter: search-only endpoints
 │
@@ -147,14 +147,14 @@ No code changes are needed.
 
 ### Prerequisites
 
-Ensure you have `uv` installed. If not, install it from [https://github.com/astral-sh/uv](https://github.com/astral-sh/uv).
+Ensure you have `poetry` installed. If not, install it from [https://python-poetry.org/docs/#installation](https://python-poetry.org/docs/#installation).
 
 ### Run All Tests
 
 From the `mcp/` directory:
 
 ```bash
-uv run python -m unittest discover tests -v
+poetry run python -m unittest discover tests -v
 ```
 
 This discovers and runs all test files in the `tests/` directory with verbose output.

@@ -33,4 +33,4 @@ GPU enabled:   {{ .Values.hardware.gpu.enabled }}
      --set config.hostnameOverride=my-stable-host
 
 For the full reference, see:
-  https://github.com/open-edge-platform/edge-ai-libraries/tree/main/metrics-manager/docs/HELM.md
+  https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/metrics-manager/docs/user-guide/get-started/deploy-with-helm.md

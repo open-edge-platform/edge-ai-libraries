@@ -194,9 +194,9 @@ services:
       no_proxy: ${no_proxy}
     restart: on-failure:5
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/health', timeout=8)"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 3
       start_period: 15s
   mediamtx:

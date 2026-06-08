@@ -1325,7 +1325,7 @@
           "models"
         ],
         "summary": "Start one or more model download jobs",
-        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in `supported_models.yaml`; OMZ models are downloaded\nlocally by vippet-app because model-download has no OMZ plugin yet.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | Some accepted, some rejected (mixed `status_code` values) |\n| 400  | All requested models share the same client error (e.g. no `download_request`) |\n| 404  | All requested models are unknown |\n| 409  | All requested models are already installed or in progress |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |",
+        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in `supported_models.yaml`; OMZ models are downloaded\nlocally by vippet-app because model-download has no OMZ plugin yet.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
         "operationId": "start_model_download",
         "requestBody": {
           "content": {
@@ -1367,7 +1367,7 @@
             }
           },
           "400": {
-            "description": "All requested models were rejected with the same client error (e.g. missing `download_request`).",
+            "description": "All requested models were rejected and at least one was a `400` (missing `download_request`). Takes precedence over `404`/`409` in the envelope status.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1377,7 +1377,7 @@
             }
           },
           "404": {
-            "description": "All requested models are unknown (not present in `supported_models.yaml`).",
+            "description": "All requested models were rejected with `404` only (unknown / not in `supported_models.yaml`). Takes precedence over `409` in the envelope status.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1387,7 +1387,7 @@
             }
           },
           "409": {
-            "description": "All requested models are already installed or have a download job already running.",
+            "description": "All requested models were rejected with `409` only (already installed or a download job already running).",
             "content": {
               "application/json": {
                 "schema": {

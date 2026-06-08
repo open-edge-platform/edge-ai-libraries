@@ -23,7 +23,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
 - Sufficient disk space for model storage.
 - See [System Requirements](./get-started/system-requirements.md)
 
-## Quick Start with Setup Script
+## Start with Setup Script
 
 ### 1. Clone the repository
 
@@ -441,7 +441,6 @@ Volumes:
   docker logs <container-id>
   ```
 
-
 ## Run Unit Tests
 
 To validate changes locally before deploying:
@@ -481,6 +480,7 @@ See [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md) for detail
 
 For alternative ways to set up the sample application, see:
 
+- [Quick start](./get-started/quickstart.md)
 - [How to Build from Source](./get-started/build-from-source.md)
 
 <!--hide_directive
@@ -489,6 +489,7 @@ For alternative ways to set up the sample application, see:
 
 Migrate from Model Registry <./get-started/migration.md>
 ./get-started/system-requirements
+Ephemeral Container <./get-started/quickstart.md>
 ./get-started/build-from-source
 ./get-started/deploy-with-helm-chart
 
