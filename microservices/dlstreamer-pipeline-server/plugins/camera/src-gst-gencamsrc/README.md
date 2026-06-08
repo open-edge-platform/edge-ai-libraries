@@ -120,19 +120,6 @@ The GStreamer installation is located automatically via the Windows registry, th
 
 The built DLL will be at `build\bin\Release\gstgencamsrc.dll`.
 
-#### Install
-
-Copy the plugin DLL to the DLStreamer `bin` directory (uses `$dlsRoot` declared in Prerequisites above):
-
-```powershell
-Copy-Item "build\bin\Release\gstgencamsrc.dll" "$dlsRoot\bin\gstgencamsrc.dll" -Force
-```
-
-Verify the installation (see [Windows Runtime Setup](#windows-runtime-setup) first for required environment variables):
-
-```powershell
-gst-inspect-1.0 gencamsrc
-```
 
 ### Windows Runtime Setup
 
@@ -149,7 +136,7 @@ $gstRoot = "C:\Program Files\gstreamer\1.0\msvc_x86_64"
 $dls = "$dlsRoot\bin"
 
 $env:PATH = "$genicamRuntime;$gstRoot\bin;$dls;" + $env:PATH
-$env:GST_PLUGIN_PATH = $dls
+$env:GST_PLUGIN_PATH = "$dls;C:\p\gencamsrc\build\bin\Release"
 
 # Set to the GenTL producer path for your camera vendor, for example:
 #   Basler pylon:           C:\Program Files\Basler\pylon\Runtime\x64
