@@ -1,11 +1,4 @@
-.. |gsgs_legal| image:: images/icons/End_User_Licence_Agreements.png
-   :width: 70
-   :align: bottom
-
-
-Notices and Disclaimers |gsgs_legal|
-====================================
-
+# Notices and Disclaimers
 
 You may not use or facilitate the use of this document in connection
 with any infringement or other legal analysis concerning Intel products
@@ -36,7 +29,7 @@ Your costs and results may vary.
 
 Code names are used by Intel to identify products, technologies, or services that are in development and not publicly available. These are not "commercial" names and not intended to function as trademarks.
 
-Performance varies by use, configuration and other factors. Learn more at www.Intel.com/PerformanceIndex.
+Performance varies by use, configuration and other factors. Learn more at [www.Intel.com/PerformanceIndex](https://www.Intel.com/PerformanceIndex).
 
 © Intel Corporation. Intel, the Intel logo, and other Intel marks are trademarks of Intel Corporation or its subsidiaries. Other names and brands may be claimed as the property of others.
 
