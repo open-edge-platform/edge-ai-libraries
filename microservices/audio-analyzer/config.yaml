@@ -6,10 +6,10 @@ app:
 
 models:
   asr:
-    provider: whispercpp # openai | openvino | whispercpp
+    provider: openai # openai | openvino | whispercpp
     name: whisper-base  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
     device: CPU # CPU recommended; CPU only for whispercpp, CPU or GPU for openvino provider
-    weight_format: q5 # OpenVINO: int8 | fp16 | null. whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
+    weight_format: null # OpenVINO: int8 | fp16 | null. whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
     temperature: 0.0
     diarization: False
     hf_token: None   # needed only if diarization=true
@@ -24,24 +24,25 @@ models:
     # Higher logprob_threshold  → stricter: drops low-confidence transcriptions.
     # Higher min_duration_sec / min_words → harder for noise bursts to earn the
     #   "definitely speech, keep" safety net in _is_silent_segment().
-    no_speech_threshold: 0.35
-    logprob_threshold: -0.5
+    no_speech_threshold: 0.3
+    logprob_threshold: -0.3
     min_duration_sec: 0.5
-    min_words: 3
+    min_words: 2
 
     # openai-whisper transcribe() native param: skip generation over silent
     # regions longer than this many seconds.  Directly targets the
     # noise-transcribed-as-text problem.  null = disabled.
-    hallucination_silence_threshold: 2.0
+    hallucination_silence_threshold: 1.0
 
     # Post-processing repetition filter (all providers).
     # 1.0 = disabled. Any value > 1.0 enables consecutive repeated-phrase
     # removal (word n-gram dedup, window 1-8) and duplicate-segment stripping.
     # Note: openai-whisper's DecodingOptions has no repetition_penalty field;
     # this is applied after transcription, not inside the decoder.
-    repetition_penalty: 1.5
+    repetition_penalty: 1.8
 
-    # whisper.cpp specific — only used when provider: whispercpp
+    # Decoder controls — beam_size/best_of apply to openai and whispercpp.
+    # word_timestamps and threads are whisper.cpp specific.
     beam_size: 1
     best_of: 1
     word_timestamps: false
