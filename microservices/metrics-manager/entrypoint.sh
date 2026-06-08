@@ -31,4 +31,4 @@ echo "       - Telegraf Prometheus port: ${TELEGRAF_PORT:-9273}"
 echo "       - Custom metrics directory: ${CUSTOM_METRICS_DIR:-/app/custom-metrics}"
 
 # Start supervisor to manage all processes
-exec /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
+exec supervisord -c /etc/supervisor/supervisord.conf

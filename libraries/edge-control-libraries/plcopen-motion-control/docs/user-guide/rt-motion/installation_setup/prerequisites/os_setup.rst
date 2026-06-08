@@ -1,7 +1,7 @@
 OS Setup
 ========
 
-To leverage all |top_name| features, the target system should meet the :doc:`recommended system requirements <./system_requirement>`. Also, The target system must have a compatible OS (`Ubuntu 22.04 Desktop`) so that you can install Deb packages from SDK. This section explains the procedure to install a compatible OS on the target system.
+To leverage all PLCopen Motion Control features, the target system should meet the :doc:`recommended system requirements <./system_requirement>`. Also, The target system must have a compatible OS (`Ubuntu 22.04 Desktop`) so that you can install Deb packages from SDK. This section explains the procedure to install a compatible OS on the target system.
 
 Do the following to prepare the target system:
 
@@ -9,9 +9,9 @@ Do the following to prepare the target system:
 
    .. attention::
 
-      Please review `Canoncial Intellectual property rights policy <https://ubuntu.com/legal/intellectual-property-policy>`_ regarding |Ubuntu|. Note that any redistribution of modified versions of |Ubuntu| must be approved, certified or provided by Canonical if you are going to associate it with the Trademarks. Otherwise you must remove and replace the Trademarks and will need to recompile the source code to create your own binaries.
+      Please review `Canoncial Intellectual property rights policy <https://ubuntu.com/legal/intellectual-property-policy>`_ regarding Canonical® Ubuntu®. Note that any redistribution of modified versions of Canonical® Ubuntu® must be approved, certified or provided by Canonical if you are going to associate it with the Trademarks. Otherwise you must remove and replace the Trademarks and will need to recompile the source code to create your own binaries.
 
-#. To achieve real-time determinism and utilize the available |Intel| silicon features, you need to configure certain BIOS settings. Reboot the target system and access the BIOS(press the :kbd:`delete` or :kbd:`F2` keys while booting to open the BIOS menu).
+#. To achieve real-time determinism and utilize the available Intel® silicon features, you need to configure certain BIOS settings. Reboot the target system and access the BIOS(press the :kbd:`delete` or :kbd:`F2` keys while booting to open the BIOS menu).
 
 #. Select **Restore Defaults** or **Load Defaults**, and then select **Save Changes and Reset**. As the target system boots, access the BIOS again.
 

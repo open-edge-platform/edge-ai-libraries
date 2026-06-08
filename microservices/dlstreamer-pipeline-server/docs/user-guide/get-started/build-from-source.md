@@ -16,7 +16,7 @@ OpenVINO Model API and ROS2 on top of the optimized image.
 1. Clone the Edge-AI-Libraries repository from open edge platform and change to the docker directory inside DL Streamer Pipeline Server project.
 
     ```sh
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
     cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/
     ```
 
