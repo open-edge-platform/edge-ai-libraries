@@ -1,6 +1,6 @@
 # RTmotion Concept and Application Interface
 
-The PLCopen motion standard provides a way to have standard and modular application libraries that are reusable for multiple industrial automation scenarios, such as PLC motion control, CNC and robotics. For more detailed information of the PLCopen motion specifications, please refer to the [Motion Control Standards](https://www.plcopen.org/standards/motion-control/).
+The PLCopen motion standard provides a way to have standard and modular application libraries that are reusable for multiple industrial automation scenarios, such as PLC motion control, CNC, and robotics. For more detailed information of the PLCopen motion specifications, please refer to the [Motion Control Standards](https://www.plcopen.org/standards/motion-control/).
 
 ## 1. RTmotion Overview
 
