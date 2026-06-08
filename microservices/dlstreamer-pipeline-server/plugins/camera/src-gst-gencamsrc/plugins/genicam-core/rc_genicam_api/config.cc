@@ -367,6 +367,7 @@ bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *
             {
               GenApi::IBoolean *p=dynamic_cast<GenApi::IBoolean *>(node);
 
+              // Coverity CID 6466663: guard against null dynamic_cast result (CWE-476)
               if (p == nullptr)
               {
                 if (exception)
@@ -878,6 +879,7 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
           case GenApi::intfIBoolean:
             {
               GenApi::IBoolean *p=dynamic_cast<GenApi::IBoolean *>(node);
+              // Coverity CID 6466669: guard against null dynamic_cast result (CWE-476)
               if (p == nullptr)
               {
                 if (exception)
@@ -1074,6 +1076,8 @@ std::string getComponetOfPart(const std::shared_ptr<GenApi::CNodeMapRef> &nodema
             int64_t val=part->GetValue();
             if (val == ipart)
             {
+              // Coverity CID 6466666: use already-checked entry pointer instead of
+              // a second unchecked dynamic_cast<IEnumEntry*>(list[i]) (CWE-476)
               component=entry->GetSymbolic();
             }
           }
