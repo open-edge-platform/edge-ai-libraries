@@ -185,7 +185,8 @@ export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 echo -e "${GREEN}Using registry: ${YELLOW}$REGISTRY ${NC}"
 
 export VLM_MODEL_NAME=${VLM_MODEL_NAME}
-export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-int8}
+# Keep user override from environment if provided; device-based default is set later.
+export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-}
 export VLM_TARGET_DEVICE=${VLM_TARGET_DEVICE:-CPU}
 export USE_VLLM=${USE_VLLM:-CONFIG_OFF}
 export ENABLE_VLLM=${ENABLE_VLLM:-false}
@@ -227,7 +228,8 @@ export PM_MINIO_BUCKET=video-summary
 # env for ovms-service
 export LLM_TARGET_DEVICE=${LLM_TARGET_DEVICE:-CPU}
 export LLM_MODEL_NAME=${LLM_MODEL_NAME:-${OVMS_LLM_MODEL_NAME}}
-export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-int8}
+# Keep user override from environment if provided; device-based default is set later.
+export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-}
 export OVMS_HTTP_HOST_PORT=8300
 export OVMS_GRPC_HOST_PORT=9300
 export OVMS_HOST=ovms-service
@@ -338,7 +340,7 @@ configure_device() {
     local device=${1:-"CPU"}
 
     echo -e "${BLUE}Configuring device for all processing components: ${YELLOW}${device}${NC}"
-    echo -e "${BLUE}   This affects: embedding model, and object detection${NC}"
+    echo -e "${BLUE}  This affects: embedding model, and object detection${NC}"
 
     if [[ "${device}" == GPU* ]]; then
         echo -e "${YELLOW}⚙️  Setting up GPU configuration...${NC}"
@@ -362,12 +364,12 @@ configure_device() {
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
         
         echo -e "${GREEN}GPU mode configured for all components:${NC}"
-        echo -e "   • OpenVINO: ${YELLOW}enabled${NC} (required for GPU)"
-        echo -e "   • Processing Device: ${YELLOW}GPU${NC} (decord, embedding, detection)"
-        echo -e "   • Video decoding: ${YELLOW}GPU-accelerated${NC}"
+        echo -e "  • OpenVINO: ${YELLOW}enabled${NC} (required for GPU)"
+        echo -e "  • Processing Device: ${YELLOW}GPU${NC} (decord, embedding, detection)"
+        echo -e "  • Video decoding: ${YELLOW}GPU-accelerated${NC}"
         
     else
-        echo -e "${BLUE} CPU mode configured for all components${NC}"
+        echo -e "${BLUE}CPU mode configured for all components${NC}"
         export VDMS_DATAPREP_DEVICE="${device}"
     fi
 }
@@ -405,12 +407,12 @@ if [ $1 != "--summary" ]; then
     fi
 
     echo -e "[vdms-dataprep] ${BLUE}Runtime Summary:${NC}"
-    echo -e "   • [vdms-dataprep] Processing Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${processing_scope})."
+    echo -e "  • [vdms-dataprep] Processing Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${processing_scope})."
     if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
-        echo -e "   • [multimodal-embedding-serving] Embedding Service Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (HTTP mode container)."
+        echo -e "  • [multimodal-embedding-serving] Embedding Service Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (HTTP mode container)."
     fi
-    echo -e "   • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC} — ${embedding_mode_details}"
-    echo -e "   • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
+    echo -e "  • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC} — ${embedding_mode_details}"
+    echo -e "  • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
 fi
 
 # Frame-to-Video Aggregation Settings for search-ms
@@ -1156,7 +1158,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
         else
             echo -e "[ovms-service] ${BLUE}Using OVMS for both chunk captioning and final summary${NC}"
             export USE_VLLM=CONFIG_OFF
-            export LLM_MODEL_NAME=${configured_ovms_llm_model}
+            export LLM_MODEL_NAME=${configured_ovms_llm_model:-${VLM_MODEL_NAME}}
             export LLM_SUMMARIZATION_API=http://$OVMS_HOST/v3
             export VLM_ENDPOINT=http://$OVMS_HOST/v3
             export VLM_HOST=${OVMS_HOST}
@@ -1187,9 +1189,15 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             fi
 
             ovms_split_model=false
-            if [ -n "$LLM_MODEL_NAME" ] && [ "$LLM_MODEL_NAME" != "$VLM_MODEL_NAME" ]; then
+            # Use split-model mode whenever VLM and LLM effective settings differ:
+            # model source, target device, or compression format.
+            if [ -n "$LLM_MODEL_NAME" ] && {
+                [ "$LLM_MODEL_NAME" != "$VLM_MODEL_NAME" ] || \
+                [ "$LLM_TARGET_DEVICE" != "$VLM_TARGET_DEVICE" ] || \
+                [ "$LLM_COMPRESSION_WEIGHT_FORMAT" != "$VLM_COMPRESSION_WEIGHT_FORMAT" ];
+            }; then
                 ovms_split_model=true
-                echo -e "[ovms-service] ${BLUE}Using split-model OVMS mode: VLM=${VLM_MODEL_NAME}, LLM=${LLM_MODEL_NAME}${NC}"
+                echo -e "[ovms-service] ${BLUE}Using split-model OVMS mode: VLM=${VLM_MODEL_NAME} (${VLM_TARGET_DEVICE}, ${VLM_COMPRESSION_WEIGHT_FORMAT}), LLM=${LLM_MODEL_NAME} (${LLM_TARGET_DEVICE}, ${LLM_COMPRESSION_WEIGHT_FORMAT})${NC}"
             else
                 echo -e "[ovms-service] ${BLUE}Using shared single-model OVMS mode with VLM=${VLM_MODEL_NAME}${NC}"
             fi

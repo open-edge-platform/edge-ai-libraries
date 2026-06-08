@@ -195,6 +195,20 @@ export const getSafePreviewVideoUrl = (
     return null;
   }
 
+  // Support root-relative asset URLs (for example, UI_ASSETS_ENDPOINT="/datastore").
+  // Keep strict prefix validation above and reject protocol-style or malformed paths.
+  const isRelativeAssetsEndpoint =
+    normalizedAssetsEndpoint.startsWith('/') &&
+    !normalizedAssetsEndpoint.startsWith('//') &&
+    !normalizedAssetsEndpoint.includes('://');
+
+  if (isRelativeAssetsEndpoint) {
+    if (!url.startsWith('/') || url.startsWith('//') || url.includes('://') || url.includes('\\')) {
+      return null;
+    }
+    return url;
+  }
+
   try {
     const parsedUrl = new URL(url);
     if (!['http:', 'https:'].includes(parsedUrl.protocol)) {

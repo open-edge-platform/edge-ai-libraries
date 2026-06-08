@@ -4,20 +4,22 @@
 {{- $ovmsVlmUsesGpu := contains "GPU" $ovmsVlmDevice -}}
 {{- $ovmsVlmUsesAccelerator := or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice) -}}
 {{- $useVllm := .Values.vllm.enabled -}}
+{{- $ovmsChartEnv := .Values.ovms.env -}}
+{{- $ovmsParentEnv := .Values.env -}}
 {{- /* Weight format: use explicit value or auto-detect based on device */ -}}
-{{- $ovmsVlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice))) .Values.ovms.env.VLM_WEIGHT_FORMAT -}}
-{{- $ovmsLlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsLlmDevice))) .Values.ovms.env.LLM_WEIGHT_FORMAT -}}
+{{- $ovmsVlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice))) (default $ovmsChartEnv.VLM_WEIGHT_FORMAT $ovmsParentEnv.VLM_WEIGHT_FORMAT) -}}
+{{- $ovmsLlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsLlmDevice))) (default $ovmsChartEnv.LLM_WEIGHT_FORMAT $ovmsParentEnv.LLM_WEIGHT_FORMAT) -}}
 {{- /* Generate storage model names for OVMS */ -}}
 {{- $vlmSanitized := .Values.global.vlmName | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
 {{- $vlmIsOpenvino := hasPrefix "OpenVINO/" .Values.global.vlmName -}}
 {{- $vlmStorageName := ternary (printf "%s_%s" $vlmSanitized $ovmsVlmDevice) (printf "%s_%s_%s" $vlmSanitized $ovmsVlmDevice $ovmsVlmWeightFormat) $vlmIsOpenvino -}}
-{{- $llmSanitized := .Values.global.llmName | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
-{{- $llmIsOpenvino := hasPrefix "OpenVINO/" .Values.global.llmName -}}
-{{- $llmStorageName := "" -}}
-{{- if and .Values.global.llmName (ne .Values.global.llmName .Values.global.vlmName) -}}
+{{- $effectiveOvmLlmModel := default .Values.global.vlmName .Values.global.llmName -}}
+{{- $llmSanitized := $effectiveOvmLlmModel | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
+{{- $llmIsOpenvino := hasPrefix "OpenVINO/" $effectiveOvmLlmModel -}}
+{{- $ovmsSplitModel := or (ne $effectiveOvmLlmModel .Values.global.vlmName) (ne $ovmsLlmDevice $ovmsVlmDevice) (ne $ovmsLlmWeightFormat $ovmsVlmWeightFormat) -}}
+{{- $llmStorageName := $vlmStorageName -}}
+{{- if $ovmsSplitModel -}}
 {{- $llmStorageName = ternary (printf "%s_%s" $llmSanitized $ovmsLlmDevice) (printf "%s_%s_%s" $llmSanitized $ovmsLlmDevice $ovmsLlmWeightFormat) $llmIsOpenvino -}}
-{{- else -}}
-{{- $llmStorageName = $vlmStorageName -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -38,7 +40,7 @@ spec:
       initContainers:
         {{- if .Values.videosearch.enabled }}
         - name: wait-for-videosearch
-          image: curlimages/curl:8.20.0
+          image: curlimages/curl:latest
           command:
             - sh
             - -c
@@ -52,7 +54,7 @@ spec:
         {{- end }}
         {{- if .Values.ovms.enabled }}
         - name: wait-for-ovms
-          image: curlimages/curl:8.20.0
+          image: curlimages/curl:latest
           command:
             - sh
             - -c
@@ -73,7 +75,7 @@ spec:
         {{- end }}
         {{- if .Values.vllm.enabled }}
         - name: wait-for-vllm
-          image: curlimages/curl:8.20.0
+          image: curlimages/curl:latest
           command:
             - sh
             - -c

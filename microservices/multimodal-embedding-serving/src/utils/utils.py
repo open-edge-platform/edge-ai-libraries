@@ -38,6 +38,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import transformers
 from .common import ErrorMessages, logger, settings
+from .path_security import build_safe_temp_path
 
 # Only include proxies if they are defined
 proxies = {}
@@ -230,23 +231,21 @@ def validate_remote_media_url(url: str) -> str:
 def resolve_safe_local_path(file_path: str, allowed_root: Path = _VIDEO_TMP_DIR) -> str:
     """Resolve and validate a local path under an allowed root."""
     resolved_root = allowed_root.expanduser().resolve()
-    candidate_path = Path(file_path).expanduser()
-    if not candidate_path.is_absolute():
-        candidate_path = resolved_root / candidate_path
-    resolved_path = candidate_path.resolve(strict=False)
-    try:
-        resolved_path.relative_to(resolved_root)
-    except ValueError as exc:
+    if not isinstance(file_path, str) or not file_path.strip():
+        raise ValueError("file_path must be a non-empty string")
+    if "\x00" in file_path:
+        raise ValueError("Null bytes are not allowed in file paths")
+
+    expanded_input = os.path.expanduser(file_path.strip())
+    if os.path.isabs(expanded_input):
+        resolved_path = os.path.realpath(expanded_input)
+    else:
+        resolved_path = os.path.realpath(os.path.join(str(resolved_root), expanded_input))
+
+    resolved_root_str = str(resolved_root)
+    if os.path.commonpath([resolved_path, resolved_root_str]) != resolved_root_str:
         raise ValueError(f"Path outside allowed directory: {resolved_path}")
-    return str(resolved_path)
-
-
-def build_safe_temp_path(file_name: str, allowed_root: Path = _VIDEO_TMP_DIR) -> str:
-    """Build an internal temp path under the allowed root."""
-    resolved_root = allowed_root.expanduser().resolve()
-    candidate_path = (resolved_root / Path(file_name).name).resolve(strict=False)
-    candidate_path.relative_to(resolved_root)
-    return str(candidate_path)
+    return resolved_path
 
 
 def _get_remote_media_client_kwargs(url: str) -> tuple[str, dict]:

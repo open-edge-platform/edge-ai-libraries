@@ -90,10 +90,14 @@ def sanitize_for_log(value: Any, max_length: int = 512) -> str:
     if value is None:
         return "None"
 
-    text = value if isinstance(value, str) else repr(value)
-    text = text.replace("\r", "\\r").replace("\n", "\\n")
+    raw_text: str = value if isinstance(value, str) else repr(value)
     text = "".join(
-        char if char.isprintable() else f"\\x{ord(char):02x}" for char in text
+        (
+            "\\r"
+            if char == "\r"
+            else "\\n" if char == "\n" else char if char.isprintable() else f"\\x{ord(char):02x}"
+        )
+        for char in raw_text
     )
 
     if len(text) > max_length:
