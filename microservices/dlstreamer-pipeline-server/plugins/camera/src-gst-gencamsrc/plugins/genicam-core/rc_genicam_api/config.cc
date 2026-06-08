@@ -397,6 +397,7 @@ bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *
             {
               GenApi::IInteger *p=dynamic_cast<GenApi::IInteger *>(node);
 
+              // Coverity CID 6466663: guard against null dynamic_cast result (CWE-476)
               if (p == nullptr)
               {
                 if (exception)
@@ -457,6 +458,7 @@ bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *
             {
               GenApi::IFloat *p=dynamic_cast<GenApi::IFloat *>(node);
 
+              // Coverity CID 6466663: guard against null dynamic_cast result (CWE-476)
               if (p == nullptr)
               {
                 if (exception)
@@ -474,6 +476,7 @@ bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *
             {
               GenApi::IEnumeration *p=dynamic_cast<GenApi::IEnumeration *>(node);
 
+              // Coverity CID 6466663: guard against null dynamic_cast result (CWE-476)
               if (p == nullptr)
               {
                 if (exception)
@@ -501,6 +504,7 @@ bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *
             {
               GenApi::IString *p=dynamic_cast<GenApi::IString *>(node);
 
+              // Coverity CID 6466663: guard against null dynamic_cast result (CWE-476)
               if (p == nullptr)
               {
                 if (exception)
@@ -895,6 +899,7 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
           case GenApi::intfIInteger:
             {
               GenApi::IInteger *p=dynamic_cast<GenApi::IInteger *>(node);
+              // Coverity CID 6466669: guard against null dynamic_cast result (CWE-476)
               if (p == nullptr)
               {
                 if (exception)
@@ -936,6 +941,7 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
           case GenApi::intfIFloat:
             {
               GenApi::IFloat *p=dynamic_cast<GenApi::IFloat *>(node);
+              // Coverity CID 6466669: guard against null dynamic_cast result (CWE-476)
               if (p == nullptr)
               {
                 if (exception)
@@ -951,6 +957,7 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
           case GenApi::intfIEnumeration:
             {
               GenApi::IEnumeration *p=dynamic_cast<GenApi::IEnumeration *>(node);
+              // Coverity CID 6466669: guard against null dynamic_cast result (CWE-476)
               if (p == nullptr)
               {
                 if (exception)
@@ -966,6 +973,7 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
           case GenApi::intfIString:
             {
               GenApi::IString *p=dynamic_cast<GenApi::IString *>(node);
+              // Coverity CID 6466669: guard against null dynamic_cast result (CWE-476)
               if (p == nullptr)
               {
                 if (exception)
