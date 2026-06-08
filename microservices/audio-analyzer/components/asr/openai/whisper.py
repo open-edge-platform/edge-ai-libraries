@@ -36,6 +36,8 @@ class Whisper(BaseASR):
         self.LOGPROB_THRESHOLD = config.models.asr.logprob_threshold
         self.MIN_DURATION_SEC = config.models.asr.min_duration_sec
         self.MIN_WORDS = config.models.asr.min_words
+        self.BEAM_SIZE = max(1, int(getattr(config.models.asr, "beam_size", 5) or 1))
+        self.BEST_OF = max(1, int(getattr(config.models.asr, "best_of", 1) or 1))
         # openai-whisper's DecodingOptions has no repetition_penalty field —
         # passing it as a kwarg raises TypeError.  Applied as post-processing.
         self.REPETITION_PENALTY = getattr(config.models.asr, "repetition_penalty", 1.0)
@@ -134,8 +136,8 @@ class Whisper(BaseASR):
             logprob_threshold=self.LOGPROB_THRESHOLD,
 
             # Repetition control (decoder level)
-            beam_size=5,
-            best_of=1,
+            beam_size=self.BEAM_SIZE,
+            best_of=self.BEST_OF,
 
             # Hallucination guard
             compression_ratio_threshold=2.4,

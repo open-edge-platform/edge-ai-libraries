@@ -1,7 +1,7 @@
 System Requirements
 ===================
 
-This section outlines the system requirements for |top_name|, detailing the necessary hardware and software components to ensure functionality, compatibility and optimal performance.
+This section outlines the system requirements for PLCopen Motion Control, detailing the necessary hardware and software components to ensure functionality, compatibility and optimal performance.
 
 **Hardware Requirements**
 
@@ -26,13 +26,13 @@ This section outlines the system requirements for |top_name|, detailing the nece
 +-------------------------------+---------------------------------------------------------------+
 | **Component**                 | **Specifications**                                            |
 +===============================+===============================================================+
-| **Operating System**          | |top_name| runs best on **Ubuntu Linux 22.04                  |
+| **Operating System**          | PLCopen Motion Control runs best on **Ubuntu Linux 22.04      |
 |                               | LTS**, a long-term support (LTS) version optimized for        |
 |                               | stability, security, and performance in industrial and        |
 |                               | AI-driven applications. Other Debian-like operating systems   |
 |                               | are also suitable.                                            |
 +-------------------------------+---------------------------------------------------------------+
-| **Kernel**                    | The |top_name| requires a minimum **kernel version            |
+| **Kernel**                    | The PLCopen Motion Control requires a minimum **kernel version|
 |                               | of 5.15 with Real-Time Kernel (RT)** capability for optimized |
 |                               | performance in time-sensitive applications.                   |
 +-------------------------------+---------------------------------------------------------------+

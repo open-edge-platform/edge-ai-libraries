@@ -13,7 +13,6 @@ from pipeline import Pipeline
 from utils.audio_util import save_audio_file
 from utils.config_loader import config
 from utils.latency_store import asr_latency
-from utils.locks import audio_pipeline_lock
 from utils.session_manager import resolve_requested_session_id
 
 
@@ -47,9 +46,6 @@ def stream_transcribe_audio(
     language: str | None = Form("en"),
     temperature: float = Form(0.0),
 ):
-    if audio_pipeline_lock.locked():
-        raise HTTPException(status_code=429, detail="Session Active, Try Later")
-
     language, _ = validate_transcription_options(
         temperature=temperature,
         language=language,

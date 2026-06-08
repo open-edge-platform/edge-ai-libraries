@@ -1,7 +1,7 @@
 :prev_page: None
 
-|top_name|
-==========
+PLCopen Motion Control
+======================
 
 .. raw:: html
 
@@ -27,12 +27,12 @@ Click each icon to learn more.
 
 .. grid:: 2
 
-    .. grid-item-card:: Get Started with |top_name|
+    .. grid-item-card:: Get Started with PLCopen Motion Control
         :link: rt-motion/installation_setup
         :link-type: doc
         :link-alt: clickable cards
 
-        Prepare system for |top_name|.
+        Prepare system for PLCopen Motion Control.
 
     .. grid-item-card:: Developer Guide
         :link: rt-motion/rt-motion

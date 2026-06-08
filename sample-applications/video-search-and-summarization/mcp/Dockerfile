@@ -32,10 +32,15 @@ RUN poetry install --only main --no-interaction --no-ansi
 
 FROM python-base AS prod
 
-COPY --from=builder-base $POETRY_HOME $POETRY_HOME
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 WORKDIR $SETUP_PATH
+
+RUN addgroup --system app \
+    && adduser --system --ingroup app --home $SETUP_PATH app \
+    && chown -R app:app $SETUP_PATH
+
+USER app
 
 EXPOSE 8000
 

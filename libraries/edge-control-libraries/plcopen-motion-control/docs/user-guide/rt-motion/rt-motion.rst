@@ -8,7 +8,7 @@ The PLCopen motion standard provides a way to have standard and modular applicat
 
 The motion control market displays a wide variety of incompatible systems and solutions. In businesses where different systems are used, this incompatibility induces considerable costs for the end-users, learning is confusing, engineering becomes difficult, and the process of market growth slows down. Standardization would certainly reduce these negative factors. Standardization means not only the programming languages themselves, (as standardization is achieved using the worldwide IEC 61131-3 standard) but also standardizing the interface towards different motion control solutions. In this way the programming of these motion control solutions is less hardware dependent. The reusability of the application software is increased, and the costs involved in training and support are reduced.
 
-**RTmotion** is an C++ library created by Intel Corporation. **RTmotion** implements part of the single axis motion control function blocks defined in parts `1&2 <https://www.plcopen.org/download_file/force/9f19d854-2dbf-4e07-a2ff-e5ff1a3e293a/342/>`__ (PDF), `3 <https://www.plcopen.org/download_file/force/1f500e89-0c3c-467f-908b-85cd73e51a22/342/>`__ (PDF) and `5 <https://www.plcopen.org/download_file/force/a43abb73-7d50-4037-8da6-41fb9ae6a3c6/342/>`__ (PDF) of PLCopen motion control standard. The figure below shows the connections between **RTmotion** and other components in |ECI|.
+**RTmotion** is an C++ library created by Intel Corporation. **RTmotion** implements part of the single axis motion control function blocks defined in parts `1&2 <https://www.plcopen.org/download_file/force/9f19d854-2dbf-4e07-a2ff-e5ff1a3e293a/342/>`__ (PDF), `3 <https://www.plcopen.org/download_file/force/1f500e89-0c3c-467f-908b-85cd73e51a22/342/>`__ (PDF) and `5 <https://www.plcopen.org/download_file/force/a43abb73-7d50-4037-8da6-41fb9ae6a3c6/342/>`__ (PDF) of PLCopen motion control standard. The figure below shows the connections between **RTmotion** and other components in Intel® Edge Controls for Industrial.
 
 .. image:: ../assets/overview/softmotion_overview.png
    :width: 85%
@@ -18,28 +18,28 @@ The motion control market displays a wide variety of incompatible systems and so
 
    <p align="center"><b>Figure 1. ECI SoftMotion overview</b></p>
 
-**RTmotion** is a library designed to match the interfaces and functions of the function blocks defined in PLCopen standard. It is not tied to any operating system, fieldbus, SoftPLC or applications. But it needs to run in a real-time thread to have steady cycle and gain maximum performance. So the real-time operating systems are the base foundation for RTmotion to run on. As figure above shows, |ECI| provides two types of real-time operating systems (Preempt RT, Xenomai) that RTmotion can fit in.
+**RTmotion** is a library designed to match the interfaces and functions of the function blocks defined in PLCopen standard. It is not tied to any operating system, fieldbus, SoftPLC or applications. But it needs to run in a real-time thread to have steady cycle and gain maximum performance. So the real-time operating systems are the base foundation for RTmotion to run on. As figure above shows, Intel® Edge Controls for Industrial provides two types of real-time operating systems (Preempt RT, Xenomai) that RTmotion can fit in.
 
-RTmotion provides functions and algorithms for performing motion control tasks according to the PLCopen standard. It requires reading status from servo motors and outputting motion commands to them. The bridge between RTmotion and servo motors is implemented in a hardware abstraction layer called **plcopen-servo**. It is based on a servo template that can be populated by different fieldbus communication stack interfaces to derive the servo motor of a specific fieldbus type. As shown in the figure, |ECI| provides two types of servo layers (CANopen and EtherCAT). Details of plcopen-servo are covered in level-2.
+RTmotion provides functions and algorithms for performing motion control tasks according to the PLCopen standard. It requires reading status from servo motors and outputting motion commands to them. The bridge between RTmotion and servo motors is implemented in a hardware abstraction layer called **plcopen-servo**. It is based on a servo template that can be populated by different fieldbus communication stack interfaces to derive the servo motor of a specific fieldbus type. As shown in the figure, Intel® Edge Controls for Industrial provides two types of servo layers (CANopen and EtherCAT). Details of plcopen-servo are covered in level-2.
 
 RTmotion's functional blocks often play the role of basic modules that can be integrated like Lego blocks to create complex applications. The C++ API of RTmotion can be called in different ways:
 
-  - Called in a C++ application: |ECI| provides examples in **plcopen-servo** and **plcopen-databus** repositories for reference.
+  - Called in a C++ application: Intel® Edge Controls for Industrial provides examples in **plcopen-servo** and **plcopen-databus** repositories for reference.
   - Integrated in a SoftPLC runtime: RTmotion has been integrated in several commercial and open-source SoftPLC runtime. See the list below.
 
     * WASM (`Further reading for WASM <https://github.com/bytecodealliance/wasm-micro-runtime>`_)
     * LogicLab (`Further reading for LogicLab + RTmotion <https://www.nxtrol.com/h-nd-25.html>`_)
     * OpenPLC (`Further reading for OpenPLC + RTmotion <https://eci.intel.com/docs/3.1/components/openplc.html>`_)
-    * |EAE| (`WIP, further reading for EAE <https://www.se.com/us/en/product-range/23643079-ecostruxure-automation-expert/>`_).
+    * EcoStruxure* Automation Expert (`WIP, further reading for EAE <https://www.se.com/us/en/product-range/23643079-ecostruxure-automation-expert/>`_).
 
 RTmotion provides basic trajectory interpolation and motion control in real-time tasks synchronized with the servo motor cycle time. As shown in the right part of the figure, the real-time tasks usually require to communicate with some non-real-time software (advanced robotics motion planning, SCADA HMI, CNC and machine vision) in some application scenarios. It can be realized by using a communication layer in the databus form of Shared-Memory, Modbus, Socket, ZeroMQ, MQTT, OPCUA, etc.
 
 1.1. RTmotion Requirements
 ++++++++++++++++++++++++++
 
-- PC: Industrial PC with |Intel| CPU
-- RTOS: |ECI| Preempt RT/Xenomai
-- Fieldbus: |ECI| EtherCAT/CANopen stack
+- PC: Industrial PC with Intel® CPU
+- RTOS: Intel® Edge Controls for Industrial Preempt RT/Xenomai
+- Fieldbus: Intel® Edge Controls for Industrial EtherCAT/CANopen stack
 
 1.2. RTmotion Features
 ++++++++++++++++++++++
@@ -156,7 +156,7 @@ RTmotion can be set up to run in different system configurations. The configurat
 
    <p align="center"><b>Figure 2. ECI motion configurations for Atom or Core CPU</b></p>
 
-As shown in the figure above, RTmotion can be set up to run with an |Atom| or |Core| CPU in three configurations:
+As shown in the figure above, RTmotion can be set up to run with an Intel® Atom® or Intel® Core™ CPU in three configurations:
 
 - **ECI-B (Bare-metal)**:
 
@@ -165,13 +165,13 @@ As shown in the figure above, RTmotion can be set up to run with an |Atom| or |C
   * Rest CPU cores and iGPU are used for non-real-time HMI/MV tasks.
 - **ECI-K (KVM)**:
 
-  * OS: Host (Preempt-RT), Guest VM (|Windows|)
+  * OS: Host (Preempt-RT), Guest VM (Microsoft Windows*)
   * One CPU core is isolated and dedicated for RTmotion real-time task.
-  * One CPU core is used for host |Linux| tasks.
+  * One CPU core is used for host Linux* tasks.
   * Rest CPU cores and iGPU are used for Guest VM.
 - **ECI-A (ACRN)**:
 
-  * OS: Service OS (|Linux|), Guest VM1 (|Windows|), Guest VM2 (Preempt-RT/Xenomai)
+  * OS: Service OS (Linux*), Guest VM1 (Microsoft Windows*), Guest VM2 (Preempt-RT/Xenomai)
   * Two CPU cores are isolated and dedicated for Guest VM2. Among them, one is dedicated for RTmotion real-time task.
   * One CPU core is shared by Service OS and Guest VM1.
   * Rest CPU cores and iGPU are used for Guest VM1.
@@ -187,9 +187,9 @@ As shown in the figure above, RTmotion can be set up to run with an |Atom| or |C
 
    <p align="center"><b>Figure 3. ECI motion configuration for hybrid CPU</b></p>
 
-- The 12th generation of |Intel| CPUs integrate Performance (P) and Efficient (E) cores. For example the ADL-S which has 8 P-core and 4 E-core. For best performance, real-time RTmotion tasks should run in a real-time VM running on an E-core. P-cores are used to run |Windows| VMs for non-real-time HMI/machine vision workloads. In this configuration, the P-core can support hyper-threading and hardware P-state features without sacrificing the real-time performance of the E-core:
+- The 12th generation of Intel® CPUs integrate Performance (P) and Efficient (E) cores. For example the ADL-S which has 8 P-core and 4 E-core. For best performance, real-time RTmotion tasks should run in a real-time VM running on an E-core. P-cores are used to run Microsoft Windows* VMs for non-real-time HMI/machine vision workloads. In this configuration, the P-core can support hyper-threading and hardware P-state features without sacrificing the real-time performance of the E-core:
 
-  * OS: Service OS (|Linux|), Guest VM1 (|Windows|), Guest VM2 (Preempt-RT/Xenomai), Guest VM3 (Preempt-RT/Xenomai)
+  * OS: Service OS (Linux*), Guest VM1 (Microsoft Windows*), Guest VM2 (Preempt-RT/Xenomai), Guest VM3 (Preempt-RT/Xenomai)
   * Two E-core are dedicated for Guest VM2.
   * Two E-core are dedicated for Guest VM3.
   * One P-core is shared by Service OS and Guest VM1.
@@ -198,7 +198,7 @@ As shown in the figure above, RTmotion can be set up to run with an |Atom| or |C
 3. RTmotion Applications
 ########################
 
-This section lists some of the RTmotion applications in the industrial automation domains. It shows how |ECI| with RTmotion enables customers to consolidate their real-time (motion control) and non-real-time (HMI/Machine Vision/CNC/ROS2 Robotics) workloads.
+This section lists some of the RTmotion applications in the industrial automation domains. It shows how Intel® Edge Controls for Industrial with RTmotion enables customers to consolidate their real-time (motion control) and non-real-time (HMI/Machine Vision/CNC/ROS2 Robotics) workloads.
 
 3.1. Logistics control
 ++++++++++++++++++++++
@@ -211,7 +211,7 @@ This section lists some of the RTmotion applications in the industrial automatio
 
    <p align="center"><b>Figure 4. RTmotion application for parcel singulation controller</b></p>
 
-In this project, RTmotion enables customers to consolidate their machine vision and real-time motion control workloads to run on an |Intel| x86 platform. This application scenario is very common in logistics. Parcel separation controllers typically consist of two separate systems: a PLC connected to the 28~84 conveyor EtherCAT servo motors for speed control, and a |Windows| IPC for parcel pose detection and servo motor speed planning. The results of the speed planning will be transmitted to the PLC via TCP/IP socket communication. As shown above, |ECI| solutions combine both functions into one platform. There will be an |ECI| Preempt RT |Linux| OS running as the host. A CPU core is then isolated to run real-time RTmotion tasks to control servo motors, which in traditional solutions plays the role of a PLC. KVM is used here as the hypervisor to support running |Windows| guest VMs on |Linux| hosts. |Windows| applications can be migrated to the guest VM without any modification.
+In this project, RTmotion enables customers to consolidate their machine vision and real-time motion control workloads to run on an Intel® x86 platform. This application scenario is very common in logistics. Parcel separation controllers typically consist of two separate systems: a PLC connected to the 28~84 conveyor EtherCAT servo motors for speed control, and a Microsoft Windows* IPC for parcel pose detection and servo motor speed planning. The results of the speed planning will be transmitted to the PLC via TCP/IP socket communication. As shown above, Intel® Edge Controls for Industrial solutions combine both functions into one platform. There will be an Intel® Edge Controls for Industrial Preempt RT Linux* OS running as the host. A CPU core is then isolated to run real-time RTmotion tasks to control servo motors, which in traditional solutions plays the role of a PLC. KVM is used here as the hypervisor to support running Microsoft Windows* guest VMs on Linux* hosts. Microsoft Windows* applications can be migrated to the guest VM without any modification.
 
 3.2. SMT machine control with flying-trigger
 ++++++++++++++++++++++++++++++++++++++++++++
@@ -224,16 +224,16 @@ In this project, RTmotion enables customers to consolidate their machine vision 
 
    <p align="center"><b>Figure 5. RTmotion application for flying-trigger</b></p>
 
-In this project, the RTmotion function block has been integrated into |EAE| for motion control of SMT manufacturing. The project also integrated |ECI| flying-trigger technique and |EII| to improve vision capture and detection efficiency. The key components are listed here:
+In this project, the RTmotion function block has been integrated into EcoStruxure* Automation Expert for motion control of SMT manufacturing. The project also integrated Intel® Edge Controls for Industrial flying-trigger technique and Intel® Edge Insights for Industrial to improve vision capture and detection efficiency. The key components are listed here:
 
-- |Intel| RTmotion for motion control
-- |ECI| for real-time environment and fieldbus
-- |EII| for vision modules and message bus
-- |Intel| TGPIO for high frequency real-time I/O trigger
-- |EAE| for runtime, PLC programming and central management
+- Intel® RTmotion for motion control
+- Intel® Edge Controls for Industrial for real-time environment and fieldbus
+- Intel® Edge Insights for Industrial for vision modules and message bus
+- Intel® TGPIO for high frequency real-time I/O trigger
+- EcoStruxure* Automation Expert for runtime, PLC programming and central management
 
-3.3. 100-axis control with |EAE|
-++++++++++++++++++++++++++++++++
+3.3. 100-axis control with EcoStruxure* Automation Expert
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 .. image:: ../assets/app/rtmotion_app_3.png
    :width: 85%
@@ -243,7 +243,7 @@ In this project, the RTmotion function block has been integrated into |EAE| for 
 
    <p align="center"><b>Figure 6. RTmotion application for multiple axis control</b></p>
 
-Coating, winding and stacking machines in Li-battery manufacturing often require real-time synchronization between hundreds of axes and multiple functions (CamIn, GearIn, velocity and torque control, etc.). |ECI| with RTmotion has demonstrated the capability to meet this requirements, that controlling 100 EtherCAT servo motors within 1ms cycle time with a maximum real-time latency of 15us. The RTmotion is also integrated in |EAE| in this project.
+Coating, winding and stacking machines in Li-battery manufacturing often require real-time synchronization between hundreds of axes and multiple functions (CamIn, GearIn, velocity and torque control, etc.). Intel® Edge Controls for Industrial with RTmotion has demonstrated the capability to meet this requirements, that controlling 100 EtherCAT servo motors within 1ms cycle time with a maximum real-time latency of 15us. The RTmotion is also integrated in EcoStruxure* Automation Expert in this project.
 
 3.4. AMR control
 ++++++++++++++++
@@ -256,7 +256,7 @@ Coating, winding and stacking machines in Li-battery manufacturing often require
 
    <p align="center"><b>Figure 7. RTmotion application for AMR control</b></p>
 
-AMR (Autonomous Mobile Robot) is now widely used in warehouses, logistical companies, agriculture businesses, and healthcare institutions. AMR typically consists of two independent hardware control systems: one for real-time motion control and another for SLAM/path planning/vision. Since AMR usually only needs to drive less than 4 servo motors with low accuracy velocity control, and the kinematics and dynamics model for the whole-body control are simpler compared to that of a 6-axis robot arm, the low-end computing unit is sufficient to complete the real-time motion control. With |ECI| and RTmotion, it is quite reasonable and easy to integrate two independent systems, from which customers can benefit from reduced hardware costs, higher reliability, system flexibility and easy upgrades. As shown in the figure above, one CPU core can be isolated to run RTmotion tasks to drive mobile platforms. Both CANopen and EtherCAT based servo motors are supported. ROS2 tasks can utilize remaining CPU and system resources to implement SLAM/path planning/vision functions. Buttons, safety sensors and other I/O devices can be easily controlled via remote IO modules based on CANBus, EtherCAT or Modbus.
+AMR (Autonomous Mobile Robot) is now widely used in warehouses, logistical companies, agriculture businesses, and healthcare institutions. AMR typically consists of two independent hardware control systems: one for real-time motion control and another for SLAM/path planning/vision. Since AMR usually only needs to drive less than 4 servo motors with low accuracy velocity control, and the kinematics and dynamics model for the whole-body control are simpler compared to that of a 6-axis robot arm, the low-end computing unit is sufficient to complete the real-time motion control. With Intel® Edge Controls for Industrial and RTmotion, it is quite reasonable and easy to integrate two independent systems, from which customers can benefit from reduced hardware costs, higher reliability, system flexibility and easy upgrades. As shown in the figure above, one CPU core can be isolated to run RTmotion tasks to drive mobile platforms. Both CANopen and EtherCAT based servo motors are supported. ROS2 tasks can utilize remaining CPU and system resources to implement SLAM/path planning/vision functions. Buttons, safety sensors and other I/O devices can be easily controlled via remote IO modules based on CANBus, EtherCAT or Modbus.
 
 3.5. Robot arm control
 ++++++++++++++++++++++
@@ -269,7 +269,7 @@ AMR (Autonomous Mobile Robot) is now widely used in warehouses, logistical compa
 
    <p align="center"><b>Figure 8. RTmotion application for robot arm control</b></p>
 
-Similar to the concept of AMR, the robotic arm control workloads can also be consolidated by |ECI| with RTmotion. With the development of machine vision, AI and advanced motion planning technique, new type of intelligent robot arm controllers have been widely used. However, this intelligent controller is often separated from the robot arm's native controller, which is only responsible for real-time motion control. This increases the difficulty of system adaptation. At the same time, in recent years, there has been a trend in the industry to consolidate PLC control, real-time motion control of robotic arms, machine vision and HMI into one controller to support the overall development of automated workstations.
+Similar to the concept of AMR, the robotic arm control workloads can also be consolidated by Intel® Edge Controls for Industrial with RTmotion. With the development of machine vision, AI and advanced motion planning technique, new type of intelligent robot arm controllers have been widely used. However, this intelligent controller is often separated from the robot arm's native controller, which is only responsible for real-time motion control. This increases the difficulty of system adaptation. At the same time, in recent years, there has been a trend in the industry to consolidate PLC control, real-time motion control of robotic arms, machine vision and HMI into one controller to support the overall development of automated workstations.
 
 3.6. Inspection machine control
 +++++++++++++++++++++++++++++++
@@ -282,7 +282,7 @@ Similar to the concept of AMR, the robotic arm control workloads can also be con
 
    <p align="center"><b>Figure 9. RTmotion application for inspection machine</b></p>
 
-Patches provided by |ECI| have integrated RTmotion into the IDE and runtime of Open Source SoftPLC (OpenPLC). Customers can do IEC 61131-3 PLC programming for motion control as they normally do on traditional PLC products. Through the RTmotion configuration introduced in Chapter 2, customers can customize the PC-based SoftPLC controller according to their needs. Since most non-standard automation equipment only requires PTP movement, RTmotion's function blocks MC_MoveAbsolute, MC_Homing, and MC_MoveRelative can meet these usage scenarios. As shown in the figure above, the customer migrated all the functions of the PLC in the Li-battery Hipot test device to the PC-based soft PLC controller through |ECI| and RTmotion. This helps customers reduce hardware costs and makes the entire system IT-friendly.
+Patches provided by Intel® Edge Controls for Industrial have integrated RTmotion into the IDE and runtime of Open Source SoftPLC (OpenPLC). Customers can do IEC 61131-3 PLC programming for motion control as they normally do on traditional PLC products. Through the RTmotion configuration introduced in Chapter 2, customers can customize the PC-based SoftPLC controller according to their needs. Since most non-standard automation equipment only requires PTP movement, RTmotion's function blocks MC_MoveAbsolute, MC_Homing, and MC_MoveRelative can meet these usage scenarios. As shown in the figure above, the customer migrated all the functions of the PLC in the Li-battery Hipot test device to the PC-based soft PLC controller through Intel® Edge Controls for Industrial and RTmotion. This helps customers reduce hardware costs and makes the entire system IT-friendly.
 
 4. RTmotion Function Blocks
 ###########################
