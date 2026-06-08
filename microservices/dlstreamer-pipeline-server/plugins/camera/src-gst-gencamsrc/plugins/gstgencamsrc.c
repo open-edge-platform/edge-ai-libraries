@@ -436,8 +436,11 @@ gst_gencamsrc_init (GstGencamsrc * gencamsrc)
       else {
         // commented out for privacy
         // GST_DEBUG_OBJECT (gencamsrc, "BALLUFF_ACQ_LIC_MODULE doesn't exist. Setting it now...");
-        g_setenv (env_variable,
-            "/usr/local/lib/gstreamer-1.0/libgstgencamsrc.so", TRUE);
+        /* Coverity CID 6466668: check return value of g_setenv (CWE-252) */
+        if (!g_setenv (env_variable,
+            "/usr/local/lib/gstreamer-1.0/libgstgencamsrc.so", TRUE)) {
+          GST_WARNING_OBJECT (gencamsrc, "Failed to set environment variable %s", env_variable);
+        }
         // commented out for privacy
         // env_variable_value = getenv(env_variable);
         // GST_DEBUG_OBJECT (gencamsrc, "new BALLUFF_ACQ_LIC_MODULE is: %s", env_variable_value);
