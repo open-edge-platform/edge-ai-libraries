@@ -1,8 +1,10 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+ARG ARCH="cpu"
 ARG INSTALL_DRIVER_VERSION="26.09.37435"
 FROM python:3.12.12-slim AS python-base
+ARG ARCH
 # Setting env vars for python, pip and poetry
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -43,8 +45,8 @@ RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
 RUN curl -sSL https://install.python-poetry.org | python3 - 
 
 WORKDIR $SETUP_PATH
-COPY poetry.lock pyproject.toml ./
-COPY wheels ./wheels
+COPY multimodal-embedding-serving /multimodal-embedding-serving
+COPY visual-data-preparation-for-retrieval/vdms/poetry.lock visual-data-preparation-for-retrieval/vdms/pyproject.toml ./
 
 
 # Install runtime deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
@@ -61,7 +63,7 @@ RUN chown -R appuser:appuser $POETRY_HOME $SETUP_PATH
 
 
 # Runtime image
-FROM python-base
+FROM python-base AS prod
 
 ARG INSTALL_DRIVER_VERSION
 
@@ -75,7 +77,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
-COPY ./scripts/ /
+COPY visual-data-preparation-for-retrieval/vdms/scripts/ /
 RUN chmod +x /entrypoint.sh /install_ubuntu_gpu_drivers.sh && \
 /install_ubuntu_gpu_drivers.sh
 
@@ -97,7 +99,7 @@ RUN mkdir -p /tmp/npu_deps && cd /tmp/npu_deps && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-COPY . /app/
+COPY visual-data-preparation-for-retrieval/vdms/ /app/
 
 # Optionally download copyleft sources if requested
 ARG COPYLEFT_SOURCES=false

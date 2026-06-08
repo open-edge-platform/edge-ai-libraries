@@ -18,7 +18,7 @@ services:
             --console-address ":9001"
 
     vdms-vector-db:
-        image: intellabs/vdms:v2.10.0
+        image: intellabs/vdms:v2.12.0
         environment:
             - OVERRIDE_db_root_path=/db
             - OVERRIDE_images_path=/db/images
@@ -32,8 +32,9 @@ services:
 
     vdms-dataprep:
         build:
-            context: ..
-            dockerfile: docker/Dockerfile
+            context: ../../..
+            dockerfile: visual-data-preparation-for-retrieval/vdms/docker/Dockerfile
+            target: prod
         image: ${REGISTRY}vdms-dataprep:${TAG:-latest}
         environment:
             - http_proxy

@@ -9,6 +9,10 @@
 RED='\033[0;31m'
 NC='\033[0m'
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MICROSERVICES_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DOCKERFILE="$SCRIPT_DIR/docker/Dockerfile"
+
 # Common env vars ---------------------------------------------------
 export PROJECT_NAME=${PROJECT_NAME}
 host_ip=$(ip route get 1 | awk '{print $7}')
@@ -198,7 +202,7 @@ elif [ "$1" = "--down" ] && [ "$#" -eq 1 ]; then
 # Build dataprep image
 elif [ "$1" = "--build" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
     default_image="${REGISTRY}vdms-dataprep:${TAG:-latest}"
-    if ./build.sh; then
+    if "$SCRIPT_DIR/build.sh"; then
         docker images | grep "${default_image}"
         echo "Image ${default_image} was successfully built."
 

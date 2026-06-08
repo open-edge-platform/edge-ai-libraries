@@ -1,19 +1,12 @@
 import os
 import logging
+import math
 from typing import Dict, Any, List
 
 from components.asr.base_asr import BaseASR
 from utils.config_loader import config
 
 logger = logging.getLogger(__name__)
-
-WHISPER_CPP_MODEL_MAP = {
-    "whisper-tiny":   "ggml-tiny.bin",
-    "whisper-base":   "ggml-base.bin",
-    "whisper-small":  "ggml-small.bin",
-    "whisper-medium": "ggml-medium.bin",
-    "whisper-large":  "ggml-large-v3.bin",
-}
 
 
 class WhisperCpp(BaseASR):
@@ -25,15 +18,12 @@ class WhisperCpp(BaseASR):
                 "pywhispercpp is not installed. Run: pip install pywhispercpp"
             ) from exc
 
-        model_file = WHISPER_CPP_MODEL_MAP.get(model_name)
-        if not model_file:
-            raise ValueError(
-                f"Unsupported whisper.cpp model name: '{model_name}'. "
-                f"Valid names: {list(WHISPER_CPP_MODEL_MAP)}"
-            )
-
-        from utils.ensure_model import get_asr_model_path
+        from utils.ensure_model import get_asr_model_path, get_whispercpp_model_filename
         model_dir = get_asr_model_path()
+        model_file = get_whispercpp_model_filename(
+            model_name,
+            getattr(config.models.asr, "weight_format", None),
+        )
         model_path = os.path.join(model_dir, model_file)
 
         if not os.path.isfile(model_path):
@@ -42,13 +32,29 @@ class WhisperCpp(BaseASR):
                 "Run ensure_model() or download manually."
             )
 
-        n_threads = getattr(config.models.asr, "threads", 4)
+        if str(device).upper() != "CPU":
+            logger.warning(
+                "whispercpp backend only supports CPU in this service; overriding requested device %s -> CPU",
+                device,
+            )
+
+        configured_threads = int(getattr(config.models.asr, "threads", 4) or 0)
+        n_threads = configured_threads if configured_threads > 0 else max(1, os.cpu_count() or 1)
+        self.beam_size = max(1, int(getattr(config.models.asr, "beam_size", 5) or 1))
+        self.best_of = max(1, int(getattr(config.models.asr, "best_of", 5) or 1))
+        self.word_timestamps = getattr(config.models.asr, "word_timestamps", False)
+        self.repetition_penalty = getattr(config.models.asr, "repetition_penalty", 1.0)
         logger.info(f"Loading whisper.cpp model: {model_path} (threads={n_threads})")
 
-        self.model = Model(model_path, n_threads=n_threads)
-        self.beam_size = getattr(config.models.asr, "beam_size", 5)
-        self.best_of = getattr(config.models.asr, "best_of", 5)
-        self.word_timestamps = getattr(config.models.asr, "word_timestamps", False)
+        self.model = Model(
+            model_path,
+            params_sampling_strategy=1 if self.beam_size and self.beam_size > 1 else 0,
+            n_threads=n_threads,
+            print_realtime=False,
+            print_progress=False,
+        )
+        self.n_threads = n_threads
+        self.model_name = model_name
 
         # Hallucination filter thresholds (same config keys as openai provider)
         self.NO_SPEECH_THRESHOLD = getattr(config.models.asr, "no_speech_threshold", 0.6)
@@ -73,6 +79,9 @@ class WhisperCpp(BaseASR):
             and getattr(t, "id", -1) >= 0
         ]
         avg_logprob = sum(log_probs) / len(log_probs) if log_probs else -1.0
+        probability = getattr(seg, "probability", None)
+        if (not log_probs) and isinstance(probability, (int, float)) and probability > 0.0:
+            avg_logprob = math.log(min(float(probability), 1.0))
 
         # Prefer a direct no_speech_prob field if pywhispercpp exposes it,
         # otherwise approximate from the first token's ptsum (timestamp-prob sum).
@@ -84,6 +93,43 @@ class WhisperCpp(BaseASR):
             no_speech_prob = 0.0
 
         return avg_logprob, no_speech_prob
+
+    def _remove_repeated_phrases(self, text: str) -> str:
+        if not text or self.repetition_penalty <= 1.0:
+            return text
+
+        words = text.split()
+        if len(words) < 2:
+            return text
+
+        result: List[str] = []
+        index = 0
+        while index < len(words):
+            found_repeat = False
+            max_window = min(8, (len(words) - index) // 2)
+            for window in range(max_window, 0, -1):
+                if words[index : index + window] == words[index + window : index + (2 * window)]:
+                    result.extend(words[index : index + window])
+                    index += 2 * window
+                    found_repeat = True
+                    break
+            if not found_repeat:
+                result.append(words[index])
+                index += 1
+        return " ".join(result)
+
+    def _deduplicate_segments(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if self.repetition_penalty <= 1.0:
+            return segments
+
+        deduped: List[Dict[str, Any]] = []
+        previous_text: str | None = None
+        for segment in segments:
+            normalized = segment["text"].strip().lower()
+            if normalized != previous_text:
+                deduped.append(segment)
+                previous_text = normalized
+        return deduped
 
     def _is_hallucination(self, text: str, start: float, end: float,
                           avg_logprob: float, no_speech_prob: float) -> bool:
@@ -106,12 +152,24 @@ class WhisperCpp(BaseASR):
     def transcribe(self, audio_path: str, temperature: float = 0.0, language: str | None = None) -> Dict[str, Any]:
         transcribe_kwargs = {
             "temperature": temperature,
-            "beam_size": self.beam_size,
-            "best_of": self.best_of,
-            "word_timestamps": self.word_timestamps,
+            "token_timestamps": self.word_timestamps,
+            "extract_probability": True,
+            "print_realtime": False,
+            "print_progress": False,
+            "no_context": True,
+            "entropy_thold": 2.4,
+            "logprob_thold": self.LOGPROB_THRESHOLD,
+            "no_speech_thold": self.NO_SPEECH_THRESHOLD,
+            "suppress_non_speech_tokens": True,
         }
+
+        if self.best_of and self.best_of > 1:
+            logger.debug(
+                "whispercpp runtime does not safely accept greedy/beam nested overrides; using installed decoder defaults"
+            )
         if language:
             transcribe_kwargs["language"] = language
+        detected_language = language
 
         try:
             segments_raw = self.model.transcribe(audio_path, **transcribe_kwargs)
@@ -120,10 +178,11 @@ class WhisperCpp(BaseASR):
             segments_raw = self.model.transcribe(audio_path, **transcribe_kwargs)
 
         segments: List[Dict[str, Any]] = []
-        text_parts: List[str] = []
         dropped = 0
+        segments_total = 0
 
         for seg in segments_raw:
+            segments_total += 1
             text = seg.text.strip()
             if not text:
                 continue
@@ -149,12 +208,26 @@ class WhisperCpp(BaseASR):
                 "avg_logprob": avg_logprob,
                 "no_speech_prob": no_speech_prob,
             })
-            text_parts.append(text)
 
         if dropped:
             logger.info(f"whispercpp: dropped {dropped} hallucination segment(s)")
 
+        segments = self._deduplicate_segments(segments)
+        for segment in segments:
+            segment["text"] = self._remove_repeated_phrases(segment["text"])
+
+        final_text = " ".join(segment["text"] for segment in segments).strip()
+        final_text = self._remove_repeated_phrases(final_text)
+
         return {
-            "text": " ".join(text_parts),
+            "text": final_text,
             "segments": segments,
+            "language": detected_language,
+            "meta": {
+                "model": self.model_name,
+                "temperature": temperature,
+                "segments_total": segments_total,
+                "segments_kept": len(segments),
+                "segments_dropped": dropped,
+            },
         }

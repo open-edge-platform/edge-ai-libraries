@@ -742,7 +742,13 @@ async def chat_completions(request: ChatRequest):
                     error = validate_video_inputs(content, settings.VLM_MODEL_NAME)
                     if error:
                         persist_telemetry("client_error", None, None, error)
-                        return JSONResponse(status_code=400, content={"error": error})
+                        return JSONResponse(
+                            status_code=400,
+                            content={
+                                "error": error,
+                                "request_id": telemetry_request_id,
+                            },
+                        )
                     if isinstance(content, str):
                         prompt = content
                     elif isinstance(content, MessageContentImageUrl):
@@ -787,7 +793,11 @@ async def chat_completions(request: ChatRequest):
             logger.info("Invalid request: Missing prompt.")
             persist_telemetry("client_error", None, None, "Prompt is required")
             return JSONResponse(
-                status_code=400, content={"error": "Prompt is required"}
+                status_code=400,
+                content={
+                    "error": "Prompt is required",
+                    "request_id": telemetry_request_id,
+                },
             )
         else:
             logger.info(
@@ -1178,7 +1188,10 @@ async def chat_completions(request: ChatRequest):
                 persist_telemetry("client_error", None, None, error_message)
                 return JSONResponse(
                     status_code=400,
-                    content={"error": error_message},
+                    content={
+                        "error": error_message,
+                        "request_id": telemetry_request_id,
+                    },
                 )
 
             if qwen_images:
@@ -1284,7 +1297,10 @@ async def chat_completions(request: ChatRequest):
                 persist_telemetry("client_error", None, None, error_message)
                 return JSONResponse(
                     status_code=400,
-                    content={"error": error_message},
+                    content={
+                        "error": error_message,
+                        "request_id": telemetry_request_id,
+                    },
                 )
 
             if hf_inputs is None:
@@ -1392,19 +1408,38 @@ async def chat_completions(request: ChatRequest):
         return response
     except ValueError as e:
         logger.info("ValueError encountered during chat completion request.")
-        logger.error(f"{ErrorMessages.CHAT_COMPLETION_ERROR}: {e}")
-        persist_telemetry("client_error", None, None, str(e))
-        return JSONResponse(status_code=400, content={"error": str(e)})
+        logger.error(
+            "%s: %s",
+            ErrorMessages.CHAT_COMPLETION_ERROR,
+            sanitize_for_log(str(e), max_len=512),
+        )
+        client_error_message = "Invalid chat completion request."
+        persist_telemetry("client_error", None, None, client_error_message)
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": client_error_message,
+                "request_id": telemetry_request_id,
+            },
+        )
     except Exception as e:
         logger.info("Exception encountered during chat completion request.")
-        logger.error(f"{ErrorMessages.CHAT_COMPLETION_ERROR}: {e}")
-        persist_telemetry("server_error", None, None, str(e))
+        logger.error(
+            "%s: %s",
+            ErrorMessages.CHAT_COMPLETION_ERROR,
+            sanitize_for_log(str(e), max_len=512),
+        )
+        server_error_message = "Internal server error."
+        persist_telemetry("server_error", None, None, server_error_message)
         if ErrorMessages.GPU_OOM_ERROR_MESSAGE in str(e):
             logger.info("Detected GPU out-of-memory error. Restarting server...")
             restart_server()
         return JSONResponse(
             status_code=500,
-            content={"error": f"{ErrorMessages.CHAT_COMPLETION_ERROR}: {e}"},
+            content={
+                "error": server_error_message,
+                "request_id": telemetry_request_id,
+            },
         )
     finally:
         # Clean up the temporary video file if it was created
@@ -1480,8 +1515,11 @@ async def get_device():
 
     except Exception as e:
         logger.info("Exception encountered while fetching devices.")
-        logger.exception(f"Error getting devices list: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(
+            "Error getting devices list: %s",
+            sanitize_for_log(e, max_len=512),
+        )
+        raise HTTPException(status_code=500, detail="Internal server error.")
 
 
 @app.get("/device/{device}", tags=["Device API"], summary="Get device property")
@@ -1531,7 +1569,7 @@ async def get_device_info(device: str):
             "Error getting properties for device: %s",
             sanitize_for_log(e, max_len=512),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error.")
 
 
 @app.get("/health")

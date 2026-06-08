@@ -308,3 +308,106 @@ def make_tar_archive(sample_frame_bgr: "np.ndarray[Any, Any]"):
         return payload, archive_name or f"set_{ext}_{count}.{suffix}"
 
     return _make
+
+
+# --------------------------------------------------------------------------- #
+# Uploaded-model fixtures.
+#
+# The functional test suite assumes the underlying source models
+# (``face-detection-retail-0004`` and ``age-gender-recognition-retail-0013``)
+# are present on disk under ``shared/models/output/omz/.../FP16/``. The
+# download-side test (``test_models_download.py``) is responsible for
+# ensuring that, but - to keep these fixtures usable in isolation - we
+# skip whenever the FP16 artefacts are absent rather than fail.
+#
+# The upload itself is session-scoped: the API does not expose a DELETE
+# for models, so we deliberately leak the uploaded copies into the
+# shared volume (CI is expected to wipe the volume between runs). The
+# unique ``upload_run_id`` keeps re-runs from colliding with stale
+# entries left over from previous sessions.
+# --------------------------------------------------------------------------- #
+
+
+_UPLOAD_MODEL_SOURCES: dict[str, dict[str, str]] = {
+    "face-detection-retail-0004": {
+        "category": "detection",
+        "fp16_dir": "shared/models/output/omz/face-detection-retail-0004/FP16",
+    },
+    "age-gender-recognition-retail-0013": {
+        "category": "classification",
+        "fp16_dir": "shared/models/output/omz/age-gender-recognition-retail-0013/FP16",
+    },
+}
+
+
+def _build_model_zip(fp16_dir) -> bytes:
+    """Pack ``model.xml`` + ``model.bin`` into a flat zip.
+
+    The ``model-download`` microservice expects a flat archive
+    containing the OpenVINO IR pair. We deliberately do not include
+    a model-proc JSON: uploaded models never carry one (that is the
+    invariant ``graph.py`` and ``ModelManager`` rely on).
+    """
+    xml_files = sorted(fp16_dir.glob("*.xml"))
+    bin_files = sorted(fp16_dir.glob("*.bin"))
+    assert xml_files and bin_files, f"FP16 directory {fp16_dir} missing xml/bin pair"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(xml_files[0].name, xml_files[0].read_bytes())
+        zf.writestr(bin_files[0].name, bin_files[0].read_bytes())
+    return buf.getvalue()
+
+
+@pytest.fixture(scope="session")
+def uploaded_model_names(
+    http_client: requests.Session, upload_run_id: str
+) -> dict[str, str]:
+    """Upload custom copies of the two reference OMZ models.
+
+    Returns a mapping ``{source_model_name: uploaded_model_name}``. The
+    uploaded names carry the session ``upload_run_id`` so concurrent or
+    repeated runs do not collide.
+
+    Skips the entire test module if either FP16 source is missing on
+    disk - the upload tests only make sense when the donor models are
+    physically present.
+
+    .. note::
+        These uploads are deliberately **not** cleaned up at the end of
+        the test session: the files under
+        ``shared/models/output/custom_uploaded_models/`` are created by
+        the ``model-download`` microservice and the test runner does
+        not have permission to delete them from the host. A dedicated
+        DELETE endpoint / janitor task is tracked separately.
+    """
+    # Imported here to keep the helpers/api_helpers import cost out of
+    # the always-loaded conftest header.
+    from helpers.api_helpers import upload_model_file
+
+    uploaded: dict[str, str] = {}
+    for source_name, info in _UPLOAD_MODEL_SOURCES.items():
+        fp16_dir = PROJECT_ROOT / info["fp16_dir"]
+        if not fp16_dir.is_dir():
+            pytest.skip(
+                f"FP16 source directory {fp16_dir} not found - upload tests "
+                "require the donor OMZ models to be installed on disk."
+            )
+        payload = _build_model_zip(fp16_dir)
+        uploaded_name = f"{source_name}-uploaded-{upload_run_id}"
+        response = upload_model_file(
+            http_client,
+            model_name=uploaded_name,
+            category=info["category"],
+            payload=payload,
+        )
+        assert response.status_code == 201, (
+            f"Upload of {uploaded_name} failed: {response.status_code}: {response.text}"
+        )
+        uploaded[source_name] = uploaded_name
+        logger.info(
+            "Uploaded model %s as %s (category=%s)",
+            source_name,
+            uploaded_name,
+            info["category"],
+        )
+    return uploaded

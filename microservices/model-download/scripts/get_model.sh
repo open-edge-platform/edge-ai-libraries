@@ -54,6 +54,11 @@ GETI_HOST="${GETI_HOST:-}"
 GETI_TOKEN="${GETI_TOKEN:-}"
 GETI_WORKSPACE_ID="${GETI_WORKSPACE_ID:-}"
 
+# HLS default URLs
+HLS_3D_POSE_CHECKPOINT_URL="https://storage.openvinotoolkit.org/repositories/open_model_zoo/public/2022.1/human-pose-estimation-3d-0001/human-pose-estimation-3d.tar.gz"
+HLS_ECG_BASE_URL="https://raw.githubusercontent.com/Einse57/OpenVINO_sample/master/ai-ecg-master"
+HLS_RPPG_MODEL_URL="https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5"
+
 # Error log file
 ERROR_LOG_DIR="${PWD}/.model_download_logs"
 mkdir -p "$ERROR_LOG_DIR" 2>/dev/null || ERROR_LOG_DIR="/tmp"
@@ -260,6 +265,11 @@ start_service_host() {
         DOCKER_ENV_ARGS+=(-e "GETI_HOST=${GETI_HOST}")
         DOCKER_ENV_ARGS+=(-e "GETI_TOKEN=${GETI_TOKEN}")
         DOCKER_ENV_ARGS+=(-e "GETI_WORKSPACE_ID=${GETI_WORKSPACE_ID}")
+    fi
+    if [[ "${HUB,,}" == "hls" ]]; then
+        DOCKER_ENV_ARGS+=(-e "HLS_3D_POSE_CHECKPOINT_URL=${HLS_3D_POSE_CHECKPOINT_URL}")
+        DOCKER_ENV_ARGS+=(-e "HLS_ECG_BASE_URL=${HLS_ECG_BASE_URL}")
+        DOCKER_ENV_ARGS+=(-e "HLS_RPPG_MODEL_URL=${HLS_RPPG_MODEL_URL}")
     fi
 
     # Start the container (detached — docker handles image pull synchronously)
