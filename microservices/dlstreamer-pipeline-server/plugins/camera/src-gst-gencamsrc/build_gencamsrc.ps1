@@ -232,6 +232,8 @@ Write-Host "GStreamer root   : $GSTREAMER_ROOT"
 
 # Point pkg-config at GStreamer's own .pc files
 $env:PKG_CONFIG_PATH = "$GSTREAMER_ROOT\lib\pkgconfig"
+# Also add GStreamer's pkg-config.exe to PATH if not already there
+$env:PATH = "$GSTREAMER_ROOT\bin;$env:PATH"
 Write-Host "PKG_CONFIG_PATH  : $env:PKG_CONFIG_PATH"
 
 # ============================================================================
@@ -270,10 +272,6 @@ if (Test-Path $VSDEVSHELL) {
     exit 1
 }
 
-# Re-add GStreamer bin after VS Dev Shell launch - Launch-VsDevShell.ps1
-# resets PATH to VS defaults, which drops anything added before it ran.
-$env:PATH = "$GSTREAMER_ROOT\bin;$env:PATH"
-
 # ============================================================================
 # CMake configure + build
 # ============================================================================
@@ -297,8 +295,7 @@ cmake `
     -DCMAKE_BUILD_TYPE="$BuildType" `
     -DGSTREAMER_ROOT="$GSTREAMER_ROOT" `
     -DGENICAM_ROOT="$GENICAM_ROOT" `
-    -DGENICAM_VC_VERSION="$VcVersion" `
-    -DPKG_CONFIG_EXECUTABLE="$GSTREAMER_ROOT\bin\pkg-config.exe"
+    -DGENICAM_VC_VERSION="$VcVersion"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "CMake configure failed (exit code $LASTEXITCODE)"
