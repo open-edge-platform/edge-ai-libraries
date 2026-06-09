@@ -6,12 +6,12 @@ Before getting installation, please check the prerequisites and make sure you ha
 
 ## Prerequisites
 
-- [System Requirements](installation_setup/prerequisites/system_requirement.rst)
-- [OS Setup](installation_setup/prerequisites/os_setup.rst)
+- [System Requirements](installation_setup/prerequisites/system_requirement.md)
+- [OS Setup](installation_setup/prerequisites/os_setup.md)
 
 ## Installation
 
-- [Real-Time Linux](installation_setup/installation/rt_linux.rst)
+- [Real-Time Linux](installation_setup/installation/rt_linux.md)
 
 <!--hide_directive
 :::{toctree}
