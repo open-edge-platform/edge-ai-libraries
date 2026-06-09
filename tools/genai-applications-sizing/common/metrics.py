@@ -563,7 +563,7 @@ def get_video_search_telemetry_kpis(start_time, end_time, telemetry_json_respons
             video_details["wall_time_seconds"] = item.get("timestamps", {}).get("wall_time_seconds", 0)
             video_details["embedding_per_sec"] = item.get("stage_throughput", {}).get("embeddings_throughput", 0)
             relative_rtf = (
-                (video_details.get("wall_time_seconds", 0) / video_details.get("video_duration_seconds", 1))
+                (video_details.get("wall_time_seconds", 0) / video_details.get("duration_seconds", 1))
                 * (30 / video_details.get("fps", 1))
             )
             video_details["Normalized_Embedding_RTF"] = round(relative_rtf, 4)
