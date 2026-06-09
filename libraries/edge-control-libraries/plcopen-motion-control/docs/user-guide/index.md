@@ -19,8 +19,8 @@ RTmotion is a library designed to match the interfaces and functions of the func
 
 Click each icon to learn more.
 
-- [Get Started with PLCopen Motion Control](rt-motion/installation_setup.rst) - Prepare system for PLCopen Motion Control.
-- [Developer Guide](rt-motion/rt-motion.rst) - Resources to get started with development.
+- [Get Started with PLCopen Motion Control](rt-motion/installation_setup.md) - Prepare system for PLCopen Motion Control.
+- [Developer Guide](rt-motion/rt-motion.md) - Resources to get started with development.
 
 <!--hide_directive
 :::{toctree}
