@@ -29,7 +29,7 @@ variants:
       gvafpscounter starting-frame=100 !
       gvawatermark !
       queue !
-      gvametaconvert timestamp-utc=true json-indent=-1 !
+      gvametaconvert add-empty-results=true timestamp-utc=true json-indent=-1 !
       gvametapublish method=file file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false
   - name: GPU
@@ -52,7 +52,7 @@ variants:
       gvafpscounter starting-frame=100 !
       gvawatermark !
       queue !
-      gvametaconvert timestamp-utc=true json-indent=-1 !
+      gvametaconvert add-empty-results=true timestamp-utc=true json-indent=-1 !
       gvametapublish method=file file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false
   - name: NPU
@@ -74,6 +74,6 @@ variants:
       gvafpscounter starting-frame=100 !
       gvawatermark !
       queue !
-      gvametaconvert timestamp-utc=true json-indent=-1 !
+      gvametaconvert add-empty-results=true timestamp-utc=true json-indent=-1 !
       gvametapublish method=file file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false

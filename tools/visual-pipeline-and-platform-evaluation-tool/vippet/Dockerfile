@@ -25,7 +25,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install necessary dependencies
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends gstreamer1.0-plugins-ugly yq v4l-utils && \
+    apt-get install --yes --no-install-recommends yq v4l-utils && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
