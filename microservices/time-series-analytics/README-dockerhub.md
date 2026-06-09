@@ -43,7 +43,7 @@ For more details on deployment, refer to the [documentation](https://docs.opened
 ### [1.0.0](https://docs.openedgeplatform.intel.com/2025.1/edge-ai-libraries/time-series-analytics/release-notes/aug-2025.html#v1-0-0)
 
 > **Note**:
-Please note this prebuilt docker image is not intended for production. For production use, build the docker image yourself using the [Dockerfile](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/time-series-analytics/Dockerfile)
+Please note this prebuilt docker image is not intended for production. For production use, build the docker image yourself using the [Dockerfile](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/time-series-analytics/Dockerfile)
 by following these [build instructions](https://docs.openedgeplatform.intel.com/2025.1/edge-ai-libraries/time-series-analytics/get-started.html#build-docker-image).
 
 #### Deploy using Docker Compose
