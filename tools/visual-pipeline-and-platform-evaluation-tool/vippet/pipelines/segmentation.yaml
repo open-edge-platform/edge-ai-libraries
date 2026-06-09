@@ -19,6 +19,7 @@ variants:
       gvafpscounter starting-frame=100 !
       videoconvert !
       video/x-raw,format=I420 !
+      gvametaconvert add-empty-results=true !
       gvametapublish method=file file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false
   - name: GPU
@@ -31,5 +32,6 @@ variants:
       queue !
       gvawatermark !
       gvafpscounter starting-frame=100 !
+      gvametaconvert add-empty-results=true !
       gvametapublish method=file file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false

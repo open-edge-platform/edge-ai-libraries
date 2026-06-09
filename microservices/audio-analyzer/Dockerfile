@@ -1,4 +1,6 @@
-FROM openvino/ubuntu22_runtime:2026.1.0
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+FROM intel/dlstreamer:2026.1.0-ubuntu24-rc1.1
 
 ARG APP_UID=1000
 ARG APP_GID=1000
@@ -7,22 +9,24 @@ USER root
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app/audio_analyzer
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg alsa-utils libsndfile1 python3-pip \
+    && apt-get install -y --no-install-recommends alsa-utils python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./requirements.txt
 
-RUN python3 -m pip install --upgrade pip \
-    && python3 -m pip install -r requirements.txt
+RUN python3 -m venv "$VIRTUAL_ENV" \
+    && "$VIRTUAL_ENV/bin/pip" install --upgrade pip \
+    && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt
 
 COPY . .
 
-# Ensure all relevant directories exist, are not empty, and are chowned
 RUN mkdir -p /app/audio_analyzer/models/openvino \
     && mkdir -p /app/audio_analyzer/models/dummy \
     && mkdir -p /app/audio_analyzer/chunks/dummy \

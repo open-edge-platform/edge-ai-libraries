@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Use DLStreamer as the base image
-FROM intel/dlstreamer:2026.1.0-ubuntu24-rc1.1 AS prod
+FROM intel/dlstreamer:2026.1.0-ubuntu24-rc2 AS prod
 
 # Switch to root user to install dependencies
 USER root
@@ -25,7 +25,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install necessary dependencies
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends gstreamer1.0-plugins-ugly yq v4l-utils && \
+    apt-get install --yes --no-install-recommends yq v4l-utils && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

@@ -45,7 +45,7 @@ OPTIMIZATION_CASES = [
     ),
     (
         "optimize-non-device-variant",
-        "gpu_npu",
+        "gpu-npu",
         {
             "type": "optimize",
             "parameters": {"search_duration": 10, "sample_duration": 3},
