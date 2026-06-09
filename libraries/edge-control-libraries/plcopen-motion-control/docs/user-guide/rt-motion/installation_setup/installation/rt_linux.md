@@ -7,7 +7,7 @@ PLCopen Motion Control provides real-time capabilities to the kernel with PREEMP
 1. Before using the ECI repository, update the APT packages list:
 
    ```bash
-   $ sudo apt update
+   sudo apt update
    ```
 
    ![](../../../assets/images/apt-update-1.png)
@@ -30,13 +30,13 @@ PLCopen Motion Control provides real-time capabilities to the kernel with PREEMP
 2. ECI provides Deb packages named `customizations-*` which add a GRUB menu entry for ECI and prepares the system to be deterministic. Install these packages using the `eci-customizations` meta-package:
 
    ```bash
-   $ sudo apt install -y eci-customizations
+   sudo apt install -y eci-customizations
    ```
 
 3. ECI provides a firmware package which backports updates from upstream to bring better hardware support to the current distribution. Install this package:
 
    ```bash
-   $ sudo apt-get reinstall '(firmware-linux-nonfree|linux-firmware$)'
+   sudo apt-get reinstall '(firmware-linux-nonfree|linux-firmware$)'
    ```
 
 4. Next, install the ECI real-time Linux kernel. There are two options available: Linux Intel LTS PREEMPT_RT kernel and Linux Intel LTS Xenomai Dovetail kernel. It is recommended that you start with **Linux Intel LTS PREEMPT_RT kernel**, if you do not know which option to choose.
@@ -49,7 +49,7 @@ PLCopen Motion Control provides real-time capabilities to the kernel with PREEMP
    **Linux Intel LTS PREEMPT_RT kernel** is Intel's Long-Term-Support kernel with PREEMPT_RT patches
 
    ```bash
-   $ sudo apt install -y linux-intel-rt
+   sudo apt install -y linux-intel-rt
    ```
 
    <!--hide_directive:::
@@ -58,7 +58,7 @@ PLCopen Motion Control provides real-time capabilities to the kernel with PREEMP
    **Linux Intel LTS Xenomai Dovetail kernel** is Intel's Long-Term-Support kernel with Xenomai patches
 
    ```bash
-   $ sudo apt install -y eci-xenomai
+   sudo apt install -y eci-xenomai
    ```
 
    <!--hide_directive:::
@@ -69,7 +69,7 @@ PLCopen Motion Control provides real-time capabilities to the kernel with PREEMP
 5. Reboot the target system.
 
    ```bash
-   $ sudo reboot
+   sudo reboot
    ```
 
 ## Verify Benchmark Performance
@@ -81,22 +81,22 @@ Please use `rt-tests v2.6` to collect performance, which support to pin threads 
 Follow with below steps, you can find `cyclictest v2.6` in `rt-tests-2.6`:
 
 ```bash
-$ wget https://web.git.kernel.org/pub/scm/utils/rt-tests/rt-tests.git/snapshot/rt-tests-2.6.tar.gz
-$ tar zxvf rt-tests-2.6.tar.gz
-$ cd rt-tests-2.6
-$ make
+wget https://web.git.kernel.org/pub/scm/utils/rt-tests/rt-tests.git/snapshot/rt-tests-2.6.tar.gz
+tar zxvf rt-tests-2.6.tar.gz
+cd rt-tests-2.6
+make
 ```
 
 **Note**: Please ensure you had installed `libnuma-dev` as dependence before compilation.
 
 ```bash
-$ sudo apt install libnuma-dev
+sudo apt install libnuma-dev
 ```
 
 An example command that runs the cyclictest benchmark as below:
 
 ```bash
-$ cyclictest -mp 99 -t1 -a 13 -i 1000 --laptop -D 72h  -N --mainaffinity 12
+cyclictest -mp 99 -t1 -a 13 -i 1000 --laptop -D 72h  -N --mainaffinity 12
 ```
 
 Default parameters are used unless otherwise specified. Run `cyclictest --help` to list the modifiable arguments.
@@ -121,4 +121,4 @@ T: 0 ( 3407) P:99 I:1000 C: 100000 Min:      928 Act:   1376 Avg:   1154 Max:   
 
 This result indicates an apparent short-term worst-case latency of 18 us. According to this, it is important to pay attention to the Max values as these are indicators of outliers. Even if the system has decent Avg (average) values, a single outlier as indicated by Max is enough to break or disturb a real-time system.
 
-If the real-time data is not good by default installation, please refer to [OS Setup](../prerequisites/os_setup.rst) for BIOS optimization and [Optimize Performance](https://eci.intel.com/docs/3.3/development/performance.html) to optimize Linux OS and application runtime on Intel® Processors.
+If the real-time data is not good by default installation, please refer to [OS Setup](../prerequisites/os_setup.md) for BIOS optimization and [Optimize Performance](https://eci.intel.com/docs/3.3/development/performance.html) to optimize Linux OS and application runtime on Intel® Processors.
