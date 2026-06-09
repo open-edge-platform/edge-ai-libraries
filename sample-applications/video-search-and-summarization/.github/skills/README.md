@@ -42,9 +42,6 @@ the agent runs), and `eval/` (behaviour checks).
 | [`vss-search`](./vss-search/SKILL.md) | upload, index, and natural-language search videos | `/manager/videos`, `/manager/search/query` |
 | [`vss-build`](./vss-build/SKILL.md) | build / push the VSS docker images from source | `build.sh` (true source) |
 
-> Roadmap (not yet built): `vss-ask`, `vss-ingest`, `vss-library`, `vss-report`
-> — further workflow skills over the Pipeline Manager API (`:12345/manager`).
-
 ## Conventions
 
 - **Run commands yourself** and relay results; don't ask the user to run them.
