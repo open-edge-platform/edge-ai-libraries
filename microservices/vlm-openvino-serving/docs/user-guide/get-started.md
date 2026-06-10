@@ -43,8 +43,9 @@ export VLM_DEVICE=GPU
 
 # NPU acceleration
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
-export VLM_COMPRESSION_WEIGHT_FORMAT=int8
+export VLM_COMPRESSION_WEIGHT_FORMAT=int4
 export VLM_DEVICE=NPU
+export VLM_NPU_EXPORT_PROFILE=safe
 
 # Performance optimization
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
@@ -146,13 +147,24 @@ To run the server with NPU acceleration, follow these steps:
 
 ### 1. Configure NPU Device
 
+Examples of configuring environment variables for NPU acceleration:
+
+```bash
+export VLM_MODEL_NAME=OpenGVLab/InternVL2-1B
+export VLM_DEVICE=NPU
+# Increase NPU prompt budget for image+text heavy requests (example)
+export OV_CONFIG='{"DEVICE_PROPERTIES":{"NPU":{"MAX_PROMPT_LEN":2048,"MIN_RESPONSE_LEN":512}}}'
+```
+
+> **Note**: For NPU prompt/response length tuning, see [Prompt and response length options](https://docs.openvino.ai/2026/openvino-workflow-generative/inference-with-genai/inference-with-genai-on-npu.html#prompt-and-response-length-options).
+
 ```bash
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
-export VLM_COMPRESSION_WEIGHT_FORMAT=int8
+export VLM_COMPRESSION_WEIGHT_FORMAT=int4
 export VLM_DEVICE=NPU
 ```
 
-> **Note**: NPU support is model-dependent. Verify that the selected model is listed as NPU-supported at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
+> **Note**: NPU support is model-dependent. Verify that the selected model is listed as NPU-supported at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page. For NPU `int4`/`nf4` exports, `VLM_NPU_EXPORT_PROFILE=safe` is the default (`--task image-text-to-text --sym --ratio 1.0 --group-size -1`). `setup.sh` enforces `VLM_NPU_EXPORT_PROFILE=data_aware` when model name contains `Qwen2.5-VL`; for other models, the user-provided profile is used as-is (`safe` or `data_aware`).
 
 ### 2. Run Setup Script
 

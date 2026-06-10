@@ -39,13 +39,19 @@ RUN /tmp/install_gpu_drivers.sh
 
 RUN apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/* && rm -rf /root/.cachetmp/*
 
+# Install the NPU user-space stack: the Intel NPU driver/compiler/firmware (from the
+# linux-npu-driver release) and the oneAPI Level Zero loader (libze1). The loader is
+# mandatory: without libze_loader.so.1 the OpenVINO NPU plugin cannot enumerate the
+# device and compilation on NPU can fail.
 RUN mkdir -p /tmp/npu_deps && cd /tmp/npu_deps && \
     apt-get update && apt-get install -y --no-install-recommends libtbb12 && \
-    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.32.1/linux-npu-driver-v1.32.1.20260422-24767473183-ubuntu2404.tar.gz && \
-    tar -xf linux-npu-driver-v1.32.1.20260422-24767473183-ubuntu2404.tar.gz && \
-    curl -L -O https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260324T100000Z/pool/main/l/level-zero-loader/libze1_1.27.0-1~24.04~ppa2_amd64.deb ; \
+    curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/linux-npu-driver/releases/download/v1.33.0/linux-npu-driver-v1.33.0.20260529-26625960453-ubuntu2404.tar.gz && \
+    tar -xf linux-npu-driver-v1.33.0.20260529-26625960453-ubuntu2404.tar.gz && \
+    curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260324T100000Z/pool/main/l/level-zero-loader/libze1_1.27.0-1~24.04~ppa2_amd64.deb && \
     dpkg -i ./*.deb && rm -Rf /tmp/npu_deps && \
-    apt-get clean ; \
+    ldconfig && \
+    test -e /usr/lib/x86_64-linux-gnu/libze_loader.so.1 && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Optionally download copyleft sources if requested
@@ -92,4 +98,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["/bin/bash", "-c", "/app/scripts/compress_model.sh ${VLM_MODEL_NAME} ${VLM_COMPRESSION_WEIGHT_FORMAT} ${HUGGINGFACE_TOKEN} && gunicorn -b 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.app:app --timeout 10000 -w ${WORKERS:-1} --log-level ${VLM_OPENVINO_LOG_LEVEL:-info} --access-logfile ${VLM_ACCESS_LOG_FILE:--} --error-logfile -"]
+CMD ["/bin/bash", "-c", "/app/scripts/compress_model.sh ${VLM_MODEL_NAME} ${VLM_COMPRESSION_WEIGHT_FORMAT} ${VLM_DEVICE} ${HUGGINGFACE_TOKEN} && gunicorn -b 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.app:app --timeout 10000 -w ${WORKERS:-1} --log-level ${VLM_OPENVINO_LOG_LEVEL:-info} --access-logfile ${VLM_ACCESS_LOG_FILE:--} --error-logfile -"]

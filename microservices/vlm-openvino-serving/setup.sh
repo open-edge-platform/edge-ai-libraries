@@ -23,6 +23,12 @@ docker volume create ov-models
 echo "Created docker volume for the models."
 
 export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-int8}
+export VLM_NPU_EXPORT_PROFILE=${VLM_NPU_EXPORT_PROFILE:-safe}
+export VLM_NPU_VLM_NUM_SAMPLES=${VLM_NPU_VLM_NUM_SAMPLES:-16}
+export VLM_NPU_VLM_GROUP_SIZE=${VLM_NPU_VLM_GROUP_SIZE:--1}
+export VLM_NPU_VLM_RATIO=${VLM_NPU_VLM_RATIO:-0.8}
+export VLM_NPU_VLM_SENSITIVITY_METRIC=${VLM_NPU_VLM_SENSITIVITY_METRIC:-mean_activation_magnitude}
+VLM_MODEL_NAME_LOWER=$(echo "${VLM_MODEL_NAME:-}" | tr '[:upper:]' '[:lower:]')
 # Number of uvicorn workers
 export WORKERS=${WORKERS:-1}
 
@@ -32,7 +38,12 @@ if [[ "$VLM_DEVICE" == "GPU" ]]; then
 fi
 
 if [[ "$VLM_DEVICE" == "NPU" ]]; then
+    export VLM_COMPRESSION_WEIGHT_FORMAT=int4
     export WORKERS=1
+    if [[ "$VLM_MODEL_NAME_LOWER" == *qwen2.5-vl* ]]; then
+        export VLM_NPU_EXPORT_PROFILE=data_aware
+        echo "Detected Qwen2.5-VL model on NPU. Enforcing VLM_NPU_EXPORT_PROFILE=data_aware."
+    fi
 fi
 
 # Export current user and group IDs for container user
@@ -123,6 +134,9 @@ fi
 # export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY", "NUM_STREAMS": 2}'
 # export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY", "CACHE_DIR": "/tmp/ov_cache"}'
 # export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT", "INFERENCE_NUM_THREADS": 8, "NUM_STREAMS": 4}'
+# NPU VLM prompt-length example:
+# export OV_CONFIG='{"DEVICE_PROPERTIES":{"NPU":{"MAX_PROMPT_LEN":2048,"MIN_RESPONSE_LEN":512}}}'
+# Reference: https://docs.openvino.ai/2026/openvino-workflow-generative/inference-with-genai/inference-with-genai-on-npu.html#prompt-and-response-length-options
 #
 # If not set, the default configuration will be: {"PERFORMANCE_HINT": "LATENCY"}
 # To set a specific value, either export it before sourcing this script or uncomment one of the examples above

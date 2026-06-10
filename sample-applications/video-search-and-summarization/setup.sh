@@ -887,7 +887,7 @@ export_model_for_ovms() {
 
         # Always pull latest export_model.py script
         echo -e "Downloading latest export_model.py from OVMS repository..."
-        curl -fsSL https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/export_model.py -o export_model.py || exit 1
+        curl -fsSL https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.2/demos/common/export_models/export_model.py -o export_model.py || exit 1
 
         echo -e "Creating Python virtual environment for model export..."
         if ! python3 -m venv --help > /dev/null 2>&1; then
@@ -923,7 +923,7 @@ export_model_for_ovms() {
             fi
         else
             # Full conversion path: install all requirements for optimum-cli conversion
-            local ovms_requirements_url="https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/requirements.txt"
+            local ovms_requirements_url="https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.2/demos/common/export_models/requirements.txt"
             local tmp_requirements
             tmp_requirements=$(mktemp)
 
