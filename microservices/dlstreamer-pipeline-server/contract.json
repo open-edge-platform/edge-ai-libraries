@@ -1,0 +1,22 @@
+{
+  "contract-version": "3.0.0",
+  "element-binding-forms": [
+    "string",
+    "object",
+    "array"
+  ],
+  "supported-formats": [
+    "element-properties",
+    "json"
+  ],
+  "reserved-element-names": [
+    "appsink",
+    "destination",
+    "metaconvert",
+    "source"
+  ],
+  "unresolved-element-behavior": "log-and-continue",
+  "unresolved-property-behavior": "log-and-continue",
+  "normative-reference": "docs/user-guide/advanced-guide/detailed_usage/rest_api/parameter_contract.md",
+  "conformance-tests": "tests/test_parameter_contract.py"
+}
