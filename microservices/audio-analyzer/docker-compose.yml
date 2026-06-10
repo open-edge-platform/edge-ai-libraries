@@ -16,10 +16,7 @@ services:
       - video
       - "${RENDER_GID:-992}"
     environment:
-      # Point HF cache under ~/.cache so a single ./.cache mount persists
-      # HF downloads AND openai-whisper's ~/.cache/whisper *.pt files,
-      # avoiding a ~2 min re-download of tiny.pt on every restart.
-      HF_HOME: /home/openvino/.cache/huggingface
+      HF_HOME: /app/audio_analyzer/.cache/huggingface
     volumes:
       - ./config.yaml:/app/audio_analyzer/config.yaml:ro
       - audio_analyzer_models:/app/audio_analyzer/models

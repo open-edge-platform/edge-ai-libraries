@@ -5,12 +5,11 @@ recent release is listed first; older entries are preserved for history.
 
 ## Version 1.4.0
 
-
-**June 17, 2026**
-
 First release of the Audio Analyzer as a self-contained,
 OpenAI API-compatible speech-to-text microservice with optional voice
 sentiment analysis, built for edge deployment on Intel hardware.
+
+**June 17, 2026**
 
 **New**
 
