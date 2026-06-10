@@ -90,8 +90,8 @@ RUN chmod +x /entrypoint.sh /install_ubuntu_gpu_drivers.sh && \
 # shipping a broken image, and the final assertion fails the build if the loader is missing.
 RUN mkdir -p /tmp/npu_deps && cd /tmp/npu_deps && \
     apt-get update && apt-get install -y --no-install-recommends libtbb12 && \
-    curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/linux-npu-driver/releases/download/v1.32.1/linux-npu-driver-v1.32.1.20260422-24767473183-ubuntu2404.tar.gz && \
-    tar -xf linux-npu-driver-v1.32.1.20260422-24767473183-ubuntu2404.tar.gz && \
+    curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/linux-npu-driver/releases/download/v1.33.0/linux-npu-driver-v1.33.0.20260529-26625960453-ubuntu2404.tar.gz && \
+    tar -xf linux-npu-driver-v1.33.0.20260529-26625960453-ubuntu2404.tar.gz && \
     curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260324T100000Z/pool/main/l/level-zero-loader/libze1_1.27.0-1~24.04~ppa2_amd64.deb && \
     dpkg -i ./*.deb && rm -Rf /tmp/npu_deps && \
     ldconfig && \
