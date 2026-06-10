@@ -63,7 +63,15 @@ RUN \
     pip3 install --disable-pip-version-check --no-cache-dir -r requirements.txt && \
     python3 -m venv $OMZ_VIRTUAL_ENV && \
     $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check --no-cache-dir \
-        -r requirements-omz.txt
+        -r requirements-omz.txt && \
+    # Security override: bump ``onnx`` past the cap that ``openvino-dev``
+    # 2024.6.0 (archived upstream) inherited. Fixes CVE-2026-27489 (HIGH),
+    # CVE-2026-28500 and CVE-2026-34446. ``--upgrade`` + explicit version
+    # is required because the resolver would otherwise honor the cap, and
+    # we deliberately keep transitive deps intact (no --no-deps) so onnx's
+    # own runtime requirements (protobuf, numpy) are satisfied.
+    $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check --no-cache-dir \
+        --upgrade "onnx>=1.21.0"
 
 # Copy the Python scripts and configuration files into the container
 COPY --chown=dlstreamer:dlstreamer \
