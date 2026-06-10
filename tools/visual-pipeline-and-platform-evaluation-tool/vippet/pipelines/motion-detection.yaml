@@ -17,7 +17,7 @@ variants:
         pre-process-backend=opencv
         inference-region=roi-list
         model-instance-id=detect-cpu !
-      gvametaconvert format=json !
+      gvametaconvert add-empty-results=true format=json !
       gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       gvawatermark !
@@ -34,7 +34,7 @@ variants:
         pre-process-backend=va-surface-sharing
         inference-region=roi-list
         model-instance-id=detect-gpu !
-      gvametaconvert format=json !
+      gvametaconvert add-empty-results=true format=json !
       gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       gvawatermark !
@@ -53,7 +53,7 @@ variants:
         pre-process-backend=opencv
         inference-region=roi-list
         model-instance-id=detect-gpu !
-      gvametaconvert format=json !
+      gvametaconvert add-empty-results=true format=json !
       gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       gvawatermark !
@@ -70,7 +70,7 @@ variants:
         pre-process-backend=opencv
         inference-region=roi-list
         model-instance-id=detect-npu !
-      gvametaconvert format=json !
+      gvametaconvert add-empty-results=true format=json !
       gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       gvawatermark !

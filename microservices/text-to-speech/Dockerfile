@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 FROM openvino/ubuntu22_runtime:2026.1.0
 
 ARG APP_UID=1000

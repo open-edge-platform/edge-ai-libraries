@@ -75,6 +75,12 @@ Note: supported media types: jpg, png, mp4
    **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
    See [Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for Multimodal Embedding Serving for available options.
 
+   **Note**: `env.sh` sets `HF_ENDPOINT` to a Hugging Face mirror, which is necessary for users in the PRC to download models. Users in other regions may remove or unset this variable to use the default Hugging Face endpoint:
+
+   ```bash
+   unset HF_ENDPOINT
+   ```
+
    <details>
    <summary>For EMT-S platform</summary>
    If you are on an EMT-S platform, please set up the variables correspondingly by running
@@ -166,6 +172,20 @@ curl -X DELETE http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/delete?file_p
 ```curl
 curl -X DELETE http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/delete_all
 ```
+
+## Troubleshooting
+
+### Network failure when downloading models
+
+If service startup fails with errors that look like a network failure while downloading models from Hugging Face, the configured `HF_ENDPOINT` mirror may be unreachable from your network. Try unsetting it before redeploying:
+
+```bash
+unset HF_ENDPOINT
+docker compose -f compose_milvus.yaml down
+docker compose -f compose_milvus.yaml up -d
+```
+
+This falls back to the default Hugging Face endpoint, which is typically the right choice for users outside the PRC.
 
 ## Learn More
 
