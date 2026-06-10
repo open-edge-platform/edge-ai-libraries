@@ -19,6 +19,7 @@ on:
       - 'microservices/dlstreamer-pipeline-server/unittests.Dockerfile'
   pull_request:
     paths:
+      - '.github/**'
       - 'microservices/dlstreamer-pipeline-server/configs/**'
       - 'microservices/dlstreamer-pipeline-server/docker/**'
       - 'microservices/dlstreamer-pipeline-server/helm/**'
