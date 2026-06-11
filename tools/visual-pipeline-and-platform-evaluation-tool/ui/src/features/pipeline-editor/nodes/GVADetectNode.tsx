@@ -28,7 +28,7 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
             <>
               {data.device && <span className="text-node-separator">•</span>}
               <span
-                className="truncate max-w-[10.3125rem]"
+                className="truncate max-w-[9.25rem]"
                 title={data.model.split("/").pop() || data.model}
               >
                 {data.model.split("/").pop() || data.model}
