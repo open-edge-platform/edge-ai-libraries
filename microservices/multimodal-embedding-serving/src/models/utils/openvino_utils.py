@@ -15,11 +15,26 @@ Key functions:
 The utilities ensure efficient model conversion by checking for existing IR files
 and only converting when necessary, reducing startup time for subsequent runs.
 """
-from pathlib import Path
 import gc
+import math
 import os
+from dataclasses import dataclass
+from pathlib import Path
+import time
+
+import numpy as np
 import openvino as ov
+
 from ...utils import logger
+
+
+@dataclass
+class BatchMetadata:
+    """Metadata for async batch inference."""
+
+    batch_idx: int
+    samples_in_batch: int
+
 
 def check_and_convert_openvino_models(
     model_key, model_loader, tokenizer_loader, convert_func, ov_models_dir):
@@ -73,7 +88,9 @@ def check_and_convert_openvino_models(
     return str(image_encoder_path), str(text_encoder_path)
 
 
-def load_openvino_models(image_encoder_path, text_encoder_path, device):
+def load_openvino_models(
+    image_encoder_path, text_encoder_path, device, reshape_shape=(1, 3, 224, 224)
+):
     """
     Load and compile OpenVINO IR models for inference.
     
@@ -85,7 +102,8 @@ def load_openvino_models(image_encoder_path, text_encoder_path, device):
         image_encoder_path: Path to the image encoder IR model file (.xml)
         text_encoder_path: Path to the text encoder IR model file (.xml)  
         device: Target device for inference (e.g., "CPU", "GPU", "AUTO")
-        
+        reshape_shape: Optional shape for reshaping the input tensor (default: (1, 3, 224, 224))
+
     Returns:
         Tuple of (compiled_image_encoder, compiled_text_encoder) ready for inference
         
@@ -143,6 +161,7 @@ def load_openvino_models(image_encoder_path, text_encoder_path, device):
         config = {
             "PERFORMANCE_HINT": performance_mode,
             "PERFORMANCE_HINT_NUM_REQUESTS": perf_hint_requests,
+            "NUM_STREAMS": "AUTO",
         }
 
         device_upper = (device or "").upper()
@@ -206,9 +225,20 @@ def load_openvino_models(image_encoder_path, text_encoder_path, device):
                     logger.info(
                         "Skipping unsupported OpenVINO CPU property '%s'", prop_key
                     )
-
-        ov_image_encoder = core.compile_model(image_encoder_path, device, config)
-        ov_text_encoder = core.compile_model(text_encoder_path, device, config)
+            ov_image_encoder = core.compile_model(image_encoder_path, device, config)
+            ov_text_encoder = core.compile_model(text_encoder_path, device, config)
+        else:
+            logger.info(
+                f"iGPU configuration: Reshaping to static batch size {reshape_shape} - {config}"
+            )
+            image_encoder_model = core.read_model(image_encoder_path)
+            image_encoder_model.reshape(
+                {
+                    image_encoder_model.input().get_any_name(): reshape_shape
+                }
+            )
+            ov_image_encoder = core.compile_model(image_encoder_model, device, config)
+            ov_text_encoder = core.compile_model(text_encoder_path, device, config)
 
     logger.info(
         "Loaded image encoder: inputs=%s, outputs=%s",
@@ -222,3 +252,115 @@ def load_openvino_models(image_encoder_path, text_encoder_path, device):
     )
 
     return ov_image_encoder, ov_text_encoder
+
+
+class AsyncBatchInference:
+    """
+    Reusable async batch inference for OpenVINO models.
+
+    Args:
+        compiled_model: Compiled OpenVINO model.
+        batch_size: Number of samples per batch (default: 32).
+        embedding_dim: Output embedding dimension (default: 512).
+    """
+
+    def __init__(
+        self,
+        compiled_model: ov.CompiledModel,
+        embedding_dim: int = 512,
+        preprocess_shape: tuple = (1, 3, 224, 224),
+    ):
+        self.compiled_model = compiled_model
+        self.batch_size = preprocess_shape[0] if preprocess_shape is not None else 64
+        self.embedding_dim = embedding_dim
+        self.async_queue = ov.AsyncInferQueue(compiled_model)
+        self.preprocess_shape = preprocess_shape
+
+    def infer_stream(self, batch_generator, total_images):
+        final_output = np.empty((total_images, self.embedding_dim), dtype=np.float32)
+
+        submitted = 0
+        completed = 0
+
+        def callback(request, userdata):
+            nonlocal completed
+
+            start = userdata["start"]
+            count = userdata["count"]
+
+            out = request.output_tensors[0].data
+            final_output[start:start+count] = out[:count]
+
+            completed += count
+
+        self.async_queue.set_callback(callback)
+
+        for batch in batch_generator:
+
+            count = batch.shape[0]
+
+            if count < self.batch_size:
+                padded = np.zeros(self.preprocess_shape, dtype=np.float32)
+                padded[:count] = batch
+                batch = padded
+
+            while not self.async_queue.is_ready():
+                time.sleep(0.001)
+
+            self.async_queue.start_async(
+                {0: batch},
+                userdata={"start": submitted, "count": count}
+            )
+
+            submitted += count
+
+        self.async_queue.wait_all()
+
+        return final_output
+
+    def infer(self, images: np.ndarray) -> np.ndarray:
+        """
+        Run async batch inference on preprocessed images.
+
+        Args:
+            images: Preprocessed images as a numpy array [N, C, H, W].
+
+        Returns:
+            Embeddings as numpy array [N, embedding_dim].
+        """
+        total_images = images.shape[0]
+        num_batches = math.ceil(total_images / self.batch_size)
+        # TODO: check np.float16 option & accuracy
+        final_output = np.empty((total_images, self.embedding_dim), dtype=np.float32)
+
+        def response_callback(request, userdata):
+            batch_idx = userdata.batch_idx
+            samples_in_batch = userdata.samples_in_batch
+            out = request.output_tensors[0].data
+            start = batch_idx * self.batch_size
+            end = start + samples_in_batch
+            final_output[start:end] = out[:samples_in_batch]
+
+        self.async_queue.set_callback(response_callback)
+
+        for i in range(num_batches):
+
+            batch_np = images[i * self.batch_size : (i + 1) * self.batch_size]
+
+            samples_in_batch = batch_np.shape[0]
+            if samples_in_batch < self.batch_size:
+                # For uneven batch sizes, Pad with zeros to fill the batch
+                padded = np.zeros(self.preprocess_shape, dtype=np.float32)
+                padded[:samples_in_batch] = batch_np
+                batch_np = padded
+
+            metadata = BatchMetadata(batch_idx=i, samples_in_batch=samples_in_batch)
+
+            if not self.async_queue.is_ready():
+                self.async_queue.wait_all()
+
+            self.async_queue.start_async({0: batch_np}, userdata=metadata)
+
+        self.async_queue.wait_all()
+
+        return final_output

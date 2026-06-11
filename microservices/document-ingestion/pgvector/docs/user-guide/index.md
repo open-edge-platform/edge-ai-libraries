@@ -30,7 +30,7 @@ vectorDB and minIO is used as the data store.
 ## Example Use Case
 
 **Use Case 1**: Refer to the
-[ChatQnA](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/index.html)
+[Chat Q&A](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/index.html)
 sample application where this microservice is used.
 
 ### High-Level System View Diagram
@@ -60,6 +60,7 @@ support other vectorDBs.
 get-started
 how-to-customize
 api-reference.md
+Release Notes <release-notes.md>
 
 :::
 hide_directive-->

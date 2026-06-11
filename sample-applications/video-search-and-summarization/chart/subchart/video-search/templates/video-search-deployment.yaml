@@ -46,9 +46,9 @@ spec:
           {{- end }}
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
             - name: no_proxy_env
-              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
@@ -59,18 +59,10 @@ spec:
               value: "{{ .Values.videosearch.env.VDMS_VDB_PORT }}"
             - name: INDEX_NAME
               value: {{ .Values.global.vdmsIndexName | quote }}
-            {{- $vsEmbeddingModel := dict "value" "" }}
-            {{- if .Values.videosearch.env.EMBEDDINGS_MODEL_NAME }}
-            {{- $_ := set $vsEmbeddingModel "value" .Values.videosearch.env.EMBEDDINGS_MODEL_NAME }}
-            {{- else if (dig "embedding" "preferTextModel" false .Values.global) }}
-            {{- $_ := set $vsEmbeddingModel "value" (required "Set global.env.TEXT_EMBEDDING_MODEL_NAME when global.embedding.preferTextModel is true." (dig "env" "TEXT_EMBEDDING_MODEL_NAME" "" .Values.global)) }}
-            {{- else }}
-            {{- $_ := set $vsEmbeddingModel "value" (required "Set global.env.EMBEDDING_MODEL_NAME (or override videosearch.env.EMBEDDINGS_MODEL_NAME) before deploying the chart." (dig "env" "EMBEDDING_MODEL_NAME" "" .Values.global)) }}
-            {{- end }}
             - name: EMBEDDINGS_ENDPOINT
               value: {{ .Values.videosearch.env.EMBEDDINGS_ENDPOINT | default .Values.global.env.MULTIMODAL_EMBEDDING_ENDPOINT | quote }}
             - name: EMBEDDINGS_MODEL_NAME
-              value: {{ $vsEmbeddingModel.value | quote }}
+              value: {{ required "global.embeddingModelName is required" .Values.global.embeddingModelName | quote }}
             - name: SEARCH_ENGINE
               value: {{ .Values.videosearch.env.SEARCH_ENGINE | quote }}
             - name: DISTANCE_STRATEGY
@@ -101,6 +93,8 @@ spec:
               value: {{ .Values.videosearch.env.AGGREGATION_INITIAL_K | quote }}
             - name: AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS
               value: {{ .Values.videosearch.env.AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS | quote }}
+            - name: SEARCH_DATAPREP_TIMEOUT_MS
+              value: {{ .Values.videosearch.env.SEARCH_DATAPREP_TIMEOUT_MS | quote }}
             - name: AGGREGATION_QUAL_MAX_WEIGHT
               value: {{ .Values.videosearch.env.AGGREGATION_QUAL_MAX_WEIGHT | quote }}
             - name: AGGREGATION_QUAL_TOP_WEIGHT

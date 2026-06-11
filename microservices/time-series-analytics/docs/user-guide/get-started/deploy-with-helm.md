@@ -23,14 +23,11 @@
 
     1. Download helm chart with the following command
 
-        `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.1.0-<date>-weekly-helm`
-
-        Replace `<date>` with the actual patch version date (e.g., `20260120` for January 20th, 2026).
-        `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.1.0-20260120-weekly-helm`
+        `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.1.0-rc1-helm`
 
     2. unzip the package using the following command
 
-        `tar -xvzf ia-time-series-analytics-microservice-2026.1.0-<date>-weekly-helm.tgz`
+        `tar -xvzf ia-time-series-analytics-microservice-2026.1.0-rc1-helm.tgz`
 
     - Get into the helm directory
 
@@ -47,8 +44,6 @@
 
 ```bash
 cd edge-ai-libraries/microservices/time-series-analytics/helm # path relative to git clone folder
-# Copy the config.json file to helm directory
-cp ../config.json .
 # Install helm charts
 helm install time-series-analytics-microservice . -n apps --create-namespace
 ```
@@ -57,6 +52,31 @@ Use the following command to verify if all the application resources got install
 
 ```bash
    kubectl get all -n apps
+```
+
+## Upload the `temperature_classifier` UDF
+
+Run the following commands to package and upload the `temperature_classifier` UDF deployment package to the microservice:
+
+```bash
+cd edge-ai-libraries/microservices/time-series-analytics/
+rm -f temperature_classifier.tar
+tar cf temperature_classifier.tar udfs/ tick_scripts/
+curl -X POST http://localhost:30002/udfs/package \
+  -F "file=@temperature_classifier.tar"
+```
+
+## Activate the UDF Deployment Package
+
+Run the following command to apply the configuration and activate the uploaded UDF:
+
+```bash
+cd edge-ai-libraries/microservices/time-series-analytics/
+
+curl -s -X POST http://localhost:30002/config \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d @config.json
 ```
 
 ## Ingesting Temperature Data into the Time Series Analytics Microservice
@@ -74,7 +94,6 @@ python3 simulator/temperature_input.py --port 30002
 ## Verify the Temperature Classifier Results
 
 Run following commands to see the filtered temperature results:
-
 
 ``` bash
 POD_NAME=$(kubectl get pods -n apps -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep deployment-time-series-analytics-microservice | head -n 1)

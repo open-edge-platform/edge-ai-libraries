@@ -4,7 +4,7 @@
 **Sample Description**: Provide a brief overview of the application and its purpose.
 -->
 
-The ChatQ&A Sample Application is a modular Retrieval Augmented Generation (RAG) pipeline designed to help developers create intelligent chatbots that can answer questions based on enterprise data. This guide will help you set up, run, and modify the ChatQ&A Sample Application on Intel Edge AI systems.
+The Chat Question & Answer (Chat Q&A) sample application is a modular Retrieval Augmented Generation (RAG) pipeline designed to help developers create intelligent chatbots that can answer questions based on enterprise data. This guide will help you set up, run, and modify the Chat Q&A sample application on Intel Edge AI systems.
 
 <!--
 **What You Can Do**: Highlight the developer workflows supported by the guide.
@@ -39,7 +39,6 @@ The sample application has been validated with a few models just to validate the
 
    | Model Server | Models Validated |
    |--------------|------------------|
-   | `TEI` | `Alibaba-NLP/gte-large-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5` |
    | `OVMS` | `Alibaba-NLP/gte-large-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5` |
 
 ### LLM Models validated for each model server
@@ -146,7 +145,7 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
     source setup.sh llm=<model-server> embed=<embedding>
     # Below are the options
     # model-server: VLLM(deprecated) , OVMS, TGI(deprecated)
-    # embedding: OVMS, TEI
+    # embedding: OVMS
     ```
 
 5. **Start the Application**:
@@ -209,7 +208,6 @@ For alternative ways to set up the sample application, see:
 ./get-started/system-requirements
 ./get-started/build-from-source
 ./get-started/deploy-with-helm
-./get-started/deploy-with-edge-orchestrator
 
 :::
 hide_directive-->

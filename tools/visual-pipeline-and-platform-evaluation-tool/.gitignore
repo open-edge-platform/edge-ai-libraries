@@ -2,9 +2,11 @@ __pycache__
 .coverage
 .env
 .idea
-shared/collector-signals/
+shared/images/input/*
+shared/images/output/*
 shared/models/output/*
 shared/videos/input/*
 shared/videos/output/*
 shared/videos/video-generator/*
 shared/onvif/*
+shared/metadata/*

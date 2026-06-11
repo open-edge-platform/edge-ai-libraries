@@ -2,7 +2,7 @@
 This page provides detailed hardware, software, and platform requirements to help you set up and run the microservice efficiently.
 
 ## Supported Platforms
-This microservice currently supports CPU based runs only. This microservice is intended to run in the context of video summary pipeline. Hence, supported platform, OS configuration etc. is as per the documentation in the sample application. The documentation here, hence, does not provide separate requirements.
+This microservice currently supports CPU, GPU, and NPU based runs. This microservice is intended to run in the context of video summary pipeline. Hence, supported platform, OS configuration etc. is as per the documentation in the sample application. The documentation here, hence, does not provide separate requirements.
 
 **Operating Systems**
 - As per sample application documentation.
@@ -18,7 +18,6 @@ This microservice currently supports CPU based runs only. This microservice is i
 **Required Software**:
 - Docker 24.0
 - Python 3.10
-- Poetry 1.8.3 for dependency management
 - MinIO server (optional, for object storage)
 - If you are behind a proxy, please make sure `http_proxy`, `https_proxy`, `no_proxy` are properly set on the shell you use.
 
@@ -29,4 +28,3 @@ This microservice currently supports CPU based runs only. This microservice is i
 
 * [Overview](Overview.md)
 * [API Reference](api-reference.md)
-

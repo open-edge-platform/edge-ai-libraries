@@ -15,19 +15,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Use DLStreamer as the base image
-FROM intel/dlstreamer:2026.0.0-ubuntu24
+FROM intel/dlstreamer:2026.1.0-ubuntu24-rc2
 
 # Switch to root user to install dependencies
 USER root
 
 # Set environment variable to non-interactive mode (avoids some prompts)
 ENV DEBIAN_FRONTEND=noninteractive
-
-# Install necessary dependencies
-RUN apt-get update && \
-    apt-get install --yes --no-install-recommends gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
 
 # Set GStreamer plugin path
 ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/
@@ -44,9 +38,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 COPY requirements.txt /usr/src/app
 
 # Install necessary Python dependencies
-RUN \
-    pip3 install --upgrade pip && \
-    pip3 install --disable-pip-version-check --no-cache-dir -r requirements.txt
+RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements.txt
 
 # Copy the Python scripts and configuration files into the container
 COPY background.gif config.json imagetovideo.py composite_generator.py /usr/src/app/

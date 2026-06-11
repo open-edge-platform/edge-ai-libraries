@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "mcp-app"
+version = "0.2.0"
+description = "Spec-driven FastMCP proxy for filtered REST APIs"
+readme = "README.md"
+authors = []
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+fastmcp = "^3.4.0"
+httpx = "^0.28.1"
+pydantic = "^2.13.4"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.3"
+
+[tool.poetry.scripts]
+mcp-app = "src.main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

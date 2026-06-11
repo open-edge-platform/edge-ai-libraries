@@ -1,0 +1,20 @@
+global:
+  report_dir: 'reports'
+  input_profiles_path: 'profiles/profiles.yaml'  # Reference to external input profiles file
+  jaeger_url: 'traces url' # https://<url or IP>/api/traces
+  perf_tool_repo: 'https://github.com/intel-retail/performance-tools.git'
+
+apis:
+  stream_log:
+    enabled: true
+    service_name: 'chatqna'
+    endpoints:
+      chat: '8102/v1/chatqna/chat'
+      document: '8102/v1/chatqna/documents'
+    input_profile: 'chatqna_wsf'  # Reference to input profile
+  
+  document:
+    enabled: false
+    endpoints:
+      document: '8102/v1/chatqna/documents'
+    input_profile: 'document_medium'  # Reference to input profile

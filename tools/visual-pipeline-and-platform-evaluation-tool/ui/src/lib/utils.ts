@@ -15,3 +15,16 @@ export const formatErrorMessage = (
   }
   return errorMessage ?? defaultMessage;
 };
+
+/**
+ * Format device names by replacing trademark notations with symbols
+ * Converts (R), (TM), (C) to ®, ™, © respectively
+ */
+export const formatDeviceName = (name: string | undefined | null): string => {
+  if (!name) return "";
+
+  return name
+    .replace(/\(R\)/g, "®")
+    .replace(/\(TM\)/g, "™")
+    .replace(/\(C\)/g, "©");
+};

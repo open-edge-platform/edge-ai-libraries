@@ -9,6 +9,10 @@
 RED='\033[0;31m'
 NC='\033[0m'
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MICROSERVICES_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DOCKERFILE="$SCRIPT_DIR/docker/Dockerfile"
+
 # Common env vars ---------------------------------------------------
 export PROJECT_NAME=${PROJECT_NAME}
 export COVERAGE_REQ=80
@@ -42,6 +46,18 @@ export VDMS_DATAPREP_LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
 # Optional hard cap for SDK parallel workers (auto when unset)
 export MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-""}
 export EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
+export SDK_VIDEO_SHM_MAX_BLOCKS=${SDK_VIDEO_SHM_MAX_BLOCKS:-512}
+export SDK_VIDEO_SHM_BLOCK_SIZE=${SDK_VIDEO_SHM_BLOCK_SIZE:-$((1920 * 1080 * 3))}
+export SDK_VIDEO_EXTRACTION_BATCH_SIZE=${SDK_VIDEO_EXTRACTION_BATCH_SIZE:-256}
+export SDK_PIPELINE_QUEUE_MAXSIZE=${SDK_PIPELINE_QUEUE_MAXSIZE:-16}
+export SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE=${SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE:-1}
+export SDK_DETECTION_WORKER_THREADS=${SDK_DETECTION_WORKER_THREADS:-2}
+export SDK_EMBED_WORKER_THREADS=${SDK_EMBED_WORKER_THREADS:-2}
+export SDK_PIPELINE_QUEUE_GET_TIMEOUT_S=${SDK_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
+export SAVE_RUNTIME_PIPELINE_STATS=${SAVE_RUNTIME_PIPELINE_STATS:-false}
+export SDK_ENABLE_TRACING=${SDK_ENABLE_TRACING:-false}
+export VIDEO_FRAME_DECODER_WORKERS=${VIDEO_FRAME_DECODER_WORKERS:-2}
+export VIDEO_FRAME_LOG_LEVEL=${VIDEO_FRAME_LOG_LEVEL:-INFO}
 
 # Embedding microservice configuration -------------------------------
 export EMBEDDING_SERVER_PORT=${EMBEDDING_SERVER_PORT:-9777}
@@ -188,7 +204,7 @@ elif [ "$1" = "--down" ] && [ "$#" -eq 1 ]; then
 # Build dataprep image
 elif [ "$1" = "--build" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
     default_image="${REGISTRY}vdms-dataprep:${TAG:-latest}"
-    if ./build.sh; then
+    if "$SCRIPT_DIR/build.sh"; then
         docker images | grep "${default_image}"
         echo "Image ${default_image} was successfully built."
 
@@ -204,9 +220,9 @@ elif [ "$1" = "--build" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
 # Build dataprep dev image
 elif [ "$1" = "--build-dev" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
     tag=${2:-intelgai/vdms-dataprep:dev}
-    docker build -t $tag -f docker/Dockerfile --target dev .
+    docker build -t "$tag" -f "$DOCKERFILE" --target dev "$MICROSERVICES_DIR"
     if [ $? = 0 ]; then
-        docker images | grep $tag
+        docker images | grep "$tag"
         echo "Dev Image ${tag} was successfully built."
     fi
 
@@ -215,10 +231,10 @@ elif [ "$1" = "--build-lint" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
     tag=${2:-intelgai/vdms-dataprep:dev}
 
     # Build the image targeting the lint stage
-    docker build -t $tag -f docker/Dockerfile --target lint .
+    docker build -t "$tag" -f "$DOCKERFILE" --target lint "$MICROSERVICES_DIR"
     
     if [ $? = 0 ]; then
-        docker images | grep $tag
+        docker images | grep "$tag"
         echo "Linter image ${tag} was successfully built."
     fi
 
@@ -228,10 +244,10 @@ elif [ "$1" = "--build-test" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
     tag=${2:-intelgai/vdms-dataprep:final-dev}
 
     # Build the image targeting the test stage
-    docker build --build-arg COVERAGE_REQ -t $tag -f docker/Dockerfile --target final-dev .
+    docker build --build-arg COVERAGE_REQ -t "$tag" -f "$DOCKERFILE" --target final-dev "$MICROSERVICES_DIR"
 
     if [ $? = 0 ]; then
-        docker images | grep $tag
+        docker images | grep "$tag"
         echo "Final-dev image ${tag} was successfully built."
     fi
 
@@ -241,14 +257,14 @@ elif [ "$1" = "--build-report" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
     reporter_container=intelgai-vdms-dataprep-report
 
     # Build the image targeting the test stage
-    docker build --build-arg COVERAGE_REQ -t $tag -f docker/Dockerfile --target report .
+    docker build --build-arg COVERAGE_REQ -t "$tag" -f "$DOCKERFILE" --target report "$MICROSERVICES_DIR"
 
     # Run the report server
     if [ $? = 0 ]; then
-        docker images | grep $tag
+        docker images | grep "$tag"
         echo "Reporter image ${tag} was successfully built."
-        docker run --rm -p "8899:8899" --name $reporter_container $tag
-        docker stop $reporter_container
+        docker run --rm -p "8899:8899" --name "$reporter_container" "$tag"
+        docker stop "$reporter_container"
     fi
 
 # Spin-up all services with dev env in daemon mode

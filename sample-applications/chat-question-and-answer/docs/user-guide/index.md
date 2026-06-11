@@ -11,7 +11,7 @@
 </div>
 hide_directive-->
 
-Chat Q&A sample application is a foundational Retrieval-Augmented Generation (RAG) pipeline
+The Chat Question & Answer (Chat Q&A) sample application is a foundational Retrieval-Augmented Generation (RAG) pipeline
 that allows users to ask questions and receive answers, including those based on their own
 private data corpus. The sample application demonstrates how to build a RAG pipeline using
 Intel's Edge AI microservices catalog and deploy it optimally on Intel's Edge AI systems.
@@ -59,9 +59,8 @@ is used to efficiently run large language models on Intel hardware. Developers a
 model serving options if required; vLLM with OpenVINO backend and TGI are the options provided.
 (*Note: vLLM and TGI are deprecated effective 2025.2.0 release.*)
 - **Embedding inference microservice**: Intel's optimized [OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server)
-and Huggingface [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference)
-microservice are the options provided to run embedding models efficiently on target Intel
-hardware. OVMS is the default option due to performance benefits on Intel hardware.
+is used to run embedding models efficiently on target Intel hardware,
+delivering optimal performance on Intel platforms.
 - **Reranking inference microservice**: Huggingface [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference)
 microservice is the model serving choice available.
 - **Document ingestion microservice**: The sample [document ingestion](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/document-ingestion/pgvector)
@@ -113,9 +112,6 @@ the applications. Detailed documentation provides full information on validated 
 models supported overall.
 
 Refer to the [detailed hardware and software requirements](./get-started/system-requirements.md).
-
-This sample application is ready for deployment with Edge Orchestrator. Download the
-[deployment package](./get-started/deploy-with-edge-orchestrator.md) and follow the instructions.
 
 ## Benchmark Results
 

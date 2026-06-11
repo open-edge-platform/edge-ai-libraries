@@ -112,7 +112,7 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
   const minFrames: number = 2;
   const defaultSampleFrames: number = 8;
   const defaultChunkDuration: number = 8;
-  const defaultOverlap: number = 4;
+  const defaultOverlap: number = 0;
 
   const dispatch = useAppDispatch();
   const summaryApi = `${APP_URL}/summary`;
@@ -146,11 +146,12 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
   const [systemConfig, setSystemConfig] = useState<SystemConfigWithMeta>();
 
   const [audio, setAudio] = useState<boolean>(true);
-
+  const [selectedAudioModel, setSelectedAudioModel] = useState<string>('');
+  const [useAudioSummary, setUseAudioSummary] = useState(false);
+  const [produceFinalSummary, setProduceFinalSummary] = useState(true);
   const videoFileRef = useRef<HTMLInputElement>(null);
   const videoLabelRef = useRef<HTMLInputElement>(null);
   const selectorRef = useRef<HTMLSelectElement>(null);
-  const audioModelRef = useRef<HTMLSelectElement>(null);
 
   const videoFileInputClick = () => {
     if (!uploading) {
@@ -198,6 +199,9 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
     const res = await axios.get<SystemConfigWithMeta>(`${APP_URL}/app/config`);
     if (res.data) {
       setSystemConfig(res.data);
+      setSelectedAudioModel(res.data.meta?.defaultAudioModel ?? '');
+      setUseAudioSummary(res.data.audioUseFullTranscriptSummary ?? false);
+      setProduceFinalSummary(res.data.produceFinalSummary ?? true);
     }
   };
 
@@ -286,10 +290,11 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
       },
       videoId,
       title,
+      produceFinalSummary,
     };
 
     if (audio && systemConfig?.meta.defaultAudioModel) {
-      res.audio = { audioModel: audioModelRef?.current?.value ?? systemConfig.meta.defaultAudioModel };
+      res.audio = { audioModel: selectedAudioModel || systemConfig.meta.defaultAudioModel, useFullTranscriptSummary: produceFinalSummary && useAudioSummary };
     }
 
     if (systemConfig) {
@@ -441,6 +446,14 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
               label={t('FramePerChunkLabel')}
               id='sampleFrame'
             />
+            <Checkbox
+              id='produceFinalSummaryCheckbox'
+              labelText={t('ProduceFinalSummary')}
+              checked={produceFinalSummary}
+              onChange={(_, { checked }) => {
+                setProduceFinalSummary(checked);
+              }}
+            />
             {systemConfig && (
               <StyledAcc>
                 <AccordionItem title={t('IngestionSettings')}>
@@ -474,16 +487,32 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
                     <Checkbox
                       id='audiocheckBox'
                       labelText={t('UseAudio')}
-                      defaultChecked={true}
+                      checked={audio}
                       onChange={(_, { checked }) => setAudio(checked)}
                     />
 
                     {audio && (
-                      <SelectInputStyled id='audioModelsSelector' labelText={t('AudioModels')} ref={audioModelRef}>
+                      <SelectInputStyled id='audioModelsSelector' labelText={t('AudioModels')} value={selectedAudioModel} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedAudioModel(e.target.value)}>
                         {systemConfig.meta.audioModels.map((option) => (
                           <SelectItem text={option.display_name} value={option.model_id} />
                         ))}
                       </SelectInputStyled>
+                    )}
+                    {audio && (
+                      <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--cds-border-subtle)' }}>
+                        <Checkbox
+                          id='useAudioSummaryCheckbox'
+                          labelText={t('UseAudioSummary')}
+                          checked={produceFinalSummary ? useAudioSummary : false}
+                          disabled={!produceFinalSummary}
+                          onChange={(_, { checked }) => setUseAudioSummary(checked)}
+                        />
+                        {!produceFinalSummary && (
+                          <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-helper)', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                            {t('AudioSummaryDisabledHint', { defaultValue: 'Audio transcript summary is not generated when final summary is disabled.' })}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </AccordionItem>
                 )}

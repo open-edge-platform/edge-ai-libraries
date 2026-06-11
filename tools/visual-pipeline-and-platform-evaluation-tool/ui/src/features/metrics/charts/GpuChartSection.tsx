@@ -1,5 +1,3 @@
-/*SPDX-License-Identifier: Apache-2.0*/
-
 import { MetricChart } from "@/features/metrics/MetricChart";
 import { GpuSelector } from "@/features/metrics/GpuSelector";
 import {
@@ -22,6 +20,7 @@ interface GpuChartSectionProps
   availableGpus?: number[];
   onGpuChange?: (gpu: number) => void;
   wrapLegend?: boolean;
+  showLegend?: boolean;
 }
 
 export const GpuChartSection = ({
@@ -41,6 +40,7 @@ export const GpuChartSection = ({
   summarySectionClassName,
   summaryTitleClassName,
   wrapLegend = false,
+  showLegend = true,
 }: GpuChartSectionProps) => {
   const hasGpuSelector =
     selectedGpu !== undefined && availableGpus && onGpuChange;
@@ -96,7 +96,7 @@ export const GpuChartSection = ({
             colors={chartColors}
             unit={chartUnit}
             yAxisDomain={chartYAxisDomain}
-            showLegend={true}
+            showLegend={showLegend}
             className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
             labels={chartLabels}
             wrapLegend={wrapLegend}

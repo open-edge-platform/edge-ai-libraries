@@ -6,8 +6,9 @@ import { AppConfigService } from './video-upload/services/app-config.service';
 import { FeaturesService } from './features/features.service';
 import { Features, FeaturesRO } from './features/features.model';
 import { SystemConfigWithMeta } from './video-upload/models/upload.model';
-import { ApiOkResponse, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('App')
 @Controller('app')
 export class AppController {
   constructor(
@@ -23,7 +24,8 @@ export class AppController {
   }
 
   @Get('features')
-  @ApiResponse({ type: FeaturesRO })
+  @ApiOperation({ summary: 'Get enabled features' })
+  @ApiOkResponse({ description: 'Feature flags', type: FeaturesRO })
   getFeatures(): Features {
     return this.$feature.getFeatures();
   }

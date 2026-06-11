@@ -25,7 +25,7 @@ high-performance anomaly detection, predictive maintenance, and other sophistica
 
 The key features include:
 
-- **Bring your own Data Sets and corresponding User Defined Functions(UDFs) for custom analytics**:
+- **Bring your own Data Sets and corresponding User Defined Functions (UDFs) for custom analytics**:
 Easily implement and deploy your own Python-based analytics logic, following Kapacitor’s UDF
 standards.
 - **Seamless Integration**: Automatically stores processed results back into InfluxDB for

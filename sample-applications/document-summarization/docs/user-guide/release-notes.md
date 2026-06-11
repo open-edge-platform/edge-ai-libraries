@@ -2,17 +2,24 @@
 
 ## Current Release
 
+**Version**: 2026.1.0
+**Release Date**: June 17, 2026
+
+**Fixed**
+
+- Fixed the LlamaIndex import issue by replacing the deprecated BaseLlamaPack dependency with an updated import structure.
+
+**Known Issues**
+
+- EMF Deployment package is not supported.
+- Summary time depends on the size and complexity (image, tables, cross references) of the document.
+
+## Previous Releases
+
 **Version**: 1.0.5
 **Release Date**: 25 Mar 2026
 
-- Updated few package version to fix vulnerabilities
-
-## Known Issues/Behaviour (Consolidated):
-
-- EMF Deployment package is not supported. - Open
-- Summary time depends on the size and complexity (image, tables, cross references) of the document - Open
-
-## Previous Releases
+- Fix security vulnerabilities by updating several package versions.
 
 **Version**: 1.0.4
 **Release Date**: 17 Feb 2026

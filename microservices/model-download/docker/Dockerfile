@@ -23,10 +23,6 @@ RUN pip install uv==0.9.10
 # Copy project files
 COPY pyproject.toml uv.lock /opt/
 
-# Install base dependencies using uv
-RUN uv sync \
-    && rm -rf ~/.cache
-
 # ---- Stage 2: Final slim image ----
 FROM python:3.12-slim
 
@@ -55,7 +51,7 @@ COPY --from=python-base /usr/local/bin /usr/local/bin
 COPY src /opt/src
 COPY scripts /opt/scripts
 COPY pyproject.toml /opt/
-COPY docs/user-guide/api-docs/openapi.yaml /opt/docs/user-guide/api-docs/openapi.yaml
+COPY docs/user-guide/_assets/openapi.yaml /opt/docs/user-guide/_assets/openapi.yaml
 
 WORKDIR /opt
 

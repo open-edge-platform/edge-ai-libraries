@@ -1,41 +1,60 @@
 # System Requirements
 
-This page provides detailed hardware, software, and platform requirements to help you set up
-and run the microservice efficiently.
+## Hardware Requirements
 
-## Supported Platforms
+- **CPU**: x86_64. Intel Core Ultra (Meteor Lake) or newer is recommended.
+  Older Intel Core / Xeon processors will run the service but may be slower
+  on OpenVINO inference paths.
+- **Memory**: 16 GB RAM minimum. 32 GB recommended when running ASR and
+  sentiment together, when using larger Whisper variants, or when keeping
+  multiple sessions warm.
+- **Disk**: 20 GB free SSD space recommended for model assets, the Hugging
+  Face cache, temporary audio chunks, and per-session storage. NVMe is
+  preferred for faster first-run model export.
+- **GPU (optional)**: Intel integrated GPU (Meteor Lake or newer iGPU) or a
+  supported discrete GPU exposed via `/dev/dri` for the OpenVINO `GPU`
+  device path.
+- **NPU (optional)**: Intel Core Ultra NPU is supported by OpenVINO; set
+  the relevant device fields to `NPU` in config when available.
+- **Microphone (optional)**: ALSA-compatible capture device if you intend
+  to list devices via `GET /devices` or pass `/dev/snd` into the container.
 
-This microservice currently supports CPU based runs only. This microservice is intended to run
-in the context of video summary pipeline. Hence, supported platform, OS configuration etc. is
-as per the sample application, i.e. Video Search and Summarization, [documentation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/get-started/system-requirements.html).
-The documentation here does not provide separate requirements.
-
-**Operating Systems**
-
-- As per sample application documentation.
-
-**Hardware Platforms**
-
-- As per sample application documentation.
-
-## Minimum Requirements
-
-- As per sample application documentation.
+| Device                | Minimum              | Recommended                                                                                         |
+| --------------------- | -------------------- | --------------------------------------------------------------------------------------------------- |
+| CPU                   | x86_64               | Intel Core Ultra (Meteor Lake) or newer                                                             |
+| Memory                | 16 GB RAM            | 32 GB RAM                                                                                           |
+| Disk                  | 20 GB free SSD space | NVMe storage                                                                                        |
+| GPU (optional)        | Not applicable       | Intel integrated GPU (Meteor Lake or newer iGPU) or a supported discrete GPU exposed via `/dev/dri` |
+| NPU (optional)        | Not applicable       | Intel Core Ultra NPU configured via `NPU` device fields                                             |
+| Microphone (optional) | Not applicable       | ALSA-compatible capture device with `/dev/snd` access when needed                                   |
 
 ## Software Requirements
 
-**Required Software**:
+### Operating System
 
-- Docker 24.0
-- Python 3.10
-- Poetry 1.8.3 for dependency management
-- MinIO server (optional, for object storage)
+- Ubuntu 22.04 LTS (validated) or a compatible Linux distribution with a
+  recent kernel.
+- For container deployment: Docker Engine and Docker Compose v2.
+- For GPU acceleration on Linux: Intel/OpenVINO host GPU runtime
+  (e.g. `intel-opencl-icd`, `level-zero`) installed on the host. This is a
+  separate prerequisite from the Python dependencies.
 
-## Validation
+### Host Packages (Standalone Run)
 
-- Ensure all required software is installed and configured before proceeding to [Get Started](../get-started.md).
+The standalone path additionally requires:
 
-## Supporting Resources
+```bash
+sudo apt-get update
+sudo apt-get install -y ffmpeg alsa-utils libsndfile1
+```
 
-- [Overview](../index.md)
-- [API Reference](../api-reference.md)
+### Python
+
+- Python 3.10 or newer.
+- Dependencies installed from `requirements.txt`.
+
+## Network Requirements
+
+- Outbound internet access on first run to download model assets from
+  Hugging Face, unless models are pre-staged under `models/` and the cache.
+- Inbound access to TCP port `8010` (default) for API clients.

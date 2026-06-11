@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
+import {
+  useFrozenMetrics,
+  aggregateLatencyTracerMetrics,
+} from "@/hooks/useFrozenMetrics";
 import {
   type PipelineStreamSpec,
   useGetDensityJobStatusQuery,
@@ -11,6 +14,7 @@ import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStream
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
+import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import {
   Select,
   SelectContent,
@@ -33,7 +37,7 @@ import {
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils.ts";
-import { formatErrorMessage } from "@/lib/utils.ts";
+import { cn, formatErrorMessage } from "@/lib/utils.ts";
 import { useStreamRateChange } from "@/hooks/useStreamRateChange.ts";
 
 interface PipelineSelection {
@@ -66,6 +70,7 @@ export const DensityTests = () => {
   const [loopingRuntimeInput, setLoopingRuntimeInput] = useState(
     String(DEFAULT_LOOPING_RUNTIME_SECONDS),
   );
+  const [latencyMetricsEnabled, setLatencyMetricsEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
@@ -74,11 +79,14 @@ export const DensityTests = () => {
   const {
     execute: runTest,
     isLoading: isRunning,
+    jobId,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunDensityTestMutation,
     statusCheckHook: useGetDensityJobStatusQuery,
   });
+
+  useActiveJobSync(jobId);
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -197,6 +205,7 @@ export const DensityTests = () => {
           execution_config: {
             output_mode: "disabled",
             max_runtime: loopingEnabled ? loopingRuntimeSeconds : 0,
+            enable_latency_metrics: latencyMetricsEnabled,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => ({
@@ -217,7 +226,10 @@ export const DensityTests = () => {
         video_output_paths: status.video_output_paths,
       });
       setErrorMessage(null);
-      freezeSnapshot(status.per_stream_fps);
+      freezeSnapshot({
+        fps: status.per_stream_fps,
+        ...aggregateLatencyTracerMetrics(status.latency_tracer_metrics),
+      });
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
@@ -262,7 +274,7 @@ export const DensityTests = () => {
         </p>
       </div>
 
-      <div className="space-y-3 mb-6">
+      <div className="space-y-3 mb-6 pr-16">
         {pipelineSelections.map((selection, index) => {
           const selectedPipeline = pipelines.find(
             (p) => p.id === selection.pipelineId,
@@ -270,13 +282,14 @@ export const DensityTests = () => {
           return (
             <div
               key={`${selection.pipelineId}-${index}`}
-              className={`flex items-center gap-3 p-2 border bg-card transition-all duration-300 ${
+              className={cn(
+                "flex items-center gap-3 p-2 border bg-card transition-all duration-300",
                 selection.isRemoving
                   ? "opacity-0 -translate-y-2"
                   : selection.isNew
                     ? "animate-in fade-in slide-in-from-top-2"
-                    : ""
-              }`}
+                    : "",
+              )}
             >
               <div className="flex-1 flex items-center gap-4">
                 <div className="flex-1">
@@ -385,6 +398,28 @@ export const DensityTests = () => {
           <div className="flex items-center">
             <Tooltip>
               <TooltipTrigger asChild>
+                <label className="flex items-center gap-2 cursor-pointer h-[2.625rem]">
+                  <Checkbox
+                    checked={latencyMetricsEnabled}
+                    disabled={isRunning}
+                    onCheckedChange={(checked) =>
+                      setLatencyMetricsEnabled(checked === true)
+                    }
+                  />
+                  <span className="text-sm font-medium">
+                    Enable latency metrics
+                  </span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Collect pipeline latency measurements during the test</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          <div className="flex items-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
                 <label className="flex items-center gap-2 cursor-pointer h-[42px]">
                   <Checkbox
                     checked={loopingEnabled}
@@ -406,7 +441,7 @@ export const DensityTests = () => {
           </div>
 
           {loopingEnabled && (
-            <div className="flex items-center gap-2 h-[42px]">
+            <div className="flex items-center gap-2 h-[2.625rem]">
               <span className="text-xs text-muted-foreground">Duration</span>
               <Input
                 type="text"
@@ -455,7 +490,7 @@ export const DensityTests = () => {
             onClick={handleStopTest}
             disabled={isStopping}
             variant="destructive"
-            className="w-[160px]"
+            className="w-[10rem]"
             title="Stop test"
           >
             <Square className="w-5 h-5" />
@@ -471,64 +506,43 @@ export const DensityTests = () => {
         )}
 
         {jobStatus && (
-          <div className="m-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+          <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg">
               Test Status: {jobStatus.state}
             </p>
             {jobStatus.state === "RUNNING" && (
               <div className="mt-2">
                 <div className="animate-pulse flex items-center gap-2">
-                  <div className="h-2 w-2 bg-blue-500"></div>
-                  <span className="text-xs text-blue-700 dark:text-blue-300">
+                  <div className="h-2 w-2 bg-status-info-accent"></div>
+                  <span className="text-xs text-status-fg">
                     Running density test...
                   </span>
                 </div>
-                <MetricsDashboard />
+                <MetricsDashboard
+                  enableLatencyMetrics={latencyMetricsEnabled}
+                />
               </div>
             )}
           </div>
         )}
 
-        {!isRunning && frozenSummary && (
-          <div className="m-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-              Frozen Metrics Snapshot
-            </p>
-            <MetricsDashboard
-              historyOverride={frozenHistory}
-              metricsOverride={frozenSummary}
-            />
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="my-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
-            <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-2">
-              Test Failed
-            </p>
-            <p className="text-xs text-red-700 dark:text-red-300">
-              {errorMessage}
-            </p>
-          </div>
-        )}
-
         {testResult && (
-          <div className="my-4 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
-            <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
+          <div className="status-success m-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
               Test Completed Successfully
             </p>
             <div className="space-y-1 text-sm">
-              <p className="text-green-800 dark:text-green-200">
+              <p className="text-status-fg">
                 <span className="font-medium">Per Stream FPS:</span>{" "}
                 {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
               </p>
-              <p className="text-green-800 dark:text-green-200">
+              <p className="text-status-fg">
                 <span className="font-medium">Total Streams:</span>{" "}
                 {testResult.total_streams ?? "N/A"}
               </p>
               {testResult.streams_per_pipeline && (
                 <div className="mt-2">
-                  <p className="text-green-800 dark:text-green-200 font-medium mb-1">
+                  <p className="text-status-fg font-medium mb-1">
                     Streams per Pipeline:
                   </p>
                   <PipelineStreamsSummary
@@ -540,7 +554,29 @@ export const DensityTests = () => {
             </div>
           </div>
         )}
+
+        {!isRunning && frozenSummary && (
+          <div className="status-info m-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
+              Frozen Metrics Snapshot
+            </p>
+            <MetricsDashboard
+              historyOverride={frozenHistory}
+              metricsOverride={frozenSummary}
+            />
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="status-error my-4 p-3 bg-status-bg border border-status-border">
+            <p className="text-sm font-medium text-status-fg mb-2">
+              Test Failed
+            </p>
+            <p className="text-xs text-status-fg">{errorMessage}</p>
+          </div>
+        )}
       </div>
+      <div className="pb-4" />
     </div>
   );
 };

@@ -1,6 +1,6 @@
-# Running Tests for ChatQnA-Core
+# Running Tests for Chat Q&A Core
 
-This guide will help you run the tests for the ChatQnA-Core project using the pytest framework.
+This guide will help you run the tests for the Chat Q&A Core project using the pytest framework.
 
 ---
 
@@ -51,10 +51,6 @@ nvm current # Should print "v22.14.0".
 npm -v # Should print "10.9.2".
 ```
 
-## Vitest installation
-```bash
-npm install -D vitest@4.0.18
-```
 ---
 
 ## Running Tests for backend in a Virtual Environment [RECOMMENDED]
@@ -303,7 +299,13 @@ If you prefer not to use virtual environment, please follow these steps:
     cd <repository-url>/sample-applications/chat-question-and-answer-core/ui
     ```
 
-2. Execute the Tests for the UI
+2. On a fresh clone, install dependencies first (only needed once):
+
+    ```bash
+    npm install
+    ```
+
+3. Execute the Tests for the UI
 
    - **Running Test Cases via the Command Line:**
 

@@ -10,6 +10,7 @@ import { PipelineEvents, SummaryCompleteRO } from 'src/events/Pipeline.events';
 import { Subject } from 'rxjs';
 import { TemplateService } from 'src/language-model/services/template.service';
 import { InferenceCountService } from 'src/language-model/services/inference-count.service';
+import { StateActionStatus } from '../models/state.model';
 
 describe('SummaryQueueService', () => {
   let service: SummaryQueueService;
@@ -50,6 +51,7 @@ describe('SummaryQueueService', () => {
     const stateServiceMock = {
       fetch: jest.fn(),
       addTextInferenceConfig: jest.fn(),
+      updateSummaryStatus: jest.fn(),
     };
 
     const llmServiceMock = {
@@ -70,7 +72,7 @@ describe('SummaryQueueService', () => {
     };
 
     const templateServiceMock = {
-      // Add template service methods if needed
+      getTemplate: jest.fn().mockReturnValue(''),
     };
 
     const inferenceCountServiceMock = {
@@ -121,7 +123,7 @@ describe('SummaryQueueService', () => {
 
       // Assert
       expect(service.waiting).toHaveLength(1);
-      expect(service.waiting[0]).toEqual({ stateId: mockStateId });
+      expect(service.waiting[0]).toEqual({ stateId: mockStateId, taskType: 'videoSummary' });
     });
 
     it('should handle multiple trigger events', () => {
@@ -132,9 +134,58 @@ describe('SummaryQueueService', () => {
 
       // Assert
       expect(service.waiting).toHaveLength(3);
-      expect(service.waiting[0]).toEqual({ stateId: 'state-1' });
-      expect(service.waiting[1]).toEqual({ stateId: 'state-2' });
-      expect(service.waiting[2]).toEqual({ stateId: 'state-3' });
+      expect(service.waiting[0]).toEqual({ stateId: 'state-1', taskType: 'videoSummary' });
+      expect(service.waiting[1]).toEqual({ stateId: 'state-2', taskType: 'videoSummary' });
+      expect(service.waiting[2]).toEqual({ stateId: 'state-3', taskType: 'videoSummary' });
+    });
+
+    it('should skip queueing and set status to NA when produceFinalSummary is false', () => {
+      // Arrange
+      stateService.fetch.mockReturnValue({
+        ...mockState,
+        systemConfig: { ...mockState.systemConfig, produceFinalSummary: false },
+        status: { summarizing: StateActionStatus.NA },
+      } as any);
+
+      // Act
+      service.streamTrigger({ stateId: mockStateId });
+
+      // Assert
+      expect(service.waiting).toHaveLength(0);
+      expect(stateService.updateSummaryStatus).toHaveBeenCalledWith(
+        mockStateId,
+        StateActionStatus.NA,
+      );
+    });
+
+    it('should queue normally when produceFinalSummary is true', () => {
+      // Arrange
+      stateService.fetch.mockReturnValue({
+        ...mockState,
+        systemConfig: { ...mockState.systemConfig, produceFinalSummary: true },
+        status: { summarizing: StateActionStatus.NA },
+      } as any);
+
+      // Act
+      service.streamTrigger({ stateId: mockStateId });
+
+      // Assert
+      expect(service.waiting).toHaveLength(1);
+      expect(service.waiting[0]).toEqual({ stateId: mockStateId, taskType: 'videoSummary' });
+    });
+
+    it('should queue normally when produceFinalSummary is undefined (default behavior)', () => {
+      // Arrange - no produceFinalSummary set (backward compatibility)
+      stateService.fetch.mockReturnValue({
+        ...mockState,
+        status: { summarizing: StateActionStatus.NA },
+      } as any);
+
+      // Act
+      service.streamTrigger({ stateId: mockStateId });
+
+      // Assert
+      expect(service.waiting).toHaveLength(1);
     });
   });
 
@@ -148,7 +199,7 @@ describe('SummaryQueueService', () => {
 
     it('should emit a SUMMARY_PROCESSING event', () => {
       // Act
-      service.startVideoSummary({ stateId: mockStateId });
+      service.startVideoSummary({ stateId: mockStateId, taskType: 'videoSummary' });
 
       // Assert
       expect(eventEmitter.emit).toHaveBeenCalledWith(
@@ -162,7 +213,7 @@ describe('SummaryQueueService', () => {
       stateService.fetch.mockReturnValue(undefined);
 
       // Act
-      service.startVideoSummary({ stateId: mockStateId });
+      service.startVideoSummary({ stateId: mockStateId, taskType: 'videoSummary' });
 
       // Assert
       expect(llmService.summarizeMapReduce).not.toHaveBeenCalled();
@@ -176,7 +227,7 @@ describe('SummaryQueueService', () => {
       } as any);
 
       // Act
-      service.startVideoSummary({ stateId: mockStateId });
+      service.startVideoSummary({ stateId: mockStateId, taskType: 'videoSummary' });
 
       // Assert
       expect(llmService.summarizeMapReduce).not.toHaveBeenCalled();
@@ -204,7 +255,7 @@ describe('SummaryQueueService', () => {
         );
 
       // Act
-      service.startVideoSummary({ stateId: mockStateId });
+      service.startVideoSummary({ stateId: mockStateId, taskType: 'videoSummary' });
 
       // Assert
       expect(llmService.getInferenceConfig).toHaveBeenCalled();
@@ -222,17 +273,15 @@ describe('SummaryQueueService', () => {
       );
     });
 
-    it('should include audio transcripts in the prompt when available', () => {
-      // Act
-      service.startVideoSummary({ stateId: mockStateId });
+    it('should not include raw audio transcripts in the final summary prompt', () => {
+      // Act - audioUseFullTranscriptSummary is not set, so raw transcripts should NOT be appended
+      service.startVideoSummary({ stateId: mockStateId, taskType: 'videoSummary' });
 
-      // Verify that summarizeMapReduce was called with a mapPrompt containing transcripts
       const callArgs = llmService.summarizeMapReduce.mock.calls[0];
       const mapPrompt = callArgs[1];
 
-      expect(mapPrompt).toContain('Audio transcripts for this video:');
-      expect(mapPrompt).toContain('00:00:01,000 --> 00:00:02,000');
-      expect(mapPrompt).toContain('Test audio transcript');
+      expect(mapPrompt).not.toContain('Audio transcripts for this video:');
+      expect(mapPrompt).not.toContain('Test audio transcript');
     });
 
     it('should not include audio transcript section when not available', () => {
@@ -243,7 +292,7 @@ describe('SummaryQueueService', () => {
       } as any);
 
       // Act
-      service.startVideoSummary({ stateId: mockStateId });
+      service.startVideoSummary({ stateId: mockStateId, taskType: 'videoSummary' });
 
       // Verify that summarizeMapReduce was called with a mapPrompt without transcripts
       const callArgs = llmService.summarizeMapReduce.mock.calls[0];
@@ -260,7 +309,7 @@ describe('SummaryQueueService', () => {
       } as any);
 
       // Act
-      service.startVideoSummary({ stateId: mockStateId });
+      service.startVideoSummary({ stateId: mockStateId, taskType: 'videoSummary' });
 
       // Verify that summarizeMapReduce was called with a mapPrompt without transcripts
       const callArgs = llmService.summarizeMapReduce.mock.calls[0];
@@ -275,7 +324,7 @@ describe('SummaryQueueService', () => {
       llmService.summarizeMapReduce.mockRejectedValue(new Error('API error'));
 
       // Act
-      service.startVideoSummary({ stateId: mockStateId });
+      service.startVideoSummary({ stateId: mockStateId, taskType: 'videoSummary' });
 
       // Let the promise rejection propagate
       return new Promise(process.nextTick).then(() => {
@@ -333,15 +382,15 @@ describe('SummaryQueueService', () => {
       });
 
       // Act
-      service.startVideoSummary({ stateId: mockStateId });
+      service.startVideoSummary({ stateId: mockStateId, taskType: 'videoSummary' });
     });
   });
 
   describe('processQueue', () => {
     it('should not process anything when processing queue is at capacity', () => {
       // Arrange
-      service.waiting = [{ stateId: 'state-1' }, { stateId: 'state-2' }];
-      service.processing = [{ stateId: 'state-3' }, { stateId: 'state-4' }];
+      service.waiting = [{ stateId: 'state-1', taskType: 'videoSummary' }, { stateId: 'state-2', taskType: 'videoSummary' }];
+      service.processing = [{ stateId: 'state-3', taskType: 'videoSummary' }, { stateId: 'state-4', taskType: 'videoSummary' }];
   // service.maxConcurrent = 2; // Removed: property does not exist
 
       const startVideoSummarySpy = jest.spyOn(service, 'startVideoSummary');
@@ -357,8 +406,9 @@ describe('SummaryQueueService', () => {
 
     it('should process items from waiting queue when capacity is available', () => {
       // Arrange
-      service.waiting = [{ stateId: 'state-1' }, { stateId: 'state-2' }];
-      service.processing = [{ stateId: 'state-3' }];
+      stateService.fetch.mockReturnValue(mockState as any);
+      service.waiting = [{ stateId: 'state-1', taskType: 'videoSummary' }, { stateId: 'state-2', taskType: 'videoSummary' }];
+      service.processing = [{ stateId: 'state-3', taskType: 'videoSummary' }];
   // service.maxConcurrent = 2; // Removed: property does not exist
 
       const startVideoSummarySpy = jest.spyOn(service, 'startVideoSummary');
@@ -367,7 +417,7 @@ describe('SummaryQueueService', () => {
       service.processQueue();
 
       // Assert
-      expect(startVideoSummarySpy).toHaveBeenCalledWith({ stateId: 'state-1' });
+      expect(startVideoSummarySpy).toHaveBeenCalledWith({ stateId: 'state-1', taskType: 'videoSummary' });
       expect(service.waiting).toHaveLength(1);
       expect(service.processing).toHaveLength(2);
     });
@@ -375,7 +425,7 @@ describe('SummaryQueueService', () => {
     it('should not take action if waiting queue is empty', () => {
       // Arrange
       service.waiting = [];
-      service.processing = [{ stateId: 'state-3' }];
+      service.processing = [{ stateId: 'state-3', taskType: 'videoSummary' }];
   // service.maxConcurrent = 2; // Removed: property does not exist
 
       const startVideoSummarySpy = jest.spyOn(service, 'startVideoSummary');
@@ -391,10 +441,11 @@ describe('SummaryQueueService', () => {
 
     it('should handle multiple items in the waiting queue', () => {
       // Arrange
+      stateService.fetch.mockReturnValue(mockState as any);
       service.waiting = [
-        { stateId: 'state-1' },
-        { stateId: 'state-2' },
-        { stateId: 'state-3' },
+        { stateId: 'state-1', taskType: 'videoSummary' },
+        { stateId: 'state-2', taskType: 'videoSummary' },
+        { stateId: 'state-3', taskType: 'videoSummary' },
       ];
       service.processing = [];
 
@@ -404,7 +455,7 @@ describe('SummaryQueueService', () => {
       service.processQueue();
 
       // Assert
-      expect(startVideoSummarySpy).toHaveBeenCalledWith({ stateId: 'state-1' });
+      expect(startVideoSummarySpy).toHaveBeenCalledWith({ stateId: 'state-1', taskType: 'videoSummary' });
       expect(service.waiting).toHaveLength(2);
       expect(service.processing).toHaveLength(1);
     });
@@ -414,9 +465,9 @@ describe('SummaryQueueService', () => {
     it('should remove the completed state from the processing queue', () => {
       // Arrange
       service.processing = [
-        { stateId: 'state-1' },
-        { stateId: mockStateId },
-        { stateId: 'state-3' },
+        { stateId: 'state-1', taskType: 'videoSummary' },
+        { stateId: mockStateId, taskType: 'videoSummary' },
+        { stateId: 'state-3', taskType: 'videoSummary' },
       ];
 
       const payload: SummaryCompleteRO = {
@@ -438,7 +489,7 @@ describe('SummaryQueueService', () => {
 
     it('should handle state ID not found in processing', () => {
       // Arrange
-      service.processing = [{ stateId: 'state-1' }, { stateId: 'state-2' }];
+      service.processing = [{ stateId: 'state-1', taskType: 'videoSummary' }, { stateId: 'state-2', taskType: 'videoSummary' }];
 
       const payload: SummaryCompleteRO = {
         stateId: 'non-existent-state',

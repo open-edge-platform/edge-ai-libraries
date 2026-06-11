@@ -18,6 +18,7 @@ global:
 
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: ""
+  embeddingModelName: ""
 
   proxy:
     # setup proxy settings
@@ -104,6 +105,8 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
+hostIPC: true
+
 podAffinity:
   requiredDuringSchedulingIgnoredDuringExecution:
     - labelSelector:
@@ -118,7 +121,6 @@ podAffinity:
 indexName: "videosearch-index"
 vdmsVectorDbHost: "vdms-vectordb"
 vdmsVectorDbPort: 55555
-multimodalEmbeddingModelName: ""
 multimodalEmbeddingEndpoint: "http://multimodal-embedding-ms:8000/embeddings"
 defaultBucketName: "video-summary"
 logLevel: "INFO"
@@ -138,6 +140,21 @@ frameProcessing:
   detectionConfidence: 0.85
   detectionModelDir: "/app/models/yolox"
   framesTempDir: "/tmp/dataprep"
+sdkPipeline:
+  embeddingBatchSize: 32
+  maxParallelWorkers: ""
+  videoShmMaxBlocks: 512
+  videoShmBlockSize: 6220800
+  videoExtractionBatchSize: 256
+  pipelineQueueMaxsize: 16
+  pipelineCompletionQueueMaxsize: 1
+  detectionWorkerThreads: 2
+  embedWorkerThreads: 2
+  pipelineQueueGetTimeoutS: 1.0
+  saveRuntimePipelineStats: false
+  enableTracing: false
+  videoFrameDecoderWorkers: 2
+  videoFrameLogLevel: "INFO"
 
 minioServer:
   name: minio-server

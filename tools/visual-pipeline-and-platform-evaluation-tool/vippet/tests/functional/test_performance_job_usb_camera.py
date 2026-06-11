@@ -22,6 +22,8 @@ from helpers.api_helpers import (
 from helpers.pipeline_case_helpers import (
     PipelineCase,
     collect_pipeline_cases,
+    missing_models_per_pipeline,
+    wrap_cases_for_pytest,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,6 +52,7 @@ def _discover_filtered_cases(
         with requests.Session() as _session:
             _session.headers.update({"Accept": "application/json"})
             cases = collect_pipeline_cases(_session)
+            missing = missing_models_per_pipeline(_session)
             if exclude_names:
                 cases = [c for c in cases if c.pipeline_name not in exclude_names]
             if include_names:
@@ -57,9 +60,12 @@ def _discover_filtered_cases(
     except Exception:
         logger.exception("Failed to collect pipeline cases from VIPPET API")
         cases = []
+        missing = {}
     if not cases:
         return [pytest.param(None, marks=pytest.mark.skip(reason=reason))], ["no-cases"]
-    return list(cases), [case.case_id for case in cases]
+    # Wrap cases whose required models are not installed in a skip()
+    # so the pytest report shows the missing-model reason explicitly.
+    return wrap_cases_for_pytest(cases, missing)
 
 
 # Camera-compatible pipelines (file-only pipelines excluded)

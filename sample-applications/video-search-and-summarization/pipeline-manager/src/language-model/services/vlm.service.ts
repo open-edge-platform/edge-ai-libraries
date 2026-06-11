@@ -1,12 +1,19 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { readFile } from 'node:fs/promises';
 import { OpenAI } from 'openai';
 import { ConfigService } from '@nestjs/config';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import {
   ChatCompletionContentPartImage,
   ChatCompletionMessageParam,
 } from 'openai/resources';
+import { DatastoreService } from 'src/datastore/services/datastore.service';
 import { CompletionQueryParams } from '../models/completion.model';
 import { TemplateService } from './template.service';
 import { ModelInfo } from 'src/state-manager/models/state.model';
@@ -25,6 +32,19 @@ interface MultiImageCompletionParams extends CompletionQueryParams {
   fileNameOrUrl: string[];
 }
 
+interface ModelConfigResponse {
+  [key: string]: {
+    model_version_status: {
+      version: string;
+      state: string;
+      status: {
+        error_code: string;
+        error_message: string;
+      };
+    }[];
+  };
+}
+
 @Injectable()
 export class VlmService {
   public client: OpenAI;
@@ -36,6 +56,7 @@ export class VlmService {
   constructor(
     private $openAiHelper: OpenaiHelperService,
     private $config: ConfigService,
+    private $dataStore: DatastoreService,
     private $feature: FeaturesService,
     private $template: TemplateService,
     private $inferenceCount: InferenceCountService,
@@ -52,10 +73,13 @@ export class VlmService {
   private defaultParams(): CompletionQueryParams {
     const accessKey = ['openai', 'vlmCaptioning', 'defaults'].join('.');
     const params: CompletionQueryParams = {};
-    const isVllm = this.$config.get('openai.useVLLM') === CONFIG_STATE.ON;
+    // VLM captioning reads its own backend flag, which falls back to USE_VLLM.
+    // Compose uses USE_VLLM for exclusive backend selection (OVMS-only or vLLM-only).
+    const isVllm =
+      this.$config.get('openai.vlmCaptioning.useVLLM') === CONFIG_STATE.ON;
 
     // For do_sample and seed parameters:
-    // These are not supported by vLLM - skip them. Apply for OVMS and internal VLM Microservice.
+    // These are not supported by vLLM - skip them. Apply for OVMS-backed inference.
     if (!isVllm) {
       if (this.$config.get(`${accessKey}.doSample`) !== null) {
         params.do_sample = this.$config.get(`${accessKey}.doSample`)!;
@@ -85,15 +109,19 @@ export class VlmService {
       )!;
     }
     if (this.$config.get(`${accessKey}.maxCompletionTokens`)) {
-      params.max_completion_tokens = +this.$config.get(
+      const maxTokens = +this.$config.get(
         `${accessKey}.maxCompletionTokens`,
       )!;
+      params.max_completion_tokens = maxTokens;
+      params.max_tokens = maxTokens;
     }
 
     return params;
   }
 
   private async initialize() {
+    let configUrl: string | null = null;
+    const fetchOptions: { agent?: HttpsProxyAgent<string> } = {};
     const apiKey: string = this.$config.get<string>(
       'openai.vlmCaptioning.apiKey',
     )!;
@@ -102,53 +130,135 @@ export class VlmService {
     )!;
 
     try {
-      // Initialize OpenAI Client
-      const { client } = this.$openAiHelper.initializeClient(apiKey, baseURL);
+      const { client, openAiConfig, proxyAgent } =
+        this.$openAiHelper.initializeClient(apiKey, baseURL);
       this.client = client;
+
+      if (proxyAgent) {
+        fetchOptions.agent = proxyAgent;
+      }
+
+      const modelsApi = this.$config.get<string>(
+        'openai.vlmCaptioning.modelsAPI',
+      )!;
+      configUrl = this.$openAiHelper.getConfigUrl(openAiConfig, modelsApi);
     } catch (error) {
       console.error('Failed to initialize OpenAI client:', error);
       throw error;
     }
 
     try {
-      // Fetch Models
-      await this.getModelsFromOpenai();
+      if (!configUrl) {
+        throw new Error('Config URL is not available');
+      }
+
+      // OVMS serves model metadata from config; use it first when the backend supports it.
+      await this.fetchModelsFromConfig(configUrl, fetchOptions);
       this.serviceReady = true;
       this.$inferenceCount.setVlmConfig({
         model: this.model,
         ip: baseURL,
       });
     } catch (error) {
-      console.error('Failed to retrieve models:', error);
-    }
-  }
+      Logger.error(error);
 
-  private async getModelsFromOpenai() {
-    if (this.client) {
-      const models = await this.client.models.list();
-      console.log('Models', models);
-      if (models.data && models.data.length > 0) {
-        this.models = models.data;
-        this.model = models.data[0].id;
-        console.log(`Using model: ${this.model}`);
-      } else {
-        throw new Error('No models available');
+      try {
+        // vLLM is OpenAI-compatible but not OVMS-config-compatible, so use the
+        // standard models API when config discovery is unavailable.
+        await this.getModelsFromOpenai();
+        this.serviceReady = true;
+        this.$inferenceCount.setVlmConfig({
+          model: this.model,
+          ip: baseURL,
+        });
+      } catch (fallbackError) {
+        Logger.error(fallbackError);
+        throw new ServiceUnavailableException('Open AI fetch models failed');
       }
     }
   }
 
-  private encodeBase64ContentFromUrl(fileNameOrUrl: string): string {
-    // TODO: will require fixing when required
+  private async fetchModelsFromConfig(
+    url: string,
+    fetchOptions: { agent?: HttpsProxyAgent<string> },
+  ) {
+    const response = await fetch(url, fetchOptions as RequestInit);
+    if (!response.ok) {
+      throw new Error(`Failed to retrieve model from endpoint: ${url}`);
+    }
 
+    const data: ModelConfigResponse =
+      (await response.json()) as ModelConfigResponse;
+    const modelKey = this.$openAiHelper.selectModel({
+      availableModels: Object.keys(data),
+      configuredModelName: this.$config.get<string>(
+        'openai.vlmCaptioning.modelName',
+      ),
+      configuredModelEnv: 'VLM_MODEL_NAME',
+      serviceLabel: 'VLM captioning',
+      disallowedSingleModelName: this.$config.get<string>(
+        'openai.llmSummarization.modelName',
+      ),
+      disallowedSingleModelReason:
+        'VLM captioning requires VLM_MODEL_NAME when OVMS is configured with only the LLM model.',
+    });
+
+    if (data[modelKey].model_version_status[0].state === 'AVAILABLE') {
+      this.model = modelKey;
+      console.log(`Using VLM model: ${this.model}`);
+    } else {
+      console.warn(
+        `model: ${modelKey} is in ${data[modelKey].model_version_status[0].state} state`,
+      );
+      this.model = modelKey;
+    }
+  }
+
+  private async getModelsFromOpenai() {
+    if (!this.client) {
+      throw new Error('Client is not initialized');
+    }
+
+    const models = await this.client.models.list();
+    console.log('Models', models);
+    this.models = models.data;
+    this.model = this.$openAiHelper.selectModel({
+      availableModels: models.data.map((model) => model.id),
+      configuredModelName: this.$config.get<string>(
+        'openai.vlmCaptioning.modelName',
+      ),
+      configuredModelEnv: 'VLM_MODEL_NAME',
+      serviceLabel: 'VLM captioning',
+      disallowedSingleModelName: this.$config.get<string>(
+        'openai.llmSummarization.modelName',
+      ),
+      disallowedSingleModelReason:
+        'VLM captioning requires VLM_MODEL_NAME when OVMS is configured with only the LLM model.',
+    });
+    console.log(`Using model: ${this.model}`);
+  }
+
+  private async encodeBase64ContentFromUrl(fileNameOrUrl: string): Promise<string> {
     try {
-      // const buffer: any[] = await this.$dataStore.getFile(
-      //   fileNameOrUrl,
-      //   'willFixAsRequired',
-      // );
-      // return base64.fromByteArray(buffer as any);
-      return '';
+      const objectName = this.getObjectNameFromUrl(fileNameOrUrl);
+      const localPath = await this.$dataStore.getFile(objectName);
+      const fileBuffer = await readFile(localPath);
+      return fileBuffer.toString('base64');
     } catch (error) {
       throw new Error('Failed to fetch content');
+    }
+  }
+
+  private getObjectNameFromUrl(fileNameOrUrl: string): string {
+    try {
+      const url = new URL(fileNameOrUrl);
+      const objectPrefix = this.$dataStore.getObjectRelativePath('');
+      if (!url.pathname.startsWith(objectPrefix)) {
+        throw new Error('URL does not point to datastore object');
+      }
+      return decodeURIComponent(url.pathname.slice(objectPrefix.length));
+    } catch {
+      return fileNameOrUrl;
     }
   }
 
@@ -192,19 +302,14 @@ export class VlmService {
         queryLength: userQuery.length,
         imageCount: imageUri.length,
       });
-      const isVllm = this.$config.get('openai.useVLLM') === CONFIG_STATE.ON;
 
-      // vLLM: always map each URI to image_url.
-      // OVMS / internal VLM Microservice: single image → image_url, multiple → video type.
-      const content: any[] = isVllm
-        ? imageUri.map((url) => ({
-            type: 'image_url',
-            image_url: { url },
-          }))
-        : (imageUri.length === 1
-            ? [{ type: 'image_url', image_url: { url: imageUri[0] } }]
-            : [{ type: 'video', video: imageUri.map((url) => url) }]
-          );
+      // Both vLLM and OVMS use image_url with direct URLs.
+      // OVMS requires --allowed_media_domains to be configured with the MinIO host
+      // (already set via OVMS_ALLOWED_MEDIA_DOMAINS in compose).
+      const content: any[] = imageUri.map((url) => ({
+        type: 'image_url',
+        image_url: { url },
+      }));
 
       const messages: any[] = [
         {
@@ -237,24 +342,19 @@ export class VlmService {
     }
   }
 
-  public async runSingleImage(
-    params: ImageCompletionParams,
+  private async runSingleImageInference(
+    userQuery: string,
+    fileNameOrUrl: string,
   ): Promise<string | null> {
-    const {
-      user_query = this.$template.getFrameCaptionTemplateWithoutObjects(),
-      fileNameOrUrl,
-    } = params;
-
-    const imageBase64 = this.encodeBase64ContentFromUrl(fileNameOrUrl);
-    const startTime = Date.now();
-    const chatCompletionFromBase64 = await this.client.chat.completions.create({
+    const imageBase64 = await this.encodeBase64ContentFromUrl(fileNameOrUrl);
+    const chatCompletion = await this.client.chat.completions.create({
       messages: [
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: user_query,
+              text: userQuery,
             },
             {
               type: 'image_url',
@@ -269,7 +369,19 @@ export class VlmService {
       ...this.defaultParams(),
     });
 
-    const result = chatCompletionFromBase64.choices[0].message.content;
+    return chatCompletion.choices[0].message.content;
+  }
+
+  public async runSingleImage(
+    params: ImageCompletionParams,
+  ): Promise<string | null> {
+    const {
+      user_query = this.$template.getFrameCaptionTemplateWithoutObjects(),
+      fileNameOrUrl,
+    } = params;
+
+    const startTime = Date.now();
+    const result = await this.runSingleImageInference(user_query, fileNameOrUrl);
     const endTime = Date.now();
     const timeTaken = (endTime - startTime) / 1000;
     console.log(`Time taken to run the code: ${timeTaken.toFixed(2)} seconds`);

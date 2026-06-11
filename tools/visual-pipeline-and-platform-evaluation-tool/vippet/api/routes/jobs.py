@@ -1,14 +1,17 @@
 import logging
 import time
 
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Query
+from fastapi.responses import JSONResponse, StreamingResponse
 
 import api.api_schemas as schemas
 from graph import Graph
 from internal_types import (
     InternalDensityJobStatus,
     InternalDensityJobSummary,
+    InternalLatencyMetrics,
+    InternalModelDownloadJobStatus,
+    InternalModelDownloadJobSummary,
     InternalOptimizationJobStatus,
     InternalOptimizationJobSummary,
     InternalPerformanceJobStatus,
@@ -17,9 +20,14 @@ from internal_types import (
     InternalValidationJobStatus,
     InternalValidationJobSummary,
 )
+from managers.metadata_manager import MetadataManager
+from managers.model_manager import ModelManager
 from managers.optimization_manager import OptimizationManager
 from managers.tests_manager import TestsManager
 from managers.validation_manager import ValidationManager
+
+# Maximum number of records that can be requested in a single snapshot query
+METADATA_SNAPSHOT_LIMIT = 1000
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.jobs")
@@ -387,6 +395,177 @@ def stop_performance_test_job(job_id: str):
     ```
     """
     return stop_test_job_handler(job_id)
+
+
+@router.get(
+    "/tests/performance/{job_id}/metadata/{pipeline_id}/{file_index}",
+    operation_id="get_performance_job_metadata_snapshot",
+    summary="Get metadata snapshot for a specific pipeline stream",
+    response_class=JSONResponse,
+    responses={
+        200: {
+            "description": "List of metadata records for the specified pipeline stream",
+            "content": {
+                "application/json": {
+                    "schema": {"type": "array", "items": {"type": "object"}}
+                }
+            },
+        },
+        404: {
+            "description": "Job, pipeline, or file index not found",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+def get_performance_job_metadata_for_stream(
+    job_id: str,
+    pipeline_id: str,
+    file_index: int,
+    limit: int = Query(default=100, ge=1, le=METADATA_SNAPSHOT_LIMIT),
+):
+    """
+    **Return the most recent metadata records for a specific pipeline stream.**
+
+    ## Operation
+
+    Returns a snapshot of up to ``limit`` JSON records read directly from disk,
+    written by the ``gvametapublish`` element identified by *pipeline_id* and
+    the per-pipeline *file_index*.  Records remain available after the job
+    completes.
+
+    ## Path Parameters
+
+    - `job_id`: Identifier of the performance job
+    - `pipeline_id`: Pipeline identifier
+    - `file_index`: Zero-based index of the metadata file within that pipeline
+
+    ## Query Parameters
+
+    - `limit` *(optional, default 100, max 1000)*: Maximum number of records to return
+
+    ## Response Codes
+
+    | Code | Description |
+    |------|-------------|
+    | 200  | JSON array of metadata records (may be empty) |
+    | 404  | Job id, pipeline id, or file index is unknown |
+    """
+    if not MetadataManager().job_exists(job_id):
+        internal_status = TestsManager().get_job_status(job_id)
+        if internal_status is None:
+            return JSONResponse(
+                content=schemas.MessageResponse(
+                    message=f"Performance job {job_id} not found"
+                ).model_dump(),
+                status_code=404,
+            )
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"No metadata available for job {job_id}. "
+                "The pipeline may not include a gvametapublish element writing to a file."
+            ).model_dump(),
+            status_code=404,
+        )
+
+    global_index = MetadataManager().resolve_file_index(job_id, pipeline_id, file_index)
+    if global_index is None:
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Pipeline '{pipeline_id}' or file index {file_index} not found for job {job_id}."
+            ).model_dump(),
+            status_code=404,
+        )
+    records = MetadataManager().get_snapshot(
+        job_id, file_index=global_index, limit=limit
+    )
+    return JSONResponse(content=records)
+
+
+@router.get(
+    "/tests/performance/{job_id}/metadata/{pipeline_id}/{file_index}/stream",
+    operation_id="stream_performance_job_metadata",
+    summary="Stream metadata from a running performance test job via SSE",
+    responses={
+        200: {
+            "description": "SSE stream of metadata records",
+            "content": {"text/event-stream": {}},
+        },
+        404: {"description": "Job not found", "model": schemas.MessageResponse},
+    },
+)
+async def stream_performance_job_metadata(
+    job_id: str, pipeline_id: str, file_index: int
+):
+    """
+    **Stream live metadata records from gvametapublish via Server-Sent Events.**
+
+    ## Operation
+
+    Opens a persistent HTTP connection and pushes each new JSON record emitted
+    by the ``gvametapublish`` GStreamer element as an SSE ``data:`` event.
+    The stream terminates automatically when the pipeline finishes.
+    A ``": keepalive"`` comment is sent every 30 s to prevent proxy timeouts.
+
+    ## Path Parameters
+
+    - `job_id`: Identifier of the performance job to stream metadata from
+
+    ## Response Format
+
+    ``text/event-stream`` — each event is:
+    ```
+    data: {<json record>}\n\n
+    ```
+
+    ## Response Codes
+
+    | Code | Description |
+    |------|-------------|
+    | 200  | SSE stream opened |
+    | 404  | Job id is unknown or no metadata is available for this job |
+    """
+    if not MetadataManager().job_exists(job_id):
+        internal_status = TestsManager().get_job_status(job_id)
+        if internal_status is None:
+            return JSONResponse(
+                content=schemas.MessageResponse(
+                    message=f"Performance job {job_id} not found"
+                ).model_dump(),
+                status_code=404,
+            )
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"No metadata stream available for job {job_id}. "
+                "The pipeline may not include a gvametapublish element writing to a file."
+            ).model_dump(),
+            status_code=404,
+        )
+
+    global_index = MetadataManager().resolve_file_index(job_id, pipeline_id, file_index)
+    if global_index is None:
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Pipeline '{pipeline_id}' or file index {file_index} not found for job {job_id}."
+            ).model_dump(),
+            status_code=404,
+        )
+
+    async def _event_generator():
+        async for line in MetadataManager().stream_events(job_id, global_index):
+            # Keepalive comments are already formatted by MetadataManager
+            if line.startswith(":"):
+                yield line
+            else:
+                yield f"data: {line}\n\n"
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get(
@@ -996,6 +1175,10 @@ def _convert_streams_per_pipeline(
     """
     Convert internal stream specs to API PipelineStreamSpec for response.
 
+    Also propagates `streams_ids` (one entry per running stream) so API
+    consumers can correlate the entries in `latency_tracer_metrics`
+    (which is keyed by stream_id) back to a specific pipeline.
+
     Args:
         internal_specs: List of InternalPipelineStreamSpec or None.
 
@@ -1005,9 +1188,46 @@ def _convert_streams_per_pipeline(
     if internal_specs is None:
         return None
     return [
-        schemas.PipelineStreamSpec(id=spec.id, streams=spec.streams)
+        schemas.PipelineStreamSpec(
+            id=spec.id,
+            streams=spec.streams,
+            streams_ids=list(spec.streams_ids),
+        )
         for spec in internal_specs
     ]
+
+
+def _convert_latency_tracer_metrics(
+    internal_metrics: dict[str, InternalLatencyMetrics] | None,
+) -> dict[str, schemas.LatencyMetrics] | None:
+    """
+    Convert the internal latency_tracer map to its API equivalent.
+
+    Preserves the semantic distinction between "tracer disabled"
+    (``None``) and "tracer active but produced no samples" (``{}``): a
+    ``None`` input maps to ``None``, an empty dict maps to ``{}``.
+
+    Args:
+        internal_metrics: Mapping from ``stream_id`` to
+            :class:`InternalLatencyMetrics`, or ``None`` if the tracer
+            was not enabled for this job.
+
+    Returns:
+        Same-shape mapping using API :class:`schemas.LatencyMetrics`,
+        or ``None``.
+    """
+    if internal_metrics is None:
+        return None
+    return {
+        stream_id: schemas.LatencyMetrics(
+            interval_ms=metrics.interval_ms,
+            avg_ms=metrics.avg_ms,
+            min_ms=metrics.min_ms,
+            max_ms=metrics.max_ms,
+            latency_ms=metrics.latency_ms,
+        )
+        for stream_id, metrics in internal_metrics.items()
+    }
 
 
 def _performance_job_to_api_status(
@@ -1041,6 +1261,10 @@ def _performance_job_to_api_status(
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,
         live_stream_urls=job.live_stream_urls,
+        metadata_stream_urls=job.metadata_stream_urls,
+        latency_tracer_metrics=_convert_latency_tracer_metrics(
+            job.latency_tracer_metrics
+        ),
     )
 
 
@@ -1077,6 +1301,9 @@ def _density_job_to_api_status(
         total_streams=job.total_streams,
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,
+        latency_tracer_metrics=_convert_latency_tracer_metrics(
+            job.latency_tracer_metrics
+        ),
     )
 
 
@@ -1220,3 +1447,125 @@ def _validation_summary_to_api(
             parameters=summary.request.parameters,
         ),
     )
+
+
+# ------------------------------------------------------------------
+# Model download jobs
+# ------------------------------------------------------------------
+
+
+def _model_job_to_api_status(
+    job: InternalModelDownloadJobStatus,
+) -> schemas.ModelDownloadJobStatus:
+    """Convert an internal model download job status to API schema."""
+    current_time = int(time.time() * 1000)
+    elapsed_time = (
+        job.end_time - job.start_time if job.end_time else current_time - job.start_time
+    )
+    return schemas.ModelDownloadJobStatus(
+        id=job.id,
+        model_name=job.model_name,
+        source=schemas.ModelSource(job.source.value),
+        start_time=job.start_time,
+        elapsed_time=elapsed_time,
+        state=schemas.ModelDownloadJobState(job.state.value),
+        details=list(job.details),
+        progress_message=job.progress_message,
+        model_path=job.model_path,
+    )
+
+
+def _model_job_summary_to_api(
+    summary: InternalModelDownloadJobSummary,
+) -> schemas.ModelDownloadJobSummary:
+    """Convert an internal model download job summary to API schema."""
+    return schemas.ModelDownloadJobSummary(
+        id=summary.id,
+        model_name=summary.model_name,
+        source=schemas.ModelSource(summary.source.value),
+    )
+
+
+@router.get(
+    "/models/status",
+    operation_id="get_model_download_statuses",
+    summary="List all model download jobs",
+    response_model=list[schemas.ModelDownloadJobStatus],
+)
+async def get_model_download_statuses():
+    """
+    # List Model Download Jobs
+
+    Return the current status of every model download job created via
+    `POST /models/download`. Jobs live in memory only (mirrors the
+    optimization/validation pattern) and are lost on restart, but
+    completed downloads are still reflected by `GET /models` via the
+    installed-models registry.
+    """
+    return [_model_job_to_api_status(j) for j in ModelManager().get_all_jobs()]
+
+
+@router.get(
+    "/models/{job_id}",
+    operation_id="get_model_download_job_summary",
+    summary="Get a model download job summary",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "model": schemas.ModelDownloadJobSummary,
+        },
+        404: {
+            "description": "Model download job not found",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+async def get_model_download_job_summary(job_id: str):
+    """
+    # Get Model Download Job Summary
+
+    Return the short summary (id, model name, source) of a model
+    download job. Returns 404 when the job id is unknown.
+    """
+    summary = ModelManager().get_job_summary(job_id)
+    if summary is None:
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Model download job {job_id} not found"
+            ).model_dump(),
+            status_code=404,
+        )
+    return _model_job_summary_to_api(summary)
+
+
+@router.get(
+    "/models/{job_id}/status",
+    operation_id="get_model_download_job_status",
+    summary="Get a model download job status",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "model": schemas.ModelDownloadJobStatus,
+        },
+        404: {
+            "description": "Model download job not found",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+async def get_model_download_job_status(job_id: str):
+    """
+    # Get Model Download Job Status
+
+    Return the current state, timings and progress of a model download
+    job. Returns 404 when the job id is unknown.
+    """
+    job = ModelManager().get_job(job_id)
+    if job is None:
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Model download job {job_id} not found"
+            ).model_dump(),
+            status_code=404,
+        )
+    return _model_job_to_api_status(job)

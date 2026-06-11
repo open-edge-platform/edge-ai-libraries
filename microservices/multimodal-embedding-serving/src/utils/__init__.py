@@ -28,11 +28,21 @@ from .utils import (
     delete_file,
     download_video,
     decode_base64_video,
-    extract_video_frames,
+    ParallelImagePreprocessor,
     sanitize_for_log,
     resolve_safe_local_path,
     validate_remote_media_url,
 )
+from .path_security import (
+    validate_local_artifact_reference,
+    resolve_local_artifact_reference,
+    validate_video_artifact_reference,
+    resolve_video_artifact_reference,
+    validate_manifest_artifact_reference,
+    resolve_manifest_artifact_reference,
+)
+
+from .decoder import extract_batched_frames
 
 __all__ = [
     "Settings",
@@ -46,8 +56,15 @@ __all__ = [
     "delete_file",
     "download_video",
     "decode_base64_video",
-    "extract_video_frames",
+    "ParallelImagePreprocessor",
+    "extract_batched_frames",
     "sanitize_for_log",
     "resolve_safe_local_path",
     "validate_remote_media_url",
+    "validate_local_artifact_reference",
+    "resolve_local_artifact_reference",
+    "validate_video_artifact_reference",
+    "resolve_video_artifact_reference",
+    "validate_manifest_artifact_reference",
+    "resolve_manifest_artifact_reference",
 ]

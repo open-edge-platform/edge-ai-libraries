@@ -4,12 +4,14 @@ This section provides detailed hardware, software, and platform requirements to 
 
 ## Hardware Platforms Used for Validation
 
-- Intel® Xeon® processor: Fourth and fifth generation.
-- Intel® Core™ processor: Core Ultra 7 Processor 265 and Core Ultra 9 Processor 285.
+- Intel® Xeon® processor: Fourth and fifth generations.
+- Intel® Core&trade; Ultra 2 and 3 with integrated GPU.
 
 ## Operating Systems Used for Validation
 
 - Ubuntu 22.04.2 LTS OS for Intel Xeon® configurations only.
+- If GPU is available, refer to the official [documentation](https://dgpu-docs.intel.com/devices/hardware-table.html) for details on required kernel version. For the listed hardware platforms, the kernel requirement translates to Ubuntu 24.04 or Ubuntu 24.10 depending on the GPU used.
+- Validation on latest version of EMT-S and EMT-D is also done periodically though there could be gaps in validation regression. Raise an issue if any defects are observed.
 
 ## Minimum Configuration
 

@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { useTheme } from "next-themes";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
@@ -9,6 +8,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { cn } from "@/lib/utils";
 
 export interface MetricDataPoint {
   timestamp: number;
@@ -52,8 +52,6 @@ export const MetricChart = ({
   useDemoStyles = false,
   wrapLegend = false,
 }: MetricChartProps) => {
-  const { resolvedTheme } = useTheme();
-  const isDarkTheme = resolvedTheme === "dark" || forceDark;
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {};
     dataKeys.forEach((key, index) => {
@@ -100,10 +98,8 @@ export const MetricChart = ({
       (lastPoint.timestamp - firstPoint.timestamp) / 1000,
     );
 
-    if (seconds >= 60) {
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return `${minutes}m ${remainingSeconds}s`;
+    if (seconds >= 58) {
+      return "1m 0s";
     }
 
     return `${seconds}s`;
@@ -120,40 +116,44 @@ export const MetricChart = ({
 
   const isCompact = className?.includes("!h-");
   const hasTitle = title.trim().length > 0;
-  const summaryBorderClassName = isDarkTheme
-    ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
-    : "border-2 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20";
-  const summaryTitleClassName = isDarkTheme
-    ? "text-energy-blue-tint-1"
-    : "text-classic-blue";
+  const summaryBorderClassName =
+    "border-2 border-brand-accent/40 shadow-brand-accent/20 ring-1 ring-brand-accent/20";
+  const summaryTitleClassName = "text-summary-title";
 
   return (
     <div
-      className={`${
+      className={cn(
         useDemoStyles
-          ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
-          : "bg-background"
-      } ${useDemoStyles ? "rounded-xl shadow-2xl" : "shadow-md"} ${isCompact ? "p-4 pb-6" : "p-4"} max-w-full ${isCompact ? "overflow-visible" : "overflow-hidden"} ${
+          ? forceDark
+            ? "bg-surface-overlay"
+            : "bg-card/80"
+          : "bg-background",
+        useDemoStyles ? "rounded-xl shadow-2xl" : "shadow-md",
+        isCompact ? "p-4 pb-6" : "p-4",
+        "max-w-full",
+        isCompact ? "overflow-visible" : "overflow-hidden",
         isSummary && !hideSummaryBorder
           ? summaryBorderClassName
           : useDemoStyles
             ? forceDark
-              ? "border border-neutral-800/50"
+              ? "border border-surface-overlay-border"
               : "border border-border"
-            : ""
-      } ${className}`}
+            : "",
+        className,
+      )}
     >
       {hasTitle && (
         <h3
-          className={`${
+          className={cn(
             useDemoStyles
-              ? `text-[10px] font-semibold uppercase tracking-widest ${isCompact ? "mb-6" : "mb-10"} ${
-                  isSummary && !hideSummaryBorder
-                    ? summaryTitleClassName
-                    : "text-neutral-400"
-                }`
-              : "text-sm font-medium text-foreground mb-5"
-          }`}
+              ? "text-[0.625rem] font-semibold uppercase tracking-widest"
+              : "text-sm font-medium text-foreground mb-5",
+            useDemoStyles && (isCompact ? "mb-6" : "mb-10"),
+            useDemoStyles &&
+              (isSummary && !hideSummaryBorder
+                ? summaryTitleClassName
+                : "text-muted-foreground"),
+          )}
         >
           {title}
         </h3>
@@ -161,13 +161,13 @@ export const MetricChart = ({
       <div className="relative">
         <ChartContainer
           config={chartConfig}
-          className={
+          className={cn(
             isCompact
-              ? "h-[80px] w-full"
+              ? "h-[5rem] w-full"
               : useDemoStyles
-                ? "h-[250px] w-full"
-                : "h-[230px] w-full"
-          }
+                ? "h-[15.625rem] w-full"
+                : "h-[14.375rem] w-full",
+          )}
         >
           <AreaChart data={formattedData}>
             <CartesianGrid
@@ -200,13 +200,7 @@ export const MetricChart = ({
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  className={
-                    useDemoStyles
-                      ? forceDark
-                        ? "bg-neutral-900 border-neutral-700 text-white"
-                        : "bg-popover border-border text-popover-foreground"
-                      : "bg-neutral-900 border-neutral-700 text-white"
-                  }
+                  className="bg-popover border-border text-popover-foreground"
                   labelFormatter={(value) => {
                     if (!value) return "";
                     const seconds = parseInt(value as string);
@@ -223,7 +217,15 @@ export const MetricChart = ({
               <ChartLegend
                 content={
                   <ChartLegendContent
-                    className={`${useDemoStyles ? (forceDark ? "text-white" : "text-foreground") : "text-foreground"} text-[8px] ${wrapLegend ? "flex-wrap gap-x-3 gap-y-1" : ""}`}
+                    className={cn(
+                      useDemoStyles
+                        ? forceDark
+                          ? "text-white"
+                          : "text-foreground"
+                        : "text-foreground",
+                      "text-[0.5rem]",
+                      wrapLegend && "flex-wrap gap-x-3 gap-y-1",
+                    )}
                   />
                 }
               />
@@ -243,9 +245,16 @@ export const MetricChart = ({
           </AreaChart>
         </ChartContainer>
         <div
-          className={`absolute right-0 pb-2 ${showLegend ? "bottom-[30px]" : isCompact ? "bottom-[-8px]" : "bottom-0"}`}
+          className={cn(
+            "absolute right-0 pb-2",
+            showLegend
+              ? "bottom-[1.875rem]"
+              : isCompact
+                ? "bottom-[-0.5rem]"
+                : "bottom-0",
+          )}
         >
-          <span className="text-xs text-neutral-500 font-semibold">
+          <span className="text-xs text-muted-foreground font-semibold">
             {totalTime}
           </span>
         </div>

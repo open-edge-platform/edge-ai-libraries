@@ -2,16 +2,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import shutil
+import threading
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, List
 
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
+from src.core.plugin_venv import get_plugin_venv_env
 from src.utils.logging import logger
 
 class UltralyticsDownloader(ModelDownloadPlugin):
     """Plugin for downloading Ultralytics models"""
     
+    _script_lock = threading.Lock()
+
     @property
     def plugin_name(self) -> str:
         return "ultralytics"
@@ -40,15 +45,51 @@ class UltralyticsDownloader(ModelDownloadPlugin):
         #model_without_prefix = model_name.split(":")[-1] if ":" in model_name else model_name
         
         # Extract quantization from kwargs
-        quantize = kwargs.get("quantize", "")
+        quantize = (kwargs.get("config") or {}).get("quantize") or ""
+        quantize = quantize.strip()
+        int8_requested = bool(quantize)
+
+        # Validate: INT8 quantization requires single model (not comma-separated, all, or yolo_all)
+        if int8_requested:
+            is_multi_model_in_request = "," in model_name or model_name in ("all", "yolo_all")
+            if is_multi_model_in_request:
+                raise ValueError(
+                    f"INT8 requires a single model. Received '{model_name}' with quantize='{quantize}'. "
+                    "Use a single model and retry (e.g., 'yolov8n' instead of 'comma-separated-models', 'all', or 'yolo_all')."
+                )
         
         # Create hub-specific directory under the output directory
         hub_dir = os.path.join(output_dir, "ultralytics")
         
         # Call the download script
-        return_code = self._call_bash_script(model=model_name, quantize=quantize, models_path=hub_dir)
+        with self._script_lock:
+            return_code = self._call_bash_script(model=model_name, quantize=quantize, models_path=hub_dir)
+
+        if int8_requested and return_code == 0:
+            int8_artifacts = self._find_int8_artifacts(hub_dir, model_name)
+            if not int8_artifacts:
+                self._cleanup_requested_model_artifacts(hub_dir, model_name)
+                raise RuntimeError(
+                    f"INT8 export not supported for '{model_name}' (dataset='{quantize}'). "
+                    "No INT8 artifacts were generated."
+                )
+
+        if int8_requested and return_code == 0:
+            int8_artifacts = self._find_int8_artifacts(hub_dir, model_name)
+            if not int8_artifacts:
+                self._cleanup_requested_model_artifacts(hub_dir, model_name)
+                raise RuntimeError(
+                    f"INT8 export not supported for '{model_name}' (dataset='{quantize}'). "
+                    "No INT8 artifacts were generated."
+                )
 
         if return_code != 0:
+            if int8_requested:
+                self._cleanup_requested_model_artifacts(hub_dir, model_name)
+                raise RuntimeError(
+                    f"INT8 download attempt failed for Ultralytics model '{model_name}' using dataset '{quantize}' "
+                    f"(script exit code: {return_code}).Check whether this model supports INT8 export, or retry without quantize."
+                )
             raise RuntimeError(f"Failed to download Ultralytics model {model_name}. Check if the model name is correct and if the model is compatible")
         
         host_path = hub_dir
@@ -60,8 +101,35 @@ class UltralyticsDownloader(ModelDownloadPlugin):
             "model_name": model_name,
             "source": "ultralytics",
             "download_path": host_path,
+            "int8_requested": int8_requested,
             "success": True
         }
+
+    def _cleanup_requested_model_artifacts(self, hub_dir: str, model_name: str) -> None:
+        """Remove downloaded artifacts for a single model after strict INT8 failure."""
+        public_dir = Path(hub_dir) / "public"
+        if not public_dir.exists():
+            return
+
+        for candidate in {model_name, Path(model_name).stem}:
+            shutil.rmtree(public_dir / candidate, ignore_errors=True)
+
+    def _find_int8_artifacts(self, hub_dir: str, model_name: str) -> List[str]:
+        """Find INT8 XML artifacts produced by the download script."""
+        public_dir = Path(hub_dir) / "public"
+        if not public_dir.exists():
+            return []
+
+        # Some exports keep the model extension in folder name, others use stem only.
+        primary_dir = public_dir / model_name / "INT8"
+        int8_xml_path = next(primary_dir.glob("*.xml"), None)
+
+        if not int8_xml_path:
+            fallback_dir = public_dir / Path(model_name).stem / "INT8"
+            int8_xml_path = next(fallback_dir.glob("*.xml"), None)
+
+        # Return one INT8 XML path if found in either directories; otherwise empty list.
+        return [str(int8_xml_path)] if int8_xml_path else []
     
     def get_supported_models(self) -> List[str]:
         """Get list of supported models from the bash script"""
@@ -129,8 +197,8 @@ class UltralyticsDownloader(ModelDownloadPlugin):
 
         logger.info(f"Executing: {' '.join(cmd)}")
 
-        # Prepare environment with MODELS_PATH
-        env = os.environ.copy()
+        # Prepare environment
+        env = get_plugin_venv_env("ultralytics")
         env['MODELS_PATH'] = models_path
         logger.info(f"Setting MODELS_PATH to {models_path}")
         # Execute the bash script and capture output

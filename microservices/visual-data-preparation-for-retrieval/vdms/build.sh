@@ -10,9 +10,10 @@ NC='\033[0m'
 
 PUSH=false
 
-# Build and optionally push the vdms-dataprep image. The script intentionally
-# avoids mutating poetry.lock; ensure the lock already points at the desired
-# wheel path/version if you bump the embedding service.
+# Build and optionally push the vdms-dataprep image.
+#
+# The docker build uses the microservices directory as context so the local
+# multimodal-embedding-serving source path dependency is available in-image.
 
 usage() {
   cat <<'EOF'
@@ -63,34 +64,10 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MICROSERVICES_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 EMBEDDING_DIR="$MICROSERVICES_DIR/multimodal-embedding-serving"
-WHEELS_DIR="$SCRIPT_DIR/wheels"
 DOCKERFILE="$SCRIPT_DIR/docker/Dockerfile"
 
 [[ -d "$EMBEDDING_DIR" ]] || { log_error "Cannot find multimodal embedding service at $EMBEDDING_DIR"; exit 1; }
 [[ -f "$DOCKERFILE" ]] || { log_error "Cannot find Dockerfile at $DOCKERFILE"; exit 1; }
-mkdir -p "$WHEELS_DIR"
-
-if ! command -v poetry >/dev/null 2>&1; then
-  log_error "poetry is required to build the multimodal embedding wheel."
-  exit 1
-fi
-
-log_info "Building multimodal embedding wheel from $(basename "$EMBEDDING_DIR")"
-rm -rf "$EMBEDDING_DIR/dist"
-(
-  cd "$EMBEDDING_DIR"
-  poetry build --format wheel >/dev/null
-)
-WHEEL_SOURCE="$(find "$EMBEDDING_DIR/dist" -maxdepth 1 -type f -name 'multimodal_embedding_serving-*.whl' | sort | tail -n 1)"
-if [[ -z "$WHEEL_SOURCE" ]]; then
-  log_error "Wheel build failed; no wheel found in $EMBEDDING_DIR/dist"
-  exit 1
-fi
-WHEEL_BASENAME="$(basename "$WHEEL_SOURCE")"
-rm -f "$WHEELS_DIR"/multimodal_embedding_serving-*.whl
-cp "$WHEEL_SOURCE" "$WHEELS_DIR/"
-WHEEL_DEST="$WHEELS_DIR/$WHEEL_BASENAME"
-log_info "Copied $WHEEL_BASENAME to $WHEELS_DIR"
 
 REGISTRY_URL=${REGISTRY_URL:-}
 PROJECT_NAME=${PROJECT_NAME:-}
@@ -109,8 +86,14 @@ for proxy_var in http_proxy https_proxy no_proxy HTTP_PROXY HTTPS_PROXY NO_PROXY
   fi
 done
 
+# Enable BuildKit if available for efficient multi-stage builds.
+# Falls back to legacy builder if buildx is not installed - the Dockerfile stage
+# ordering ensures prod builds correctly with either builder.
+if docker buildx version &>/dev/null; then
+  export DOCKER_BUILDKIT=1
+fi
 set -x
-docker build "${BUILD_ARGS[@]}" --target prod -t "$IMAGE_NAME" -f "$DOCKERFILE" "$SCRIPT_DIR"
+docker build "${BUILD_ARGS[@]}" --target prod -t "$IMAGE_NAME" -f "$DOCKERFILE" "$MICROSERVICES_DIR"
 set +x
 
 log_info "Successfully built $IMAGE_NAME"

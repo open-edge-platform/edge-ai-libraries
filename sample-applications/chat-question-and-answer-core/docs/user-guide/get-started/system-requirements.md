@@ -4,21 +4,23 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 ## Hardware Platforms used for validation
 
-- Intel® Xeon®: Fourth generation and fifth generation.
-- Intel® Arc&trade; B580 GPU with following Xeon® processor configurations:
-  - Intel® Xeon® Platinum 8490H
-  - Intel® Xeon® Platinum 8468V
-  - Intel® Xeon® Platinum 8580
-- Intel® Arc&trade; A770 GPU with following Core&trade; configurations:
-  - Intel® Core&trade; Ultra 7 265K
-  - Intel® Core&trade; Ultra 9 285K
-- Intel® Core&trade; Ultra 7 256V
-- Intel® Core&trade; Ultra 7 165H
+- The application is mainly targeted for Intel® Core&trade; Ultra series. The application is validated on Core&trade; Ultra Series 2 and 3.
+- The application has been specifically validated on Intel® 14th Gen Core&trade; platform though this is for a specific requirement. It should not be assumed as a default support.
+- Validation has also been done on following configurations for completeness sake.
+  - Intel® Xeon®: Fourth generation and fifth generation.
+  - Intel® Arc&trade; B580 GPU with following Xeon® processor configurations:
+    - Intel® Xeon® Platinum 8490H
+    - Intel® Xeon® Platinum 8468V
+    - Intel® Xeon® Platinum 8580
+  - Intel® Arc&trade; A770 GPU with following Core&trade; configurations:
+    - Intel® Core&trade; Ultra 7 265K
+    - Intel® Core&trade; Ultra 9 285K
 
 ## Operating Systems used for validation
 
 - Ubuntu 22.04.2 LTS for Xeon® only configurations.
 - If GPU is available, refer to the official [documentation](https://dgpu-docs.intel.com/devices/hardware-table.html) for details on required kernel version. For the listed hardware platforms, the kernel requirement translates to Ubuntu 24.04 or Ubuntu 24.10 depending on the GPU used.
+- Validation on latest version of EMT-S and EMT-D is also done periodically though there could be gaps in validation regression. Raise an issue if any defects are observed.
 
 ## Minimum Configuration
 

@@ -18,7 +18,7 @@ services:
             --console-address ":9001"
 
     vdms-vector-db:
-        image: intellabs/vdms:v2.10.0
+        image: intellabs/vdms:v2.12.0
         environment:
             - OVERRIDE_db_root_path=/db
             - OVERRIDE_images_path=/db/images
@@ -32,8 +32,8 @@ services:
 
     vdms-dataprep:
         build:
-            context: ..
-            dockerfile: docker/Dockerfile
+            context: ../../..
+            dockerfile: visual-data-preparation-for-retrieval/vdms/docker/Dockerfile
             target: prod
         image: ${REGISTRY}vdms-dataprep:${TAG:-latest}
         environment:
@@ -69,6 +69,18 @@ services:
             - OV_MODELS_DIR=${OV_MODELS_DIR:-/app/ov_models}
             - EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
             - MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-}
+            - SDK_VIDEO_SHM_MAX_BLOCKS=${SDK_VIDEO_SHM_MAX_BLOCKS:-512}
+            - SDK_VIDEO_SHM_BLOCK_SIZE=${SDK_VIDEO_SHM_BLOCK_SIZE:-6220800}
+            - SDK_VIDEO_EXTRACTION_BATCH_SIZE=${SDK_VIDEO_EXTRACTION_BATCH_SIZE:-256}
+            - SDK_PIPELINE_QUEUE_MAXSIZE=${SDK_PIPELINE_QUEUE_MAXSIZE:-16}
+            - SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE=${SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE:-1}
+            - SDK_DETECTION_WORKER_THREADS=${SDK_DETECTION_WORKER_THREADS:-2}
+            - SDK_EMBED_WORKER_THREADS=${SDK_EMBED_WORKER_THREADS:-2}
+            - SDK_PIPELINE_QUEUE_GET_TIMEOUT_S=${SDK_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
+            - SAVE_RUNTIME_PIPELINE_STATS=${SAVE_RUNTIME_PIPELINE_STATS:-false}
+            - SDK_ENABLE_TRACING=${SDK_ENABLE_TRACING:-false}
+            - VIDEO_FRAME_DECODER_WORKERS=${VIDEO_FRAME_DECODER_WORKERS:-2}
+            - VIDEO_FRAME_LOG_LEVEL=${VIDEO_FRAME_LOG_LEVEL:-INFO}
 
             # Frame processing settings
             - FRAME_INTERVAL=${FRAME_INTERVAL:-15}

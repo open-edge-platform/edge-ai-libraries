@@ -39,10 +39,7 @@ function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
 function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
   return (
     <ProgressPrimitive.Track
-      className={cn(
-        "block h-1.5 w-full overflow-hidden rounded-full bg-input",
-        className,
-      )}
+      className={cn("block h-1.5 w-full overflow-hidden bg-input", className)}
       data-slot="progress-track"
       {...props}
     />
@@ -55,10 +52,7 @@ function ProgressIndicator({
 }: ProgressPrimitive.Indicator.Props) {
   return (
     <ProgressPrimitive.Indicator
-      className={cn(
-        "bg-primary dark:bg-energy-blue transition-all duration-500",
-        className,
-      )}
+      className={cn("bg-primary transition-all duration-500", className)}
       data-slot="progress-indicator"
       {...props}
     />

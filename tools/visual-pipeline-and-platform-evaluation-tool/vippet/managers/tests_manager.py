@@ -9,6 +9,8 @@ from internal_types import (
     InternalDensityJobStatus,
     InternalDensityJobSummary,
     InternalExecutionConfig,
+    InternalLatencyMetrics,
+    InternalMetadataMode,
     InternalOutputMode,
     InternalDensityTestSpec,
     InternalPerformanceJobStatus,
@@ -19,12 +21,47 @@ from internal_types import (
     InternalPipelineStreamSpec,
     InternalTestJobState,
 )
-from pipeline_runner import PipelineRunner
+from pipeline_runner import LatencyTracerSample, PipelineRunner
 from benchmark import Benchmark
 from managers.pipeline_manager import PipelineManager
+from managers.metadata_manager import MetadataManager
 from videos import collect_video_outputs_from_dirs
+from utils import slugify_text
 
 logger = logging.getLogger("tests_manager")
+
+
+def _map_latency_tracer_samples(
+    samples: dict[str, LatencyTracerSample] | None,
+) -> dict[str, InternalLatencyMetrics] | None:
+    """
+    Convert the runner-local ``LatencyTracerSample`` map into the
+    internal job-status representation ``InternalLatencyMetrics``.
+
+    Both types carry the same fields with the same semantics; the
+    indirection exists only to keep ``pipeline_runner`` free of any
+    dependency on ``internal_types`` (see the docstring on
+    :class:`LatencyTracerSample` for the circular-import rationale).
+
+    Preserves the ``None`` / empty-dict distinction:
+
+    * ``None`` input — tracer was not enabled — returns ``None``.
+    * ``{}`` input — tracer was enabled but produced no matching
+      samples — returns ``{}``.
+    """
+    if samples is None:
+        return None
+    return {
+        stream_id: InternalLatencyMetrics(
+            interval_ms=sample.interval_ms,
+            avg_ms=sample.avg_ms,
+            min_ms=sample.min_ms,
+            max_ms=sample.max_ms,
+            latency_ms=sample.latency_ms,
+        )
+        for stream_id, sample in samples.items()
+    }
+
 
 _T = TypeVar("_T", InternalPerformanceJobStatus, InternalDensityJobStatus)
 
@@ -201,6 +238,15 @@ class TestsManager:
                 "Use output_mode='disabled' or output_mode='file' instead."
             )
 
+        if (
+            is_density_test
+            and execution_config.metadata_mode != InternalMetadataMode.DISABLED
+        ):
+            raise ValueError(
+                "Density tests do not support metadata output. "
+                "Set metadata_mode to 'disabled' for density tests."
+            )
+
     def _get_usb_camera_devices(self, pipeline_graph: Graph) -> list[str]:
         """
         Get list of USB camera device paths from a pipeline graph.
@@ -348,23 +394,54 @@ class TestsManager:
                 )
                 return
 
-            # Build pipeline command from specs
-            # video_output_dirs maps pipeline IDs to their output directory paths
-            pipeline_command, video_output_dirs, live_stream_urls = (
-                self.pipeline_manager.build_pipeline_command(
-                    internal_spec.pipeline_performance_specs,
-                    internal_spec.execution_config,
-                    job_id,
-                )
+            # Build pipeline command from specs.
+            # `pipeline_cmd` carries the pipeline string plus all
+            # side outputs (output dirs, live-stream URLs, metadata
+            # files, per-pipeline stream identifiers). The
+            # `streams_per_pipeline` map is used below to populate
+            # `InternalPipelineStreamSpec.streams_ids` and to filter
+            # latency_tracer samples to the streams we actually own.
+            pipeline_cmd = self.pipeline_manager.build_pipeline_command(
+                internal_spec.pipeline_performance_specs,
+                internal_spec.execution_config,
+                job_id,
             )
+            pipeline_command = pipeline_cmd.command
+            video_output_dirs = pipeline_cmd.video_output_paths
+            live_stream_urls = pipeline_cmd.live_stream_urls
+            metadata_file_paths = pipeline_cmd.metadata_file_paths
+            streams_by_pipeline = pipeline_cmd.streams_per_pipeline
 
-            # Build streams_per_pipeline using InternalPipelineStreamSpec
+            # Set up metadata streaming if the pipeline produces metadata output files.
+            metadata_stream_urls = None
+            if metadata_file_paths:
+                MetadataManager().register_job(job_id, metadata_file_paths)
+                metadata_stream_urls = {
+                    pipeline_id: [
+                        f"/jobs/tests/performance/{job_id}/metadata/{slugify_text(pipeline_id)}/{i}/stream"
+                        for i in range(len(paths))
+                    ]
+                    for pipeline_id, paths in metadata_file_paths.items()
+                }
+
+            # Build streams_per_pipeline using InternalPipelineStreamSpec.
+            # `streams_ids` carries the stable, stream-unique identifiers
+            # used to correlate latency_tracer rows back to individual
+            # streams. The list order matches the order streams were
+            # created by the pipeline runner.
             streams_per_pipeline = [
-                InternalPipelineStreamSpec(id=spec.pipeline_id, streams=spec.streams)
+                InternalPipelineStreamSpec(
+                    id=spec.pipeline_id,
+                    streams=spec.streams,
+                    streams_ids=[
+                        info.stream_id
+                        for info in streams_by_pipeline.get(spec.pipeline_id, [])
+                    ],
+                )
                 for spec in internal_spec.pipeline_performance_specs
             ]
 
-            # Update job with live_stream_urls and streams_per_pipeline immediately
+            # Update job with live_stream_urls, metadata_stream_urls and streams_per_pipeline immediately
             with self._jobs_lock:
                 if job_id in self.jobs:
                     job = self.jobs[job_id]
@@ -377,14 +454,18 @@ class TestsManager:
                         )
                     else:
                         job.live_stream_urls = live_stream_urls
+                        job.metadata_stream_urls = metadata_stream_urls
                         self.logger.debug(
-                            f"Updated job {job_id} with live_stream_urls: {live_stream_urls}"
+                            f"Updated job {job_id} with live_stream_urls: {live_stream_urls}, "
+                            f"metadata_stream_urls: {metadata_stream_urls}"
                         )
 
             # Initialize PipelineRunner in normal mode with max_runtime from execution_config
             runner = PipelineRunner(
                 mode="normal",
                 max_runtime=internal_spec.execution_config.max_runtime,
+                enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
+                job_id=job_id,
             )
 
             # Store runner for this job so it can be cancelled via stop_job()
@@ -392,11 +473,16 @@ class TestsManager:
                 self.runners[job_id] = runner
 
             # Run the pipeline.
+            # `allowed_stream_ids` scopes latency_tracer parsing to the
+            # user-facing source/sink pairs we actually declared;
+            # anything the tracer reports for internal bin sinks or
+            # intermediate `splitmuxsink` elements is dropped.
             # If exit_code != 0 and the run was not cancelled, PipelineRunner
             # raises RuntimeError which is handled in the except block below.
             result = runner.run(
                 pipeline_command=pipeline_command,
                 total_streams=total_streams,
+                allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
             )
 
             # Collect actual video file lists from output directories after pipeline completes
@@ -438,6 +524,12 @@ class TestsManager:
                             job.per_stream_fps = result.per_stream_fps
                             job.total_streams = result.num_streams
                             job.video_output_paths = video_output_paths
+                            # Record the last observed latency_tracer
+                            # sample per stream, or `None` if the tracer
+                            # was not enabled for this run.
+                            job.latency_tracer_metrics = _map_latency_tracer_samples(
+                                result.latency_tracer_metrics
+                            )
                     else:
                         # Normal completion (exit_code is always 0 here because
                         # non-zero exit without cancellation raises RuntimeError
@@ -459,14 +551,24 @@ class TestsManager:
                         job.per_stream_fps = result.per_stream_fps
                         job.total_streams = result.num_streams
                         job.video_output_paths = video_output_paths
+                        # Record the last observed latency_tracer sample
+                        # per stream, or `None` if the tracer was not
+                        # enabled for this run.
+                        job.latency_tracer_metrics = _map_latency_tracer_samples(
+                            result.latency_tracer_metrics
+                        )
 
                 # Clean up runner after completion regardless of outcome
                 self.runners.pop(job_id, None)
+
+            # Stop tailing metadata files now that the pipeline has finished
+            MetadataManager().stop_tailing(job_id)
 
         except Exception as e:
             # Clean up runner on error
             with self._jobs_lock:
                 self.runners.pop(job_id, None)
+            MetadataManager().stop_tailing(job_id)
             self._update_job_failed(job_id, str(e))
 
     def _execute_density_test(
@@ -510,7 +612,9 @@ class TestsManager:
 
             # Initialize Benchmark
             benchmark = Benchmark(
-                max_runtime=internal_spec.execution_config.max_runtime
+                max_runtime=internal_spec.execution_config.max_runtime,
+                enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
+                job_id=job_id,
             )
 
             # Store benchmark runner for this job so that a future extension could cancel it.
@@ -560,6 +664,15 @@ class TestsManager:
                         job.streams_per_pipeline = results.streams_per_pipeline
                         job.total_streams = results.n_streams
                         job.video_output_paths = video_output_paths
+                        # Record the latency_tracer samples captured on
+                        # the benchmark's best-configuration run (the
+                        # iteration whose ``n_streams`` / ``per_stream_fps``
+                        # are reported above), NOT on the last iteration
+                        # of the search. `None` when the tracer was not
+                        # enabled for this job.
+                        job.latency_tracer_metrics = _map_latency_tracer_samples(
+                            results.latency_tracer_metrics
+                        )
 
                 # Clean up benchmark after completion regardless of outcome
                 self.runners.pop(job_id, None)

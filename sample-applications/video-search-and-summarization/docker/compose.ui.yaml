@@ -1,0 +1,96 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# UI services required in Dual UI and Unified UI Setup for Video Search and Summarization.
+services:
+  nginx:
+    depends_on:
+      vss-search-ui:
+        condition: service_started
+        required: false
+      vss-summary-ui:
+        condition: service_started
+        required: false
+      vss-singleton-ui:
+        condition: service_started
+        required: false
+      
+  # vss-summary-ui is used as Summary UI in Dual UI setup.
+  vss-summary-ui:
+    build:
+      context: ../ui/react
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-}vss-ui:${TAG:-latest}
+    ipc: host
+    profiles:
+      - dual_ui
+    environment:
+      no_proxy: ${no_proxy},${HOST_IP},pipeline-manager,minio-service,localhost
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      APP_ENDPOINT_URL: ${UI_PM_ENDPOINT}
+      APP_ASSETS_URL: ${UI_ASSETS_ENDPOINT}
+      APP_FEATURE_MUX: ATOMIC
+      APP_SOCKET_APPEND: ${CONFIG_SOCKET_APPEND:-CONFIG_OFF}
+      APP_SUMMARY_FEATURE: FEATURE_ON
+      APP_SEARCH_FEATURE: FEATURE_OFF
+    depends_on:
+      pipeline-manager:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - vs_network
+
+  # vss-search-ui is used as Search UI in Dual UI setup.
+  vss-search-ui:
+    build:
+      context: ../ui/react
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-}vss-ui:${TAG:-latest}
+    ipc: host
+    profiles:
+      - dual_ui
+    environment:
+      no_proxy: ${no_proxy},${HOST_IP},pipeline-manager,minio-service,localhost
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      APP_ENDPOINT_URL: ${UI_PM_ENDPOINT}
+      APP_ASSETS_URL: ${UI_ASSETS_ENDPOINT}
+      APP_FEATURE_MUX: ATOMIC
+      APP_SOCKET_APPEND: ${CONFIG_SOCKET_APPEND:-CONFIG_OFF}
+      APP_SUMMARY_FEATURE: FEATURE_OFF
+      APP_SEARCH_FEATURE: FEATURE_ON
+    depends_on:
+      pipeline-manager:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - vs_network
+
+  # This UI is used when a single summary, single search or single unified UI is deployed.
+  vss-singleton-ui:
+    build:
+      context: ../ui/react
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-}vss-ui:${TAG:-latest}
+    ipc: host
+    profiles:
+      - singleton_unified_ui
+      - singleton_search_ui
+      - singleton_summary_ui
+    environment:
+      no_proxy: ${no_proxy},${HOST_IP},pipeline-manager,minio-service,localhost
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      APP_ENDPOINT_URL: ${UI_PM_ENDPOINT}
+      APP_ASSETS_URL: ${UI_ASSETS_ENDPOINT}
+      APP_FEATURE_MUX: ${APP_FEATURE_MUX:-"ATOMIC"}
+      APP_SOCKET_APPEND: ${CONFIG_SOCKET_APPEND:-CONFIG_OFF}
+      APP_SUMMARY_FEATURE: ${APP_SUMMARY_FEATURE:-"FEATURE_ON"}
+      APP_SEARCH_FEATURE: ${APP_SEARCH_FEATURE:-"FEATURE_ON"}
+    depends_on:
+      pipeline-manager:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - vs_network

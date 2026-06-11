@@ -13,16 +13,15 @@ global:
 
   # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
   sharedPvcName: "vss-shared-pvc"
-  env:
-    EMBEDDING_MODEL_NAME: ""
 
 pipelinemanager:
   env:
-    SUMMARY_FEATURE: "FEATURE_OFF"
+    SEARCH_DATAPREP_TIMEOUT_MS: "600000"
     SEARCH_FEATURE: "FEATURE_ON"
 
-videosummaryui:
-  name: videosummaryui
+searchui:
+  enabled: true
+  name: search-ui
   feature:
     summary: "FEATURE_OFF"
     search: "FEATURE_ON"

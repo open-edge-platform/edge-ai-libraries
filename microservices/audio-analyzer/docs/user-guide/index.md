@@ -11,123 +11,59 @@
 </div>
 hide_directive-->
 
-The Audio Analyzer microservice provides an automated solution for extracting and transcribing
-audio from video files. Designed for seamless integration into modern AI pipelines, this
-microservice enables converting spoken content within videos into accurate, searchable text.
-By leveraging state-of-the-art speech-to-text models, the service supports a wide range of
-audio formats and languages, making it suitable for diverse applications such as video summary,
-media analysis, compliance monitoring, and content indexing.
-
-The microservice operates by first isolating the audio track from the input video file.
-Once extracted, the audio is processed using advanced transcription models to generate a
-time-aligned text transcript. This transcript can be used for downstream tasks such as keyword
-search, sentiment analysis, or integration with other AI-driven analytics.
-
-Key features include robust handling of noisy or low-quality audio, support for batch and
-real-time processing, and easy deployment as a RESTful API. The service is optimized for edge
-and cloud environments, ensuring low latency and scalability. Developers can interact with the
-microservice through simple API endpoints, enabling rapid integration into existing workflows.
-
-By automating the extraction and transcription of audio from video, the Audio Analyzer
-microservice streamlines content analysis, improves accessibility, and unlocks new possibilities
-for leveraging audio data in various video analytics use cases.
-
-## Key Benefits
-
-- **Benefit 1**: Enables multimodal analysis of video data by extracting information from its
-audio track.
-- **Benefit 2**: Seamless integration through RESTful APIs with various video analytics use
-cases that benefit from audio processing.
-- **Benefit 3**: Flexibility to use different ASR models as per use case requirements.
-
-## Features
-
-- **Feature 1**: Extract audio from video files.
-- **Feature 2**: Transcribe speech using Whispercpp (CPU).
-- **Feature 3**: RESTful API with FastAPI.
-- **Feature 4**: Containerization with Docker.
-- **Feature 5**: Automatic model download and conversion on startup.
-- **Feature 6**: Persistent model storage.
-- **Feature 7**: OpenVINO acceleration support for Intel hardware.
-- **Feature 8**: **MinIO integration** for video source and transcript storage.
+Audio Analyzer is a microservice that turns spoken audio into text and,
+optionally, into a high-level sentiment summary. It is designed to be dropped
+into voice-enabled applications (kiosks, assistants, call analytics, meeting
+notes) where a simple HTTP upload should return either a final transcript or
+a live stream of partial results.
 
 ## Use Cases
 
-Audio Analyzer microservice can be applied to various real-world use cases and scenarios across
-different video analytics use cases cutting across different industry segments. The motivation
-to provide the microservice primarily comes from enhancing the accuracy of the video summary
-pipeline. Here are some examples:
+- Conversational assistants and kiosks that need speech-to-text on the edge.
+- Post-call or meeting analytics where a session-level sentiment summary is
+  useful alongside the transcript.
+- Batch transcription of recorded audio files.
+- Streaming transcription UIs that consume incremental NDJSON events as
+  chunks complete.
 
-- **Use case 1**: Egocentric videos recorded with body-worn cameras, common in industries
-such as Safety and Security, benefit from additional modality of information provided
-by audio transcription.
-- **Use case 2**: Videos from classrooms are primarily analyzed using their audio content.
-Audio Analyzer microservice helps provide transcription which can be used to chapterize a
-class room session, for example.
-- **Use case 3**: Courtroom or Legal Proceedings with legal hearings or depositions are
-primarily analysed using the spoken word.
-- **Use case 4**: Video podcasts or interview recordings where the value is in the conversation,
-discussions, or interviews, and visuals are secondary.
-- **Use case 5**: Events such as Panel Discussions and Debates, where multiple speakers discuss
-or debate topics, where the audio contains key arguments and insights.
+## Key Capabilities
 
-## How It Works
+- OpenAI-style transcription endpoint and a streaming NDJSON variant.
+- Multi-backend ASR (OpenAI Whisper, OpenVINO, and whisper.cpp).
+- Optional voice-sentiment analysis aggregated per session.
+- Session continuation so multiple uploads can extend the same conversation.
+- Runs on CPU; supports GPU acceleration on Intel hardware via OpenVINO.
 
-The Audio Analyzer microservice accepts a video file for transcription from either file system
-or minIO storage. Using the configured Whisper model, the transcription is created. The output
-transcription along with the configured metadata is then stored in configured destination
-location. It provides a RESTful API to configure and utilize the capabilities.
+## Supported Models
 
-## Models supported
+**ASR (speech-to-text):**
 
-The service automatically downloads and manages the required models based on configuration.
-Two types of models are supported:
+- Whisper family — `whisper-tiny`, `whisper-base`, `whisper-small`,
+  `whisper-medium`, `whisper-large` — selectable via `models.asr.name`.
+- Backends: `openai` (PyTorch), `openvino` (Intel-optimized), `whispercpp` (CPU-only).
 
-1. **GGML Models** Primarily used for inference on CPU using whispercpp backend.
-2. **OpenVINO Models** Optimized for GPU inference on Intel GPUs.
+**Sentiment (optional, voice-based):**
 
-Models are downloaded on application startup, converted to OpenVINO format if needed, and
-stored in persistent volumes for reuse. The conversion process includes:
+- Default: `speechbrain/emotion-recognition-wav2vec2-IEMOCAP`.
+- Any compatible Hugging Face model can be configured via `sentiment.model`,
+  served through the `openvino` or `pytorch` provider.
 
-- Downloading the original Hugging Face Whisper model
-- Converting the PyTorch model to OpenVINO format.
-- Storing the encoder and decoder components separately for efficient inference
+## Next Steps
 
-### Available Whisper Models
-
-The following Whisper model variants are supported by the service (for both GGML and OpenVINO
-formats):
-
- | Model ID  |  Description       |   Size   |  Languages   |
- | --------- | ------------------ | -------- | ------------ |
- | tiny      |  Tiny model        |  ~75M    | Multilingual |
- | tiny.en   |  Tiny model        |  ~75M    | English-only |
- | base      |  Base model        |  ~150M   | Multilingual |
- | base.en   |  Base model        |  ~150M   | English-only |
- | small     |  Small model       |  ~450M   | Multilingual |
- | small.en  |  Small model       |  ~450M   | English-only |
- | medium    |  Medium model      |  ~1.5GB  | Multilingual |
- | medium.en |  Medium model      |  ~1.5GB  | English-only |
- | large-v1  |  Large model (v1)  |  ~2.9GB  | Multilingual |
- | large-v2  |  Large model (v2)  |  ~2.9GB  | Multilingual |
- | large-v3  |  Large model (v3)  |  ~2.9GB  | Multilingual |
-
-## Supporting Resources
-
-- [Get Started Guide](./get-started.md)
-- [System Requirements](./get-started/system-requirements.md)
-- [API Reference](./api-reference.md)
-- [Troubleshooting](./troubleshooting.md)
+- [Get Started](./get-started.md) - a step-by-step guide to your first run.
+- [Configuration](./get-started/configuration.md) - how to select models, devices,
+and precision.
+- [How It Works](./how-it-works.md) - learn about the internal request flow.
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
-get-started
-how-it-works
-api-reference
-troubleshooting
-release-notes
+./get-started.md
+./how-it-works.md
+./api-reference.md
+./troubleshooting.md
+Release Notes <./release-notes.md>
 
 :::
 hide_directive-->

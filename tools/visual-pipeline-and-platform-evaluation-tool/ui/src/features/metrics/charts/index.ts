@@ -1,5 +1,3 @@
-/*SPDX-License-Identifier: Apache-2.0*/
-
 export {
   CHART_MAX_DATA_POINTS,
   getRecentYAxisMax,
@@ -16,3 +14,7 @@ export { CpuFrequencyChart } from "@/features/metrics/charts/CpuFrequencyChart";
 export { GpuUsageChart } from "@/features/metrics/charts/GpuUsageChart";
 export { GpuPowerChart } from "@/features/metrics/charts/GpuPowerChart";
 export { GpuFrequencyChart } from "@/features/metrics/charts/GpuFrequencyChart";
+export { NpuUsageChart } from "@/features/metrics/charts/NpuUsageChart";
+export { NpuPowerChart } from "@/features/metrics/charts/NpuPowerChart";
+export { NpuFrequencyChart } from "@/features/metrics/charts/NpuFrequencyChart";
+export { LatencyChart } from "@/features/metrics/charts/LatencyChart";

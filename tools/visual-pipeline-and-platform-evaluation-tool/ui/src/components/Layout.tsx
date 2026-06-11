@@ -1,4 +1,4 @@
-import { Outlet } from "react-router";
+import { Outlet, useLocation, matchPath, Link } from "react-router";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { usePipelinesLoader } from "@/hooks/usePipelines.ts";
 import { useModelsLoader } from "@/hooks/useModels.ts";
@@ -14,51 +14,118 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
+import { routeConfig, keepAliveRoutes } from "@/config/navigation.ts";
+import { BackgroundJobsProvider } from "@/contexts/BackgroundJobsContext";
+import { BackgroundJobsWidget } from "@/components/BackgroundJobsWidget";
+import { useEffect } from "react";
+import { useAppSelector } from "@/store/hooks";
+import { selectIsAnyModelDownloaded } from "@/store/reducers/models";
+import { toast } from "@/lib/toast";
 
 const Layout = () => {
   usePipelinesLoader();
   useModelsLoader();
   useDevicesLoader();
   const { theme, setTheme } = useTheme();
+  const location = useLocation();
+  const hasModels = useAppSelector(selectIsAnyModelDownloaded);
+
+  useEffect(() => {
+    if (!hasModels) {
+      toast.warning("There are no models in the system.", {
+        id: "no-models-warning",
+        closeButton: false,
+        description: (
+          <span>
+            Go to the{" "}
+            <Link
+              to="/models"
+              className="font-semibold underline underline-offset-2"
+            >
+              Models
+            </Link>{" "}
+            page and download models.
+          </span>
+        ),
+      });
+    } else {
+      toast.dismiss("no-models-warning");
+    }
+  }, [hasModels]);
 
   return (
-    <div className="flex flex-col h-screen">
-      <SidebarProvider>
-        <Navigation />
-        <SidebarInset>
-          <header className="flex h-[60px] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
-            <div className="flex items-center gap-2 px-4">
-              <SidebarTrigger className="-ml-1" />
-              <Separator
-                orientation="vertical"
-                className="mr-2 data-[orientation=vertical]:h-4"
-              />
-              <h1 className="font-semibold text-lg">
-                <PageTitle />
-              </h1>
+    <BackgroundJobsProvider>
+      <div className="flex flex-col h-screen">
+        <SidebarProvider>
+          <Navigation />
+          <SidebarInset>
+            <header className="flex h-[60px] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
+              <div className="flex items-center gap-2 px-4">
+                <SidebarTrigger className="-ml-1" />
+                <Separator
+                  orientation="vertical"
+                  className="mr-2 data-[orientation=vertical]:h-4"
+                />
+                <h1 className="font-semibold text-lg">
+                  <PageTitle />
+                </h1>
+              </div>
+              <div className="flex items-center gap-2 px-4">
+                <Button
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  aria-label="Toggle theme"
+                  variant="ghost"
+                  size="icon"
+                >
+                  {theme === "dark" ? (
+                    <Sun className="w-5 h-5" />
+                  ) : (
+                    <Moon className="w-5 h-5" />
+                  )}
+                </Button>
+              </div>
+            </header>
+            <div className="flex h-full overflow-auto relative">
+              {routeConfig.map((route, index) => {
+                const routePath = route.path ?? "";
+                const isKeepAlive = keepAliveRoutes.some(
+                  (keepAlivePath) =>
+                    routePath === keepAlivePath.replace(/^\//, ""),
+                );
+                const isActive =
+                  isKeepAlive &&
+                  matchPath({ path: routePath, end: true }, location.pathname);
+
+                if (isKeepAlive && route.Component) {
+                  const Component = route.Component;
+                  return (
+                    <div
+                      key={`keepalive-${routePath}-${index}`}
+                      style={{
+                        display: isActive ? "block" : "none",
+                        width: "100%",
+                        height: "100%",
+                      }}
+                    >
+                      <Component />
+                    </div>
+                  );
+                }
+                return null;
+              })}
+              {!keepAliveRoutes.some((path) =>
+                matchPath(
+                  { path: path.replace(/^\//, ""), end: true },
+                  location.pathname,
+                ),
+              ) && <Outlet />}
             </div>
-            <div className="flex items-center gap-2 px-4">
-              <Button
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                aria-label="Toggle theme"
-                variant="ghost"
-                size="icon"
-              >
-                {theme === "dark" ? (
-                  <Sun className="w-5 h-5" />
-                ) : (
-                  <Moon className="w-5 h-5" />
-                )}
-              </Button>
-            </div>
-          </header>
-          <div className="flex h-full overflow-auto">
-            <Outlet />
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
-      <Toaster position="top-center" richColors />
-    </div>
+          </SidebarInset>
+        </SidebarProvider>
+        <Toaster position="top-center" richColors />
+        <BackgroundJobsWidget />
+      </div>
+    </BackgroundJobsProvider>
   );
 };
 

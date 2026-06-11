@@ -8,19 +8,22 @@ import {
   ListTodo,
   GitFork,
   Camera,
+  Image,
 } from "lucide-react";
 import { redirect, type RouteObject } from "react-router";
 import { Home as HomePage } from "@/pages/Home.tsx";
 import { Pipelines } from "@/pages/Pipelines.tsx";
 import { Models } from "@/pages/Models.tsx";
 import { Videos } from "@/pages/Videos.tsx";
+import { ImageSets } from "@/pages/ImageSets.tsx";
+import { ImagesInSet } from "@/pages/ImagesInSet.tsx";
 import { PerformanceTests } from "@/pages/PerformanceTests.tsx";
 import { DensityTests } from "@/pages/DensityTests.tsx";
 import { Jobs } from "@/pages/Jobs.tsx";
 import { PerformanceJobDetail } from "@/pages/PerformanceJobDetail.tsx";
 import { DensityJobDetail } from "@/pages/DensityJobDetail.tsx";
 import { OptimizationJobDetail } from "@/pages/OptimizationJobDetail.tsx";
-import { Pipelines2 } from "@/pages/Pipelines2";
+import { PipelineList } from "@/pages/PipelineList";
 import { Cameras } from "@/pages/Cameras";
 
 export type NavigationItem = {
@@ -40,6 +43,7 @@ export const menuItems: Array<NavigationItem> = [
   { url: "/pipelines", title: "Pipelines", icon: GitFork },
   { url: "/models", title: "Models", icon: Cpu },
   { url: "/videos", title: "Videos", icon: Film },
+  { url: "/images", title: "Images", icon: Image },
   { url: "/cameras", title: "Cameras", icon: Camera },
   {
     url: "/tests/performance",
@@ -52,10 +56,12 @@ export const menuItems: Array<NavigationItem> = [
 
 export const routeConfig: Array<RouteObject> = [
   { index: true, path: "", Component: HomePage },
-  { path: "pipelines", Component: Pipelines2 },
+  { path: "pipelines", Component: PipelineList },
   { path: "pipelines/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
+  { path: "images", Component: ImageSets },
+  { path: "images/:imageSetName", Component: ImagesInSet },
   { path: "cameras", Component: Cameras },
   { path: "tests/performance", Component: PerformanceTests },
   { path: "tests/density", Component: DensityTests },
@@ -71,3 +77,7 @@ export const routeConfig: Array<RouteObject> = [
   { path: "jobs/optimize", Component: Jobs },
   { path: "jobs/optimize/:jobId", Component: OptimizationJobDetail },
 ];
+
+// Routes that should stay mounted (keep-alive) when navigating away
+// Used for pages with long-running operations like file uploads
+export const keepAliveRoutes = ["/videos", "/images", "/models"];

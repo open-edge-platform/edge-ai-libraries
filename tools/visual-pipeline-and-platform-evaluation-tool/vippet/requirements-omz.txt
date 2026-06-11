@@ -1,0 +1,28 @@
+# Tooling needed only to download/convert OMZ models locally
+# (`omz_downloader`, `omz_converter`). The `openvino-dev` package was
+# archived upstream after 2024.6.0 and pins the legacy ``openvino``
+# runtime layout (``openvino.runtime``, top-level ``mo``) which is
+# incompatible with the OpenVINO runtime pinned in ``requirements.txt``
+# (2026.x). To keep both worlds working we install ``openvino-dev``
+# into a **dedicated virtualenv** (``/home/dlstreamer/.omz-venv``) so
+# it pulls its own matching ``openvino==2024.6.0``.
+#
+# PyTorch CPU wheels are pulled from the dedicated index because the
+# default PyPI index ships GPU builds that are much larger. They are
+# required by ``omz_converter`` when converting PyTorch-source models
+# such as ``mobilenet-v2-pytorch``.
+--extra-index-url https://download.pytorch.org/whl/cpu
+openvino-dev[onnx]==2024.6.0
+torch==2.8.0
+torchvision==0.23.0
+
+# Security override:
+# ``openvino-dev[onnx]==2024.6.0`` transitively pins ``onnx<=1.17.0``,
+# which is affected by CVE-2026-27489 (HIGH, path traversal) and
+# CVE-2026-28500 / CVE-2026-34446. Upstream ``openvino-dev`` is archived
+# and will not be re-released, so we override the pin manually.
+# Installed in a second pip step in the Dockerfile with ``--upgrade``
+# because the resolver would otherwise refuse to violate the cap.
+# The ONNX file format is backward-compatible, so 1.21.x is a safe
+# drop-in for ``omz_converter`` which only uses ``onnx`` as a model
+# reader/writer.

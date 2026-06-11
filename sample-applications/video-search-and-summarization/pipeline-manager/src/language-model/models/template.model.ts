@@ -82,29 +82,43 @@ Describe the activities and events captured in the images. Provide a detailed de
 `;
 
 export const PromptTemplates = {
-  defaultFrames: `The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed`,
+  defaultFrames: `The images are sequential frames from a video. Analyze them to provide a concise description (2–3 sentences) of the scene, including:
+- Key activities, events, and interactions
+- Notable objects, people, and environment details
+- Any changes or motion observed across frames
+Focus on what is visually evident. Do not speculate beyond what the frames show.`,
   defaultSummary: `  
-You are provided with summaries of video segments of single video. Your task is to generate a single detailed and concise summary of the entire video. Ensure that the summary:
-- Clearly describes key actions, interactions, and notable details.
+You are provided with chunk-by-chunk summaries of a single video. Generate one cohesive summary of the entire video. Ensure that the summary:
+- Describes key actions, interactions, and notable details in chronological order.
 - Highlights important objects, people, and contextual information.
 - Avoids unnecessary repetition and maintains coherence.
-Don't treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.
-Video Segments:
+- Does not reference internal chunk numbers, frame indices, or segment boundaries.
+Format the output in Markdown.
+%audio_summary%
+Video Segment Summaries:
 
 %data%
 `,
   defaultReduce: `
-You are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:
+You are provided with multiple intermediate summaries of video segments from previous summarization passes. Combine them into a single, cohesive narrative. The merged summary should:
 
-- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.
-- Maintain temporal continuity to reflect the progression of events logically.
-- Highlight significant details while avoiding redundancy or unnecessary repetition.
-- Focus on capturing the most important and relevant information from the provided summaries.
+- Maintain chronological order and logical flow of events across all segments.
+- Preserve key activities, interactions, people, objects, and notable details.
+- Use consistent identifiers for recurring people or objects across segments (e.g., "Person A", "the red vehicle", "Officer 1").
+- Merge overlapping or redundant descriptions rather than repeating them.
+- Do not introduce information not present in the provided summaries.
+
+Intermediate Summaries:
 
 %data%
   `,
   defaultSingle: `
-Condense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:
+Condense the following video summary into a shorter version while preserving essential information:
+
+- Retain key events, actions, and interactions in chronological order.
+- Preserve identifiers for people, objects, or entities mentioned.
+- Prioritize factual detail over verbose description.
+- Do not add information not present in the original summary.
 
 %data%
   `,
@@ -132,11 +146,12 @@ Focus on creating a coherent narrative that reflects the sequence of events accu
   // `,
 
   bodyCamSummary: `
-You are provided with summaries of video segments of single video captured from a law enforcement body camera. Your task is to generate a single detailed and concise summary of the entire video. Ensure that the summary:
+You are provided with summaries of video segments of single video captured from a law enforcement body camera. Your task is to generate a single detailed yet focused summary (aim for 2–4 paragraphs) of the entire video. Ensure that the summary:
 - Clearly describes key actions, interactions, and notable details.
 - Highlights important objects, people, and contextual information.
 - Avoids unnecessary repetition and maintains coherence.
 Don't treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.
+%audio_summary%
 Video Segments:
 
 %data%
@@ -154,12 +169,15 @@ Video Segments:
   // `,
 
   bodyCamReduce: `
-You are provided with multiple summaries of video segments captured from a law enforcement body camera. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:
+You are provided with multiple intermediate summaries of video segments from a law enforcement body camera. Combine them into a single, cohesive and chronologically accurate narrative. The merged summary should:
 
-- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.
-- Maintain temporal continuity to reflect the progression of events logically.
-- Highlight significant details while avoiding redundancy or unnecessary repetition.
-- Focus on capturing the most important and relevant information from the provided summaries.
+- Maintain chronological order and logical flow of events across all segments.
+- Preserve key actions, commands, interactions, people, and notable details.
+- Use consistent identifiers for recurring individuals or objects across segments (e.g., "Person A", "the red vehicle", "Officer 1").
+- Merge overlapping or redundant descriptions rather than repeating them.
+- Do not introduce information not present in the provided summaries.
+
+Intermediate Summaries:
 
 %data%
 `,
@@ -170,7 +188,63 @@ You are provided with multiple summaries of video segments captured from a law e
   // %data%
   // `,
   bodyCamSingle: `
-Condense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:
+Condense the following body-cam video summary into a shorter version while preserving essential information:
+
+- Retain key events, actions, commands, and interactions in chronological order.
+- Preserve identifiers for people, objects, or entities mentioned.
+- Prioritize factual and operationally relevant detail over verbose description.
+- Do not add information not present in the original summary.
+
+%data%
+`,
+
+  defaultAudioSummary: `
+You are provided with a full transcript of a video's spoken audio. Create a coherent, chronologically ordered summary focused on speech content, key topics, decisions, intent, and relevant context.
+
+Requirements:
+- Preserve important details and sequence of ideas.
+- Remove filler speech and repeated wording.
+- Avoid speculation and information not present in transcript.
+- Keep speaker references neutral if speaker identity is unclear.
+
+Full Transcript:
+
+%data%
+`,
+
+  defaultAudioReduce: `
+You are provided with intermediate summaries derived from a full audio transcript. Merge them into one coherent final summary (aim for 2–4 paragraphs) while preserving chronology, key points, and critical details.
+
+%data%
+`,
+
+  defaultAudioSingle: `
+Condense the following audio-transcript summary while retaining the key points, chronology, and critical details:
+
+%data%
+`,
+
+  bodyCamAudioSummary: `
+You are provided with a full transcript of spoken audio from a law-enforcement body camera recording. Create a coherent, chronological summary of speech content, including commands, responses, notable statements, situational cues, and critical events.
+
+Requirements:
+- Preserve factual sequence and important details.
+- Keep wording neutral and avoid speculation.
+- Exclude filler or repeated speech unless operationally important.
+
+Full Transcript:
+
+%data%
+`,
+
+  bodyCamAudioReduce: `
+You are provided with intermediate summaries of body-cam audio transcript content. Merge them into one chronologically accurate final summary (aim for 2–4 paragraphs), preserving key commands, responses, and critical statements.
+
+%data%
+`,
+
+  bodyCamAudioSingle: `
+Condense the following body-cam audio transcript summary while preserving chronology and critical speech details:
 
 %data%
 `,

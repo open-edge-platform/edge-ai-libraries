@@ -18,11 +18,23 @@ from resources import (
 from utils import slugify_text
 from video_decoder import VideoDecoder
 from videos import VideosManager
+from images import ImagesManager
 
 # Internal constant used as a placeholder type for the main output sink in the graph.
 OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
 RTSP_URL_PREFIX = "rtsp://"
 USB_DEVICE_PREFIX = "/dev/video"
+
+# Element types whose presence marks a pipeline as metadata-only (no video output).
+# Such pipelines are allowed to keep an unnamed fakesink as-is (used for metadata
+# delivery) instead of having it converted to OUTPUT_PLACEHOLDER.
+METADATA_ONLY_NODE_TYPES: frozenset[str] = frozenset({"gvagenai"})
+
+
+def graph_is_metadata_only(nodes: list["Node"]) -> bool:
+    """Return True if the pipeline produces only metadata (no video output)."""
+    return any(node.type in METADATA_ONLY_NODE_TYPES for node in nodes)
+
 
 logger = logging.getLogger(__name__)
 labels_manager = get_labels_manager()
@@ -95,11 +107,116 @@ NODE_KIND_KEY = "__node_kind"
 NODE_KIND_CAPS = "caps"
 
 
+# Per-node-type overrides for elements whose model property does not follow
+# the default ``model=...`` convention.
+#
+# Convention: ``node.data`` always stores the model under the key
+# ``"model"``, no matter how the GStreamer element spells it on the wire
+# (e.g. ``gvagenai`` uses ``model-path=...``). Each spec carries:
+#   - ``model_key``: the wire key used when parsing from / emitting to a
+#     pipeline string.
+#   - ``uses_model_proc``: whether ``model-proc=...`` should be injected
+#     after ``model`` when rebuilding the runnable pipeline.
+@dataclass(frozen=True)
+class NodeModelSpec:
+    model_key: str = "model"
+    uses_model_proc: bool = True
+
+
+NODE_MODEL_SPECS: dict[str, NodeModelSpec] = {
+    "gvagenai": NodeModelSpec(model_key="model-path", uses_model_proc=False),
+}
+
+_DEFAULT_NODE_MODEL_SPEC = NodeModelSpec()
+
+
+def _model_spec(node_type: str) -> NodeModelSpec:
+    """Return the model spec for ``node_type`` (default spec if not listed)."""
+    return NODE_MODEL_SPECS.get(node_type, _DEFAULT_NODE_MODEL_SPEC)
+
+
 class InputKind(str, Enum):
     """Enum for input source types."""
 
-    FILE = "file"
+    VIDEO = "video"
     CAMERA = "camera"
+    IMAGE_SET = "image_set"
+
+
+# Default frame rate (numerator/denominator) used in the caps that follow
+# the ``multifilesrc`` element when the source is an image set. Image
+# sets do not carry a native frame rate, so a fixed cadence is required
+# to drive the downstream pipeline. Kept conservative; can be overridden
+# in the future by extending the source-node ``data`` payload.
+IMAGE_SET_DEFAULT_FRAMERATE = "30/1"
+
+# Internal flag stored in ``Node.data`` to mark a ``multifilesrc`` node
+# that originated from an image-set source. Used by the looping
+# transformation and codec detection to handle these nodes specially
+# without having to reparse the location pattern.
+_IMAGE_SET_NODE_FLAG = "__image_set"
+
+
+def _image_set_decoder_for_extension(extension: str) -> str:
+    """
+    Return the GStreamer decoder element name that pairs with the given
+    canonical image extension. Every extension accepted by the upload
+    validator is guaranteed to have a software decoder available in the
+    runtime environment.
+    """
+    table = {
+        "jpg": "jpegdec",
+        "jpeg": "jpegdec",
+        "png": "pngdec",
+        "bmp": "avdec_bmp",
+        "tif": "avdec_tiff",
+        "tiff": "avdec_tiff",
+    }
+    decoder = table.get(extension.lower())
+    if decoder is None:
+        # Should never happen - the upload validator already enforces
+        # the allow-list. Falling back to ``decodebin3`` keeps the
+        # pipeline runnable in case a directory was created out of
+        # band.
+        return "decodebin3"
+    return decoder
+
+
+# Preferred VA-accelerated decoder for each image extension, in order of
+# preference. The first element that is actually available in the
+# current GStreamer installation is selected at runtime via
+# ``GstInspector``. Image formats without a VA decoder rely on a
+# ``vapostproc`` stage to lift the software-decoded frames into VA
+# memory; that is handled separately by
+# ``Graph._upgrade_image_set_for_va_memory``.
+_IMAGE_SET_VA_DECODERS: dict[str, list[str]] = {
+    "jpg": ["vajpegdec", "vaapijpegdec", "qsvjpegdec"],
+    "jpeg": ["vajpegdec", "vaapijpegdec", "qsvjpegdec"],
+    # No VA decoder ships for PNG / BMP / TIFF in stock GStreamer; the
+    # ``vapostproc`` fallback path handles these.
+    "png": [],
+    "bmp": [],
+    "tif": [],
+    "tiff": [],
+}
+
+
+def _image_set_caps_for_extension(extension: str) -> str:
+    """
+    Return the caps string that pairs with the chosen image decoder.
+    The caps mime type matches the extension (jpg/jpeg -> ``image/jpeg``)
+    and pins a fixed frame rate so the downstream chain can negotiate.
+    """
+    mime_table = {
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "bmp": "image/bmp",
+        "tif": "image/tiff",
+        "tiff": "image/tiff",
+    }
+    mime = mime_table.get(extension.lower(), "image/jpeg")
+    return f"{mime},framerate={IMAGE_SET_DEFAULT_FRAMERATE}"
 
 
 @dataclass
@@ -442,6 +559,17 @@ class Graph:
                     f"Please disable looping, remove, or replace the {node.type} element in your pipeline."
                 )
 
+            # Image-set sources are already represented as
+            # ``multifilesrc`` and do not need a TS companion. Just
+            # toggle ``loop`` so the runner can rely on a wallclock
+            # timer to terminate the pipeline.
+            if node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data:
+                node.data["loop"] = "true"
+                logger.debug(
+                    "Enabled looping on image-set multifilesrc (node %s)", node.id
+                )
+                continue
+
             # Replace filesrc with multifilesrc loop=true
             if node.type == "filesrc":
                 node.type = "multifilesrc"
@@ -591,8 +719,11 @@ class Graph:
             placeholder_created = True
             logger.debug(f"Converted node {node.id} to OUTPUT_PLACEHOLDER")
 
-        # If no named default sink, check if there's exactly one fakesink in the graph
+        # If no named default sink, check if there's exactly one fakesink in the graph.
+        # Skip auto-selection for metadata-only pipelines (no video output needed).
         if not placeholder_created:
+            is_metadata_only = graph_is_metadata_only(modified_graph.nodes)
+
             fakesink_nodes = [
                 node for node in modified_graph.nodes if node.type == "fakesink"
             ]
@@ -603,8 +734,14 @@ class Graph:
                     "Please add 'fakesink' or 'fakesink name=default_output_sink' "
                     "at the end of your pipeline to specify where the output should be placed."
                 )
+            elif is_metadata_only:
+                # Keep unnamed fakesink as-is (used for metadata delivery). This condition must
+                # precede the single-fakesink condition, to avoid converting to OUTPUT_PLACEHOLDER.
+                logger.debug(
+                    "Metadata-only pipeline detected. Keeping unnamed fakesink as-is."
+                )
             elif len(fakesink_nodes) == 1:
-                # Exactly one fakesink - use it automatically
+                # Exactly one fakesink in a video pipeline - convert it to OUTPUT_PLACEHOLDER.
                 node = fakesink_nodes[0]
                 node.data.clear()
                 node.type = OUTPUT_PLACEHOLDER
@@ -702,6 +839,241 @@ class Graph:
                 )
 
         return modified_graph
+
+    def apply_stream_identifiers(
+        self, pipeline_index: int, stream_index: int
+    ) -> tuple["Graph", str, str, str]:
+        """
+        Assign explicit GStreamer element names to the main-branch source and sink.
+
+        The goal is to make every stream individually identifiable in external
+        tracers (for example the DLStreamer `latency_tracer`), which reports
+        measurements keyed by `source_name` and `sink_name`. Without explicit
+        names, GStreamer auto-generates non-deterministic names like
+        "filesrc0", "fakesink0", ..., which are impossible to map back to a
+        specific stream when several streams run in parallel.
+
+        What this method does:
+          1. Finds the main-branch source: the start node (no incoming edges).
+             When multiple start nodes exist, the one with the smallest id
+             is selected, consistent with `to_pipeline_description` ordering.
+          2. Finds the "main sink" — i.e. the terminal element that actually
+             represents the user-facing video output for this stream. The
+             selection rule, in priority order, mirrors
+             `prepare_main_output_placeholder` so that every stream (stream
+             0 where the placeholder has already been inserted, AND
+             stream_index > 0 where the placeholder step is skipped) picks
+             the same semantic element:
+
+               a) The single OUTPUT_PLACEHOLDER node, if present.
+               b) The fakesink with `name == "default_output_sink"`, if
+                  present (the canonical user-facing output marker).
+               c) The single unnamed fakesink in the graph, if that is the
+                  only fakesink.
+               d) Best-effort fallback: the terminal reached by walking
+                  `targets[0]` from the source (first-branch-inline).
+
+             Intermediate recorder sinks on the tee's inline branch (e.g.
+             a splitmuxsink used to simulate a DVR) are therefore never
+             mistaken for the main sink when the graph carries the
+             `default_output_sink` marker on another tee branch.
+          3. Sets `name=<source_name>` on the source node and
+             `name=<sink_name>` on the resolved main-sink node. Both names
+             include `pipeline_index` and `stream_index` so they remain
+             unique across all streams of a single run.
+          4. Returns the computed `stream_id` (concatenation of source and
+             sink names) so the caller can log / track it.
+
+        Special case — OUTPUT_PLACEHOLDER main sink:
+            When the main sink is an OUTPUT_PLACEHOLDER, no `name` property
+            is written into the graph, because the placeholder is about to
+            be replaced by a full output subpipeline (e.g. encoder +
+            filesink). The caller is responsible for injecting
+            `name=<sink_name>` into the expanded output subpipeline string
+            so the sink name still ends up in the final pipeline. The
+            computed sink name is returned regardless.
+
+        Args:
+            pipeline_index: Index of the pipeline in the current run.
+            stream_index: Index of the stream within this pipeline.
+
+        Returns:
+            tuple:
+                - Graph: New Graph instance with source/sink names applied.
+                - str: Assigned source element name.
+                - str: Assigned sink element name (to be used either from the
+                  graph itself or injected into the output subpipeline).
+                - str: `stream_id` (source_name + "__" + sink_name), unique
+                  within a single run.
+
+        Raises:
+            ValueError: If no source (start) node can be found.
+            ValueError: If no main sink can be found.
+            ValueError: If more than one OUTPUT_PLACEHOLDER node exists
+                (only one user-facing output is supported per stream).
+            ValueError: If more than one fakesink is named
+                `default_output_sink` (same invariant as
+                `prepare_main_output_placeholder`).
+        """
+        modified_graph = copy.deepcopy(self)
+
+        # Build an adjacency map: node_id -> list of downstream node ids.
+        # This mirrors the structure used by `to_pipeline_description`.
+        edges_from: dict[str, list[str]] = defaultdict(list)
+        for edge in modified_graph.edges:
+            edges_from[edge.source].append(edge.target)
+
+        nodes_by_id = {node.id: node for node in modified_graph.nodes}
+
+        # --- Source selection ---
+
+        # Start nodes = nodes with no incoming edges.
+        target_node_ids = {edge.target for edge in modified_graph.edges}
+        start_node_ids = [
+            node.id for node in modified_graph.nodes if node.id not in target_node_ids
+        ]
+
+        if not start_node_ids:
+            raise ValueError(
+                "Cannot apply stream identifiers: no source node found in graph."
+            )
+
+        # Pick the first start node in sorted order so the choice is
+        # deterministic and consistent with `to_pipeline_description`, which
+        # also iterates `sorted(start_nodes)`.
+        source_id = sorted(start_node_ids)[0]
+        source_node = nodes_by_id[source_id]
+
+        # --- Main sink selection ---
+        #
+        # The main sink is the user-facing output terminal. We want its
+        # GStreamer `name` to match the stream_id so that external tracers
+        # (latency_tracer) can correlate their per-frame rows back to a
+        # specific stream. Selection priority — intentionally aligned with
+        # `prepare_main_output_placeholder`, so every stream (stream 0 with
+        # the placeholder already inserted, AND streams 1+ where the
+        # placeholder step is skipped) picks the same semantic element:
+        #
+        #   (a) If the graph contains an OUTPUT_PLACEHOLDER node, that is
+        #       the main sink. This is the stream-0 case after
+        #       `prepare_main_output_placeholder` has already run.
+        #       Intermediate recorder sinks (e.g. a splitmuxsink sitting on
+        #       the tee's inline branch) are therefore never selected.
+        #
+        #   (b) If a fakesink with `name == "default_output_sink"` exists,
+        #       that is the main sink. This matches the marker used by
+        #       `prepare_main_output_placeholder` and covers streams where
+        #       the placeholder step has NOT run (stream_index > 0, or
+        #       output_mode=disabled). It also correctly handles graphs
+        #       where the user-facing output sits on a non-first tee branch
+        #       while an intermediate recorder sink sits on the inline
+        #       branch.
+        #
+        #   (c) If there is exactly one fakesink in the graph, and it has
+        #       no explicit name, that fakesink is the main sink (mirrors
+        #       the auto-pick rule of `prepare_main_output_placeholder`).
+        #
+        #   (d) Otherwise, walk the main chain by always following
+        #       `targets[0]` from the source (mirroring `_build_chain`'s
+        #       first-branch-inline logic) and use the terminal node. This
+        #       is the best-effort fallback for pipelines that don't
+        #       follow the fakesink convention.
+        #
+        # In all cases, tee-branch sinks reached via `targets[1:]` are NOT
+        # renamed unless they are the selected main sink.
+        placeholder_nodes = [
+            node for node in modified_graph.nodes if node.type == OUTPUT_PLACEHOLDER
+        ]
+        if len(placeholder_nodes) > 1:
+            raise ValueError(
+                f"Cannot apply stream identifiers: found {len(placeholder_nodes)} "
+                "OUTPUT_PLACEHOLDER nodes, expected at most one."
+            )
+
+        sink_node: Optional[Node] = None
+
+        # (a) OUTPUT_PLACEHOLDER has the highest priority.
+        if len(placeholder_nodes) == 1:
+            sink_node = placeholder_nodes[0]
+
+        # (b) fakesink named "default_output_sink".
+        if sink_node is None:
+            named_default_sinks = [
+                node
+                for node in modified_graph.nodes
+                if node.type == "fakesink"
+                and node.data.get("name") == "default_output_sink"
+            ]
+            if len(named_default_sinks) > 1:
+                # Same invariant as `prepare_main_output_placeholder`.
+                raise ValueError(
+                    f"Cannot apply stream identifiers: found "
+                    f"{len(named_default_sinks)} fakesink nodes with "
+                    f"name='default_output_sink', expected at most one."
+                )
+            if len(named_default_sinks) == 1:
+                sink_node = named_default_sinks[0]
+
+        # (c) Single unnamed fakesink in the graph.
+        if sink_node is None:
+            fakesink_nodes = [
+                node for node in modified_graph.nodes if node.type == "fakesink"
+            ]
+            if len(fakesink_nodes) == 1:
+                sink_node = fakesink_nodes[0]
+
+        # (d) Fallback: walk targets[0] from the source.
+        if sink_node is None:
+            current_id: str = source_id
+            visited: set[str] = set()
+            while True:
+                if current_id in visited:
+                    # Defensive: the graph should be acyclic (validated
+                    # elsewhere), but break here to avoid any theoretical
+                    # infinite loop.
+                    break
+                visited.add(current_id)
+                targets = edges_from.get(current_id, [])
+                if not targets:
+                    break
+                current_id = targets[0]
+
+            sink_node = nodes_by_id.get(current_id)
+
+        if sink_node is None:
+            raise ValueError("Cannot apply stream identifiers: no main sink found.")
+
+        # Deterministic, run-unique names. Prefix disambiguates source vs sink
+        # in log output; indices guarantee uniqueness across streams.
+        source_name = f"src_p{pipeline_index}_s{stream_index}"
+        sink_name = f"sink_p{pipeline_index}_s{stream_index}"
+
+        # Assign the source name. Overwrites any pre-existing `name` so the
+        # stream is guaranteed to be identifiable by the tracer.
+        source_node.data["name"] = source_name
+        logger.debug(
+            f"Set source name on node {source_node.id} "
+            f"(type={source_node.type}): {source_name}"
+        )
+
+        # Assign the sink name only if the terminal is a real element. For
+        # OUTPUT_PLACEHOLDER the caller injects the name into the expanded
+        # output subpipeline instead.
+        if sink_node.type == OUTPUT_PLACEHOLDER:
+            logger.debug(
+                f"Main sink node {sink_node.id} is OUTPUT_PLACEHOLDER; "
+                f"skipping in-graph rename. Sink name '{sink_name}' will be "
+                f"injected into the output subpipeline by the caller."
+            )
+        else:
+            sink_node.data["name"] = sink_name
+            logger.debug(
+                f"Set sink name on node {sink_node.id} "
+                f"(type={sink_node.type}): {sink_name}"
+            )
+
+        stream_id = f"{source_name}__{sink_name}"
+        return modified_graph, source_name, sink_name, stream_id
 
     def strip_watermark_if_all_sinks_are_fake(self) -> "Graph":
         """
@@ -803,6 +1175,32 @@ class Graph:
             modified_graph.nodes = [n for n in modified_graph.nodes if n.id != wm_id]
 
         return modified_graph
+
+    def inject_metadata_file_paths(self, metadata_dir: str) -> list[str]:
+        """
+        Assign output file paths to all gvametapublish nodes and configure them for file output.
+
+        Sets method=file, file-format=json-lines, and file-path on every gvametapublish
+        node found in the graph, overwriting any existing values.
+
+        Args:
+            metadata_dir: Directory where metadata files will be written.
+
+        Returns:
+            list[str]: Paths of the metadata files that were injected (one per gvametapublish node).
+        """
+        metadata_file_paths: list[str] = []
+        for node in self.nodes:
+            if node.type == "gvametapublish":
+                meta_path = os.path.join(
+                    metadata_dir,
+                    f"metadata_{node.id}.jsonl",
+                )
+                node.data["method"] = "file"
+                node.data["file-format"] = "json-lines"
+                node.data["file-path"] = meta_path
+                metadata_file_paths.append(meta_path)
+        return metadata_file_paths
 
     def unify_model_instance_ids(self) -> "Graph":
         """
@@ -1159,7 +1557,7 @@ class Graph:
                     )
 
                 # Determine the target GStreamer element type and properties
-                if kind == InputKind.FILE:
+                if kind == InputKind.VIDEO:
                     target_type = "filesrc"
                     target_properties = {"location": source}
                     logger.debug(
@@ -1184,10 +1582,105 @@ class Graph:
                             f"Unsupported camera source '{source}' for node {node_id}. "
                             f"Camera sources must start with '{RTSP_URL_PREFIX}' for network cameras or '{USB_DEVICE_PREFIX}' for USB cameras."
                         )
+
+                elif kind == InputKind.IMAGE_SET:
+                    # Image-set source: resolve the set name to a
+                    # ``multifilesrc`` location pattern and inject a
+                    # decoder + caps node right after it. The looping
+                    # transformation flips ``loop`` to ``true`` later
+                    # if the run requires it; here we always emit a
+                    # single-pass configuration with ``stop-index`` so
+                    # the pipeline terminates cleanly when the set is
+                    # exhausted.
+                    image_set = ImagesManager().get_image_set(source)
+                    if image_set is None:
+                        raise ValueError(
+                            f"Unknown image set '{source}' for node {node_id}."
+                        )
+                    location_pattern = ImagesManager().get_location_pattern(source)
+                    if location_pattern is None:
+                        raise ValueError(
+                            f"Failed to resolve location pattern for image set '{source}'."
+                        )
+
+                    if node_id not in advanced_nodes_by_id:
+                        # Should not happen - the simple-to-advanced
+                        # mapping is bijective for source nodes - but
+                        # guard against drift instead of crashing in
+                        # the rewiring loop below.
+                        raise ValueError(
+                            f"Internal error: image-set source node {node_id} missing in advanced view."
+                        )
+
+                    advanced_node = advanced_nodes_by_id[node_id]
+                    advanced_node.type = "multifilesrc"
+                    advanced_node.data.clear()
+                    advanced_node.data.update(
+                        {
+                            "location": location_pattern,
+                            "index": "1",
+                            "stop-index": str(image_set.image_count),
+                            "loop": "false",
+                            "caps": _image_set_caps_for_extension(image_set.extension),
+                            # Internal marker used by looping and codec
+                            # detection to recognize this node as part
+                            # of an image-set pipeline.
+                            _IMAGE_SET_NODE_FLAG: image_set.extension,
+                        }
+                    )
+
+                    # Allocate fresh IDs for the decoder and caps nodes.
+                    existing_ids = [
+                        int(n.id) for n in result_advanced.nodes if n.id.isdigit()
+                    ] + [int(e.id) for e in result_advanced.edges if e.id.isdigit()]
+                    next_id = (max(existing_ids) + 1) if existing_ids else 0
+
+                    decoder_id = str(next_id)
+                    next_id += 1
+                    decoder_node = Node(
+                        id=decoder_id,
+                        type=_image_set_decoder_for_extension(image_set.extension),
+                        data={},
+                    )
+
+                    edge_src_to_decoder = Edge(
+                        id=str(next_id),
+                        source=node_id,
+                        target=decoder_id,
+                    )
+                    next_id += 1
+
+                    # Insert the decoder right after the multifilesrc
+                    # node in the nodes list to preserve the visual
+                    # order in any debug dump.
+                    for i, n in enumerate(result_advanced.nodes):
+                        if n.id == node_id:
+                            result_advanced.nodes.insert(i + 1, decoder_node)
+                            break
+
+                    # Rewire: every edge that previously left the
+                    # source node now leaves the decoder, and we add
+                    # one fresh edge ``source -> decoder``.
+                    for edge in result_advanced.edges:
+                        if edge.source == node_id:
+                            edge.source = decoder_id
+                    result_advanced.edges.append(edge_src_to_decoder)
+
+                    logger.debug(
+                        f"Transformed source node {node_id} into multifilesrc + "
+                        f"{decoder_node.type} for image set '{source}' "
+                        f"({image_set.image_count} images, {image_set.extension})"
+                    )
+                    # The standard "set type/data" code path below is
+                    # bypassed for image sets because we already mutated
+                    # the advanced node above. ``continue`` to the next
+                    # source node.
+                    continue
                 else:
                     raise ValueError(
                         f"Unsupported source kind '{kind}' for node {node_id}. "
-                        f"Supported kinds: '{InputKind.FILE.value}', '{InputKind.CAMERA.value}'"
+                        f"Supported kinds: '{InputKind.VIDEO.value}', "
+                        f"'{InputKind.CAMERA.value}', '{InputKind.IMAGE_SET.value}'"
                     )
 
                 # Update the node in advanced view (overwriting any properties copied earlier)
@@ -1262,9 +1755,32 @@ class Graph:
 
         return "CPU"
 
+    def has_gvametapublish(self) -> bool:
+        """Check whether the graph contains any gvametapublish element.
+
+        Returns:
+            True if at least one gvametapublish node is present, False otherwise.
+        """
+        return any(node.type == "gvametapublish" for node in self.nodes)
+
     def has_decodebin3(self) -> bool:
         """Check whether the graph contains a decodebin3 element."""
         return any(node.type == "decodebin3" for node in self.nodes)
+
+    def has_image_set_source(self) -> bool:
+        """Check whether the graph contains an image-set ``multifilesrc`` source.
+
+        Image-set sources require the same post-processing pass as graphs
+        with ``decodebin3`` (see ``apply_decodebin3_replacement``): the
+        downstream chain may contain video-centric elements
+        (``parsebin``, ``avdec_h264``, container muxers, ...) that need
+        to be adapted to a raw-video stream produced by the dedicated
+        image decoder.
+        """
+        return any(
+            node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data
+            for node in self.nodes
+        )
 
     def determine_input_codec(self) -> Optional[str]:
         """Determine the input codec for this pipeline graph.
@@ -1282,6 +1798,19 @@ class Graph:
         # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
 
         for node in self.nodes:
+            # Image-set sources carry their canonical extension on the
+            # multifilesrc node. Returning that string here lets logging
+            # and downstream device-selection code treat it like any
+            # other codec value.
+            if node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data:
+                ext = str(node.data.get(_IMAGE_SET_NODE_FLAG, "")).lower()
+                if ext:
+                    logger.debug(
+                        f"Determined codec '{ext}' from image-set multifilesrc"
+                    )
+                    return ext
+                return None
+
             if node.type == "filesrc":
                 location = node.data.get("location")
                 if not location:
@@ -1386,6 +1915,38 @@ class Graph:
         video_decoder = VideoDecoder()
         modified_graph = copy.deepcopy(self)
 
+        # Image-set sources already carry their own dedicated image
+        # decoder (jpegdec / pngdec / avdec_bmp / avdec_tiff) injected by
+        # ``apply_simple_view_changes`` right after ``multifilesrc``. The
+        # ``codec`` reported by ``determine_input_codec`` for these
+        # graphs is the image extension (e.g. ``"jpg"``), which is not a
+        # video codec and is intentionally absent from
+        # ``FOURCC_TO_CODEC``. The generic decodebin3-replacement pass
+        # does not apply; instead we run an image-set-specific upgrade
+        # that handles VA-memory hand-off for GPU/NPU targets and prunes
+        # any leftover ``decodebin3`` node that the simple-view
+        # transformation may have carried over.
+        if any(
+            node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data
+            for node in modified_graph.nodes
+        ):
+            logger.debug(
+                "Image-set source detected; adapting video-centric pipeline "
+                "elements and running decoder upgrade (target device: %s)",
+                target_device,
+            )
+            # Step 1: rewrite video-centric pipeline elements that
+            # assume a compressed input stream (parsebin, video
+            # decoders, mp4 muxers without an encoder upstream). For
+            # image-set sources the stream is already raw video right
+            # after the image decoder, so these elements either need
+            # to be removed, replaced with ``identity``, or paired
+            # with a fresh encoder.
+            modified_graph._adapt_image_set_video_pipeline(target_device)
+            # Step 2: VA memory hand-off / redundant decodebin3 prune.
+            modified_graph._upgrade_image_set_for_va_memory(target_device)
+            return modified_graph
+
         if codec is None:
             logger.warning("Codec is None, keeping decodebin3 as-is (fallback)")
             return modified_graph
@@ -1419,6 +1980,16 @@ class Graph:
 
         # Determine if a v4l2src capsfilter node is needed
         v4l2_caps_node_info = self._build_v4l2_caps_node(modified_graph.nodes)
+
+        # Determine if a post-decoder videoconvert is needed:
+        # - for v4l2src USB camera compatibility, or
+        # - when gvamotiondetect is present and decoding on CPU
+        has_gvamotiondetect = any(
+            n.type == "gvamotiondetect" for n in modified_graph.nodes
+        )
+        needs_post_decoder_converter = v4l2_caps_node_info is not None or (
+            has_gvamotiondetect and device_upper == "CPU"
+        )
 
         # Find max existing ID across all nodes and edges for generating new IDs
         max_id = 0
@@ -1475,8 +2046,9 @@ class Graph:
                 # Determine the source for the caps node (either decoder or converter)
                 caps_source_id = decoder_node_id
 
-                # Post-decoder converter (videoconvert/vapostproc) needed for USB camera compatibility
-                if v4l2_caps_node_info is not None:
+                # Post-decoder converter (videoconvert/vapostproc) needed for USB camera
+                # compatibility or when gvamotiondetect is present on CPU
+                if needs_post_decoder_converter:
                     converter_node_id = str(next_id)
                     next_id += 1
                     if device_upper in {"GPU", "NPU"}:
@@ -1513,7 +2085,7 @@ class Graph:
                 edges_to_add_list.append(edge_parsebin_to_decoder)
 
                 # If converter node exists, add edge decoder → converter
-                if v4l2_caps_node_info is not None:
+                if needs_post_decoder_converter:
                     edge_decoder_to_converter_id = str(next_id)
                     next_id += 1
                     edge_decoder_to_converter = Edge(
@@ -1636,6 +2208,1125 @@ class Graph:
                 )
 
         return modified_graph
+
+    def _adapt_image_set_video_pipeline(self, target_device: str = "CPU") -> None:
+        """
+        In-place adaptation of a video-centric pipeline (e.g. Smart NVR
+        templates) to make it compatible with image-set sources.
+
+        Image-set graphs feed *raw* video into the pipeline right after
+        the dedicated image decoder (jpegdec / pngdec / ...). However,
+        many built-in templates were authored for compressed video
+        sources and contain elements that assume a compressed input
+        stream:
+
+            * ``parsebin`` / ``h264parse`` / ``h265parse`` etc.
+              parse a compressed bitstream that no longer exists.
+            * ``avdec_h264`` / ``vah264dec`` / ``vah265dec`` /
+              ``vaapidecodebin`` etc. decode a compressed bitstream
+              that no longer exists.
+            * ``splitmuxsink`` / ``mp4mux`` containers in a "recorder"
+              tee branch require an encoded H264 stream.
+
+        This pass walks the graph forward from each image-set source
+        and:
+
+            1. Replaces redundant parsers / video decoders with
+               ``identity`` so the downstream chain stays linked.
+            1b. (CPU only) Degrades any leftover
+                ``video/x-raw(memory:VAMemory)`` capsfilter (originally
+                paired with the now-replaced VA video decoder) to plain
+                ``video/x-raw`` so the ``identity`` substitute can
+                negotiate it. For GPU/NPU targets this downgrade must
+                NOT happen: ``_upgrade_image_set_for_va_memory`` lifts
+                every frame into VA memory by inserting
+                ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
+                right after the image decoder, so a leftover VAMemory
+                capsfilter further downstream (e.g. inside a ``tee``
+                branch in Smart NVR GPU) is already compatible with the
+                actual frames and must stay intact - degrading it would
+                force ``identity`` to negotiate sysmem against an
+                upstream VA producer and break the pipeline at parse
+                time.
+            2. Inserts ``[videoconvert !] <h264 encoder> ! h264parse``
+                in front of any container/recorder sink
+                (``splitmuxsink``, ``mp4mux``, or ``filesink`` whose
+                ``location`` ends with a known mux extension) that does
+                not already have an H264 encoder upstream. The encoder
+                is target-aware: ``openh264enc`` for CPU, ``vah264lpenc``
+                (or ``vah264enc``) for GPU/NPU. The leading
+                ``videoconvert`` is only emitted for the CPU path -
+                ``vah264lpenc`` accepts NV12 frames in either system or
+                VA memory, so the extra conversion is unnecessary on
+                GPU/NPU.
+            3. (CPU only) injects ``videoconvert ! video/x-raw,format=NV12``
+                in front of any reachable NV12-only consumer (such as
+                ``gvamotiondetect``) that does not already have NV12 caps
+                upstream. For GPU/NPU targets this step is a no-op
+                because ``_upgrade_image_set_for_va_memory`` lifts the
+                whole chain into ``video/x-raw(memory:VAMemory),format=NV12``,
+                which every NV12-only DLStreamer consumer also accepts.
+
+        The substitutions are deliberately structural (no edge
+        rewiring) for steps 1 / 1b so that tee branches and downstream
+        caps negotiation keep working as in the original template.
+
+        Args:
+            target_device: Inference target (``"CPU"``, ``"GPU"``,
+                ``"NPU"``). NPU is treated like GPU for the purpose of
+                encoder selection. Defaults to ``"CPU"`` for backwards
+                compatibility with callers that did not pass an explicit
+                device.
+        """
+        # Elements that should become a no-op for raw video input.
+        REDUNDANT_PARSERS = {
+            "parsebin",
+            "h264parse",
+            "h265parse",
+            "h264parser",
+            "h265parser",
+            "mpegvideoparse",
+            "mpeg4videoparse",
+            "vp8parse",
+            "vp9parse",
+            "av1parse",
+        }
+        REDUNDANT_VIDEO_DECODERS = {
+            # Note: ``decodebin`` / ``decodebin3`` are intentionally
+            # NOT in this set. They are pruned (with edge rewiring)
+            # later by ``_upgrade_image_set_for_va_memory`` so the
+            # final graph has one fewer node, which keeps debug dumps
+            # compact and matches the long-standing behaviour for
+            # image-set graphs.
+            "vaapidecodebin",
+            "avdec_h264",
+            "avdec_h265",
+            "avdec_mpeg2video",
+            "avdec_mpeg4",
+            "avdec_vp8",
+            "avdec_vp9",
+            "avdec_av1",
+            "vah264dec",
+            "vah265dec",
+            "vavp8dec",
+            "vavp9dec",
+            "vaav1dec",
+            "qsvh264dec",
+            "qsvh265dec",
+        }
+        REDUNDANT = REDUNDANT_PARSERS | REDUNDANT_VIDEO_DECODERS
+
+        # Container sinks that require compressed H264 in front of them.
+        CONTAINER_SINK_TYPES = {"splitmuxsink", "mp4mux"}
+        MUX_EXTENSIONS = {".mp4", ".mkv", ".mov", ".avi"}
+
+        # Only act if the graph actually contains an image-set source.
+        image_set_sources = [
+            n
+            for n in self.nodes
+            if n.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in n.data
+        ]
+        if not image_set_sources:
+            return
+
+        # Collect the set of node ids that are reachable forward from
+        # any image-set source. Only those nodes are candidates for
+        # rewriting; the rest of the graph (e.g. an unrelated branch)
+        # is left alone.
+        edges_from: dict[str, list[str]] = {}
+        for edge in self.edges:
+            edges_from.setdefault(edge.source, []).append(edge.target)
+        nodes_by_id = {n.id: n for n in self.nodes}
+
+        reachable: set[str] = set()
+        stack = [src.id for src in image_set_sources]
+        while stack:
+            current = stack.pop()
+            if current in reachable:
+                continue
+            reachable.add(current)
+            for nxt in edges_from.get(current, []):
+                if nxt not in reachable:
+                    stack.append(nxt)
+
+        # Step 1: replace redundant parsers / video decoders with
+        # identity. Skip the image decoder itself (it is the immediate
+        # successor of the multifilesrc and is required).
+        image_decoder_ids: set[str] = set()
+        for src in image_set_sources:
+            for tgt in edges_from.get(src.id, []):
+                # The image decoder is always the very first downstream
+                # node from the multifilesrc.
+                image_decoder_ids.add(tgt)
+
+        # Step 0 (CPU only): force a uniform, DLStreamer-friendly raw
+        # video format right after every software image decoder by
+        # injecting ``videoconvert ! video/x-raw,format=I420`` between
+        # the decoder and its current successors.
+        #
+        # Different image decoders expose very different sink caps for
+        # downstream elements:
+        #
+        #   * ``pngdec``     -> only RGB / RGBA / GRAY8 / GRAY16_BE,
+        #     none of which ``gvadetect`` / ``gvaclassify`` accept
+        #     (their sink template is BGRx / BGRA / BGR / NV12 / I420).
+        #     Without this step the pipeline fails to parse with
+        #     "could not link pngdec0 to gvadetect0".
+        #   * ``jpegdec``    -> I420 / RGB / BGR / xRGB / ...  - matches
+        #     gvadetect natively, but a caps mismatch is still possible
+        #     if the next element happens to renegotiate to a format
+        #     the decoder cannot honour.
+        #   * ``avdec_bmp``  -> a very long list including I420.
+        #   * ``avdec_tiff`` -> a very long list including I420.
+        #
+        # ``I420`` is the lowest common denominator: every supported
+        # software image decoder can output it directly, every
+        # DLStreamer plugin used in the built-in pipelines
+        # (``gvadetect``, ``gvaclassify``, ``gvatrack``,
+        # ``gvawatermark``, ``gvafpscounter``, ``gvametaconvert``)
+        # accepts it on input, the software H264 encoders
+        # (``openh264enc`` / ``x264enc``) we pick for the file-output
+        # branch take I420 natively, and the dedicated step 3 below
+        # still gets to insert an extra ``videoconvert ! NV12`` in
+        # front of NV12-only consumers (such as ``gvamotiondetect``).
+        # The result is a single, deterministic raw-video format on
+        # the wire between the decoder and the rest of the chain.
+        #
+        # GPU/NPU paths skip this step:
+        # ``_upgrade_image_set_for_va_memory`` lifts the whole chain
+        # into ``video/x-raw(memory:VAMemory),format=NV12`` via a
+        # ``vapostproc`` bridge right after the image decoder, which
+        # already gives every downstream plugin a uniform, DLStreamer-
+        # friendly format.
+        #
+        # The injection is idempotent: if the decoder is already
+        # followed by ``videoconvert`` or by an explicit format caps
+        # node we skip it, so calling ``_adapt_image_set_video_pipeline``
+        # twice on the same graph (or running the same conversion
+        # repeatedly in the UI) does not stack up adapter pairs.
+        _device_norm_step0 = (target_device or "").upper()
+        _skip_cpu_format_force = _device_norm_step0 in {"GPU", "NPU"}
+
+        def _successor_already_forces_format(decoder_id: str) -> bool:
+            """Return ``True`` iff the decoder is immediately followed
+            by a ``videoconvert`` element or by an explicit
+            ``video/x-raw[,format=...]`` capsfilter."""
+            for nxt_id in edges_from.get(decoder_id, []):
+                nxt_node = nodes_by_id.get(nxt_id)
+                if nxt_node is None:
+                    continue
+                if nxt_node.type == "videoconvert":
+                    return True
+                is_caps_node = nxt_node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
+                looks_like_raw_caps = nxt_node.type.startswith("video/x-raw")
+                has_format = bool(str(nxt_node.data.get("format", "")).strip())
+                if (is_caps_node or looks_like_raw_caps) and has_format:
+                    return True
+            return False
+
+        if not _skip_cpu_format_force:
+            sw_image_decoders_step0 = {
+                "jpegdec",
+                "pngdec",
+                "avdec_bmp",
+                "avdec_tiff",
+            }
+
+            # Sub-step 0a: prune a redundant ``decodebin3`` sitting
+            # right after the image decoder. This mirrors the same
+            # prune step in ``_upgrade_image_set_for_va_memory`` (which
+            # only runs on GPU/NPU paths) and must happen here on the
+            # CPU path before we inject the format-forcing
+            # ``videoconvert``/caps pair below - otherwise the new
+            # nodes would sit *between* the decoder and ``decodebin3``
+            # and prevent the GPU/NPU prune from kicking in if this
+            # method is later called with a different target. For CPU
+            # the ``decodebin3`` is also a no-op (the dedicated image
+            # decoder already produced raw frames), and leaving it in
+            # the graph causes the same caps negotiation issues that
+            # motivated the prune on GPU/NPU.
+            for d_id in list(image_decoder_ids):
+                decoder_node = nodes_by_id.get(d_id)
+                if (
+                    decoder_node is None
+                    or decoder_node.type not in sw_image_decoders_step0
+                ):
+                    continue
+                successors = list(edges_from.get(d_id, []))
+                if len(successors) != 1:
+                    continue
+                db_id = successors[0]
+                db_node = nodes_by_id.get(db_id)
+                if db_node is None or db_node.type != "decodebin3":
+                    continue
+                # Rewire every edge leaving decodebin3 to leave the
+                # image decoder, drop the decoder->decodebin3 edge and
+                # the decodebin3 node itself.
+                for edge in self.edges:
+                    if edge.source == db_id:
+                        edge.source = d_id
+                self.edges = [
+                    e
+                    for e in self.edges
+                    if not (e.source == d_id and e.target == db_id)
+                ]
+                self.nodes = [n for n in self.nodes if n.id != db_id]
+                reachable.discard(db_id)
+                logger.debug(
+                    "Image-set adaptation (CPU): pruned redundant "
+                    "decodebin3 (node %s) after image decoder (node %s)",
+                    db_id,
+                    d_id,
+                )
+                # Refresh local adjacency / id map after the prune.
+                edges_from = {}
+                for edge in self.edges:
+                    edges_from.setdefault(edge.source, []).append(edge.target)
+                nodes_by_id = {n.id: n for n in self.nodes}
+
+            decoders_to_adapt: list[Node] = [
+                nodes_by_id[d_id]
+                for d_id in image_decoder_ids
+                if d_id in nodes_by_id
+                and nodes_by_id[d_id].type in sw_image_decoders_step0
+                and not _successor_already_forces_format(d_id)
+            ]
+
+            for decoder in decoders_to_adapt:
+                existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
+                    int(e.id) for e in self.edges if e.id.isdigit()
+                ]
+                next_int = (max(existing_ids) + 1) if existing_ids else 0
+
+                videoconvert_id = str(next_int)
+                next_int += 1
+                caps_id = str(next_int)
+                next_int += 1
+
+                videoconvert_node = Node(
+                    id=videoconvert_id, type="videoconvert", data={}
+                )
+                caps_node = Node(
+                    id=caps_id,
+                    type="video/x-raw",
+                    data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "I420"},
+                )
+
+                logger.debug(
+                    "Image-set adaptation: injecting 'videoconvert ! "
+                    "video/x-raw,format=I420' right after image decoder "
+                    "'%s' (node %s) to give every downstream DLStreamer "
+                    "consumer a uniform raw-video format",
+                    decoder.type,
+                    decoder.id,
+                )
+
+                # Insert the new chain in the node list right after the
+                # decoder to keep debug dumps readable.
+                insert_at = next(
+                    (i for i, n in enumerate(self.nodes) if n.id == decoder.id),
+                    len(self.nodes) - 1,
+                )
+                self.nodes[insert_at + 1 : insert_at + 1] = [
+                    videoconvert_node,
+                    caps_node,
+                ]
+
+                # Rewire: every edge that previously originated at the
+                # decoder now originates at ``caps`` instead, and we
+                # add the new bridge ``decoder -> videoconvert -> caps``.
+                for edge in self.edges:
+                    if edge.source == decoder.id:
+                        edge.source = caps_id
+                self.edges.append(
+                    Edge(
+                        id=str(next_int),
+                        source=decoder.id,
+                        target=videoconvert_id,
+                    )
+                )
+                next_int += 1
+                self.edges.append(
+                    Edge(id=str(next_int), source=videoconvert_id, target=caps_id)
+                )
+
+                # Refresh adjacency / id map / reachability for
+                # subsequent steps.
+                edges_from = {}
+                for edge in self.edges:
+                    edges_from.setdefault(edge.source, []).append(edge.target)
+                nodes_by_id = {n.id: n for n in self.nodes}
+                # The new nodes are reachable from an image-set source
+                # by construction; add them so later steps that gate
+                # on ``reachable`` see them too.
+                reachable.add(videoconvert_id)
+                reachable.add(caps_id)
+
+        for node in self.nodes:
+            if node.id not in reachable:
+                continue
+            if node.id in image_decoder_ids:
+                continue
+            if node.type in REDUNDANT:
+                logger.debug(
+                    "Image-set adaptation: replacing redundant '%s' "
+                    "(node %s) with 'identity'",
+                    node.type,
+                    node.id,
+                )
+                node.type = "identity"
+                node.data.clear()
+
+        # Step 1b (CPU only): degrade any pre-existing
+        # ``video/x-raw(memory:VAMemory)*`` capsfilter that survived
+        # the parser/decoder rewrite to plain ``video/x-raw*``. The
+        # original VA capsfilters were paired with a VA video decoder
+        # (``vah264dec`` etc.) in the YAML template; on a CPU target
+        # that decoder has just been replaced with ``identity`` and
+        # there is no upstream VA producer, so the VAMemory caps
+        # filter would fail at parse time with ``can't handle caps
+        # video/x-raw(memory:VAMemory)``.
+        #
+        # On GPU/NPU targets the downgrade must NOT happen:
+        # ``_upgrade_image_set_for_va_memory`` (step 3) inserts a
+        # ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
+        # bridge right after the software image decoder, so every
+        # frame downstream is already in VA memory. A pre-existing
+        # ``video/x-raw(memory:VAMemory)`` capsfilter sitting further
+        # down the chain (typically inside a ``tee`` branch, e.g.
+        # ``tee ! queue ! identity ! video/x-raw(memory:VAMemory) !
+        # gvafpscounter ...`` in the Smart NVR GPU template) is then
+        # perfectly compatible with what flows through it, and
+        # ``identity`` passes VA memory through untouched. Degrading
+        # it to plain ``video/x-raw`` would instead force a sysmem
+        # negotiation that the upstream VA producer cannot satisfy
+        # ("identity can't handle caps video/x-raw").
+        # Note: ``Graph.from_pipeline_description`` only marks a caps
+        # node with ``NODE_KIND_CAPS`` when the YAML segment carries
+        # at least one ``key=value`` pair (e.g.
+        # ``video/x-raw(memory:VAMemory),width=320``). A bare caps
+        # segment such as ``video/x-raw(memory:VAMemory)`` is parsed
+        # as a regular element node with empty ``data``. Both forms
+        # appear in built-in templates (Simple NVR uses both), so we
+        # match either: an explicit caps node, or any node whose
+        # ``type`` literally starts with ``video/x-raw(memory:`` —
+        # there is no GStreamer element with such a name, so this
+        # cannot misfire on a real element.
+        _device_norm_step1b = (target_device or "").upper()
+        _skip_va_downgrade = _device_norm_step1b in {"GPU", "NPU"}
+        for node in self.nodes:
+            if _skip_va_downgrade:
+                break
+            if node.id not in reachable:
+                continue
+            is_caps_node = node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS
+            looks_like_va_caps = node.type.startswith("video/x-raw(memory:")
+            if not (is_caps_node or looks_like_va_caps):
+                continue
+            if "(memory:VAMemory)" not in node.type:
+                continue
+            new_type = node.type.replace("(memory:VAMemory)", "")
+            logger.debug(
+                "Image-set adaptation: degrading VAMemory capsfilter "
+                "'%s' (node %s) to '%s' because the upstream decoder "
+                "is now software / identity",
+                node.type,
+                node.id,
+                new_type,
+            )
+            node.type = new_type
+
+        # Step 2: container/recorder sinks need a compressed stream.
+        # Walk each one and check whether an H264 encoder is reachable
+        # backwards within the same connected sub-graph; if not,
+        # synthesise ``videoconvert ! <encoder> ! h264parse`` in front
+        # of it.
+        edges_to: dict[str, list[str]] = {}
+        for edge in self.edges:
+            edges_to.setdefault(edge.target, []).append(edge.source)
+
+        def _is_container_sink(n: Node) -> bool:
+            if n.type in CONTAINER_SINK_TYPES:
+                return True
+            if n.type == "filesink":
+                location = str(n.data.get("location", "")).lower()
+                return any(location.endswith(ext) for ext in MUX_EXTENSIONS)
+            return False
+
+        def _has_h264_encoder_upstream(start_id: str) -> bool:
+            """Backwards BFS from ``start_id`` looking for an h264 encoder."""
+            seen: set[str] = set()
+            queue = list(edges_to.get(start_id, []))
+            while queue:
+                cur = queue.pop()
+                if cur in seen:
+                    continue
+                seen.add(cur)
+                cur_node = nodes_by_id.get(cur)
+                if cur_node is None:
+                    continue
+                # Encoder element names typically contain "264enc"
+                # (openh264enc, x264enc, vah264enc, vah264lpenc,
+                # qsvh264enc, ...). This is robust to the exact
+                # element-string form returned by VideoEncoder.
+                cur_type_first_word = cur_node.type.split()[0] if cur_node.type else ""
+                if "264enc" in cur_type_first_word:
+                    return True
+                queue.extend(edges_to.get(cur, []))
+            return False
+
+        # Pick an encoder element string once, target-aware.
+        # GPU/NPU pipelines benefit from a VA encoder
+        # (``vah264lpenc`` / ``vah264enc``) because the inference
+        # branch has already lifted frames into VA memory; a software
+        # encoder would force a sysmem download with no benefit and
+        # would in fact break caps negotiation for an all-VA chain.
+        # The CPU path keeps the historical ``openh264enc`` selection.
+        from video_encoder import (
+            ENCODER_DEVICE_CPU,
+            ENCODER_DEVICE_GPU,
+            VideoEncoder,
+        )
+
+        device_norm = (target_device or "").upper()
+        wants_va_encoder = device_norm in {"GPU", "NPU"}
+        encoder_device = ENCODER_DEVICE_GPU if wants_va_encoder else ENCODER_DEVICE_CPU
+        encoder_element_str = VideoEncoder()._select_element(
+            encoder_device, streaming=False
+        )
+        # Fallback: if the requested device has no available encoder
+        # (e.g. running on a CPU-only host that still requested GPU),
+        # try the other device so the recorder branch is still usable.
+        if encoder_element_str is None and wants_va_encoder:
+            encoder_element_str = VideoEncoder()._select_element(
+                ENCODER_DEVICE_CPU, streaming=False
+            )
+            if encoder_element_str is not None:
+                logger.debug(
+                    "Image-set adaptation: no VA H264 encoder available, "
+                    "falling back to CPU encoder '%s' for container sinks",
+                    encoder_element_str,
+                )
+                wants_va_encoder = False
+
+        # ``videoconvert`` is only needed for the CPU path:
+        # ``openh264enc`` / ``x264enc`` accept a narrow set of formats
+        # (typically I420). VA encoders happily negotiate NV12 in
+        # either system or VA memory, which the upstream chain already
+        # produces, so the extra element is wasteful.
+        emit_videoconvert_before_encoder = not wants_va_encoder
+
+        # Snapshot container sinks before mutating the edge list.
+        container_sinks = [
+            n for n in self.nodes if n.id in reachable and _is_container_sink(n)
+        ]
+
+        for sink in container_sinks:
+            if _has_h264_encoder_upstream(sink.id):
+                continue
+            if encoder_element_str is None:
+                logger.warning(
+                    "Image-set adaptation: container sink '%s' (node %s) "
+                    "needs an H264 encoder upstream, but none is available "
+                    "in the runtime; the recorder branch may fail.",
+                    sink.type,
+                    sink.id,
+                )
+                continue
+
+            logger.debug(
+                "Image-set adaptation: injecting '%s%s ! h264parse' in "
+                "front of container sink '%s' (node %s)",
+                "videoconvert ! " if emit_videoconvert_before_encoder else "",
+                encoder_element_str,
+                sink.type,
+                sink.id,
+            )
+
+            # Allocate fresh node ids for the new chain. ``videoconvert``
+            # is optional (CPU-only).
+            existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
+                int(e.id) for e in self.edges if e.id.isdigit()
+            ]
+            next_int = (max(existing_ids) + 1) if existing_ids else 0
+
+            new_chain_nodes: list[Node] = []
+            videoconvert_id: Optional[str] = None
+            if emit_videoconvert_before_encoder:
+                videoconvert_id = str(next_int)
+                next_int += 1
+                new_chain_nodes.append(
+                    Node(id=videoconvert_id, type="videoconvert", data={})
+                )
+
+            encoder_id = str(next_int)
+            next_int += 1
+            h264parse_id = str(next_int)
+            next_int += 1
+
+            # ``encoder_element_str`` already contains properties (e.g.
+            # "openh264enc bitrate=16000000 complexity=low"); render it
+            # as a single token via ``node.type`` with empty data so
+            # ``_build_chain`` outputs it verbatim.
+            new_chain_nodes.append(
+                Node(id=encoder_id, type=encoder_element_str, data={})
+            )
+            new_chain_nodes.append(Node(id=h264parse_id, type="h264parse", data={}))
+
+            # Insert the new chain before the sink in the node list to
+            # keep debug dumps readable.
+            insert_at = next(
+                (i for i, n in enumerate(self.nodes) if n.id == sink.id),
+                len(self.nodes),
+            )
+            self.nodes[insert_at:insert_at] = new_chain_nodes
+
+            # Rewire: every edge that previously targeted the sink now
+            # targets the head of the new chain instead, and we add
+            # the new chain ``[videoconvert ->] encoder -> h264parse
+            # -> sink``.
+            chain_head_id = (
+                videoconvert_id if videoconvert_id is not None else encoder_id
+            )
+            for edge in self.edges:
+                if edge.target == sink.id:
+                    edge.target = chain_head_id
+            if videoconvert_id is not None:
+                self.edges.append(
+                    Edge(id=str(next_int), source=videoconvert_id, target=encoder_id)
+                )
+                next_int += 1
+            self.edges.append(
+                Edge(id=str(next_int), source=encoder_id, target=h264parse_id)
+            )
+            next_int += 1
+            self.edges.append(
+                Edge(id=str(next_int), source=h264parse_id, target=sink.id)
+            )
+
+            # Refresh adjacency for subsequent iterations.
+            edges_to = {}
+            for edge in self.edges:
+                edges_to.setdefault(edge.target, []).append(edge.source)
+            nodes_by_id = {n.id: n for n in self.nodes}
+
+        # Step 3: some downstream elements only accept NV12 raw video
+        # (notably ``gvamotiondetect``). Image decoders such as
+        # ``jpegdec`` / ``pngdec`` produce I420 (or RGB) by default, so
+        # the link to such an element fails at parse time with
+        # "could not link jpegdec0 to gvamotiondetect0". Inject
+        # ``videoconvert ! video/x-raw,format=NV12`` right in front of
+        # every reachable NV12-only consumer that does not already have
+        # NV12 caps upstream within its connected sub-graph.
+        #
+        # This step only applies to the CPU path. For GPU/NPU,
+        # ``_upgrade_image_set_for_va_memory`` lifts the whole chain
+        # into ``video/x-raw(memory:VAMemory),format=NV12`` which every
+        # NV12-only DLStreamer consumer also accepts (verified
+        # empirically with ``gvamotiondetect`` on real Intel GPUs).
+        if wants_va_encoder:
+            return
+
+        NV12_ONLY_CONSUMERS = {"gvamotiondetect"}
+
+        def _has_nv12_caps_upstream(start_id: str) -> bool:
+            """Backwards BFS from ``start_id`` looking for an NV12 caps node."""
+            seen: set[str] = set()
+            queue = list(edges_to.get(start_id, []))
+            while queue:
+                cur = queue.pop()
+                if cur in seen:
+                    continue
+                seen.add(cur)
+                cur_node = nodes_by_id.get(cur)
+                if cur_node is None:
+                    continue
+                if cur_node.type.startswith("video/x-raw"):
+                    fmt = str(cur_node.data.get("format", "")).upper()
+                    if fmt == "NV12":
+                        return True
+                    # A different explicit format already locks the
+                    # caps; do not walk further past it.
+                    if fmt:
+                        continue
+                queue.extend(edges_to.get(cur, []))
+            return False
+
+        nv12_consumers = [
+            n for n in self.nodes if n.id in reachable and n.type in NV12_ONLY_CONSUMERS
+        ]
+
+        for consumer in nv12_consumers:
+            if _has_nv12_caps_upstream(consumer.id):
+                continue
+
+            logger.debug(
+                "Image-set adaptation: injecting 'videoconvert ! "
+                "video/x-raw,format=NV12' in front of NV12-only "
+                "consumer '%s' (node %s)",
+                consumer.type,
+                consumer.id,
+            )
+
+            existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
+                int(e.id) for e in self.edges if e.id.isdigit()
+            ]
+            next_int = (max(existing_ids) + 1) if existing_ids else 0
+
+            videoconvert_id = str(next_int)
+            next_int += 1
+            caps_id = str(next_int)
+            next_int += 1
+
+            videoconvert_node = Node(id=videoconvert_id, type="videoconvert", data={})
+            caps_node = Node(
+                id=caps_id,
+                type="video/x-raw",
+                data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "NV12"},
+            )
+
+            insert_at = next(
+                (i for i, n in enumerate(self.nodes) if n.id == consumer.id),
+                len(self.nodes),
+            )
+            self.nodes[insert_at:insert_at] = [videoconvert_node, caps_node]
+
+            # Rewire: every edge that previously targeted the consumer
+            # now targets ``videoconvert`` instead, and we add the new
+            # chain ``videoconvert -> caps -> consumer``.
+            for edge in self.edges:
+                if edge.target == consumer.id:
+                    edge.target = videoconvert_id
+            self.edges.append(
+                Edge(id=str(next_int), source=videoconvert_id, target=caps_id)
+            )
+            next_int += 1
+            self.edges.append(
+                Edge(id=str(next_int), source=caps_id, target=consumer.id)
+            )
+
+            # Refresh adjacency for subsequent iterations.
+            edges_to = {}
+            for edge in self.edges:
+                edges_to.setdefault(edge.target, []).append(edge.source)
+            nodes_by_id = {n.id: n for n in self.nodes}
+
+    def _upgrade_image_set_for_va_memory(self, target_device: str) -> None:
+        """
+        In-place upgrade of an image-set graph so that the downstream
+        inference plugins can run with a VA-memory pre-process backend.
+
+        The simple-view-to-advanced transformation injects a software
+        image decoder (jpegdec / pngdec / avdec_bmp / avdec_tiff) right
+        after the ``multifilesrc`` source. That software decoder produces
+        ``video/x-raw`` in system memory, which is incompatible with
+        ``pre-process-backend=va-surface-sharing`` on ``gvadetect`` /
+        ``gvaclassify`` (DLStreamer rejects the pipeline at runtime with
+        "For system memory only supports ie, opencv image preprocessors").
+
+        For GPU/NPU targets this method applies four pipeline-agnostic
+        transformations, in order:
+
+            2. Prune any ``decodebin3`` immediately downstream of the
+               image decoder (it is a no-op once the dedicated image
+               decoder is in place and only confuses caps negotiation).
+               Runs for both CPU and GPU/NPU.
+            3. Insert ``vapostproc ! video/x-raw(memory:VAMemory),format=NV12``
+               right after the software image decoder. This single
+               element pair lifts every downstream consumer
+               (``gvadetect``, ``gvaclassify``, ``gvamotiondetect``,
+               ``gvafpscounter``, ``gvawatermark``, ...) into VA memory
+               with the canonical NV12 format that every VA-aware
+               DLStreamer plugin understands. GPU/NPU only.
+               For RGB-emitting decoders (``pngdec``, ``avdec_bmp``,
+               ``avdec_tiff``) an additional ``videoconvert !
+               video/x-raw,format=NV12`` is interposed *before*
+               ``vapostproc`` (step 3a) - on some Intel GPU stacks
+               (Battlemage / BMG) ``vapostproc`` refuses to negotiate a
+               direct RGB-sysmem -> VAMemory-NV12 link, so the pipeline
+               needs a CPU-side NV12 normalisation first. ``jpegdec``
+               emits I420 natively and skips this bridge.
+            5. Swap any reachable software H264 encoder
+               (``openh264enc`` / ``x264enc``) for a VA-API counterpart
+               (``vah264lpenc`` / ``vah264enc`` / ``vaapih264lpenc`` /
+               ``vaapih264enc``). Software H264 encoders cannot accept
+               ``video/x-raw(memory:VAMemory)`` and would break the
+               all-VA chain we just built. GPU/NPU only.
+            6. Promote any ``vapostproc ! video/x-raw[,...]`` (system
+               memory caps) pair reachable in the same branch to
+               ``vapostproc ! video/x-raw(memory:VAMemory)[,...]``. Such
+               pairs typically appear in built-in templates as a
+               downscale step before the file-output encoder
+               (e.g. ``vapostproc ! video/x-raw,width=320,height=240``);
+               keeping them in VA memory matches the VA encoder
+               selected in step 5 and avoids a needless sysmem
+               round-trip. GPU/NPU only.
+
+        Note: a previous revision also tried to swap ``jpegdec`` for
+        ``vajpegdec`` (former "step 1") and to promote a CPU-only
+        ``videoconvert ! NV12`` adapter pair injected by
+        ``_adapt_image_set_video_pipeline`` (former "step 4"). Both
+        steps were removed: ``vajpegdec`` rejects perfectly valid
+        JPEGs at runtime on real Intel GPUs (Battlemage / Arc) with
+        ``subclass failed to handle new picture``, and the CPU-only
+        adapter pair is no longer emitted on GPU/NPU paths because
+        step 3 here lifts everything into VA NV12 unconditionally.
+
+        Args:
+            target_device: Target inference device (``"CPU"``, ``"GPU"``,
+                ``"NPU"``). NPU is treated like GPU for the purpose of
+                memory hand-off (the VA-API stack handles both).
+        """
+        device = (target_device or "").upper()
+        wants_va_memory = device in {"GPU", "NPU"}
+
+        # Map software decoder name -> image-set node id (the
+        # multifilesrc itself).
+        sw_image_decoders = {"jpegdec", "pngdec", "avdec_bmp", "avdec_tiff"}
+
+        # Build adjacency: node_id -> [(edge_index, target_id)] for fast
+        # lookups and rewiring.
+        edges_from: dict[str, list[int]] = {}
+        for idx, edge in enumerate(self.edges):
+            edges_from.setdefault(edge.source, []).append(idx)
+
+        nodes_by_id = {n.id: n for n in self.nodes}
+
+        # Find each image-set multifilesrc node and its immediate
+        # successor (the software image decoder injected by
+        # apply_simple_view_changes).
+        for src_node in list(self.nodes):
+            if src_node.type != "multifilesrc":
+                continue
+            if _IMAGE_SET_NODE_FLAG not in src_node.data:
+                continue
+
+            outgoing = edges_from.get(src_node.id, [])
+            if not outgoing:
+                continue
+
+            decoder_edge_idx = outgoing[0]
+            decoder_id = self.edges[decoder_edge_idx].target
+            decoder_node = nodes_by_id.get(decoder_id)
+            if decoder_node is None or decoder_node.type not in sw_image_decoders:
+                # Unexpected layout - bail out rather than mutate
+                # something we do not understand.
+                continue
+
+            # Step 2: prune a redundant decodebin3 sitting right after
+            # the image decoder, regardless of target device. The
+            # dedicated image decoder already produces raw frames, so
+            # decodebin3 here is a no-op that confuses caps negotiation.
+            decoder_outgoing = edges_from.get(decoder_id, [])
+            if decoder_outgoing:
+                first_after_decoder_edge_idx = decoder_outgoing[0]
+                next_id = self.edges[first_after_decoder_edge_idx].target
+                next_node = nodes_by_id.get(next_id)
+                if next_node is not None and next_node.type == "decodebin3":
+                    # Rewire: every edge that previously left the
+                    # decodebin3 now leaves the decoder.
+                    for edge in self.edges:
+                        if edge.source == next_id:
+                            edge.source = decoder_id
+                    # Drop the edge decoder->decodebin3 and the
+                    # decodebin3 node itself.
+                    self.edges = [
+                        e
+                        for e in self.edges
+                        if not (e.source == decoder_id and e.target == next_id)
+                    ]
+                    self.nodes = [n for n in self.nodes if n.id != next_id]
+                    logger.debug(
+                        "Pruned redundant decodebin3 (node %s) after image "
+                        "decoder (node %s)",
+                        next_id,
+                        decoder_id,
+                    )
+                    # Rebuild fast lookups after structural change.
+                    edges_from = {}
+                    for idx, edge in enumerate(self.edges):
+                        edges_from.setdefault(edge.source, []).append(idx)
+                    nodes_by_id = {n.id: n for n in self.nodes}
+
+            if not wants_va_memory:
+                # CPU path: nothing else to do for this source.
+                continue
+
+            # Step 3: lift every downstream consumer into VA memory by
+            # inserting ``vapostproc ! video/x-raw(memory:VAMemory),
+            # format=NV12`` after the software decoder. A standalone
+            # ``vapostproc`` is not enough - without an explicit caps
+            # filter behind it, the element forwards system-memory
+            # I420 frames downstream, which ``gvadetect`` with
+            # ``pre-process-backend=va-surface-sharing`` rejects with
+            # "For system memory only supports ie, opencv image
+            # preprocessors".
+            #
+            # Step 3a (RGB-emitting decoders only): some software image
+            # decoders emit RGB-family caps in system memory:
+            #   - pngdec     -> RGB / RGBA / GRAY
+            #   - avdec_bmp  -> BGRx / BGRA / RGB
+            #   - avdec_tiff -> RGB / RGBA
+            # ``vapostproc`` on some Intel GPU stacks (observed on
+            # Battlemage / BMG) refuses to negotiate a direct
+            # ``video/x-raw,format={RGB,RGBA,BGRx},memory:SystemMemory``
+            # -> ``video/x-raw(memory:VAMemory),format=NV12`` link and
+            # the pipeline dies at start with
+            # "streaming stopped, reason not-negotiated (-4)".
+            # ``jpegdec`` is unaffected because it emits I420 (a
+            # native VA-friendly YUV format).
+            # The fix is to interpose a CPU-side ``videoconvert !
+            # video/x-raw,format=NV12`` so ``vapostproc`` always sees a
+            # plain sysmem-NV12 input, which every Intel GPU driver
+            # uploads to VAMemory reliably. The conversion runs once
+            # per frame and the image-set use case is bounded to a few
+            # frames, so the CPU cost is negligible.
+            rgb_emitting_decoders = {"pngdec", "avdec_bmp", "avdec_tiff"}
+            needs_sysmem_nv12_bridge = decoder_node.type in rgb_emitting_decoders
+
+            existing_ids = [int(n.id) for n in self.nodes if n.id.isdigit()] + [
+                int(e.id) for e in self.edges if e.id.isdigit()
+            ]
+            next_id_int = (max(existing_ids) + 1) if existing_ids else 0
+
+            # Optional pre-stage: videoconvert ! video/x-raw,format=NV12
+            pre_videoconvert_node: Node | None = None
+            pre_caps_node: Node | None = None
+            pre_edges: list[Edge] = []
+            upload_source_id = decoder_id
+            if needs_sysmem_nv12_bridge:
+                pre_videoconvert_id = str(next_id_int)
+                next_id_int += 1
+                pre_videoconvert_node = Node(
+                    id=pre_videoconvert_id,
+                    type="videoconvert",
+                    data={},
+                )
+
+                pre_caps_id = str(next_id_int)
+                next_id_int += 1
+                pre_caps_node = Node(
+                    id=pre_caps_id,
+                    type="video/x-raw",
+                    data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "NV12"},
+                )
+
+                pre_edges.append(
+                    Edge(
+                        id=str(next_id_int),
+                        source=decoder_id,
+                        target=pre_videoconvert_id,
+                    )
+                )
+                next_id_int += 1
+                pre_edges.append(
+                    Edge(
+                        id=str(next_id_int),
+                        source=pre_videoconvert_id,
+                        target=pre_caps_id,
+                    )
+                )
+                next_id_int += 1
+                upload_source_id = pre_caps_id
+
+            vapostproc_id = str(next_id_int)
+            next_id_int += 1
+            vapostproc_node = Node(id=vapostproc_id, type="vapostproc", data={})
+
+            caps_id = str(next_id_int)
+            next_id_int += 1
+            caps_node = Node(
+                id=caps_id,
+                type="video/x-raw(memory:VAMemory)",
+                data={NODE_KIND_KEY: NODE_KIND_CAPS, "format": "NV12"},
+            )
+
+            edge_upload_in = Edge(
+                id=str(next_id_int),
+                source=upload_source_id,
+                target=vapostproc_id,
+            )
+            next_id_int += 1
+            edge_vapostproc_to_caps = Edge(
+                id=str(next_id_int),
+                source=vapostproc_id,
+                target=caps_id,
+            )
+            next_id_int += 1
+
+            # Rewire: every edge that previously left the decoder now
+            # leaves the final caps node (after we add the new bridging
+            # edges below).
+            for edge in self.edges:
+                if edge.source == decoder_id:
+                    edge.source = caps_id
+
+            # Insert nodes right after the decoder for readability in
+            # any debug dump.
+            inserted_nodes: list[Node] = []
+            if pre_videoconvert_node is not None and pre_caps_node is not None:
+                inserted_nodes.extend([pre_videoconvert_node, pre_caps_node])
+            inserted_nodes.extend([vapostproc_node, caps_node])
+            for i, n in enumerate(self.nodes):
+                if n.id == decoder_id:
+                    self.nodes[i + 1 : i + 1] = inserted_nodes
+                    break
+
+            self.edges.extend(pre_edges)
+            self.edges.append(edge_upload_in)
+            self.edges.append(edge_vapostproc_to_caps)
+
+            if needs_sysmem_nv12_bridge:
+                logger.debug(
+                    "Inserted 'videoconvert ! video/x-raw,format=NV12 ! "
+                    "vapostproc ! video/x-raw(memory:VAMemory),format=NV12' "
+                    "after RGB-emitting decoder '%s' (node %s) to lift "
+                    "frames into VA memory via a sysmem-NV12 bridge",
+                    decoder_node.type,
+                    decoder_id,
+                )
+            else:
+                logger.debug(
+                    "Inserted 'vapostproc ! video/x-raw"
+                    "(memory:VAMemory),format=NV12' (nodes %s, %s) "
+                    "after software image decoder (node %s) to lift "
+                    "frames into VA memory",
+                    vapostproc_id,
+                    caps_id,
+                    decoder_id,
+                )
+
+            # Refresh adjacency for steps 5 / 6.
+            edges_from = {}
+            for idx, edge in enumerate(self.edges):
+                edges_from.setdefault(edge.source, []).append(idx)
+            nodes_by_id = {n.id: n for n in self.nodes}
+
+            # Compute reachability from the current image-set source
+            # so steps 5 and 6 only touch nodes in this branch.
+            edges_from_reach: dict[str, list[str]] = {}
+            for edge in self.edges:
+                edges_from_reach.setdefault(edge.source, []).append(edge.target)
+            reachable_from_src: set[str] = set()
+            stack = [src_node.id]
+            while stack:
+                cur = stack.pop()
+                if cur in reachable_from_src:
+                    continue
+                reachable_from_src.add(cur)
+                for nxt in edges_from_reach.get(cur, []):
+                    if nxt not in reachable_from_src:
+                        stack.append(nxt)
+
+            # Step 5: swap any reachable software H264 encoder
+            # (``openh264enc`` / ``x264enc``) for a VA-API counterpart.
+            # Software H264 encoders cannot accept
+            # ``video/x-raw(memory:VAMemory)``, which makes them
+            # incompatible with the all-VA inference chain we just
+            # built. Property strings already set on the sw encoder
+            # node (e.g. ``bitrate``) are discarded because the VA
+            # encoders use a different property surface
+            # (``rate-control``, ``target-usage``, ...) and would be
+            # rejected by GStreamer. Fallback: if no VA encoder is
+            # registered we leave the encoder alone (the pipeline may
+            # still fail, but we do not make things worse).
+            from explore import GstInspector
+
+            available_elements = {e[1] for e in GstInspector().elements}
+            # Order matters: low-power encoder first (more efficient
+            # on Intel iGPUs), then full-power, then legacy vaapi
+            # naming.
+            VA_H264_ENCODER_PREFERENCE = [
+                "vah264lpenc",
+                "vah264enc",
+                "vaapih264lpenc",
+                "vaapih264enc",
+            ]
+            SW_H264_ENCODERS = {"openh264enc", "x264enc"}
+
+            va_encoder = next(
+                (
+                    cand
+                    for cand in VA_H264_ENCODER_PREFERENCE
+                    if cand in available_elements
+                ),
+                None,
+            )
+
+            if va_encoder is not None:
+                for node in self.nodes:
+                    if node.id not in reachable_from_src:
+                        continue
+                    # ``node.type`` for an encoder may carry inline
+                    # properties (e.g. "openh264enc bitrate=16000000
+                    # complexity=low"). Compare only the first
+                    # whitespace-separated token.
+                    first_token = node.type.split()[0] if node.type else ""
+                    if first_token in SW_H264_ENCODERS:
+                        logger.debug(
+                            "Replacing software H264 encoder '%s' "
+                            "(node %s) with VA encoder '%s' for "
+                            "image-set source %s on target %s",
+                            node.type,
+                            node.id,
+                            va_encoder,
+                            src_node.id,
+                            device,
+                        )
+                        node.type = va_encoder
+                        node.data.clear()
+
+            # Step 6: promote every reachable
+            # ``vapostproc ! video/x-raw[,props]`` pair (sysmem caps)
+            # to ``vapostproc ! video/x-raw(memory:VAMemory)[,props]``.
+            # This typically catches the downscale step that templates
+            # place before the main file-output encoder
+            # (e.g. ``vapostproc ! video/x-raw,width=320,height=240 !
+            # vah264lpenc ! ...``); keeping it in VA memory avoids a
+            # needless sysmem round-trip and matches the VA encoder
+            # selected in step 5. The newly inserted pair from step 3
+            # is already VA-aware so it is safe to skip.
+            for node in self.nodes:
+                if node.id not in reachable_from_src:
+                    continue
+                if node.type != "vapostproc":
+                    continue
+                if node.id == vapostproc_id:
+                    # Pair we just inserted in step 3 - already VA.
+                    continue
+                vp_outgoing = edges_from.get(node.id, [])
+                if len(vp_outgoing) != 1:
+                    continue
+                caps_target_id = self.edges[vp_outgoing[0]].target
+                caps_target = nodes_by_id.get(caps_target_id)
+                if caps_target is None:
+                    continue
+                # Match either an explicit caps node (``__node_kind=caps``)
+                # or a bare ``video/x-raw[(...)]`` segment that the
+                # YAML parser left unmarked. Skip anything that is
+                # already a VAMemory caps.
+                is_caps = caps_target.data.get(
+                    NODE_KIND_KEY
+                ) == NODE_KIND_CAPS or caps_target.type.startswith("video/x-raw")
+                if not is_caps:
+                    continue
+                if "(memory:VAMemory)" in caps_target.type:
+                    continue
+                if not caps_target.type.startswith("video/x-raw"):
+                    continue
+                new_type = caps_target.type.replace(
+                    "video/x-raw", "video/x-raw(memory:VAMemory)", 1
+                )
+                logger.debug(
+                    "Promoting sysmem caps '%s' (node %s) downstream of "
+                    "vapostproc (node %s) to '%s' for image-set source %s",
+                    caps_target.type,
+                    caps_target.id,
+                    node.id,
+                    new_type,
+                    src_node.id,
+                )
+                caps_target.type = new_type
 
     def validate_camera_sources_followed_by_decodebin3(self) -> None:
         """
@@ -1976,8 +3667,9 @@ def _tokenize(element: str) -> Iterator[_Token]:
         Output: [Token(TYPE, "filesrc"), Token(PROPERTY, "location=/tmp/foo.mp4")]
     """
     token_specification = [
-        # Property in key=value format (no commas here; caps are handled separately)
-        ("PROPERTY", r"\S+\s*=\s*\S+"),
+        # Property in key=value format, with support for quoted values containing spaces
+        # Matches: key=value, key="quoted value", key='quoted value'
+        ("PROPERTY", r'\S+\s*=\s*(?:"[^"]*"|\'[^\']*\'|\S+)'),
         # End of tee branch: "t." where t is the tee name
         ("TEE_END", r"\S+\.(?:\s|\Z)"),
         # Type of element (catch-all for non-property tokens)
@@ -2266,14 +3958,17 @@ def _build_chain(
         if is_caps:
             # For caps nodes we serialize as a single comma-separated caps string:
             #   base,key1=val1,key2=val2,...
-            # We must not include the internal "__node_kind" discriminator
+            # We must not include any internal/private discriminator keys
+            # (those starting with "__", e.g. "__node_kind", "__image_set")
             # in the serialized caps string.
 
             # Maintain insertion order of properties while skipping the
-            # reserved key, so that the resulting caps string is as close
+            # reserved keys, so that the resulting caps string is as close
             # as possible to the original (modulo whitespace).
             props_items = [
-                (key, value) for key, value in node.data.items() if key != NODE_KIND_KEY
+                (key, value)
+                for key, value in node.data.items()
+                if not key.startswith("__")
             ]
 
             if props_items:
@@ -2286,9 +3981,19 @@ def _build_chain(
                 result_parts.append(node.type)
         else:
             # Regular element: type followed by space-separated properties.
+            # Keys starting with "__" are internal markers (e.g. "__image_set")
+            # used by the graph layer for round-tripping between simple and
+            # advanced views; they must never reach the GStreamer command line.
             result_parts.append(node.type)
+            spec = _model_spec(node.type)
             for key, value in node.data.items():
-                result_parts.append(f"{key}={value}")
+                if key.startswith("__"):
+                    continue
+                # Remap the canonical in-memory key ``model`` back to the wire key
+                # declared in NODE_MODEL_SPECS for this node type (e.g. ``model-path``
+                # for ``gvagenai``). All other keys pass through unchanged.
+                output_key = spec.model_key if key == "model" else key
+                result_parts.append(f"{output_key}={value}")
 
         targets = edges_from.get(current_id, [])
         if not targets:
@@ -2329,6 +4034,13 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
     This is used when ingesting a pipeline description so that stored graphs
     reference logical model identifiers instead of absolute filesystem paths.
 
+    The canonical in-memory key is always ``model``, regardless of how the
+    source pipeline string named it. For node types whose wire key is not
+    ``model`` (see ``NODE_MODEL_SPECS``, e.g. ``gvagenai`` uses
+    ``model-path``), the original wire key is read from ``node.data`` and
+    then removed; the resulting display name is always stored under
+    ``node.data["model"]``.
+
     Args:
         nodes: List of nodes to process (modified in place)
 
@@ -2346,7 +4058,9 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
         Output: node.data["model"] = "YOLOv8 License Plate Detector"
     """
     for node in nodes:
-        model_path = node.data.get("model")
+        spec = _model_spec(node.type)
+        model_key = spec.model_key
+        model_path = node.data.get(model_key)
         if model_path is None:
             continue
 
@@ -2357,17 +4071,40 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
             continue
 
         model_proc_path = node.data.get("model-proc", None)
-        model = SupportedModelsManager().find_installed_model_by_model_and_proc_path(
-            model_path, model_proc_path
+        # Match against every supported model (installed or not) so that
+        # pipelines referencing a not-yet-installed model still get a
+        # resolved display name. This lets ``used_by_pipelines`` in the
+        # /models endpoint stay populated regardless of install status.
+        model = SupportedModelsManager().find_model_by_model_and_proc_path(
+            model_path, model_proc_path, installed_only=False
         )
 
+        # Fallback: uploaded (custom) models live in the ModelManager
+        # registry, not in supported_models.yaml. Without this, advanced
+        # graphs that reference an uploaded model would lose the
+        # display-name on ingestion and be rejected on conversion back
+        # to a runnable pipeline.
+        if model is None:
+            # Local import to avoid an import cycle with model_manager.
+            from managers.model_manager import ModelManager
+
+            model = ModelManager().find_uploaded_model_by_path(
+                model_path, model_proc_path
+            )
+
         if model is not None:
+            # Canonical in-memory key is always ``model`` regardless of how
+            # the source pipeline string named it (see NodeModelSpec).
             node.data["model"] = model.display_name
+            if model_key != "model":
+                node.data.pop(model_key, None)
             logger.debug(
                 f"Converted model path to display name: {model_path} -> {model.display_name}"
             )
         else:
             node.data["model"] = ""
+            if model_key != "model":
+                node.data.pop(model_key, None)
             logger.debug(
                 f"Model not found in installed models: model_path='{model_path}', model_proc_path='{model_proc_path}'"
             )
@@ -2411,13 +4148,24 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
         # model handling
         model = SupportedModelsManager().find_installed_model_by_display_name(name)
         if not model:
+            # Fallback: the display name may identify an uploaded (custom)
+            # model that is tracked by ModelManager rather than the YAML
+            # catalogue. Without this fallback the convert-to-advanced
+            # flow would reject any pipeline referencing an uploaded
+            # model, even though the UI happily lists it.
+            from managers.model_manager import ModelManager
+
+            model = ModelManager().find_installed_uploaded_model_by_display_name(name)
+
+        if not model:
             raise ValueError(
                 f"Can't find model '{name}' for {node.type}. Choose an installed model or install it first."
             )
 
         node.data["model"] = model.model_path_full
 
-        if model.model_proc_full:
+        spec = _model_spec(node.type)
+        if spec.uses_model_proc and model.model_proc_full:
             _insert_model_proc_after_model(node, model.model_proc_full)
 
         logger.debug(
@@ -2503,9 +4251,23 @@ def _validate_models_supported_on_devices(nodes: list[Node]) -> None:
             )
 
         if not SupportedModelsManager().is_model_supported_on_device(name, device):
-            raise ValueError(
-                f"Node {node.type}: model '{name}' is not supported on the '{device}' device"
-            )
+            # Uploaded (custom) models live in the ModelManager registry,
+            # not in supported_models.yaml. They carry no
+            # ``unsupported_devices`` metadata, so if the registry knows
+            # the display name we treat the model as supported on every
+            # device. Without this fallback convert-to-advanced would
+            # reject any graph that references an uploaded model.
+            from managers.model_manager import (
+                ModelManager,
+            )  # local import to avoid cycle
+
+            if (
+                ModelManager().find_installed_uploaded_model_by_display_name(name)
+                is None
+            ):
+                raise ValueError(
+                    f"Node {node.type}: model '{name}' is not supported on the '{device}' device"
+                )
 
         logger.debug(f"Model '{name}' is supported on the '{device}' device")
 
@@ -2596,6 +4358,14 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
             if name is None:
                 continue
 
+            # Already-absolute paths (e.g. image-set ``multifilesrc``
+            # location patterns like ``/images/input/uploaded/.../foo_%02d.jpg``)
+            # bypass the video-name → path mapping; they are taken
+            # as-is by GStreamer.
+            if name.startswith("/"):
+                logger.debug(f"Leaving absolute {node.type} {key} unchanged: {name}")
+                continue
+
             path = VideosManager().get_video_path(name)
             if not path:
                 raise ValueError(
@@ -2640,10 +4410,31 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
     for node in nodes:
         # Check for file sources
         if node.type in {"filesrc", "multifilesrc"}:
+            # Image-set multifilesrc nodes carry an internal marker
+            # placed by ``apply_simple_view_changes``. Round-trip them
+            # back to ``kind=image_set`` with the set name derived
+            # from the location pattern's parent directory, so the
+            # simple view stays stable across save/load cycles.
+            if node.type == "multifilesrc" and _IMAGE_SET_NODE_FLAG in node.data:
+                location = str(node.data.get("location", ""))
+                set_name = ""
+                if location:
+                    # ``/images/input/uploaded/<set>/<set>_%0Nd.<ext>``
+                    # -> ``<set>``.
+                    set_name = os.path.basename(os.path.dirname(location))
+                node.data.clear()
+                node.type = "source"
+                node.data["kind"] = InputKind.IMAGE_SET
+                node.data["source"] = set_name
+                logger.debug(
+                    f"Converted image-set multifilesrc to generic source: {set_name}"
+                )
+                continue
+
             source_name = node.data.get("location", "")
             node.data.clear()
             node.type = "source"
-            node.data["kind"] = InputKind.FILE
+            node.data["kind"] = InputKind.VIDEO
             node.data["source"] = source_name
             logger.debug(f"Converted file source to generic source: {source_name}")
 

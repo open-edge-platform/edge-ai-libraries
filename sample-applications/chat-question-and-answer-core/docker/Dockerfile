@@ -4,7 +4,7 @@ FROM python:3.11-slim AS python-base
 
 # Define a build-time variable to determine if GPU drivers should be installed
 ARG USE_GPU=false
-ARG INSTALL_DRIVER_VERSION="25.48.36300"
+ARG INSTALL_DRIVER_VERSION="26.09.37435"
 ARG UID=1000
 ARG GID=1000
 
@@ -64,8 +64,8 @@ RUN curl -sSL https://install.python-poetry.org | python -
 WORKDIR $SETUP_PATH
 COPY poetry.lock pyproject.toml ./
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
-RUN poetry install --with openvino --without dev --without ollama
-
+RUN poetry install --with openvino --without dev --without ollama && \
+    $VENV_PATH/bin/pip install --upgrade --no-cache-dir pip setuptools wheel
 
 # `dev` image is used during development / testing
 FROM python-base AS dev
