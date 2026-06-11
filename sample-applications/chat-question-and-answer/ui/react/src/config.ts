@@ -16,3 +16,5 @@ export const MAX_TOKENS: number =
   Number(import.meta.env.VITE_MAX_TOKENS);
 export const METRICS_URL: string =
   import.meta.env.VITE_METRICS_SERVICE_ENDPOINT;
+export const SYSTEM_INFO: string =
+  import.meta.env.VITE_SYSTEM_INFO
