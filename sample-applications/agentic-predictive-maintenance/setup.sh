@@ -161,6 +161,7 @@ case "${ACTION}" in
         export USE_CASE_CONFIGS_DIR="${USE_CASE_DIR}/configs"
         export USE_CASE_PROMPTS_DIR="${USE_CASE_DIR}/prompts"
         export USE_CASE_MODELS_DIR="${USE_CASE_DIR}/models"
+        export USE_CASE_RESOURCES_DIR="${USE_CASE_DIR}/resources"
 
         echo -e "${BLUE}Starting Agentic Predictive Maintenance — use case: ${USE_CASE}${NC}"
 

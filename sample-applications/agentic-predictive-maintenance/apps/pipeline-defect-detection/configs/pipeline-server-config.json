@@ -1,27 +1,60 @@
 {
-  "config": [
-    {
-      "name": "pipeline_defect_detection",
-      "source": "file:///videos/pipeline_sample.mp4",
-      "destination": {
-        "type": "mqtt",
-        "host": "${MQTT_HOST}",
-        "port": "${MQTT_PORT}",
-        "topic": "dlstreamer/detections"
-      },
-      "parameters": {
-        "model-instance-id": "pipeline_defect_model",
-        "device": "${DL_DEVICE}",
-        "inference-interval": 1
-      },
-      "pipeline": "object_detection/base",
-      "publish-metadata": true
+    "config": {
+        "pipelines": [
+            {
+                "name": "pipeline_defect_detection",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "multifilesrc loop=TRUE location=/home/pipeline-server/resources/videos/sample.mp4 name=source ! decodebin3 ! gvadetect model=/home/pipeline-server/models/pipeline-defect-detection.xml device=CPU threshold=0.4 name=detection ! gvametaconvert add-empty-results=true name=metaconvert ! queue ! gvafpscounter ! appsink name=destination",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        }
+                    }
+                },
+                "auto_start": true
+            },
+            {
+                "name": "pipeline_defect_detection_gpu",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source ! decodebin3 ! gvadetect model=/home/pipeline-server/models/pipeline-defect-detection.xml device=GPU threshold=0.4 model-instance-id=inst_gpu name=detection ! gvametaconvert add-empty-results=true name=metaconvert ! queue ! gvafpscounter ! appsink name=destination",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        }
+                    }
+                },
+                "auto_start": false
+            },
+            {
+                "name": "pipeline_defect_detection_npu",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source ! decodebin3 ! gvadetect model=/home/pipeline-server/models/pipeline-defect-detection.xml device=NPU threshold=0.4 model-instance-id=inst_npu name=detection ! gvametaconvert add-empty-results=true name=metaconvert ! queue ! gvafpscounter ! appsink name=destination",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        }
+                    }
+                },
+                "auto_start": false
+            }
+        ]
     }
-  ],
-  "models": {
-    "pipeline_defect_model": {
-      "model": "${MODEL_PATH}/pipeline-defect-detection/FP16/pipeline-defect-detection.xml",
-      "labels": "${MODEL_PATH}/pipeline-defect-detection/labels.txt"
-    }
-  }
 }
