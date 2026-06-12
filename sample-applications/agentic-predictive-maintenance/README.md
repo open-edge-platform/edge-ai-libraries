@@ -50,6 +50,7 @@ use cases without code changes.
 - Docker ≥ 24.0 and Docker Compose ≥ 2.20
 - Intel CPU/GPU/NPU (tested on 4th Gen Xeon and Arc GPU)
 - 16 GB RAM minimum; 32 GB recommended for LLM mode
+- Python 3.10+ and `opencv-python` (for data prep script only)
 
 ### 1. Clone and configure
 
@@ -61,25 +62,50 @@ cd edge-ai-libraries/sample-applications/agentic-predictive-maintenance
 vi apps/pipeline-defect-detection/.env_pipeline-defect-detection
 ```
 
-### 2. Launch (LLM mode)
+### 2. Prepare sample data (required for DL Streamer inference)
+
+The DL Streamer pipeline needs a sample video to run. Use the provided script
+to download the Kaggle pipeline-defect dataset and build the video automatically:
+
+```bash
+pip install opencv-python
+
+python scripts/download_and_prep_data.py \
+    "https://www.kaggle.com/api/v1/datasets/download/simplexitypipeline/pipeline-defect-dataset" \
+    --use-case pipeline-defect-detection
+```
+
+This will:
+- Download and extract the dataset (~300 MB)
+- Split into 90% train / 10% val (YOLO format in `datasets/pipeline_defect_detection/`)
+- Build `apps/pipeline-defect-detection/resources/videos/sample.mp4` for DL Streamer
+
+> **DISCLAIMER**: By running this script you acknowledge that you are solely
+> responsible for the rights, permissions, and licenses to use the dataset at
+> the provided URL.
+
+> **Skip this step** if you already have a video or want to run in
+> `LLM_MODE=fallback` (rule-based, no DL Streamer inference required).
+
+### 3. Launch (LLM mode)
 
 ```bash
 ./setup.sh --use-case pipeline-defect-detection
 ```
 
-### 3. Launch (fallback / rule-based mode — no GPU required)
+### 4. Launch (fallback / rule-based mode — no GPU or video required)
 
 ```bash
 LLM_MODE=fallback ./setup.sh --use-case pipeline-defect-detection
 ```
 
-### 4. Open the dashboard
+### 5. Open the dashboard
 
 ```
 http://localhost:8080
 ```
 
-### 5. Stop and clean up
+### 6. Stop and clean up
 
 ```bash
 ./setup.sh --stop
