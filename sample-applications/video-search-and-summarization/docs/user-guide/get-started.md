@@ -328,7 +328,7 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 
 ### Deployment Options for Video Summarization
 
-| Deployment Option | Chunk-Wise Summary<sup>(1)</sup> Configuration | Final Summary<sup>(2)</sup> Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model |
+| **Deployment Option** | **Chunk-Wise Summary<sup>(1)</sup> Configuration** | **Final Summary<sup>(2)</sup> Configuration** | **Environment Variables to Set** | **Recommended Models** | **Recommended Usage Model** |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
 | OVMS shared-model CPU | OVMS-hosted VLM on CPU | Same OVMS-hosted VLM on CPU | Default | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | Default CPU-only summarization flow. |
 | OVMS shared-model GPU | OVMS-hosted VLM on GPU | Same OVMS-hosted VLM on GPU | `VLM_TARGET_DEVICE=GPU` with `LLM_TARGET_DEVICE=GPU` | VLM: `OpenVINO/Phi-3.5-vision-instruct-int8-ov` | Single-model OVMS deployment with GPU acceleration. |
@@ -350,7 +350,7 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 
 ### Deployment Options for Video Search
 
-| Deployment Option | Embedding Pipeline Configuration | Detection Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model |
+| **Deployment Option** | **Embedding Pipeline Configuration** | **Detection Configuration** | **Environment Variables to Set** | **Recommended Models** | **Recommended Usage Model** |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
 | SDK shared CPU | In-process embedding in `vdms-dataprep` on CPU | Detection on CPU | `EMBEDDING_PROCESSING_MODE=sdk` (default) | Search/Dual: `CLIP/clip-vit-b-32`<br>Unified: `QwenText/qwen3-embedding-0.6b` | Default CPU-only search flow. |
 | SDK shared GPU | In-process embedding in `vdms-dataprep` on GPU | Detection on GPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=GPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Run both detection and embedding execution on GPU. |
