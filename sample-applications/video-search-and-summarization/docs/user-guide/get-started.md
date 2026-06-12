@@ -288,24 +288,6 @@ Before running the application, you need to set several environment variables:
 
     > **Mode note:** `DATAPREP_EMBEDDING_DEVICE` controls embedding execution when `EMBEDDING_PROCESSING_MODE=sdk` (in-process DataPrep embedding). `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving` when `EMBEDDING_PROCESSING_MODE=api`. `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut: in `sdk` mode it sets `DATAPREP_EMBEDDING_DEVICE=GPU`; in `api` mode it sets `MME_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
 
-13. **Set advanced VLM configuration options (Summary and Dual UI mode)**:
-
-    The following environment variable provides additional control over VLM inference behavior and logging.
-
-    ```bash
-    # (Optional) OpenVINO configuration for VLM inference optimization
-    # Pass OpenVINO configuration parameters as a JSON string to fine-tune inference performance
-    # Default latency-optimized configuration (equivalent to not setting OV_CONFIG)
-    # export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY"}'
-
-    # Throughput-optimized configuration
-    export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
-    ```
-
-    > **_IMPORTANT:_** The `OV_CONFIG` variable is used to pass OpenVINO configuration parameters to the VLM service. It allows you to optimize inference performance based on your hardware and workload.
-    > For a complete list of OpenVINO configuration options, refer to the [OpenVINO Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
-    > **Note**: If OV_CONFIG is not set, the default configuration `{"PERFORMANCE_HINT": "LATENCY"}` will be used.
-
 **🔐 Work with Gated Models**
 
 To run a **GATED MODEL** like Llama models, you will need to pass your [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). You will need to request for an access to a specific model by going to the respective model page on Hugging Face website.
