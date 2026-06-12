@@ -29,8 +29,9 @@ services:
       # Use-case config
       USE_CASE_ID: ${USE_CASE}
       AGENTS_CONFIG_PATH: /app/config/agents.yaml
-      PROMPTS_DIR: /app/prompts
-      POLICY_FALLBACK_PATH: /app/config/policy_fallback.json
+      USE_CASE_PROMPTS_DIR: /app/prompts
+      USE_CASE_CONFIGS_DIR: /app/config
+      FALLBACK_POLICY_PATH: /app/config/policy_fallback.json
       # Outputs
       OUTPUT_DIR: /app/output
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
