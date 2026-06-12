@@ -13,8 +13,6 @@ volumes:
     driver: local
   apm_model_cache:
     driver: local
-  apm_pipeline_root:
-    driver: local
 
 services:
   nginx:
@@ -114,9 +112,10 @@ services:
       - ${USE_CASE_MODELS_DIR:-/tmp/models}:/home/pipeline-server/models:ro
       - ${USE_CASE_RESOURCES_DIR:-/tmp/resources}:/home/pipeline-server/resources:ro
       - apm_model_cache:/home/pipeline-server/model_cache
-      - apm_pipeline_root:/var/cache/pipeline_root
       - /dev:/dev
       - /tmp:/tmp
+    tmpfs:
+      - /var/cache/pipeline_root:uid=1999,gid=1999,mode=0755
     group_add:
       - "109"
       - "110"
