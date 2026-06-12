@@ -415,11 +415,11 @@ if [ $1 != "--summary" ]; then
 
     echo -e "[vdms-dataprep] ${BLUE}Runtime Summary (per-component devices, default CPU):${NC}"
     if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
-        echo -e "   • [multimodal-embedding-serving] Embedding Device: ${YELLOW}${MME_EMBEDDING_DEVICE}${NC} (active in api mode)."
+        echo -e "  • [multimodal-embedding-serving] Embedding Device: ${YELLOW}${MME_EMBEDDING_DEVICE}${NC} (active in api mode)."
     else
-        echo -e "   • [vdms-dataprep] Embedding Device: ${YELLOW}${DATAPREP_EMBEDDING_DEVICE}${NC} (active in sdk mode)."
+        echo -e "  • [vdms-dataprep] Embedding Device: ${YELLOW}${DATAPREP_EMBEDDING_DEVICE}${NC} (active in sdk mode)."
     fi
-    echo -e "   • [vdms-dataprep] Detection Device: ${YELLOW}${DATAPREP_DETECTION_DEVICE}${NC}"
+    echo -e "  • [vdms-dataprep] Detection Device: ${YELLOW}${DATAPREP_DETECTION_DEVICE}${NC}"
     echo -e "  • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC} — ${embedding_mode_details}"
     echo -e "  • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
 fi
