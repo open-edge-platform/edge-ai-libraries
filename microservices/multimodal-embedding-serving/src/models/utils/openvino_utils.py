@@ -89,6 +89,54 @@ def check_and_convert_openvino_models(
     return str(image_encoder_path), str(text_encoder_path)
 
 
+def _enable_model_cache(core, image_encoder_path, text_encoder_path):
+    """
+    Enable OpenVINO model caching on the given Core instance.
+
+    Compiling models for accelerators such as GPU/NPU can take a long time
+    (graph compilation happens on every startup). OpenVINO can persist the
+    compiled blob and reuse it on subsequent runs by setting the ``CACHE_DIR``
+    property. This is generic across devices and models.
+
+    The cache directory is resolved without hardcoding any path:
+    - ``OV_CACHE_DIR`` / ``EMBEDDING_OV_CACHE_DIR`` env var, when set, wins.
+    - Otherwise it is derived from the directory that holds the IR files
+      (i.e. the configured OpenVINO models directory) as an ``ov_cache``
+      subdirectory, so it persists alongside the IR on the same volume.
+
+    Caching can be disabled by setting ``OV_ENABLE_MODEL_CACHE`` to one of
+    ``0``/``false``/``no``/``off``.
+
+    Returns the resolved cache directory as a string, or ``None`` if caching
+    was disabled or could not be enabled.
+    """
+    enable_flag = (os.getenv("OV_ENABLE_MODEL_CACHE") or "").strip().lower()
+    if enable_flag in {"0", "false", "no", "off"}:
+        logger.info("OpenVINO model caching disabled via OV_ENABLE_MODEL_CACHE.")
+        return None
+
+    cache_dir = os.getenv("OV_CACHE_DIR") or os.getenv("EMBEDDING_OV_CACHE_DIR")
+    if not cache_dir:
+        ir_path = image_encoder_path or text_encoder_path
+        if not ir_path:
+            return None
+        cache_dir = str(Path(ir_path).resolve().parent / "ov_cache")
+
+    try:
+        Path(cache_dir).mkdir(parents=True, exist_ok=True)
+        core.set_property({"CACHE_DIR": cache_dir})
+        logger.info("OpenVINO model caching enabled. CACHE_DIR=%s", cache_dir)
+        return cache_dir
+    except Exception as exc:  # pragma: no cover - environment dependent
+        logger.warning(
+            "Could not enable OpenVINO model caching at %s: %s. "
+            "Continuing without cache (compilation will run on every startup).",
+            cache_dir,
+            exc,
+        )
+        return None
+
+
 def _resolve_static_shape(model_input, shape_hints=None):
     """
     Derive a fully static shape from a model input's partial shape.
@@ -147,6 +195,7 @@ def load_openvino_models(
         infer_new_request() method, similar to the detector implementation.
     """
     core = ov.Core()
+    _enable_model_cache(core, image_encoder_path, text_encoder_path)
 
     def _resolve_int_env(keys, default_value):
         for key in keys:
