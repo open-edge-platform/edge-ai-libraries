@@ -69,8 +69,11 @@ validate_env() {
     source "${env_file}"
     set +a
 
-    # Validate required variables
-    local required_vars=("HOST_IP" "LLM_MODEL_NAME" "LLM_DEVICE")
+    # Validate required variables (LLM_MODEL_NAME not needed in fallback mode)
+    local required_vars=("HOST_IP")
+    if [ "${LLM_MODE:-llm}" != "fallback" ]; then
+        required_vars+=("LLM_MODEL_NAME" "LLM_DEVICE")
+    fi
     for var in "${required_vars[@]}"; do
         if [ -z "${!var}" ]; then
             echo -e "${RED}ERROR: Required variable '${var}' is not set in ${env_file}.${NC}" >&2
@@ -179,8 +182,15 @@ case "${ACTION}" in
         COMPOSE_CMD="docker compose \
             -f docker/compose.base.yaml \
             -f docker/compose.agents.yaml \
-            -f docker/compose.llm.yaml \
             -f docker/compose.ui.yaml"
+
+        # Include VLM service only when LLM mode is active
+        if [ "${LLM_MODE:-llm}" != "fallback" ]; then
+            COMPOSE_CMD="${COMPOSE_CMD} -f docker/compose.llm.yaml"
+            echo -e "${BLUE}LLM mode: ${LLM_MODEL_NAME} on ${LLM_DEVICE}${NC}"
+        else
+            echo -e "${YELLOW}Fallback mode: rule-based reasoning (no VLM service)${NC}"
+        fi
 
         if [ "${CONFIG_ONLY}" = true ]; then
             ${COMPOSE_CMD} config
