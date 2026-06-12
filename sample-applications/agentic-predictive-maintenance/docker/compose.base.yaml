@@ -86,14 +86,14 @@ services:
     security_opt:
       - no-new-privileges
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
 
   dlstreamer-pipeline-server:
-    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE:-intel/dlstreamer-pipeline-server:2026.1.0-ubuntu24}
+    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE:-intel/dlstreamer-pipeline-server:2026.1.0-ubuntu24-rc2}
     container_name: apm-dlstreamer
     hostname: dlstreamer-pipeline-server
     environment:

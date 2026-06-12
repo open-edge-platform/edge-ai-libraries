@@ -52,7 +52,7 @@ services:
     security_opt:
       - no-new-privileges
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/health')"]
       interval: 15s
       timeout: 10s
       retries: 5
