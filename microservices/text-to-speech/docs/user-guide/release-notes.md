@@ -20,14 +20,14 @@ and selectable models, built for edge deployment on Intel hardware.
 - Supported models: SpeechT5 (`microsoft/speecht5_tts`) and Qwen3-TTS
   (`Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice`) with `custom_voice` and
   `voice_design` variants.
-- Configurable device (`CPU`, `GPU`, `NPU`) and precision (`int8`, `int4`,
+- Configurable device (`CPU`, `GPU`) and precision (`int8`, `int4`,
   `fp16`, `fp32`) where supported by the runtime/model.
 - Optional persistence of synthesized output to `storage/<session_id>/`
   with `X-Session-ID` returned in the response headers.
 - Health endpoint (`GET /health`) for readiness probes.
 - Models are warm-loaded once per process and reused across requests to
   keep per-request synthesis latency low.
-- OpenVINO acceleration on Intel CPUs, integrated/discrete GPUs, and NPUs.
+- OpenVINO acceleration on Intel CPUs and integrated/discrete GPUs.
 - Single `config.yaml` shared by standalone and container runs, with env
   overrides via `TEXT_TO_SPEECH__...`.
 - Docker Compose deployment exposing the API on port `8011`; standalone
