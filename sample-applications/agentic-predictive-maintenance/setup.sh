@@ -201,6 +201,33 @@ case "${ACTION}" in
                 return 1 2>/dev/null || exit 1
             fi
             echo -e "${GREEN}Application started. UI available at: http://${HOST_IP}:${APP_HOST_PORT}${NC}"
+
+            # Auto-start DL Streamer pipeline if sample video is available
+            SAMPLE_VIDEO="${USE_CASE_RESOURCES_DIR}/videos/sample.mp4"
+            if [ -f "${SAMPLE_VIDEO}" ]; then
+                echo -e "${BLUE}Sample video found — waiting for DL Streamer REST API...${NC}"
+                DLS_PORT="${PIPELINE_SERVER_PORT:-8554}"
+                # Wait up to 30s for DL Streamer to be ready
+                for i in $(seq 1 15); do
+                    sleep 2
+                    if curl -sf "http://localhost:${DLS_PORT}/pipelines" >/dev/null 2>&1; then
+                        PIPELINE_ID=$(curl -sf -X POST \
+                            "http://localhost:${DLS_PORT}/pipelines/user_defined_pipelines/pipeline_defect_detection" \
+                            -H "Content-Type: application/json" \
+                            -d '{}')
+                        if [ -n "${PIPELINE_ID}" ]; then
+                            echo -e "${GREEN}DL Streamer pipeline started (ID: ${PIPELINE_ID})${NC}"
+                        else
+                            echo -e "${YELLOW}DL Streamer pipeline start returned empty — check logs with: docker logs apm-dlstreamer${NC}"
+                        fi
+                        break
+                    fi
+                done
+            else
+                echo -e "${YELLOW}No sample video at ${SAMPLE_VIDEO} — DL Streamer pipeline not started.${NC}"
+                echo -e "${YELLOW}Run: python scripts/download_and_prep_data.py <url> --use-case ${USE_CASE}${NC}"
+                echo -e "${YELLOW}Then start pipeline: curl -X POST http://localhost:\${PIPELINE_SERVER_PORT:-8554}/pipelines/user_defined_pipelines/pipeline_defect_detection -d '{}'${NC}"
+            fi
         fi
         ;;
 esac

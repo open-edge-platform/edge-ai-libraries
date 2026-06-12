@@ -17,7 +17,7 @@
                         }
                     }
                 },
-                "auto_start": true
+                "auto_start": false
             },
             {
                 "name": "pipeline_defect_detection_gpu",
