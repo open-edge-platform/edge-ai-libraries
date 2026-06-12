@@ -79,7 +79,7 @@ Update or edit the values in YAML file as follows:
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
-| `global.sharedPvcName` | Name for PVC to be used for storage by all components of application | `vss-shared-pvc` |
+| `global.sharedPvcName` | Name for shared PVC used by collector signal exchange (`pipeline-manager` ↔ `vss-collector`) | `vss-shared-pvc` |
 | `global.keepPvc` | PVC gets deleted by default once helm is uninstalled. Set this to true to persist PVC (helps avoid delay due to model re-downloads when re-installing chart). | `true` or `false` |
 | `global.huggingfaceToken` | Your Hugging Face API token | `<your-huggingface-token>` |
 | `global.proxy.http_proxy` | HTTP proxy if required | `http://proxy-example.com:000` |
@@ -95,14 +95,16 @@ Update or edit the values in YAML file as follows:
 | `global.env.OTLP_ENDPOINT` | OTLP endpoint | Leave empty if not using telemetry |
 | `global.env.OTLP_ENDPOINT_TRACE` | OTLP trace endpoint | Leave empty if not using telemetry |
 | `global.embeddingModelName` | Embedding model used by Multimodal Embedding MS, DataPrep, and Video Search. Use a multimodal model for search-only and dual mode (e.g., `CLIP/clip-vit-b-32`) or a text embedding model for unified mode (e.g., `QwenText/qwen3-embedding-0.6b`). | `CLIP/clip-vit-b-32` or `QwenText/qwen3-embedding-0.6b` |
-| `global.devices.multimodalEmbedding.device` | Device for multimodal-embedding service | `CPU` or `GPU` |
-| `global.devices.multimodalEmbedding.key` | K8s resource key for GPU (required when device=GPU) | `gpu.intel.com/i915` or `gpu.intel.com/xe` |
-| `global.devices.vdmsDataprep.device` | Device for vdms-dataprep service | `CPU` or `GPU` |
-| `global.devices.vdmsDataprep.key` | K8s resource key for GPU (required when device=GPU) | `gpu.intel.com/i915` or `gpu.intel.com/xe` |
+| `global.devices.multimodalEmbedding.device` | Device for multimodal-embedding service | `CPU`, `GPU`, or `NPU` |
+| `global.devices.multimodalEmbedding.key` | K8s resource key for accelerator (required when device=GPU/NPU) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
+| `global.devices.vdmsDataprep.embedding.device` | Device for DataPrep embedding execution | `CPU`, `GPU`, or `NPU` |
+| `global.devices.vdmsDataprep.embedding.key` | K8s resource key for DataPrep embedding accelerator (required when embedding.device=GPU/NPU) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
+| `global.devices.vdmsDataprep.detection.device` | Device for DataPrep object-detection execution | `CPU`, `GPU`, or `NPU` |
+| `global.devices.vdmsDataprep.detection.key` | K8s resource key for DataPrep detection accelerator (required when detection.device=GPU/NPU) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
 | `global.devices.ovms.vlm.device` | Device for OVMS VLM model | `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` |
-| `global.devices.ovms.vlm.key` | K8s resource key (required when device is GPU/NPU/HETERO) | `gpu.intel.com/i915` or `gpu.intel.com/xe` |
+| `global.devices.ovms.vlm.key` | K8s resource key (required when device is GPU/NPU/HETERO) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
 | `global.devices.ovms.llm.device` | Device for OVMS LLM model (split-model mode) | `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` |
-| `global.devices.ovms.llm.key` | K8s resource key (required when device is GPU/NPU/HETERO) | `gpu.intel.com/i915` or `gpu.intel.com/xe` |
+| `global.devices.ovms.llm.key` | K8s resource key (required when device is GPU/NPU/HETERO) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
 | `ovms.env.VLM_WEIGHT_FORMAT` | Override weight format for VLM model conversion | `int4` or `int8` (auto-detected if not set) |
 | `ovms.env.LLM_WEIGHT_FORMAT` | Override weight format for LLM model conversion | `int4` or `int8` (auto-detected if not set) |
 | `ovms.enabled` | Enable OVMS as the inference backend (default: true in summary mode) | `true` or `false` |
@@ -120,7 +122,9 @@ Update or edit the values in YAML file as follows:
 
 > **Tip:** Set `global.embeddingModelName` to pick the embedding model for all services. For search-only and dual UI mode, use a multimodal model (e.g., `CLIP/clip-vit-b-32`). For unified mode, use a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`). Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
-> **Note:** `multimodal-embedding-ms` and `vdms-dataprep` share the same PVC for model/cache storage. If you enable GPU for one of them, enable it for the other as well (`global.devices.multimodalEmbedding.device=GPU` **and** `global.devices.vdmsDataprep.device=GPU`). Mixing GPU/CPU modes between the two causes the GPU pod to wait forever because the shared PVC can only be attached to a single node at a time. The Helm chart validates this pairing and will fail the install/upgrade when the devices do not match while both services are enabled.
+> **DataPrep device override precedence:** `global.devices.vdmsDataprep.embedding.device` and `global.devices.vdmsDataprep.detection.device` are set independently in `user_values_override.yaml`. Each defaults to `CPU`; set `GPU`/`NPU` (with the matching resource `key`) to offload that component.
+
+> **Note:** `multimodal-embedding-ms` and `vdms-dataprep` now use independent PVCs for model/cache data by default, so their device settings can be configured independently.
 
 > **Telemetry (vss-collector):** When `vsscollector.enabled=true`, the chart deploys a telegraf-based collector and wires it to the pipeline-manager websocket at `/metrics/ws/collector`. If your cluster uses a non-default Service port or a custom ingress, set `vsscollector.websocketUrl` explicitly. **Note:** The vss-collector is only deployed in **search mode** (using `search_override.yaml`) or **unified summary+search mode** (using `unified_summary_search.yaml`). It is not part of the summary-only stack; setting `vsscollector.enabled=true` in `user_values_override.yaml` has no effect when deploying with `summary_override.yaml` alone.
 
@@ -330,7 +334,7 @@ helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml -
 
 > **Requirement:** Before installing the unified stack, set `global.embeddingModelName` to a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`) in `user_values_override.yaml`. The chart will raise an error if the embedding model is not set. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 >
-> **GPU Tip:** In unified mode the `multimodal-embedding-ms` and `vdms-dataprep` pods always share the same PVC, so either enable GPU for both (`global.devices.multimodalEmbedding.device=GPU` and `global.devices.vdmsDataprep.device=GPU`) or keep both on CPU. Mixing GPU/CPU settings leaves the GPU pod pending because the shared PVC cannot mount on two nodes simultaneously, and the Helm chart blocks such mismatches during install/upgrade.
+> **Device Tip:** In unified mode, `multimodal-embedding-ms` and `vdms-dataprep` run with independent PVC-backed model/cache storage, so you can choose different devices per service.
 
 #### **Use Case 5: Dual UI (Separate Summary and Search UIs)**
 
@@ -467,13 +471,19 @@ If not set while installing the chart, all services will claim a default amount 
 
 - **All containers Ready, all Pods in Running state, application UI is accessible but search or summarization is failing.**
 
-  If PVC has been configured to be retained, most common reason for application to fail to work is a stale PVC. This problem most likely occurs when helm charts are re-installed after some updates to helm chart or the application image. To fix this, delete the PVC before re-installing the helm chart by following command:
+  If PVC has been configured to be retained, most common reason for application to fail to work is a stale PVC. This problem most likely occurs when helm charts are re-installed after some updates to helm chart or the application image. To fix this, delete the service PVCs before re-installing the helm chart:
 
     ```bash
-    kubectl delete pvc vss-shared-pvc -n $my_namespace
+    kubectl delete pvc <release-name>-multimodalembeddingms-models-pvc -n $my_namespace
+    kubectl delete pvc <release-name>-vdmsdataprep-models-pvc -n $my_namespace
+    # If modelPvc.enabled=false, delete the fallback data PVCs instead:
+    # kubectl delete pvc <release-name>-multimodalembeddingms-data-pvc -n $my_namespace
+    # kubectl delete pvc <release-name>-vdmsdataprep-data-pvc -n $my_namespace
+    # If vsscollector is enabled, also delete:
+    # kubectl delete pvc vss-shared-pvc -n $my_namespace
     ```
 
-  If you have updated the `global.pvcName` in the values file, use the updated name instead of default PVC name `vss-shared-pvc` in above command.
+  If you are using custom PVC names via existing claims, delete those claim names instead.
 
 - If you encounter any issues during the deployment process, check the Kubernetes logs for errors:
 

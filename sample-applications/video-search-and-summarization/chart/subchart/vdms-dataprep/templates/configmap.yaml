@@ -1,5 +1,12 @@
-{{- $dpDevice := default "CPU" .Values.global.devices.vdmsDataprep.device -}}
-{{- $dpUsesGpu := eq $dpDevice "GPU" -}}
+{{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.devices.vdmsDataprep.embedding.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
+{{- $detectionDevice := .Values.frameProcessing.dataprepDetectionDevice | default .Values.global.devices.vdmsDataprep.detection.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
+{{- $embeddingUsesGpu := eq $embeddingDevice "GPU" -}}
+{{- $embeddingUsesNpu := eq $embeddingDevice "NPU" -}}
+{{- $embeddingUsesAccelerator := or $embeddingUsesGpu $embeddingUsesNpu -}}
+{{- $detectionUsesGpu := eq $detectionDevice "GPU" -}}
+{{- $detectionUsesNpu := eq $detectionDevice "NPU" -}}
+{{- $detectionUsesAccelerator := or $detectionUsesGpu $detectionUsesNpu -}}
+{{- $dpUsesAccelerator := or $embeddingUsesAccelerator $detectionUsesAccelerator -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -26,18 +33,9 @@ data:
   MULTIMODAL_EMBEDDING_ENDPOINT: {{ .Values.multimodalEmbeddingEndpoint | default .Values.global.env.MULTIMODAL_EMBEDDING_ENDPOINT | default "http://multimodal-embedding-ms:8000/embeddings" | quote }}
   MULTIMODAL_EMBEDDING_MODEL_NAME: {{ required "global.embeddingModelName is required" .Values.global.embeddingModelName | quote }}
   EMBEDDING_PROCESSING_MODE: {{ .Values.embedding.processingMode | default .Values.global.env.EMBEDDING_PROCESSING_MODE | quote }}
-  {{- if $dpUsesGpu }}
+  {{- if $dpUsesAccelerator }}
   SDK_USE_OPENVINO: "true"
-  VDMS_DATAPREP_DEVICE: "GPU"
-  DEVICE: "GPU"
-  {{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.env.EMBEDDING_DEVICE | default "GPU" }}
-  {{- $detectionDevice := .Values.frameProcessing.detectionDevice | default .Values.global.env.DETECTION_DEVICE | default "GPU" }}
-  EMBEDDING_DEVICE: {{ $embeddingDevice | quote }}
-  DETECTION_DEVICE: {{ $detectionDevice | quote }}
   {{- else }}
-  {{- $dataprepDevice := .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default .Values.global.env.VDMS_DATAPREP_DEVICE | default .Values.global.env.DEVICE | default "CPU" }}
-  {{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.env.EMBEDDING_DEVICE | default $dataprepDevice }}
-  {{- $detectionDevice := .Values.frameProcessing.detectionDevice | default .Values.global.env.DETECTION_DEVICE | default $dataprepDevice }}
   {{- if hasKey .Values.embedding "sdkUseOpenVino" }}
   SDK_USE_OPENVINO: {{ printf "%v" .Values.embedding.sdkUseOpenVino | quote }}
   {{- else if hasKey .Values.global.env "SDK_USE_OPENVINO" }}
@@ -45,11 +43,9 @@ data:
   {{- else }}
   SDK_USE_OPENVINO: "true"
   {{- end }}
-  VDMS_DATAPREP_DEVICE: {{ $dataprepDevice | quote }}
-  DEVICE: {{ $dataprepDevice | quote }}
+  {{- end }}
   EMBEDDING_DEVICE: {{ $embeddingDevice | quote }}
   DETECTION_DEVICE: {{ $detectionDevice | quote }}
-  {{- end }}
   OV_MODELS_DIR: {{ .Values.embedding.ovModelsDir | default .Values.global.env.OV_MODELS_DIR | default "/app/ov_models" | quote }}
   OV_PERFORMANCE_MODE: {{ .Values.embedding.ovPerformanceMode | default .Values.global.env.OV_PERFORMANCE_MODE | default "THROUGHPUT" | quote }}
   FRAME_INTERVAL: {{ .Values.frameProcessing.frameInterval | default 15 | quote }}

@@ -95,16 +95,7 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 
 {{/*
-Validate device pairing for multimodal embedding service and VDMS DataPrep when both are enabled.
+No-op placeholder for chart-level validations.
 */}}
 {{- define "video-summarization.validateGpuPairing" -}}
-{{- $mmeEnabled := (default false .Values.multimodalembeddingms.enabled) -}}
-{{- $dataprepEnabled := (default false .Values.vdmsdataprep.enabled) -}}
-{{- if and $mmeEnabled $dataprepEnabled -}}
-	{{- $mmeDevice := default "CPU" .Values.global.devices.multimodalEmbedding.device -}}
-	{{- $dataprepDevice := default "CPU" .Values.global.devices.vdmsDataprep.device -}}
-	{{- if ne $mmeDevice $dataprepDevice -}}
-		{{- fail "global.devices.multimodalEmbedding.device and global.devices.vdmsDataprep.device must be equal when both subcharts are enabled" -}}
-	{{- end -}}
-{{- end -}}
 {{- end -}}

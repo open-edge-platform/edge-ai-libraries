@@ -8,7 +8,7 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
+  # sharedPvcName is the chart-level shared PVC used outside this subchart (collector signals).
   sharedPvcName: ""
 
   # Common release tags to be used for several dependencies
@@ -97,16 +97,8 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
-# Deploy this on the node where vdms-dataprep runs
-podAffinity:
-  requiredDuringSchedulingIgnoredDuringExecution:
-    - labelSelector:
-        matchExpressions:
-          - key: app.kubernetes.io/name
-            operator: In
-            values:
-              - vdmsdataprep
-      topologyKey: "kubernetes.io/hostname"
+# Optional pod affinity rules for this microservice.
+podAffinity: {}
 
 # Environment variables
 embeddingDevice: "CPU"

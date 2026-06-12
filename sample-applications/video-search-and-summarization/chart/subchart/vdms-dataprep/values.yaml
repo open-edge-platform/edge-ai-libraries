@@ -10,7 +10,7 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
+  # sharedPvcName is the chart-level shared PVC used outside this subchart (collector signals).
   sharedPvcName: ""
 
   # Common release tags to be used for several dependencies
@@ -139,7 +139,7 @@ frameProcessing:
   frameInterval: 15
   enableObjectDetection: true
   detectionConfidence: 0.85
-  detectionDevice: ""
+  dataprepDetectionDevice: ""
   detectionModelDir: "/app/models/yolox"
   framesTempDir: "/tmp/dataprep"
 sdkPipeline:

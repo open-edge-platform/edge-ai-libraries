@@ -1,5 +1,15 @@
 # Release Notes
 
+## Upcoming updates (post 2026.1.0)
+
+**Improved:**
+
+- **Search orchestration alignment for accelerator usage:** Updated setup and compose behavior for Video Search so NPU device selections are preserved and propagated consistently for DataPrep and multimodal embedding services.
+- **Simplified per-component device model (Compose):** Retired the redundant `VDMS_DATAPREP_DEVICE` baseline knob. Device selection is now purely per-component — `DATAPREP_EMBEDDING_DEVICE`, `DATAPREP_DETECTION_DEVICE`, and `MME_EMBEDDING_DEVICE` (each defaults to `CPU`) — matching the Helm chart model. `ENABLE_EMBEDDING_GPU` is now a mode-aware embedding shortcut (`sdk`→DataPrep embedding GPU, `api`→MME embedding GPU).
+- **Helm accelerator support for search stack:** Updated VSS Helm subcharts for `multimodal-embedding-ms` and `vdms-dataprep` to support NPU as an accelerator path (device-key validation, resource requests/limits, and `/dev/accel` mounts).
+- **Search deployment documentation refresh:** Added a dedicated **Deployment Options for Video Search** matrix (SDK/API with CPU/GPU/NPU combinations), including explicit `DATAPREP_EMBEDDING_DEVICE`, `MME_EMBEDDING_DEVICE`, and `DATAPREP_DETECTION_DEVICE` examples for accelerator-specific routing.
+- **Helm user-guide clarifications:** Updated Helm guidance to include NPU device/key combinations and matching-device recommendations for shared PVC scheduling.
+
 ## Current Release
 
 **Version**: 2026.1.0

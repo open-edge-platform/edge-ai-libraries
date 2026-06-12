@@ -8,7 +8,7 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
+  # sharedPvcName is the PVC used for collector signal exchange (pipeline-manager <-> vss-collector).
   sharedPvcName: "vss-shared-pvc"
 
   # huggingfaceToken should be set during installation if gated models need to be accessed.
@@ -31,13 +31,17 @@ global:
   devices:
     # Multimodal Embedding Microservice
     multimodalEmbedding:
-      device: CPU # CPU | GPU
-      key: "" # K8s resource key (e.g., 'gpu.intel.com/xe')
+      device: CPU # CPU | GPU | NPU
+      key: "" # K8s resource key (e.g., 'gpu.intel.com/xe', 'npu.intel.com/accel')
 
     # VDMS Dataprep
     vdmsDataprep:
-      device: CPU # CPU | GPU
-      key: ""
+      embedding:
+        device: CPU # CPU | GPU | NPU
+        key: "" # K8s resource key when using GPU/NPU
+      detection:
+        device: CPU # CPU | GPU | NPU
+        key: "" # K8s resource key when using GPU/NPU
 
     # OVMS - per-model device selection (supports split-device configs)
     ovms:
@@ -69,14 +73,12 @@ global:
     MULTIMODAL_EMBEDDING_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
     EMBEDDING_PROCESSING_MODE: "sdk"
     SDK_USE_OPENVINO: true
-    VDMS_DATAPREP_DEVICE: "CPU"
-    DEVICE: "CPU"
     OV_MODELS_DIR: "/app/ov_models"
     OV_PERFORMANCE_MODE: "THROUGHPUT"
     VDMS_DATAPREP_LOG_LEVEL: "INFO"
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart
 
-# sharedClaimSize is the storage size claimed by shared PVC used by VDMS Dataprep and Multimodal-Embedding-MS subcharts.
+# sharedClaimSize is the storage size for the shared collector-signals PVC.
 sharedClaimSize: "7Gi"
 
 rabbitmq:
