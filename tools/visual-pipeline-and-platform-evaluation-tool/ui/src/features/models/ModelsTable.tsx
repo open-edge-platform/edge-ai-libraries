@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
-import { useAppSelector, useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import { selectPipelinesMap } from "@/store/reducers/pipelines";
 import {
@@ -19,9 +19,15 @@ import {
   useStartModelDownloadMutation,
 } from "@/api/api.generated.ts";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
-import { useEffect, useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  handleApiError,
+  handleAsyncJobError,
+  isAsyncJobError,
+} from "@/lib/apiUtils.ts";
+import { formatErrorMessage } from "@/lib/utils.ts";
 
 const formatInstallStatus = (status: ModelInstallStatus): string =>
   status
@@ -139,16 +145,21 @@ export const ModelsTable = () => {
         if (result.failed.length > 0 || result.rejected.length > 0) {
           const messages = [
             ...result.rejected.map((r) => `${r.name}: ${r.message}`),
-            ...result.failed.map((s) => `${s.model_name}: download failed`),
+            ...result.failed.map(
+              (f) => `${f.model_name}: ${formatErrorMessage(f.details)}`,
+            ),
           ];
           toast.error(
             messages.length === 1 ? messages[0] : messages.join("\n"),
           );
         }
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Installation failed.",
-        );
+      } catch (error) {
+        if (isAsyncJobError(error)) {
+          handleAsyncJobError(error, "Model installation");
+        } else {
+          handleApiError(error, "Failed to install model");
+        }
+        console.error("Failed to install model:", error);
       } finally {
         setPendingDownloads((prev) => {
           const next = new Set(prev);

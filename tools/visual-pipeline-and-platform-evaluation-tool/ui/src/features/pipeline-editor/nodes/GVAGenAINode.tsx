@@ -1,7 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
 import { usePipelineEditorContext } from "../PipelineEditorContext.ts";
 
-export const GVAGenAINodeWidth = 280;
+export const GVAGenAINodeWidth = 367;
 
 type GVAGenAINodeProps = {
   data: {
