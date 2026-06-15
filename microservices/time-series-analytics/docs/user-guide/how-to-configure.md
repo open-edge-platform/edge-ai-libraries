@@ -38,7 +38,7 @@ This document describes the configuration options available in `config.json` for
 | `models` | No        | The name of the model file used by the UDF.                                                   | `"windturbine_anomaly_detector.pkl"`   |
 | `device` | No        | Specifies the hardware `CPU` or `GPU` for executing the UDF model inference. Default is `CPU`.| `"CPU/cpu/GPU/gpu"`                    | 
 
-Refer to [Running inferencing on GPU](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/get-started.html#running-user-defined-function-udf-inference-on-gpu) for usage of GPU in Time Series - Wind Turbine Anomaly Detection Sample App.
+Refer to [Running inferencing on GPU](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/get-started.html#running-user-defined-function-udf-inference-on-gpu) for usage of GPU in Time Series - Wind Turbine Anomaly Detection Sample App.
 
 > **Note on GPU Support:**
 >
@@ -57,7 +57,7 @@ Refer to [Running inferencing on GPU](https://docs.openedgeplatform.intel.com/de
 | `mqtt_broker_port`  | Yes       | The port number of the MQTT broker.                         | `1883`                 |
 | `name`              | Yes       | The name of the MQTT broker configuration.                  | `"my_mqtt_broker"`     |
 
-For more information on how to configure MQTT alerts, refer to [Publishing MQTT Alerts](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/how-to-guides/configure-alerts.html#docker-publish-mqtt-alerts)
+For more information on how to configure MQTT alerts, refer to [Publishing MQTT Alerts](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/how-to-guides/configure-alerts.html#docker-publish-mqtt-alerts)
 
 > **Note:**
 >
@@ -72,7 +72,7 @@ For more information on how to configure MQTT alerts, refer to [Publishing MQTT 
 | `namespace`    | Yes       | The namespace index for the OPC UA node.                    | `1`                                                |
 | `node_id`      | Yes       | The node ID where alerts will be published.                 | `2004`                                             |
 
-For more information on how to configure OPC-UA alerts, refer to [Publishing OPC-UA Alerts](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/how-to-guides/configure-alerts.html#docker-publish-opc-ua-alerts)
+For more information on how to configure OPC-UA alerts, refer to [Publishing OPC-UA Alerts](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/how-to-guides/configure-alerts.html#docker-publish-opc-ua-alerts)
 
 > **Note:**
 >
