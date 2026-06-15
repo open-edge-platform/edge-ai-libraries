@@ -87,7 +87,7 @@ references it):
 
 Any change to these variables must also be documented in the README and
 in the *Key Environment Variables* table of
-[`AGENTS.md`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/AGENTS.md).
+[`AGENTS.md`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/tools/visual-pipeline-and-platform-evaluation-tool/AGENTS.md).
 
 ## Related pages
 
