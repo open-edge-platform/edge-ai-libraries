@@ -72,6 +72,11 @@
   --brown-chart: oklch(0.545 0.163 46.032); /* #BF601A */
 }
 
+:root {
+  --custom-gray-1: oklch(0.9694 0.0011 197.14); /* #F2F5F5 */
+  --custom-gray-2: oklch(0.922 0 0); /* #EAEAEA */
+}
+
 /* UI Neutrals — used by shadcn surface/sidebar tokens */
 :root {
   --white: oklch(1 0 0); /* #FFFFFF */
