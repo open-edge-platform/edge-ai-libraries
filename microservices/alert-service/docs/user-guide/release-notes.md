@@ -2,11 +2,11 @@
 
 This page tracks releases of the Alert Service microservice. The most recent release is listed first.
 
-## Version 1.4.0
+## Version 0.0.1
 
 First release of the Alert Service as a lightweight, config-driven ingestion, deduplication, and multi-handler routing microservice.
 
-**June 17, 2026**
+**April 15, 2026**
 
 **New**
 
@@ -21,8 +21,7 @@ First release of the Alert Service as a lightweight, config-driven ingestion, de
 - **Independent Target Retries** with customizable attempts and delay intervals.
 - **Global Delivery Overrides** using `DELIVERY_HANDLERS` environment variables.
 - **New User Guide docs set** including Overview, Get Started, How It Works, Configuration, API Reference, and Troubleshooting documentation.
-
-**Improved**
-
 - Containerization running as non-root user (UID 1000).
 - Modular design patterns allowing easy integration of new deduplication strategies or delivery handlers.
+
+
