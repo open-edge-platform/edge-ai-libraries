@@ -37,17 +37,23 @@ show_help() {
 
 stop_containers() {
     echo -e "${YELLOW}Bringing down all containers...${NC}"
-    docker compose \
-        -f docker/compose.base.yaml \
-        -f docker/compose.agents.yaml \
-        -f docker/compose.llm.yaml \
-        -f docker/compose.ui.yaml \
-        down
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}ERROR: Failed to stop containers.${NC}" >&2
-        return 1
+    # Stop by fixed container names — no USE_CASE env vars required
+    local containers=(
+        apm-nginx apm-ui apm-agent apm-vlm
+        apm-storage apm-dlstreamer apm-mqtt-broker apm-model-download
+    )
+    local found=0
+    for c in "${containers[@]}"; do
+        if docker inspect "${c}" >/dev/null 2>&1; then
+            docker rm -f "${c}" >/dev/null 2>&1 && echo -e "  ${GREEN}✓${NC} ${c}" || true
+            found=1
+        fi
+    done
+    if [ "${found}" -eq 0 ]; then
+        echo -e "${YELLOW}No APM containers found running.${NC}"
+    else
+        echo -e "${GREEN}All containers stopped and removed.${NC}"
     fi
-    echo -e "${GREEN}All containers stopped and removed.${NC}"
 }
 
 remove_volumes() {

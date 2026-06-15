@@ -110,7 +110,7 @@ services:
     ports:
       - "${PIPELINE_SERVER_PORT:-8554}:${PIPELINE_SERVER_PORT:-8554}"
     volumes:
-      - ${USE_CASE_CONFIGS_DIR}/pipeline-server-config.json:/home/pipeline-server/config.json:ro
+      - ${USE_CASE_CONFIGS_DIR:-/tmp/apm-placeholder}/pipeline-server-config.json:/home/pipeline-server/config.json:ro
       - ${USE_CASE_MODELS_DIR:-/tmp/models}:/home/pipeline-server/models:ro
       - ${USE_CASE_RESOURCES_DIR:-/tmp/resources}:/home/pipeline-server/resources:ro
       - apm_model_cache:/home/pipeline-server/model_cache

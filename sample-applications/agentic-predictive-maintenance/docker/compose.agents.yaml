@@ -36,9 +36,9 @@ services:
       OUTPUT_DIR: /app/output
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
-      - ${USE_CASE_CONFIGS_DIR}/agents.yaml:/app/config/agents.yaml:ro
-      - ${USE_CASE_CONFIGS_DIR}/policy_fallback.json:/app/config/policy_fallback.json:ro
-      - ${USE_CASE_PROMPTS_DIR}:/app/prompts:ro
+      - ${USE_CASE_CONFIGS_DIR:-/tmp/apm-placeholder}/agents.yaml:/app/config/agents.yaml:ro
+      - ${USE_CASE_CONFIGS_DIR:-/tmp/apm-placeholder}/policy_fallback.json:/app/config/policy_fallback.json:ro
+      - ${USE_CASE_PROMPTS_DIR:-/tmp/apm-placeholder}:/app/prompts:ro
       - apm_agent_output:/app/output
     ports:
       - "${AGENT_PORT:-5002}:5002"
