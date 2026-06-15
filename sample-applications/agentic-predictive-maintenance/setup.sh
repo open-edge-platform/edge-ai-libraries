@@ -70,10 +70,17 @@ validate_env() {
         return 1
     fi
 
+    # Capture any vars the caller explicitly set before sourcing the env file
+    # so they take precedence over file values (e.g. LLM_MODE=fallback ./setup.sh)
+    local _pre_llm_mode="${LLM_MODE:-}"
+
     # Source the env file
     set -a
     source "${env_file}"
     set +a
+
+    # Restore caller-supplied overrides
+    [ -n "${_pre_llm_mode}" ] && export LLM_MODE="${_pre_llm_mode}"
 
     # Validate required variables (LLM_MODEL_NAME not needed in fallback mode)
     local required_vars=("HOST_IP")
