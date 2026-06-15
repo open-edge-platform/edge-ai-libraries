@@ -164,7 +164,7 @@ For alternative ways to set up the sample application, see:
 ## Supporting Resources
 
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [API Reference](./_assets/chatqna-api.yml)
+- [API Reference](./api-reference.md)
 
 <!--hide_directive
 :::{toctree}

@@ -277,7 +277,7 @@ class PipelineManager:
         pipeline_config = copy.deepcopy(self.pipelines[name][str(version)])
 
         if 'template' in pipeline_config:
-            pipeline_config['template'] = jinja2.Environment(undefined=jinja2.StrictUndefined).from_string(pipeline_config['template']).render(request_original)
+            pipeline_config['template'] = jinja2.Environment(undefined=jinja2.StrictUndefined,autoescape=True).from_string(pipeline_config['template']).render(request_original)
 
         request = request_original.copy()
 
