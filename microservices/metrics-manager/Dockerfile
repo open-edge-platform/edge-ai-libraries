@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Copyright (C) 2025-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
@@ -52,11 +53,75 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN cargo install --locked qmassa@1.3.1
-RUN cargo install --locked qmmd@0.1.1
+RUN cargo install --locked qmassa@2.1.0
+RUN cargo install --locked qmmd@0.2.0
 
 # -----------------------------------------------------------------------------
-# Stage 2: Build Python dependencies
+# Stage 2: Build Telegraf from source with patched dependencies
+# -----------------------------------------------------------------------------
+# Built from source (instead of the upstream .deb) to patch known CVEs in
+# bundled Go dependencies:
+# Using golang:1.26 (1.26.3+) also resolves stdlib CVEs fixed in Go 1.26.3.
+# Digest pinned for reproducible builds — decoupled from Docker Hub tag updates.
+FROM golang:1.26.4@sha256:68cb6d68bed024785b69195b89af7ac7a444f27791435f98647edff595aa0479 AS telegraf-builder
+
+ARG TELEGRAF_VERSION=1.38.4
+
+ARG http_proxy
+ARG HTTP_PROXY
+ARG https_proxy
+ARG HTTPS_PROXY
+ARG no_proxy
+ARG NO_PROXY
+
+ENV http_proxy=${http_proxy} \
+    HTTP_PROXY=${HTTP_PROXY} \
+    https_proxy=${https_proxy} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    no_proxy=${no_proxy} \
+    NO_PROXY=${NO_PROXY}
+
+RUN apt-get update && \
+    apt-get install --yes --no-install-recommends git libudev-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 --branch v${TELEGRAF_VERSION} \
+    https://github.com/influxdata/telegraf /telegraf
+
+WORKDIR /telegraf
+
+# Cache Go module downloads across builds to avoid re-fetching on every run.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go get github.com/rclone/rclone@v1.73.5 && \
+    go get github.com/go-git/go-billy/v5@v5.9.0 && \
+    go mod tidy
+# NOTE: CVE-2026-34040 (HIGH) and CVE-2026-33997 (MEDIUM) in github.com/docker/docker
+# cannot be patched yet — fix requires v29.3.1 which does not exist in the Go
+# module proxy (latest: v28.5.2+incompatible). Transitive Telegraf dependency.
+# Revisit when moby/moby v29.3.1 is published to the Go module registry.
+
+# fs.LogOutput was removed from rclone/fs in rclone 1.71+; the remotefile
+# plugin used it only for trace logging so dropping the assignment is safe.
+# The outer `if` is a no-op if a future Telegraf release already adapts to
+# the new API; the inner grep catches a block size change at build time.
+RUN if grep -q 'fs\.LogOutput = func' plugins/outputs/remotefile/remotefile.go; then \
+        sed -i '/fs\.LogOutput = func/,+2d' plugins/outputs/remotefile/remotefile.go; \
+        if grep -q 'fs\.LogOutput' plugins/outputs/remotefile/remotefile.go; then \
+            echo "ERROR: sed patch incomplete — fs.LogOutput block may have changed size in this Telegraf version" >&2; \
+            exit 1; \
+        fi; \
+    fi
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build \
+        -ldflags="-s -w -X github.com/influxdata/telegraf/internal.Version=${TELEGRAF_VERSION}" \
+        -o /usr/bin/telegraf ./cmd/telegraf
+
+# -----------------------------------------------------------------------------
+# Stage 3: Build Python dependencies
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS python-builder
 
@@ -118,13 +183,9 @@ COPY Dockerfile ./
 CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
 
 # -----------------------------------------------------------------------------
-# Stage 4: Final image (Python 3.12 base with Telegraf)
-# Using Python base for venv compatibility, Telegraf installed via .deb
+# Stage 4: Final image
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS production
-
-# Telegraf version - pinned for reproducible builds
-ARG TELEGRAF_VERSION=1.37.3
 
 # Proxy settings (passed from docker-compose build args)
 ARG http_proxy
@@ -141,23 +202,24 @@ ENV http_proxy=${http_proxy} \
     no_proxy=${no_proxy} \
     NO_PROXY=${NO_PROXY}
 
-# Copy qmassa binary from the build stage
+# Copy qmassa and qmmd binaries from Rust build stage
 COPY --from=qmassa-builder /usr/local/cargo/bin/qmassa /usr/local/bin/qmassa
 COPY --from=qmassa-builder /usr/local/cargo/bin/qmmd /usr/local/bin/qmmd
 
+# Copy Telegraf binary (built from source with patched dependencies)
+COPY --from=telegraf-builder /usr/bin/telegraf /usr/bin/telegraf
+
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Telegraf (pinned version via direct .deb download), supervisor, and curl
-RUN apt-get update && \
-    apt-get install --yes --no-install-recommends \
-        supervisor \
-        curl && \
-    # Download and install Telegraf .deb directly (pinned version, no GPG issues)
-    curl -fsSL "https://dl.influxdata.com/telegraf/releases/telegraf_${TELEGRAF_VERSION}-1_amd64.deb" -o /tmp/telegraf.deb && \
-    dpkg -i /tmp/telegraf.deb && \
-    rm /tmp/telegraf.deb && \
+# Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
+# perl-base is not needed at runtime; purging it removes several known CVEs.
+RUN pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
+    (dpkg -s perl-base >/dev/null 2>&1 && dpkg --purge --force-remove-essential perl-base || true) && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Create Telegraf config directories
+RUN mkdir -p /etc/telegraf /etc/telegraf/telegraf.d /var/log/telegraf
 
 # Clear proxy from final image (not needed at runtime, set via environment)
 ENV http_proxy= \
@@ -219,7 +281,7 @@ LABEL org.opencontainers.image.title="metrics-manager" \
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:9090/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:9090/health', timeout=8)" || exit 1
 
 # Use supervisor to manage both Telegraf and Python service
 CMD ["/entrypoint.sh"]

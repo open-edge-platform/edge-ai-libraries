@@ -1,0 +1,95 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "schemaVersion": "1.0",
+  "description": "Harness-neutral discovery catalog for Video Search and Summarization workflow skills. Paths are relative to the repository root.",
+  "skillsRoot": ".github/skills",
+  "skills": [
+    {
+      "name": "vss-up",
+      "path": ".github/skills/vss-up/SKILL.md",
+      "description": "Deploy, dry-run, stop, or clean the VSS stack in summary, search, dual, or unified mode using setup.sh.",
+      "triggers": [
+        "deploy vss",
+        "start vss",
+        "bring up vss",
+        "stop vss",
+        "clean vss data",
+        "summary mode",
+        "search mode",
+        "dual mode",
+        "unified mode"
+      ],
+      "requires": [
+        "setup.sh",
+        ".github/skills/vss-up/vss.config.env",
+        ".github/skills/vss-up/scripts/gen-secrets.sh"
+      ]
+    },
+    {
+      "name": "vss-doctor",
+      "path": ".github/skills/vss-doctor/SKILL.md",
+      "description": "Diagnose a running or failing VSS deployment through health endpoints, feature/config probes, Docker Compose state, and logs.",
+      "triggers": [
+        "is vss up",
+        "check vss health",
+        "what mode is running",
+        "debug vss",
+        "vss is broken",
+        "container logs"
+      ],
+      "requires": [
+        "curl",
+        "docker compose"
+      ]
+    },
+    {
+      "name": "vss-build",
+      "path": ".github/skills/vss-build/SKILL.md",
+      "description": "Build and optionally push VSS Docker images from source using build.sh.",
+      "triggers": [
+        "build vss",
+        "rebuild images",
+        "build from source",
+        "build dependencies",
+        "push images"
+      ],
+      "requires": [
+        "build.sh",
+        "docker"
+      ]
+    },
+    {
+      "name": "vss-summarize",
+      "path": ".github/skills/vss-summarize/SKILL.md",
+      "description": "Run and inspect VSS video summarization through the Pipeline Manager summary API.",
+      "triggers": [
+        "summarize this video",
+        "create a summary",
+        "what happens in this video",
+        "summary pipeline"
+      ],
+      "requires": [
+        "healthy Pipeline Manager",
+        "summary-capable deployment"
+      ]
+    },
+    {
+      "name": "vss-search",
+      "path": ".github/skills/vss-search/SKILL.md",
+      "description": "Upload, index, and search videos with natural language through the Pipeline Manager search API.",
+      "triggers": [
+        "search my videos",
+        "find something in videos",
+        "upload video",
+        "index video",
+        "generate embeddings",
+        "query video library"
+      ],
+      "requires": [
+        "healthy Pipeline Manager",
+        "search-capable deployment"
+      ]
+    }
+  ]
+}

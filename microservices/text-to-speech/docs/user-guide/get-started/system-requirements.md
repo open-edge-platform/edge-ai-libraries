@@ -14,9 +14,6 @@
 - **GPU (optional)**: Intel integrated GPU (Meteor Lake or newer iGPU) or
   a supported discrete GPU exposed via `/dev/dri` for the OpenVINO `GPU`
   device path.
-- **NPU (optional)**: Intel Core Ultra NPU is supported by OpenVINO for
-  compatible models; set `models.tts.device` to `NPU` in config when
-  available.
 
 | Device                | Minimum              | Recommended                                                                                         |
 | --------------------- | -------------------- | --------------------------------------------------------------------------------------------------- |
@@ -24,7 +21,6 @@
 | Memory                | 16 GB RAM            | 32 GB RAM                                                                                           |
 | Disk                  | 20 GB free SSD space | NVMe storage                                                                                        |
 | GPU (optional)        | Not applicable       | Intel integrated GPU (Meteor Lake or newer iGPU) or a supported discrete GPU exposed via `/dev/dri` |
-| NPU (optional)        | Not applicable       | Intel Core Ultra NPU configured via `NPU` device fields                                             |
 
 ## Software Requirements
 

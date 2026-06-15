@@ -185,7 +185,8 @@ export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 echo -e "${GREEN}Using registry: ${YELLOW}$REGISTRY ${NC}"
 
 export VLM_MODEL_NAME=${VLM_MODEL_NAME}
-export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-int8}
+# Keep user override from environment if provided; device-based default is set later.
+export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-}
 export VLM_TARGET_DEVICE=${VLM_TARGET_DEVICE:-CPU}
 export USE_VLLM=${USE_VLLM:-CONFIG_OFF}
 export ENABLE_VLLM=${ENABLE_VLLM:-false}
@@ -227,7 +228,8 @@ export PM_MINIO_BUCKET=video-summary
 # env for ovms-service
 export LLM_TARGET_DEVICE=${LLM_TARGET_DEVICE:-CPU}
 export LLM_MODEL_NAME=${LLM_MODEL_NAME:-${OVMS_LLM_MODEL_NAME}}
-export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-int8}
+# Keep user override from environment if provided; device-based default is set later.
+export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-}
 export OVMS_HTTP_HOST_PORT=8300
 export OVMS_GRPC_HOST_PORT=9300
 export OVMS_HOST=ovms-service
@@ -338,7 +340,7 @@ configure_device() {
     local device=${1:-"CPU"}
 
     echo -e "${BLUE}Configuring device for all processing components: ${YELLOW}${device}${NC}"
-    echo -e "${BLUE}   This affects: embedding model, and object detection${NC}"
+    echo -e "${BLUE}  This affects: embedding model, and object detection${NC}"
 
     if [[ "${device}" == GPU* ]]; then
         echo -e "${YELLOW}⚙️  Setting up GPU configuration...${NC}"
@@ -362,12 +364,12 @@ configure_device() {
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
         
         echo -e "${GREEN}GPU mode configured for all components:${NC}"
-        echo -e "   • OpenVINO: ${YELLOW}enabled${NC} (required for GPU)"
-        echo -e "   • Processing Device: ${YELLOW}GPU${NC} (decord, embedding, detection)"
-        echo -e "   • Video decoding: ${YELLOW}GPU-accelerated${NC}"
+        echo -e "  • OpenVINO: ${YELLOW}enabled${NC} (required for GPU)"
+        echo -e "  • Processing Device: ${YELLOW}GPU${NC} (decord, embedding, detection)"
+        echo -e "  • Video decoding: ${YELLOW}GPU-accelerated${NC}"
         
     else
-        echo -e "${BLUE} CPU mode configured for all components${NC}"
+        echo -e "${BLUE}CPU mode configured for all components${NC}"
         export VDMS_DATAPREP_DEVICE="${device}"
     fi
 }
@@ -405,12 +407,12 @@ if [ $1 != "--summary" ]; then
     fi
 
     echo -e "[vdms-dataprep] ${BLUE}Runtime Summary:${NC}"
-    echo -e "   • [vdms-dataprep] Processing Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${processing_scope})."
+    echo -e "  • [vdms-dataprep] Processing Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${processing_scope})."
     if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
-        echo -e "   • [multimodal-embedding-serving] Embedding Service Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (HTTP mode container)."
+        echo -e "  • [multimodal-embedding-serving] Embedding Service Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (HTTP mode container)."
     fi
-    echo -e "   • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC} — ${embedding_mode_details}"
-    echo -e "   • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
+    echo -e "  • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC} — ${embedding_mode_details}"
+    echo -e "  • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
 fi
 
 # Frame-to-Video Aggregation Settings for search-ms
@@ -565,12 +567,19 @@ fi
 # Function to convert object detection models
 convert_object_detection_models() {
     echo -e  "Setting up Python environment for object detection model conversion..."
-    # Check if python3-venv is already installed
-    if ! dpkg-query -W -f='${Status}' python3-venv 2>/dev/null | grep -q "ok installed"; then
+    # Check if python3-venv is already available
+    if ! python3 -m venv --help > /dev/null 2>&1; then
         echo -e  "Installing python3-venv package..."
-        sudo apt install -y python3-venv
+        if command -v apt-get > /dev/null 2>&1; then
+            sudo apt-get install -y python3-venv
+        elif command -v dnf > /dev/null 2>&1; then
+            sudo dnf install -y python3
+        else
+            echo -e "${RED}ERROR: Unsupported package manager. Please install python3-venv manually.${NC}"
+            return 1
+        fi
     else
-        echo -e  "python3-venv is already installed, skipping installation"
+        echo -e  "python3-venv is already available, skipping installation"
     fi
 
     # Create and activate virtual environment for model conversion
@@ -607,8 +616,15 @@ ensure_ov_venv() {
         return 0
     fi
     echo -e "[ovms-service] ${BLUE}Creating persistent OpenVINO venv at ${OV_VENV_DIR}...${NC}" >&2
-    if ! dpkg-query -W -f='${Status}' python3-venv 2>/dev/null | grep -q "ok installed"; then
-        sudo apt install -y python3-venv || return 1
+    if ! python3 -m venv --help > /dev/null 2>&1; then
+        if command -v apt-get > /dev/null 2>&1; then
+            sudo apt-get install -y python3-venv || return 1
+        elif command -v dnf > /dev/null 2>&1; then
+            sudo dnf install -y python3 || return 1
+        else
+            echo -e "${RED}ERROR: Unsupported package manager. Please install python3-venv manually.${NC}" >&2
+            return 1
+        fi
     fi
     python3 -m venv "$OV_VENV_DIR" || return 1
     "${OV_VENV_DIR}/bin/pip" install --no-cache-dir -q openvino || return 1
@@ -858,11 +874,18 @@ export_model_for_ovms() {
         curl -fsSL https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/export_model.py -o export_model.py || exit 1
 
         echo -e "Creating Python virtual environment for model export..."
-        if ! dpkg-query -W -f='${Status}' python3-venv 2>/dev/null | grep -q "ok installed"; then
+        if ! python3 -m venv --help > /dev/null 2>&1; then
             echo -e "Installing python3-venv package..."
-            sudo apt install -y python3-venv || exit 1
+            if command -v apt-get > /dev/null 2>&1; then
+                sudo apt-get install -y python3-venv || exit 1
+            elif command -v dnf > /dev/null 2>&1; then
+                sudo dnf install -y python3 || exit 1
+            else
+                echo -e "${RED}ERROR: Unsupported package manager. Please install python3-venv manually.${NC}"
+                exit 1
+            fi
         else
-            echo -e "python3-venv is already installed, skipping installation"
+            echo -e "python3-venv is already available, skipping installation"
         fi
 
         python3 -m venv ovms_venv || exit 1
@@ -1135,7 +1158,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
         else
             echo -e "[ovms-service] ${BLUE}Using OVMS for both chunk captioning and final summary${NC}"
             export USE_VLLM=CONFIG_OFF
-            export LLM_MODEL_NAME=${configured_ovms_llm_model}
+            export LLM_MODEL_NAME=${configured_ovms_llm_model:-${VLM_MODEL_NAME}}
             export LLM_SUMMARIZATION_API=http://$OVMS_HOST/v3
             export VLM_ENDPOINT=http://$OVMS_HOST/v3
             export VLM_HOST=${OVMS_HOST}
@@ -1166,9 +1189,15 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             fi
 
             ovms_split_model=false
-            if [ -n "$LLM_MODEL_NAME" ] && [ "$LLM_MODEL_NAME" != "$VLM_MODEL_NAME" ]; then
+            # Use split-model mode whenever VLM and LLM effective settings differ:
+            # model source, target device, or compression format.
+            if [ -n "$LLM_MODEL_NAME" ] && {
+                [ "$LLM_MODEL_NAME" != "$VLM_MODEL_NAME" ] || \
+                [ "$LLM_TARGET_DEVICE" != "$VLM_TARGET_DEVICE" ] || \
+                [ "$LLM_COMPRESSION_WEIGHT_FORMAT" != "$VLM_COMPRESSION_WEIGHT_FORMAT" ];
+            }; then
                 ovms_split_model=true
-                echo -e "[ovms-service] ${BLUE}Using split-model OVMS mode: VLM=${VLM_MODEL_NAME}, LLM=${LLM_MODEL_NAME}${NC}"
+                echo -e "[ovms-service] ${BLUE}Using split-model OVMS mode: VLM=${VLM_MODEL_NAME} (${VLM_TARGET_DEVICE}, ${VLM_COMPRESSION_WEIGHT_FORMAT}), LLM=${LLM_MODEL_NAME} (${LLM_TARGET_DEVICE}, ${LLM_COMPRESSION_WEIGHT_FORMAT})${NC}"
             else
                 echo -e "[ovms-service] ${BLUE}Using shared single-model OVMS mode with VLM=${VLM_MODEL_NAME}${NC}"
             fi
