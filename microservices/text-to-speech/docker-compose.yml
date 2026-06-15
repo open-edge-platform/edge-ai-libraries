@@ -16,9 +16,7 @@ services:
       - video
       - "${RENDER_GID:-992}"
     environment:
-      # Point HF cache under ~/.cache so a single ./.cache mount persists
-      # every model cache the service uses (HF, torch hub, etc.).
-      HF_HOME: /home/openvino/.cache/huggingface
+      HF_HOME: /app/text-to-speech/.cache/huggingface
     volumes:
       - ./config.yaml:/app/text-to-speech/config.yaml:ro
       - text_to_speech_models:/app/text-to-speech/models
