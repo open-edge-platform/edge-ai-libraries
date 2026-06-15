@@ -30,48 +30,48 @@ At a high level, the Alert Service accepts JSON alert payloads via REST, normali
 flowchart TD
     Client([Client])
 
-    subgraph Service["Alert Service (FastAPI, :8000)"]
-        API["API Router<br/>(router.py / alerts.py)"]
-        Queue[("asyncio.Queue")]
-        Worker["AlertWorker<br/>(worker.py)"]
+    subgraph Service["Alert Service (:8000)"]
+        API["API Layer<br/>(REST & WebSockets)"]
+        Queue[("In-Memory Queue")]
+        Worker["Worker Orchestrator"]
         
         subgraph Dedup["Deduplication Engine"]
-            Engine["DedupEngine<br/>(engine.py)"]
-            Strategy["FieldHashStrategy<br/>(strategy.py)"]
-            Store[("MemoryStore<br/>(store.py)")]
+            Engine["Dedup Manager"]
+            Strategy["Hashing Strategy"]
+            Store[("TTL Key Cache")]
         end
 
-        subgraph Handlers["Delivery Handlers"]
-            LogH["LogHandler<br/>(log.py)"]
-            MqttH["MqttHandler<br/>(mqtt.py)"]
-            WebH["WebhookHandler<br/>(webhook.py)"]
-            WSH["WebSocketHandler<br/>(websocket.py)"]
+        subgraph Handlers["Delivery Dispatchers"]
+            LogH["Log Dispatcher"]
+            MqttH["MQTT Dispatcher"]
+            WebH["Webhook Dispatcher"]
+            WSH["WebSocket Dispatcher"]
         end
         
-        Config["AppConfig / Settings<br/>(config.py / settings.py)"]
-        WSManager["ConnectionManager<br/>(ws_manager.py)"]
+        Config["Configuration & Subscriptions"]
+        WSManager["WebSocket Client Registry"]
     end
 
-    Broker[("MQTT Broker<br/>(mosquitto / external)")]
+    Broker[("MQTT Broker")]
     WebhookDst([Webhook Endpoint])
     WSClient([WebSocket Client])
 
     Client -- "POST /api/v1/alerts" --> API
-    API -->|Normalize| Queue
-    Queue -->|Dequeue| Worker
-    Worker <-->|Get Subscription| Config
+    API -->|Normalize Envelope| Queue
+    Queue -->|Process Next| Worker
+    Worker <-->|Check Subscription Rules| Config
     Worker --> Engine
     Engine --> Strategy
     Engine <--> Store
     
-    Worker -->|Fan-out| Handlers
-    LogH -->|stdout| LogStdout([Application Logs])
-    MqttH -->|Publish| Broker
+    Worker -->|Fan-out delivery| Handlers
+    LogH -->|stdout| LogStdout([System Log])
+    MqttH -->|Publish topic| Broker
     WebH -->|HTTP POST| WebhookDst
     WSH -->|Broadcast| WSManager
-    WSManager -->|ws://| WSClient
+    WSManager -->|WebSocket frame| WSClient
     
-    WSClient <-->|Connect / ws://| API
+    WSClient <-->|Persistent socket connection| API
 
     classDef client fill:#FFFFFF,stroke:#0068B5,stroke-width:2px,color:#3A3A3A;
     classDef core fill:#0068B5,stroke:#00377C,stroke-width:1.5px,color:#FFFFFF;
