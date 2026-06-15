@@ -1,5 +1,9 @@
 # API Reference
 
+<!--hide_directive```{eval-rst}
+.. swagger-plugin:: api-docs/openapi.yaml
+```hide_directive-->
+
 Base URL: `http://localhost:8000/v1/dataprep` (default; the host port is configurable via `VDMS_DATAPREP_HOST_PORT`).
 
 All endpoints return JSON unless noted. Error responses use the `DataPrepResponse` shape: `{"status": "error", "message": "<detail>"}`.

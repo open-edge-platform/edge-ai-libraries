@@ -1,5 +1,9 @@
 # API Reference
 
+<!--hide_directive```{eval-rst}
+.. swagger-plugin:: api-docs/openapi.yaml
+```hide_directive-->
+
 Base URL: `http://localhost:8000` (default; configurable via `EMBEDDING_SERVER_PORT`).
 
 All endpoints return JSON. The `POST /embeddings` endpoint accepts a JSON body describing the input modality and returns a vector embedding.
