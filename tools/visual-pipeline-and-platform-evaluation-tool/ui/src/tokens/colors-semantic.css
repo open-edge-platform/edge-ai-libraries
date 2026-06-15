@@ -164,29 +164,29 @@
   /* shadcn/ui surface */
   --background: var(--white);
   --foreground: var(--black);
-  --card: var(--custom-gray-1);
+  --card: var(--spark-light-gray-100);
   --card-foreground: var(--black);
-  --popover: var(--custom-gray-1);
+  --popover: var(--spark-light-gray-100);
   --popover-foreground: var(--black);
   --primary: var(--classic-blue);
   --primary-foreground: var(--white);
-  --secondary: var(--custom-gray-1);
+  --secondary: var(--spark-light-gray-100);
   --secondary-foreground: var(--black);
-  --muted: var(--custom-gray-1);
+  --muted: var(--spark-light-gray-100);
   --muted-foreground: var(--carbon);
-  --accent: var(--carbon-tint-2);
+  --accent: var(--carbon-10);
   --accent-foreground: var(--black);
   --destructive: var(--red);
-  --border: var(--custom-gray-2);
+  --border: var(--carbon-10);
   --input: var(--carbon-tint-1);
   --ring: var(--carbon);
 
   /* shadcn/ui chart */
 
   /* shadcn/ui sidebar */
-  --sidebar: var(--custom-gray-1);
+  --sidebar: var(--spark-light-gray-100);
   --sidebar-foreground: var(--black);
-  --sidebar-accent: var(--carbon-tint-2);
+  --sidebar-accent: var(--carbon-10);
   --sidebar-accent-foreground: var(--black);
   --sidebar-border: var(--carbon-tint-1);
   --sidebar-ring: var(--carbon);
@@ -277,15 +277,15 @@
   /* shadcn/ui surface */
   --background: var(--carbon-shade-2);
   --foreground: var(--white);
-  --card: var(--carbon-shade-1);
+  --card: var(--spark-dark-gray-200);
   --card-foreground: var(--white);
-  --popover: var(--carbon-shade-1);
+  --popover: var(--spark-dark-gray-200);
   --popover-foreground: var(--white);
   --primary: var(--energy-blue);
   --primary-foreground: var(--black);
-  --secondary: var(--carbon-shade-2);
+  --secondary: var(--spark-dark-gray-200);
   --secondary-foreground: var(--white);
-  --muted: var(--carbon-shade-2);
+  --muted: var(--spark-dark-gray-200);
   --muted-foreground: var(--carbon-tint-1);
   --accent: oklch(1 0 0 / 15%);
   --accent-foreground: var(--white);
@@ -295,8 +295,9 @@
   --ring: var(--carbon);
 
   /* shadcn/ui sidebar */
-  --sidebar: var(--carbon-shade-1);
+  --sidebar: var(--spark-dark-gray-200);
   --sidebar-foreground: var(--white);
+  --sidebar-accent: var(--spark-dark-gray-400);
   --sidebar-accent-foreground: var(--white);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: var(--carbon);
@@ -308,4 +309,5 @@
   --summary-title: var(--energy-blue-tint-1);
   --summary-unit: var(--energy-blue-tint-2);
 
+  --variant-badge-bg: var(--spark-dark-gray-50);
 }

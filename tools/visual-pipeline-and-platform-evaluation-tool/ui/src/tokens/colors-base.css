@@ -73,8 +73,8 @@
 }
 
 :root {
-  --custom-gray-1: oklch(0.9694 0.0011 197.14); /* #F2F5F5 */
-  --custom-gray-2: oklch(0.922 0 0); /* #EAEAEA */
+  --spark-light-gray-100: oklch(0.9694 0.0011 201.14); /* #F4F5F5 */
+  --carbon-10: oklch(0.9340 0.0001 263.28); /* #E9E9E9 */
 }
 
 /* UI Neutrals — used by shadcn surface/sidebar tokens */
@@ -129,4 +129,10 @@
   --cobalt-chart: oklch(0.6 0.25 265); /* #346CFF */
   --coral-chart: oklch(0.7 0.22 30); /* #FF5642 */
   --brown-chart: oklch(0.6 0.15 60); /* #BF6600 */
+}
+
+.dark {
+  --spark-dark-gray-200: oklch(0.3634 0.0074 264.48); /* #3C3E42 */
+  --spark-dark-gray-50: oklch(0.2646 0.0058 271.17); /* #242528  */
+  --spark-dark-gray-400: oklch(0.4686 0.0131 274.65); /* #585A62 */
 }
