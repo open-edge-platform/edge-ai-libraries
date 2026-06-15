@@ -50,7 +50,7 @@
 ## Clone source code
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.1.0
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries/microservices/time-series-analytics/docker
 ```
 
