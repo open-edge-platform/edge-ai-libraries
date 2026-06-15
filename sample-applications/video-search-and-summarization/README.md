@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Video Search and Summarization
 
 Use the Video Search and Summarization (VSS) sample application to search through your videos, summarize them, and more.
@@ -33,6 +38,7 @@ The detailed documentation to help you get started, configure, and deploy the sa
 
 - **AI Agent Integration**
   - [MCP Server](./docs/user-guide/mcp-server.md): Connect AI agents to VSS Search using the Model Context Protocol (MCP).
+  - [Agent Skills](./AGENTS.md): Discover reusable VSS workflow skills for Codex, Copilot CLI, Claude Code, and other coding agents.
 
 - **API Reference**
   - [API Reference](./docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.

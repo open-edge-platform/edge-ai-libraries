@@ -1,0 +1,35 @@
+---
+description: VSS Cursor agent router — canonical instructions and workflow skills
+alwaysApply: true
+---
+
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Video Search and Summarization (Cursor)
+
+## Canonical instructions
+
+For project-wide agent discovery, read
+[`copilot-instructions.md`](../../.github/copilot-instructions.md). Do not
+duplicate policy from that file or from skills. Use short pointers only in
+Cursor rules.
+
+## Skills
+
+When the task touches VSS deployment, diagnostics, builds, summarization, or
+video search, discover and read the relevant `SKILL.md` under
+[`.github/skills/`](../../.github/skills/). Prefer
+[`skill-catalog.json`](../../.github/skills/skill-catalog.json) for routing, but
+do not assume a fixed list of skill files.
+
+## Cursor workflow
+
+- Prefer the repo's real interfaces: `setup.sh`, `build.sh`, Docker Compose,
+  and the Pipeline Manager API at `/manager/...`.
+- Run commands in the real environment when possible and investigate failures
+  before giving up.
+- Commits and pull requests only when the user asks.
+- Keep changes minimal and match existing conventions in the touched area.

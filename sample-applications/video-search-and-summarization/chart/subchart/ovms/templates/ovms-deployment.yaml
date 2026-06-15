@@ -36,14 +36,14 @@
 {{- $vlmSanitized := .Values.global.vlmName | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
 {{- $vlmIsOpenvino := hasPrefix "OpenVINO/" .Values.global.vlmName -}}
 {{- $vlmStorageName := ternary (printf "%s_%s" $vlmSanitized $ovmsVlmDevice) (printf "%s_%s_%s" $vlmSanitized $ovmsVlmDevice $ovmsVlmWeightFormat) $vlmIsOpenvino -}}
-{{- $llmSanitized := .Values.global.llmName | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
-{{- $llmIsOpenvino := hasPrefix "OpenVINO/" .Values.global.llmName -}}
-{{- $llmStorageName := "" -}}
-{{- /* If llmName is set and differs from vlmName, generate separate storage name; otherwise reuse VLM's */ -}}
-{{- if and .Values.global.llmName (ne .Values.global.llmName .Values.global.vlmName) -}}
+{{- $effectiveOvmLlmModel := default .Values.global.vlmName .Values.global.llmName -}}
+{{- $llmSanitized := $effectiveOvmLlmModel | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
+{{- $llmIsOpenvino := hasPrefix "OpenVINO/" $effectiveOvmLlmModel -}}
+{{- $ovmsSplitModel := or (ne $effectiveOvmLlmModel .Values.global.vlmName) (ne $ovmsLlmDevice $ovmsVlmDevice) (ne $ovmsLlmWeightFormat $ovmsVlmWeightFormat) -}}
+{{- $llmStorageName := $vlmStorageName -}}
+{{- /* Generate separate storage name whenever effective model/device/weight differs; otherwise reuse VLM's. */ -}}
+{{- if $ovmsSplitModel -}}
 {{- $llmStorageName = ternary (printf "%s_%s" $llmSanitized $ovmsLlmDevice) (printf "%s_%s_%s" $llmSanitized $ovmsLlmDevice $ovmsLlmWeightFormat) $llmIsOpenvino -}}
-{{- else -}}
-{{- $llmStorageName = $vlmStorageName -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -106,7 +106,7 @@ spec:
                     needs_init=true
                   fi
                   
-                  {{- if and .Values.global.llmName (ne .Values.global.llmName .Values.global.vlmName) }}
+                  {{- if $ovmsSplitModel }}
                   # Check LLM model folder and config (split-model mode)
                   if [ "${vlm_storage_name}" != "${llm_storage_name}" ]; then
                     if [ ! -d "${llm_model_path}" ] || [ ! -f "${llm_model_path}/graph.pbtxt" ]; then
@@ -132,7 +132,7 @@ spec:
                 if [ "$needs_init" = true ]; then
                   . /config/init-script.sh
                 fi
-          args: [{{ required "Value for `global.vlmName` is required!" .Values.global.vlmName | quote }},{{ .Values.global.llmName | quote }},"{{ $ovmsVlmWeightFormat }}","{{ $ovmsLlmWeightFormat }}","{{ .Values.global.huggingfaceToken }}","{{ $ovmsVlmDevice }}","{{ $ovmsLlmDevice }}","{{ $ovmsAllowedMediaDomains }}"]
+          args: [{{ required "Value for `global.vlmName` is required!" .Values.global.vlmName | quote }},{{ $effectiveOvmLlmModel | quote }},"{{ $ovmsVlmWeightFormat }}","{{ $ovmsLlmWeightFormat }}","{{ .Values.global.huggingfaceToken }}","{{ $ovmsVlmDevice }}","{{ $ovmsLlmDevice }}","{{ $ovmsAllowedMediaDomains }}"]
           env:
             - name: http_proxy
               value: {{ .Values.global.proxy.http_proxy }}

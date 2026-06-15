@@ -79,7 +79,7 @@ class OptimizationRunner:
             PipelineOptimizationResult: Result containing the preprocessed GStreamer pipeline string.
         """
         # Import from /opt/intel/dlstreamer/scripts/optimizer/optimizer.py provided in DLStreamer image
-        # https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/scripts/optimizer
+        # https://github.com/open-edge-platform/dlstreamer/tree/main/scripts/optimizer
         import optimizer  # pyright: ignore[reportMissingImports]
 
         optimized_pipeline = optimizer.preprocess_pipeline(pipeline_description)
