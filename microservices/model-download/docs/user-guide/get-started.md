@@ -332,7 +332,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=udf_tim
   }'
 ```
 
-> **Note:** Both `pipeline-zoo-models` and `udf-timeseries` are served by the combined `external-sources` plugin; you can pass either the hub name or `external-sources` to `--plugins`.
+> **Note:** Pass hub names (`pipeline-zoo-models`, `udf-timeseries`) directly to `--plugins`. The internal plugin implementation is shared but not user-visible.
 
 **Download fixed HLS models (3D pose, rPPG, AI-ECG):**
 ```bash

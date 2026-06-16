@@ -44,12 +44,9 @@ components:
         - hls
         - udf-timeseries
       description: |
-        The model hub source to download from.
-
-        The hubs `pipeline-zoo-models` and `udf-timeseries` are served
-        by a single combined plugin (`external-sources`) that
-        dispatches to the right fetch mechanism based on a YAML profile
-        shipped with the image.
+        The model hub source to download from. Each hub maps to a
+        download mechanism (HuggingFace API, OpenVINO export, tarball
+        fetch, etc.) configured via YAML profiles shipped with the image.
 
     ModelType:
       type: string

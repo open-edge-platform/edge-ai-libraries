@@ -110,11 +110,11 @@ class PluginRegistry:
         return sorted(hubs)
 
     def hub_is_available(self, hub: str) -> Tuple[bool, str]:
-        """Return whether a registered plugin handles ``hub`` and is activated.
+        """Return whether ``hub`` is served by a registered, activated plugin.
 
-        A plugin counts as activated when the user listed either its
-        ``plugin_name`` (e.g. ``external-sources``) or any hub it
-        serves via ``supported_hubs()`` (e.g. ``udf-timeseries``).
+        ACTIVATED_PLUGINS is guaranteed to be a list of hub names
+        (the entrypoint rejects plugin names like 'external-sources'),
+        so this is a direct membership check after resolving the plugin.
         """
         plugin = self.find_plugin_for_model("downloader", model_name="", hub=hub)
         if plugin is None:
@@ -123,17 +123,12 @@ class PluginRegistry:
         if not self.activated_plugins or "all" in self.activated_plugins:
             return True, ""
 
-        aliases = {plugin.plugin_name.lower()}
-        supported = getattr(plugin, "supported_hubs", None)
-        if callable(supported):
-            aliases.update(str(h).lower() for h in (supported() or []))
-
-        if aliases.intersection(self.activated_plugins):
+        if hub.lower() in self.activated_plugins:
             return True, ""
 
         return False, (
-            f"Plugin '{plugin.plugin_name}' was not activated during container startup. "
-            f"Active plugins: {', '.join(sorted(self.activated_plugins))}"
+            f"Hub '{hub}' was not activated during container startup. "
+            f"Active hubs: {', '.join(sorted(self.activated_plugins))}"
         )
         
     def check_plugin_dependencies(self, plugin_name: str) -> Tuple[bool, str]:

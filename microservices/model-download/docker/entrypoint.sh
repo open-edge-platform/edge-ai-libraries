@@ -287,35 +287,51 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Define all available plugins in the application
-# Note: when adding a new external-sources hub, add it to sources.yaml AND
-# extend the EXTERNAL_SOURCES_HUBS list below.
+# User-facing hubs accepted by --plugins. Hubs served by the
+# external-sources plugin are listed individually; 'external-sources'
+# itself is an internal plugin name and is rejected if passed by the user.
 EXTERNAL_SOURCES_HUBS=(pipeline-zoo-models udf-timeseries)
-AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "external-sources" "${EXTERNAL_SOURCES_HUBS[@]}" "geti" "hls")
+AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "${EXTERNAL_SOURCES_HUBS[@]}" "geti" "hls")
 
 # Install plugin-specific dependencies (in parallel)
 if [ "$PLUGINS" = "all" ]; then
     print_info "Installing ALL plugins"
-    run_plugins_parallel "${AVAILABLE_PLUGINS[@]}"
-    ACTIVATED_PLUGIN_LIST=("${AVAILABLE_PLUGINS[@]}")
+    # 'external-sources' is added to the install list so its case branch runs;
+    # it is not exposed to users via AVAILABLE_PLUGINS.
+    ACTIVATED_PLUGIN_LIST=("${AVAILABLE_PLUGINS[@]}" "external-sources")
+    run_plugins_parallel "${ACTIVATED_PLUGIN_LIST[@]}"
     echo "ACTIVATED_PLUGINS=all" > "$PLUGINS_ENV_FILE"
     print_success "All plugins are activated"
 else
-    # Split comma-separated plugins and run them in parallel
+    # Split comma-separated plugins and trim whitespace
     IFS=',' read -ra PLUGIN_LIST <<< "$PLUGINS"
-    # Trim whitespace from each plugin name
     ACTIVATED_PLUGIN_LIST=()
     for plugin in "${PLUGIN_LIST[@]}"; do
         ACTIVATED_PLUGIN_LIST+=("$(echo "$plugin" | xargs)")
     done
 
-    # Save the user activated --plugins list for the env file.
+    # Validate each requested name against AVAILABLE_PLUGINS.
+    for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
+        if [[ "$plugin" == "external-sources" ]]; then
+            print_error "'external-sources' is an internal plugin name. Pass the hub(s) instead: ${EXTERNAL_SOURCES_HUBS[*]}"
+            exit 1
+        fi
+        valid=false
+        for available in "${AVAILABLE_PLUGINS[@]}"; do
+            [[ "$plugin" == "$available" ]] && { valid=true; break; }
+        done
+        if ! $valid; then
+            print_error "Unknown plugin '$plugin'. Available: ${AVAILABLE_PLUGINS[*]}"
+            exit 1
+        fi
+    done
+
+    # Save the user's literal --plugins list for the env file.
     USER_PLUGINS_CSV=$(IFS=,; echo "${ACTIVATED_PLUGIN_LIST[*]}")
 
     # Add 'external-sources' to the install list if any of its hubs is requested.
     for hub in "${EXTERNAL_SOURCES_HUBS[@]}"; do
-        if [[ " ${ACTIVATED_PLUGIN_LIST[*]} " == *" $hub "* \
-           && " ${ACTIVATED_PLUGIN_LIST[*]} " != *" external-sources "* ]]; then
+        if [[ " ${ACTIVATED_PLUGIN_LIST[*]} " == *" $hub "* ]]; then
             ACTIVATED_PLUGIN_LIST+=("external-sources")
             break
         fi
