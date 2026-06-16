@@ -76,6 +76,7 @@ class ModelHub(str, Enum):
     OPENVINO = "openvino"
     GETI = "geti"
     HLS = "hls"
+    UDF_TIMESERIES = "udf-timeseries"
 
 class ModelType(str, Enum):
     LLM = "llm"

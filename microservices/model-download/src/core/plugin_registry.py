@@ -91,6 +91,40 @@ class PluginRegistry:
             if hasattr(plugin, "can_handle") and plugin.can_handle(model_name, hub, **kwargs):
                 return plugin
         return None
+
+    def supported_hubs(self) -> List[str]:
+        """Return the union of every hub claimed by a registered plugin.
+
+        Plugins may either expose a ``supported_hubs()`` method (when
+        they handle multiple hubs, e.g. ``external-sources``) or simply
+        register under a hub-named ``plugin_name``.
+        """
+        hubs: set[str] = set()
+        for plugins_by_name in self.plugins.values():
+            for plugin_name, plugin in plugins_by_name.items():
+                explicit = getattr(plugin, "supported_hubs", None)
+                if callable(explicit):
+                    try:
+                        for hub in explicit() or []:
+                            hubs.add(str(hub).lower())
+                    except Exception:  # noqa: BLE001 - defensive
+                        hubs.add(plugin_name.lower())
+                else:
+                    hubs.add(plugin_name.lower())
+        return sorted(hubs)
+
+    def hub_is_available(self, hub: str) -> Tuple[bool, str]:
+        """Return whether *any* registered plugin handles ``hub`` and is activated.
+
+        This is the hub-centric counterpart to
+        :meth:`check_plugin_dependencies`: callers pass a hub name (as
+        seen on the API surface), this resolves it to the underlying
+        plugin name and reuses the activation check.
+        """
+        plugin = self.find_plugin_for_model("downloader", model_name="", hub=hub)
+        if plugin is None:
+            return False, f"No plugin registered for hub '{hub}'"
+        return self.check_plugin_dependencies(plugin.plugin_name)
         
     def check_plugin_dependencies(self, plugin_name: str) -> Tuple[bool, str]:
         """

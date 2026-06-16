@@ -42,7 +42,14 @@ components:
         - openvino
         - geti
         - hls
-      description: The model hub source to download from
+        - udf-timeseries
+      description: |
+        The model hub source to download from.
+
+        The hubs `pipeline-zoo-models` and `udf-timeseries` are served
+        by a single combined plugin (`external-sources`) that
+        dispatches to the right fetch mechanism based on a YAML profile
+        shipped with the image.
 
     ModelType:
       type: string
@@ -421,6 +428,12 @@ paths:
                   models:
                     - name: dbnet
                       hub: pipeline-zoo-models
+              udf_timeseries_download:
+                summary: Download UDF Timeseries package
+                value:
+                  models:
+                    - name: wind-turbine-anomaly-detection
+                      hub: udf-timeseries
               geti_download:
                 summary: Download Geti™ model
                 value:

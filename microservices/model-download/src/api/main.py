@@ -98,15 +98,20 @@ async def download_models(
     gated models from HuggingFace. Public models can be downloaded without authentication.
     """
     try:
-        supported_hubs = set()
+        supported_hubs = set(plugin_registry.supported_hubs())
+        # Converters (e.g. openvino) advertise hubs through plugin_name
+        # rather than supported_hubs(); keep them addressable for
+        # backward compatibility with is_ovms requests.
         for plugin_type in plugin_registry.plugins:
-            supported_hubs.update(name.lower() for name in plugin_registry.get_plugin_names(plugin_type))
+            supported_hubs.update(
+                name.lower() for name in plugin_registry.get_plugin_names(plugin_type)
+            )
         for model in request.models:
             logger.info(f"Requested Model Hub: {model.hub}")
             if model.hub.lower() not in supported_hubs:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Unsupported model download/conversion detected. Supported methods are {supported_hubs}.",
+                    detail=f"Unsupported model download/conversion detected. Supported methods are {sorted(supported_hubs)}.",
                 )
 
         # Get HuggingFace token from environment variable
@@ -116,12 +121,12 @@ async def download_models(
         job_ids = []
 
         for model in request.models:
-            # Check if the plugin's dependencies are installed
-            is_plugin_available, error_reason = plugin_registry.check_plugin_dependencies(model.hub)
+            # Check that the plugin handling this hub is activated.
+            is_plugin_available, error_reason = plugin_registry.hub_is_available(model.hub)
             if not is_plugin_available:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Plugin '{model.hub}' is not available: {error_reason}"
+                    detail=f"Plugin for hub '{model.hub}' is not available: {error_reason}"
                 )
 
             extra_kwargs = model.model_dump().copy()

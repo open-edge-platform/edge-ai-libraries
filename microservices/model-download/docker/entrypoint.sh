@@ -187,7 +187,15 @@ install_dependencies() {
             echo "0" > "${status_file}"
             ;;
         pipeline-zoo-models)
-            print_info "Pipeline-zoo-models plugin has no additional dependencies"
+            print_info "Pipeline-zoo-models hub is served by the external-sources plugin (kind=tarball, no extra deps)"
+            echo "0" > "${status_file}"
+            ;;
+        external-sources)
+            print_info "External-sources plugin: tarball hubs (pipeline-zoo-models, udf-timeseries) run in main app process"
+            echo "0" > "${status_file}"
+            ;;
+        udf-timeseries)
+            print_info "udf-timeseries hub is served by the external-sources plugin (kind=tarball, no extra deps)"
             echo "0" > "${status_file}"
             ;;
         *)
@@ -280,7 +288,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Define all available plugins in the application
-AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "pipeline-zoo-models" "geti" "hls")
+AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "external-sources" "pipeline-zoo-models" "udf-timeseries" "geti" "hls")
 
 # Install plugin-specific dependencies (in parallel)
 if [ "$PLUGINS" = "all" ]; then
@@ -298,10 +306,50 @@ else
         ACTIVATED_PLUGIN_LIST+=("$(echo "$plugin" | xargs)")
     done
 
+    # Auto-add 'external-sources' when any of its hubs is activated
+    # (needed for PluginRegistry.hub_is_available).
+    _EXTERNAL_SOURCES_HUBS=(pipeline-zoo-models udf-timeseries)
+    declare -A _IN_LIST
+    for p in "${ACTIVATED_PLUGIN_LIST[@]}"; do
+        _IN_LIST[$p]=1
+    done
+    for hub in "${_EXTERNAL_SOURCES_HUBS[@]}"; do
+        if [[ -n "${_IN_LIST[$hub]:-}" && -z "${_IN_LIST[external-sources]:-}" ]]; then
+            ACTIVATED_PLUGIN_LIST+=("external-sources")
+            _IN_LIST[external-sources]=1
+            break
+        fi
+    done
+
     run_plugins_parallel "${ACTIVATED_PLUGIN_LIST[@]}"
 
-    echo "ACTIVATED_PLUGINS=$PLUGINS" > "$PLUGINS_ENV_FILE"
-    print_success "Activated plugins: $PLUGINS"
+    # Ensure 'external-sources' appears in ACTIVATED_PLUGINS whenever any of
+    # its hubs is activated (for PluginRegistry.hub_is_available).
+    _EXTERNAL_SOURCES_HUBS_ENV=(pipeline-zoo-models udf-timeseries)
+    EXPANDED_ACTIVATED=()
+    declare -A _NEEDS_EXT
+    for p in "${ACTIVATED_PLUGIN_LIST[@]}"; do
+        EXPANDED_ACTIVATED+=("$p")
+        for hub in "${_EXTERNAL_SOURCES_HUBS_ENV[@]}"; do
+            [[ "$p" == "$hub" ]] && _NEEDS_EXT[external-sources]=1
+        done
+    done
+    if [[ -n "${_NEEDS_EXT[external-sources]:-}" ]]; then
+        EXPANDED_ACTIVATED+=("external-sources")
+    fi
+    # De-duplicate while preserving order.
+    declare -A SEEN
+    UNIQUE_ACTIVATED=()
+    for p in "${EXPANDED_ACTIVATED[@]}"; do
+        if [[ -z "${SEEN[$p]:-}" ]]; then
+            UNIQUE_ACTIVATED+=("$p")
+            SEEN[$p]=1
+        fi
+    done
+    ACTIVATED_CSV=$(IFS=,; echo "${UNIQUE_ACTIVATED[*]}")
+
+    echo "ACTIVATED_PLUGINS=${ACTIVATED_CSV}" > "$PLUGINS_ENV_FILE"
+    print_success "Activated plugins: ${ACTIVATED_CSV}"
 fi
 
 # Sync base dependencies (core app only, no plugin extras)
@@ -329,9 +377,26 @@ print_success "Base dependencies synced successfully"
 print_header "Creating per-plugin virtual environments"
 echo "# Plugin venv paths — written by entrypoint.sh" > "${PLUGIN_VENVS_FILE}"
 
+# external-sources hubs share the main app process (kind=tarball uses stdlib);
+# skip them in the per-plugin venv loop below.
+EXTERNAL_SOURCES_HUBS="pipeline-zoo-models udf-timeseries"
+
+is_external_source_hub() {
+    local name="$1"
+    for hub in ${EXTERNAL_SOURCES_HUBS}; do
+        [[ "$hub" == "$name" ]] && return 0
+    done
+    return 1
+}
+
 for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
     if [[ "$plugin" == "ollama" ]]; then
         print_info "ollama: binary-only plugin, no Python venv needed"
+        continue
+    fi
+
+    # external-sources (and its hubs) run in the main app process; no venv.
+    if [[ "$plugin" == "external-sources" ]] || is_external_source_hub "$plugin"; then
         continue
     fi
 

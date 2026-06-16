@@ -131,8 +131,15 @@ class ModelManager:
             download_plugin = None
             if downloader:
                 logger.info(f"Request details: {downloader},{model_name}, {hub}, {kwargs}")
-                # User specifically requested a downloader
+                # User specified a downloader. First try it as a plugin
+                # name; if that fails, fall back to a hub lookup so
+                # multi-hub plugins (e.g. external-sources covers
+                # pipeline-zoo-models + udf-timeseries) keep working.
                 download_plugin = self.registry.get_plugin("downloader", downloader)
+                if not download_plugin:
+                    download_plugin = self.registry.find_plugin_for_model(
+                        "downloader", model_name, downloader, **kwargs
+                    )
                 if not download_plugin:
                     err_msg = f"Requested downloader '{downloader}' not found"
                     self._jobs[job_id]["status"] = "failed"
@@ -196,6 +203,12 @@ class ModelManager:
                 plugin=download_plugin.plugin_name,
                 model_name=model_name,
             )
+
+            # Make the requested hub visible to plugins that handle
+            # multiple hubs (e.g. external-sources covers
+            # pipeline-zoo-models + udf-timeseries). Single-hub
+            # plugins simply ignore this kwarg.
+            kwargs.setdefault("hub", hub)
 
             # Check if the download method is async
             if inspect.iscoroutinefunction(download_plugin.download):

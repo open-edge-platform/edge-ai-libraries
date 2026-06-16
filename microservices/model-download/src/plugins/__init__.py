@@ -8,7 +8,7 @@ import sys
 
 PLUGINS = {
     'ultralytics': ('src.plugins.ultralytics_plugin', 'UltralyticsDownloader'),
-    'pipeline-zoo-models': ('src.plugins.pipeline_zoo_models_plugin', 'PipelineZooModelsPlugin'),
+    'external-sources': ('src.plugins.external_sources_plugin', 'ExternalSourcesPlugin'),
     'ollama': ('src.plugins.ollama_plugin', 'OllamaPlugin'),
     'huggingface': ('src.plugins.huggingface_plugin', 'HuggingFacePlugin'),
     'openvino': ('src.plugins.openvino_plugin', 'OpenVINOConverter'),
@@ -44,6 +44,11 @@ def _get_plugin_site_packages(plugin_name: str) -> str | None:
     return result
 
 
+# Hubs served by the external-sources plugin. Passing any of these via
+# --plugins / ENABLED_PLUGINS must also import 'external-sources' (the
+# entrypoint already mirrors this expansion into ACTIVATED_PLUGINS).
+_EXTERNAL_SOURCES_HUBS = {'pipeline-zoo-models', 'udf-timeseries'}
+
 # Determine enabled plugins from ENABLED_PLUGINS env variable
 enabled_plugins_env = os.getenv('ENABLED_PLUGINS', 'all').lower()
 enabled_plugins = (
@@ -51,6 +56,8 @@ enabled_plugins = (
     if enabled_plugins_env == 'all'
     else {p.strip() for p in enabled_plugins_env.split(',')}
 )
+if enabled_plugins & _EXTERNAL_SOURCES_HUBS:
+    enabled_plugins.add('external-sources')
 
 # Load enabled plugins, injecting each plugin's dedicated venv into sys.path
 for plugin_name, (module_path, class_name) in PLUGINS.items():

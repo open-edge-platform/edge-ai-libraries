@@ -116,7 +116,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
    - Start the service with default settings: `source scripts/run_service.sh up`
    - Stop the service: `source scripts/run_service.sh down`
    - Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
-  - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,pipeline-zoo-models,geti`
+  - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,pipeline-zoo-models,udf-timeseries,geti`
    - Use a custom model storage: `source scripts/run_service.sh up --model-path /data/my-models`
    - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
    - Display usage information: `source scripts/run_service.sh --help`
@@ -313,6 +313,26 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=pipelin
 ```
 
 > **Note:** You can pass `"name": "all"` to download all available models from the Pipeline Zoo `storage` directory.
+
+**Download a UDF Timeseries package:**
+
+Fetches a per-model tarball from `edge-ai-resources/timeseries-udf-deployment-packages/` and extracts it under `udf-timeseries/<model-name>/`.
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=udf_timeseries" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "wind-turbine-anomaly-detection",
+        "hub": "udf-timeseries"
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+> **Note:** Both `pipeline-zoo-models` and `udf-timeseries` are served by the combined `external-sources` plugin; you can pass either the hub name or `external-sources` to `--plugins`.
 
 **Download fixed HLS models (3D pose, rPPG, AI-ECG):**
 ```bash
