@@ -32,9 +32,9 @@ Both modes share a common execution configuration and report results through the
 :::{toctree}
 :hidden:
 
+./benchmarking/performance-testing
 ./benchmarking/density-testing
 ./benchmarking/managing-jobs
-./benchmarking/performance-testing
 
 :::
 hide_directive-->

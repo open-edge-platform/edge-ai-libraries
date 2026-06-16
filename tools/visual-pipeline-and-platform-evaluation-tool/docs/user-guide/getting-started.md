@@ -19,6 +19,7 @@ If you are starting with ViPPET for the first time, use this sequence:
 
 ./getting-started/installation
 ./getting-started/quickstart
+./getting-started/support
 
 :::
 hide_directive-->
