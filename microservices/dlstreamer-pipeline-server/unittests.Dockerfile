@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=intel/dlstreamer-pipeline-server:2026.1.0-ubuntu24-rc2
+ARG BASE_IMAGE=intel/dlstreamer-pipeline-server:2026.1.0-ubuntu24
 
 FROM ${BASE_IMAGE}
 
