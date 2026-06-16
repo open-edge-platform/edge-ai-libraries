@@ -49,9 +49,9 @@ For installation, first-run setup, and end-user workflows, refer to the
 :::{toctree}
 :hidden:
 
-./developer-guide/architecture
+Architecture <./developer-guide/architecture>
+Performance Metrics <./developer-guide/metrics>
 ./developer-guide/contributing-guide
-./developer-guide/metrics
 
 :::
 hide_directive-->

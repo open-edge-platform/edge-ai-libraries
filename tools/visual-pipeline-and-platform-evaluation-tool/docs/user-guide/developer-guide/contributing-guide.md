@@ -14,14 +14,14 @@ area-specific guides and summarizes what to expect from each.
 | Area                                                        | What you can add or change                                                                       |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | [Backend](./contributing/backend.md)                        | FastAPI routes, managers, GStreamer/DLStreamer integration, pipeline execution and benchmarking. |
-| [Documentation](./contributing/documentation.md)            | Docusaurus pages, in-product docstrings, READMEs.                                                |
 | [How to add a new pipeline](./contributing/new-pipeline.md) | Built-in pipeline YAML files under `vippet/pipelines/` and user-created pipelines via the API.   |
 | [How to add a new element](./contributing/new-element.md)   | Custom `gvapython` modules and notes on element visibility in the simple/advanced views.         |
 
-<!--hide_directive Input for Frontend needed
+<!--hide_directive Input for Frontend and Documentation needed
 | Area | What you can add or change |
 |------|----------------------------|
 | [Frontend](./contributing/frontend.md) | React/TypeScript UI, pipeline editor, metrics views, Redux store, routing. |
+| [Documentation](./contributing/documentation.md) | Docusaurus pages, in-product docstrings, READMEs. |
 hide_directive-->
 
 ## Repository layout (quick reference)
@@ -83,9 +83,8 @@ listed at the bottom of each contributing page.
 :hidden:
 
 ./contributing/backend
-./contributing/documentation
-./contributing/new-element
 ./contributing/new-pipeline
+./contributing/new-element
 
 :::
 hide_directive-->
