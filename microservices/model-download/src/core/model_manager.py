@@ -131,10 +131,7 @@ class ModelManager:
             download_plugin = None
             if downloader:
                 logger.info(f"Request details: {downloader},{model_name}, {hub}, {kwargs}")
-                # User specified a downloader. First try it as a plugin
-                # name; if that fails, fall back to a hub lookup so
-                # multi-hub plugins (e.g. external-sources covers
-                # pipeline-zoo-models + udf-timeseries) keep working.
+                # Try as plugin name first, then fall back to hub lookup for multi-hub plugins.
                 download_plugin = self.registry.get_plugin("downloader", downloader)
                 if not download_plugin:
                     download_plugin = self.registry.find_plugin_for_model(
@@ -204,10 +201,7 @@ class ModelManager:
                 model_name=model_name,
             )
 
-            # Make the requested hub visible to plugins that handle
-            # multiple hubs (e.g. external-sources covers
-            # pipeline-zoo-models + udf-timeseries). Single-hub
-            # plugins simply ignore this kwarg.
+            # Expose hub to multi-hub plugins; single-hub plugins ignore it.
             kwargs.setdefault("hub", hub)
 
             # Check if the download method is async

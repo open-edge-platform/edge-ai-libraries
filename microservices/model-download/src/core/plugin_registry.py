@@ -102,29 +102,39 @@ class PluginRegistry:
         hubs: set[str] = set()
         for plugins_by_name in self.plugins.values():
             for plugin_name, plugin in plugins_by_name.items():
-                explicit = getattr(plugin, "supported_hubs", None)
-                if callable(explicit):
-                    try:
-                        for hub in explicit() or []:
-                            hubs.add(str(hub).lower())
-                    except Exception:  # noqa: BLE001 - defensive
-                        hubs.add(plugin_name.lower())
+                supported = getattr(plugin, "supported_hubs", None)
+                if callable(supported):
+                    hubs.update(str(h).lower() for h in (supported() or []))
                 else:
                     hubs.add(plugin_name.lower())
         return sorted(hubs)
 
     def hub_is_available(self, hub: str) -> Tuple[bool, str]:
-        """Return whether *any* registered plugin handles ``hub`` and is activated.
+        """Return whether a registered plugin handles ``hub`` and is activated.
 
-        This is the hub-centric counterpart to
-        :meth:`check_plugin_dependencies`: callers pass a hub name (as
-        seen on the API surface), this resolves it to the underlying
-        plugin name and reuses the activation check.
+        A plugin counts as activated when the user listed either its
+        ``plugin_name`` (e.g. ``external-sources``) or any hub it
+        serves via ``supported_hubs()`` (e.g. ``udf-timeseries``).
         """
         plugin = self.find_plugin_for_model("downloader", model_name="", hub=hub)
         if plugin is None:
             return False, f"No plugin registered for hub '{hub}'"
-        return self.check_plugin_dependencies(plugin.plugin_name)
+
+        if not self.activated_plugins or "all" in self.activated_plugins:
+            return True, ""
+
+        aliases = {plugin.plugin_name.lower()}
+        supported = getattr(plugin, "supported_hubs", None)
+        if callable(supported):
+            aliases.update(str(h).lower() for h in (supported() or []))
+
+        if aliases.intersection(self.activated_plugins):
+            return True, ""
+
+        return False, (
+            f"Plugin '{plugin.plugin_name}' was not activated during container startup. "
+            f"Active plugins: {', '.join(sorted(self.activated_plugins))}"
+        )
         
     def check_plugin_dependencies(self, plugin_name: str) -> Tuple[bool, str]:
         """

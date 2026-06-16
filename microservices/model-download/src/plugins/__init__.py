@@ -45,8 +45,8 @@ def _get_plugin_site_packages(plugin_name: str) -> str | None:
 
 
 # Hubs served by the external-sources plugin. Passing any of these via
-# --plugins / ENABLED_PLUGINS must also import 'external-sources' (the
-# entrypoint already mirrors this expansion into ACTIVATED_PLUGINS).
+# --plugins / ENABLED_PLUGINS auto-imports the external-sources module.
+# Keep in sync with EXTERNAL_SOURCES_HUBS in docker/entrypoint.sh.
 _EXTERNAL_SOURCES_HUBS = {'pipeline-zoo-models', 'udf-timeseries'}
 
 # Determine enabled plugins from ENABLED_PLUGINS env variable
