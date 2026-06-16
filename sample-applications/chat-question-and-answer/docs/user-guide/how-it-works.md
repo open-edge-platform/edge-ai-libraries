@@ -42,7 +42,7 @@ The Chat Q&A application is a combination of the core LangChain application logi
      - View and manage multiple conversation threads
      - Switch between conversations and access previous questions and responses for context
    - **Execute the RAG AI pipeline**: The Chat Q&A backend microservice performs the following actions to generate the output response using the RAG pipeline.
-      -   The query is converted into embedding space using the Embeddings microservice.
+      - The query is converted into embedding space using the Embeddings microservice.
       - Semantic retrieval is done to fetch the relevant documents or data points from VectorDB. The reranker microservice ranks them in order of accuracy.
       - The retrieved documents and data points is used as part of the prompt to the LLM model and a response is generated using the LLM microservice which hosts the configured LLM model.
 4. **Output Generation**:
