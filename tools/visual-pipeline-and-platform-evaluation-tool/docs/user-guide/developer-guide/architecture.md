@@ -31,9 +31,8 @@ including stream ingestion, model lifecycle management, and operational observab
 :::{toctree}
 :hidden:
 
-./architecture/architecture-future
-./architecture/vippet-be
-./architecture/vippet-ui
+VIPPET UI <./architecture/vippet-ui>
+VIPPET Backend <./architecture/vippet-be>
 
 :::
 hide_directive-->
