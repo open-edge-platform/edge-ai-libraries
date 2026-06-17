@@ -1,5 +1,6 @@
 services:
   alert-service:
+    image: intel/alert-service:${TAG}
     build:
       context: ..
       dockerfile: docker/Dockerfile
