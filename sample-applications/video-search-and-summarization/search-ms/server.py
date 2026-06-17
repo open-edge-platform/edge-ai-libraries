@@ -9,7 +9,7 @@ from typing import Optional, List, Tuple, Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_community.vectorstores.vdms import VDMS
+from langchain_vdms.vectorstores import VDMS
 
 from src.utils.common import logger, settings
 from src.utils.time_filters import build_vdms_time_filter

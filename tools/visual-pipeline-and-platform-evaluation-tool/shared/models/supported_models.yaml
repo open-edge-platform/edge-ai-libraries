@@ -280,3 +280,22 @@
   download_request:
     hub: ultralytics
     name: yolo26n-pose
+
+- name: yolo26s-seg
+  display_name: YOLO 26s Segmentation
+  source: public
+  hub: ultralytics
+  type: detection
+  precisions:
+    - precision: FP32
+      model_path: ultralytics/public/yolo26s-seg/FP32/yolo26s-seg.xml
+      model_proc: ""
+    - precision: FP16
+      model_path: ultralytics/public/yolo26s-seg/FP16/yolo26s-seg.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: false
+  download_request:
+    hub: ultralytics
+    name: yolo26s-seg

@@ -136,6 +136,7 @@ def test_chat_completions_missing_prompt():
     response = client.post("/v1/chat/completions", json=payload)
     assert response.status_code == 400
     assert "error" in response.json()
+    assert "request_id" in response.json()
 
 
 @mock.patch("src.app.restart_server")
@@ -198,7 +199,8 @@ def test_chat_completions_image_loading_error(mock_load_images):
 
     # Assert response
     assert response.status_code == 500
-    assert "Image loading error" in response.json()["error"]
+    assert response.json()["error"] == "Internal server error."
+    assert "request_id" in response.json()
 
 
 @mock.patch(
@@ -233,7 +235,8 @@ def test_chat_completions_video_decoding_error(mock_decode_and_save_video):
 
         # Assert response
         assert response.status_code == 500
-        assert "Video decoding error" in response.json()["error"]
+        assert response.json()["error"] == "Internal server error."
+        assert "request_id" in response.json()
 
 
 @mock.patch("src.app.get_devices", side_effect=RuntimeError("Device fetching error"))
@@ -242,7 +245,7 @@ def test_get_device_error(mock_get_devices):
 
     # Assert response
     assert response.status_code == 500
-    assert "Device fetching error" in response.json()["detail"]
+    assert response.json()["detail"] == "Internal server error."
 
 
 @mock.patch(
@@ -253,7 +256,7 @@ def test_get_device_info_error(mock_get_device_property):
 
     # Assert response
     assert response.status_code == 500
-    assert "Device property error" in response.json()["detail"]
+    assert response.json()["detail"] == "Internal server error."
 
 
 @mock.patch(
@@ -735,7 +738,8 @@ def test_chat_completions_image_loading_error_handling(mock_load_images):
     }
     response = client.post("/v1/chat/completions", json=payload)
     assert response.status_code == 500
-    assert "Image loading error" in response.json()["error"]
+    assert response.json()["error"] == "Internal server error."
+    assert "request_id" in response.json()
 
 
 @mock.patch("src.app.pipe.generate", side_effect=RuntimeError("Generation error"))
@@ -748,4 +752,5 @@ def test_chat_completions_generation_error(mock_generate):
     }
     response = client.post("/v1/chat/completions", json=payload)
     assert response.status_code == 500
-    assert "Generation error" in response.json()["error"]
+    assert response.json()["error"] == "Internal server error."
+    assert "request_id" in response.json()

@@ -22,7 +22,7 @@ async def check_health():
             if _sdk_client is not None:
                 health_status["sdk_client_status"] = "preloaded"
                 health_status["model_name"] = settings.MULTIMODAL_EMBEDDING_MODEL_NAME
-                health_status["processing_device"] = settings.PROCESSING_DEVICE
+                health_status["processing_device"] = settings.DEVICE
                 health_status["sdk_use_openvino"] = settings.SDK_USE_OPENVINO
             else:
                 health_status["sdk_client_status"] = "not_loaded"

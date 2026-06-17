@@ -22,6 +22,16 @@ describe('getSafePreviewVideoUrl', () => {
     ).toBe('https://localhost/assets/demo-bucket/video.mp4');
   });
 
+  it('allows root-relative preview URLs under a root-relative assets endpoint', () => {
+    expect(getSafePreviewVideoUrl('/datastore/demo-bucket/video.mp4', '/datastore')).toBe(
+      '/datastore/demo-bucket/video.mp4'
+    );
+  });
+
+  it('rejects root-relative preview URLs outside a root-relative assets endpoint', () => {
+    expect(getSafePreviewVideoUrl('/other/demo-bucket/video.mp4', '/datastore')).toBeNull();
+  });
+
   it('rejects preview URLs outside the configured assets endpoint', () => {
     expect(
       getSafePreviewVideoUrl('http://localhost/other-assets/demo-bucket/video.mp4', 'http://localhost/assets')

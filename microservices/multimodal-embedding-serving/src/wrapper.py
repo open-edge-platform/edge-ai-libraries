@@ -27,7 +27,9 @@ from .utils import (
     download_video,
     logger,
     extract_batched_frames,
+    resolve_manifest_artifact_reference,
     resolve_safe_local_path,
+    resolve_video_artifact_reference,
     sanitize_for_log,
 )
 
@@ -227,12 +229,16 @@ class EmbeddingModel:
             raise RuntimeError("Video embeddings are not supported by the active model")
         try:
             logger.debug("Getting video embedding from local file input")
-            safe_video_path = resolve_safe_local_path(video_path, Path(tempfile.gettempdir()))
-            if not os.path.exists(safe_video_path):
+            safe_video_path = resolve_video_artifact_reference(video_path)
+            if not os.path.isfile(safe_video_path):
                 raise FileNotFoundError(f"Video file not found: {safe_video_path}")
 
             frame_interval = (segment_config or {}).get("frame_interval", 5)
             return self.get_video_sampled_embeddings(safe_video_path, segment_config, frame_interval=frame_interval)
+        except FileNotFoundError:
+            raise
+        except ValueError:
+            raise
         except Exception as e:
             logger.error(f"Error getting video embedding from file: {e}")
             raise RuntimeError(f"Failed to get video embedding from file: {e}")
@@ -260,19 +266,17 @@ class EmbeddingModel:
             raise RuntimeError("Video embeddings are not supported by the active model")
         try:
             logger.debug("Getting video embedding from frames manifest input")
-            safe_manifest_path = resolve_safe_local_path(
-                manifest_path, Path(tempfile.gettempdir())
-            )
+            safe_manifest_path = resolve_manifest_artifact_reference(manifest_path)
             
             # Validate manifest file exists
-            if not os.path.exists(safe_manifest_path):
+            if not os.path.isfile(safe_manifest_path):
                 raise FileNotFoundError(
                     f"Frames manifest file not found: {sanitize_for_log(safe_manifest_path)}"
                 )
             
             # Load and validate manifest structure
             try:
-                with open(safe_manifest_path, 'r') as f:
+                with open(safe_manifest_path, "r", encoding="utf-8") as f:
                     manifest_data = json.load(f)
             except json.JSONDecodeError as e:
                 raise ValueError(f"Invalid JSON in manifest file: {e}")
@@ -297,9 +301,7 @@ class EmbeddingModel:
             
             safe_manifest_video_path = None
             if video_path:
-                safe_manifest_video_path = resolve_safe_local_path(
-                    video_path, Path(tempfile.gettempdir())
-                )
+                safe_manifest_video_path = resolve_video_artifact_reference(video_path)
 
             if safe_manifest_video_path and os.path.exists(safe_manifest_video_path):
                 # VIDEO-BASED PROCESSING: Extract specific frames from video file
@@ -372,25 +374,38 @@ class EmbeddingModel:
                         if image_path is None:
                             logger.warning(f"Entry {i} has no image_path, skipping")
                             continue
-                            
-                        if not os.path.exists(image_path):
-                            logger.warning(f"Image file not found: {image_path}, skipping")
+
+                        safe_image_path = resolve_safe_local_path(
+                            image_path, Path(tempfile.gettempdir())
+                        )
+                             
+                        if not os.path.exists(safe_image_path):
+                            logger.warning(
+                                "Image file not found: %s, skipping",
+                                sanitize_for_log(safe_image_path),
+                            )
                             continue
                         
                         try:
                             # Load the image file (works for both full frames and crops)
-                            image = Image.open(image_path)
+                            image = Image.open(safe_image_path)
                             image.verify()  # Validate image
-                            image = Image.open(image_path)  # Reload after verify
+                            image = Image.open(safe_image_path)  # Reload after verify
                             images.append(image)
                             valid_entries.append(metadata_entry)
                             
                             # Debug log for first few images
                             if len(images) <= 5:
-                                logger.debug(f"Loaded {frame_type} image: {os.path.basename(image_path)}")
+                                logger.debug(
+                                    f"Loaded {frame_type} image: {os.path.basename(safe_image_path)}"
+                                )
                                 
                         except Exception as e:
-                            logger.warning(f"Failed to load image {image_path}: {e}, skipping")
+                            logger.warning(
+                                "Failed to load image %s: %s, skipping",
+                                sanitize_for_log(safe_image_path),
+                                sanitize_for_log(e),
+                            )
                             continue
                     
                     if not images:
@@ -443,21 +458,32 @@ class EmbeddingModel:
                     if image_path is None:
                         logger.debug(f"Frame {i} has no image_path (video-based frame), skipping in image-based processing")
                         continue
+
+                    safe_image_path = resolve_safe_local_path(
+                        image_path, Path(tempfile.gettempdir())
+                    )
                     
-                    if not os.path.exists(image_path):
-                        logger.warning(f"Frame image not found: {image_path}, skipping")
+                    if not os.path.exists(safe_image_path):
+                        logger.warning(
+                            "Frame image not found: %s, skipping",
+                            sanitize_for_log(safe_image_path),
+                        )
                         continue
                     
                     try:
-                        image = Image.open(image_path)
+                        image = Image.open(safe_image_path)
                         # Validate image can be loaded
                         image.verify()
                         # Reload image for processing (verify() closes the file)
-                        image = Image.open(image_path)
+                        image = Image.open(safe_image_path)
                         images.append(image)
                         valid_frames.append(frame_data)
                     except Exception as e:
-                        logger.warning(f"Failed to load frame image {image_path}: {e}, skipping")
+                        logger.warning(
+                            "Failed to load frame image %s: %s, skipping",
+                            sanitize_for_log(safe_image_path),
+                            sanitize_for_log(e),
+                        )
                         continue
                 
                 if not images:

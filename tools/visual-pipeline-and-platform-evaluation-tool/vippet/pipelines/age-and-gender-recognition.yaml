@@ -39,7 +39,7 @@ variants:
       queue !
       gvafpscounter starting-frame=100 !
       gvawatermark !
-      gvametaconvert !
+      gvametaconvert add-empty-results=true !
       queue !
       gvametapublish file-format=json-lines file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false
@@ -76,7 +76,7 @@ variants:
       queue !
       gvafpscounter starting-frame=100 !
       gvawatermark !
-      gvametaconvert !
+      gvametaconvert add-empty-results=true !
       queue !
       gvametapublish file-format=json-lines file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false
@@ -115,7 +115,7 @@ variants:
       queue !
       gvafpscounter starting-frame=100 !
       gvawatermark !
-      gvametaconvert !
+      gvametaconvert add-empty-results=true !
       queue !
       gvametapublish file-format=json-lines file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false
@@ -151,7 +151,7 @@ variants:
       queue !
       gvafpscounter starting-frame=100 !
       gvawatermark !
-      gvametaconvert !
+      gvametaconvert add-empty-results=true !
       queue !
       gvametapublish file-format=json-lines file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false
@@ -188,7 +188,7 @@ variants:
       queue !
       gvafpscounter starting-frame=100 !
       gvawatermark !
-      gvametaconvert !
+      gvametaconvert add-empty-results=true !
       queue !
       gvametapublish file-format=json-lines file-path=/dev/null !
       fakesink name=default_output_sink sync=false async=false

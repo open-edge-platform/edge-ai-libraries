@@ -1,7 +1,7 @@
 # Deploy with Helm
 
--   **Time to Complete:** 5 - 15 minutes
--   **Programming Language:** Python 3
+- **Time to Complete:** 5 - 15 minutes
+- **Programming Language:** Python 3
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@
 
   ```sh
     cd [WORKDIR]
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
     cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/helm
     ```
 
@@ -27,10 +27,10 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
 - Download helm chart with the following command
 
-    `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 2026.0.0-helm`
+    `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 2026.1.0-helm`
 - unzip the package using the following command
 
-    `tar -xvf dlstreamer-pipeline-server-2026.0.0-helm.tgz`
+    `tar -xvf dlstreamer-pipeline-server-2026.1.0-helm.tgz`
 - Get into the helm directory
 
     `cd dlstreamer-pipeline-server`
@@ -44,7 +44,7 @@ Update the below fields in `values.yaml` file in the helm chart
     http_proxy: # example: http_proxy: http://proxy.example.com:891
     https_proxy: # example: http_proxy: http://proxy.example.com:891
   images:
-    dlstreamer_pipeline_server: # example: dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:2026.0.0-ubuntu22
+    dlstreamer_pipeline_server: # example: dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:2026.1.0-ubuntu22
   ```
 
 ### Install the helm chart
@@ -126,11 +126,11 @@ Now you have successfully run the DL Streamer Pipeline Server container, sent a 
 
 ## Learn More
 
--   [Get Started](../get-started.md) with the deployment using docker
--   Understand the components, services, architecture, and data flow, in
-    the [Overview](../index.md).
--   For more details on advanced configuration, usage of features refer to [Advanced user guide](../advanced-guide.md)
--   For more details on Deep Learning Streamer (DL Streamer) visit [its page](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/index.html).
+- [Get Started](../get-started.md) with the deployment using docker
+- Understand the components, services, architecture, and data flow, in
+  the [Overview](../index.md).
+- For more details on advanced configuration, usage of features refer to [Advanced user guide](../advanced-guide.md)
+- For more details on Deep Learning Streamer (DL Streamer) visit [its page](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/index.html).
 
 ## Legal Information
 Intel, the Intel logo, and Xeon are trademarks of Intel Corporation in the U.S. and/or other countries.
