@@ -2,7 +2,7 @@
 
 This page tracks releases of the Alert Service microservice. The most recent release is listed first.
 
-## Version 0.0.1
+## Version 2026.1.0
 
 First release of the Alert Service as a lightweight, config-driven ingestion, deduplication, and multi-handler routing microservice.
 
