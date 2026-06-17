@@ -2,7 +2,7 @@
 
 ## Current Release
 
-**Version**: 2026.1.0-rc1
+**Version**: 2026.1.0
 **Release Date**: May 14, 2026
 
 - Fix LlamaIndex import issue by replacing deprecated BaseLlamaPack dependency with updated import structure.
