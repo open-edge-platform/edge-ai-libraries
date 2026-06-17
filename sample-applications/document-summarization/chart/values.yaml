@@ -30,7 +30,7 @@ global:
     name: document-summarization
     image:
       repository: "intel/document-summary"
-      tag: "latest"
+      tag: "2026.1.0"
       pullPolicy: Always
 nginx:
   image:
