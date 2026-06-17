@@ -4,7 +4,7 @@ This microservice can be run as an ephemeral (one-shot) container that downloads
 
 ## Prerequisites
 
-- Docker installed and running. Installation guide [here](https://docs.docker.com/engine/install/ubuntu/)
+- Docker installed and running. Follow [the installation guide](https://docs.docker.com/engine/install/ubuntu/)
 - `curl` and `python3` available on the host
 
 ---
@@ -112,7 +112,7 @@ The log path is printed at the end of a failed run.
 
 The log file contains structured sections:
 
-```
+```text
 ===== Model Download Ephemeral Mode - Error Log =====
 Timestamp: 2026-05-22T12:46:17+05:30
 Command: source ./get_model.sh --model-name ... --hub ...
@@ -132,31 +132,40 @@ Plugins: huggingface,openvino
 ### Common issues
 
 **Plugin not activated**
-```
+
+```text
 Plugin 'openvino' was not activated during container startup. Active plugins: huggingface
 ```
+
 Fix: Add the required plugin to `--plugins` (e.g., `--plugins huggingface,openvino`).
 
 **Gated model access denied**
-```
+
+```text
 Access to Gated or private models is restricted. You must be authenticated.
 ```
+
 Fix: Set `HF_TOKEN` with a token that has access to the model:
+
 ```bash
 export HF_TOKEN="hf_..."
 source ./get_model.sh --model-name meta-llama/Llama-2-7b-hf --hub huggingface
 ```
 
 **Container failed to start**
-```
+
+```text
 ERROR: Failed to get mapped port for container.
 ```
+
 Fix: Check that the Docker image exists (`docker images | grep model-download`) and rebuild if needed.
 
 **Service health timeout**
-```
+
+```text
 ERROR: Service failed to start within 180s.
 ```
+
 Fix: Check the container logs in the error log file. Common causes: missing dependencies, network issues during plugin setup.
 
 ### Cleanup stale containers

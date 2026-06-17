@@ -37,7 +37,7 @@ storage, and Hugging Face cache data in named Docker volumes
 (`audio_analyzer_{models,chunks,storage,cache}`), and passes `/dev/dri`
 through for host Intel iGPU access by default. The container runs as
 UID/GID `1000:1000` by default; see
-[troubleshooting.md](troubleshooting.md#permission-errors-on-mounted-folders)
+[troubleshooting.md](../troubleshooting.md#permission-errors-on-mounted-folders)
 if your host user differs.
 
 ## Build a Python Environment (Standalone)
