@@ -16,6 +16,10 @@
 - Added Ultralytics INT8 quantization support through `config.quantize` and added relevant unit test cases.
 - Added rejection of multi-model requests (`all`, `yolo_all`, and comma-separated model names) when `quantize` is set.
 - Added cleanup when INT8 artifacts are not generated after user sends the INT8 request.
+- Added ephemeral container support for one-shot downloads without impacting the existing download flow.
+- Introduced a new script to enable the ephemeral download flow.
+- Made HF token optional for model downloads.
+- Added a quickstart guide for ephemeral mode.
 
 **Improved**
 
