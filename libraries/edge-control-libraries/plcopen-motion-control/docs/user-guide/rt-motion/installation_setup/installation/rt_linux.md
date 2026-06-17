@@ -1,0 +1,124 @@
+# Real-Time in Linux
+
+PLCopen Motion Control provides real-time capabilities to the kernel with PREEMPT_RT patch and boot parameters for real-time optimization, which aims to increase predictability and reduce scheduler latencies.
+
+## Installation
+
+1. Before using the ECI repository, update the APT packages list:
+
+   ```bash
+   sudo apt update
+   ```
+
+   ![](../../../assets/images/apt-update-1.png)
+
+   The APT package manager will download the latest list of packages available for all configured repositories.
+
+   ![](../../../assets/images/apt-update-2.png)
+
+   > **Tip**: If the APT package manager is unable to connect to the repositories, follow these APT troubleshooting tips:
+   >
+   > - Make sure that the system has network connectivity.
+   > - Make sure that the ports `80` and `8080` are not blocked by a firewall.
+   > - Configure an APT proxy (if network traffic routes through a proxy server). To configure an APT proxy, add the following lines to a file at `/etc/apt/apt.conf.d/proxy.conf` (replace the placeholders as per your specific user and proxy server):
+   >
+   >   ```console
+   >   Acquire::http::Proxy "http://user:password@proxy.server:port/";
+   >   Acquire::https::Proxy "http://user:password@proxy.server:port/";
+   >   ```
+
+2. ECI provides Deb packages named `customizations-*` which add a GRUB menu entry for ECI and prepares the system to be deterministic. Install these packages using the `eci-customizations` meta-package:
+
+   ```bash
+   sudo apt install -y eci-customizations
+   ```
+
+3. ECI provides a firmware package which backports updates from upstream to bring better hardware support to the current distribution. Install this package:
+
+   ```bash
+   sudo apt-get reinstall '(firmware-linux-nonfree|linux-firmware$)'
+   ```
+
+4. Next, install the ECI real-time Linux kernel. There are two options available: Linux Intel LTS PREEMPT_RT kernel and Linux Intel LTS Xenomai Dovetail kernel. It is recommended that you start with **Linux Intel LTS PREEMPT_RT kernel**, if you do not know which option to choose.
+
+   Click the corresponding tab to know more.
+
+   <!--hide_directive::::{tab-set}
+   :::{tab-item}hide_directive--> Linux Intel LTS PREEMPT_RT Kernel
+
+   **Linux Intel LTS PREEMPT_RT kernel** is Intel's Long-Term-Support kernel with PREEMPT_RT patches
+
+   ```bash
+   sudo apt install -y linux-intel-rt
+   ```
+
+   <!--hide_directive:::
+   :::{tab-item}hide_directive--> Linux Intel LTS Xenomai Dovetail Kernel
+
+   **Linux Intel LTS Xenomai Dovetail kernel** is Intel's Long-Term-Support kernel with Xenomai patches
+
+   ```bash
+   sudo apt install -y eci-xenomai
+   ```
+
+   <!--hide_directive:::
+   ::::hide_directive-->
+
+   **Attention**: Please review [Canonical Intellectual property rights policy](https://canonical.com/legal/intellectual-property-policy) regarding Canonical® Ubuntu®. Note that any redistribution of modified versions of Canonical® Ubuntu® must be approved, certified or provided by Canonical if you are going to associate it with the Trademarks. Otherwise you must remove and replace the Trademarks and will need to recompile the source code to create your own binaries.
+
+5. Reboot the target system.
+
+   ```bash
+   sudo reboot
+   ```
+
+## Verify Benchmark Performance
+
+After installing the real-time Linux kernel, it's a good idea to benchmark the system to establish confidence that the system is properly configured. Perform either of the following commands to install [Cyclictest](https://git.kernel.org/pub/scm/utils/rt-tests/rt-tests.git). Cyclictest is most commonly used for benchmarking real-time systems. It is one of the most frequently used tools for evaluating the relative performance of an RT. Cyclictest accurately and repeatedly measures the difference between a thread's intended wake-up time and the time at which it actually wakes up to provide statistics about the system's latency. It can measure latency in real-time systems caused by the hardware, the firmware, and the operating system.
+
+Please use `rt-tests v2.6` to collect performance, which support to pin threads to specific isolate core and avoid main thread in same core with the measurement threads.
+
+Follow with below steps, you can find `cyclictest v2.6` in `rt-tests-2.6`:
+
+```bash
+wget https://web.git.kernel.org/pub/scm/utils/rt-tests/rt-tests.git/snapshot/rt-tests-2.6.tar.gz
+tar zxvf rt-tests-2.6.tar.gz
+cd rt-tests-2.6
+make
+```
+
+**Note**: Please ensure you had installed `libnuma-dev` as dependence before compilation.
+
+```bash
+sudo apt install libnuma-dev
+```
+
+An example command that runs the cyclictest benchmark as below:
+
+```bash
+cyclictest -mp 99 -t1 -a 13 -i 1000 --laptop -D 72h  -N --mainaffinity 12
+```
+
+Default parameters are used unless otherwise specified. Run `cyclictest --help` to list the modifiable arguments.
+
+| option | Explanation |
+|--------|-------------|
+| -p | priority of highest priority thread |
+| -t | one thread per available processor |
+| -a | Run thread #N on processor #N, or if CPUSET given, pin threads to that set of processors in round-robin order |
+| -i | base interval of thread in us default=1000 |
+| -D | specify a length for the test run |
+| -N | print results in ns instead of us (default us) |
+| --mainaffinity | Run the main thread on CPU #N. This only affects the main thread and not the measurement threads |
+| -m | lock current and future memory allocations |
+| --laptop | Not setting `cpu_dma_latency` to save battery, recommend using it when enabling per-core C-state disable. |
+
+On a **realtime-enabled** system, the result might be similar to the following:
+
+```console
+T: 0 ( 3407) P:99 I:1000 C: 100000 Min:      928 Act:   1376 Avg:   1154 Max:      18373
+```
+
+This result indicates an apparent short-term worst-case latency of 18 us. According to this, it is important to pay attention to the Max values as these are indicators of outliers. Even if the system has decent Avg (average) values, a single outlier as indicated by Max is enough to break or disturb a real-time system.
+
+If the real-time data is not good by default installation, please refer to [OS Setup](../prerequisites/os_setup.md) for BIOS optimization and [Optimize Performance](https://eci.intel.com/docs/3.3/development/performance.html) to optimize Linux OS and application runtime on Intel® Processors.

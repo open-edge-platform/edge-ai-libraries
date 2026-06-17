@@ -2,17 +2,16 @@
 
 A unified metrics collection, ingestion, and relay service that combines Telegraf-based system metrics with a flexible REST API for custom metrics. Supports multiple input formats including JSON, InfluxDB Line Protocol, and OpenTelemetry (OTLP).
 
-- **Get Started:** [docs/user-guide/get-started/installation.md](docs/user-guide/get-started/installation.md) — install and run in 5 minutes
-- **Full Documentation:** [docs/user-guide/index.md](docs/user-guide/index.md)
-- **Source code & docs:** <https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.1.0/microservices/metrics-manager>
-- **Issues / feature requests:** <https://github.com/open-edge-platform/edge-ai-libraries/issues> (use the `metrics-manager` label)
+- **Get Started:** [Get Started Guide](docs/user-guide/get-started.md) — install and run in 5 minutes
+- **Full Documentation:** [Documentation](docs/user-guide/index.md)
+- **Issues / feature requests:** [Edge AI Libraries Issues Page](https://github.com/open-edge-platform/edge-ai-libraries/issues) (use the `metrics-manager` label)
 - **Container image (Docker Hub):** [`intel/metrics-manager`](https://hub.docker.com/r/intel/metrics-manager) - tagged `intel/metrics-manager:<VERSION>` (e.g. `intel/metrics-manager:2026.1.0`)
-- **Helm chart (OCI):** `oci://registry-1.docker.io/intel/metrics-manager:<VERSION>-helm` (see [docs/user-guide/get-started/deploy-with-helm.md](docs/user-guide/get-started/deploy-with-helm.md))
+- **Helm chart (OCI):** `oci://registry-1.docker.io/intel/metrics-manager:<VERSION>-helm` (see [Helm Deployment Guide](./docs/user-guide/get-started/deploy-with-helm.md))
 
 ## Features
 
 - **System Metrics Collection**: CPU, memory, temperature, GPU (Intel GPUs via qmassa), Intel NPU (via PMT sysfs)
-- **Optional GPU exporter**: bundled `qmmd` Prometheus exporter (opt-in, see [docs/user-guide/get-started/environment-variables.md](docs/user-guide/get-started/environment-variables.md))
+- **Optional GPU exporter**: bundled `qmmd` Prometheus exporter (opt-in, see [Environment Variables](./docs/user-guide/get-started/environment-variables.md))
 - **REST API**: Push custom metrics via JSON, InfluxDB Line Protocol, or OpenTelemetry format
 - **SSE Streaming**: Real-time metrics streaming via Server-Sent Events (`GET /metrics/stream`)
 - **Prometheus Compatible**: Metrics endpoint for Prometheus scraping
@@ -23,35 +22,9 @@ A unified metrics collection, ingestion, and relay service that combines Telegra
 - **Memory Protection**: Automatic eviction when memory limits reached
 - **Graceful Shutdown**: Clean handling of SIGTERM/SIGINT signals
 
-## Architecture
+## Data Flow
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                              Metrics Manager                                     │
-│                                                                                  │
-│  ┌─────────────┐    ┌──────────────────┐    ┌───────────────────────────────┐    │
-│  │  Telegraf   │    │     FastAPI      │    │       Custom Metrics          │    │
-│  │  (System)   │--->│      Server      │<---│       REST API                │    │
-│  │             │    │                  │    │                               │    │
-│  │ • CPU       │    │ /metrics/stream  │    │ POST /api/v1/metrics          │    │
-│  │ • Memory    │    │ /metrics         │    │ POST /api/v1/metrics/simple   │    │
-│  │ • Temp      │    │ /health          │    │ POST /api/v1/metrics/influx   │    │
-│  │ • GPU       │    │                  │    │ POST /api/v1/metrics/otlp     │    │
-│  │ • NPU       │    │                  │    │                               │    │
-│  └─────────────┘    └────────┬─────────┘    └───────────────────────────────┘    │
-│                              │                                                   │
-│                              ▼                                                   │
-│                      ┌───────────────┐                                           │
-│                      │  SSE Clients  │                                           │
-│                      │  (dashboards) │                                           │
-│                      └───────────────┘                                           │
-│                                                                                  │
-│  Ports:                                                                          │
-│  • 9090: Metrics Manager API + SSE                                               │
-│  • 9273: Telegraf Prometheus metrics                                             │
-│  • 8186: Telegraf HTTP listener (InfluxDB Line Protocol)                         │
-└──────────────────────────────────────────────────────────────────────────────────┘
-```
+![Metrics Manager Runtime Dataflow](./docs/user-guide/_assets/metrics-mgr-runtime-topology-v2.drawio.svg "metrics manager runtime dataflow")
 
 ## Quick Start
 
@@ -109,7 +82,7 @@ docker run --rm --privileged \
   intel/metrics-manager:2026.1.0
 ```
 
-> On hosts that have **both** an Intel® GPU and NPU, add `--device
+> **Note:** On hosts that have **both** an Intel® GPU and NPU, add `--device
 > /dev/dri` to the NPU command above to enable qmassa as well.
 
 On hosts without an Intel® GPU or NPU the corresponding readers detect
@@ -164,7 +137,7 @@ helm install metrics-manager \
 
 The chart exposes Telegraf and the REST/SSE API as a `Service`, supports
 `Deployment` or `DaemonSet` mode, and integrates with Prometheus Operator
-via an opt-in `ServiceMonitor`. See [docs/user-guide/get-started/deploy-with-helm.md](docs/user-guide/get-started/deploy-with-helm.md) for the
+via an opt-in `ServiceMonitor`. See the [Helm Deployment Guide](./docs/user-guide/get-started/deploy-with-helm.md) for the
 complete reference.
 
 ## Building the Image
@@ -241,16 +214,16 @@ docker compose up --build -d
 needs the value duplicated in a handful of places because each format is
 read at a different time:
 
-| File | Used by | When read |
-|------|---------|-----------|
-| `VERSION` | `Makefile`, `app/__init__.py` (dynamic) | Build time and runtime |
-| `pyproject.toml` | `pip install .`, `python -m build` | Packaging |
-| `.env` / `.env.example` | `docker compose` (without Make) | Build time |
-| `compose.yaml` | `${TAG:-...}` and `VERSION:` build-arg fallbacks | Build time when no `TAG` env is set |
-| `app/settings.py` | Pydantic default for `/health` `version` field | Runtime fallback when `SERVICE_VERSION` env var is unset |
-| `app/logging_config.py` | Default `version` field in JSON log records | Runtime fallback |
-| `docs/DOCKERHUB.md` | Long description published on the Docker Hub page | Manual sync at release time |
-| `helm/metrics-manager/Chart.yaml` | Helm chart `version` (`<X.Y.Z>-helm`) and `appVersion` (`<X.Y.Z>`) | Build time when packaging the chart |
+| File                              | Used by                                                            | When read                                                |
+| --------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------- |
+| `VERSION`                         | `Makefile`, `app/__init__.py` (dynamic)                            | Build time and runtime                                   |
+| `pyproject.toml`                  | `pip install .`, `python -m build`                                 | Packaging                                                |
+| `.env` / `.env.example`           | `docker compose` (without Make)                                    | Build time                                               |
+| `compose.yaml`                    | `${TAG:-...}` and `VERSION:` build-arg fallbacks                   | Build time when no `TAG` env is set                      |
+| `app/settings.py`                 | Pydantic default for `/health` `version` field                     | Runtime fallback when `SERVICE_VERSION` env var is unset |
+| `app/logging_config.py`           | Default `version` field in JSON log records                        | Runtime fallback                                         |
+| `docs/DOCKERHUB.md`               | Long description published on the Docker Hub page                  | Manual sync at release time                              |
+| `helm/metrics-manager/Chart.yaml` | Helm chart `version` (`<X.Y.Z>-helm`) and `appVersion` (`<X.Y.Z>`) | Build time when packaging the chart                      |
 
 `make bump` keeps them all in sync so you don't have to remember.
 
@@ -359,28 +332,27 @@ metrics-manager/
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Get Started](docs/user-guide/get-started/installation.md) | Quick start guide and installation instructions |
-| [Installation](docs/user-guide/get-started/installation.md) | Step-by-step setup on a new machine, variants, integration examples |
-| [System Requirements](docs/user-guide/get-started/system-requirements.md) | Supported platforms and hardware requirements |
-| [Build from Source](docs/user-guide/get-started/build-from-source.md) | Building the metrics manager from source code |
-| [Environment Variables](docs/user-guide/get-started/environment-variables.md) | Configuration through environment variables and Telegraf config |
-| [Custom Metrics](docs/user-guide/get-started/custom-metrics.md) | Using the REST API for custom metrics |
-| [Deploy with Helm](docs/user-guide/get-started/deploy-with-helm.md) | Kubernetes deployment via the published OCI Helm chart |
-| [API Reference](docs/user-guide/api-reference.md) | All endpoints, formats, examples, response models |
-| [How It Works](docs/user-guide/how-it-works.md) | Architecture, data flow, and component relationships |
-| [Testing](docs/user-guide/get-started/testing.md) | Unit tests, smoke tests, development setup |
-| [Troubleshooting](docs/user-guide/troubleshooting.md) | Common issues and solutions |
-| [Release Notes](docs/user-guide/release-notes.md) | Version history and changelog |
-
-## License
-
-Copyright (C) 2025-2026 Intel Corporation
-SPDX-License-Identifier: Apache-2.0
+| Document                                                                        | Description                                                         |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [Get Started](./docs/user-guide/get-started.md)                                 | Step-by-step setup on a new machine, variants, integration examples |
+| [System Requirements](./docs/user-guide/get-started/system-requirements.md)     | Supported platforms and hardware requirements                       |
+| [Build from Source](./docs/user-guide/get-started/build-from-source.md)         | Building the metrics manager from source code                       |
+| [Environment Variables](./docs/user-guide/get-started/environment-variables.md) | Configuration through environment variables and Telegraf config     |
+| [Custom Metrics](./docs/user-guide/get-started/custom-metrics.md)               | Using the REST API for custom metrics                               |
+| [Deploy with Helm](./docs/user-guide/get-started/deploy-with-helm.md)           | Kubernetes deployment via the published OCI Helm chart              |
+| [Testing](./docs/user-guide/get-started/testing.md)                             | Unit tests, smoke tests, development setup                          |
+| [How It Works](./docs/user-guide/how-it-works.md)                               | Architecture, data flow, and component relationships                |
+| [API Reference](./docs/user-guide/api-reference.md)                             | All endpoints, formats, examples, response models                   |
+| [Troubleshooting](./docs/user-guide/troubleshooting.md)                         | Common issues and solutions                                         |
+| [Release Notes](./docs/user-guide/release-notes.md)                             | Version history and changelog                                       |
 
 ## Reporting issues
 
 Please open issues and feature requests in the upstream repository:
 <https://github.com/open-edge-platform/edge-ai-libraries/issues>
 (label them `metrics-manager`).
+
+## License
+
+Copyright (C) 2025-2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0

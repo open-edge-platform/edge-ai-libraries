@@ -5,4 +5,4 @@ apiVersion: v2
 name: vssui
 description: The Helm chart for VSS UI
 type: application
-version: 2026.1.0-rc1-helm
+version: 2026.1.0-helm

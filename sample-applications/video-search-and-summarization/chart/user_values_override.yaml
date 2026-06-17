@@ -37,7 +37,7 @@ global:
   # Set a model appropriate for your deployment mode:
   #   - Search-only and Dual mode: use a multimodal model, e.g., "CLIP/clip-vit-b-32"
   #   - Unified mode: use a text embedding model, e.g., "QwenText/qwen3-embedding-0.6b"
-  # See supported models: https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md
+  # See supported models: https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.1.0/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md
   embeddingModelName: ""
 
   # Per-service device configuration

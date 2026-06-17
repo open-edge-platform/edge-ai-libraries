@@ -14,7 +14,7 @@ Before starting the Edge Node deployment, perform the following steps:-
 
 - System bootable to a fresh Ubuntu 24.04 LTS Version.
 - Internet connectivity is available on the Node
-- The target node(s) hostname must be in lowercase, numerals, and hyphen’ – ‘. 
+- The target node(s) hostname must be in lowercase, numerals, and hyphen’ – ‘.
   - For example: wrk-8 is acceptable; wrk_8, WRK8, and Wrk^8 are not accepted as hostnames.
 - Required proxy settings must be added to the /etc/environment file.
 - Below are the BIOS settings to enable the secure boot.
@@ -31,13 +31,13 @@ Before starting the Edge Node deployment, perform the following steps:-
 ## Step 2: Download the script
 
 1. Click on Download here to get the downloadable link to the Intel® Edge device Enablement Framework script. <br>
-<a href="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/frameworks/edgedevice-enablement-framework/base/va_enablement_node_profile/va_enablement_node_profile.sh" style="display: inline-block; padding: 10px 20px; font-size: 16px; font-weight: bold; color: white; background-color: #007bff; text-align: center; text-decoration: none; border-radius: 5px; border: none;">Download</a>
+<a href="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.1.0/frameworks/edgedevice-enablement-framework/base/va_enablement_node_profile/va_enablement_node_profile.sh" style="display: inline-block; padding: 10px 20px; font-size: 16px; font-weight: bold; color: white; background-color: #007bff; text-align: center; text-decoration: none; border-radius: 5px; border: none;">Download</a>
 
 2. Download the file using wget.
 
    Example:
    ```
-   wget https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/frameworks/edgedevice-enablement-framework/base/va_enablement_node_profile/va_enablement_node_profile.sh 
+   wget https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.1.0/frameworks/edgedevice-enablement-framework/base/va_enablement_node_profile/va_enablement_node_profile.sh
    ```
 
 ## Step 3: Execution and Command-line options
@@ -71,7 +71,7 @@ Before starting the Edge Node deployment, perform the following steps:-
 - Execute it with --help/-h for checking the availability of any additional use case support
    ```bash
    ./va_enablement_node_profile.sh -h
-   ``` 
+   ```
 
 > Please refer to below secure config details-
 
@@ -105,7 +105,7 @@ Once the Installer script execution has completed, user can follow below steps t
 <details>
  <summary><code><b>Time of Day (TOD) Provisioning</b></code></summary>
 
-The TOD allows power management provisioning to save power at a specific time of day and delivers power savings during non-peak hours on the Edge device using the Intel® Infrastructure Power Manager (IPM) . 
+The TOD allows power management provisioning to save power at a specific time of day and delivers power savings during non-peak hours on the Edge device using the Intel® Infrastructure Power Manager (IPM) .
 The user needs to download the [Time of Day Provisioning software package](https://www.intel.com/content/www/us/en/secure/content-details/828016/time-of-day-provisioning-with-intel-tiber-edge-platform.html?DocID=828016)  and the technology guide which is available through the same link as shown in the Figure. To deploy this feature, the user needs to follow the instructions mentioned in Chapter 9 of the TOD technology guide.
 
 ![TOD](_images/tod.png)

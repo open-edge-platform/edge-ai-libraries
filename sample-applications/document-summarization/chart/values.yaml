@@ -14,7 +14,9 @@ global:
     llmModelId: "microsoft/Phi-3.5-mini-instruct"
     llmEndpointUrl: "http://ovms-service:8300"
   backendApi:
-    url: "http://docsum-api:8090/v1/docsum"
+    host: "docsum-api"
+    port: 8090
+    path: "/v1/docsum"
   ovms:
     weightFormat: "int8"
     targetDevice: "CPU"

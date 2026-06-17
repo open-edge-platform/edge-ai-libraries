@@ -39,7 +39,6 @@ The sample application has been validated with a few models just to validate the
 
    | Model Server | Models Validated |
    |--------------|------------------|
-   | `TEI` | `Alibaba-NLP/gte-large-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5` |
    | `OVMS` | `Alibaba-NLP/gte-large-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5` |
 
 ### LLM Models validated for each model server
@@ -84,8 +83,8 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
    ```bash
    # Clone the latest on mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   # Alternatively, Clone the release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.1.0
    ```
 
    Note: Adjust the repo link appropriately in case of forked repo.
@@ -146,7 +145,7 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
     source setup.sh llm=<model-server> embed=<embedding>
     # Below are the options
     # model-server: VLLM(deprecated) , OVMS, TGI(deprecated)
-    # embedding: OVMS, TEI
+    # embedding: OVMS
     ```
 
 5. **Start the Application**:

@@ -102,6 +102,100 @@ def fetch_videos(session: requests.Session) -> list[JsonDict]:
     return payload
 
 
+def check_video_input_exists(session: requests.Session, filename: str) -> JsonDict:
+    """Call ``GET /videos/check-video-input-exists?filename=...``.
+
+    The endpoint always returns ``200``; the payload carries the ``exists``
+    boolean. Tests use it to assert both the truthy and falsy branches.
+    """
+    response = session.get(
+        f"{BASE_URL}/videos/check-video-input-exists",
+        params={"filename": filename},
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def upload_video(
+    session: requests.Session,
+    filename: str,
+    payload: bytes,
+    *,
+    content_type: str = "video/mp4",
+) -> requests.Response:
+    """POST ``payload`` as a video file to ``/videos/upload``.
+
+    Returns the raw ``requests.Response`` so callers can assert both the
+    success path (201 + ``Video`` body) and any of the structured 422
+    rejection bodies.
+    """
+    files = {"file": (filename, payload, content_type)}
+    response = session.post(f"{BASE_URL}/videos/upload", files=files, timeout=120)
+    logger.info(
+        "POST /videos/upload filename=%s status=%d", filename, response.status_code
+    )
+    return response
+
+
+def fetch_image_sets(session: requests.Session) -> list[JsonDict]:
+    """Return the raw list of image sets from GET /images."""
+    logger.info("Fetching image sets from %s/images", BASE_URL)
+    response = session.get(f"{BASE_URL}/images", timeout=30)
+    response.raise_for_status()
+    payload = response.json()
+    assert isinstance(payload, list), (
+        f"Expected list response, got {type(payload).__name__}"
+    )
+    logger.info("Retrieved %d image sets", len(payload))
+    return payload
+
+
+def check_image_set_exists(session: requests.Session, name: str) -> JsonDict:
+    """Call ``GET /images/check-image-set-exists?name=...``.
+
+    Always returns 200; the payload contains an ``exists`` boolean.
+    """
+    response = session.get(
+        f"{BASE_URL}/images/check-image-set-exists",
+        params={"name": name},
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def list_images_in_set(session: requests.Session, name: str) -> requests.Response:
+    """Call ``GET /images/{name}``.
+
+    Returns the raw response so callers can assert both 200 (with a list
+    payload) and 404 (with a ``MessageResponse`` body).
+    """
+    response = session.get(f"{BASE_URL}/images/{name}", timeout=30)
+    logger.info("GET /images/%s status=%d", name, response.status_code)
+    return response
+
+
+def upload_image_archive(
+    session: requests.Session,
+    filename: str,
+    payload: bytes,
+    *,
+    content_type: str = "application/octet-stream",
+) -> requests.Response:
+    """POST ``payload`` as an image archive to ``/images/upload``.
+
+    Returns the raw response so callers can assert both 201 success and
+    the various structured 422 rejection bodies.
+    """
+    files = {"file": (filename, payload, content_type)}
+    response = session.post(f"{BASE_URL}/images/upload", files=files, timeout=120)
+    logger.info(
+        "POST /images/upload filename=%s status=%d", filename, response.status_code
+    )
+    return response
+
+
 def fetch_models(session: requests.Session) -> list[JsonDict]:
     """Return the raw list of models from GET /models."""
     logger.info("Fetching models from %s/models", BASE_URL)
@@ -354,3 +448,133 @@ def run_job_with_retry(
         time.sleep(retry_delay_seconds)
         status = attempt_fn()
     return status
+
+
+# --------------------------------------------------------------------------- #
+# Model management helpers (downloads, uploads, job polling).
+# --------------------------------------------------------------------------- #
+
+
+# OMZ downloads in CI can be slow; allow generous default.
+MODEL_DOWNLOAD_TIMEOUT_SECONDS: float = 120.0
+
+
+def start_model_download(
+    session: requests.Session, names: list[str]
+) -> requests.Response:
+    """POST ``/models/download`` with the batch body ``{"names": [...]}``.
+
+    Returns the raw response so callers can branch on the aggregate
+    status code (202 / 207 / 400 / 404 / 409).
+    """
+    response = session.post(
+        f"{BASE_URL}/models/download", json={"names": names}, timeout=60
+    )
+    logger.info("POST /models/download names=%s status=%d", names, response.status_code)
+    return response
+
+
+def fetch_model_jobs(session: requests.Session) -> list[JsonDict]:
+    """Return the list from ``GET /jobs/models/status``."""
+    response = session.get(f"{BASE_URL}/jobs/models/status", timeout=30)
+    response.raise_for_status()
+    payload = response.json()
+    assert isinstance(payload, list), (
+        f"Expected list response, got {type(payload).__name__}"
+    )
+    return payload
+
+
+def get_model_job_summary(session: requests.Session, job_id: str) -> requests.Response:
+    """Return the raw response of ``GET /jobs/models/{job_id}``."""
+    response = session.get(f"{BASE_URL}/jobs/models/{job_id}", timeout=30)
+    logger.info("GET /jobs/models/%s status=%d", job_id, response.status_code)
+    return response
+
+
+def get_model_job_status(session: requests.Session, job_id: str) -> requests.Response:
+    """Return the raw response of ``GET /jobs/models/{job_id}/status``."""
+    response = session.get(f"{BASE_URL}/jobs/models/{job_id}/status", timeout=30)
+    logger.info("GET /jobs/models/%s/status status=%d", job_id, response.status_code)
+    return response
+
+
+def wait_for_model_download_completion(
+    session: requests.Session,
+    job_id: str,
+    *,
+    timeout: float = MODEL_DOWNLOAD_TIMEOUT_SECONDS,
+    poll_interval: float = POLL_INTERVAL_SECONDS,
+) -> JsonDict:
+    """Poll the model download job until it leaves ``RUNNING`` state.
+
+    Returns the final status payload (``COMPLETED`` or ``FAILED``).
+    Fails the test if the job is still ``RUNNING`` after ``timeout``.
+    """
+    deadline = time.monotonic() + timeout
+    last_status: JsonDict = {}
+    while time.monotonic() < deadline:
+        response = get_model_job_status(session, job_id)
+        if response.status_code == 404:
+            pytest.fail(
+                f"Model job {job_id} disappeared before reaching a terminal state"
+            )
+        response.raise_for_status()
+        last_status = response.json()
+        state = last_status.get("state")
+        logger.info(
+            "Model job %s state=%s elapsed=%s",
+            job_id,
+            state,
+            last_status.get("elapsed_time"),
+        )
+        if state != "RUNNING":
+            return last_status
+        time.sleep(poll_interval)
+
+    pytest.fail(
+        f"Model job {job_id} did not finish within {timeout:.0f}s "
+        f"(last state={last_status.get('state')!r})"
+    )
+
+
+def upload_model_file(
+    session: requests.Session,
+    model_name: str,
+    category: str,
+    payload: bytes,
+    *,
+    filename: str | None = None,
+    content_type: str = "application/zip",
+) -> requests.Response:
+    """POST a multipart upload to ``/models/upload``.
+
+    ``filename`` defaults to ``"<model_name>.zip"`` so the server has a
+    stable basename to log/track. Returns the raw response so callers
+    can assert both the 201 happy path and the 4xx/5xx error cases.
+    """
+    files = {"file": (filename or f"{model_name}.zip", payload, content_type)}
+    data = {"model_name": model_name, "category": category}
+    response = session.post(
+        f"{BASE_URL}/models/upload", data=data, files=files, timeout=120
+    )
+    logger.info(
+        "POST /models/upload model_name=%s category=%s status=%d",
+        model_name,
+        category,
+        response.status_code,
+    )
+    return response
+
+
+def find_model_in_list(
+    models: list[JsonDict], name_or_display_name: str
+) -> JsonDict | None:
+    """Return the first model whose ``name`` or ``display_name`` matches."""
+    for entry in models:
+        if (
+            entry.get("name") == name_or_display_name
+            or entry.get("display_name") == name_or_display_name
+        ):
+            return entry
+    return None

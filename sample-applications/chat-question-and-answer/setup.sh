@@ -130,13 +130,13 @@ export WEIGHT_FORMAT=int8
 if [[ -n "$REGISTRY" && -n "$TAG" ]]; then
   export BE_IMAGE_NAME="${REGISTRY}chatqna:${TAG}"
 else
-  export BE_IMAGE_NAME="chatqna:latest"
+  export BE_IMAGE_NAME="chatqna:2026.1.0-rc1"
 fi
 
 if [[ -n "$REGISTRY" && -n "$TAG" ]]; then
-  export FE_IMAGE_NAME="${REGISTRY:-}chatqna-ui:${TAG:-latest}"
+  export FE_IMAGE_NAME="${REGISTRY:-}chatqna-ui:${TAG}"
 else
-  export FE_IMAGE_NAME="chatqna-ui:latest"
+  export FE_IMAGE_NAME="chatqna-ui:2026.1.0-rc1"
 fi
 
 #GPU Configuration

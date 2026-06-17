@@ -106,6 +106,78 @@ class InternalOptimizationType(str, Enum):
     OPTIMIZE = "optimize"
 
 
+class InternalModelInstallStatus(str, Enum):
+    """
+    Internal representation of model install status.
+
+    Values:
+        INSTALLED: Model is present on disk and ready to use.
+        NOT_INSTALLED: Model is supported but not present on disk.
+        INSTALLING: Model is currently being downloaded/installed.
+        FAILED: Most recent install attempt failed.
+    """
+
+    INSTALLED = "installed"
+    NOT_INSTALLED = "not_installed"
+    INSTALLING = "installing"
+    FAILED = "failed"
+
+
+class InternalModelSource(str, Enum):
+    """
+    Internal representation of the upstream hub a model comes from.
+
+    Mirrors the ``hub`` field exposed by the model-download microservice
+    plus the additional ``CUSTOM`` value used for user-uploaded models.
+
+    Values:
+        HUGGINGFACE: HuggingFace Hub.
+        ULTRALYTICS: Ultralytics model zoo.
+        PIPELINE_ZOO_MODELS: OpenVINO Pipeline Zoo models.
+        OMZ: OpenVINO Open Model Zoo (handled locally by vippet-app
+            until the ``models`` container is removed).
+        CUSTOM: User-uploaded model.
+    """
+
+    HUGGINGFACE = "huggingface"
+    ULTRALYTICS = "ultralytics"
+    PIPELINE_ZOO_MODELS = "pipeline-zoo-models"
+    OMZ = "omz"
+    CUSTOM = "custom"
+
+
+class InternalModelCategory(str, Enum):
+    """
+    Internal representation of model category.
+
+    Values:
+        CLASSIFICATION: Classification model.
+        DETECTION: Detection model.
+        GENAI: Generative AI model (e.g. VLM/LLM).
+    """
+
+    CLASSIFICATION = "classification"
+    DETECTION = "detection"
+    GENAI = "genai"
+
+
+class InternalModelDownloadJobState(str, Enum):
+    """
+    Internal representation of a model download job state.
+
+    Mirrors optimization/validation job state machines (no CANCELLED).
+
+    Values:
+        RUNNING: Download is in progress (polling model-download).
+        COMPLETED: Download finished successfully and files are on disk.
+        FAILED: Download finished unsuccessfully.
+    """
+
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
 class InternalCameraType(str, Enum):
     """
     Internal representation of camera type.
@@ -903,3 +975,188 @@ class InternalCamera:
     device_name: str
     device_type: InternalCameraType
     details: Union[InternalUSBCameraDetails, InternalNetworkCameraDetails]
+
+
+@dataclass
+class InternalModelPrecision:
+    """
+    Internal representation of a single model precision variant.
+
+    Attributes:
+        precision: Precision label (e.g. "FP32", "FP16", "INT8", "FP16-INT8", "INT4").
+        model_path: Filesystem path to the model file (.xml) or, for genai
+            models, a directory. Absolute path resolved against ``MODELS_PATH``.
+    """
+
+    precision: str
+    model_path: str
+
+
+@dataclass
+class InternalModelVariant:
+    """
+    Internal representation of a single selectable model variant.
+
+    A variant identifies one concrete (model, precision, model-proc)
+    combination as exposed to the pipeline builder. Unlike
+    ``InternalModelPrecision`` (which carries on-disk paths and is used
+    for install-status / registry bookkeeping), this type is purely
+    API-shaped and intentionally carries no filesystem paths.
+
+    Attributes:
+        name: Stable per-variant identifier (matches
+            ``SupportedModel.name``, e.g. ``efficientnet-b0_INT8``).
+        display_name: Human-readable variant label with precision
+            suffix (and optional ``[model-proc: ...]``), suitable as a
+            dropdown value in the pipeline builder.
+        precision: Precision label of the variant.
+        installed: Whether the underlying artefacts for this exact
+            variant are present on disk. Used by the pipeline builder
+            to filter the model dropdown to ready-to-use entries.
+    """
+
+    name: str
+    display_name: str
+    precision: str
+    installed: bool = False
+
+
+@dataclass
+class InternalSupportedModel:
+    """
+    Internal representation of one entry in ``supported_models.yaml``
+    enriched with runtime state (install status, recommendation).
+
+    The route layer maps this into the API ``Model`` schema.
+
+    Attributes:
+        name: Unique internal identifier of the model.
+        display_name: Human-readable name shown in the UI.
+        category: Model category (classification/detection/genai).
+        source: Origin hub of the model (huggingface, ultralytics, ...).
+        precisions: Internal precision records (with filesystem paths)
+            used by the install-status / registry logic. **Not exposed
+            via the API** — see ``variants`` for the API-facing list.
+        variants: Selectable variants of the canonical model (one per
+            precision and optional ``extra_model_procs`` entry). Used
+            by the pipeline-builder dropdown.
+        install_status: Current install status (installed / not_installed /
+            installing / failed).
+        used_by_pipelines: List of predefined-pipeline ids that reference
+            this model. Empty list means the model is not recommended.
+        default: Whether this model is marked as a default choice in
+            ``supported_models.yaml`` (internal-only; not exposed via API).
+        unsupported_devices: Comma-separated string of devices on which
+            the model cannot run (e.g. "NPU"). ``None`` when no
+            restrictions exist.
+        download_request: Body fragment (or full body) to POST to the
+            model-download microservice in order to install this model.
+            ``None`` when no automated download is wired up yet.
+    """
+
+    name: str
+    display_name: str
+    category: InternalModelCategory | None
+    source: InternalModelSource
+    precisions: list[InternalModelPrecision]
+    install_status: InternalModelInstallStatus
+    variants: list[InternalModelVariant] = field(default_factory=list)
+    used_by_pipelines: list[str] = field(default_factory=list)
+    default: bool = False
+    unsupported_devices: str | None = None
+    download_request: dict[str, Any] | None = None
+
+
+@dataclass
+class InternalModelUploadSpec:
+    """
+    Internal representation of a model upload request.
+
+    Holds the validated multipart inputs that are forwarded to
+    model-download together with the local-only ``category`` field used
+    by vippet-app to track where the model can be used in the UI.
+
+    Attributes:
+        model_name: Canonical name the model should be registered under.
+            Forwarded to model-download as the model name.
+        category: Logical model category (classification/detection/genai).
+        file_path: Absolute path to a temporary file on disk holding the
+            uploaded model payload (vippet-app streams it to
+            model-download).
+        original_filename: Original filename provided by the client,
+            kept only for logging.
+    """
+
+    model_name: str
+    category: InternalModelCategory
+    file_path: str
+    original_filename: str
+
+
+@dataclass
+class InternalModelDownloadRequest:
+    """
+    Internal representation of a model download request.
+
+    Attributes:
+        name: Supported model name (must exist in supported_models.yaml).
+    """
+
+    name: str
+
+
+@dataclass
+class InternalModelDownloadJobStatus:
+    """
+    Internal state of a single model download job.
+
+    Mirrors the optimization/validation job pattern: no cancellation, jobs
+    live in memory only. ``external_job_ids`` is kept internal and is not
+    exposed by the API.
+
+    Attributes:
+        id: Vippet-side job identifier.
+        model_name: Name of the supported model being installed.
+        source: Origin hub the model is being downloaded from.
+        state: Current job state.
+        start_time: Job start time in milliseconds since epoch.
+        end_time: Job end time in milliseconds since epoch (None if running).
+        details: Human-readable messages for the current state. Cleared on
+            state transition.
+        progress_message: Last status text reported by model-download
+            (or by the local OMZ downloader).
+        model_path: Absolute filesystem path to the installed model,
+            populated only when the job completes successfully.
+        external_job_ids: Job ids returned by the model-download
+            microservice; not exposed via the API (internal only).
+    """
+
+    id: str
+    model_name: str
+    source: InternalModelSource
+    state: InternalModelDownloadJobState
+    start_time: int
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    progress_message: str | None = None
+    model_path: str | None = None
+    external_job_ids: list[str] = field(default_factory=list)
+
+
+@dataclass
+class InternalModelDownloadJobSummary:
+    """
+    Short summary of a model download job.
+
+    Used by ``ModelManager`` for summary queries; converted to the API
+    ``ModelDownloadJobSummary`` schema in the route layer.
+
+    Attributes:
+        id: Job identifier.
+        model_name: Name of the supported model being installed.
+        source: Origin hub the model is being downloaded from.
+    """
+
+    id: str
+    model_name: str
+    source: InternalModelSource

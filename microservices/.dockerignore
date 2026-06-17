@@ -1,0 +1,10 @@
+# Keep microservices-root build context lean for VDMS builds.
+multimodal-embedding-serving/ov_models/
+multimodal-embedding-serving/.venv/
+multimodal-embedding-serving/.pytest_cache/
+multimodal-embedding-serving/__pycache__/
+multimodal-embedding-serving/src/__pycache__/
+multimodal-embedding-serving/tests/
+multimodal-embedding-serving/docs/
+multimodal-embedding-serving/examples/
+multimodal-embedding-serving/dist/

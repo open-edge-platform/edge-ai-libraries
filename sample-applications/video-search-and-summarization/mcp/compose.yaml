@@ -28,7 +28,7 @@ services:
     restart: unless-stopped
 
   mcp-inspector:
-    image: ghcr.io/modelcontextprotocol/inspector:latest
+    image: ghcr.io/modelcontextprotocol/inspector:0.21.2-hotfix-3
     container_name: vss-mcp-inspector
     network_mode: host
     environment:

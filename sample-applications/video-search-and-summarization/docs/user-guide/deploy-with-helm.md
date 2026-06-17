@@ -27,7 +27,7 @@ There are 2 options to get the charts in your workspace:
 Use the following command to pull the Helm chart from Docker Hub:
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version 2026.1.0-rc1-helm
+helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version 2026.1.0-helm
 ```
 
 ##### Step 2: Extract the `.tgz` File
@@ -35,7 +35,7 @@ helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --vers
 After pulling the chart, extract the `.tgz` file:
 
 ```bash
-tar -xvf video-search-and-summarization-2026.1.0-rc1-helm.tgz
+tar -xvf video-search-and-summarization-2026.1.0-helm.tgz
 ```
 
 This will create a directory named `video-search-and-summarization` containing the chart files. Navigate to the extracted directory to access the charts.
@@ -453,7 +453,7 @@ If not set while installing the chart, all services will claim a default amount 
 - Ensure that all pods are running and the services are accessible.
 - Access the Video Summarization application dashboard and verify that it is functioning as expected.
 - Upload a test video to verify that the ingestion, processing, and summarization pipeline works correctly.
-- Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, audio analyzer) are functioning properly.
+- Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, Audio Analyzer) are functioning properly.
 
 ## Troubleshooting
 

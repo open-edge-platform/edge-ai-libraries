@@ -28,7 +28,7 @@ const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => {
             <>
               {data.device && <span className="text-node-separator">•</span>}
               <span
-                className="truncate max-w-[11.5625rem]"
+                className="truncate max-w-[10.75rem]"
                 title={data.model.split("/").pop() ?? data.model}
               >
                 {data.model.split("/").pop() ?? data.model}

@@ -1,5 +1,5 @@
 # Reference: This is the official reference for Pallet Defect Detection pipeline
-# https://github.com/open-edge-platform/edge-ai-suites/blob/main/manufacturing-ai-suite/industrial-edge-insights-vision/apps/pallet-defect-detection
+# https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.1.0/manufacturing-ai-suite/industrial-edge-insights-vision/apps/pallet-defect-detection
 name: Defect Detection
 definition: >
   AI-powered pipeline for automatic pallet defect detection using machine vision, enabling efficient quality control in manufacturing.
@@ -30,6 +30,29 @@ variants:
         model=/models/output/public/pallet_defect_detection/INT8/pallet_defect_detection.xml
         device=GPU
         pre-process-backend=va-surface-sharing
+        model-instance-id=instgpu0
+        inference-region=full-frame
+        inference-interval=1
+        batch-size=8
+        nireq=2
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        threshold=0.7 !
+      queue !
+      gvawatermark !
+      gvametaconvert add-empty-results=true !
+      queue !
+      gvafpscounter starting-frame=100 !
+      fakesink name=default_output_sink
+  - name: GPU (WSL)
+    pipeline_description: >-
+      filesrc location=/videos/input/warehouse.avi !
+      parsebin !
+      avdec_h264 !
+      video/x-raw !
+      gvadetect
+        model=/models/output/public/pallet_defect_detection/INT8/pallet_defect_detection.xml
+        device=GPU
+        pre-process-backend=opencv
         model-instance-id=instgpu0
         inference-region=full-frame
         inference-interval=1

@@ -104,7 +104,7 @@ pipelinemanager:
     runAsGroup: 0
   image:
     repository: intel/pipeline-manager
-    tag: "2026.1.0-rc1"
+    tag: "2026.1.0"
     pullPolicy: IfNotPresent
   containerPortName: videosumm-port # Optional name to refer containerPort
   service:

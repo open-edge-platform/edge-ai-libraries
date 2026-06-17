@@ -411,8 +411,76 @@ def write_video_summary_metrics_summary_to_csv(report_dir, latencies, ttft, tps,
     except Exception as e:
         print(f"Unexpected error writing video summary metrics: {e}")
 
+## Telemetry kpi not applicable for ovms model server (Old implementation)
+# def get_video_summary_telemetry_kpis(start_time, end_time, telemetry_json_response, video_properties):
+#     """
+#     Extract and calculate video summarization telemetry KPIs from telemetry response data.
+    
+#     Args:
+#         start_time: Start timestamp of the summarization.
+#         end_time: End timestamp of the summarization.
+#         telemetry_json_response: JSON response from telemetry API.
+#         video_properties: Dictionary to store video metrics.
+        
+#     Returns:
+#         tuple: (video_properties, telemetry_details)
+#     """
+#     from common.video import convert_timestamp_to_float
+    
+#     try:
+#         ttfts, latencies, tpss = {}, {}, []
+#         timestamps, prompt_tokens, output_tokens, total_tokens, tpots = [], [], [], [], []
+#         telemetry_details = []
+#         items = telemetry_json_response.get("items", [])
 
-def get_video_summary_telemetry_kpis(start_time, end_time, telemetry_json_response, video_properties):
+#         for item in items:
+#             timestamp = convert_timestamp_to_float(item.get("timestamp"))
+#             if start_time <= timestamp:
+#                 timestamps.append(timestamp)
+#                 telemetry_details.append(item)
+#                 kpis = item.get("telemetry", {})
+#                 ttfts[timestamp] = kpis.get("ttft_ms", 0)
+#                 latencies[timestamp] = kpis.get("generate_time_ms", 0)
+#                 tpss.append(kpis.get("throughput_tps", 0))
+#                 prompt_tokens.append(kpis.get("prompt_tokens", 0))
+#                 output_tokens.append(kpis.get("completion_tokens", 0))
+#                 total_tokens.append(kpis.get("total_tokens", 0))
+#                 tpots.append(kpis.get("tpot_ms", 0))
+        
+#         # Calculate metrics from telemetry data
+#         min_timestamp = min(timestamps)
+#         ttft = ttfts.get(min_timestamp, 0)
+#         late = latencies.get(min_timestamp, 0) / 1000  # Convert to seconds
+#         delta = (min_timestamp - late) - start_time
+#         tps = sum(tpss) / len(tpss) if len(tpss) > 0 else 0
+#         avg_input_tokens = sum(prompt_tokens) / len(prompt_tokens) if len(prompt_tokens) > 0 else 0
+#         avg_output_tokens = sum(output_tokens) / len(output_tokens) if len(output_tokens) > 0 else 0
+#         avg_total_tokens = sum(total_tokens) / len(total_tokens) if len(total_tokens) > 0 else 0
+#         tpot = sum(tpots) / len(tpots) if len(tpots) > 0 else 0
+#         e2e_summary_latency = end_time - start_time
+#         rtf = e2e_summary_latency / (video_properties.get('File_Duration (s)', 1))
+#         complexity = (video_properties.get('File_videoFPS', 0) * video_properties.get('File_Duration (s)', 0)) / e2e_summary_latency
+
+#         # Write metrics to video properties
+#         video_properties['Average_Prompt_Tokens'] = avg_input_tokens
+#         video_properties['Average_Completion_Tokens'] = avg_output_tokens
+#         video_properties['Average_Total_Tokens'] = avg_total_tokens
+#         video_properties['Average_Time_Per_Output_Token (s)'] = tpot / 1000
+#         video_properties['Time To First Token (s)'] = ttft / 1000
+#         video_properties['Throughput (tokens/sec)'] = tps
+#         video_properties['Video Summary Pre ProcessingTime (s)'] = delta
+#         video_properties['Video Summary E2E Latency (s)'] = e2e_summary_latency
+#         video_properties['Video Summarization RTF (latency/duration)'] = rtf
+#         video_properties['Video Summary Processing Efficiency ((fps*duration)/latency)'] = complexity
+
+#         return video_properties, telemetry_details
+
+#     except Exception as e:
+#         print(f"Unexpected error in get_video_summary_telemetry_kpis: {e}")
+#         return video_properties, []
+
+
+def get_video_summary_telemetry_kpis(start_time, end_time, chunk_completion_time, video_properties):
     """
     Extract and calculate video summarization telemetry KPIs from telemetry response data.
     
@@ -428,58 +496,25 @@ def get_video_summary_telemetry_kpis(start_time, end_time, telemetry_json_respon
     from common.video import convert_timestamp_to_float
     
     try:
-        ttfts, latencies, tpss = {}, {}, []
-        timestamps, prompt_tokens, output_tokens, total_tokens, tpots = [], [], [], [], []
-        telemetry_details = []
-        items = telemetry_json_response.get("items", [])
-
-        for item in items:
-            timestamp = convert_timestamp_to_float(item.get("timestamp"))
-            if start_time <= timestamp:
-                timestamps.append(timestamp)
-                telemetry_details.append(item)
-                kpis = item.get("telemetry", {})
-                ttfts[timestamp] = kpis.get("ttft_ms", 0)
-                latencies[timestamp] = kpis.get("generate_time_ms", 0)
-                tpss.append(kpis.get("throughput_tps", 0))
-                prompt_tokens.append(kpis.get("prompt_tokens", 0))
-                output_tokens.append(kpis.get("completion_tokens", 0))
-                total_tokens.append(kpis.get("total_tokens", 0))
-                tpots.append(kpis.get("tpot_ms", 0))
-        
-        # Calculate metrics from telemetry data
-        min_timestamp = min(timestamps)
-        ttft = ttfts.get(min_timestamp, 0)
-        late = latencies.get(min_timestamp, 0) / 1000  # Convert to seconds
-        delta = (min_timestamp - late) - start_time
-        tps = sum(tpss) / len(tpss) if len(tpss) > 0 else 0
-        avg_input_tokens = sum(prompt_tokens) / len(prompt_tokens) if len(prompt_tokens) > 0 else 0
-        avg_output_tokens = sum(output_tokens) / len(output_tokens) if len(output_tokens) > 0 else 0
-        avg_total_tokens = sum(total_tokens) / len(total_tokens) if len(total_tokens) > 0 else 0
-        tpot = sum(tpots) / len(tpots) if len(tpots) > 0 else 0
+        # Calculate metrics from telemetry data        
         e2e_summary_latency = end_time - start_time
         rtf = e2e_summary_latency / (video_properties.get('File_Duration (s)', 1))
         complexity = (video_properties.get('File_videoFPS', 0) * video_properties.get('File_Duration (s)', 0)) / e2e_summary_latency
 
         # Write metrics to video properties
-        video_properties['Average_Prompt_Tokens'] = avg_input_tokens
-        video_properties['Average_Completion_Tokens'] = avg_output_tokens
-        video_properties['Average_Total_Tokens'] = avg_total_tokens
-        video_properties['Average_Time_Per_Output_Token (s)'] = tpot / 1000
-        video_properties['Time To First Token (s)'] = ttft / 1000
-        video_properties['Throughput (tokens/sec)'] = tps
-        video_properties['Video Summary Pre ProcessingTime (s)'] = delta
+        video_properties['Video Summary Pre ProcessingTime (s)'] = chunk_completion_time - start_time
         video_properties['Video Summary E2E Latency (s)'] = e2e_summary_latency
         video_properties['Video Summarization RTF (latency/duration)'] = rtf
         video_properties['Video Summary Processing Efficiency ((fps*duration)/latency)'] = complexity
 
-        return video_properties, telemetry_details
+        return video_properties
 
     except Exception as e:
         print(f"Unexpected error in get_video_summary_telemetry_kpis: {e}")
-        return video_properties, []
+        return video_properties
 
-## As per old implementaion
+
+## As per new implementaion
 def get_video_search_telemetry_kpis(start_time, end_time, telemetry_json_response, search_metrics):
     """
     Extract video search telemetry KPIs from the telemetry response within a time window.
@@ -508,8 +543,7 @@ def get_video_search_telemetry_kpis(start_time, end_time, telemetry_json_respons
             if not timestamp_str:
                 continue
             
-            timestamp = convert_timestamp_to_float(timestamp_str)
-            
+            timestamp = convert_timestamp_to_float(timestamp_str)            
             if not (start_time <= timestamp):
                 continue
             
@@ -521,20 +555,13 @@ def get_video_search_telemetry_kpis(start_time, end_time, telemetry_json_respons
                 "duration_seconds": round(video_file_details.get("video_duration_seconds", 1), 2),
                 "fps": round(video_file_details.get("fps", 0), 2),
                 "total_frames": video_file_details.get("total_frames", 0),
-                "frames_extracted": item.get("counts", {}).get("frames_extracted", 0)
+                "frames_extracted": item.get("counts", {}).get("frames_extracted", 0),
+                "embeddings_stored": item.get("counts", {}).get("embeddings_stored", 0)
             }
             
-            stages = item.get("stages", [])
-            for stage in stages:
-                stage_name = stage.get("name")
-                stage_seconds = stage.get("seconds", 0)
-                video_details[stage_name] = stage_seconds
-                
-                if stage_name == "embedding":
-                    video_details["embedding_percent_of_total"] = stage.get("percent_of_total", 0)
-            
+            video_details.update(item.get("stage_duration", {}))            
             video_details["wall_time_seconds"] = item.get("timestamps", {}).get("wall_time_seconds", 0)
-            video_details["embedding_per_sec"] = item.get("throughput", {}).get("embeddings_per_second", 0)
+            video_details["embedding_per_sec"] = item.get("stage_throughput", {}).get("embeddings_throughput", 0)
             relative_rtf = (
                 (video_details.get("wall_time_seconds", 0) / video_details.get("duration_seconds", 1))
                 * (30 / video_details.get("fps", 1))
@@ -549,69 +576,6 @@ def get_video_search_telemetry_kpis(start_time, end_time, telemetry_json_respons
     metrics["Input_Videos"] = input_videos
     metrics["Search_Metrics"] = search_metrics
     return metrics, telemetry_details
-
-## As per new implementaion
-# def get_video_search_telemetry_kpis(start_time, end_time, telemetry_json_response, search_metrics):
-#     """
-#     Extract video search telemetry KPIs from the telemetry response within a time window.
-    
-#     Args:
-#         start_time: Start timestamp of the search.
-#         end_time: End timestamp of the search.
-#         telemetry_json_response: JSON response from telemetry API.
-#         search_metrics: Search metrics to include in output.
-        
-#     Returns:
-#         tuple: (metrics, telemetry_details)
-#     """
-#     from common.video import convert_timestamp_to_float
-    
-#     metrics = {}
-#     input_videos = []
-#     telemetry_details = []
-    
-#     metrics["Video_Search_E2E_Latency"] = round(end_time - start_time, 2)
-#     items = telemetry_json_response.get("items", [])
-    
-#     for item in items:
-#         try:
-#             timestamp_str = item.get("timestamps", {}).get("requested_at", "")
-#             if not timestamp_str:
-#                 continue
-            
-#             timestamp = convert_timestamp_to_float(timestamp_str)            
-#             if not (start_time <= timestamp):
-#                 continue
-            
-#             telemetry_details.append(item)
-#             video_file_details = item.get("video", {})
-#             video_details = {
-#                 "id": video_file_details.get("video_id"),
-#                 "file_name": video_file_details.get("filename", "N/A"),
-#                 "duration_seconds": round(video_file_details.get("video_duration_seconds", 1), 2),
-#                 "fps": round(video_file_details.get("fps", 0), 2),
-#                 "total_frames": video_file_details.get("total_frames", 0),
-#                 "frames_extracted": item.get("counts", {}).get("frames_extracted", 0),
-#                 "embeddings_stored": item.get("counts", {}).get("embeddings_stored", 0)
-#             }
-            
-#             video_details.update(item.get("stage_duration", {}))            
-#             video_details["wall_time_seconds"] = item.get("timestamps", {}).get("wall_time_seconds", 0)
-#             video_details["embedding_per_sec"] = item.get("stage_throughput", {}).get("embeddings_throughput", 0)
-#             relative_rtf = (
-#                 (video_details.get("wall_time_seconds", 0) / video_details.get("video_duration_seconds", 1))
-#                 * (30 / video_details.get("fps", 1))
-#             )
-#             video_details["Normalized_Embedding_RTF"] = round(relative_rtf, 4)
-#             input_videos.append(video_details)
-            
-#         except (ValueError, TypeError, KeyError) as e:
-#             print(f"Warning: Skipping telemetry item due to error: {e}")
-#             continue
-    
-#     metrics["Input_Videos"] = input_videos
-#     metrics["Search_Metrics"] = search_metrics
-#     return metrics, telemetry_details
 
 def save_video_summary_search_telemetry_kpis(report_dir, metrics, telemetry_details=None, query_metrics=None):
     """
@@ -637,9 +601,10 @@ def save_video_summary_search_telemetry_kpis(report_dir, metrics, telemetry_deta
             json.dump(metrics, file, indent=4)
         print(f"Video summary and search embedding metrics written to: {output_file}")
 
-        with open(telemetry_file, "w") as t_file:
-            json.dump(telemetry_embedd_search_details, t_file, indent=4)
-        print(f"Video embedding telemetry details written to: {telemetry_file}")
+        if telemetry_details is None:
+            with open(telemetry_file, "w") as t_file:
+                json.dump(telemetry_embedd_search_details, t_file, indent=4)
+            print(f"Video embedding telemetry details written to: {telemetry_file}")
 
 
     except IOError as e:

@@ -8,6 +8,8 @@ import {
   selectLatencyMetrics,
   selectMemoryMetric,
   selectMetrics,
+  selectNpuMetric,
+  selectNpuMetrics,
 } from "@/store/reducers/metrics.ts";
 
 export const useMetrics = () => {
@@ -16,6 +18,8 @@ export const useMetrics = () => {
   const cpuDetailed = useAppSelector(selectCpuMetrics);
   const memory = useAppSelector(selectMemoryMetric);
   const latency = useAppSelector(selectLatencyMetrics);
+  const npu = useAppSelector(selectNpuMetric);
+  const npuDetailed = useAppSelector(selectNpuMetrics);
   const allMetrics = useAppSelector(selectMetrics);
   const previousAvailableGpuIdsRef = useRef<string[]>([]);
   const previousGpuUsageRef = useRef<Record<string, number>>({});
@@ -102,6 +106,7 @@ export const useMetrics = () => {
     gpuDetailedMetrics,
     gpus,
     latency,
-    npu: 0,
+    npu: npu ?? 0,
+    npuDetailed,
   };
 };

@@ -19,7 +19,7 @@ dataprepPgvector:
   name: document-ingestion
   image:
     repository: intel/document-ingestion
-    tag: "latest"
+    tag: "2026.1.0-rc1"
     pullPolicy: Always
   service:
     type: ClusterIP
