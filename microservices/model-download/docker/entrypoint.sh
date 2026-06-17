@@ -360,15 +360,6 @@ print_success "Base dependencies synced successfully"
 print_header "Creating per-plugin virtual environments"
 echo "# Plugin venv paths — written by entrypoint.sh" > "${PLUGIN_VENVS_FILE}"
 
-# external-sources hubs share the main app process (kind=tarball uses stdlib);
-# skip them in the per-plugin venv loop below.
-is_external_source_hub() {
-    local name="$1"
-    for hub in "${EXTERNAL_SOURCES_HUBS[@]}"; do
-        [[ "$hub" == "$name" ]] && return 0
-    done
-    return 1
-}
 
 for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
     if [[ "$plugin" == "ollama" ]]; then
@@ -395,8 +386,9 @@ for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
         continue
     fi
 
-    # external-sources (and its tarball-based hubs) run in the main app process; no venv.
-    if [[ "$plugin" == "external-sources" ]] || is_external_source_hub "$plugin"; then
+    # Tarball-based external-sources hubs run in the main app process; no venv needed.
+    # (omz is handled above and continues before reaching here)
+    if [[ "$plugin" == "pipeline-zoo-models" || "$plugin" == "udf-timeseries" ]]; then
         continue
     fi
 
