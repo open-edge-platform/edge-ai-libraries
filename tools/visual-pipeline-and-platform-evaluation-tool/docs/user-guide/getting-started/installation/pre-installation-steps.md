@@ -40,7 +40,7 @@ supported hubs. Only the Hugging Face download functionality is disabled.
 Provide the token to the `model-download` service through the `HF_TOKEN` environment
 variable. Pick one of the two options below.
 
-**Option A - shell environment variable (recommended)**
+##### Option A - shell environment variable (recommended)
 
 Export the variable in the shell before starting the stack. Docker Compose picks it up
 automatically because `compose.yml` already declares
@@ -54,7 +54,7 @@ make run
 To make the variable persistent, add the `export` line to `~/.bashrc`, `~/.zshrc`, or your
 preferred shell startup file.
 
-**Option B - edit `compose.yml`**
+##### Option B - edit `compose.yml`
 
 Open `compose.yml`, locate the `model-download` service, and replace the default value with
 your token:
