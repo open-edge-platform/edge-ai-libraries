@@ -1,7 +1,13 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+ARG HTTP_PROXY=""
+ARG HTTPS_PROXY=""
+
 FROM python:3.12.12-slim AS build
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
 
 WORKDIR /app
 
