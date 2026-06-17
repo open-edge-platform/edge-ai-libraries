@@ -190,12 +190,12 @@ install_dependencies() {
             print_info "Pipeline-zoo-models hub is served by the external-sources plugin (kind=tarball, no extra deps)"
             echo "0" > "${status_file}"
             ;;
-        external-sources)
-            print_info "External-sources plugin: tarball hubs (pipeline-zoo-models, udf-timeseries) run in main app process"
-            echo "0" > "${status_file}"
-            ;;
         udf-timeseries)
             print_info "udf-timeseries hub is served by the external-sources plugin (kind=tarball, no extra deps)"
+            echo "0" > "${status_file}"
+            ;;
+        omz)
+            print_info "OMZ hub is served by the external-sources plugin (kind=omz, its own venv lets it coexist with geti)"
             echo "0" > "${status_file}"
             ;;
         *)
@@ -287,18 +287,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# User-facing hubs accepted by --plugins. Hubs served by the
+# User-facing hubs accepted by --plugins. External Hubs served by the
 # external-sources plugin are listed individually; 'external-sources'
 # itself is an internal plugin name and is rejected if passed by the user.
-EXTERNAL_SOURCES_HUBS=(pipeline-zoo-models udf-timeseries)
+EXTERNAL_SOURCES_HUBS=(pipeline-zoo-models udf-timeseries omz)
 AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "${EXTERNAL_SOURCES_HUBS[@]}" "geti" "hls")
 
 # Install plugin-specific dependencies (in parallel)
 if [ "$PLUGINS" = "all" ]; then
     print_info "Installing ALL plugins"
-    # 'external-sources' is added to the install list so its case branch runs;
-    # it is not exposed to users via AVAILABLE_PLUGINS.
-    ACTIVATED_PLUGIN_LIST=("${AVAILABLE_PLUGINS[@]}" "external-sources")
+    # Only install actual plugins/hubs; external-sources is implicit
+    ACTIVATED_PLUGIN_LIST=("${AVAILABLE_PLUGINS[@]}")
     run_plugins_parallel "${ACTIVATED_PLUGIN_LIST[@]}"
     echo "ACTIVATED_PLUGINS=all" > "$PLUGINS_ENV_FILE"
     print_success "All plugins are activated"
@@ -329,14 +328,7 @@ else
     # Save the user's literal --plugins list for the env file.
     USER_PLUGINS_CSV=$(IFS=,; echo "${ACTIVATED_PLUGIN_LIST[*]}")
 
-    # Add 'external-sources' to the install list if any of its hubs is requested.
-    for hub in "${EXTERNAL_SOURCES_HUBS[@]}"; do
-        if [[ " ${ACTIVATED_PLUGIN_LIST[*]} " == *" $hub "* ]]; then
-            ACTIVATED_PLUGIN_LIST+=("external-sources")
-            break
-        fi
-    done
-
+    # Run install_dependencies for each plugin/hub (don't add external-sources explicitly)
     run_plugins_parallel "${ACTIVATED_PLUGIN_LIST[@]}"
 
     echo "ACTIVATED_PLUGINS=${USER_PLUGINS_CSV}" > "$PLUGINS_ENV_FILE"
@@ -350,11 +342,11 @@ cd /opt
 # ollama to PATH if it's not already there
 export PATH="/opt/bin/:$PATH"
 
-# Generate a comprehensive lockfile that includes ALL extras so that per-plugin
-# venv syncs below can resolve extra packages from the lockfile.
-print_info "Generating lockfile with all extras..."
-if ! uv lock --all-extras; then
-    print_warning "Failed to generate all-extras lockfile; plugin venvs may be incomplete"
+# Generate a lockfile so per-plugin venv syncs below can resolve packages from
+# the current pyproject.toml and any declared extras/conflicts.
+print_info "Generating lockfile..."
+if ! uv lock; then
+    print_warning "Failed to generate lockfile; plugin venvs may be incomplete"
 fi
 
 print_info "Installing core dependencies from pyproject.toml..."
@@ -384,7 +376,26 @@ for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
         continue
     fi
 
-    # external-sources (and its hubs) run in the main app process; no venv.
+    # OMZ hub: create a special venv with openvino-dev (legacy 2024.6.0) for omz_downloader/omz_converter
+    if [[ "$plugin" == "omz" ]]; then
+        OMZ_VENV="/opt/.venv-omz"
+        print_info "Creating isolated OMZ venv at ${OMZ_VENV} with openvino-dev==2024.6.0"
+        if UV_PROJECT_ENVIRONMENT="${OMZ_VENV}" uv sync --extra omz --no-dev; then
+            if "${OMZ_VENV}/bin/omz_downloader" --help > /dev/null 2>&1; then
+                print_success "OMZ venv created with openvino-dev and OMZ tools ready"
+                echo "OMZ_VENV=${OMZ_VENV}" >> "${PLUGIN_VENVS_FILE}"
+            else
+                print_warning "OMZ downloader not found after sync; continuing anyway"
+                echo "OMZ_VENV=${OMZ_VENV}" >> "${PLUGIN_VENVS_FILE}"
+            fi
+        else
+            print_error "Failed to create OMZ venv with uv sync --extra omz"
+            exit 1
+        fi
+        continue
+    fi
+
+    # external-sources (and its tarball-based hubs) run in the main app process; no venv.
     if [[ "$plugin" == "external-sources" ]] || is_external_source_hub "$plugin"; then
         continue
     fi

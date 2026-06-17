@@ -71,7 +71,27 @@ pipeline-zoo-models = [
     # when ENABLED_PLUGINS is set to pipeline-zoo-models.
 ]
 
+udf-timeseries = [
+    # Intentionally empty: plugin uses Python stdlib only.
+]
+
+omz = [
+    # OpenVINO Model Zoo requires legacy openvino-dev==2024.6.0, isolated in /opt/.venv-omz
+    # from main runtime which uses openvino==2026.x. Conflicts with geti (needs openvino>=2025.2)
+    # are resolved by uv.conflicts below into separate venv buckets.
+    "openvino-dev[onnx,pytorch,tensorflow2]==2024.6.0",
+    "openvino==2024.6.0",
+]
+
 [tool.uv]
+# Each plugin/hub kind installs into its own venv (/opt/.venv-{plugin}), so
+# conflicting extras never co-exist at runtime. Declaring conflicts tells uv to
+# resolve them in separate buckets during `uv lock` instead of failing to
+# satisfy both at once. OMZ and geti can still be enabled together because they
+# are isolated into separate venvs at runtime.
+conflicts = [
+    [{ extra = "omz" }, { extra = "geti" }],  # omz pins openvino==2024.6.0; geti requires openvino>=2025.2
+]
 index-url = "https://pypi.org/simple"
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",

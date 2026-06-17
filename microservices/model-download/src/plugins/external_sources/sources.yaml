@@ -12,18 +12,13 @@ sources:
     archive_url: https://github.com/dlstreamer/pipeline-zoo-models/archive/refs/heads/main.tar.gz
     extracted_root: pipeline-zoo-models-main
     model_subdir: storage/{model_name}
-    cache_dir_env: PIPELINE_ZOO_CACHE_DIR
-    cache_dir_default: /tmp/model_download_pipeline_zoo
-    archive_url_env: PIPELINE_ZOO_ARCHIVE_URL
 
   # Timeseries UDF tarballs from edge-ai-resources/timeseries-udf-deployment-packages/.
-  # Add a sibling entry (e.g. udf-vision) for new subdirectories.
   udf-timeseries:
     kind: tarball
     archive_url_template: "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{model_name}.tar"
-    archive_url_template_env: UDF_TIMESERIES_URL_TEMPLATE
-    allow_url_prefixes:
-      - "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/"
-      - "https://raw.githubusercontent.com/open-edge-platform/edge-ai-resources/main/timeseries-udf-deployment-packages/"
-    allow_url_prefixes_env: UDF_TIMESERIES_ALLOW_URL_PREFIXES
 
+  # OpenVINO Model Zoo downloads via omz_downloader/omz_converter.
+  # Downloads to external-sources/omz/{model_name}/ with .xml + .bin artefacts.
+  omz:
+    kind: omz

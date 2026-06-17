@@ -4,21 +4,20 @@
 """External sources downloader plugin.
 
 Handles tarball-based hubs (``pipeline-zoo-models``, ``udf-timeseries``)
-via a YAML-driven dispatch on ``kind``. Profile is read from
-``external_sources/sources.yaml``.
+and OMZ downloads via a YAML-driven dispatch on ``kind``.
 """
 
 from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import tarfile
 import tempfile
-import threading
 import urllib.request
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import yaml
 
@@ -26,17 +25,15 @@ from src.core.interfaces import DownloadTask, ModelDownloadPlugin
 from src.utils.logging import logger
 
 
-# ---------------------------------------------------------------------------
-# Module-level configuration
-# ---------------------------------------------------------------------------
-
 _CONFIG_DIR = Path(__file__).with_name("external_sources")
 _PROFILE_FILE = _CONFIG_DIR / "sources.yaml"
+_OMZ_VENV_BIN = Path(os.environ.get("OMZ_VENV", "/opt/.venv-omz")) / "bin"
 
-
-# ---------------------------------------------------------------------------
-# Profile loading helper (module-private)
-# ---------------------------------------------------------------------------
+# Fail fast: Python >= 3.12 required for tarfile.data_filter
+if not hasattr(tarfile, "data_filter"):
+    raise RuntimeError(
+        "tarfile data_filter unavailable; Python >= 3.12 required"
+    )
 
 
 @lru_cache(maxsize=1)
@@ -54,16 +51,10 @@ def _load_profile() -> Dict[str, Dict[str, Any]]:
     return sources
 
 
-# ---------------------------------------------------------------------------
-# Plugin
-# ---------------------------------------------------------------------------
 
 
 class ExternalSourcesPlugin(ModelDownloadPlugin):
-    """Combined downloader for tarball-based external hubs."""
-
-    # ``pipeline-zoo-models`` shares one cached extracted archive.
-    _pzm_lock = threading.Lock()
+    """Combined downloader for external hubs (tarball + OMZ)."""
 
     @property
     def plugin_name(self) -> str:
@@ -73,20 +64,12 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
     def plugin_type(self) -> str:
         return "downloader"
 
-    # ------------------------------------------------------------------
-    # Plugin discovery / dispatch
-    # ------------------------------------------------------------------
-
     def supported_hubs(self) -> List[str]:
         return list(_load_profile().keys())
 
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         normalized = (hub or "").lower().replace("_", "-")
         return normalized in _load_profile()
-
-    # ------------------------------------------------------------------
-    # Required (but unused) task-based API
-    # ------------------------------------------------------------------
 
     def get_download_tasks(self, model_name: str, **kwargs) -> List[DownloadTask]:
         raise NotImplementedError(
@@ -98,11 +81,8 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             "external-sources plugin does not support task-based downloading"
         )
 
-    # ------------------------------------------------------------------
-    # Entry point
-    # ------------------------------------------------------------------
-
     def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
+        """Download from an external hub (tarball or OMZ)."""
         hub = (kwargs.get("hub") or "").lower().replace("_", "-")
         if not hub:
             raise ValueError(
@@ -116,8 +96,6 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         if not model_name or not model_name.strip():
             raise ValueError(f"Model name is required (hub={hub})")
 
-        # Reject obvious path-injection attempts. Each branch may apply
-        # additional, kind-specific validation below.
         if "/" in model_name or ".." in model_name or model_name.startswith("."):
             raise ValueError(f"Invalid model name: {model_name!r}")
 
@@ -127,6 +105,8 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         try:
             if kind == "tarball":
                 self._fetch_tarball(model_name, profile, target_dir)
+            elif kind == "omz":
+                self._fetch_omz(model_name, target_dir)
             else:
                 raise ValueError(
                     f"Unknown 'kind' for hub {hub!r}: {kind!r} (check sources.yaml)"
@@ -153,178 +133,152 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             shutil.rmtree(target_dir, ignore_errors=True)
             raise
 
-    # ------------------------------------------------------------------
-    # Worker: tarball (pipeline-zoo-models, udf-timeseries, ...)
-    # ------------------------------------------------------------------
-
     def _fetch_tarball(
         self, model_name: str, profile: Dict[str, Any], target_dir: str
     ) -> None:
-        """Download an archive and place the model artefacts at ``target_dir``.
-
-        Two sub-shapes are supported, controlled by the profile entry:
-
-        * ``archive_url`` + ``model_subdir``: one big mirror tarball that
-          contains many models; we cache the extracted tree and copy
-          out the requested ``model_subdir``. Used for
-          pipeline-zoo-models.
-
-        * ``archive_url_template``: per-model tarball; the rendered URL
-          is fetched, validated against ``allow_url_prefixes`` and
-          extracted directly into ``target_dir``. Used for
-          udf-timeseries.
-        """
-        if profile.get("archive_url_template") or profile.get("archive_url_template_env"):
-            self._fetch_per_model_tarball(model_name, profile, target_dir)
-        else:
-            self._fetch_shared_archive_subdir(model_name, profile, target_dir)
-
-    def _fetch_shared_archive_subdir(
-        self, model_name: str, profile: Dict[str, Any], target_dir: str
-    ) -> None:
-        archive_url = self._env_or_default(
-            profile.get("archive_url_env"), profile.get("archive_url")
-        )
-        if not archive_url:
-            raise RuntimeError(
-                "Profile entry is missing 'archive_url' (or its env override)"
-            )
-        cache_dir = Path(
-            self._env_or_default(
-                profile.get("cache_dir_env"),
-                profile.get("cache_dir_default", "/tmp/model_download_external"),
-            )
-        )
-        extracted_root = profile.get("extracted_root") or ""
-        model_subdir_template = profile.get("model_subdir") or "{model_name}"
-
-        with self._pzm_lock:
-            extracted_dir = self._ensure_archive_extracted(
-                archive_url=archive_url,
-                cache_dir=cache_dir,
-                extracted_root=extracted_root,
-            )
-
-        rel_subdir = model_subdir_template.format(model_name=model_name)
-        # Block templates that would escape the extracted tree.
-        if ".." in Path(rel_subdir).parts:
-            raise ValueError(f"model_subdir resolves outside archive root: {rel_subdir!r}")
-        source_dir = extracted_dir / rel_subdir
-        if not source_dir.is_dir():
-            raise FileNotFoundError(
-                f"Model {model_name!r} not found in archive at {source_dir}"
-            )
-
-        if os.path.exists(target_dir):
-            shutil.rmtree(target_dir)
-        shutil.copytree(str(source_dir), target_dir)
-        logger.info(
-            "external_sources_tarball_subdir_copied",
-            model_name=model_name,
-            source=str(source_dir),
-            target=target_dir,
-        )
-
-    def _fetch_per_model_tarball(
-        self, model_name: str, profile: Dict[str, Any], target_dir: str
-    ) -> None:
-        url_template = self._env_or_default(
-            profile.get("archive_url_template_env"),
-            profile.get("archive_url_template"),
-        )
-        if not url_template:
-            raise RuntimeError("Profile entry is missing 'archive_url_template'")
-
-        url = url_template.format(model_name=model_name)
-        allow_prefixes = self._resolve_allow_prefixes(profile)
-        if allow_prefixes and not any(url.startswith(p) for p in allow_prefixes):
-            raise ValueError(
-                f"Refusing to download from disallowed URL: {url!r}. "
-                f"Allowed prefixes: {allow_prefixes}"
-            )
-
-        os.makedirs(target_dir, exist_ok=True)
-        fd, archive_path = tempfile.mkstemp(prefix=f"ext-{model_name}-", suffix=".tar.gz")
-        os.close(fd)
-        try:
+        """Download and extract a tarball-based model (shared or per-model archive)."""
+        if profile.get("archive_url_template"):
+            # Per-model tarball: download and extract directly to target
+            url = profile["archive_url_template"].format(model_name=model_name)
+            os.makedirs(target_dir, exist_ok=True)
+            self._download_and_extract_tarball(url, target_dir)
             logger.info(
-                "external_sources_per_model_tarball_download_start",
-                url=url,
-                model_name=model_name,
-            )
-            urllib.request.urlretrieve(url, archive_path)  # noqa: S310
-
-            if not hasattr(tarfile, "data_filter"):
-                raise RuntimeError(
-                    "tarfile data filter unavailable; Python >= 3.12 required"
-                )
-            with tarfile.open(archive_path, "r:*") as tar_ref:
-                tar_ref.extractall(path=target_dir, filter="data")
-
-            logger.info(
-                "external_sources_per_model_tarball_extracted",
+                "external_sources_model_tarball_extracted",
                 model_name=model_name,
                 target=target_dir,
             )
-        finally:
-            if os.path.exists(archive_path):
-                os.remove(archive_path)
+        else:
+            # Shared archive: download, extract to temp, copy requested subdir
+            archive_url = profile.get("archive_url")
+            if not archive_url:
+                raise RuntimeError("Profile entry is missing 'archive_url'")
 
-    @staticmethod
-    def _resolve_allow_prefixes(profile: Dict[str, Any]) -> List[str]:
-        env_key = profile.get("allow_url_prefixes_env")
-        env_value = os.environ.get(env_key) if env_key else None
-        if env_value:
-            return [p.strip() for p in env_value.split(",") if p.strip()]
-        prefixes = profile.get("allow_url_prefixes") or []
-        return [str(p) for p in prefixes]
+            model_subdir = profile.get("model_subdir", "{model_name}").format(
+                model_name=model_name
+            )
+            if ".." in Path(model_subdir).parts:
+                raise ValueError(f"model_subdir resolves outside archive: {model_subdir!r}")
 
-    @staticmethod
-    def _env_or_default(env_key: Optional[str], default: Any) -> Any:
-        if env_key:
-            value = os.environ.get(env_key)
-            if value:
-                return value
-        return default
+            with tempfile.TemporaryDirectory(prefix="ext-archive-") as tmp_dir:
+                extract_dir = os.path.join(tmp_dir, "extracted")
+                os.makedirs(extract_dir)
+                logger.info("external_sources_downloading_archive", url=archive_url)
+                self._download_and_extract_tarball(archive_url, extract_dir)
 
-    @staticmethod
-    def _ensure_archive_extracted(
-        archive_url: str,
-        cache_dir: Path,
-        extracted_root: str,
-    ) -> Path:
-        """Download and extract ``archive_url`` once; reuse on later calls."""
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        marker_dir = cache_dir / (extracted_root or "default")
-        marker = marker_dir / ".download_complete"
-        if marker.is_file():
-            return marker_dir
+                source_dir = os.path.join(extract_dir, model_subdir)
+                if not os.path.isdir(source_dir):
+                    raise FileNotFoundError(
+                        f"Model {model_name!r} not found in archive at {source_dir}"
+                    )
 
-        if marker_dir.exists():
-            shutil.rmtree(marker_dir)
-
-        fd, archive_path = tempfile.mkstemp(
-            prefix="ext-shared-", suffix=".tar.gz", dir=str(cache_dir)
-        )
-        os.close(fd)
-        try:
-            logger.info("external_sources_archive_download_start", url=archive_url)
-            urllib.request.urlretrieve(archive_url, archive_path)  # noqa: S310
-
-            if not hasattr(tarfile, "data_filter"):
-                raise RuntimeError(
-                    "tarfile data filter unavailable; Python >= 3.12 required"
+                os.makedirs(target_dir, exist_ok=True)
+                shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
+                logger.info(
+                    "external_sources_tarball_copied",
+                    model_name=model_name,
+                    target=target_dir,
                 )
+
+    @staticmethod
+    def _download_and_extract_tarball(url: str, target_dir: str) -> None:
+        """Download a tarball from URL and extract it to target_dir."""
+        with tempfile.TemporaryDirectory(prefix="ext-") as tmp_dir:
+            archive_path = os.path.join(tmp_dir, "archive.tar.gz")
+            urllib.request.urlretrieve(url, archive_path)  # noqa: S310
             with tarfile.open(archive_path, "r:*") as tar_ref:
-                tar_ref.extractall(path=cache_dir, filter="data")
+                tar_ref.extractall(path=target_dir, filter="data")
 
-            if not marker_dir.is_dir():
+    def _fetch_omz(self, model_name: str, target_dir: str) -> None:
+        """Download and convert an OMZ model using omz_downloader/omz_converter."""
+        omz_downloader = _OMZ_VENV_BIN / "omz_downloader"
+        omz_converter = _OMZ_VENV_BIN / "omz_converter"
+
+        if not omz_downloader.exists() or not omz_converter.exists():
+            raise RuntimeError(
+                f"OMZ tools not found in {_OMZ_VENV_BIN}; "
+                "ensure OMZ venv is created (see entrypoint.sh)"
+            )
+
+        os.makedirs(os.path.dirname(target_dir), exist_ok=True)
+
+        with tempfile.TemporaryDirectory(prefix="ext-omz-") as tmp_dir:
+            # Download
+            logger.info("external_sources_omz_downloading", model_name=model_name)
+            self._run_omz_tool(
+                [str(omz_downloader), "--name", model_name, "--output_dir", tmp_dir]
+            )
+
+            # Convert
+            logger.info("external_sources_omz_converting", model_name=model_name)
+            self._run_omz_tool(
+                [
+                    str(omz_converter),
+                    "--name",
+                    model_name,
+                    "--download_dir",
+                    tmp_dir,
+                    "--output_dir",
+                    tmp_dir,
+                ]
+            )
+
+            # Move converted artefacts: omz_converter produces intel/ or public/ subdirs
+            self._materialize_omz_artefacts(model_name, tmp_dir, target_dir)
+
+    @staticmethod
+    def _run_omz_tool(command: List[str]) -> None:
+        """Run an OMZ CLI tool and raise on failure."""
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                stderr = result.stderr.strip() if result.stderr else "<empty>"
                 raise RuntimeError(
-                    f"Extracted archive directory not found: {marker_dir}"
+                    f"OMZ tool failed (rc={result.returncode}): {' '.join(command)}\n"
+                    f"stderr: {stderr}"
                 )
-            marker.touch()
-            logger.info("external_sources_archive_ready", path=str(marker_dir))
-            return marker_dir
-        finally:
-            if os.path.exists(archive_path):
-                os.remove(archive_path)
+            if result.stdout:
+                logger.debug("omz_tool_output", output=result.stdout.strip())
+        except FileNotFoundError as e:
+            raise RuntimeError(f"OMZ tool not found: {command[0]}") from e
+
+    @staticmethod
+    def _materialize_omz_artefacts(
+        model_name: str, tmp_dir: str, target_dir: str
+    ) -> None:
+        """Move converted OMZ artefacts from temp to target."""
+        # omz_converter produces intel/ or public/ subdirs; find the model dir
+        source_dir = None
+        for category in ("intel", "public"):
+            candidate = os.path.join(tmp_dir, category, model_name)
+            if os.path.isdir(candidate):
+                source_dir = candidate
+                break
+
+        if not source_dir:
+            raise FileNotFoundError(
+                f"OMZ converter produced no output for {model_name!r} "
+                f"(looked in {tmp_dir}/intel and {tmp_dir}/public)"
+            )
+
+        os.makedirs(target_dir, exist_ok=True)
+        for entry in os.listdir(source_dir):
+            src = os.path.join(source_dir, entry)
+            dst = os.path.join(target_dir, entry)
+            if os.path.exists(dst):
+                if os.path.isdir(dst):
+                    shutil.rmtree(dst)
+                else:
+                    os.remove(dst)
+            shutil.move(src, dst)
+
+        logger.info(
+            "external_sources_omz_materialized",
+            model_name=model_name,
+            target=target_dir,
+        )
+

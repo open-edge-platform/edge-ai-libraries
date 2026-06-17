@@ -77,6 +77,7 @@ class ModelHub(str, Enum):
     GETI = "geti"
     HLS = "hls"
     UDF_TIMESERIES = "udf-timeseries"
+    OMZ = "omz"
 
 class ModelType(str, Enum):
     LLM = "llm"
