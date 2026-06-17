@@ -3,9 +3,6 @@
 
 FROM python:3.12.12-slim AS build
 
-ARG HTTP_PROXY=""
-ARG HTTPS_PROXY=""
-
 WORKDIR /app
 
 COPY requirements.txt .
