@@ -42,11 +42,11 @@ cd edge-ai-libraries/microservices/model-download
 
 ### 3. Configure the environment variables
 
-```bash
-export REGISTRY="intel/"
-export TAG=2026.1.0-rc2
-export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-```
+   ```bash
+   export REGISTRY="intel/"
+   export TAG=2026.1.0
+   export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+   ```
 
 To use the Geti™ plugin, set these variables:
 
