@@ -3,7 +3,7 @@ replicaCount: 1
 videosearch:
   image:
     repository: intel/video-search
-    tag: "2026.1.0-rc1"
+    tag: "2026.1.0"
     pullPolicy: IfNotPresent
   resources: {}
   env:

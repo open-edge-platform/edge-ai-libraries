@@ -2,20 +2,24 @@
 
 ## Version 2026.1
 
-**June, 2026**
-This release introduces new deployment flexibility features, a UDF management API, security
-fixes, and a modernized base image for Time Series Analytics.
+**June 17, 2026**
 
 **New**
 
-- Added optional CPU core-pinning support via the `CORE_PINNING` environment variable, allowing the service to prefer specific core types (E-cores, P-cores, or low-power cores).
-- Added a `/udfs/package` API endpoint to upload and extract UDF deployment packages as tar archives via HTTP, enabling UDF updates without manual file placement.
+- Support for optional CPU core-pinning enabled with the `CORE_PINNING`
+  environment variable, which allows the service to prefer specific core types
+  (E-cores, P-cores, or low-power cores).
+- A `/udfs/package` API endpoint for uploading and extracting UDF deployment
+  packages as tar archives via HTTP. The UDF updates do not require manual
+  placement of files.
 
 **Improved**
 
-- Changed the base Docker image from the Kapacitor image to a Debian-based Python slim image with Kapacitor installed via `.deb`, reducing image size and improving flexibility.
+- The base Kapacitor Docker image is replaced by a Debian-based Python slim
+  image with Kapacitor installed via `.deb`, reducing image size and improving
+  flexibility.
 - Updated Intel GPU drivers to support WCL (compute-runtime/IGC version `26.14.37833`).
-- Updated Kapacitor version and Python library dependency versions.
+- Updated the Kapacitor and Python library dependency versions.
 
 ---
 

@@ -9,25 +9,19 @@ Functional tests that exercise the VIPPET API end-to-end.
 
 ## Prerequisites
 
-Before running the tests, ensure the required models are installed.
+Before running the tests, ensure the required models are installed via the **Models** page
+in the web UI (or via the `/api/v1/models` API endpoints). The backend proxies install
+requests to the `model-download` microservice.
 
 ### Smoke tests
 
-Smoke tests require the default models to be installed. Run the following command to install them:
-
-```bash
-make install-models-force
-```
-
-All default models will be pre-selected. Simply click **OK** to proceed with the installation.
+Smoke tests require the default models (those marked `default: true` in
+`shared/models/supported_models.yaml`) to be installed.
 
 ### Full tests
 
-Full tests require **all** available models to be installed. Run:
-
-```bash
-make install-models-all
-```
+Full tests require **all** models listed in `shared/models/supported_models.yaml` to be
+installed.
 
 ## Test behavior
 

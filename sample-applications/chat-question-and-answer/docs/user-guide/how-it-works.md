@@ -42,7 +42,7 @@ The Chat Q&A application is a combination of the core LangChain application logi
      - View and manage multiple conversation threads
      - Switch between conversations and access previous questions and responses for context
    - **Execute the RAG AI pipeline**: The Chat Q&A backend microservice performs the following actions to generate the output response using the RAG pipeline.
-      -   The query is converted into embedding space using the Embeddings microservice.
+      - The query is converted into embedding space using the Embeddings microservice.
       - Semantic retrieval is done to fetch the relevant documents or data points from VectorDB. The reranker microservice ranks them in order of accuracy.
       - The retrieved documents and data points is used as part of the prompt to the LLM model and a response is generated using the LLM microservice which hosts the configured LLM model.
 4. **Output Generation**:
@@ -82,7 +82,7 @@ The application flow is illustrated in the flow diagram below. The diagram shows
 The Chat Q&A sample application is designed with modularity in mind, allowing developers to:
 
 1. **Change inference microservices**:
-   - The default option is OVMS for LLM and TEI for embeddings and reranker.
+   - The default option is OVMS for LLM and embeddings, and TEI for the reranker.
    - (*Deprecated effective 2025.2.0*) Use other model servers like vLLM with OpenVINO backend, and TGI to host LLM models.
    - Mandatory requirement is OpenAI API compliance. Note that other model servers are not guaranteed to provide same performance as default options.
 2. **Load different LLM, Embedding, and Reranker models**:

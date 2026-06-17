@@ -35,6 +35,7 @@ export const GpuFrequencyChart = ({
       chartUnit=" GHz"
       chartYAxisDomain={[0, yAxisMax]}
       chartLabels={["Frequency"]}
+      showLegend={false}
       selectedGpu={selectedGpu}
       availableGpus={availableGpus}
       onGpuChange={onGpuChange}

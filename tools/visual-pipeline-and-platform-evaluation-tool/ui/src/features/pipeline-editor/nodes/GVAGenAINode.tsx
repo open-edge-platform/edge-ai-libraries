@@ -1,7 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
 import { usePipelineEditorContext } from "../PipelineEditorContext.ts";
 
-export const GVAGenAINodeWidth = 280;
+export const GVAGenAINodeWidth = 367;
 
 type GVAGenAINodeProps = {
   data: {
@@ -66,13 +66,14 @@ const GVAGenAINode = ({ data }: GVAGenAINodeProps) => {
 
             {data["chunk-size"] !== undefined && (
               <>
-                {(data.device || modelValue || data["frame-rate"] !== undefined) && (
+                {(data.device ||
+                  modelValue ||
+                  data["frame-rate"] !== undefined) && (
                   <span className="text-gray-400">•</span>
                 )}
                 <span>chunk: {data["chunk-size"]}</span>
               </>
             )}
-
           </div>
         </div>
       </div>

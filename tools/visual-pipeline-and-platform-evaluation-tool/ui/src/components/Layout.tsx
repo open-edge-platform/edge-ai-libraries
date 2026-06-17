@@ -1,4 +1,4 @@
-import { Outlet, useLocation, matchPath } from "react-router";
+import { Outlet, useLocation, matchPath, Link } from "react-router";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { usePipelinesLoader } from "@/hooks/usePipelines.ts";
 import { useModelsLoader } from "@/hooks/useModels.ts";
@@ -17,6 +17,10 @@ import { Separator } from "@/components/ui/separator.tsx";
 import { routeConfig, keepAliveRoutes } from "@/config/navigation.ts";
 import { BackgroundJobsProvider } from "@/contexts/BackgroundJobsContext";
 import { BackgroundJobsWidget } from "@/components/BackgroundJobsWidget";
+import { useEffect } from "react";
+import { useAppSelector } from "@/store/hooks";
+import { selectIsAnyModelDownloaded } from "@/store/reducers/models";
+import { toast } from "@/lib/toast";
 
 const Layout = () => {
   usePipelinesLoader();
@@ -24,6 +28,30 @@ const Layout = () => {
   useDevicesLoader();
   const { theme, setTheme } = useTheme();
   const location = useLocation();
+  const hasModels = useAppSelector(selectIsAnyModelDownloaded);
+
+  useEffect(() => {
+    if (!hasModels) {
+      toast.warning("There are no models in the system.", {
+        id: "no-models-warning",
+        closeButton: false,
+        description: (
+          <span>
+            Go to the{" "}
+            <Link
+              to="/models"
+              className="font-semibold underline underline-offset-2"
+            >
+              Models
+            </Link>{" "}
+            page and download models.
+          </span>
+        ),
+      });
+    } else {
+      toast.dismiss("no-models-warning");
+    }
+  }, [hasModels]);
 
   return (
     <BackgroundJobsProvider>

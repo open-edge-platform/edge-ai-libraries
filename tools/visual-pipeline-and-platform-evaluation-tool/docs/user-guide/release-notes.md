@@ -2,7 +2,37 @@
 
 Details about the changes, improvements, and known issues in this release of the application.
 
-## Current Release: [2026.0.0]
+## Current Release: [2026.1.0]
+
+**Release Date**: [2026-06-17]
+
+**New**:
+
+- **New predefined pipelines**: New pipelines for showcasing Video Summarization,
+  Motion Detection, Instance Segmentation and Pose Estimation.
+- **Pipeline Latency Reporting**: Support for reporting latency metrics to
+  show end-to-end pipeline processing time.
+- **NPU Metrics**: ViPPET now supports reporting NPU utilization.
+- **Video Upload Support**: Users can now upload their own video files and use
+  them as input for pipelines.
+- **Image-Set Upload Support**: Users can now upload image files and use them
+  as input for pipelines.
+- **Custom Model Upload Support**: Users can now upload OpenVINO models,
+  including models trained using Intel Geti platform.
+
+**Improved**:
+
+- Model management via the Model Download microservice - a centralized model
+  management system that downloads AI or machine learning models from various
+  model hubs while ensuring consistency and simplicity across applications.
+  The microservice stores the models, and handles optional format conversions.
+- Metrics collection with the Metrics Manager microservice - an open-source,
+  container-ready service for unified collection, ingestion, and real-time
+  relay of system and application metrics on edge and cloud nodes.
+
+---
+
+## 2026.0.0
 
 **Release Date**: [2026-03-25]
 
@@ -125,11 +155,14 @@ Details about the changes, improvements, and known issues in this release of the
 
 ### New Features (v1.2)
 
-- **Feature 1**: Simple Video Structurization Pipeline: The Simple Video Structurization (D-T-C) pipeline is a versatile,
+- **Feature 1**: Simple Video Structurization Pipeline: The Simple Video Structurization (D-T-C)
+  pipeline is a versatile,
   use case-agnostic solution that supports license plate recognition, vehicle detection with attribute classification,
   and other object detection and classification tasks, adaptable based on the selected model.
-- **Feature 2**: Live pipeline output preview: The pipeline now supports live output, allowing users to view real-time results
-  directly in the UI. This feature enhances the user experience by providing immediate feedback on video processing tasks.
+- **Feature 2**: Live pipeline output preview: The pipeline now supports live output, allowing
+  users to view real-time results
+  directly in the UI. This feature enhances the user experience by providing immediate feedback
+  on video processing tasks.
 - **Feature 3**: New pre-trained models: The release includes new pre-trained models for object detection
   (`YOLO v8 License Plate Detector`) and classification (`PaddleOCR`, `Vehicle Attributes Recognition Barrier 0039`),
   expanding the range of supported use cases and improving accuracy for specific tasks.
@@ -175,3 +208,14 @@ Details about the changes, improvements, and known issues in this release of the
 - **Issue**: The Visual Pipeline and Platform Evaluation Tool container fails to start the analysis when the "Run"
   button is clicked in the UI, specifically for systems without GPU.
   - **Workaround**: Consider upgrading the hardware to meet the required specifications for optimal performance.
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./getting-started/release-notes/release-2026.1
+./getting-started/release-notes/release-2026.0
+./getting-started/release-notes/release-2025.2
+
+:::
+hide_directive-->

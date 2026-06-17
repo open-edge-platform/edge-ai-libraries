@@ -8,8 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "generate:api": "npx @rtk-query/codegen-openapi src/api/api.config.json",
-    "generate:api:model-download": "npx @rtk-query/codegen-openapi src/api/api.model-download.config.json"
+    "generate:api": "npx @rtk-query/codegen-openapi src/api/api.config.json"
   },
   "dependencies": {
     "@base-ui-components/react": "^1.0.0-beta.6",

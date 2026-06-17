@@ -165,7 +165,21 @@ export const getSafePreviewVideoUrl = (
   }
 
   if (url.startsWith('blob:')) {
-    return url;
+    try {
+      const blobUrl = new URL(url);
+      if (blobUrl.protocol !== 'blob:') {
+        return null;
+      }
+      // Validate the origin embedded in the blob URL is http(s) or opaque
+      const origin = url.slice('blob:'.length);
+      if (origin && !origin.startsWith('http://') && !origin.startsWith('https://') && !origin.startsWith('null/')) {
+        return null;
+      }
+      // Return parsed href to break taint chain
+      return blobUrl.href;
+    } catch {
+      return null;
+    }
   }
 
   if (!assetsEndpoint) {
@@ -177,7 +191,36 @@ export const getSafePreviewVideoUrl = (
     return null;
   }
 
-  return url.startsWith(`${normalizedAssetsEndpoint}/`) ? url : null;
+  if (!url.startsWith(`${normalizedAssetsEndpoint}/`)) {
+    return null;
+  }
+
+  // Support root-relative asset URLs (for example, UI_ASSETS_ENDPOINT="/datastore").
+  // Keep strict prefix validation above and reject protocol-style or malformed paths.
+  const isRelativeAssetsEndpoint =
+    normalizedAssetsEndpoint.startsWith('/') &&
+    !normalizedAssetsEndpoint.startsWith('//') &&
+    !normalizedAssetsEndpoint.includes('://');
+
+  if (isRelativeAssetsEndpoint) {
+    if (!url.startsWith('/') || url.startsWith('//') || url.includes('://') || url.includes('\\')) {
+      return null;
+    }
+    return url;
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return null;
+    }
+    // Return reconstructed URL to break taint chain and normalize
+    return parsedUrl.href;
+  } catch {
+    return null;
+  }
+
+  return null;
 };
 
 export const capitalize = (input: string): string => {

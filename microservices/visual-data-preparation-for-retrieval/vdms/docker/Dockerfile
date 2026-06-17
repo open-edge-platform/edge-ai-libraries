@@ -3,7 +3,7 @@
 
 ARG ARCH="cpu"
 ARG INSTALL_DRIVER_VERSION="25.48.36300"
-FROM python:3.12.12-slim AS python-base
+FROM python:3.12-slim AS python-base
 ARG ARCH
 # Setting env vars for python, pip and poetry
 ENV PYTHONUNBUFFERED=1 \
@@ -46,8 +46,8 @@ RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
 RUN curl -sSL https://install.python-poetry.org | python3 - 
 
 WORKDIR $SETUP_PATH
-COPY poetry.lock pyproject.toml ./
-COPY wheels ./wheels
+COPY multimodal-embedding-serving /multimodal-embedding-serving
+COPY visual-data-preparation-for-retrieval/vdms/poetry.lock visual-data-preparation-for-retrieval/vdms/pyproject.toml ./
 
 
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
@@ -77,7 +77,7 @@ COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 RUN poetry install --no-root --with dev
 
 # Copy the entrypoint script and makeit executable
-COPY ./scripts/entrypoint.sh /entrypoint.sh
+COPY visual-data-preparation-for-retrieval/vdms/scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Source code will be mounted here
@@ -119,11 +119,11 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
-COPY ./scripts/ /
+COPY visual-data-preparation-for-retrieval/vdms/scripts/ /
 RUN chmod +x /entrypoint.sh /install_ubuntu_gpu_drivers.sh && \
 /install_ubuntu_gpu_drivers.sh
 
-COPY . /app/
+COPY visual-data-preparation-for-retrieval/vdms/ /app/
 
 # Optionally download copyleft sources if requested
 ARG COPYLEFT_SOURCES=false
@@ -180,7 +180,7 @@ CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "s
 FROM dev AS lint
 
 USER root
-COPY --chown=appuser:appuser . .
+COPY --chown=appuser:appuser visual-data-preparation-for-retrieval/vdms/ .
 USER appuser
 
 RUN black --config ./pyproject.toml --check tests src
@@ -196,7 +196,7 @@ RUN coverage report -m --fail-under $COVERAGE_REQ
 FROM lint AS report
 # Copy script with proper ownership from the start
 USER root
-COPY --chown=appuser:appuser ./scripts/reporter.sh /reporter.sh
+COPY --chown=appuser:appuser visual-data-preparation-for-retrieval/vdms/scripts/reporter.sh /reporter.sh
 RUN chmod +x /reporter.sh
 USER appuser
 

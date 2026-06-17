@@ -1,14 +1,14 @@
-# Release Notes
+# Release Notes: Metrics Manager
 
 ## Version 2026.1.0
 
 **Release Date**: May 11, 2026
 
-### New
+**New**
 
 - **Server-Sent Events (SSE) Streaming** — New `/metrics/stream` endpoint streams all metrics (system + custom) in real-time via SSE. Each connected client polls the Telegraf Prometheus endpoint independently. Browser requests receive a live HTML table; SSE clients receive raw event stream
   - **Impact**: Dashboards can now consume metrics without polling, enabling real-time visualizations. Replaces the old WebSocket relay model
-  
+
 - **Multiple Input Formats** — Accept custom metrics in four formats without code changes:
   - JSON Batch (`POST /api/v1/metrics`) — multiple metrics with multiple fields
   - Simple JSON (`POST /api/v1/metrics/simple`) — single metric, simplest format
@@ -37,7 +37,7 @@
   - Service statistics (`GET /api/v1/stats`)
   - **Impact**: Easy to integrate into monitoring systems and dashboards
 
-### Improved
+**Improved**
 
 - **Debounced Persistence** — Custom metrics are persisted to Telegraf with configurable debounce (default 100ms). Prevents HTTP bottleneck when ingesting high-frequency metrics
   - **Impact**: Support for 1000+ metrics per second without API latency spikes
@@ -49,7 +49,7 @@
   - **Impact**: Easy integration with log aggregators (ELK, Datadog, etc.)
 
 - **Rate Limiting** — Per-IP token bucket rate limiting (default 1000 requests/minute per IP)
-  - **Impact**: Protection against accidental/malicious floods; health and stats endpoints exempt
+  - **Impact**: Protection against accidental/malicious floods; health and statistics endpoints exempt
 
 - **Correlation IDs** — Every request gets a correlation ID (auto-generated UUID or from `X-Correlation-ID` header) for distributed tracing
   - **Impact**: Easy to track requests through logs and multiple services
@@ -57,7 +57,7 @@
 - **GZIP Compression** — Automatic compression for HTTP responses >1 KB
   - **Impact**: Reduced bandwidth for metrics streaming (especially important for SSE)
 
-### Known Issues
+**Known Issues**
 
 None at this release. See GitHub issues for feature requests and discussions.
 
@@ -67,7 +67,7 @@ None at this release. See GitHub issues for feature requests and discussions.
 
 **Release Date**: May 5, 2026
 
-### Fixed
+**Fixed**
 
 - **SSE Stream HTML UI** — Browser requests to `/metrics/stream` now receive an HTML page with an in-place updated metrics table (previously showed raw SSE stream)
   - **Impact**: Live dashboard experience in browser without client-side framework
@@ -83,7 +83,7 @@ None at this release. See GitHub issues for feature requests and discussions.
 
 **Release Date**: April 1, 2026
 
-### New
+**New**
 
 - **Initial Release** — Metrics Manager with:
   - Telegraf-based system metrics collection (CPU, RAM, temperature, GPU, NPU)
@@ -101,23 +101,23 @@ None at this release. See GitHub issues for feature requests and discussions.
 - Intel® Metrics Manager **2026.1.0**
 - Telegraf **1.37.3** (system metrics agent)
 - qmassa **1.3.1** (Intel® GPU telemetry via named pipe)
-- qmmd **0.1.1** *(optional)* — Lightweight Prometheus GPU exporter (bundled but **not started by default**; use only if you need a separate GPU metrics port)
+- qmmd **0.1.1** _(optional)_ — Lightweight Prometheus GPU exporter (bundled but **not started by default**; use only if you need a separate GPU metrics port)
 - Intel® NPU telemetry via bundled `npu_monitor_tool` / `npu_reader`
 - Python **3.12** runtime + FastAPI service
 - supervisord process supervisor
 
-**Note on qmmd:** The default Metrics Manager already collects GPU metrics via `qmassa_reader.py` and Telegraf. Enable qmmd only if you need a standalone Prometheus exporter on a separate port. See [Configuration Guide](./get-started/environment-variables.md#optional-components) for details.
+> **Note on qmmd:** The default Metrics Manager already collects GPU metrics via `qmassa_reader.py` and Telegraf. Enable qmmd only if you need a standalone Prometheus exporter on a separate port. See [Environment Variables](./get-started/environment-variables.md#optional-components) for details.
 
 ---
 
 ## Support Matrix
 
-| Component | Version | Support |
-|-----------|---------|---------|
-| Docker | 24.0+ | Required |
-| Kubernetes | 1.25+ | Via Helm chart |
-| Python | 3.12 | Included in image |
-| Linux Kernel | 5.4+ | Required for system metrics collection |
+| Component    | Version | Support                                |
+| ------------ | ------- | -------------------------------------- |
+| Docker       | 24.0+   | Required                               |
+| Kubernetes   | 1.25+   | Via Helm chart                         |
+| Python       | 3.12    | Included in image                      |
+| Linux Kernel | 5.4+    | Required for system metrics collection |
 
 ---
 
@@ -128,14 +128,26 @@ None at this release. See GitHub issues for feature requests and discussions.
 No breaking changes. All existing endpoints remain compatible.
 
 **What changed:**
+
 - SSE stream now returns flat metric format instead of measurement/field split
 - Content negotiation added for `/metrics/stream` (HTML vs SSE)
 
 **Migration steps:**
+
 1. Pull new image: `docker pull intel/metrics-manager:2026.1.0`
 2. Update `docker-compose.yaml` or Helm values if pinning version
 3. Restart: `docker compose up -d`
 4. No data migration needed (in-memory store)
+
+---
+
+## Supporting Resources
+
+- [Get Started Guide](./get-started.md)
+- [API Reference](./api-reference.md)
+- [Environment Variables](./get-started/environment-variables.md)
+- [How It Works](./how-it-works.md)
+- [Troubleshooting](./troubleshooting.md)
 
 ---
 
@@ -181,11 +193,3 @@ Intel, the Intel logo, and Xeon are trademarks of Intel Corporation in the U.S. 
 \*Other names and brands may be claimed as the property of others.
 
 © 2025-2026 Intel Corporation
-
-## Supporting Resources
-
-- [Get Started Guide](./get-started.md)
-- [API Reference](./api-reference.md)
-- [Configuration Guide](./get-started/environment-variables.md)
-- [How It Works](./how-it-works.md)
-- [Troubleshooting](./troubleshooting.md)

@@ -26,8 +26,8 @@ Following options are provided to build the microservice.
 ```bash
 # Clone the latest on mainline
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+# Alternatively, Clone the release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.1.0
 
 cd edge-ai-libraries/microservices/visual-data-preparation-for-retrieval/vdms
 ```
@@ -42,13 +42,13 @@ export TAG=<your-yag> # Default: latest
 ```
 Refer to the [environmental variable](./get-started.md#environment-variables) setup section and configure the required variables.
 
-3. Build the VDMS DataPrep Docker image. This step also compiles the multimodal embedding serving wheel and stages it under `wheels/` so the Docker build can succeed.
+3. Build the VDMS DataPrep Docker image. This uses the `microservices/` build context so the local `multimodal-embedding-serving` source dependency is available during image build.
 
 ```bash
 ./build.sh
 ```
 
-> **Note:** The script automatically honours `REGISTRY_URL`, `PROJECT_NAME`, and `TAG` (just like `setup.sh`). Ensure `poetry` is installed on your host, because it is used to build the wheel.
+> **Note:** The script automatically honours `REGISTRY_URL`, `PROJECT_NAME`, and `TAG` (just like `setup.sh`).
 
 4. Verify the configuration.
 

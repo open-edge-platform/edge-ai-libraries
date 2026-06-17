@@ -16,7 +16,7 @@ spec:
     spec:
       initContainers:
         - name: wait-for-vdms
-          image: busybox:latest
+          image: busybox:1.38.0
           command: 
             - sh
             - -c

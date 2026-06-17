@@ -3,8 +3,15 @@ import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { Progress } from "@/components/ui/progress.tsx";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field.tsx";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox.tsx";
 import React, { useRef, useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import {
   AlertCircle,
   AlertTriangle,
@@ -48,14 +55,27 @@ export interface MultiFileUploaderProps {
     fields: Record<string, string>,
   ) => Promise<PreUploadMessage | null> | PreUploadMessage | null;
   preUploadImmediate?: boolean;
-  formFields?: Array<{
-    name: string;
-    label: string;
-    placeholder?: string;
-    required?: boolean;
-    regex?: RegExp | string;
-    regexMessage?: string;
-  }>;
+  formFields?: Array<
+    {
+      name: string;
+      label: string;
+      placeholder?: string;
+      required?: boolean;
+    } & (
+      | {
+          type?: "input";
+          regex?: RegExp | string;
+          regexMessage?: string;
+          options?: never;
+        }
+      | {
+          type: "combobox";
+          options: string[];
+          regex?: never;
+          regexMessage?: never;
+        }
+    )
+  >;
   className?: string;
 }
 
@@ -80,6 +100,7 @@ export const MultiFileUploader = ({
     watch,
     setValue,
     getValues,
+    control,
     formState: { errors },
   } = useForm<UploadFormData>({
     defaultValues: {
@@ -132,7 +153,7 @@ export const MultiFileUploader = ({
       }
     });
     return () => subscription.unsubscribe();
-  }, [formFields, watch]);
+  }, [formFields, maxSize, watch]);
 
   useEffect(() => {
     if (onUploadProgress) {
@@ -197,7 +218,9 @@ export const MultiFileUploader = ({
           try {
             const response = JSON.parse(xhr.responseText);
             const detail =
-              response.detail || `Upload failed with status ${xhr.status}`;
+              response.detail ||
+              response.message ||
+              `Upload failed with status ${xhr.status}`;
             reject(new Error(detail));
           } catch {
             reject(new Error(`Upload failed with status ${xhr.status}`));
@@ -335,9 +358,7 @@ export const MultiFileUploader = ({
     }
 
     const hasMimeEntries = acceptedTypes.some((t) => !t.startsWith("."));
-    if (!hasMimeEntries) return true;
-
-    return false;
+    return !hasMimeEntries;
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -717,30 +738,63 @@ export const MultiFileUploader = ({
                     <FieldLabel htmlFor={`field-${field.name}`}>
                       {field.label}
                     </FieldLabel>
-                    <Input
-                      id={`field-${field.name}`}
-                      {...register(
-                        `fields.${field.name}` as `fields.${string}`,
-                        {
+                    {field.type === "combobox" ? (
+                      <Controller
+                        name={`fields.${field.name}` as `fields.${string}`}
+                        control={control}
+                        rules={{
                           required: field.required
                             ? "This field is required"
                             : false,
-                          pattern: field.regex
-                            ? {
-                                value:
-                                  field.regex instanceof RegExp
-                                    ? field.regex
-                                    : new RegExp(field.regex),
-                                message:
-                                  field.regexMessage ??
-                                  "Value does not match the required format",
-                              }
-                            : undefined,
-                        },
-                      )}
-                      placeholder={field.placeholder}
-                      className="mt-1"
-                    />
+                        }}
+                        render={({ field: cf }) => (
+                          <Combobox
+                            value={cf.value ?? ""}
+                            onValueChange={cf.onChange}
+                          >
+                            <ComboboxInput
+                              id={`field-${field.name}`}
+                              placeholder={field.placeholder}
+                              className="mt-1 w-full"
+                            />
+                            <ComboboxContent>
+                              <ComboboxList>
+                                {field.options.map((option) => (
+                                  <ComboboxItem key={option} value={option}>
+                                    {option}
+                                  </ComboboxItem>
+                                ))}
+                              </ComboboxList>
+                            </ComboboxContent>
+                          </Combobox>
+                        )}
+                      />
+                    ) : (
+                      <Input
+                        id={`field-${field.name}`}
+                        {...register(
+                          `fields.${field.name}` as `fields.${string}`,
+                          {
+                            required: field.required
+                              ? "This field is required"
+                              : false,
+                            pattern: field.regex
+                              ? {
+                                  value:
+                                    field.regex instanceof RegExp
+                                      ? field.regex
+                                      : new RegExp(field.regex),
+                                  message:
+                                    field.regexMessage ??
+                                    "Value does not match the required format",
+                                }
+                              : undefined,
+                          },
+                        )}
+                        placeholder={field.placeholder}
+                        className="mt-1"
+                      />
+                    )}
                     <FieldError
                       errors={
                         (

@@ -11,15 +11,17 @@
 </div>
 hide_directive-->
 
-Assess Intel® hardware options, benchmark performance, and analyze key metrics to optimize
-hardware selection for AI workloads.
+## What is ViPPET
 
-The Visual Pipeline and Platform Evaluation Tool simplifies hardware selection for AI workloads
-by enabling configuration of workload parameters, performance benchmarking, and analysis of key
-metrics such as throughput, CPU usage, and GPU usage. With its intuitive interface, the tool
-provides actionable insights that support optimized hardware selection and performance tuning.
+The Visual Pipeline and Platform Evaluation Tool simplifies hardware selection for AI workloads by enabling
+configuration of workload parameters, performance benchmarking, and analysis of key metrics such as
+throughput, CPU usage, and GPU usage. With its intuitive interface, the tool provides actionable insights that
+support optimized hardware selection and performance tuning.
 
-## Use Cases
+ViPPET helps you compare how AI pipelines behave across hardware targets, model variants, and input sources so you
+can make better deployment decisions earlier in the development cycle.
+
+## Common Use Cases
 
 **Evaluating Hardware for AI Workloads**: Intel® hardware options can be assessed to balance
 cost, performance, and efficiency. AI workloads can be benchmarked under real-world conditions
@@ -29,42 +31,40 @@ by adjusting pipeline parameters and comparing performance metrics.
 by testing AI inference pipelines with different accelerators to measure throughput, latency,
 and resource utilization.
 
+**Validating End-to-End Pipelines**: Complete media and AI pipelines can be exercised with different
+inputs, models, and execution settings to understand real deployment behavior instead of relying on
+component-level measurements alone.
+
 ## Key Features
 
 **Optimized for Intel® AI Edge Systems**:
-[Pipelines can be run directly on target devices](./how-to-guides/configure-pipelines.md) for
+Pipelines can be run directly on target devices for
 seamless Intel® hardware integration.
 
 **Comprehensive Hardware Evaluation**: Metrics such as CPU frequency, GPU power usage, and
 memory utilization are available for detailed analysis.
 
-**Configurable AI Pipelines**: Parameters such as input channels, object detection models, and
-inference engines can be adjusted to create
-[tailored performance tests](./how-to-guides/performance-testing.md).
+**Predefined and Custom Pipelines**: ViPPET includes ready-to-use pipeline templates and also allows
+you to configure custom inputs, models, and execution paths for your own evaluation scenarios.
 
-**Automated Video Generation**: Synthetic test
-[videos can be generated](./how-to-guides/use-video-generator.md) to evaluate system
-performance under controlled conditions.
+**Built-In Performance Visibility**: Throughput, latency, and system utilization metrics are collected
+in one place, making it easier to identify bottlenecks and compare platform behavior.
 
-## Learn More
+## Resources
 
-- [System Requirements](./get-started/system-requirements)
-- [Get Started](./get-started)
-- [How to Build Source](./get-started/build-from-source)
-- [How to use gvapython scripts](./how-to-guides/use-gvapython-scripts)
-- [How to use Video Generator](./how-to-guides/use-video-generator)
-- [Release Notes](./release-notes)
+- [Getting Started](getting-started.md)
+- [User Guide](user-guide.md)
+- [Developer Guide](developer-guide.md)
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
-get-started
-how-it-works
-use-vippet
-api-reference
-troubleshooting
-release-notes
+./getting-started
+./user-guide
+./developer-guide
+./troubleshooting
+./release-notes
 
 :::
 hide_directive-->

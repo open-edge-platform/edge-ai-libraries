@@ -2,12 +2,17 @@
 
 ## Current Release
 
-**Version**: 2026.1.0-rc1 \
-**Release Date**: WW20 2026
+**Version**: 2026.1.0
+**Release Date**:  June 17, 2026
 
-- Making HF token as an optional. Only required when user downloading gated models.
-- Upgrade OLLAMA binary version.
-- Dependency Upgrades. Upgraded application dependencies flagged by Dependabot for known vulnerabilities.
+**New**
+
+- The HF token is made optional. Now, it is only required when the user downloads gated models.
+
+**Upgrade Notes**
+
+- Upgraded the OLLAMA binary version.
+- Dependency Upgrades: Upgraded application dependencies flagged by Dependabot for known vulnerabilities.
 
 ## Previous Releases
 

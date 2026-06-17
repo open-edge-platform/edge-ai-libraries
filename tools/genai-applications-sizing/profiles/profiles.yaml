@@ -37,26 +37,32 @@ profiles:
         - query: "Find the frame where the shipping label and barcode on the box are fully visible and clearly readable."
 
   video_summary_wsf:
-    input_type: "video"
-    input_size: "medium" 
     files:
-      - name: "one-by-one-person-detection.mp4"
-        path: "data/one-by-one-person-detection.mp4"    
-    payload:
-        '{"evam": {"evamPipeline": "video_ingestion"},
-        "sampling": {
+      - name: store-aisle-detection.mp4
+        path: data/store-aisle-detection.mp4
+    input_size: medium
+    input_type: video
+    payload: '
+        {
+          "evam": {
+            "evamPipeline": "video_ingestion"
+          },
+          "sampling": {
             "chunkDuration": 30,
             "samplingFrame": 32,
             "frameOverlap": 2,
             "multiFrame": 34
-        },
-        "prompts": {
-             "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
-            "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
-            "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
-            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
-        },
-        "title": "one-by-one-person-detection.mp4"}'
+          },
+          "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
+          "summaryMapPrompt": "You are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\n\nVideo Segments:\n\n%data%\n",
+          "summaryReducePrompt": "You are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n",
+          "summarySinglePrompt": "Condense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n",
+          "audioSummaryMapPrompt": "You are provided with a full transcript of a video spoken audio. Create a coherent, chronologically ordered summary focused on speech content, key topics, decisions, intent, and relevant context.\n\nRequirements:\n- Preserve important details and sequence of ideas.\n- Remove filler speech and repeated wording.\n- Avoid speculation and information not present in transcript.\n- Keep speaker references neutral if speaker identity is unclear.\n\nFull Transcript:\n\n%data%\n",
+          "audioSummaryReducePrompt": "You are provided with intermediate summaries derived from a full audio transcript. Merge them into one coherent final summary (aim for 2–4 paragraphs) while preserving chronology, key points, and critical details.\n\n%data%\n",
+          "audioSummarySinglePrompt": "Condense the following audio-transcript summary while retaining the key points, chronology, and critical details:\n\n%data%\n",
+          "produceFinalSummary": "true",
+          "title": "one-by-one-person-detection.mp4"
+        }'
         
   chatqna_wsf:
     input_type: "text"
@@ -119,17 +125,21 @@ profiles:
     payload:
         '{"evam": {"evamPipeline": "video_ingestion"},
         "sampling": {
-            "chunkDuration": 8,
-            "samplingFrame": 8,
-            "frameOverlap": 4,
-            "multiFrame": 12
+             "chunkDuration": 8,
+             "samplingFrame": 8,
+             "frameOverlap": 0,
+             "multiFrame": 8
         },
         "prompts": {
              "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
-            "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
-            "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
-            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+             "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
+             "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
+             "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  ",
+             "audioSummaryMapPrompt": "\nYou are provided with a full transcript of a video spoken audio. Create a coherent, chronologically ordered summary focused on speech content, key topics, decisions, intent, and relevant context.\n\nRequirements:\n- Preserve important details and sequence of ideas.\n- Remove filler speech and repeated wording.\n- Avoid speculation and information not present in transcript.\n- Keep speaker references neutral if speaker identity is unclear.\n\nFull Transcript:\n\n%data%\n",
+             "audioSummaryReducePrompt": "\nYou are provided with intermediate summaries derived from a full audio transcript. Merge them into one coherent final summary (aim for 2–4 paragraphs) while preserving chronology, key points, and critical details.\n\n%data%\n",
+             "audioSummarySinglePrompt": "\nCondense the following audio-transcript summary while retaining the key points, chronology, and critical details:\n\n%data%\n",
         },
+        "produceFinalSummary": "true",
         "title": "store-aisle-detection.mp4"}'
   
   video_summary_object_detection:
@@ -142,16 +152,20 @@ profiles:
         '{"evam": {"evamPipeline": "object_detection"},
         "sampling": {
             "chunkDuration": 8,
-            "samplingFrame": 8,
-            "frameOverlap": 4,
-            "multiFrame": 12
+             "samplingFrame": 8,
+             "frameOverlap": 0,
+             "multiFrame": 8
         },
         "prompts": {
              "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
             "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
             "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
-            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  ",
+            "audioSummaryMapPrompt": "\nYou are provided with a full transcript of a video spoken audio. Create a coherent, chronologically ordered summary focused on speech content, key topics, decisions, intent, and relevant context.\n\nRequirements:\n- Preserve important details and sequence of ideas.\n- Remove filler speech and repeated wording.\n- Avoid speculation and information not present in transcript.\n- Keep speaker references neutral if speaker identity is unclear.\n\nFull Transcript:\n\n%data%\n",
+             "audioSummaryReducePrompt": "\nYou are provided with intermediate summaries derived from a full audio transcript. Merge them into one coherent final summary (aim for 2–4 paragraphs) while preserving chronology, key points, and critical details.\n\n%data%\n",
+             "audioSummarySinglePrompt": "\nCondense the following audio-transcript summary while retaining the key points, chronology, and critical details:\n\n%data%\n",
         },
+        "produceFinalSummary": "true",
         "title": "store-aisle-detection.mp4"}'
   
   video_summary_audio_injection:
@@ -162,19 +176,23 @@ profiles:
         path: "data/store-aisle-detection.mp4"    
     payload:
         '{"evam": {"evamPipeline": "video_ingestion"},
-        "audio":{"audioModel":"tiny.en"},
+        "audio":{"audioModel": "small.en", "useFullTranscriptSummary": "false"},
         "sampling": {
             "chunkDuration": 8,
-            "samplingFrame": 8,
-            "frameOverlap": 4,
-            "multiFrame": 12
+             "samplingFrame": 8,
+             "frameOverlap": 0,
+             "multiFrame": 8
         },
         "prompts": {
            "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
             "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
             "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
-            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  ",
+            "audioSummaryMapPrompt": "\nYou are provided with a full transcript of a video spoken audio. Create a coherent, chronologically ordered summary focused on speech content, key topics, decisions, intent, and relevant context.\n\nRequirements:\n- Preserve important details and sequence of ideas.\n- Remove filler speech and repeated wording.\n- Avoid speculation and information not present in transcript.\n- Keep speaker references neutral if speaker identity is unclear.\n\nFull Transcript:\n\n%data%\n",
+             "audioSummaryReducePrompt": "\nYou are provided with intermediate summaries derived from a full audio transcript. Merge them into one coherent final summary (aim for 2–4 paragraphs) while preserving chronology, key points, and critical details.\n\n%data%\n",
+             "audioSummarySinglePrompt": "\nCondense the following audio-transcript summary while retaining the key points, chronology, and critical details:\n\n%data%\n",
         },
+        "produceFinalSummary": "true",
         "title": "store-aisle-detection.mp4"}'
 
   video_summary_object_detection_audio_injection:
@@ -185,19 +203,23 @@ profiles:
         path: "data/store-aisle-detection.mp4"    
     payload:
         '{"evam": {"evamPipeline": "object_detection"},
-        "audio":{"audioModel":"tiny.en"},
+        "audio": {"audioModel": "small.en","useFullTranscriptSummary": "false"},
         "sampling": {
-             "chunkDuration": 8,
-            "samplingFrame": 8,
-            "frameOverlap": 4,
-            "multiFrame": 12
+            "chunkDuration": 8,
+             "samplingFrame": 8,
+             "frameOverlap": 0,
+             "multiFrame": 8
         },
         "prompts": {
             "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
             "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
             "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
-            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  ",
+            "audioSummaryMapPrompt": "\nYou are provided with a full transcript of a video spoken audio. Create a coherent, chronologically ordered summary focused on speech content, key topics, decisions, intent, and relevant context.\n\nRequirements:\n- Preserve important details and sequence of ideas.\n- Remove filler speech and repeated wording.\n- Avoid speculation and information not present in transcript.\n- Keep speaker references neutral if speaker identity is unclear.\n\nFull Transcript:\n\n%data%\n",
+             "audioSummaryReducePrompt": "\nYou are provided with intermediate summaries derived from a full audio transcript. Merge them into one coherent final summary (aim for 2–4 paragraphs) while preserving chronology, key points, and critical details.\n\n%data%\n",
+             "audioSummarySinglePrompt": "\nCondense the following audio-transcript summary while retaining the key points, chronology, and critical details:\n\n%data%\n",
         },
+        "produceFinalSummary": "true",
         "title": "store-aisle-detection.mp4"}'
   
   video_summary_aud_od_accuracy:
@@ -208,19 +230,23 @@ profiles:
         path: "data/store-aisle-detection.mp4"    
     payload:
         '{"evam": {"evamPipeline": "object_detection"},
-        "audio":{"audioModel":"tiny.en"},
+        "audio": {"audioModel": "small.en", "useFullTranscriptSummary": "false"},
         "sampling": {
-            "chunkDuration": 2,
-            "samplingFrame": 4,
-            "frameOverlap": 2,
-            "multiFrame": 6
+            "chunkDuration": 8,
+             "samplingFrame": 8,
+             "frameOverlap": 0,
+             "multiFrame": 8
         },
         "prompts": {
             "framePrompt": "The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed",
             "summaryMapPrompt": "  \nYou are provided with summaries of video segments of a single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:\n- Clearly describes key actions, interactions, and notable details.\n- Highlights important objects, people, and contextual information.\n- Avoids unnecessary repetition and maintains coherence.\nDont treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.\nVideo Segments:\n\n%data%\n",
             "summaryReducePrompt": " \nYou are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:\n\n- Accurately describe the key activities, events, interactions, and notable details observed across the entire video.\n- Maintain temporal continuity to reflect the progression of events logically.\n- Highlight significant details while avoiding redundancy or unnecessary repetition.\n- Focus on capturing the most important and relevant information from the provided summaries.\n\n%data%\n  ",
-            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
+            "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  ",
+            "audioSummaryMapPrompt": "\nYou are provided with a full transcript of a video spoken audio. Create a coherent, chronologically ordered summary focused on speech content, key topics, decisions, intent, and relevant context.\n\nRequirements:\n- Preserve important details and sequence of ideas.\n- Remove filler speech and repeated wording.\n- Avoid speculation and information not present in transcript.\n- Keep speaker references neutral if speaker identity is unclear.\n\nFull Transcript:\n\n%data%\n",
+             "audioSummaryReducePrompt": "\nYou are provided with intermediate summaries derived from a full audio transcript. Merge them into one coherent final summary (aim for 2–4 paragraphs) while preserving chronology, key points, and critical details.\n\n%data%\n",
+             "audioSummarySinglePrompt": "\nCondense the following audio-transcript summary while retaining the key points, chronology, and critical details:\n\n%data%\n",
         },
+        "produceFinalSummary": "true",
         "title": "store-aisle-detection.mp4"}'
   
   live_video_caption_2_parallel_runs:

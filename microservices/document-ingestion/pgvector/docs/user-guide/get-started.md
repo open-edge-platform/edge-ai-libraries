@@ -129,8 +129,8 @@ This method provides the fastest way to get started with the microservice.
    ```bash
    # Clone the latest on mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   # Alternatively, Clone the release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.1.0
    ```
 
 2. **Change to project directory**:

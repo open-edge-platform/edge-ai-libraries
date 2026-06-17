@@ -33,9 +33,7 @@ export const PerformanceJobDetail = () => {
           <p className="text-muted-foreground">Loading job details...</p>
         ) : error ? (
           <div className="status-error p-4 border border-status-border bg-status-bg">
-            <p className="text-status-fg">
-              Error loading job details
-            </p>
+            <p className="text-status-fg">Error loading job details</p>
           </div>
         ) : (
           <div className="border p-6">
