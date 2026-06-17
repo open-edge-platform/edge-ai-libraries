@@ -19,13 +19,11 @@ gunicorn = "^26.0.0"
 pydantic-settings = "^2.14.1"
 aiohttp = "^3.13.5"
 nncf = "^3.1.0"
-numpy = "^2.4.6"
 openvino = "^2026.1.0"
 openvino-genai = "^2026.1.0.0"
 optimum-intel = "^1.27.0"
 qwen_vl_utils = ">=0.0.14,<0.1.0"
 num2words = ">=0.5.14,<1.0.0"
-wheel = ">=0.47.0,<1.0.0"
 
 [[tool.poetry.source]]
 name = "pytorch-cpu"
