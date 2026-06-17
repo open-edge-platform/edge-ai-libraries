@@ -39,10 +39,10 @@ NODE_VERSION := 22
 # ==============================================================================
 
 DEFAULT_REGISTRY := intel/
-DEFAULT_UI_TAG := core_2026.1.0-rc1
-DEFAULT_BACKEND_TAG := core_2026.1.0-rc1
-DEFAULT_GPU_TAG := core_gpu_2026.1.0-rc1
-DEFAULT_OLLAMA_TAG := core_ollama_2026.1.0-rc1
+DEFAULT_UI_TAG := core_2026.1.0
+DEFAULT_BACKEND_TAG := core_2026.1.0
+DEFAULT_GPU_TAG := core_gpu_2026.1.0
+DEFAULT_OLLAMA_TAG := core_ollama_2026.1.0
 
 # ==============================================================================
 # Component Configuration
