@@ -25,6 +25,15 @@ export {
   CardDescription,
   CardContent,
 } from "./components/card";
+export {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  ChartStyle,
+} from "./components/chart";
+export type { ChartConfig } from "./components/chart";
 export { Checkbox } from "./components/checkbox";
 export {
   Dialog,
@@ -110,5 +119,53 @@ export { Tabs, TabsList, TabsTrigger, TabsContent, tabsListVariants } from "./co
 export { Textarea } from "./components/textarea";
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./components/tooltip";
 
+// Recharts primitives (re-exported for consumer convenience)
+export {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
+
 // Utilities
 export { cn } from "./lib/utils";
+
+// Icons (re-exported from lucide-react for consumer convenience)
+export {
+  Activity,
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  CircleAlert,
+  Cpu,
+  Eye,
+  HardDrive,
+  Info,
+  Loader2,
+  Monitor,
+  MoreHorizontal,
+  Play,
+  Plus,
+  Search,
+  Settings,
+  Square,
+  Trash2,
+  TrendingUp,
+  X,
+  Zap,
+} from "lucide-react";
