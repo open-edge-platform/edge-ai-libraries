@@ -43,9 +43,9 @@ Refer the following snippet for enabling the image ingestion feature for Jpg ima
 >
 > - The images should follow a naming convention and should be named in the format characters followed by digits in the sequential order. For e.g. `frame_001`, `frame_002`, `frame_003` and so on.
 > - Make use of the `%d` format specifier to specify the total digits present in the image filename.
->  For e.g. If the images are named in the format `frame_0001`, `frame_0002`, then it has total 4 digits in the filename. Use `%04d` while providing the image name `<image_filename>%04d.jpg` in the pipeline.
+>   For e.g. If the images are named in the format `frame_0001`, `frame_0002`, then it has total 4 digits in the filename. Use `%04d` while providing the image name `<image_filename>%04d.jpg` in the pipeline.
 > - The ingestion will stop if it does not find the required image name.
-> For e.g. If directory contains images `frame_01`, `frame_02` and `frame_04`, then the ingestion will stop after reading `frame_02` since `frame_03` is not present in the directory.
+>   For e.g. If directory contains images `frame_01`, `frame_02` and `frame_04`, then the ingestion will stop after reading `frame_02` since `frame_03` is not present in the directory.
 > - Make use of images having resolution - `720×480`, `1280×720`, `1920×1080`, `3840×2160` and `1920×1200`. If a different resolution image is used then the DL Streamer Pipeline Server service might fail with `reshape` error  as gstreamer does zero padding to that image.
 > - Make sure that the images directory is having the required read and execute permission. If not use the following command to add the permissions.
 > `sudo chmod -R 755 <path to images directory>`
