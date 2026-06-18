@@ -1,6 +1,12 @@
 # Visual Pipeline and Platform Evaluation Tool
 
 <!--hide_directive
+```{eval-rst}
+:orphan:
+```
+hide_directive-->
+
+<!--hide_directive
 <div class="component_card_widget">
   <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool">
      GitHub
