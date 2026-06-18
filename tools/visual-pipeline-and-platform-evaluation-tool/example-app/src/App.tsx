@@ -295,7 +295,7 @@ export function App() {
                 <CardHeader>
                   <CardTitle>Buttons</CardTitle>
                   <CardDescription>
-                    Various button variants and sizes
+                    Various button variants
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -306,13 +306,6 @@ export function App() {
                     <Button variant="ghost">Ghost</Button>
                     <Button variant="destructive">Destructive</Button>
                     <Button variant="link">Link</Button>
-                  </div>
-                  <Separator />
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button size="xs">Extra Small</Button>
-                    <Button size="sm">Small</Button>
-                    <Button size="default">Default</Button>
-                    <Button size="lg">Large</Button>
                   </div>
                 </CardContent>
               </Card>
