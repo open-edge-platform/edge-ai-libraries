@@ -13,13 +13,13 @@ the number of streams to process.
 
 Before running the test, configure the following settings:
 
-| Setting | Description |
-|---------|-------------|
-| **Pipeline** | Select a pipeline variant to test |
-| **Streams** | Number of parallel streams (copies of the pipeline) to run simultaneously |
-| **Output mode** | `disabled` — no output saved; `file` — save output videos to disk; `live_stream` — stream via RTSP |
-| **Max runtime** | Maximum execution time in seconds (0 = run until end of video source) |
-| **Metadata mode** | `disabled` — no metadata; `file` — save inference metadata to disk |
+| Setting                    | Description                                                                                                                                   |
+|----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| **Pipeline**               | Select a pipeline variant to test                                                                                                             |
+| **Streams**                | Number of parallel streams (copies of the pipeline) to run simultaneously                                                                     |
+| **Output mode**            | `disabled` — no output saved; `file` — save output videos to disk; `live_stream` — stream via RTSP                                            |
+| **Max runtime**            | Maximum execution time in seconds (0 = run until end of video source)                                                                         |
+| **Metadata mode**          | `disabled` — no metadata; `file` — save inference metadata to disk                                                                            |
 | **Enable latency metrics** | When enabled, measures end-to-end pipeline latency (avg/min/max) per reporting interval. See [Latency metrics](#latency-metrics) for details. |
 
 Once all settings are configured, click *Run performance test*.
@@ -39,12 +39,12 @@ While the test runs, the dashboard displays real-time metrics:
 
 When the test completes, the application reports:
 
-| Metric | Description |
-|--------|-------------|
-| **Total FPS** | Aggregate throughput across all streams |
-| **Per Stream FPS** | Average throughput per individual stream (Total FPS ÷ stream count) |
-| **Output videos** | Paths to recorded output files (if output mode was `file`) |
-| **Live stream URLs** | RTSP URLs for live viewing (if output mode was `live_stream`) |
+| Metric                        | Description                                                                            |
+|-------------------------------|----------------------------------------------------------------------------------------|
+| **Total FPS**                 | Aggregate throughput across all streams                                                |
+| **Per Stream FPS**            | Average throughput per individual stream (Total FPS ÷ stream count)                    |
+| **Output videos**             | Paths to recorded output files (if output mode was `file`)                             |
+| **Live stream URLs**          | RTSP URLs for live viewing (if output mode was `live_stream`)                          |
 | **Latency (avg / min / max)** | End-to-end pipeline latency in milliseconds, reported when latency metrics are enabled |
 
 ![Performance Results](../../_assets/ViPPET-UI-Performance-Results-light.png)
