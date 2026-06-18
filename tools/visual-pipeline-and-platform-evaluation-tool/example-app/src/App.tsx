@@ -74,14 +74,7 @@ import {
   type ChartConfig,
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
   XAxis,
   YAxis,
   // Icons
@@ -100,32 +93,6 @@ const cpuData = Array.from({ length: 30 }, (_, i) => ({
   npu: 20 + Math.sin(i * 0.4) * 15 + Math.random() * 5,
 }));
 
-const fpsData = [
-  { device: "CPU", fps: 42, streams: 4 },
-  { device: "GPU", fps: 128, streams: 12 },
-  { device: "NPU", fps: 95, streams: 8 },
-];
-
-const powerData = Array.from({ length: 20 }, (_, i) => ({
-  time: `${i * 2}`,
-  tdp: 45 + Math.sin(i * 0.5) * 10 + Math.random() * 5,
-  package: 65 + Math.cos(i * 0.3) * 15 + Math.random() * 8,
-}));
-
-const pipelineDistribution = [
-  { name: "Detection", value: 40 },
-  { name: "Classification", value: 25 },
-  { name: "Segmentation", value: 20 },
-  { name: "Tracking", value: 15 },
-];
-
-const PIE_COLORS = [
-  "var(--green-chart)",
-  "var(--purple-chart)",
-  "var(--yellow-chart)",
-  "var(--orange-chart)",
-];
-
 const benchmarkResults = [
   { pipeline: "person-detection", device: "CPU", fps: 42.3, streams: 4, status: "completed" },
   { pipeline: "vehicle-detection", device: "GPU", fps: 128.7, streams: 12, status: "completed" },
@@ -139,16 +106,6 @@ const utilizationConfig: ChartConfig = {
   cpu: { label: "CPU", color: "var(--orange-chart)" },
   gpu: { label: "GPU", color: "var(--green-chart)" },
   npu: { label: "NPU", color: "var(--purple-chart)" },
-};
-
-const fpsConfig: ChartConfig = {
-  fps: { label: "FPS", color: "var(--green-chart)" },
-  streams: { label: "Streams", color: "var(--purple-chart)" },
-};
-
-const powerConfig: ChartConfig = {
-  tdp: { label: "TDP", color: "var(--yellow-chart)" },
-  package: { label: "Package", color: "var(--orange-chart)" },
 };
 
 export function App() {
@@ -300,146 +257,12 @@ export function App() {
                 </CardContent>
               </Card>
 
-              {/* Two smaller charts side by side */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Bar chart — FPS per device */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Performance by Device</CardTitle>
-                    <CardDescription>
-                      FPS and max streams achieved
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ChartContainer
-                      config={fpsConfig}
-                      className="h-[200px] w-full"
-                    >
-                      <BarChart data={fpsData}>
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          vertical={false}
-                          stroke="#404040"
-                          opacity={0.3}
-                        />
-                        <XAxis dataKey="device" tickLine={false} axisLine={false} />
-                        <YAxis tickLine={false} axisLine={false} width={40} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <ChartLegend content={<ChartLegendContent />} />
-                        <Bar
-                          dataKey="fps"
-                          fill="var(--green-chart)"
-                          radius={[4, 4, 0, 0]}
-                        />
-                        <Bar
-                          dataKey="streams"
-                          fill="var(--purple-chart)"
-                          radius={[4, 4, 0, 0]}
-                        />
-                      </BarChart>
-                    </ChartContainer>
-                  </CardContent>
-                </Card>
-
-                {/* Line chart — Power consumption */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Power Consumption</CardTitle>
-                    <CardDescription>TDP and package power (W)</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ChartContainer
-                      config={powerConfig}
-                      className="h-[200px] w-full"
-                    >
-                      <LineChart data={powerData}>
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          vertical={false}
-                          stroke="#404040"
-                          opacity={0.3}
-                        />
-                        <XAxis
-                          dataKey="time"
-                          tickLine={false}
-                          axisLine={false}
-                          tickFormatter={(v) => `${v}s`}
-                          stroke="#737373"
-                        />
-                        <YAxis
-                          tickLine={false}
-                          axisLine={false}
-                          tickFormatter={(v) => `${v}W`}
-                          width={50}
-                          stroke="#737373"
-                        />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <ChartLegend content={<ChartLegendContent />} />
-                        <Line
-                          type="monotone"
-                          dataKey="tdp"
-                          stroke="var(--yellow-chart)"
-                          strokeWidth={2.5}
-                          dot={false}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="package"
-                          stroke="var(--orange-chart)"
-                          strokeWidth={2.5}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ChartContainer>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Pie chart + system health */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Pipeline Distribution</CardTitle>
-                    <CardDescription>Active pipelines by type</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ChartContainer
-                      config={{
-                        detection: { label: "Detection", color: PIE_COLORS[0] },
-                        classification: { label: "Classification", color: PIE_COLORS[1] },
-                        segmentation: { label: "Segmentation", color: PIE_COLORS[2] },
-                        tracking: { label: "Tracking", color: PIE_COLORS[3] },
-                      }}
-                      className="h-[200px] w-full"
-                    >
-                      <PieChart>
-                        <Pie
-                          data={pipelineDistribution}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={50}
-                          outerRadius={80}
-                          dataKey="value"
-                        >
-                          {pipelineDistribution.map((_, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={PIE_COLORS[index % PIE_COLORS.length]}
-                            />
-                          ))}
-                        </Pie>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <ChartLegend content={<ChartLegendContent />} />
-                      </PieChart>
-                    </ChartContainer>
-                  </CardContent>
-                </Card>
-
-                <Card className="lg:col-span-2">
-                  <CardHeader>
-                    <CardTitle>System Health</CardTitle>
-                    <CardDescription>Current resource allocation</CardDescription>
-                  </CardHeader>
+              {/* System health */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>System Health</CardTitle>
+                  <CardDescription>Current resource allocation</CardDescription>
+                </CardHeader>
                   <CardContent className="space-y-5">
                     {[
                       { label: "CPU", value: 62 },
@@ -463,7 +286,6 @@ export function App() {
                     ))}
                   </CardContent>
                 </Card>
-              </div>
             </TabsContent>
 
             {/* ─── Components Tab ─── */}

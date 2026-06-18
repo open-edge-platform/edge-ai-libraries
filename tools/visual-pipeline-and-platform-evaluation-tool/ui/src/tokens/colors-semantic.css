@@ -141,11 +141,8 @@
   --color-carbon-tint-1: var(--carbon-tint-1);
   --color-electric-geode: var(--electric-geode);
   --color-electric-cobalt: var(--electric-cobalt);
-  --color-electric-moss: var(--electric-sky);
-  --color-electric-amethyst: var(--electric-amethyst);
-  --color-electric-fuchsia: var(--electric-fuchsia);
-  --color-electric-teal: var(--electric-teal);
-  --color-electric-emerald: var(--electric-emerald);
+  --color-electric-moss: var(--electric-moss);
+  --color-electric-daisy: var(--electric-daisy);
   --color-electric-rust: var(--electric-rust);
   --color-electric-coral: var(--electric-coral);
   --color-green-chart: var(--green-chart);
@@ -176,12 +173,19 @@
   --muted-foreground: var(--carbon);
   --accent: var(--carbon-10);
   --accent-foreground: var(--black);
-  --destructive: var(--red);
+  --destructive: var(--electric-coral);
   --border: var(--carbon-10);
   --input: var(--carbon-tint-1);
   --ring: var(--carbon);
 
   /* shadcn/ui chart */
+  --green-chart: var(--electric-moss);
+  --purple-chart: var(--electric-geode);
+  --geode-chart: var(--geode);
+  --red-chart: var(--electric-coral);
+  --magenta-chart: var(--geode-shade-1);
+  --yellow-chart: var(--electric-daisy);
+  --orange-chart: var(--electric-rust);
 
   /* shadcn/ui sidebar */
   --sidebar: var(--spark-light-gray-100);
@@ -232,12 +236,12 @@
   --demo-exit-hover-border: color-mix(in oklch, var(--demo-blue-500) 50%, transparent);
   --demo-exit-fg: var(--brand-accent);
   --demo-panel-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
-  --demo-panel-title: var(--slate-300);
-  --demo-panel-label: var(--slate-400);
+  --demo-panel-title: var(--demo-slate-300);
+  --demo-panel-label: var(--demo-slate-400);
   --demo-panel-input-border: color-mix(in oklch, var(--demo-slate-400) 40%, transparent);
-  --demo-panel-input-focus-border: var(--blue-500);
+  --demo-panel-input-focus-border: var(--demo-blue-500);
   --demo-panel-input-focus-ring: color-mix(in oklch, var(--demo-blue-500) 30%, transparent);
-  --demo-panel-input-text: var(--demo-slate-200);
+  --demo-panel-input-text: var(--demo-slate-300);
   --demo-panel-menu-surface: color-mix(in oklch, var(--demo-slate-900) 95%, transparent);
   --demo-panel-menu-border: color-mix(in oklch, var(--demo-slate-400) 40%, transparent);
   --demo-checkbox-border: color-mix(in oklch, var(--demo-slate-400) 60%, transparent);
@@ -254,22 +258,22 @@
   --demo-selection-card-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
   --demo-selection-card-border-hover: color-mix(in oklch, var(--demo-blue-500) 50%, transparent);
   --demo-selection-card-border-active: var(--brand-accent);
-  --demo-selection-card-title: var(--demo-slate-200);
-  --demo-selection-card-description: var(--slate-400);
+  --demo-selection-card-title: var(--demo-slate-300);
+  --demo-selection-card-description: var(--demo-slate-400);
   --demo-selection-count: color-mix(in oklch, var(--demo-blue-300) 90%, transparent);
   --demo-carousel-button-surface: color-mix(in oklch, var(--demo-slate-800) 90%, transparent);
   --demo-carousel-button-surface-hover: color-mix(in oklch, var(--demo-slate-700) 90%, transparent);
   --demo-carousel-button-border: color-mix(in oklch, var(--demo-slate-600) 50%, transparent);
-  --demo-carousel-button-icon: var(--demo-slate-200);
-  --demo-carousel-dot: var(--slate-600);
+  --demo-carousel-button-icon: var(--demo-slate-300);
+  --demo-carousel-dot: var(--demo-slate-600);
   --demo-carousel-dot-hover: var(--demo-slate-500);
   --demo-carousel-dot-active: var(--brand-accent);
   --demo-preview-panel-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
   --demo-preview-panel-surface: color-mix(in oklch, var(--demo-slate-950) 30%, transparent);
   --demo-preview-card-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
   --demo-preview-card-surface: color-mix(in oklch, var(--demo-slate-950) 40%, transparent);
-  --demo-preview-card-title: var(--slate-300);
-  --demo-preview-empty: var(--slate-400);
+  --demo-preview-card-title: var(--demo-slate-300);
+  --demo-preview-empty: var(--demo-slate-400);
 }
 
 /* ── Dark mode ──────────────────────────────────────────────────────────────── */
@@ -289,7 +293,7 @@
   --muted-foreground: var(--carbon-tint-1);
   --accent: oklch(1 0 0 / 15%);
   --accent-foreground: var(--white);
-  --destructive: var(--red-bright);
+  --destructive: var(--coral-tint-1);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: var(--carbon);
