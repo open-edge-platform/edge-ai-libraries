@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import threading
 import urllib.request
 from functools import lru_cache
 from pathlib import Path
@@ -28,6 +29,8 @@ from src.utils.logging import logger
 _CONFIG_DIR = Path(__file__).with_name("external_sources")
 _PROFILE_FILE = _CONFIG_DIR / "sources.yaml"
 _OMZ_VENV_BIN = Path(os.environ.get("OMZ_VENV", "/opt/.venv-omz")) / "bin"
+_CACHE_ROOT = Path(os.environ.get("EXTERNAL_SOURCES_CACHE_DIR", "/tmp/model_download_external_sources"))
+_COMPLETE_MARKER = ".download_complete"
 
 # Fail fast: Python >= 3.12 required for tarfile.data_filter
 if not hasattr(tarfile, "data_filter"):
@@ -55,6 +58,8 @@ def _load_profile() -> Dict[str, Dict[str, Any]]:
 
 class ExternalSourcesPlugin(ModelDownloadPlugin):
     """Combined downloader for external hubs (tarball + OMZ)."""
+
+    _archive_lock = threading.Lock()
 
     @property
     def plugin_name(self) -> str:
@@ -104,9 +109,9 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
 
         try:
             if kind == "tarball":
-                self._fetch_tarball(model_name, profile, target_dir)
+                self._fetch_tarball(hub, model_name, profile, target_dir)
             elif kind == "omz":
-                self._fetch_omz(model_name, target_dir)
+                self._fetch_omz(hub, model_name, target_dir)
             else:
                 raise ValueError(
                     f"Unknown 'kind' for hub {hub!r}: {kind!r} (check sources.yaml)"
@@ -134,50 +139,78 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             raise
 
     def _fetch_tarball(
-        self, model_name: str, profile: Dict[str, Any], target_dir: str
+        self, hub: str, model_name: str, profile: Dict[str, Any], target_dir: str
     ) -> None:
         """Download and extract a tarball-based model (shared or per-model archive)."""
-        if profile.get("archive_url_template"):
+        per_model_template = profile.get("per_model_archive_url_template")
+
+        if per_model_template:
             # Per-model tarball: download and extract directly to target
-            url = profile["archive_url_template"].format(model_name=model_name)
+            per_model_archive_url = per_model_template.format(model_name=model_name)
             os.makedirs(target_dir, exist_ok=True)
-            self._download_and_extract_tarball(url, target_dir)
+            logger.info("external_sources_downloading_archive", hub=hub, model_name=model_name, url=per_model_archive_url)
+            self._download_and_extract_tarball(per_model_archive_url, target_dir)
             logger.info(
-                "external_sources_model_tarball_extracted",
+                "external_sources_per_model_tarball_extracted",
                 model_name=model_name,
                 target=target_dir,
             )
         else:
-            # Shared archive: download, extract to temp, copy requested subdir
-            archive_url = profile.get("archive_url")
-            if not archive_url:
-                raise RuntimeError("Profile entry is missing 'archive_url'")
+            # Shared archive: use persistent extracted cache to avoid downloading full tar on each request
+            extract_dir = self._ensure_shared_archive_extracted(hub, profile)
 
-            model_subdir = profile.get("model_subdir", "{model_name}").format(
-                model_name=model_name
-            )
+            extracted_root = profile.get("shared_archive_root")
+            source_base = os.path.join(extract_dir, extracted_root) if extracted_root else extract_dir
+
+            model_subdir_template = profile.get("shared_model_subpath", "{model_name}")
+            model_subdir = model_subdir_template.format(model_name=model_name)
             if ".." in Path(model_subdir).parts:
                 raise ValueError(f"model_subdir resolves outside archive: {model_subdir!r}")
 
-            with tempfile.TemporaryDirectory(prefix="ext-archive-") as tmp_dir:
-                extract_dir = os.path.join(tmp_dir, "extracted")
-                os.makedirs(extract_dir)
-                logger.info("external_sources_downloading_archive", url=archive_url)
-                self._download_and_extract_tarball(archive_url, extract_dir)
-
-                source_dir = os.path.join(extract_dir, model_subdir)
-                if not os.path.isdir(source_dir):
-                    raise FileNotFoundError(
-                        f"Model {model_name!r} not found in archive at {source_dir}"
-                    )
-
-                os.makedirs(target_dir, exist_ok=True)
-                shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
-                logger.info(
-                    "external_sources_tarball_copied",
-                    model_name=model_name,
-                    target=target_dir,
+            source_dir = os.path.join(source_base, model_subdir)
+            if not os.path.isdir(source_dir):
+                raise FileNotFoundError(
+                    f"Model {model_name!r} not found in archive at {source_dir}"
                 )
+
+            os.makedirs(target_dir, exist_ok=True)
+            shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
+            logger.info(
+                "external_sources_shared_tarball_copied",
+                model_name=model_name,
+                target=target_dir,
+            )
+
+    def _ensure_shared_archive_extracted(self, hub: str, profile: Dict[str, Any]) -> str:
+        """Ensure the shared archive for a hub is downloaded and extracted once."""
+        archive_url = profile.get("shared_archive_url")
+        if not archive_url:
+            raise RuntimeError(
+                "Profile entry is missing shared archive URL "
+                "(expected 'shared_archive_url')"
+            )
+
+        cache_dir = _CACHE_ROOT / hub
+        extract_dir = cache_dir / "extracted"
+        marker = extract_dir / _COMPLETE_MARKER
+
+        if marker.is_file():
+            return str(extract_dir)
+
+        with self._archive_lock:
+            if marker.is_file():
+                return str(extract_dir)
+
+            # Marker missing means cache is not trusted; remove any partial extract.
+            if extract_dir.exists():
+                shutil.rmtree(extract_dir)
+
+            extract_dir.mkdir(parents=True, exist_ok=True)
+            logger.info("external_sources_downloading_archive", hub=hub, url=archive_url)
+            self._download_and_extract_tarball(archive_url, str(extract_dir))
+            marker.touch()
+
+        return str(extract_dir)
 
     @staticmethod
     def _download_and_extract_tarball(url: str, target_dir: str) -> None:
@@ -188,7 +221,7 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             with tarfile.open(archive_path, "r:*") as tar_ref:
                 tar_ref.extractall(path=target_dir, filter="data")
 
-    def _fetch_omz(self, model_name: str, target_dir: str) -> None:
+    def _fetch_omz(self, hub: str, model_name: str, target_dir: str) -> None:
         """Download and convert an OMZ model using omz_downloader/omz_converter."""
         omz_downloader = _OMZ_VENV_BIN / "omz_downloader"
         omz_converter = _OMZ_VENV_BIN / "omz_converter"
@@ -203,13 +236,17 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
 
         with tempfile.TemporaryDirectory(prefix="ext-omz-") as tmp_dir:
             # Download
-            logger.info("external_sources_omz_downloading", model_name=model_name)
+            logger.info(
+                "external_sources_downloading_archive",
+                hub=hub,
+                model_name=model_name,
+            )
             self._run_omz_tool(
                 [str(omz_downloader), "--name", model_name, "--output_dir", tmp_dir]
             )
 
             # Convert
-            logger.info("external_sources_omz_converting", model_name=model_name)
+            logger.info("external_sources_omz_converting", hub=hub, model_name=model_name)
             self._run_omz_tool(
                 [
                     str(omz_converter),
