@@ -33,8 +33,6 @@
   --carbon-shade-2: oklch(0.204 0 0); /* #262626 */
   --carbon-10: oklch(0.9340 0.0001 263.28); /* #E9E9E9 */
 
-
-
   /* Electric palette */
   --electric-geode: oklch(0.5794 0.2752 308.89); /* #A923F1 */
   --electric-cobalt: oklch(0.4709 0.3001 266.75); /* #1E1EFF */
@@ -42,7 +40,6 @@
   --electric-daisy: oklch(0.9147 0.1908 101.03); /* #FFE500 */
   --electric-rust: oklch(0.7315 0.1802 50.72); /* #FE8022 */
   --electric-coral: oklch(0.5859 0.2057 13.88); /* #DA2E56 */
-
 
   /* Light color palette */
   --moss: oklch(0.818 0.128 124.730); /* #B1D272 */
@@ -63,13 +60,6 @@
   --daisy-tint-1: oklch(0.914 0.127 93.491); /* #FFE17A */
   --daisy-shade-1: oklch(0.796 0.163 84.460); /* #EDB200 */
   --daisy-shade-2: oklch(0.689 0.143 79.722); /* #C98F00 */
-}
-
-:root {
-}
-
-/* UI Neutrals — used by shadcn surface/sidebar tokens */
-:root {
 
   /* Demo palette (raw, solid) */
   --demo-blue-300: oklch(0.8091 0.0956 251.813); /* #93C5FD */
@@ -87,15 +77,14 @@
   --demo-slate-900: oklch(0.2077 0.0398 265.755); /* #0F172A */
   --demo-slate-950: oklch(0.1288 0.0406 264.695); /* #020617 */
 
-
   /* Other */
   --black: oklch(0 0 0); /* #000000 */
   --spark-light-gray-100: oklch(0.9694 0.0011 201.14); /* #F4F5F5 */
   --white: oklch(1 0 0); /* #FFFFFF */
-}
 
-.dark {
+  /* Dark mode colors*/
   --spark-dark-gray-50: oklch(0.2646 0.0058 271.17); /* #242528  */
   --spark-dark-gray-200: oklch(0.3634 0.0074 264.48); /* #3C3E42 */
   --spark-dark-gray-400: oklch(0.4686 0.0131 274.65); /* #585A62 */
 }
+
