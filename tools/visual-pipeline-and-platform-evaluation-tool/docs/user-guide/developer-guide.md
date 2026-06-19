@@ -44,14 +44,3 @@ Use the Developer Guide when you want to:
 
 For installation, first-run setup, and end-user workflows, refer to the
 [Getting Started](getting-started.md) and [User Guide](user-guide.md) sections.
-
-<!--hide_directive
-:::{toctree}
-:hidden:
-
-Architecture <./developer-guide/architecture>
-Performance Metrics <./developer-guide/metrics>
-./developer-guide/contributing-guide
-
-:::
-hide_directive-->

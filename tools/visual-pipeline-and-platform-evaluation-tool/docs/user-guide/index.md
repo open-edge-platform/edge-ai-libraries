@@ -67,28 +67,20 @@ in one place, making it easier to identify bottlenecks and compare platform beha
 <!--hide_directive
 :::{toctree}
 :hidden:
-:caption: Getting Started
 
 ./getting-started
-:::
-
-:::{toctree}
-:hidden:
-:caption: User Guide
-
+./getting-started/installation
+./getting-started/quickstart
+./getting-started/support
 ./user-guide
-:::
-
-:::{toctree}
-:hidden:
-:caption: Developer Guide
-
+./user-guide/input-management
+./user-guide/model-management
+./user-guide/pipeline-management
+./user-guide/benchmarking
 ./developer-guide
-:::
-
-:::{toctree}
-:hidden:
-
+Architecture <./developer-guide/architecture>
+Performance Metrics <./developer-guide/metrics>
+./developer-guide/contributing-guide
 ./troubleshooting
 ./release-notes
 :::
