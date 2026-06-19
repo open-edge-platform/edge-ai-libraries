@@ -171,10 +171,10 @@
   type: detection
   precisions:
     - precision: INT8
-      model_path: ultralytics/public/yolo11s/INT8/yolo11s-pose.xml
+      model_path: ultralytics/public/yolo11s-pose/INT8/yolo11s-pose.xml
       model_proc: ""
     - precision: FP16
-      model_path: ultralytics/public/yolo11s/FP16/yolo11s-pose.xml
+      model_path: ultralytics/public/yolo11s-pose/FP16/yolo11s-pose.xml
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
@@ -182,6 +182,69 @@
   download_request:
     hub: ultralytics
     name: yolo11s-pose
+    config:
+      quantize: coco128
+
+- name: yolo11n-pose
+  display_name: YOLO 11n Pose 640x640
+  source: public
+  hub: ultralytics
+  type: detection
+  precisions:
+    - precision: INT8
+      model_path: ultralytics/public/yolo11n-pose/INT8/yolo11n-pose.xml
+      model_proc: ""
+    - precision: FP16
+      model_path: ultralytics/public/yolo11n-pose/FP16/yolo11n-pose.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: true
+  download_request:
+    hub: ultralytics
+    name: yolo11n-pose
+    config:
+      quantize: coco128
+
+- name: yolo11s-seg
+  display_name: YOLO 11s Segmentation 640x640
+  source: public
+  hub: ultralytics
+  type: detection
+  precisions:
+    - precision: INT8
+      model_path: ultralytics/public/yolo11s-seg/INT8/yolo11s-seg.xml
+      model_proc: ""
+    - precision: FP16
+      model_path: ultralytics/public/yolo11s-seg/FP16/yolo11s-seg.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: true
+  download_request:
+    hub: ultralytics
+    name: yolo11s-seg
+    config:
+      quantize: coco128
+
+- name: yolo11n-seg
+  display_name: YOLO 11n Segmentation 640x640
+  source: public
+  hub: ultralytics
+  type: detection
+  precisions:
+    - precision: INT8
+      model_path: ultralytics/public/yolo11n-seg/INT8/yolo11n-seg.xml
+      model_proc: ""
+    - precision: FP16
+      model_path: ultralytics/public/yolo11n-seg/FP16/yolo11n-seg.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: true
+  download_request:
+    hub: ultralytics
+    name: yolo11n-seg
     config:
       quantize: coco128
 
