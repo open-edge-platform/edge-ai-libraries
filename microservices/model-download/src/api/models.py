@@ -269,6 +269,10 @@ class Config(BaseModel):
         None,
         description="OpenVINO/Optimum CLI specific parameters. Aligned with export_model.py arguments."
     )
+    post_processing: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Optional post-processing overrides for model-specific workflows"
+    )
 
 
 

@@ -39,6 +39,7 @@ components:
         - ollama
         - ultralytics
         - pipeline-zoo-models
+        - omz
         - openvino
         - geti
         - hls
@@ -92,6 +93,11 @@ components:
           nullable: true
           description: Ultralytics quantization dataset used to enable INT8 export
           example: coco128
+        post_processing:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Optional post-processing overrides for omz model-specific workflows
       description: Configuration for OVMS model conversion
 
     ModelRequest:
@@ -478,7 +484,7 @@ paths:
                 unsupported_hub:
                   summary: Unsupported model hub
                   value:
-                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'pipeline-zoo-models', 'openvino', 'geti', 'hls'}."
+                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'pipeline-zoo-models', 'omz', 'openvino', 'geti', 'hls', 'udf-timeseries'}."
                 plugin_unavailable:
                   summary: Plugin dependencies not installed
                   value:

@@ -10,6 +10,7 @@ and OMZ downloads via a YAML-driven dispatch on ``kind``.
 from __future__ import annotations
 
 import os
+import json
 import shutil
 import subprocess
 import tarfile
@@ -28,6 +29,7 @@ from src.utils.logging import logger
 
 _CONFIG_DIR = Path(__file__).with_name("external_sources")
 _PROFILE_FILE = _CONFIG_DIR / "sources.yaml"
+_OMZ_RULES_FILE = _CONFIG_DIR / "omz_rules.yaml"
 _OMZ_VENV_BIN = Path(os.environ.get("OMZ_VENV", "/opt/.venv-omz")) / "bin"
 _CACHE_ROOT = Path(os.environ.get("EXTERNAL_SOURCES_CACHE_DIR", "/tmp/model_download_external_sources"))
 _COMPLETE_MARKER = ".download_complete"
@@ -52,6 +54,24 @@ def _load_profile() -> Dict[str, Dict[str, Any]]:
         logger.warning("external_sources_profile_invalid", path=str(_PROFILE_FILE))
         return {}
     return sources
+
+
+@lru_cache(maxsize=1)
+def _load_omz_rules() -> Dict[str, Dict[str, Any]]:
+    """Read static OMZ post-processing rules shipped with the plugin."""
+    if not _OMZ_RULES_FILE.is_file():
+        logger.warning("OMZ rules file missing", path=str(_OMZ_RULES_FILE))
+        return {}
+
+    with open(_OMZ_RULES_FILE, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+
+    rules = data.get("rules", {})
+    if not isinstance(rules, dict):
+        logger.warning("OMZ rules file is invalid", path=str(_OMZ_RULES_FILE))
+        return {}
+
+    return rules
 
 
 
@@ -261,6 +281,132 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
 
             # Move converted artefacts: omz_converter produces intel/ or public/ subdirs
             self._materialize_omz_artefacts(model_name, tmp_dir, target_dir)
+
+        self._apply_omz_post_processing(model_name, target_dir)
+
+    def _apply_omz_post_processing(self, model_name: str, target_dir: str) -> None:
+        """Apply optional model-specific OMZ post-processing from rules."""
+        rule = _load_omz_rules().get(model_name)
+        if not rule:
+            logger.info(
+                "OMZ model has no specific post-processing rule; skipping post-processing",
+                model_name=model_name,
+            )
+            return
+
+        # If model is in rules, model_proc_src is required
+        model_proc_src = rule.get("model_proc_src")
+        if not model_proc_src:
+            raise ValueError(
+                f"OMZ rule for {model_name!r} is missing required 'model_proc_src'"
+            )
+
+        model_proc_dst = rule.get("model_proc_dst")
+        if not model_proc_dst:
+            raise ValueError(
+                f"OMZ rule for {model_name!r} is missing required 'model_proc_dst'"
+            )
+
+        labels_src = rule.get("labels_src")
+        inject_labels = bool(rule.get("inject_labels", False))
+
+        # Copy model_proc file (always, since model_proc_src is required)
+        self._copy_model_proc(
+            model_name=model_name,
+            target_dir=target_dir,
+            model_proc_src=model_proc_src,
+            model_proc_dst=model_proc_dst,
+        )
+
+        # Inject labels only if both present and explicitly enabled
+        if labels_src and inject_labels:
+            self._inject_labels_into_model_proc(
+                model_name=model_name,
+                labels_path=labels_src,
+                json_path=os.path.join(target_dir, model_proc_dst),
+            )
+
+        logger.info("OMZ post-processing applied", model_name=model_name, target=target_dir)
+
+    @staticmethod
+    def _copy_model_proc(
+        model_name: str,
+        target_dir: str,
+        model_proc_src: str,
+        model_proc_dst: str,
+    ) -> None:
+        """Copy model_proc JSON file into the model target directory."""
+        if not os.path.isfile(model_proc_src):
+            raise FileNotFoundError(
+                f"OMZ model_proc source not found for {model_name!r}: {model_proc_src}"
+            )
+
+        destination = os.path.join(target_dir, model_proc_dst)
+        shutil.copyfile(model_proc_src, destination)
+        logger.info(
+            "Copied OMZ model-proc file",
+            model_name=model_name,
+            source=model_proc_src,
+            destination=destination,
+        )
+
+    @staticmethod
+    def _inject_labels_into_model_proc(
+        model_name: str,
+        labels_path: str,
+        json_path: str,
+    ) -> None:
+        """Inject labels into output_postproc[0].labels in model_proc JSON."""
+        if not os.path.isfile(labels_path):
+            raise FileNotFoundError(
+                f"OMZ labels source not found for {model_name!r}: {labels_path}"
+            )
+
+        if not os.path.isfile(json_path):
+            raise FileNotFoundError(
+                f"OMZ model_proc JSON not found for {model_name!r}: {json_path}"
+            )
+
+        labels: List[str] = []
+        with open(labels_path, "r", encoding="utf-8") as f:
+            for line_number, raw_line in enumerate(f, start=1):
+                line = raw_line.strip()
+                if not line:
+                    continue
+                parts = line.split(" ", 1)
+                if len(parts) == 1 and parts[0].isdigit():
+                    raise ValueError(
+                        f"OMZ labels file has ID without label for {model_name!r} at "
+                        f"line {line_number}: {line!r}"
+                    )
+                labels.append(parts[1] if len(parts) == 2 else parts[0])
+
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        postproc = data.get("output_postproc")
+        if not isinstance(postproc, list) or not postproc:
+            raise ValueError(
+                f"model_proc file lacks non-empty output_postproc for {model_name!r}: {json_path}"
+            )
+
+        if not isinstance(postproc[0], dict):
+            raise ValueError(
+                f"model_proc output_postproc[0] must be an object for {model_name!r}: {json_path}"
+            )
+
+        # inject labels under output_postproc[0].labels
+        postproc[0]["labels"] = labels
+
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+
+        logger.info(
+            "Injected labels into OMZ model-proc",
+            model_name=model_name,
+            labels_count=len(labels),
+            json_path=json_path,
+        )
 
     @staticmethod
     def _run_omz_tool(command: List[str]) -> None:
