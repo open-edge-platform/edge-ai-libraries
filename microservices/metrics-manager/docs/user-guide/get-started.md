@@ -8,7 +8,7 @@ This guide provides step-by-step instructions to install and run Metrics Manager
 - **Docker Compose**: 2.20+ (`docker compose version`)
 - **Linux**: Kernel 5.4+ (for system metrics collection)
 - **RAM**: 512 MB free
-- **Disk**: 2 GB free (for build)
+- **Disk**: 2 GB free (for Docker image build)
 
 See [System Requirements](./get-started/system-requirements.md) for detailed hardware/software requirements.
 
@@ -47,6 +47,8 @@ cd edge-ai-libraries/metrics-manager
 
 ### Step 2: Configure Environment
 
+Copy the example configuration file:
+
 ```bash
 cp .env.example .env
 ```
@@ -59,7 +61,10 @@ The defaults work out of the box. Edit `.env` only if needed.
 # Host ports (change if already in use)
 HOST_METRICS_PORT=9090          # Metrics Manager REST API + SSE
 HOST_TELEGRAF_PORT=9273         # Telegraf Prometheus endpoint
-HOST_TELEGRAF_HTTP_PORT=8186    # Telegraf HTTP listener
+HOST_TELEGRAF_HTTP_PORT=8186    # Telegraf HTTP listener (InfluxDB Line Protocol)
+
+# Logging
+LOG_LEVEL=INFO                  # DEBUG | INFO | WARNING | ERROR
 ```
 
 ### Step 3: (Optional) Set Proxy Variables
@@ -75,13 +80,15 @@ no_proxy=localhost,127.0.0.1
 NO_PROXY=localhost,127.0.0.1
 ```
 
+This passes proxy settings both to the Docker build and to the running container.
+
 ### Step 4: Build and Start
 
 ```bash
 docker compose up --build
 ```
 
-First build takes 3–10 minutes. Subsequent builds are cached and take <1 minute.
+First build takes 3–10 minutes (downloads Rust toolchain to compile qmassa, Telegraf .deb, Python packages). Subsequent builds are cached and take under a minute.
 
 To run in the background:
 
@@ -262,7 +269,7 @@ docker logs -f metrics-manager
 
 ---
 
-## Verify Installation
+## Verify the Installation
 
 Run these checks after the container starts:
 
@@ -272,7 +279,7 @@ Run these checks after the container starts:
 curl http://localhost:9090/health
 ```
 
-Expected: `{"status": "healthy", ...}`
+Expected response: `{"status": "healthy", ...}`
 
 ### 2. System Metrics
 
@@ -290,7 +297,7 @@ curl -X POST http://localhost:9090/api/v1/metrics/simple \
   -d '{"name": "install_test", "value": 1.0}'
 ```
 
-Expected: `{"accepted": 1, ...}`
+Expected response: `{"accepted": 1, ...}`
 
 ### 4. Query the Metric
 
@@ -306,7 +313,7 @@ Should show your `install_test` metric.
 
 ### Custom Host Ports
 
-If ports 9090, 9273, or 8186 are in use:
+If ports 9090, 9273, or 8186 are in use, override them in `.env`:
 
 ```bash
 # .env
@@ -315,7 +322,7 @@ HOST_TELEGRAF_PORT=19273
 HOST_TELEGRAF_HTTP_PORT=18186
 ```
 
-Then access on the new ports:
+Then access the service on the new ports:
 
 ```bash
 curl http://localhost:19090/health
