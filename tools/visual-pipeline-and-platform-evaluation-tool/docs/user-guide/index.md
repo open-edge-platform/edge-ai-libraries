@@ -1,5 +1,7 @@
 # Visual Pipeline and Platform Evaluation Tool
 
+*Part of [Edge AI Libraries](https://docs.openedgeplatform.intel.com/dev/ai-libraries.html)*
+
 <!--hide_directive
 ```{eval-rst}
 :orphan:
@@ -65,12 +67,29 @@ in one place, making it easier to identify bottlenecks and compare platform beha
 <!--hide_directive
 :::{toctree}
 :hidden:
+:caption: Getting Started
 
 ./getting-started
+:::
+
+:::{toctree}
+:hidden:
+:caption: User Guide
+
 ./user-guide
+:::
+
+:::{toctree}
+:hidden:
+:caption: Developer Guide
+
 ./developer-guide
+:::
+
+:::{toctree}
+:hidden:
+
 ./troubleshooting
 ./release-notes
-
 :::
 hide_directive-->
