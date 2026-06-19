@@ -11,7 +11,7 @@ VDMS DataPrep turns raw video content and associated summaries into searchable e
 ### Core Components
 
 - **VDMS DataPrep (this service)** – A FastAPI application mounted at `/v1/dataprep`. It orchestrates frame extraction, object detection, embedding generation, manifest storage, and metadata management. The service can execute in SDK or API mode based on `EMBEDDING_PROCESSING_MODE`.
-- **Multimodal Embedding Service** – Optional when running in SDK mode, required when running in API mode. In SDK mode the wheel (`multimodal-embedding-serving`) is imported directly and models are loaded in-process. In API mode DataPrep calls the `/embeddings` HTTP endpoint.
+- **Multimodal Embedding Service** – Optional when running in SDK mode, required when running in API mode. In SDK mode the local package dependency (`multimodal-embedding-serving`) is imported directly and models are loaded in-process. In API mode DataPrep calls the `/embeddings` HTTP endpoint.
 - **VDMS Vector DB** – Central vector store that persists frame, crop, and summary embeddings along with metadata (`video_url`, tags, timestamps). The collection name defaults to `video-rag` and can be overridden via `DB_COLLECTION`.
 - **MinIO Object Store** – Persistent storage for the raw video assets and temporary frame caches when the shared-volume strategy is unavailable. Buckets are validated/created on demand through the integrated MinIO client helper.
 

@@ -3,8 +3,8 @@
 Use this path to run the service in a container using the prebuilt image
 published on Docker Hub. The API is exposed on port `8011`.
 
-To rebuild the image from source instead of pulling, see
-[build-from-source.md](build-from-source.md).
+To rebuild the image from source instead of pulling, see the
+[Build From Source](./build-from-source.md) guide.
 
 ## Before You Start
 
@@ -13,7 +13,9 @@ To rebuild the image from source instead of pulling, see
 - `/dev/dri` is passed through by default for host Intel iGPU access.
 - The image reference is `${REGISTRY}/text-to-speech:${RELEASE_TAG}`, both read from `.env`. Defaults are `REGISTRY=intel` and the committed `RELEASE_TAG` pins the current release.
 
-## Pull And Start
+## Run the Container
+
+### Pull And Start
 
 From the `text-to-speech/` directory:
 
@@ -26,7 +28,7 @@ docker compose up -d
 Docker Hub. `docker compose up -d` starts the container without
 rebuilding.
 
-## Check Status
+### Check Status
 
 ```bash
 docker compose ps

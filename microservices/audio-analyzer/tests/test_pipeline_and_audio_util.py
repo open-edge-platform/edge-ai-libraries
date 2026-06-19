@@ -9,6 +9,7 @@ from types import MethodType
 from unittest.mock import patch
 
 from pipeline import Pipeline
+from components.asr.openai.whisper import Whisper as OpenAIWhisper
 from components.asr.whispercpp.whisper import WhisperCpp
 from components.asr_component import ASRComponent
 from utils.ensure_model import ensure_sentiment_model, get_asr_model_path, get_sentiment_model_path, get_whispercpp_model_filename
@@ -372,6 +373,72 @@ class WhisperCppTests(unittest.TestCase):
         self.assertEqual(len(result["segments"]), 1)
         self.assertEqual(result["meta"]["segments_dropped"], 1)
 
+    def test_whispercpp_transcribe_uses_configured_decoder_options(self):
+        class FakeSegment:
+            def __init__(self, text, start, end, probability=0.9):
+                self.text = text
+                self.t0 = int(start * 100)
+                self.t1 = int(end * 100)
+                self.probability = probability
+                self.tokens = []
+
+        class FakeModel:
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+                self.transcribe_kwargs = None
+
+            def transcribe(
+                self,
+                media,
+                temperature,
+                token_timestamps,
+                extract_probability,
+                print_realtime,
+                print_progress,
+                no_context,
+                entropy_thold,
+                logprob_thold,
+                no_speech_thold,
+                suppress_non_speech_tokens,
+                greedy,
+                beam_search,
+                language,
+            ):
+                del media
+                self.transcribe_kwargs = {
+                    "temperature": temperature,
+                    "token_timestamps": token_timestamps,
+                    "extract_probability": extract_probability,
+                    "print_realtime": print_realtime,
+                    "print_progress": print_progress,
+                    "no_context": no_context,
+                    "entropy_thold": entropy_thold,
+                    "logprob_thold": logprob_thold,
+                    "no_speech_thold": no_speech_thold,
+                    "suppress_non_speech_tokens": suppress_non_speech_tokens,
+                    "greedy": greedy,
+                    "beam_search": beam_search,
+                    "language": language,
+                }
+                return [FakeSegment("hello", 0.0, 1.0)]
+
+        with self._install_fake_pywhispercpp(FakeModel), patch(
+            "components.asr.whispercpp.whisper.os.path.isfile", return_value=True
+        ), patch("utils.ensure_model.get_asr_model_path", return_value="/tmp/models"), patch(
+            "components.asr.whispercpp.whisper.config.models.asr.beam_size", 3
+        ), patch("components.asr.whispercpp.whisper.config.models.asr.best_of", 2), patch(
+            "components.asr.whispercpp.whisper.config.models.asr.word_timestamps", True
+        ):
+            asr = WhisperCpp(model_name="whisper-small", device="CPU")
+            result = asr.transcribe("/tmp/audio.wav", temperature=0.2, language="en")
+
+        self.assertEqual(result["text"], "hello")
+        self.assertEqual(asr.model.transcribe_kwargs["greedy"], {"best_of": 2})
+        self.assertEqual(asr.model.transcribe_kwargs["beam_search"], {"beam_size": 3, "patience": -1.0})
+        self.assertTrue(asr.model.transcribe_kwargs["token_timestamps"])
+        self.assertEqual(asr.model.transcribe_kwargs["language"], "en")
+
 
 class WhisperCppQuantizationTests(unittest.TestCase):
     def _install_fake_pywhispercpp(self, model_factory):
@@ -403,6 +470,43 @@ class WhisperCppQuantizationTests(unittest.TestCase):
                 asr = WhisperCpp(model_name="whisper-small", device="CPU")
 
         self.assertEqual(asr.n_threads, 22)
+
+
+class OpenAIWhisperConfigTests(unittest.TestCase):
+    def test_openai_transcribe_uses_configured_beam_size_and_best_of(self):
+        class FakeModel:
+            def __init__(self):
+                self.kwargs = None
+
+            def transcribe(self, audio_path, **kwargs):
+                del audio_path
+                self.kwargs = kwargs
+                return {
+                    "text": "hello",
+                    "language": "en",
+                    "segments": [
+                        {
+                            "start": 0.0,
+                            "end": 1.0,
+                            "text": "hello",
+                            "avg_logprob": -0.1,
+                            "compression_ratio": 1.0,
+                            "no_speech_prob": 0.0,
+                        }
+                    ],
+                }
+
+        fake_model = FakeModel()
+
+        with patch("components.asr.openai.whisper.whisper.load_model", return_value=fake_model), patch(
+            "components.asr.openai.whisper.config.models.asr.beam_size", 1
+        ), patch("components.asr.openai.whisper.config.models.asr.best_of", 2):
+            asr = OpenAIWhisper(model_name="whisper-base", device="cpu")
+            result = asr.transcribe("/tmp/audio.wav", temperature=0.0, language="en")
+
+        self.assertEqual(result["text"], "hello")
+        self.assertEqual(fake_model.kwargs["beam_size"], 1)
+        self.assertEqual(fake_model.kwargs["best_of"], 2)
 
 
 class SentimentExportTests(unittest.TestCase):
