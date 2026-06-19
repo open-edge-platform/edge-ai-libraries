@@ -437,6 +437,12 @@ paths:
                   models:
                     - name: wind-turbine-anomaly-detection
                       hub: udf-timeseries
+              omz_download:
+                summary: Download OMZ model
+                value:
+                  models:
+                    - name: mobilenet-v2-pytorch
+                      hub: omz
               geti_download:
                 summary: Download Geti™ model
                 value:

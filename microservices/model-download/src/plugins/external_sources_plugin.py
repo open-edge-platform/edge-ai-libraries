@@ -329,20 +329,33 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         logger.info("OMZ post-processing applied", model_name=model_name, target=target_dir)
 
     @staticmethod
+    def _is_remote_source(src: str) -> bool:
+        """Return True if the source is an http(s) URL rather than a local path."""
+        return src.startswith("http://") or src.startswith("https://")
+
+    @staticmethod
     def _copy_model_proc(
         model_name: str,
         target_dir: str,
         model_proc_src: str,
         model_proc_dst: str,
     ) -> None:
-        """Copy model_proc JSON file into the model target directory."""
-        if not os.path.isfile(model_proc_src):
-            raise FileNotFoundError(
-                f"OMZ model_proc source not found for {model_name!r}: {model_proc_src}"
-            )
+        """Materialize the model_proc JSON file into the model target directory.
 
+        ``model_proc_src`` may be a local path (DL Streamer image) or an http(s)
+        URL (DL Streamer repository).
+        """
         destination = os.path.join(target_dir, model_proc_dst)
-        shutil.copyfile(model_proc_src, destination)
+
+        if ExternalSourcesPlugin._is_remote_source(model_proc_src):
+            urllib.request.urlretrieve(model_proc_src, destination)  # noqa: S310
+        else:
+            if not os.path.isfile(model_proc_src):
+                raise FileNotFoundError(
+                    f"OMZ model_proc source not found for {model_name!r}: {model_proc_src}"
+                )
+            shutil.copyfile(model_proc_src, destination)
+
         logger.info(
             "Copied OMZ model-proc file",
             model_name=model_name,
@@ -357,10 +370,17 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         json_path: str,
     ) -> None:
         """Inject labels into output_postproc[0].labels in model_proc JSON."""
-        if not os.path.isfile(labels_path):
-            raise FileNotFoundError(
-                f"OMZ labels source not found for {model_name!r}: {labels_path}"
-            )
+        if ExternalSourcesPlugin._is_remote_source(labels_path):
+            with urllib.request.urlopen(labels_path) as response:  # noqa: S310
+                labels_text = response.read().decode("utf-8")
+            label_lines = labels_text.splitlines()
+        else:
+            if not os.path.isfile(labels_path):
+                raise FileNotFoundError(
+                    f"OMZ labels source not found for {model_name!r}: {labels_path}"
+                )
+            with open(labels_path, "r", encoding="utf-8") as f:
+                label_lines = f.readlines()
 
         if not os.path.isfile(json_path):
             raise FileNotFoundError(
@@ -368,18 +388,17 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             )
 
         labels: List[str] = []
-        with open(labels_path, "r", encoding="utf-8") as f:
-            for line_number, raw_line in enumerate(f, start=1):
-                line = raw_line.strip()
-                if not line:
-                    continue
-                parts = line.split(" ", 1)
-                if len(parts) == 1 and parts[0].isdigit():
-                    raise ValueError(
-                        f"OMZ labels file has ID without label for {model_name!r} at "
-                        f"line {line_number}: {line!r}"
-                    )
-                labels.append(parts[1] if len(parts) == 2 else parts[0])
+        for line_number, raw_line in enumerate(label_lines, start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            parts = line.split(" ", 1)
+            if len(parts) == 1 and parts[0].isdigit():
+                raise ValueError(
+                    f"OMZ labels file has ID without label for {model_name!r} at "
+                    f"line {line_number}: {line!r}"
+                )
+            labels.append(parts[1] if len(parts) == 2 else parts[0])
 
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -412,11 +431,17 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
     def _run_omz_tool(command: List[str]) -> None:
         """Run an OMZ CLI tool and raise on failure."""
         try:
+            env = os.environ.copy()
+            omz_bin_dir = str(_OMZ_VENV_BIN)
+            if os.path.isdir(omz_bin_dir):
+                env["PATH"] = omz_bin_dir + os.pathsep + env.get("PATH", "")
+
             result = subprocess.run(
                 command,
                 capture_output=True,
                 text=True,
                 check=False,
+                env=env,
             )
             if result.returncode != 0:
                 stderr = result.stderr.strip() if result.stderr else "<empty>"

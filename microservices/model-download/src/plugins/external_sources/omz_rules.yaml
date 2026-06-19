@@ -3,18 +3,23 @@
 
 # OMZ post-processing rules for external_sources_plugin.
 # Rules are applied after omz_downloader + omz_converter materialization.
+#
+# model_proc_src and labels_src may be either a local path (e.g. a file shipped
+# inside the DL Streamer image under /opt/intel/dlstreamer/...) or an http(s)
+# URL. URLs are fetched directly from the DL Streamer repository, so the
+# DL Streamer image is not required.
 
 rules:
   mobilenet-v2-pytorch:
-    model_proc_src: /opt/intel/dlstreamer/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json
+    model_proc_src: https://raw.githubusercontent.com/open-edge-platform/dlstreamer/master/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json
     model_proc_dst: mobilenet-v2.json
-    labels_src: /opt/intel/dlstreamer/samples/labels/imagenet_2012.txt
+    labels_src: https://raw.githubusercontent.com/open-edge-platform/dlstreamer/master/samples/labels/imagenet_2012.txt
     inject_labels: true
 
   age-gender-recognition-retail-0013:
-    model_proc_src: /opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/age-gender-recognition-retail-0013.json
+    model_proc_src: https://raw.githubusercontent.com/open-edge-platform/dlstreamer/master/samples/gstreamer/model_proc/intel/age-gender-recognition-retail-0013.json
     model_proc_dst: age-gender-recognition-retail-0013.json
 
   face-detection-retail-0004:
-    model_proc_src: /opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/face-detection-retail-0004.json
+    model_proc_src: https://raw.githubusercontent.com/open-edge-platform/dlstreamer/master/samples/gstreamer/model_proc/intel/face-detection-retail-0004.json
     model_proc_dst: face-detection-retail-0004.json

@@ -81,6 +81,11 @@ omz = [
     # are resolved by uv.conflicts below into separate venv buckets.
     "openvino-dev[onnx,pytorch,tensorflow2]==2024.6.0",
     "openvino==2024.6.0",
+    # Pin torch < 2.9: torch 2.9 changed torch.onnx.export to default dynamo=True, which pulls in
+    # onnxscript -> onnx_ir -> ml_dtypes.float8_e8m0fnu (needs ml_dtypes>=0.5, but TensorFlow caps
+    # it at <0.5 in this bucket). The legacy omz_tools converter relies on the TorchScript exporter
+    # (dynamo=False), which is the default for torch < 2.9 and needs none of that chain.
+    "torch<2.9",
 ]
 
 [tool.uv]
@@ -91,6 +96,12 @@ omz = [
 # are isolated into separate venvs at runtime.
 conflicts = [
     [{ extra = "omz" }, { extra = "geti" }],  # omz pins openvino==2024.6.0; geti requires openvino>=2025.2
+    # omz needs torch<2.9 (legacy TorchScript ONNX exporter); these extras pin torch==2.9.1+cpu.
+    # They never share a venv at runtime, so resolve them in separate buckets.
+    [{ extra = "omz" }, { extra = "cpu" }],
+    [{ extra = "omz" }, { extra = "huggingface" }],
+    [{ extra = "omz" }, { extra = "ultralytics" }],
+    [{ extra = "omz" }, { extra = "hls" }],
 ]
 index-url = "https://pypi.org/simple"
 required-environments = [
