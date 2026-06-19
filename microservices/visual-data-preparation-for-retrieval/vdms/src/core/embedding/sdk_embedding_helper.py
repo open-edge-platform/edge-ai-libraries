@@ -465,7 +465,7 @@ class SimplePipelineManager:
 
         total = float(sum(samples))
         return {
-            "total": total,
+            "total": total if total != 0.0 else total + 1e-8,
             "avg": total / len(samples),
             "max": max(samples),
             "min": min(samples),

@@ -27,104 +27,89 @@ The Model Download is a microservice that downloads models from multiple hubs as
 
 ### 1. Clone the repository
 
-   ```bash
-   # Clone the latest on the mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-   ```
+```bash
+# Clone the latest on the mainline
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Alternatively, clone a specific release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+```
 
 ### 2. Navigate to the directory
 
-   ```bash
-   cd edge-ai-libraries/microservices/model-download
-   ```
+```bash
+cd edge-ai-libraries/microservices/model-download
+```
 
 ### 3. Configure the environment variables
 
-   ```bash
-   export REGISTRY="intel/"
-   export TAG=latest
-   export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-   ```
+```bash
+export REGISTRY="intel/"
+export TAG=latest
+export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+```
 
-   To use the Geti™ plugin, set these variables:
+To use the Geti™ plugin, set these variables:
 
-   ```bash
-   export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
-   export GETI_HOST=<GETI_HOST_ADDRESS>
-   export GETI_TOKEN=<GETI_ACCESS_TOKEN>
-   export GETI_SERVER_API_VERSION=v1
-   export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
-   ```
+```bash
+export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
+export GETI_HOST=<GETI_HOST_ADDRESS>
+export GETI_TOKEN=<GETI_ACCESS_TOKEN>
+export GETI_SERVER_API_VERSION=v1
+export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
+```
 
-   > **Note:** For Geti™ software setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
+> **Note:** For Geti™ software setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
 
 ### 4. Launch the service and enable the plugins
 
-   ```bash
-   source scripts/run_service.sh up --plugins all --model-path <host path>
-   ```
+```bash
+source scripts/run_service.sh up --plugins all --model-path <host path>
+```
 
-   > **Note:** For public models, no token is needed. Set the Hugging Face token via the `HUGGINGFACEHUB_API_TOKEN` environment variable to download GATED models and for conversion to OpenVINO IR format.
+> **Note:** For public models, no token is needed. Set the Hugging Face token via the `HUGGINGFACEHUB_API_TOKEN` environment variable to download GATED models and for conversion to OpenVINO IR format.
 
-   > **Note:** Ensure the host path does not require privileged access for directory creation. Intel recommends using `$PWD/host_path` or a similar location within your work directory.
+> **Note:** Ensure the host path does not require privileged access for directory creation. Intel recommends using `$PWD/host_path` or a similar location within your work directory.
 
-   The `run_service.sh` script is a Docker Compose wrapper that builds and manages the model download service container with configurable plugins, model paths, and deployment options.
+The `run_service.sh` script is a Docker Compose wrapper that builds and manages the model download service container with configurable plugins, model paths, and deployment options.
 
-   Options available with the script:
+Options available with the script:
 
-        __Actions__:
-        ```text
-            up                     Start the services (default)
-            down                   Stop the services
-        ```
-        __Options__:
-        | Option                   | Description                                                                                      |
-        |--------------------------|--------------------------------------------------------------------------------------------------|
-        | `--build`                | Builds the Docker image before running                                                            |
-        | `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions|
-        | `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                           |
-        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,pipeline-zoo-models,hls or geti`) or `all` to enable all available plugins |
-        | `--ovms-release-tag <tag>` | Set OVMS release tag (e.g., `v2025.4.1`) (default: `v2025.4.1`)                                |
-        | `--help`                 | Shows this help message                                                                           |
+```bash
+source scripts/run_service.sh [options] [action]
+```
 
-   ```bash
-   source scripts/run_service.sh [options] [action]
-   ```
+**Actions**:
 
-   **Actions**:
+```text
+up                     Start the services (default)
+down                   Stop the services
+```
 
-   ```text
-   up                     Start the services (default)
-   down                   Stop the services
-   ```
+**Options**:
 
-   **Options**:
+| Option                   | Description                                                                                                                                   |
+|--------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `--build`                | Builds the Docker image before running                                                                                                        |
+| `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions                      |
+| `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                                                                         |
+| `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,pipeline-zoo-models, or geti`) or `all` to enable all available plugins |
+| `--ovms-release-tag <tag>` | Set OVMS release tag (e.g., `v2025.4.1`) (default: `v2025.4.1`)                                                                             |
+| `--help`                 | Shows this help message                                                                                                                       |
 
-   | Option                   | Description                                                                                                                                   |
-   |--------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-   | `--build`                | Builds the Docker image before running                                                                                                        |
-   | `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions                      |
-   | `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                                                                         |
-  | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,pipeline-zoo-models, or geti`) or `all` to enable all available plugins |
-   | `--ovms-release-tag <tag>` | Set OVMS release tag (e.g., `v2025.4.1`) (default: `v2025.4.1`)                                                                             |
-   | `--help`                 | Shows this help message                                                                                                                       |
+**Examples**:
 
-   **Examples**:
-
-   - Start the service with default settings: `source scripts/run_service.sh up`
-   - Stop the service: `source scripts/run_service.sh down`
-   - Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
-  - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,pipeline-zoo-models,geti`
-   - Use a custom model storage: `source scripts/run_service.sh up --model-path /data/my-models`
-   - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
-   - Display usage information: `source scripts/run_service.sh --help`
+- Start the service with default settings: `source scripts/run_service.sh up`
+- Stop the service: `source scripts/run_service.sh down`
+- Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
+ Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,pipeline-zoo-models,geti`
+- Use a custom model storage: `source scripts/run_service.sh up --model-path /data/my-models`
+- Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
+- Display usage information: `source scripts/run_service.sh --help`
 
 ### 5. Access the service
 
-   - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the
-     Swagger documentation for the available APIs.
+- The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the
+  Swagger documentation for the available APIs.
 
 ## Verification
 
@@ -213,6 +198,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=yolo_in
 ```
 
 > **Note: INT8 behavior for Ultralytics requests:**
+>
 > - Set `config.quantize` to request INT8 export.
 > - INT8 requests only support a single model name per request. Requests using comma-separated model names, `all`, or `yolo_all` with `quantize` are rejected.
 > - If INT8 is requested but no INT8 artifact is produced, the request fails and partial artifacts are cleaned up.
@@ -243,6 +229,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
     "parallel_downloads": false
   }'
 ```
+
 **Example: Optimum CLI-aligned nested config**
 
 ```bash
@@ -267,12 +254,13 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
 }'
 ```
 
-**NOTES**
-  - Need additional OpenVINO export knobs? Review the parameter matrix in the [OpenVINO Model Server export guide](https://github.com/openvinotoolkit/model_server/blob/main/demos/common/export_models/README.md#quick-start) and pass the corresponding fields through `config`.
-  - Visual-language models automatically set `pipeline_type` to `VLM` for type 'VLM'.
-  - Unknown parameters keep their original spelling (underscores included) and are forwarded as `--<param_name>`, so options such as `reasoning_parser`, `tool_parser` etc.
-  - Boolean flags are emitted only when they evaluate to true. Leave them unset or false to skip the corresponding CLI switch.
-  - Hugging Face authentication is still required for OVMS exports; provide `HUGGINGFACEHUB_API_TOKEN` (or pass the token via the API) before invoking these parameters.
+> **Note:**
+>
+> - Need additional OpenVINO export knobs? Review the parameter matrix in the [OpenVINO Model Server export guide](https://github.com/openvinotoolkit/model_server/blob/main/demos/common/export_models/README.md#quick-start) and pass the corresponding fields through `config`.
+> - Visual-language models automatically set `pipeline_type` to `VLM` for type 'VLM'.
+> - Unknown parameters keep their original spelling (underscores included) and are forwarded as `--<param_name>`, so options such as `reasoning_parser`, `tool_parser` etc.
+> - Boolean flags are emitted only when they evaluate to true. Leave them unset or false to skip the corresponding CLI switch.
+> - Hugging Face authentication is still required for OVMS exports; provide `HUGGINGFACEHUB_API_TOKEN` (or pass the token via the API) before invoking these parameters.
 
 **Download models from Geti™ software, which are optimized through OpenVINO toolkit's optimization tool:**
 
@@ -315,6 +303,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=pipelin
 > **Note:** You can pass `"name": "all"` to download all available models from the Pipeline Zoo `storage` directory.
 
 **Download fixed HLS models (3D pose, rPPG, AI-ECG):**
+
 ```bash
 curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=hls_assets" \
   -H "Content-Type: application/json" \
@@ -329,6 +318,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=hls_ass
     "parallel_downloads": false
   }'
 ```
+
 > **Notes:** Valid HLS types are `3d-pose`, `rppg`, and `ai-ecg`.
   The service downloads model artifacts only; demo videos must be fetched separately if needed.
 
@@ -446,23 +436,27 @@ Volumes:
 To validate changes locally before deploying:
 
 1. **Set up virtual environment**:
-  ```bash
-  pip install uv
-  uv venv
-  source .venv/bin/activate
-  ```
+
+   ```bash
+   pip install uv
+   uv venv
+   source .venv/bin/activate
+   ```
 
 2. **Install all optional dependencies**:
-  ```bash
-  uv sync --all-extras
-  ```
+
+   ```bash
+   uv sync --all-extras
+   ```
 
 3. **Execute unit tests**:
-  ```bash
-  uv run pytest tests/unit -v
-  ```
 
-Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metrics. See [docs/user-guide/running-tests.md](./running-tests.md) for advanced filtering options and troubleshooting tips.
+   ```bash
+   uv run pytest tests/unit -v
+   ```
+
+Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metrics. See
+[docs/user-guide/running-tests.md](./running-tests.md) for advanced filtering options and troubleshooting tips.
 
 ## Best Practices
 
