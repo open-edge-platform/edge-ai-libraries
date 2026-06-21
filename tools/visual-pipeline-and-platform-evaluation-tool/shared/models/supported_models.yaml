@@ -208,8 +208,8 @@
   hub: ultralytics
   type: detection
   precisions:
-    - precision: INT8
-      model_path: ultralytics/public/yolo11s-seg/INT8/yolo11s-seg.xml
+    - precision: FP32
+      model_path: ultralytics/public/yolo11s-seg/FP32/yolo11s-seg.xml
       model_proc: ""
     - precision: FP16
       model_path: ultralytics/public/yolo11s-seg/FP16/yolo11s-seg.xml
@@ -220,8 +220,6 @@
   download_request:
     hub: ultralytics
     name: yolo11s-seg
-    config:
-      quantize: coco128
 
 - name: yolo11n-seg
   display_name: YOLO 11n Segmentation 640x640
@@ -229,8 +227,8 @@
   hub: ultralytics
   type: detection
   precisions:
-    - precision: INT8
-      model_path: ultralytics/public/yolo11n-seg/INT8/yolo11n-seg.xml
+    - precision: FP32
+      model_path: ultralytics/public/yolo11n-seg/FP32/yolo11n-seg.xml
       model_proc: ""
     - precision: FP16
       model_path: ultralytics/public/yolo11n-seg/FP16/yolo11n-seg.xml
@@ -241,8 +239,6 @@
   download_request:
     hub: ultralytics
     name: yolo11n-seg
-    config:
-      quantize: coco128
 
 - name: face-detection-retail-0004
   display_name: Face Detection Retail 0004
