@@ -189,8 +189,8 @@
   hub: ultralytics
   type: detection
   precisions:
-    - precision: INT8
-      model_path: ultralytics/public/yolo11n-pose/INT8/yolo11n-pose.xml
+    - precision: FP32
+      model_path: ultralytics/public/yolo11n-pose/FP32/yolo11n-pose.xml
       model_proc: ""
     - precision: FP16
       model_path: ultralytics/public/yolo11n-pose/FP16/yolo11n-pose.xml
@@ -201,8 +201,6 @@
   download_request:
     hub: ultralytics
     name: yolo11n-pose
-    config:
-      quantize: coco128
 
 - name: yolo11s-seg
   display_name: YOLO 11s Segmentation 640x640
