@@ -112,18 +112,20 @@ class PluginRegistry:
     def hub_is_available(self, hub: str) -> Tuple[bool, str]:
         """Return whether ``hub`` is served by a registered, activated plugin.
 
-        ACTIVATED_PLUGINS is guaranteed to be a list of hub names
-        (the entrypoint rejects plugin names like 'external-sources'),
-        so this is a direct membership check after resolving the plugin.
+        Resolves the hub against every registered plugin, downloader and
+        converter alike, so converter-only hubs (e.g. ``openvino`` used for
+        is_ovms conversion) are recognised. ACTIVATED_PLUGINS is a list of
+        hub names (the entrypoint rejects plugin names like
+        'external-sources'), so this is a direct membership check.
         """
-        plugin = self.find_plugin_for_model("downloader", model_name="", hub=hub)
-        if plugin is None:
+        hub_lower = hub.lower()
+        if hub_lower not in set(self.supported_hubs()):
             return False, f"No plugin registered for hub '{hub}'"
 
         if not self.activated_plugins or "all" in self.activated_plugins:
             return True, ""
 
-        if hub.lower() in self.activated_plugins:
+        if hub_lower in self.activated_plugins:
             return True, ""
 
         return False, (

@@ -101,7 +101,7 @@ down                   Stop the services
    - Start the service with default settings: `source scripts/run_service.sh up`
    - Stop the service: `source scripts/run_service.sh down`
    - Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
-  - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,pipeline-zoo-models,udf-timeseries,geti`
+  - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,pipeline-zoo-models,udf-timeseries,omz,geti`
    - Use a custom model storage: `source scripts/run_service.sh up --model-path /data/my-models`
    - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
    - Display usage information: `source scripts/run_service.sh --help`
