@@ -78,7 +78,6 @@ ViPPET Home Page <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/
 
 ./getting-started/installation
 ./getting-started/quickstart
-./getting-started/support
 
 :::
 
@@ -101,7 +100,15 @@ Architecture <./developer-guide/architecture>
 Performance Metrics <./developer-guide/metrics>
 ./developer-guide/contributing-guide
 ./troubleshooting
+
+:::
+
+:::{toctree}
+:hidden:
+:caption: ----------------------
+
 ./release-notes
+./getting-started/support
 
 :::
 
