@@ -26,8 +26,10 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install qmassa
-RUN cargo install --locked qmassa@1.1.0
+# Install qmassa directly from its GitHub repository by tag instead of from
+# crates.io. This avoids build failures if the pinned crates.io version is
+# ever yanked from the registry by the upstream maintainer.
+RUN cargo install --locked --git https://github.com/ulissesf/qmassa --tag v1.1.0
 
 # Final image for the collector
 FROM docker.io/library/telegraf:1.36.3 AS collector
