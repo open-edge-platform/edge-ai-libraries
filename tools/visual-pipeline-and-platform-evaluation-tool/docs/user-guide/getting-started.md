@@ -1,3 +1,7 @@
+<!--hide_directive```{eval-rst}
+:orphan:
+```hide_directive-->
+
 # Get Started
 
 Use this guide to quickly set up ViPPET, run your first evaluation pipeline, and review performance results.
@@ -13,13 +17,3 @@ If you are starting with ViPPET for the first time, use this sequence:
 3. Explore the [User Guide](user-guide.md) to learn how to work with inputs, pipelines, and models.
 4. Review the [Developer Guide](./developer-guide.md) for architecture, integrations, and advanced topics.
 
-<!--hide_directive
-:::{toctree}
-:hidden:
-
-./getting-started/installation
-./getting-started/quickstart
-./getting-started/support
-
-:::
-hide_directive-->

@@ -68,7 +68,6 @@ in one place, making it easier to identify bottlenecks and compare platform beha
 
 :::{toctree}
 :hidden:
-:caption: ----------------------
 ViPPET Home Page <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html>
 
 :::
@@ -77,8 +76,6 @@ ViPPET Home Page <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/
 :hidden:
 :caption: Get Started
 
-
-./getting-started
 ./getting-started/installation
 ./getting-started/quickstart
 ./getting-started/support
