@@ -7,7 +7,7 @@ README.md           @xwu2intel
 /.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo
 
 /libraries/dl-streamer/    @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
-/tools/visual-pipeline-and-platform-evaluation-tool/   @p-zak @ktaube26 @tmatenko @pmalatyn @dmichalo @msmiatac
+/tools/visual-pipeline-and-platform-evaluation-tool/   @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka
 /libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12
 /libraries/robotics-ai-libraries/                      @jouillet @jb-balaji @pirouf @mohitmeh12
 
@@ -97,5 +97,5 @@ README.md           @xwu2intel
 /libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/run_jaka_moveit/README.md             @jouillet @jb-balaji @pirouf @mohitmeh12 @open-edge-platform/open-edge-platform-docs-write
 /libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/run_jaka_plc/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @open-edge-platform/open-edge-platform-docs-write
 /libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/utils/pykdl_utils/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @open-edge-platform/open-edge-platform-docs-write
-/tools/visual-pipeline-and-platform-evaluation-tool/docs        @p-zak @ktaube26 @tmatenko @pmalatyn                @open-edge-platform/open-edge-platform-docs-write
-/tools/visual-pipeline-and-platform-evaluation-tool/README.md   @p-zak @ktaube26 @tmatenko @pmalatyn                @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/docs        @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka                @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/README.md   @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka                @open-edge-platform/open-edge-platform-docs-write
