@@ -54,3 +54,15 @@ Use the User Guide when you want to:
 
 For system architecture, integrations, and contribution workflows, continue to the
 [Developer Guide](developer-guide.md).
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./user-guide/input-management
+./user-guide/model-management
+./user-guide/pipeline-management
+./user-guide/benchmarking
+
+:::
+hide_directive-->
