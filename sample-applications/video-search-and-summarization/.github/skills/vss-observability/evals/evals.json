@@ -1,0 +1,44 @@
+{
+  "skill_name": "vss-observability",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "How do I enable the telemetry stack in VSS and what services does it add? I am running the video-search-and-summarization sample locally and want the real metrics overlay plus any tracing knobs that already exist.",
+      "expected_output": "Explains how to enable the optional VSS telemetry overlay, names the compose overlay and added collector service, and distinguishes live UI metrics from Pipeline Manager tracing.",
+      "files": [],
+      "expectations": [
+        "Mentions setting ENABLE_VSS_COLLECTOR=true before sourcing setup.sh, with a supported mode such as source setup.sh --search or source setup.sh --summary --search.",
+        "Names the optional compose overlay file docker/compose.telemetry.yaml.",
+        "Identifies the added service/container as vss-collector and notes it uses the docker.io/intel/vippet-collector:2026.0.0 image.",
+        "References the collector outputs on port 9273 (/metrics) and/or its websocket relay to ws://pipeline-manager:3000/metrics/ws/collector.",
+        "Explains that traces come from Pipeline Manager via OTLP_TRACE_URL with service name videoSummary, and that the overlay does not deploy an in-repo OTel collector or trace UI/backend."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I enabled telemetry and want to trace a single video processing request end-to-end. After I upload a video and start summarization, how do I find the right trace and what spans should I expect to see?",
+      "expected_output": "Describes how to correlate one request using VSS IDs, the videoSummary service, and the Pipeline Manager state endpoints, then lists the main trace/span patterns for upload, EVAM chunking, VLM captioning, LLM summarization, and dataprep embeddings.",
+      "files": [],
+      "expectations": [
+        "Says to capture videoId from POST /manager/videos and summaryPipelineId (stateId) from POST /manager/summary.",
+        "Says to filter traces by the OpenTelemetry service name videoSummary and the time window around the upload/start request.",
+        "Mentions that if OTLP_TRACE_URL is unset, spans fall back to ConsoleSpanExporter output in pipeline-manager logs; otherwise use a real OTLP HTTP /v1/traces backend URL.",
+        "Calls out EVAM HTTP span patterns such as POST http://<EVAM_HOST>:8080/pipelines/user_defined_pipelines/<pipeline> and GET http://<EVAM_HOST>:8080/pipelines/<pipelineId>.",
+        "Calls out downstream span patterns for VlmService.imageInference to VLM_CAPTIONING_API, LlmService.summarizeMapReduce/getChatCompletions to LLM_SUMMARIZATION_API, and/or DataPrepShimService calls to SEARCH_DATAPREP_ENDPOINT, plus state checks like /summary/<stateId>/raw, /pipeline/evam, or /pipeline/frames."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "My video processing is slow. I already have traces enabled in VSS. Which spans should I inspect first to figure out where the bottleneck is, and what other built-in signals should I compare them against?",
+      "expected_output": "Gives a bottleneck-hunting workflow that prioritizes the main Pipeline Manager trace segments, explains what each slow span usually means, and cross-checks traces with VSS state and collector metrics.",
+      "files": [],
+      "expectations": [
+        "Points to long or repeated EVAM request/poll spans as chunking or ingestion bottlenecks.",
+        "Points to long outbound OpenAI-compatible spans from VlmService.imageInference as VLM captioning bottlenecks and long LLM summarization spans from LlmService.summarizeMapReduce/getChatCompletions as final summary bottlenecks.",
+        "Points to long dataprep spans and/or low dataprep_embeddings_per_second as embedding or indexing bottlenecks.",
+        "Tells the reader to cross-check trace timing with Pipeline Manager state such as status.videoChunking, status.chunking, frameSummaries IN_PROGRESS, status.summarizing, or embeddingsCreated.",
+        "Mentions comparing against collector signals like /metrics/status and port 9273 metrics, and accurately notes current instrumentation limits such as search-ms lacking app-level OTel traces."
+      ]
+    }
+  ]
+}

@@ -60,6 +60,27 @@
       ]
     },
     {
+      "name": "vss-deploy",
+      "path": ".github/skills/vss-deploy/SKILL.md",
+      "description": "Deploy, switch modes, inspect configuration, and tear down VSS using setup.sh with Docker Compose overlays.",
+      "triggers": [
+        "spin up vss",
+        "deploy vss",
+        "switch deployment mode",
+        "compose files",
+        "tear down vss",
+        "summary mode",
+        "search mode",
+        "dual mode",
+        "unified mode"
+      ],
+      "requires": [
+        "setup.sh",
+        "docker/compose.*.yaml",
+        "docker compose"
+      ]
+    },
+    {
       "name": "vss-summarize",
       "path": ".github/skills/vss-summarize/SKILL.md",
       "description": "Run and inspect VSS video summarization through the Pipeline Manager summary API.",
@@ -89,6 +110,189 @@
       "requires": [
         "healthy Pipeline Manager",
         "search-capable deployment"
+      ]
+    },
+    {
+      "name": "vss-troubleshoot",
+      "path": ".github/skills/vss-troubleshoot/SKILL.md",
+      "description": "Diagnose a broken VSS deployment — containers, OVMS/vLLM load, DLStreamer, RabbitMQ/MinIO/Postgres/VDMS, 'no summary', 'search returns nothing'.",
+      "triggers": [
+        "vss troubleshoot",
+        "diagnose vss",
+        "no summary appearing",
+        "search returns nothing",
+        "container restarting",
+        "vss not working"
+      ],
+      "requires": [
+        ".github/skills/vss-troubleshoot/scripts/triage.sh",
+        "docker compose",
+        "curl"
+      ]
+    },
+    {
+      "name": "vss-model-onboarding",
+      "path": ".github/skills/vss-model-onboarding/SKILL.md",
+      "description": "Bring a new VLM/embedding model into OVMS with OpenVINO IR conversion and model-dir layout.",
+      "triggers": [
+        "onboard new model",
+        "add vlm model",
+        "convert to ovms",
+        "openVINO IR conversion",
+        "model deployment"
+      ],
+      "requires": [
+        ".github/skills/vss-model-onboarding/scripts/prepare_ovms_model.py",
+        "OpenVINO",
+        "model assets"
+      ]
+    },
+    {
+      "name": "vss-helm-deploy",
+      "path": ".github/skills/vss-helm-deploy/SKILL.md",
+      "description": "Deploy VSS to Kubernetes via Helm chart with mode mapping to values.yaml.",
+      "triggers": [
+        "deploy to kubernetes",
+        "helm deploy vss",
+        "k8s deployment",
+        "vss on k8s"
+      ],
+      "requires": [
+        "helm",
+        "kubernetes cluster",
+        ".github/skills/vss-helm-deploy/chart/"
+      ]
+    },
+    {
+      "name": "vss-pipeline-config",
+      "path": ".github/skills/vss-pipeline-config/SKILL.md",
+      "description": "Tune VSS pipeline parameters with latency/quality trade-offs.",
+      "triggers": [
+        "tune pipeline",
+        "adjust parameters",
+        "optimize performance",
+        "chunk duration",
+        "frame sampling"
+      ],
+      "requires": [
+        "config files",
+        "docker compose"
+      ]
+    },
+    {
+      "name": "vss-add-nest-module",
+      "path": ".github/skills/vss-add-nest-module/SKILL.md",
+      "description": "Scaffold a new pipeline-manager NestJS module idiomatic way.",
+      "triggers": [
+        "add nest module",
+        "scaffold pipeline-manager module",
+        "new controller",
+        "new service"
+      ],
+      "requires": [
+        ".github/skills/vss-add-nest-module/assets/module-template/",
+        "pipeline-manager/"
+      ]
+    },
+    {
+      "name": "vss-dlstreamer-pipeline",
+      "path": ".github/skills/vss-dlstreamer-pipeline/SKILL.md",
+      "description": "Understand and modify DLStreamer Pipeline Server ingestion pipelines and frame/chunk extraction.",
+      "triggers": [
+        "dlstreamer pipeline",
+        "frame extraction",
+        "video ingestion",
+        "evam pipeline",
+        "pipeline modification"
+      ],
+      "requires": [
+        "docker compose",
+        "DLStreamer",
+        "video-ingestion/"
+      ]
+    },
+    {
+      "name": "vss-search-internals",
+      "path": ".github/skills/vss-search-internals/SKILL.md",
+      "description": "Work on embeddings and VDMS retrieval; understand frame vs summary-text embedding.",
+      "triggers": [
+        "search internals",
+        "embeddings",
+        "vdms retrieval",
+        "embedding model",
+        "vector search"
+      ],
+      "requires": [
+        "search-ms/",
+        "VDMS",
+        "embedding model"
+      ]
+    },
+    {
+      "name": "vss-observability",
+      "path": ".github/skills/vss-observability/SKILL.md",
+      "description": "Enable OpenTelemetry, trace videos end-to-end, and find latency bottlenecks.",
+      "triggers": [
+        "observability",
+        "opentelemetry",
+        "tracing",
+        "latency bottleneck",
+        "performance profiling"
+      ],
+      "requires": [
+        "OpenTelemetry instrumentation",
+        "docker compose"
+      ]
+    },
+    {
+      "name": "vss-api-client",
+      "path": ".github/skills/vss-api-client/SKILL.md",
+      "description": "Call the REST/WebSocket APIs correctly for video upload, processing, and search.",
+      "triggers": [
+        "api client",
+        "call api",
+        "upload video api",
+        "search api",
+        "rest api"
+      ],
+      "requires": [
+        ".github/skills/vss-api-client/scripts/api_smoke.py",
+        "curl",
+        "python"
+      ]
+    },
+    {
+      "name": "vss-mcp-integration",
+      "path": ".github/skills/vss-mcp-integration/SKILL.md",
+      "description": "Configure and extend the spec-driven FastMCP proxy that exposes VSS search to AI agents.",
+      "triggers": [
+        "mcp integration",
+        "mcp proxy",
+        "agent integration",
+        "fastmcp",
+        "expose to agent"
+      ],
+      "requires": [
+        "mcp/",
+        "FastMCP",
+        "docker compose"
+      ]
+    },
+    {
+      "name": "vss-e2e-smoke",
+      "path": ".github/skills/vss-e2e-smoke/SKILL.md",
+      "description": "One-command end-to-end verification per VSS mode.",
+      "triggers": [
+        "e2e smoke test",
+        "verify deployment",
+        "smoke test",
+        "end-to-end test"
+      ],
+      "requires": [
+        ".github/skills/vss-e2e-smoke/scripts/e2e_summary.sh",
+        ".github/skills/vss-e2e-smoke/scripts/e2e_search.sh",
+        "bash",
+        "curl"
       ]
     }
   ]

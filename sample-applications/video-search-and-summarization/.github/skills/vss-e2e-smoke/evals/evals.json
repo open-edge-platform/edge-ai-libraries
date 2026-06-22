@@ -1,0 +1,44 @@
+{
+  "skill_name": "vss-e2e-smoke",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just deployed VSS in summary mode \u2014 how do I verify it's actually working end to end?",
+      "expected_output": "Guide the user to run the summary smoke test and explain what successful end-to-end verification looks like.",
+      "files": [],
+      "expectations": [
+        "References `scripts/e2e_summary.sh` (or `./scripts/e2e_summary.sh`) as the summary-mode smoke test to run after `source setup.sh --summary`.",
+        "Explains the default Pipeline Manager base `http://localhost:12345/manager` and/or that arg 2 or `VSS_API_BASE` can point at a host root that the script normalizes to `/manager`.",
+        "Describes the real summary API flow: `GET /health`, `POST /videos`, `POST /summary`, then polling `GET /states/{stateId}` until chunking and `videoSummaryStatus` are complete with a non-empty summary.",
+        "Mentions the actual success output shape including `Uploaded videoId: ...`, `Started stateId: ...`, progress lines like `chunking=... chunks=... frameSummaries=... final=...`, and `PASS: summary completed for videoId=... stateId=...` plus `Summary excerpt:`.",
+        "Mentions at least one real override or input detail such as arg 1 video path, `VIDEO_PATH`, `VSS_TIMEOUT_SECONDS`, `VSS_POLL_INTERVAL_SECONDS`, `VSS_CHUNK_DURATION`, or the streamable-MP4 requirement."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Run the search smoke test against my deployment at http://localhost:8080",
+      "expected_output": "Give a concrete command for running the search smoke test against http://localhost:8080 and explain how to read the result.",
+      "files": [],
+      "expectations": [
+        "References `scripts/e2e_search.sh` and uses `http://localhost:8080` as the API base via arg 2 or `VSS_API_BASE`.",
+        "Explains that the script probes `http://localhost:8080/health` and, if needed, `http://localhost:8080/manager/health`, then uses the normalized Pipeline Manager base for later calls.",
+        "Describes the actual search flow: `POST /videos`, `POST /videos/search-embeddings/{videoId}`, and then either manager shim `POST /search/query` or direct search-service `POST /query` when `VSS_SEARCH_BASE` is set.",
+        "Mentions the real success output shape: `Embedding response: ...`, `Search hits: N`, and `PASS: search returned N hit(s) for videoId=...` with `Result excerpt:` on success.",
+        "Mentions at least one search-specific override such as `VSS_QUERY`, `VSS_SEARCH_BASE`, `VSS_TIMEOUT_SECONDS`, `VSS_POLL_INTERVAL_SECONDS`, or the optional arg 1 video path."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "The e2e_summary.sh script printed FAIL \u2014 what does that mean and how do I interpret the output?",
+      "expected_output": "Explain what a FAIL from the summary smoke test means, how the script decides to fail, and how to debug from the printed lines.",
+      "files": [],
+      "expectations": [
+        "Explains that `e2e_summary.sh` prints `FAIL: ...` to stderr via the `fail()` helper and exits non-zero.",
+        "Maps `FAIL` to real failure cases from the script, such as missing `curl`/`python3`, no video supplied or video not found, Pipeline Manager health check failure, upload failure, missing `videoId` or `summaryPipelineId`, summary state `error`, or timeout waiting for final summary.",
+        "Explains how to interpret the progress line format `chunking=... chunks=... frameSummaries=... final=...` and that success additionally prints `PASS: summary completed for videoId=... stateId=...` plus `Summary excerpt:`.",
+        "Mentions concrete debugging levers from the script or references, such as verifying summary mode was started, trying a streamable MP4, adjusting `VSS_TIMEOUT_SECONDS` / `VSS_POLL_INTERVAL_SECONDS`, or overriding `VSS_API_BASE` / the positional video path.",
+        "References the real summary request and polling endpoints (`POST /summary`, `GET /states/{stateId}`) when describing where the failure context comes from."
+      ]
+    }
+  ]
+}

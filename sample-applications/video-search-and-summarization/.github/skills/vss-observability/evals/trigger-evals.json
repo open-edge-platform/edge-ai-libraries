@@ -1,0 +1,22 @@
+[
+  {"query": "Why is VSS processing so slow? How do I find the bottleneck in the pipeline?", "should_trigger": true},
+  {"query": "How do I enable OpenTelemetry tracing for the video-search-and-summarization app?", "should_trigger": true},
+  {"query": "Set up OTLP_TRACE_URL so Pipeline Manager exports spans to my Grafana Tempo backend", "should_trigger": true},
+  {"query": "I want to see Prometheus metrics for VSS — how do I enable the vss-collector?", "should_trigger": true},
+  {"query": "How do I trace a single video all the way through the VSS pipeline from upload to summary?", "should_trigger": true},
+  {"query": "VLM captioning is taking forever in VSS. What telemetry can I use to confirm that's the bottleneck?", "should_trigger": true},
+  {"query": "enable ENABLE_VSS_COLLECTOR and show me what metrics it exposes on port 9273", "should_trigger": true},
+  {"query": "VSS spans are showing up in pipeline-manager logs but not in my OTLP backend — how do I configure the trace exporter?", "should_trigger": true},
+  {"query": "I need to add a Grafana dashboard to monitor dataprep embeddings per second and GPU metrics for VSS", "should_trigger": true},
+  {"query": "How do I correlate a summaryPipelineId with the OpenTelemetry spans from videoSummary service to find where time is being spent?", "should_trigger": true},
+  {"query": "How do I add a new REST endpoint to Pipeline Manager for submitting video summarization jobs?", "should_trigger": false},
+  {"query": "What Prometheus metrics does the search-ms microservice expose for query latency?", "should_trigger": false},
+  {"query": "Set up OpenTelemetry tracing for my FastAPI app using the OTLP exporter", "should_trigger": false},
+  {"query": "How do I configure Grafana dashboards for a generic Docker Compose application?", "should_trigger": false},
+  {"query": "The VSS UI is not loading — how do I debug the nginx gateway and check which containers are healthy?", "should_trigger": false},
+  {"query": "How do I scale the vllm-cpu-service to reduce LLM inference time in VSS?", "should_trigger": false},
+  {"query": "What environment variables control VLM_CONCURRENT and LLM_CONCURRENT in the VSS setup?", "should_trigger": false},
+  {"query": "How do I set up Jaeger as a tracing backend and configure the OpenTelemetry Collector with VSS?", "should_trigger": false},
+  {"query": "My VSS video upload is failing — how do I check MinIO object storage logs and connectivity?", "should_trigger": false},
+  {"query": "How do I instrument a NestJS service with OpenTelemetry for a project that is not VSS?", "should_trigger": false}
+]

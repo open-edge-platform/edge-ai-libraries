@@ -1,0 +1,22 @@
+[
+  {"query": "How do I change the frame extraction rate in the VSS DLStreamer pipeline so I get more frames per second from my input video?", "should_trigger": true},
+  {"query": "The EVAM pipeline config in VSS is not picking up my custom GStreamer element — where do I add it in video-ingestion/resources/conf/config.json?", "should_trigger": true},
+  {"query": "I want to add a GVA detection model to the VSS video ingestion pipeline. How do I wire it into the EVAM config?", "should_trigger": true},
+  {"query": "Why does my VSS pipeline crash with 'pipeline not found' when I POST to /pipelines? The config.json looks fine.", "should_trigger": true},
+  {"query": "Can I modify publish.py in VSS to also write frame embeddings to Redis alongside MinIO?", "should_trigger": true},
+  {"query": "How do I switch the VSS pipeline from file:// source to rtsp:// for live camera feeds using DLStreamer?", "should_trigger": true},
+  {"query": "The gvapython sink in VSS isn't writing chunk messages — how do I debug the publish.py callback?", "should_trigger": true},
+  {"query": "What GStreamer pipeline string does VSS use for the summarization path vs the search path?", "should_trigger": true},
+  {"query": "I want to preprocess frames (resize to 336x336) before they hit the OVMS inference in VSS — where do I add the videoscale element?", "should_trigger": true},
+  {"query": "How do I tune chunk_size and overlap in the VSS EVAM config to capture short events in surveillance footage?", "should_trigger": true},
+  {"query": "How do I change the chunk_duration parameter in the VSS pipeline manager API when uploading a video?", "should_trigger": false},
+  {"query": "The OVMS container in VSS is crashing with an out-of-memory error — how do I reduce the model batch size?", "should_trigger": false},
+  {"query": "How do I switch the summarization model in VSS from LLaVA to a custom vision-language model?", "should_trigger": false},
+  {"query": "I want to search my VSS videos by semantic similarity — how does the embedding generation work?", "should_trigger": false},
+  {"query": "How do I deploy VSS with GPU acceleration using the docker-compose GPU overlay?", "should_trigger": false},
+  {"query": "Build a GStreamer pipeline that reads from an RTSP camera and streams to HLS — not for VSS, just standalone.", "should_trigger": false},
+  {"query": "How do I configure Prometheus metrics for the DLStreamer Pipeline Server container in VSS?", "should_trigger": false},
+  {"query": "The VSS pipeline-manager NestJS service isn't sending jobs to the queue — how do I debug BullMQ?", "should_trigger": false},
+  {"query": "How do I add a new REST endpoint to the VSS pipeline-manager to return pipeline status?", "should_trigger": false},
+  {"query": "My VSS Helm deployment is failing because the video-ingestion Pod can't pull the DLStreamer image — how do I fix imagePullSecrets?", "should_trigger": false}
+]

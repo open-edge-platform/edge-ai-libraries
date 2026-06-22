@@ -1,0 +1,44 @@
+{
+  "skill_name": "vss-pipeline-config",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Processing my 2-hour video takes forever \u2014 what parameters can I reduce to speed it up? I am using the VSS summary flow in the UI today, but I can also change the POST /summary payload or compose env vars if needed. Please call out the exact fields, defaults, and guardrails so I do not break the pipeline.",
+      "expected_output": "Explains the main latency knobs for faster processing, names the exact UI/API/env locations, and describes the quality trade-offs and backend invariant that constrain the settings.",
+      "files": [],
+      "expectations": [
+        "Recommends increasing sampling.chunkDuration above the UI default of 8 seconds to reduce the number of chunks, and identifies the UI field as NumberInput id=chunkDuration with a UI minimum of 2 seconds.",
+        "Recommends reducing sampling.samplingFrame from the default 8 (UI label Frame per chunk, NumberInput id=sampleFrame, UI minimum 2) because EVAM receives it as parameters.frame and more frames increase VLM work and payload size.",
+        "Recommends keeping sampling.frameOverlap at the default 0 unless boundary misses matter, and notes it is set in the UI advanced field NumberInput id=overrideMultiFrame and duplicates frames across adjacent captioning windows when increased.",
+        "Explains that sampling.multiFrame must equal sampling.samplingFrame + sampling.frameOverlap and must stay within the server maximum MULTI_FRAME_COUNT, which defaults to 12 in setup.sh/chart values (with some OVMS paths using 6).",
+        "Mentions optional audio cost controls: omit audio.audioModel to skip transcription when audio is irrelevant, and/or disable audio.useFullTranscriptSummary or PRODUCE_FINAL_SUMMARY because AUDIO_USE_FULL_TRANSCRIPT_SUMMARY and PRODUCE_FINAL_SUMMARY both default to true and add extra downstream work."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I want better quality summaries from the VSS summarization pipeline. Which parameters should I increase or tighten up for better coverage, and what extra compute or latency will each change add? Please answer using the real parameter names and tell me whether to change them in the UI, the API body, or env config.",
+      "expected_output": "Recommends quality-oriented tuning changes using the real VSS parameters, and ties each recommendation to concrete compute and latency costs plus the exact configuration location.",
+      "files": [],
+      "expectations": [
+        "Recommends decreasing sampling.chunkDuration below the default 8 seconds when short events are being missed, and explains that shorter chunks improve temporal precision but create more chunks and more downstream summary work.",
+        "Recommends increasing sampling.samplingFrame above the default 8 through the UI Frame per chunk field or the API field sampling.samplingFrame, and explains that higher frame counts increase ingestion output, image payload size, and VLM latency/cost.",
+        "Recommends adding a small positive sampling.frameOverlap from the default 0 to reduce boundary misses, and explains that overlap repeats frames across adjacent VLM windows, increasing multimodal payload size and latency.",
+        "Explains the multi-frame constraint: sampling.multiFrame is the batch size shown as a read-only UI value computed from samplingFrame + frameOverlap, must equal that sum in POST /summary, and cannot exceed the configured MULTI_FRAME_COUNT maximum (default 12).",
+        "Mentions audio-side quality knobs for speech-heavy videos: include audio.audioModel to enable transcript snippets and keep audio.useFullTranscriptSummary=true for final summaries, while noting the added Whisper/audio job latency plus the extra transcript-summary LLM map-reduce cost."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "How do I enable audio transcript in my summary, and where exactly do I set that in VSS? I need the transcript snippets to influence chunk summaries and I also want the final summary to include the condensed audio transcript if that is a separate switch.",
+      "expected_output": "Shows exactly how to enable audio transcription and full transcript summarization in VSS, with the precise UI controls, API fields, env defaults, and the behavior each switch enables.",
+      "files": [],
+      "expectations": [
+        "Explains that chunk-level audio transcription is enabled by sending an audio.audioModel value in SummaryPipelineDTO, because transcription only starts when audioModel is present; in the UI this corresponds to the Use Audio Transcription checkbox (id=audiocheckBox) and Audio Models selector (id=audioModelsSelector).",
+        "Explains that full transcript summarization for the final summary is controlled separately by audio.useFullTranscriptSummary in the API and the UI checkbox id=useAudioSummaryCheckbox labeled Summarize audio transcript for final summary.",
+        "States the real defaults: the UI audio toggle starts true when audio models are available, the selected audio model defaults to systemConfig.meta.defaultAudioModel, and AUDIO_USE_FULL_TRANSCRIPT_SUMMARY defaults to true when not overridden.",
+        "Names the exact deployment-level locations for the final-summary transcript toggle: env var AUDIO_USE_FULL_TRANSCRIPT_SUMMARY, compose/setup variable PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY, and Helm value pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY.",
+        "Notes the dependency on the final summary switch: produceFinalSummary / PRODUCE_FINAL_SUMMARY must remain enabled for the full transcript summary to be used, because the UI forces audio.useFullTranscriptSummary to false when produceFinalSummary is false."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "skill_name": "vss-helm-deploy",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Deploy VSS in summary-only mode to my k8s cluster. I'm using the Helm chart under sample-applications/video-search-and-summarization/chart and I want the plain OVMS-backed summary stack, not search or vLLM. Give me the exact helm install command and the values I need to set in user_values_override.yaml before I run it.",
+      "expected_output": "Explains how to install the summary-only VSS deployment from the real chart using the summary override file plus user values, and lists the required PVC/model/credential values the operator must set.",
+      "files": [],
+      "expectations": [
+        "Uses the real chart location or chart name `video-search-and-summarization` and gives the summary install command `helm install vss . -f summary_override.yaml -f user_values_override.yaml -n \"$NAMESPACE\"` from the chart directory.",
+        "Identifies `summary_override.yaml` as the mode selector and references real summary-mode toggles such as `rabbitmq.enabled=true`, `ovms.enabled=true`, `videoingestion.enabled=true`, `audioanalyzer.enabled=true`, `summaryui.enabled=true`, or `pipelinemanager.env.SUMMARY_FEATURE=FEATURE_ON`.",
+        "Lists required shared-storage/model values from `user_values_override.yaml`, including `global.usePvc`, `global.keepPvc`, `global.sharedPvcName`, and `global.vlmName`.",
+        "Calls out the required credentials under `global.env`, including `POSTGRES_USER`, `POSTGRES_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `RABBITMQ_DEFAULT_USER`, and `RABBITMQ_DEFAULT_PASS`.",
+        "Includes the namespace creation step (`kubectl create namespace \"$NAMESPACE\"`) or otherwise makes it clear the Helm install should target a namespace such as `vss-deployment`."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "How do I enable vLLM instead of OVMS in my VSS Helm deployment, and which values.yaml keys do I change? I already have the summary stack overrides and want the Xeon vLLM path, so please show the exact Helm upgrade command too.",
+      "expected_output": "Explains that the vLLM path is enabled by layering the Xeon vLLM override onto the summary deployment, naming the exact keys that flip the backend and the concrete Helm upgrade command to apply the change.",
+      "files": [],
+      "expectations": [
+        "Uses the real upgrade stack `helm upgrade vss . -f summary_override.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml -n \"$NAMESPACE\"` or the equivalent install command from the chart directory.",
+        "Names `xeon_vllm_values.yaml` as the override file that enables vLLM for VSS Helm deployments.",
+        "Explicitly identifies the backend toggle keys `vllm.enabled=true`, `ovms.enabled=false`, and `pipelinemanager.env.USE_VLLM=CONFIG_ON`.",
+        "References at least one real vLLM tuning key from the skill, such as `vllm.pvc.size`, `vllm.env.vllmCpuKvCacheSpace`, `vllm.model.maxModelLen`, `vllm.model.maxNumBatchedTokens`, or `vllm.model.tensorParallelSize`.",
+        "Mentions that `global.vlmName` still selects the model and that `global.huggingfaceToken` is still the main token value used by the chart when switching to vLLM."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "My VSS Helm deployment is up but the UI isn't accessible from my browser. The release name is vss in namespace vss-deployment. What should I check first?",
+      "expected_output": "Provides Helm-aware troubleshooting steps for an inaccessible VSS UI, focusing on the nginx NodePort service, the resolved browser URL and path, Helm release state, and the most relevant logs/events.",
+      "files": [],
+      "expectations": [
+        "Checks the nginx service path first by referencing `kubectl get svc -n \"$NAMESPACE\"` and the fact that the `vss` release exposes the UI through the `vss-nginx` service with `nginx.service.type=NodePort`.",
+        "Shows how to derive the actual browser URL from `vss-nginx` using the host IP and NodePort, for example with the `kubectl get pods -l app=vss-nginx ...` and `kubectl get service vss-nginx ...` commands from the skill.",
+        "Explains the mode-specific UI paths: `/` for singleton summary/search/unified deployments, and `/summary/` plus `/search/` for dual-UI deployments.",
+        "Includes Helm-specific validation such as `helm status vss -n \"$NAMESPACE\"` or `helm get values vss -n \"$NAMESPACE\"` to confirm the installed override stack and whether `summaryui.enabled` and/or `searchui.enabled` match the intended mode.",
+        "Points to the real troubleshooting logs/events from the skill, including `kubectl logs -n \"$NAMESPACE\" deploy/vss-nginx`, `kubectl logs -n \"$NAMESPACE\" deploy/vss-pipelinemanager`, and `kubectl get events -n \"$NAMESPACE\" --sort-by=.lastTimestamp`."
+      ]
+    }
+  ]
+}

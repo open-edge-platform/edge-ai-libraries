@@ -1,0 +1,22 @@
+[
+  {"query": "How does unified search work in VSS and why are the embeddings different from regular search mode?", "should_trigger": true},
+  {"query": "I want to swap the embedding model in search-ms from CLIP to a text model — what do I need to change?", "should_trigger": true},
+  {"query": "The directory watcher isn't picking up new MP4 files dropped into the watch folder. How do I debug it?", "should_trigger": true},
+  {"query": "Tune AGGREGATION_INITIAL_K and AGGREGATION_MAX_RESULTS to get more relevant search results", "should_trigger": true},
+  {"query": "How does search-ms build the VDMS filter for time-based queries like 'last 6 hours'?", "should_trigger": true},
+  {"query": "Explain the difference between video_frame_embeddings and video_summary_embeddings indexes in VDMS", "should_trigger": true},
+  {"query": "The /query endpoint in search-ms is returning low-relevance results — walk me through the retrieval and aggregation path", "should_trigger": true},
+  {"query": "After switching from --search to --unified mode, old vectors in VDMS are causing dimension mismatch errors. How do I fix this?", "should_trigger": true},
+  {"query": "How does EmbeddingAPI.get_embedding_length() probe the active model and what settings control the embeddings endpoint?", "should_trigger": true},
+  {"query": "I need to add tag-based filtering to VDMS similarity search — where in the search-ms retriever code does that happen?", "should_trigger": true},
+  {"query": "How do I upload a video to the pipeline-manager and trigger summarization?", "should_trigger": false},
+  {"query": "Walk me through deploying VSS in dual UI mode with both summarization and search enabled", "should_trigger": false},
+  {"query": "The VLM inference service is slow — how do I tune vLLM throughput for the summarization pipeline?", "should_trigger": false},
+  {"query": "VSS containers are unhealthy after startup. How do I check which services are down?", "should_trigger": false},
+  {"query": "How does the audio analyzer extract transcripts and feed them into the summarization workflow?", "should_trigger": false},
+  {"query": "I want to add a new route to the nginx gateway to expose a custom API under /manager", "should_trigger": false},
+  {"query": "How do I build and push the search-ms Docker image from source using build.sh?", "should_trigger": false},
+  {"query": "Configure MinIO bucket policies so video-ingestion can write frames to object storage", "should_trigger": false},
+  {"query": "What Pipeline Manager REST endpoints are available for managing video ingestion jobs?", "should_trigger": false},
+  {"query": "How does video-ingestion extract frames from an MP4 and send them to the RabbitMQ work queue?", "should_trigger": false}
+]

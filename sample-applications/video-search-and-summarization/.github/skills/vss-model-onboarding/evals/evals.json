@@ -1,0 +1,44 @@
+{
+  "skill_name": "vss-model-onboarding",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to swap the default Qwen VLM for LLaVA-1.6. What files do I need to create and where?",
+      "expected_output": "Explain the OVMS model directory to create for a new LLaVA-1.6 VLM, including the naming convention, the required files under config/ovms_config/models/<storage-model-name>/, and the matching registration entry in config/ovms_config/models/config.json.",
+      "files": [],
+      "expectations": [
+        "Names the model directory under config/ovms_config/models/ using the repo storage naming convention, for example llava-hf_llava-v1.6-mistral-7b-hf_CPU_int8 for source model llava-hf/llava-v1.6-mistral-7b-hf on CPU int8.",
+        "Lists graph.pbtxt, openvino_config.json, config.json, generation_config.json, chat_template.jinja, tokenizer.json, tokenizer_config.json, special_tokens_map.json, added_tokens.json, and vocab.json/merges.txt as real metadata/tokenizer files expected in the model directory.",
+        "Lists the required OpenVINO artifacts openvino_language_model.xml/.bin, openvino_text_embeddings_model.xml/.bin, openvino_vision_embeddings_model.xml/.bin, openvino_tokenizer.xml/.bin, and openvino_detokenizer.xml/.bin, while noting openvino_vision_embeddings_merger_model.xml/.bin is architecture-specific and only kept if the export produces it.",
+        "Mentions the preprocessing files preprocessor_config.json and video_preprocessor_config.json and warns not to blindly reuse Qwen-specific preprocessing or chat template values for a different model family.",
+        "Explains that config/ovms_config/models/config.json also needs a model_config_list entry whose config.name matches the storage model name and whose config.base_path matches the directory name relative to config/ovms_config/models."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "What does graph.pbtxt do in the OVMS model directory, and what do I need to change in it for a new model?",
+      "expected_output": "Describe graph.pbtxt as the OVMS MediaPipe serving graph for the model directory, explain the key Qwen fields it contains, and identify which fields should be reviewed or changed for a newly exported model.",
+      "files": [],
+      "expectations": [
+        "Identifies graph.pbtxt as the OVMS MediaPipe graph loaded for /v3 OpenAI-compatible chat/completion serving and says the Qwen example uses HttpLLMCalculator.",
+        "Calls out the Qwen graph settings pipeline_type: VLM_CB, models_path: \"./\", enable_prefix_caching: true, cache_size: 10, max_num_seqs: 256, and device: \"CPU\".",
+        "Explains that models_path should stay \"./\" when the exported artifacts live directly inside that model directory.",
+        "Explains that device, cache_size, and any plugin/concurrency settings may need to change for the new target hardware, while VLM captioning should keep pipeline_type VLM_CB when using the continuous-batching VLM path.",
+        "Notes that an LLM-only summarizer may use exporter defaults or omit the VLM-specific pipeline_type instead of blindly copying the Qwen graph unchanged."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "How do I run prepare_ovms_model.py to scaffold a new model directory, and what does it produce?",
+      "expected_output": "Show the real prepare_ovms_model.py command-line usage for scaffolding a new OVMS model directory in the VSS repo and summarize the files, placeholders, and optional registration/conversion side effects it produces.",
+      "files": [],
+      "expectations": [
+        "Shows the real command form python3 skills/vss-model-onboarding/scripts/prepare_ovms_model.py --source-model <hf-id-or-local-model> --model-name <storage-model-name> --device CPU --precision int8, with optional flags such as --register and --run-conversion.",
+        "Mentions that if --model-name is omitted the script derives it with the same sanitize-and-append naming convention used by setup.sh, and that the repo conversion flow exports OVMS_CONFIG_DIR=${PWD}/config/ovms_config.",
+        "Explains that the script scaffolds config/ovms_config/models/<model-name>/ by copying structural text/config files from the checked-in Qwen example, patches graph.pbtxt for device and optional cache_size, and creates .PENDING markers instead of fake XML/BIN files when conversion is not run.",
+        "Lists the pending IR basenames it expects: openvino_language_model, openvino_text_embeddings_model, openvino_vision_embeddings_model, openvino_vision_embeddings_merger_model, openvino_tokenizer, and openvino_detokenizer.",
+        "Explains that --run-conversion invokes optimum-cli export openvino --model <source> --weight-format <precision> --trust-remote-code <destination> and may run convert_tokenizer --with-detokenizer, while --register updates config/ovms_config/models/config.json with the new name/base_path entry."
+      ]
+    }
+  ]
+}

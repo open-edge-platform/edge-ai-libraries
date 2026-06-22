@@ -1,0 +1,38 @@
+{
+  "skill_name": "vss-dlstreamer-pipeline",
+  "evals": [
+    {
+      "name": "evam-request-payload",
+      "prompt": "How does pipeline-manager send a video chunk request to the DLStreamer Pipeline Server? Show me the endpoint and payload shape.",
+      "expectations": [
+        "Identifies the POST endpoint built in pipeline-manager/src/evam/services/evam.service.ts as http://${EVAM_HOST}:${EVAM_PIPELINE_PORT}/pipelines/user_defined_pipelines/${pipeline}.",
+        "Names the real selectable pipeline values from pipeline-manager/src/evam/models/evam.model.ts: object_detection and video_ingestion.",
+        "Describes the request body shape with source.element=curlhttpsrc, source.type=gst, source.properties.location=<MinIO object URL>, plus parameters.frame, parameters.chunk_duration, and parameters.frame_width.",
+        "Includes the nested parameters.detection-properties.model/device and parameters.publish.minio_bucket/video_identifier/topic fields, with topic/video_stream as the publish topic.",
+        "Explains that the source URL comes from DatastoreService.getObjectURL(...) and that the returned pipeline id is later polled via GET /pipelines/{pipelineId}."
+      ]
+    },
+    {
+      "name": "frame-extraction-rate-location",
+      "prompt": "I want to change the frame extraction rate in the ingestion pipeline — where exactly do I make that change?",
+      "expectations": [
+        "Points to video-ingestion/resources/conf/config.json as the place where both object_detection and video_ingestion define the GStreamer template using framerate={parameters[frame]}/{parameters[chunk_duration]}.",
+        "Explains that the actual runtime values are populated in pipeline-manager/src/evam/services/evam.service.ts from userInputs.samplingFrame and userInputs.chunkDuration when startChunkingStub() builds the EVAM request.",
+        "Mentions that the effective extraction rate is frame / chunk_duration and that the same values are also passed to gvapython arg=[{parameters[frame]},{parameters[chunk_duration]}] for Publisher chunking behavior.",
+        "References the schema limits in config.json for frame (1..64), chunk_duration (2..60), and frame_width (160..800), so changing defaults or allowed ranges happens there.",
+        "If suggesting a new configurable width/default, notes that frame_width is currently hardcoded to 480 in EvamService and related tests live in pipeline-manager/src/evam/services/evam.service.spec.ts."
+      ]
+    },
+    {
+      "name": "evam-startup-crash-debugging",
+      "prompt": "I modified the GStreamer pipeline config and now the EVAM service crashes on startup — what's the most likely cause and how do I debug it?",
+      "expectations": [
+        "Calls out video-ingestion/resources/conf/config.json as the most likely fault domain and warns that a broken GStreamer string, caps typo, missing !, bad element name, or parameter-placeholder mismatch can crash/fail the Pipeline Server at runtime.",
+        "Mentions that parameter mappings must stay aligned with named elements: detection-properties expects an element named detection, and publish expects gvapython name=publish with kwarg JSON fields minio_bucket, video_identifier, and topic.",
+        "Notes that object_detection depends on a valid model path under /home/pipeline-server/models (mounted from ../ov_models in docker/compose.summary.yaml) and EVAM device/model defaults come from pipeline-manager/src/config/configuration.ts.",
+        "Tells the user to rebuild/restart the video-ingestion service because video-ingestion/docker/Dockerfile copies config.json to /home/pipeline-server/config.json and copies src/ into /home/pipeline-server/gvapython/publisher/.",
+        "Recommends validating with GET /pipelines, then a real POST to object_detection or video_ingestion, confirming pipeline status reaches COMPLETED, MinIO receives frame/metadata objects, and RabbitMQ routing still flows from topic/video_stream to pipeline-manager's my_mqtt_queue via amq.topic/topic.video_stream."
+      ]
+    }
+  ]
+}

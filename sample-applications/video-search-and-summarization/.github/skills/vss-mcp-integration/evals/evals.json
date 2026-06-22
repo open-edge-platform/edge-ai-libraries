@@ -1,0 +1,38 @@
+{
+  "skill_name": "vss-mcp-integration",
+  "evals": [
+    {
+      "id": "start-and-connect-claude-desktop",
+      "prompt": "How do I start the VSS MCP server and connect Claude Desktop to it?",
+      "expectations": [
+        "Mentions the real run flow from sample-applications/video-search-and-summarization/mcp: cd into mcp/, copy .env.example to .env, set VSS_IP and HOST_IP, then run docker compose up --build -d from compose.yaml.",
+        "References the actual connection endpoint http://<HOST_IP>:8000/mcp with Streamable HTTP, rather than inventing a stdio-only setup.",
+        "Calls out the required runtime config keys from src/core/config.py / .env.example: API_SPEC_URL, API_BASE_URL, and FILTER_FILE_PATH, plus the common MCP_HOST, MCP_PORT, and MCP_PATH defaults.",
+        "Explains that the server is the spec-driven FastMCP proxy created in src/server.py via FastMCP.from_openapi(...) against the live VSS OpenAPI spec, not a hand-written tool server.",
+        "Includes a real verification or troubleshooting step such as using MCP Inspector at http://<HOST_IP>:6274, checking LOG_LEVEL=DEBUG, or confirming the VSS backend is reachable at the /manager-backed API URLs from .env.example."
+      ]
+    },
+    {
+      "id": "add-vss-endpoint-as-tool",
+      "prompt": "I want to expose an additional VSS endpoint as an MCP tool — what do I change in search.json and filters/config.py?",
+      "expectations": [
+        "Explains that the primary change is adding an exact \"METHOD /path\" entry under apis in mcp/search.json with type: \"tool\", a valid identifier name, and optional description; for example POST /search/query or another real OpenAPI route.",
+        "References the real validation behavior in mcp/src/filters/config.py: only tool/resource are allowed, names must be identifiers, wildcards are rejected, duplicate names are rejected, and resources must be GET-only.",
+        "States that operations not listed in search.json are excluded by the allow-list route mapping, so the method/path must exactly match the live OpenAPI spec, including path params such as {videoId}.",
+        "Notes that src/server.py does not need a hand-written tool implementation because create_mcp() loads the filter, fetches API_SPEC_URL, and calls FastMCP.from_openapi(...) with build_mcp_names/build_route_map_fn/build_component_fn.",
+        "Mentions restarting the MCP server after editing the filter, and if using a custom filter path with compose.yaml, also updating FILTER_FILE_PATH and the matching volume mount instead of assuming the container sees the new file automatically."
+      ]
+    },
+    {
+      "id": "debug-missing-mcp-tool",
+      "prompt": "My MCP tool isn't showing up in my AI agent's tool list even though I added it to the spec — what should I check?",
+      "expectations": [
+        "Checks the real silent-drop path: mcp/src/openapi/mapping.py returns MCPType.EXCLUDE for routes absent from the filter, so adding an endpoint to the upstream spec alone is not enough without a matching search.json entry.",
+        "Tells the user to compare the filter key to the live OpenAPI method/path exactly, including parameter names such as GET /videos/{videoId} versus GET /videos/{id}, because filters/config.py normalizes spacing/case but not path semantics.",
+        "Mentions config and filesystem issues grounded in src/core/config.py and compose.yaml: API_SPEC_URL and API_BASE_URL must be correct, FILTER_FILE_PATH must exist inside the process/container, and compose.yaml only mounts ./search.json to /app/search.json by default.",
+        "Calls out FastMCP naming behavior from src/server.py and mcp/src/openapi/mapping.py: build_mcp_names() only renames routes that both exist in the filter and have an OpenAPI operationId, so missing operationId can affect the expected tool name.",
+        "Includes concrete debugging steps from the skill docs such as setting LOG_LEVEL=DEBUG to see [exclude]/[tool]/[resource] logs, remembering non-GET resources are invalid, rejecting stale fields like expose/tool_name/resource_name, and noting POST /videos is intentionally not exposed."
+      ]
+    }
+  ]
+}

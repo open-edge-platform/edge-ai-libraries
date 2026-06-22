@@ -1,0 +1,43 @@
+{
+  "skill_name": "vss-api-client",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "On a VSS stack exposed through nginx at http://localhost:12345, write a curl + Python polling sequence that checks GET http://localhost:12345/manager/health, uploads ./sample.mp4 to POST http://localhost:12345/manager/videos as multipart/form-data field video with tags=demo,api, starts summarization with POST http://localhost:12345/manager/summary using title 'API smoke', sampling {chunkDuration:30,samplingFrame:4,frameOverlap:1,multiFrame:5}, and evam {evamPipeline:'video_ingestion'}, then polls GET http://localhost:12345/manager/summary/{summaryPipelineId} every 5 seconds until the final summary is available. Capture both videoId and summaryPipelineId and stop polling when videoSummaryStatus is 'complete' or summary is non-empty.",
+      "expected_output": "A correct end-to-end async lifecycle example that uploads a video, starts summarization in a second request, and polls the UI summary endpoint until completion.",
+      "files": [],
+      "expectations": [
+        "References GET /manager/health on port 12345 and expects HTTP 200 before starting the workflow.",
+        "Uses POST /manager/videos with multipart/form-data field name 'video' (and optional comma-separated tags) and expects a 2xx response containing videoId.",
+        "Uses POST /manager/summary with videoId, title, sampling.chunkDuration=30, sampling.samplingFrame=4, sampling.frameOverlap=1, sampling.multiFrame=5, and evam.evamPipeline='video_ingestion', and expects HTTP 201 with summaryPipelineId.",
+        "Polls GET /manager/summary/{stateId} rather than assuming /videos started processing, and checks for videoSummaryStatus values such as 'inProgress' or 'complete'.",
+        "Treats summaryPipelineId as the stateId for follow-up requests and stops when videoSummaryStatus is 'complete' and/or summary text is non-empty."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Show a JavaScript or TypeScript example that subscribes to VSS progress events while a video is being processed through nginx at http://localhost:12345. The flow should call GET /manager/health, POST /manager/videos, and POST /manager/summary first, then connect with socket.io-client to http://localhost:12345 using path '/ws/', emit 'join' with the returned summaryPipelineId, and log progress events for summary:sync/{stateId}/status, summary:sync/{stateId}/chunks, summary:sync/{stateId}/frameSummary, summary:sync/{stateId}/summary, and summary:sync/{stateId}/summaryStream until summarization completes.",
+      "expected_output": "A Socket.IO client example that correctly joins the summary room and listens to the documented public progress event names tied to the summaryPipelineId/stateId.",
+      "files": [],
+      "expectations": [
+        "Connects to the app origin http://localhost:12345 with Socket.IO path '/ws/' instead of trying to open a websocket under /manager.",
+        "Shows the prerequisite REST sequence where POST /manager/summary returns summaryPipelineId/stateId after upload succeeds.",
+        "Emits the client event 'join' with the summaryPipelineId so the socket joins the room for that state.",
+        "Listens for documented public events summary:sync/{stateId}/status, /chunks, /frameSummary, /summary, and /summaryStream (or a justified subset of these exact event names).",
+        "Explains that summaryPipelineId is both the Socket.IO room name and the ID used by GET /manager/summary/{stateId}."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Write a curl request, and optionally a Python equivalent, for the Pipeline Manager one-off search API at http://localhost:12345/manager/search/query. Use the natural-language query 'show me people walking near vehicles', tags 'demo,api', and a relative time filter limited to the last 24 hours. The example should send the flattened Pipeline Manager timeFilter shape, parse the JSON response, and point out where query_id, metadata.video_id, metadata.segment_start, metadata.segment_end, and metadata.relevance_score appear in the results.",
+      "expected_output": "A correct one-off search example that calls the nginx-routed Pipeline Manager endpoint with a natural-language query and a relative time filter, then interprets the response schema.",
+      "files": [],
+      "expectations": [
+        "Uses POST /manager/search/query on port 12345 with Content-Type: application/json and expects HTTP 200.",
+        "Sends the Pipeline Manager request body with query, tags as a comma-separated string, and flattened timeFilter like {\"value\":24,\"unit\":\"hours\"} rather than the direct search service's absolute start/end shape.",
+        "Describes the response as a top-level object containing results, where each entry includes query_id, results, and aggregation_stats.",
+        "Points to per-hit metadata fields such as metadata.video_id, metadata.segment_start, metadata.segment_end, metadata.seek_timestamp, and metadata.relevance_score when explaining how to inspect matches."
+      ]
+    }
+  ]
+}

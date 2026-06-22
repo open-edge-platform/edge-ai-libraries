@@ -1,0 +1,43 @@
+{
+  "skill_name": "vss-search-internals",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "What's the difference between how search works in --search mode vs --unified mode? Which embeddings are indexed in each? Please answer with the actual ingestion path, index name, and model/config knobs I would verify before changing anything.",
+      "expected_output": "Explains the real mode split between frame/image retrieval and summary-text retrieval, including the pipeline-manager/data-prep paths, index names, and embedding model configuration used by each mode.",
+      "files": [],
+      "expectations": [
+        "Distinguishes --search/dual from --unified and names the indexes video_frame_embeddings vs video_summary_embeddings.",
+        "References the real ingestion paths: VideoService.createSearchEmbeddings() / DataPrepShimService.createEmbeddings() -> /videos/minio for search mode, and ChunkingService.createChunkSearchEmbeddings() / DataPrepShimService.createEmbeddingsFromSummary() -> /summary for unified mode.",
+        "Mentions the model/config split: setup.sh uses MULTIMODAL_EMBEDDING_MODEL for search/dual, TEXT_EMBEDDING_MODEL for unified, and search-ms reads EMBEDDINGS_MODEL_NAME / INDEX_NAME.",
+        "Names EmbeddingAPI or VDMSRetriever path accurately enough to show query-time embedding happens through EmbeddingAPI into VDMS via get_vectordb() / similarity_search_with_score()."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I want to swap the embedding model in search-ms. What class or config do I actually change, and where else do I need to keep things in sync so the index still works?",
+      "expected_output": "Points to the actual embedding client and deployment configuration, explains which env vars control model selection in each mode, and warns that the indexed vectors must be recreated to match the new dimensions/modality.",
+      "files": [],
+      "expectations": [
+        "References search-ms/src/vdms_retriever/embedding_wrapper.py and the EmbeddingAPI class as the query-time embedding client.",
+        "References search-ms/src/vdms_retriever/retriever.py get_vectordb() constructing EmbeddingAPI(api_url=settings.EMBEDDINGS_ENDPOINT, model_name=settings.EMBEDDINGS_MODEL_NAME).",
+        "Names the real config keys and locations: EMBEDDINGS_MODEL_NAME, EMBEDDINGS_ENDPOINT, INDEX_NAME in search-ms/src/utils/common.py and docker/compose.search.yaml; MULTIMODAL_EMBEDDING_MODEL vs TEXT_EMBEDDING_MODEL in setup.sh.",
+        "Explains that vdms-dataprep must use the same model/collection settings (for example DB_COLLECTION / VS_INDEX_NAME and MULTIMODAL_EMBEDDING_MODEL_NAME) and that existing VDMS vectors are not auto-migrated.",
+        "Calls out that EmbeddingAPI.get_embedding_length() probes dimensions, so after a model swap the data should be re-ingested or the index recreated to avoid dimension/semantic mismatches."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "The directory watcher isn't picking up my new video files. What should I check first in this repo, and what code path is supposed to run when a file lands in the watched folder?",
+      "expected_output": "Walks through the real watcher startup and upload flow, then gives a concrete debugging checklist covering enablement, mounts, recursion, debounce, file thresholds, duplicate suppression, and downstream upload endpoints.",
+      "files": [],
+      "expectations": [
+        "References search-ms/server.py startup_event() starting start_watcher() and search-ms/src/utils/directory_watcher.py as the watcher implementation.",
+        "Names DebouncedHandler and the key watcher settings: WATCH_DIRECTORY, WATCH_DIRECTORY_CONTAINER_PATH, WATCH_DIRECTORY_RECURSIVE, DEBOUNCE_TIME, VS_INITIAL_DUMP, DELETE_PROCESSED_FILES, VIDEO_UPLOAD_ENDPOINT.",
+        "Mentions the real gating behavior: only .mp4 files larger than 524288 bytes trigger on_created()/on_modified(), and recursive scanning depends on WATCH_DIRECTORY_RECURSIVE.",
+        "Describes the upload path upload_videos_to_dataprep() -> upload_single_video_with_retry() -> POST /videos -> POST /videos/search-embeddings/{videoId}, plus the in-process uploaded_files dedupe set.",
+        "Includes concrete diagnostics such as checking the VS_WATCHER_DIR volume mount to WATCH_DIRECTORY_CONTAINER_PATH, calling /initial-upload-status or /watcher-last-updated, and inspecting search-ms logs."
+      ]
+    }
+  ]
+}

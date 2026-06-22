@@ -1,0 +1,44 @@
+{
+  "skill_name": "vss-add-nest-module",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to add a new 'clip-export' module to pipeline-manager that exposes a REST endpoint and emits a processing-complete event — show me the files and structure.",
+      "expected_output": "Explain the concrete file scaffold for a new pipeline-manager feature module, including the template files to rename, the Nest module/controller/service/data layer split, and the root wiring in app.module.ts and Pipeline.events.ts.",
+      "files": [],
+      "expectations": [
+        "References the real template scaffold files example.module.ts, controllers/example.controller.ts, services/example.service.ts, services/example-db.service.ts, queues/example-queue.service.ts, models/example.model.ts, and models/example.entity.ts as the files to copy/rename under src/clip-export/.",
+        "Describes a clip-export.module.ts that wires ClipExportController, ClipExportService, ClipExportDbService, and ClipExportQueueService, and includes TypeOrmModule.forFeature([ClipExportEntity]) when the module persists data.",
+        "Mentions that controllers stay thin and follow the ExampleController pattern with Swagger decorators such as @ApiTags, @ApiOperation, @ApiBody/@ApiParam, and route methods like @Get or @Post.",
+        "Mentions adding a dot-delimited event enum value in src/events/Pipeline.events.ts and emitting it through injected EventEmitter2 from the service or queue instead of using string literals.",
+        "Mentions registering the new module in pipeline-manager/src/app.module.ts imports and, if there is an entity, adding ClipExportEntity to the root TypeOrmModule.forRoot({ entities: [...] }) list."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "How do I add a RabbitMQ queue consumer to my new module the way the repo does it?",
+      "expected_output": "Describe the repo's real RabbitMQ integration pattern, including the centralized RabbitmqService consumer, config-driven connection setup, and handoff from broker callbacks to internal pipeline events and FAST_TICK queue processors.",
+      "files": [],
+      "expectations": [
+        "Points to pipeline-manager/src/evam/services/rabbitmq.service.ts and pipeline-manager/src/evam/evam.module.ts as the real RabbitMQ consumer example in this codebase.",
+        "Mentions the rabbitmq-client Connection/createConsumer pattern with durable queue options, qos prefetchCount: 1, exchanges, and queueBindings instead of inventing a different Nest transport abstraction.",
+        "Mentions the actual ConfigService keys used by the consumer: rmq.host, rmq.username, rmq.password, rmq.amqpPort, evam.rmq.queue, evam.rmq.exchange, and evam.videoTopic.",
+        "Explains that the consumer callback emits an internal event through EventEmitter2 (for example PipelineEvents.CHUNK_RECEIVED) and does not perform the whole workflow inline.",
+        "Connects the broker consumer to the state-manager queue pattern by mentioning queue providers like state-manager/queues/summary-queue.service.ts that keep waiting/processing arrays and dispatch work on @OnEvent(AppEvents.FAST_TICK)."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I added my new module but the dependency injection is failing with 'cannot resolve dependencies' — what's the typical cause in this codebase?",
+      "expected_output": "Diagnose the common NestJS wiring mistakes in pipeline-manager, especially missing imports/exports/provider registration and TypeORM repository registration.",
+      "files": [],
+      "expectations": [
+        "Identifies missing module boundary wiring as the usual cause: the provider's module must export the service, and every consuming module must import that module for Nest to resolve constructor injection.",
+        "References a real pattern such as VideoUploadModule exporting VideoService and VideoDbService while SummaryModule imports VideoUploadModule and StateManagerModule to inject those services.",
+        "Mentions that the feature's own providers array must include services like ExampleService, ExampleDbService, and ExampleQueueService, and that controllers/services should not instantiate dependencies manually.",
+        "Mentions repository injection failures when TypeOrmModule.forFeature([Entity]) is missing from the feature module or when the DB service is missing @InjectRepository(Entity).",
+        "Mentions the final registration checklist in pipeline-manager/src/app.module.ts: import the new module there and, if the feature persists data, add the entity to the root TypeOrmModule.forRoot({ entities: [...] }) list."
+      ]
+    }
+  ]
+}

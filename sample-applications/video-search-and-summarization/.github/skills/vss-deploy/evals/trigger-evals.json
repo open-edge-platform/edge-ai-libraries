@@ -1,0 +1,22 @@
+[
+  {"query": "spin up VSS in summary mode", "should_trigger": true},
+  {"query": "how do I switch the video search and summarization app from CPU to GPU mode using VLM_TARGET_DEVICE=GPU?", "should_trigger": true},
+  {"query": "bring down the VSS stack cleanly and remove all volumes", "should_trigger": true},
+  {"query": "source setup.sh --search exits immediately with 'return: can only return from a function or sourced script' — what am I doing wrong?", "should_trigger": true},
+  {"query": "which compose files do I need to run the dual UI mode with both summary and search?", "should_trigger": true},
+  {"query": "I want to enable vLLM as the summarization backend instead of OVMS — what env vars do I set before calling setup.sh?", "should_trigger": true},
+  {"query": "how do I export MINIO_ROOT_USER, POSTGRES_PASSWORD, and RABBITMQ_USER before deploying VSS?", "should_trigger": true},
+  {"query": "deploy the unified UI for sample-applications/video-search-and-summarization so search runs over summary text", "should_trigger": true},
+  {"query": "run `source setup.sh config` to preview the resolved compose config without starting containers", "should_trigger": true},
+  {"query": "VSS is up in --summary mode but I need to switch to --search; do I need to stop first and re-export MULTIMODAL_EMBEDDING_MODEL?", "should_trigger": true},
+  {"query": "how do I build the VSS Docker images from source using build.sh?", "should_trigger": false},
+  {"query": "check whether the VSS containers are healthy and detect which mode is currently running", "should_trigger": false},
+  {"query": "submit a video at /data/sample.mp4 to the Pipeline Manager for summarization", "should_trigger": false},
+  {"query": "search for videos about traffic incidents using the VSS search microservice", "should_trigger": false},
+  {"query": "push the vss-pipeline-manager Docker image to a private registry after building", "should_trigger": false},
+  {"query": "how does the Pipeline Manager /manager/health API work and what does it return?", "should_trigger": false},
+  {"query": "deploy VSS on Kubernetes using the Helm chart in the chart/ directory", "should_trigger": false},
+  {"query": "the search-ms Python service is throwing a 500 error on /search — how do I debug it?", "should_trigger": false},
+  {"query": "what environment variables does the VSS search microservice read at runtime?", "should_trigger": false},
+  {"query": "how do I configure nginx dual_ui.conf to add a new route prefix in sample-applications/video-search-and-summarization?", "should_trigger": false}
+]
