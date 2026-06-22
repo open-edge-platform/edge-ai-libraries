@@ -1,8 +1,8 @@
-/*******************************************************************************
- * Copyright (C) 2026 Intel Corporation
- *
- * SPDX-License-Identifier: MIT
- ******************************************************************************/
+/*
+# Apache v2 license
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+*/
 
 #include "gentl_wrapper.h"
 

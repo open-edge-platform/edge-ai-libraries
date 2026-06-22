@@ -8,6 +8,7 @@ from utils.storage_manager import StorageManager
 from utils.app_paths import get_session_dir
 from components.asr.openai.whisper import Whisper as OA_Whisper
 from components.asr.openvino.whisper import Whisper as OV_Whisper
+from components.asr.openvino_genai.whisper import Whisper as OVGenAIWhisper
 from components.asr.whispercpp.whisper import WhisperCpp
 import logging
 logger = logging.getLogger(__name__)
@@ -21,6 +22,32 @@ class ASRComponent(PipelineComponent):
     _model = None
     _config = None
 
+    @staticmethod
+    def _resolve_backend(provider: str, model_name: str, device: str):
+        normalized_provider = provider.lower()
+        normalized_model_name = model_name.lower()
+        requested_device = str(device)
+
+        if normalized_provider == "whispercpp" and requested_device.upper() != "CPU":
+            logger.warning(
+                "whispercpp only supports CPU in this service; overriding requested device %s -> CPU",
+                requested_device,
+            )
+            requested_device = "CPU"
+
+        if normalized_provider == "openai" and "whisper" in normalized_model_name:
+            return OA_Whisper, (normalized_provider, normalized_model_name, requested_device.lower()), requested_device.lower()
+
+        if normalized_provider == "openvino" and "whisper" in normalized_model_name:
+            use_ov_genai = bool(getattr(getattr(config, "app", None), "use_ov_genai", False))
+            backend_cls = OVGenAIWhisper if use_ov_genai else OV_Whisper
+            return backend_cls, (normalized_provider, normalized_model_name, requested_device.upper(), use_ov_genai), requested_device.upper()
+
+        if normalized_provider == "whispercpp" and "whisper" in normalized_model_name:
+            return WhisperCpp, (normalized_provider, normalized_model_name, requested_device.upper()), requested_device.upper()
+
+        raise ValueError(f"Unsupported ASR provider/model: {normalized_provider}/{normalized_model_name}")
+
     def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0):
 
         self.session_id = session_id
@@ -30,18 +57,10 @@ class ASRComponent(PipelineComponent):
         self.enable_diarization = ENABLE_DIARIZATION
         self.all_segments = []
 
-        provider, model_name = provider.lower(), model_name.lower()
-        model_config_key = (provider, model_name, device)
+        backend_cls, model_config_key, resolved_device = self._resolve_backend(provider, model_name, device)
 
         if ASRComponent._model is None or ASRComponent._config != model_config_key:
-            if provider == "openai" and "whisper" in model_name:
-                ASRComponent._model = OA_Whisper(model_name, device.lower(), None)
-            elif provider == "openvino" and "whisper" in model_name:
-                ASRComponent._model = OV_Whisper(model_name, device, None)
-            elif provider == "whispercpp" and "whisper" in model_name:
-                ASRComponent._model = WhisperCpp(model_name, device.lower(), None)
-            else:
-                raise ValueError(f"Unsupported ASR provider/model: {provider}/{model_name}")
+            ASRComponent._model = backend_cls(model_name.lower(), resolved_device, None)
             ASRComponent._config = model_config_key
 
         self.asr = ASRComponent._model

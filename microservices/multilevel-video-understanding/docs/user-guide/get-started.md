@@ -222,7 +222,7 @@ export SERVICE_PORT=8192
 ### Step 3. Launch the microservice
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b main
 cd edge-ai-libraries/microservices/multilevel-video-understanding
 chmod +x ./setup_docker.sh
 ./setup_docker.sh
@@ -315,7 +315,7 @@ http://localhost:8192/docs
 1. Clone the repository and change directory to the `multilevel-video-understanding` microservice:
 
    ```bash
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b main
    cd edge-ai-libraries/microservices/multilevel-video-understanding
    ```
 

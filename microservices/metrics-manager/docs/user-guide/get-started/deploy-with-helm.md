@@ -6,20 +6,20 @@ The chart is published to the **same OCI repository as the container image**.
 
 | Artifact      | OCI Reference                                                                |
 |---------------|------------------------------------------------------------------------------|
-| Image         | `registry-1.docker.io/intel/metrics-manager:2026.1.0`                      |
-| Helm chart    | `oci://registry-1.docker.io/intel/metrics-manager:2026.1.0-helm`            |
+| Image         | `registry-1.docker.io/intel/metrics-manager:2026.1.0`                        |
+| Helm chart    | `oci://registry-1.docker.io/intel/metrics-manager:2026.1.0-helm`             |
 
 ## Prerequisites
 
 | Tool       | Minimum | Notes                                                                       |
 |------------|---------|-----------------------------------------------------------------------------|
-| Helm       | 3.8     | Required for OCI registries                                                |
+| Helm       | 3.8     | Required for OCI registries                                                 |
 | Kubernetes | 1.25    | Older clusters use the legacy AppArmor pod annotation. The chart auto-detects. 1.30+ uses the native `appArmorProfile` field. |
 | kubectl    | matching K8s | For cluster interaction                                                      |
 
 **Security Requirements:**
 
-The pod runs **privileged** with `hostPID: true`, mounts host paths (`/sys`, `/run`, `/dev/dri`), and disables AppArmor / seccomp confinement so it can read GPU/NPU sysfs nodes. 
+The pod runs **privileged** with `hostPID: true`, mounts host paths (`/sys`, `/run`, `/dev/dri`), and disables AppArmor / seccomp confinement so it can read GPU/NPU sysfs nodes.
 
 **PodSecurityAdmission must allow the `privileged` profile** in the target namespace:
 
@@ -190,7 +190,7 @@ kubectl label namespace observability \
 
 **Cause**: GPU not enabled or not available on the node.
 
-**Solution**: 
+**Solution**:
 
 ```bash
 # Check if GPU is available on the node
@@ -282,7 +282,7 @@ helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
 ## Supporting Resources
 
 - [Get Started Guide](../get-started.md)
-- [Configuration Guide](./environment-variables.md)
+- [Environment Variables](./environment-variables.md)
 - [System Requirements](./system-requirements.md)
 - [Troubleshooting](../troubleshooting.md)
 

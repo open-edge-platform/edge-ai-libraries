@@ -670,8 +670,8 @@ export const PerformanceTests = () => {
             {jobStatus.state === "RUNNING" && (
               <div className="mt-2">
                 <div className="animate-pulse flex items-center gap-2">
-                  <div className="h-2 w-2 bg-magenta-chart"></div>
-                  <span className="text-xs text-magenta-chart">
+                  <div className="h-2 w-2 bg-primary"></div>
+                  <span className="text-xs text-status-fg">
                     Running performance test...
                   </span>
                 </div>

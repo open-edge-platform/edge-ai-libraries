@@ -122,7 +122,7 @@ services:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
-    image: docker.io/intel/model-download:2026.1.0-rc1
+    image: docker.io/intel/model-download:2026.1.0
     container_name: model-download
     ports:
       - "8000:8000"
@@ -173,7 +173,7 @@ services:
     ports:
       - "7860:7860"
   metrics-manager:
-    image: docker.io/intel/metrics-manager:2026.1.0-20260508-weekly
+    image: docker.io/intel/metrics-manager:2026.1.0
     container_name: metrics-manager
     ports:
       - "9090:9090"
@@ -199,9 +199,9 @@ services:
       no_proxy: ${no_proxy}
     restart: on-failure:5
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/health', timeout=8)"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 3
       start_period: 15s
   mediamtx:
@@ -321,7 +321,7 @@ services:
       context: ./../../microservices/time-series-analytics
       dockerfile: ./Dockerfile
       args:
-        KAPACITOR_VERSION: 1.8.5
+        KAPACITOR_VERSION: 1.8.6
         TIMESERIES_UID: ${TIMESERIES_UID}
         TIMESERIES_USER_NAME: ${TIMESERIES_USER_NAME}
         PYTHON_VERSION: "3.13"

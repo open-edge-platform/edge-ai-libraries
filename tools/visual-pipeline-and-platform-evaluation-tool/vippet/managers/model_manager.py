@@ -182,6 +182,72 @@ class _InstalledModelRecord:
 
 
 # ----------------------------------------------------------------------
+# Adapter exposing uploaded models through the SupportedModel interface
+# ----------------------------------------------------------------------
+
+
+class _UploadedSupportedModel(SupportedModel):
+    """``SupportedModel`` view over an uploaded model registry record.
+
+    The registry stores absolute on-disk paths (e.g.
+    ``<MODELS_PATH>/custom_uploaded_models/<name>/``), while
+    ``SupportedModel`` normally joins relative ``model_path`` with
+    ``MODELS_PATH``. This adapter bypasses that join and additionally
+    resolves a single ``.xml`` artefact when the record points at a
+    directory, so the resulting ``model_path_full`` is directly usable
+    by GStreamer.
+
+    Uploaded models never carry a model-proc file (custom ZIPs only
+    contain ``.xml``/``.bin``), so ``model_proc_full`` stays empty.
+    """
+
+    def __init__(
+        self,
+        record: "_InstalledModelRecord",
+        precision: "InternalModelPrecision",
+    ) -> None:
+        # Initialise the base with a sentinel relative path; we override
+        # ``model_path_full`` below so the join with MODELS_PATH is moot.
+        super().__init__(
+            name=record.name,
+            display_name=record.display_name,
+            source=record.source.value,
+            model_type=(record.category.value if record.category else ""),
+            model_path=precision.model_path,
+            model_proc=None,
+            unsupported_devices=None,
+            precision=precision.precision or None,
+            default=False,
+            hub=record.source.value,
+            canonical_name=record.name,
+            canonical_display_name=record.display_name,
+        )
+        # Treat the registry path as absolute and resolve the actual
+        # ``.xml`` artefact when the record points at a directory.
+        absolute_path = precision.model_path
+        if os.path.isdir(absolute_path):
+            try:
+                xml_files = sorted(
+                    f for f in os.listdir(absolute_path) if f.endswith(".xml")
+                )
+            except OSError:
+                xml_files = []
+            if xml_files:
+                absolute_path = os.path.join(absolute_path, xml_files[0])
+        self.model_path_full = absolute_path
+        # Uploaded models never carry a model-proc.
+        self.model_proc_full = ""
+
+    def exists_on_disk(self) -> bool:  # pragma: no cover - thin wrapper
+        # Either the resolved ``.xml`` exists, or (genai-style) the
+        # registry path is a populated directory.
+        path = self.model_path_full
+        if os.path.isfile(path):
+            return True
+        return os.path.isdir(path)
+
+
+# ----------------------------------------------------------------------
 # Manager singleton
 # ----------------------------------------------------------------------
 
@@ -327,6 +393,84 @@ class ModelManager:
         with self._registry_lock:
             if self._registry.pop(model_name, None) is not None:
                 self._save_registry_locked()
+
+    # ------------------------------------------------------------------
+    # Public lookups for uploaded models (graph.py fallback)
+    # ------------------------------------------------------------------
+
+    def find_installed_uploaded_model_by_display_name(
+        self, display_name: str
+    ) -> SupportedModel | None:
+        """Return a ``SupportedModel`` view for an uploaded model.
+
+        Used by ``graph.py`` as a fallback when ``SupportedModelsManager``
+        does not know the display name. Uploaded models are registered
+        under ``self._registry`` and live outside the YAML catalogue.
+
+        Args:
+            display_name: Display name as shown in the UI dropdown.
+                Uploaded models use ``model_name`` as their display name.
+
+        Returns:
+            A ``_UploadedSupportedModel`` view of the first precision
+            entry, or ``None`` when no matching record exists or the
+            on-disk files are missing.
+        """
+        with self._registry_lock:
+            record = next(
+                (
+                    r
+                    for r in self._registry.values()
+                    if r.display_name == display_name or r.name == display_name
+                ),
+                None,
+            )
+        if record is None or not record.precisions:
+            return None
+        adapter = _UploadedSupportedModel(record, record.precisions[0])
+        if not adapter.exists_on_disk():
+            return None
+        return adapter
+
+    def find_uploaded_model_by_path(
+        self,
+        model_path: str,
+        model_proc_path: str | None = None,  # noqa: ARG002 - uploads have no model-proc
+    ) -> SupportedModel | None:
+        """Return a ``SupportedModel`` view for an uploaded model by path.
+
+        Mirrors ``SupportedModelsManager.find_model_by_model_and_proc_path``
+        for uploaded models. Matching prefers exact path equality and
+        falls back to filename + parent-dir equality so existing
+        pipelines referencing absolute paths can still be resolved.
+
+        Args:
+            model_path: Path written in the pipeline string. May be the
+                model directory or an ``.xml`` artefact inside it.
+            model_proc_path: Ignored. Uploaded models do not carry a
+                model-proc file (kept for signature symmetry with
+                ``SupportedModelsManager``).
+
+        Returns:
+            A ``_UploadedSupportedModel`` view of the matching record,
+            or ``None`` when no record matches.
+        """
+        normalized = os.path.normpath(model_path)
+        with self._registry_lock:
+            records = list(self._registry.values())
+        for record in records:
+            for precision in record.precisions:
+                registry_path = os.path.normpath(precision.model_path)
+                if registry_path == normalized:
+                    return _UploadedSupportedModel(record, precision)
+                # Allow the pipeline string to point at the resolved
+                # ``.xml`` artefact when the registry stores a directory.
+                if (
+                    os.path.isdir(registry_path)
+                    and os.path.dirname(normalized) == registry_path
+                ):
+                    return _UploadedSupportedModel(record, precision)
+        return None
 
     # ------------------------------------------------------------------
     # Helpers: type conversion

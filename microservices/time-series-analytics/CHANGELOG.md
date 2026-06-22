@@ -17,11 +17,15 @@ All notable changes to this project will be documented in this file.
 - Renamed Helm chart from `time-series-analytics-microservice` to `ia-time-series-analytics-microservice` to align with Docker Hub namespace. ([#1830])
 - Updated third-party programs file with latest dependency versions. ([#2046])
 - Bumped `requests` dependency version. ([#2062])
+- Updated version to `2026.1.0` across Helm chart, Docker Compose, and documentation. ([#2080])
+- Updated image suffix and Helm chart version to `rc1`. ([#2219])
+- Updated device value display to uppercase (`CPU`/`GPU`) in documentation and code messages; values remain case-insensitive. ([#2240])
 
 ### Fixed
 - Fixed security vulnerability by bumping `python-multipart`, `pytest`, `pytest-cov`, `pytest-asyncio`, and `pytest-html` dependency versions. ([#2151])
 - Fixed OPC UA alert sending failures by adding server hostname resolution, improved connection-state tracking, and more resilient re-initialization logic. ([#2124])
 - Fixed config update handler to remove the `alerts` key from in-memory configuration when the incoming payload omits alerts. ([#2099])
+- Fixed Trivy-reported vulnerabilities in Docker image by upgrading OS packages and suppressing unfixable upstream Kapacitor CVEs. ([#2241])
 
 ### Documentation
 - Reviewed and updated Time Series Analytics documentation. ([#2153])
@@ -30,9 +34,21 @@ All notable changes to this project will be documented in this file.
 - Updated release notes links and references. ([#1916])
 - Updated reference links across documentation (ref sweep). ([#2038])
 - Fixed documentation links and references (pass 2). ([#1971])
+- Updated `README-dockerhub.md` to document `2026.1.0` and `2026.0.0` versions with Docker Compose and Helm deployment links. ([#2254])
+- Fixed grammar, phrasing, and capitalization in user-guide documentation. ([#2291])
+- Fixed page layout in documentation. ([#2263])
+- Updated release links across documentation. ([#2236])
+- Removed "project" instances from GitHub navigation box directives in documentation index. ([#2075])
 
 ---
 
+[#2291]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2291
+[#2263]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2263
+[#2254]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2254
+[#2241]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2241
+[#2240]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2240
+[#2236]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2236
+[#2219]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2219
 [#2153]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2153
 [#2151]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2151
 [#2145]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2145
@@ -44,6 +60,8 @@ All notable changes to this project will be documented in this file.
 [#2099]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2099
 [#2098]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2098
 [#2087]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2087
+[#2080]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2080
+[#2075]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2075
 [#2067]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2067
 [#2062]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2062
 [#2046]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2046

@@ -19,7 +19,7 @@ Each script must:
 2. **Print InfluxDB Line Protocol**: One metric per line on stdout
 3. **Finish in <5 seconds**: Telegraf kills longer runs
 4. **Produce clean output**: No debug prints, banners, or stderr
-5. **Handle errors gracefully**: Non-zero exit codes don't crash Telegraf
+5. **Handle errors gracefully**: Non-zero exit codes do not crash Telegraf
 
 ## InfluxDB Line Protocol Format
 
@@ -44,6 +44,7 @@ memory_usage,app=myapp used_mb=512i,total_mb=2048i
 ```
 
 **Field types:**
+
 - Integer: append `i` (`count=42i`)
 - Float: no suffix (`temperature=65.5`)
 - String: wrap in quotes (`status="running"`)
@@ -227,11 +228,11 @@ stderr_logfile_maxbytes=0
 priority=40
 ```
 
-See [Configuration Guide](./environment-variables.md) for details on extending supervisord.
+See [Environment Variables](./environment-variables.md) for details on extending supervisord.
 
 ## Supporting Resources
 
-- [Configuration Guide](./environment-variables.md)
+- [Environment Variables](./environment-variables.md)
 - [API Reference](../api-reference.md)
 - [Get Started Guide](../get-started.md)
 - [Troubleshooting](../troubleshooting.md)

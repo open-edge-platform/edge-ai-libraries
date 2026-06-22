@@ -3,9 +3,9 @@ echo "Testing relative paths from robotmctask README..."
 echo ""
 
 # Test the .rst file path
-echo "1. Testing Apt-Repositories.rst path:"
-if [ -f "../../plcopen-motion-control/docs/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst" ]; then
-    echo "   ✓ Path is correct: ../../plcopen-motion-control/docs/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst"
+echo "1. Testing Apt-Repositories.md path:"
+if [ -f "../../plcopen-motion-control/docs/user-guide/rt-motion/installation_setup/prerequisites/Apt-Repositories.md" ]; then
+    echo "   ✓ Path is correct: ../../plcopen-motion-control/docs/rt-motion/installation_setup/prerequisites/Apt-Repositories.md"
 else
     echo "   ✗ Path NOT found"
 fi
@@ -34,4 +34,4 @@ fi
 
 echo ""
 echo "3. Full path verification:"
-realpath ../../plcopen-motion-control/docs/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst 2>/dev/null || echo "   Could not resolve path"
+realpath ../../plcopen-motion-control/docs/user-guide/rt-motion/installation_setup/prerequisites/Apt-Repositories.md 2>/dev/null || echo "   Could not resolve path"

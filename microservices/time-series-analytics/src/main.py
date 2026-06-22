@@ -64,7 +64,7 @@ class DataPoint(BaseModel):
 
 class Config(BaseModel):
     """Configuration model for the service."""
-    udfs: dict = {"name": "udf_name", "device": "cpu"}
+    udfs: dict = {"name": "udf_name", "device": "CPU"}
     alerts: Optional[dict] = {}
 
 
@@ -477,7 +477,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                     "udfs": {
                         "name": "udf_name",
                         "model": "model_name",
-                        "device": "cpu or gpu"},
+                        "device": "CPU/cpu or GPU/gpu"},
                     "alerts": {
                     }
                     }
@@ -547,7 +547,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                        (device_value.startswith("gpu:") and device_value.split(":")[1].isdigit()))
             
             if not is_valid:
-                error_msg = "Invalid value for 'device' in udfs: {}, must be 'cpu', 'gpu', or 'gpu:N' (e.g., 'gpu:0')".format(udfs["device"])
+                error_msg = "Invalid value for 'device' in udfs: {}, must be 'CPU/cpu', 'GPU/gpu', or 'GPU:N/gpu:N' (e.g., 'GPU:0')".format(udfs["device"])
                 logger.error(error_msg)
                 raise HTTPException(status_code=422, detail=error_msg)
 
