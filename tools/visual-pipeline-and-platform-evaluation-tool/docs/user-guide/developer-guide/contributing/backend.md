@@ -205,6 +205,23 @@ make test-smoke   # only tests marked `smoke` (quick check)
 make test-full    # the full functional suite
 ```
 
+Prerequisites:
+
+- The VIPPET stack must be **running and reachable** before you start the
+  tests (for example `make run`). The suite targets
+  `http://localhost/api/v1` by default; override it with the
+  `VIPPET_BASE_URL` environment variable.
+- The models the tests rely on must already be **installed** through the
+  Models page in the UI (or the `/api/v1/models` endpoints):
+  - `make test-smoke` needs the default models (those marked
+    `default: true` in `shared/models/supported_models.yaml`).
+  - `make test-full` needs **all** models listed in
+    `shared/models/supported_models.yaml`.
+
+Tests that depend on optional hardware adapt automatically: pipeline
+variants are selected from the devices reported by `/devices`, and USB
+camera tests are skipped when `/cameras` reports no camera.
+
 Under the hood these run, respectively:
 
 ```bash
