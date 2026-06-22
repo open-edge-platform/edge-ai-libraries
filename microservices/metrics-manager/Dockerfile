@@ -52,8 +52,18 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN cargo install --locked qmassa@1.3.1
-RUN cargo install --locked qmmd@0.1.1
+# Install qmassa and qmmd directly from their upstream GitHub repository by
+# tag instead of from crates.io. Both binaries live in the same Cargo
+# workspace (https://github.com/ulissesf/qmassa) but are tagged independently
+# in the upstream repo (`v1.3.1` for qmassa is the older single-workspace tag
+# scheme, `qmmd-v0.1.1` is the newer per-binary scheme), so each binary is
+# installed with its own tag and the package name is passed positionally so
+# only that workspace member is built.
+# The --locked flag is kept, so the build stays fully reproducible. This
+# avoids build failures if a pinned crates.io version is ever yanked from
+# the registry by the upstream maintainer.
+RUN cargo install --locked --git https://github.com/ulissesf/qmassa --tag qmmd-v0.1.1 qmmd
+RUN cargo install --locked --git https://github.com/ulissesf/qmassa --tag v1.3.1 qmassa
 
 # -----------------------------------------------------------------------------
 # Stage 2: Build Python dependencies
