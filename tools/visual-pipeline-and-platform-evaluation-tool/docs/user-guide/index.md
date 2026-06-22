@@ -3,12 +3,6 @@
 *Part of [Edge AI Libraries](https://docs.openedgeplatform.intel.com/dev/ai-libraries.html)*
 
 <!--hide_directive
-```{eval-rst}
-:orphan:
-```
-hide_directive-->
-
-<!--hide_directive
 <div class="component_card_widget">
   <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool">
      GitHub
@@ -57,12 +51,6 @@ you to configure custom inputs, models, and execution paths for your own evaluat
 
 **Built-In Performance Visibility**: Throughput, latency, and system utilization metrics are collected
 in one place, making it easier to identify bottlenecks and compare platform behavior.
-
-## Resources
-
-- [Getting Started](getting-started.md)
-- [User Guide](user-guide.md)
-- [Developer Guide](developer-guide.md)
 
 <!--hide_directive
 
