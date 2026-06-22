@@ -27,7 +27,7 @@ spec:
       initContainers:
         - name: model-converter
           image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.videoingestion.image.repository "tag" (.Values.global.tag | default .Values.videoingestion.image.tag)) }}"
-          imagePullPolicy: {{ .Values.videoingestion.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.videoingestion.image.pullPolicy }}
           command: ["/bin/bash", "-c"]
           args:
             - |
@@ -62,7 +62,7 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.videoingestion.image.repository "tag" (.Values.global.tag | default .Values.videoingestion.image.tag)) }}"
-          imagePullPolicy: {{ .Values.videoingestion.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.videoingestion.image.pullPolicy }}
           {{- with .Values.videoingestion.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

@@ -6,6 +6,19 @@ global:
   #   tag: when set, overrides the image tag for the VSS service images above.
   registry: ""
   tag: ""
+  # pullPolicy overrides the imagePullPolicy for the VSS service images above.
+  # Leave empty to keep each subchart's own default (IfNotPresent).
+  # Set to "Always" to force a fresh pull on every pod start (e.g. when reusing a mutable tag).
+  pullPolicy: ""
+
+  # accelGroupIds are the host group ids that own the accelerator device nodes
+  # (/dev/dri for GPU, /dev/accel for NPU). When a service is configured to use a
+  # GPU or NPU, these gids are added to the pod's supplementalGroups so the non-root
+  # container user can open the device. This mirrors the compose `group_add`
+  # (render + video groups). The gids are host-specific, so override these to match
+  # the target node (check with `ls -ln /dev/accel` and `ls -ln /dev/dri`).
+  accelGroupIds:
+    - 992
 
   # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
   volumeHostPath: "/mnt/vss-data"
@@ -59,9 +72,6 @@ global:
       llm:
         device: CPU # CPU | GPU | NPU | HETERO:GPU,CPU
         key: ""
-
-  # Render group for GPU device access
-  renderGroupId: ""
 
   proxy:
     no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8,.svc.cluster.local"

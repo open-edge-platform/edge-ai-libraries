@@ -15,6 +15,12 @@ global:
   commonTag: ""
   embeddingModelName: ""
 
+  # Host group ids owning the accelerator device nodes (/dev/dri, /dev/accel).
+  # Added to the pod supplementalGroups when this service uses a GPU or NPU so the
+  # non-root container user can open the device. Override to match the target node.
+  accelGroupIds:
+    - 992
+
   proxy:
     # setup proxy settings
     no_proxy: ""
@@ -104,6 +110,9 @@ podAffinity: {}
 embeddingDevice: "CPU"
 embeddingUseOV: true
 embeddingOVModelsDir: "/app/ov_models"
+# OpenVINO compiled-model cache directory. Persisted on the ov_models volume so
+# GPU/NPU graph compilation runs once and is reused on subsequent starts.
+ovCacheDir: "/app/ov_models/ov_cache"
 defaultStartOffsetSec: 0
 defaultClipDuration: -1
 defaultNumFrames: 64

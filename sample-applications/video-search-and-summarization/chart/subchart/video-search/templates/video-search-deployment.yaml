@@ -30,7 +30,7 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.videosearch.image.repository "tag" (.Values.global.tag | default .Values.videosearch.image.tag)) }}"
-          imagePullPolicy: "{{ .Values.videosearch.image.pullPolicy }}"
+          imagePullPolicy: "{{ .Values.global.pullPolicy | default .Values.videosearch.image.pullPolicy }}"
           ports:
             - containerPort: {{ .Values.videosearch.containerPort }}
               name: {{ .Values.videosearch.containerPortName }}

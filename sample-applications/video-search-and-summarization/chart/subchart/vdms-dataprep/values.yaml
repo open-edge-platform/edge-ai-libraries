@@ -20,6 +20,12 @@ global:
   vdmsIndexName: ""
   embeddingModelName: ""
 
+  # Host group ids owning the accelerator device nodes (/dev/dri, /dev/accel).
+  # Added to the pod supplementalGroups when this service uses a GPU or NPU so the
+  # non-root container user can open the device. Override to match the target node.
+  accelGroupIds:
+    - 992
+
   proxy:
     # setup proxy settings
     no_proxy: ""
@@ -79,6 +85,10 @@ modelPvc:
     - ReadWriteOnce
   size: "10Gi"
 
+# OpenVINO compiled-model cache directory. Persisted on the ov_models volume so
+# GPU/NPU graph compilation runs once and is reused on subsequent starts.
+ovCacheDir: "/app/ov_models/ov_cache"
+
 livenessProbe:
   httpGet:
     path: /health
@@ -93,13 +103,16 @@ readinessProbe:
   initialDelaySeconds: 10
   periodSeconds: 10
   failureThreshold: 12
+# Startup budget is generous: first-time GPU/NPU model compilation can take several
+# minutes. The probe stops as soon as /health responds, so warm (cached) starts are
+# unaffected. failureThreshold * periodSeconds = max startup time before restart.
 startupProbe:
   httpGet:
     path: /health
     port: dataprep-port
   initialDelaySeconds: 10
   periodSeconds: 10
-  failureThreshold: 12
+  failureThreshold: 120
 
 nodeSelector: {}
 tolerations: []

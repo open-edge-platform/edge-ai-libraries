@@ -43,10 +43,16 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        {{- if $mmUsesAccelerator }}
+        supplementalGroups:
+          {{- range .Values.global.accelGroupIds }}
+          - {{ . }}
+          {{- end }}
+        {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" (ternary .Values.image.gpu.repository .Values.image.cpu.repository $mmUsesGpu) "tag" (.Values.global.tag | default (ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion))) }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.image.pullPolicy }}
           securityContext:
             privileged: false
           ports:
@@ -90,6 +96,10 @@ spec:
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: tmpvideos
+      {{- if $mmUsesGpu }}
+            - name: dri-device
+              mountPath: /dev/dri
+      {{- end }}
       {{- if $mmUsesNpu }}
             - name: accel-device
               mountPath: /dev/accel
@@ -102,9 +112,6 @@ spec:
           hostPath:
             path: /dev/dri
             type: Directory
-        - name: workspace
-          persistentVolumeClaim:
-            claimName: {{ include "multimodal-embedding-ms.fullname" . }}-gpu-pvc
       {{- end }}
       {{- if $mmUsesNpu }}
         - name: accel-device
@@ -131,11 +138,7 @@ spec:
         - name: volume-data
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            {{- if .Values.modelPvc.enabled }}
-            claimName: {{ .Values.modelPvc.existingClaim | default (printf "%s-models-pvc" (include "multimodal-embedding-ms.fullname" .)) }}
-            {{- else }}
             claimName: {{ include "multimodal-embedding-ms.fullname" . }}-data-pvc
-            {{- end }}
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

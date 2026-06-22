@@ -48,9 +48,17 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
+      {{- if or .Values.podSecurityContext $dpUsesAccelerator }}
       securityContext:
+        {{- with .Values.podSecurityContext }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if $dpUsesAccelerator }}
+        supplementalGroups:
+          {{- range .Values.global.accelGroupIds }}
+          - {{ . }}
+          {{- end }}
+        {{- end }}
       {{- end }}
       {{- with .Values.podAffinity }}
       affinity:
@@ -70,7 +78,7 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.image.repository "tag" (.Values.global.tag | default (ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion))) }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.image.pullPolicy }}
           ports:
             - name: {{ .Values.containerPortName }}
               containerPort: {{ .Values.containerPort }}
@@ -125,6 +133,10 @@ spec:
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: tmpvideos
+      {{- if $dpUsesGpu }}
+            - name: dri-device
+              mountPath: /dev/dri
+      {{- end }}
       {{- if $dpUsesNpu }}
             - name: accel-device
               mountPath: /dev/accel
@@ -163,11 +175,7 @@ spec:
         - name: volume-data
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            {{- if .Values.modelPvc.enabled }}
-            claimName: {{ .Values.modelPvc.existingClaim | default (printf "%s-models-pvc" (include "vdms-dataprep.fullname" .)) }}
-            {{- else }}
             claimName: {{ include "vdms-dataprep.fullname" . }}-data-pvc
-            {{- end }}
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

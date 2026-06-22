@@ -11,6 +11,20 @@ global:
   #   tag: "latest"
   registry: ""
   tag: ""
+  # pullPolicy overrides imagePullPolicy for the VSS service images above.
+  # Leave empty to keep the default (IfNotPresent); set "Always" to force a pull on every start.
+  pullPolicy: ""
+
+  # accelGroupIds are the host group ids owning the accelerator device nodes
+  # (/dev/dri for GPU, /dev/accel for NPU). They are added to the pod
+  # supplementalGroups for any service configured to use a GPU or NPU, so the
+  # non-root container user can open the device. This mirrors the compose
+  # `group_add` (render + video groups). The gids are host-specific, so set them to
+  # match the device-node owners on the target node:
+  #   ls -ln /dev/accel   # NPU  (gid in the 3rd column)
+  #   ls -ln /dev/dri     # GPU  (render/video gids)
+  accelGroupIds:
+    - 992
 
   # usePvc should be set to true to use a new PVC for storage required by any of the subchart.
   usePvc: true
