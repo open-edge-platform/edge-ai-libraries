@@ -73,6 +73,9 @@ x-vippet: &vippet
     # venv so the legacy 2024.x ``openvino`` package never collides
     # with the OpenVINO 2026.x runtime used for inference.
     OMZ_VIRTUAL_ENV: ${OMZ_VIRTUAL_ENV:-/home/dlstreamer/.omz-venv}
+    # Database configuration (SQLite)
+    DATABASE_URL: "sqlite+aiosqlite:////db/app.db"
+    DB_ECHO: "false"
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download"
@@ -88,6 +91,7 @@ x-vippet: &vippet
     - ./shared/scripts/:/scripts
     - ./shared/onvif/:/onvif
     - ./shared/metadata/:/metadata
+    - ./shared/db:/db
 
 services:
   vippet-ui:
