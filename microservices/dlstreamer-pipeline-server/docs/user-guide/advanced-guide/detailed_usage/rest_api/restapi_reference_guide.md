@@ -13,7 +13,7 @@ The RESTful API has a default maximum body size of 10 KB, this can be changed by
 | [`GET` /pipelines/{instance_id}](#get-pipelinesinstance_id) | Return pipeline instance summary. |
 | [`POST` /pipelines/{name}/{version}/{instance_id}](#post-pipelinesnameversioninstance_id) | Send request to an already queued pipeline. Supported only for source of type "image_ingestor". |
 | [`DELETE` /pipelines/{instance_id}](#delete-pipelinesinstance_id) | Stops a running pipeline or cancels a queued pipeline. |
-| [`POST` /pipelines/{name}/{version}/{instance_id}/models](#post-pipelinesnameversioninstance_idmodels) | Download files from the model registry microservice associated with a specific model and deploy it in pipeline. |
+| [`POST` /pipelines/{name}/{version}/{instance_id}/models](#post-pipelinesnameversioninstance_idmodels) | Download files from the Model Download microservice associated with a specific model and deploy it in pipeline. |
 
 ### `GET` /pipelines
 
@@ -254,11 +254,11 @@ Accepted values: any
 
 ### `POST` /pipelines/{name}/{version}/{instance_id}/models
 
-Download files from the model registry microservice associated with a specific model and deploy the newly downloaded model in the pipeline.
-- Properties are supported: `name` (string), `project_name` (string), `version` (string), `category` (string), `architecture` (string), `precision` (string), `deploy` (boolean), and  `pipeline_element_name`(string). These properties allow DL Streamer Pipeline Server to query for a model stored in the model registry microservice. 
+Download files from the Model Download microservice associated with a specific model and deploy the newly downloaded model in the pipeline.
+- Properties are supported: `name` (string), `project_name` (string), `version` (string), `category` (string), `architecture` (string), `precision` (string), `deploy` (boolean), and  `pipeline_element_name`(string). These properties allow DL Streamer Pipeline Server to query for a model stored in the Model Download microservice. 
 - If `deploy` is set to `true`, the specified pipeline instance will be stopped and a new instance will be started using the downloaded model. The default value for `deploy` is `false`. 
 - When `deploy` is set to true, `pipeline_element_name` should be provided to update the newly downloaded model for this element in the pipeline. For example, if pipeline has `gvadetect name=detection`, `pipeline_element_name` would be `detection`.
-- If a response from the model registry microservice is not received within 300 seconds by default, this request will time out and return a relevant response.  
+- If a response from the Model Download microservice is not received within 300 seconds by default, this request will time out and return a relevant response.  
 
 
 #### Path parameters
@@ -289,14 +289,14 @@ Accepted values: any
 ##### Example 1
 Download model: 
 
-If the user is aware that there is only one model in model registry with a given name then user can provide only `name` in the request body to retrieve the model from the registry.
+If the user is aware that there is only one model in Model Download with a given name then user can provide only `name` in the request body to retrieve the model from the registry.
 ```json
 {
     "name": "PalletDetection_YOLO_v1",
 }
 ```
 
-Other model properties can be provided to retrieve a specific model the model registry.
+Other model properties can be provided to retrieve a specific model the Model Download.
 
 ```json
 {

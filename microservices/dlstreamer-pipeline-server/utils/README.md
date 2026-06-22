@@ -32,7 +32,7 @@
 * The provided IP address is included in the OpenSSL configuration (\*.cnf) file for the client and server. It is used in the creation of their certificates. This allows for the client's certificate to be identified by a server with the IP address "192.168.1.100".
 
 # int_mr_dir.sh
-**Description**: This shell script makes the `mr_models` directory in the project's root directory, creates a new user based on the value of the `PIPELINE_SERVER_USER` environment variable, and changes the ownership of the `mr_models` directory to the new user. This directory is used as the location for model artifacts downloaded from the model registry microservice by DL Streamer Pipeline Server.
+**Description**: This shell script makes the `mr_models` directory in the project's root directory, creates a new user based on the value of the `PIPELINE_SERVER_USER` environment variable, and changes the ownership of the `mr_models` directory to the new user. This directory is used as the location for model artifacts downloaded from the Model Download microservice by DL Streamer Pipeline Server.
 
 **Usage**:
 ```bash

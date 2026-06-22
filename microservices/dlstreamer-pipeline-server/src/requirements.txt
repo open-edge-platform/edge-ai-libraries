@@ -4,7 +4,7 @@ ntplib==0.4.0
 # OPCUA
 asyncua==1.1.5
 
-# Model Registry Client
+# Model Download Client
 pydantic==2.8.2
 
 # Pipeline Server

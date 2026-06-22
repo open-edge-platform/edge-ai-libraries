@@ -17,7 +17,7 @@ The following REST API endpoints are currently supported.
 |             `GET /pipelines/{instance_id}`              | Return pipeline instance summary.                                                                |
 |    `POST /pipelines/{name}/{version}/{instance_id}`     | Send request to an already queued pipeline. Supported only for source of type `"image-ingestor"` |
 |            `DELETE /pipelines/{instance_id}`            | Stops a running pipeline.                                                                        |
-| `POST /pipelines/{name}/{version}/{instance_id}/models` | Download files from the model registry microservice associated with a specific model.            |
+| `POST /pipelines/{name}/{version}/{instance_id}/models` | Download files from the Model Download microservice associated with a specific model.            |
 
 Learn how to access and utilize the RESTful endpoints provided by the Pipeline Server for efficient pipeline management [here](../../../api-reference.md).
 
