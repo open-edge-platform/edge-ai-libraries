@@ -3,11 +3,11 @@
 This page covers building the Audio Analyzer microservice from source.
 Use this path when you need a code change. To run the prebuilt image
 from Docker Hub without rebuilding, see
-[run-container.md](run-container.md).
+[Run with Docker Compose](./run-container.md).
 
 ## Prerequisites
 
-- Verify the [system requirements](system-requirements.md).
+- Verify the [system requirements](./system-requirements.md).
 - Clone the repository and `cd` into the `audio-analyzer/` directory.
 
 ## Build the Docker Image
@@ -17,8 +17,8 @@ compose file declares both `image:` and `build:` for the service:
 
 - `docker compose pull && docker compose up -d` runs the prebuilt
   image from Docker Hub.
-- `docker compose build && docker compose up -d` rebuilds from source
-  and tags the result as the same `${REGISTRY}/audio-analyzer:${RELEASE_TAG}`,
+- `docker compose build && docker compose up -d` rebuilds the result from source
+  and tags as the same `${REGISTRY}/audio-analyzer:${RELEASE_TAG}`,
   so subsequent `docker compose up` calls reuse the local build.
 
 ```bash
@@ -37,7 +37,7 @@ storage, and Hugging Face cache data in named Docker volumes
 (`audio_analyzer_{models,chunks,storage,cache}`), and passes `/dev/dri`
 through for host Intel iGPU access by default. The container runs as
 UID/GID `1000:1000` by default; see
-[troubleshooting.md](../troubleshooting.md#permission-errors-on-mounted-folders)
+[Troubleshooting](../troubleshooting.md#permission-errors-on-mounted-folders)
 if your host user differs.
 
 ## Build a Python Environment (Standalone)
