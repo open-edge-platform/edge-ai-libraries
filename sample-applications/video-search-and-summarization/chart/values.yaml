@@ -1,4 +1,12 @@
 global:
+  # Single source of override for image registry and tag across VSS service images
+  # (pipeline-manager, video-ingestion, video-search, vss-ui, vdms-dataprep,
+  # multimodal-embedding-serving). Leave empty to keep each subchart's own defaults.
+  #   registry: when set, images are pulled from this registry using their bare image name.
+  #   tag: when set, overrides the image tag for the VSS service images above.
+  registry: ""
+  tag: ""
+
   # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
   volumeHostPath: "/mnt/vss-data"
 

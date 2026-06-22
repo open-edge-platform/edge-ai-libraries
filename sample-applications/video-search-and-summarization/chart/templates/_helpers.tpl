@@ -99,3 +99,25 @@ No-op placeholder for chart-level validations.
 */}}
 {{- define "video-summarization.validateGpuPairing" -}}
 {{- end -}}
+
+{{/*
+Compose an image reference with an optional single-source global registry/tag override.
+
+Args (dict):
+  registry   - global.registry; when set, the image is pulled from this registry and only the
+               bare image name (base of repository) is kept (e.g. "intel/pipeline-manager" -> "pipeline-manager").
+  repository - the chart's default repository (may include a registry/namespace prefix).
+  tag        - the already-resolved tag to use.
+
+When registry is empty the repository is used verbatim, preserving existing behavior.
+*/}}
+{{- define "vss.image" -}}
+{{- $registry := .registry | default "" -}}
+{{- $repository := .repository -}}
+{{- $tag := .tag -}}
+{{- if $registry -}}
+{{- printf "%s/%s:%s" (trimSuffix "/" $registry) (base $repository) $tag -}}
+{{- else -}}
+{{- printf "%s:%s" $repository $tag -}}
+{{- end -}}
+{{- end -}}

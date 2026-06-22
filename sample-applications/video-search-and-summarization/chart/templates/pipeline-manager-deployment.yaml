@@ -96,7 +96,7 @@ spec:
         {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.pipelinemanager.image.repository }}:{{ .Values.pipelinemanager.image.tag }}"
+          image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.pipelinemanager.image.repository "tag" (.Values.global.tag | default .Values.pipelinemanager.image.tag)) }}"
           imagePullPolicy: {{ .Values.pipelinemanager.image.pullPolicy }}
           {{- with .Values.pipelinemanager.securityContext }}
           securityContext:

@@ -1,6 +1,17 @@
 # DO NOT COMMIT/PUSH THIS FILE TO ANY REPO WITH UPDATED VALUES. IT CAN LEAD TO CREDENTIAL LEAKS.
 # RESET ALL THE VALUES HERE TO DEFAULT, BEFORE COMMITING/PUSHING.
 global:
+  # Single source of override for image registry and tag across VSS service images
+  # (pipeline-manager, video-ingestion, video-search, vss-ui, vdms-dataprep,
+  # multimodal-embedding-serving). Leave empty to keep each subchart's own defaults.
+  #   registry: pull the VSS images from this registry (bare image name is kept).
+  #   tag: override the tag for the VSS images above.
+  # Example:
+  #   registry: "docker.io/intel"
+  #   tag: "latest"
+  registry: ""
+  tag: ""
+
   # usePvc should be set to true to use a new PVC for storage required by any of the subchart.
   usePvc: true
 

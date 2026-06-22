@@ -45,7 +45,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ ternary .Values.image.gpu.repository .Values.image.cpu.repository $mmUsesGpu }}:{{ ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion }}"
+          image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" (ternary .Values.image.gpu.repository .Values.image.cpu.repository $mmUsesGpu) "tag" (.Values.global.tag | default (ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion))) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             privileged: false
