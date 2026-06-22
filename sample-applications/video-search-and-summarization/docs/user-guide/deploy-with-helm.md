@@ -79,6 +79,9 @@ Update or edit the values in YAML file as follows:
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
+| `global.registry` | Single-source image registry override for all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, vdms-dataprep, multimodal-embedding-serving). Leave empty to keep each subchart's own default. | `""` or `my-registry.example.com/vss/` |
+| `global.tag` | Single-source image tag override for the VSS service images above. Leave empty to keep each subchart's own default tag. | `""` or `2026.2.0-rc1` |
+| `global.pullPolicy` | Image pull policy override for the VSS service images above. Leave empty to keep each subchart's default (`IfNotPresent`). Set to `Always` to force a fresh pull on every pod start (e.g. when reusing a mutable tag). | `""`, `Always`, or `IfNotPresent` |
 | `global.sharedPvcName` | Name for shared PVC used by collector signal exchange (`pipeline-manager` ↔ `vss-collector`) | `vss-shared-pvc` |
 | `global.keepPvc` | PVC gets deleted by default once helm is uninstalled. Set this to true to persist PVC (helps avoid delay due to model re-downloads when re-installing chart). | `true` or `false` |
 | `global.huggingfaceToken` | Your Hugging Face API token | `<your-huggingface-token>` |
@@ -105,6 +108,7 @@ Update or edit the values in YAML file as follows:
 | `global.devices.ovms.vlm.key` | K8s resource key (required when device is GPU/NPU/HETERO) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
 | `global.devices.ovms.llm.device` | Device for OVMS LLM model (split-model mode) | `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` |
 | `global.devices.ovms.llm.key` | K8s resource key (required when device is GPU/NPU/HETERO) | `gpu.intel.com/i915`, `gpu.intel.com/xe`, or `npu.intel.com/accel` |
+| `global.accelGroupIds` | Host group ids owning the accelerator device nodes (`/dev/dri` for GPU, `/dev/accel` for NPU). Added to the pod `supplementalGroups` when a service uses GPU/NPU so the non-root container user can open the device. Host-specific — override to match the target node. | `[992]` |
 | `ovms.env.VLM_WEIGHT_FORMAT` | Override weight format for VLM model conversion | `int4` or `int8` (auto-detected if not set) |
 | `ovms.env.LLM_WEIGHT_FORMAT` | Override weight format for LLM model conversion | `int4` or `int8` (auto-detected if not set) |
 | `ovms.enabled` | Enable OVMS as the inference backend (default: true in summary mode) | `true` or `false` |
@@ -125,6 +129,12 @@ Update or edit the values in YAML file as follows:
 > **DataPrep device override precedence:** `global.devices.vdmsDataprep.embedding.device` and `global.devices.vdmsDataprep.detection.device` are set independently in `user_values_override.yaml`. Each defaults to `CPU`; set `GPU`/`NPU` (with the matching resource `key`) to offload that component.
 
 > **Note:** `multimodal-embedding-ms` and `vdms-dataprep` now use independent PVCs for model/cache data by default, so their device settings can be configured independently.
+
+> **Single-source image override:** Set `global.registry`, `global.tag`, and `global.pullPolicy` once to apply across all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, vdms-dataprep, multimodal-embedding-serving) instead of overriding each subchart. Leave any of them empty to keep that subchart's own default. Set `global.pullPolicy: Always` when you reuse a mutable tag and need a fresh pull on every pod start.
+
+> **Accelerator device permissions:** When a service runs on GPU or NPU, its host accelerator node (`/dev/dri` for GPU, `/dev/accel` for NPU) is mounted and the gids in `global.accelGroupIds` are added to the pod `supplementalGroups` so the non-root container user can open the device. These gids are host-specific (they mirror the Compose `group_add` render/video groups) — check the target node with `ls -ln /dev/accel` and `ls -ln /dev/dri` and override `global.accelGroupIds` to match (default `[992]`). If the gid is wrong, OpenVINO falls back to CPU-only and NPU/GPU device initialization fails.
+
+> **OpenVINO model cache:** On GPU/NPU, `multimodal-embedding-ms` and `vdms-dataprep` write the first-time OpenVINO model compilation to `ovCacheDir` (default `/app/ov_models/ov_cache`, on the persistent models mount), so the compile is reused across pod restarts instead of recompiling on every start. The DataPrep `startupProbe` budget is sized to allow this first cold compile to finish before the pod is restarted.
 
 > **Telemetry (vss-collector):** When `vsscollector.enabled=true`, the chart deploys a telegraf-based collector and wires it to the pipeline-manager websocket at `/metrics/ws/collector`. If your cluster uses a non-default Service port or a custom ingress, set `vsscollector.websocketUrl` explicitly. **Note:** The vss-collector is only deployed in **search mode** (using `search_override.yaml`) or **unified summary+search mode** (using `unified_summary_search.yaml`). It is not part of the summary-only stack; setting `vsscollector.enabled=true` in `user_values_override.yaml` has no effect when deploying with `summary_override.yaml` alone.
 
