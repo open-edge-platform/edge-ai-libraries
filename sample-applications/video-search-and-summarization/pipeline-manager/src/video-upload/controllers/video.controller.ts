@@ -1,16 +1,20 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 import {
+  BadGatewayException,
   Body,
   Controller,
   Get,
+  Logger,
   NotFoundException,
   Param,
   Post,
+  RequestTimeoutException,
   UnprocessableEntityException,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import { AxiosError } from 'axios';
 import { Video, VideoDTO, VideoRO } from '../models/video.model';
 import { VideoService } from '../services/video.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -118,7 +122,35 @@ export class VideoController {
       throw new NotFoundException('Search feature is disabled');
     }
 
-    const embeddings = await this.$video.createSearchEmbeddings(params.videoId);
+    let embeddings: { data?: { status?: string } };
+    try {
+      embeddings = await this.$video.createSearchEmbeddings(params.videoId);
+    } catch (error) {
+      // Surface the real cause instead of a generic 500 so the UI can
+      // distinguish a true timeout from a backend (e.g. model load) failure.
+      if (error instanceof AxiosError) {
+        const isTimeout =
+          error.code === 'ECONNABORTED' || /timeout/i.test(error.message);
+        const upstreamMessage =
+          (error.response?.data as { message?: string } | undefined)?.message ||
+          error.message;
+
+        Logger.error(
+          `Data-prep embedding request failed for video ${params.videoId}: ${upstreamMessage}`,
+        );
+
+        if (isTimeout) {
+          throw new RequestTimeoutException(
+            'Timed out while creating search embeddings',
+          );
+        }
+
+        throw new BadGatewayException(
+          `Data-prep failed to create embeddings: ${upstreamMessage}`,
+        );
+      }
+      throw error;
+    }
 
     if (embeddings.data?.status !== 'success') {
       throw new UnprocessableEntityException(
