@@ -82,7 +82,31 @@ function cleanup_and_exit {
 download_public_models() {
     local models="$1"
     echo "Installing public models: $models"
-    if ! bash /opt/intel/dlstreamer/samples/download_public_models.sh "$models" "${QUANTIZE_DATASET}"; then
+
+    # Workaround for the Pallet Defect Detection (PDD) model.
+    #
+    # The upstream DLStreamer script `download_public_models.sh` fetches the
+    # PDD archive from the `main` branch of the `edge-ai-resources` repository.
+    # The archive layout on `main` was changed and is no longer compatible with
+    # the unzip/move logic in this version of the DLStreamer script, which
+    # makes the PDD download fail.
+    #
+    # As a workaround we pin the PDD archive URL to the last commit in
+    # `edge-ai-resources` whose layout is still compatible with this script.
+    # We do this on a writable copy of the script (the original location
+    # under /opt is treated as read-only) and run the patched copy.
+    local upstream_script="/opt/intel/dlstreamer/samples/download_public_models.sh"
+    local patched_script="$MODEL_MANAGER_TMP_DIR/download_public_models.sh"
+    local pdd_pinned_commit="06bb0d621cb14a1791672552a538beddddcc4066"
+
+    mkdir -p "$MODEL_MANAGER_TMP_DIR"
+    cp "$upstream_script" "$patched_script"
+    sed -i \
+        -e "s|edge-ai-resources/raw/main/models/INT8/pallet_defect_detection.zip|edge-ai-resources/raw/${pdd_pinned_commit}/models/INT8/pallet_defect_detection.zip|g" \
+        -e "s|raw.githubusercontent.com/open-edge-platform/edge-ai-resources/main/models/INT8/pallet_defect_detection.zip|raw.githubusercontent.com/open-edge-platform/edge-ai-resources/${pdd_pinned_commit}/models/INT8/pallet_defect_detection.zip|g" \
+        "$patched_script"
+
+    if ! bash "$patched_script" "$models" "${QUANTIZE_DATASET}"; then
         echo "Error: Failed to download public models: $models"
         cleanup_and_exit 14
     fi
