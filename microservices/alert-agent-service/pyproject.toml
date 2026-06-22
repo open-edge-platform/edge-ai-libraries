@@ -1,0 +1,48 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "alert-agent-service"
+version = "0.1.0"
+description = "Alert Agent Service — Generic multimodal alert action dispatcher with ADK, MCP, and tool support"
+requires-python = ">=3.12"
+dependencies = [
+    # Core framework
+    "fastapi==0.128.0",
+    "uvicorn==0.40.0",
+    "sse-starlette==2.3.6",
+
+    # Schemas & validation
+    "pydantic==2.12.5",
+
+    # Agentic framework
+    "google-adk>=1.28.1",
+    "litellm>=1.83.14",
+
+    # Action tools
+    "aiohttp>=3.13.4",
+    "paho-mqtt>=2.0.0",
+
+    # System metrics
+    "psutil>=5.9.0",
+
+    # YAML config
+    "pyyaml>=6.0",
+
+    # MCP
+    "fastmcp==3.2.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.25",
+    "httpx>=0.28",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

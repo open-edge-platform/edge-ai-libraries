@@ -1,0 +1,120 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: ${PROJECT_NAME:-alert-agent-service}
+
+services:
+  ovms-llm:
+    image: openvino/model_server:2026.1-gpu
+    container_name: ovms-llm
+    restart: unless-stopped
+    user: "0:0"
+    profiles:
+      - agent
+    ports:
+      - "${LLM_PORT:-9001}:9000"
+    environment:
+      - no_proxy=${no_proxy},localhost
+      - NO_PROXY=${no_proxy},localhost
+      - http_proxy=${http_proxy:-}
+      - HTTP_PROXY=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      - HTTPS_PROXY=${https_proxy:-}
+      - TARGET_DEVICE=${TARGET_DEVICE:-CPU}
+    volumes:
+      - ovms-models:/models
+    command:
+      - --rest_port 
+      - "9000"
+      - --source_model 
+      - "OpenVINO/Phi-4-mini-instruct-int4-ov" 
+      - --model_repository_path 
+      - "models/" 
+      - --model_name 
+      - "Phi-4-mini-instruct-int4-ov"
+      - --target_device 
+      - ${TARGET_DEVICE:-CPU} 
+      - --task 
+      - text_generation
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/v1/config"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+    networks:
+      - action_network
+
+  alert-agent-service:
+    image: ${REGISTRY:-}alert-agent:${TAG:-latest}
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+    container_name: alert-agent-service
+    restart: unless-stopped
+    ports:
+      - ${PORT:-8000}:8000
+    environment:
+      # ---- server ----
+      - PORT=${PORT:-8000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # ---- proxy ----
+      - no_proxy=${no_proxy:-},ovms-llm
+      - http_proxy=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      # ---- ADK / LLM ----
+      - AGENT_MODE=${AGENT_MODE:-true}
+      - LLM_URL=${LLM_URL:-http://ovms-llm:9000/v3}
+      - LLM_MODEL=${LLM_MODEL:-OpenVINO/Phi-4-mini-instruct-int4-ov}
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-10.0}
+      # ---- action tools ----
+      - SNAPSHOT_DIR=/app/snapshots
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
+      - MQTT_BROKER=${MQTT_BROKER:-mqtt}
+      - MQTT_PORT=${MQTT_PORT:-1883}
+      - MQTT_USERNAME=${MQTT_USERNAME:-}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
+      - MQTT_BASE_TOPIC=${MQTT_BASE_TOPIC:-alerts}
+      # ---- MCP ----
+      - MCP_ENABLED=${MCP_ENABLED:-true}
+      # ---- workers ----
+      - ACTION_WORKERS=${ACTION_WORKERS:-2}
+    volumes:
+      - ../resources:/app/resources          # mounts mcp_servers.json + tools.json at runtime
+      - snapshots:/app/snapshots
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # reach MCP servers on the host
+    depends_on:
+      mqtt:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:${PORT:-8000}/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - action_network
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: alert-agent-mqtt
+    ports:
+      - "1883:1883"
+    volumes:
+      - ../mosquitto/config:/mosquitto/config:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    networks:
+      - action_network
+
+networks:
+  action_network:
+    driver: bridge
+
+volumes:
+  ovms-models:
+  snapshots:
+  mosquitto-data:
+  mosquitto-log:
