@@ -63,7 +63,7 @@
    :root computes --node-border etc. with --node-color: transparent at
    :root scope — children inherit the resolved value, not the formula. */
 @utility node-sky {
-  --node-color: var(--electric-sky);
+  --node-color: var(--electric-daisy);
   --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
   --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
   --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
@@ -71,7 +71,7 @@
   --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
 @utility node-emerald {
-  --node-color: var(--electric-emerald);
+  --node-color: var(--electric-moss);
   --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
   --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
   --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
@@ -79,7 +79,7 @@
   --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
 @utility node-teal {
-  --node-color: var(--electric-teal);
+  --node-color: var(--daisy-tint-1);
   --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
   --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
   --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
@@ -95,7 +95,7 @@
   --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
 @utility node-amethyst {
-  --node-color: var(--electric-amethyst);
+  --node-color: var(--electric-geode);
   --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
   --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
   --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
@@ -103,7 +103,7 @@
   --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
 @utility node-indigo {
-  --node-color: var(--electric-indigo);
+  --node-color: var(--geode-shade-1);
   --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
   --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
   --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
@@ -111,7 +111,7 @@
   --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
 @utility node-geode {
-  --node-color: var(--electric-geode);
+  --node-color: var(--geode-tint-1);
   --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
   --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
   --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
@@ -135,7 +135,7 @@
   --node-handle: color-mix(in srgb, var(--node-color) 72%, var(--foreground));
 }
 @utility node-fuchsia {
-  --node-color: var(--electric-fuchsia);
+  --node-color: var(--coral-shade-1);
   --node-border: color-mix(in srgb, var(--node-color) 55%, var(--background));
   --node-surface: color-mix(in srgb, var(--node-color) 16%, var(--background));
   --node-icon: color-mix(in srgb, var(--node-color) 80%, var(--foreground));
