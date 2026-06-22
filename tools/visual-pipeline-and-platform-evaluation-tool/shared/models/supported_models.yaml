@@ -165,7 +165,7 @@
       quantize: coco128
 
 - name: yolo11s-pose
-  display_name: YOLO 11s Pose 640x640
+  display_name: YOLO 11s Pose
   source: public
   hub: ultralytics
   type: detection
@@ -184,7 +184,7 @@
     name: yolo11s-pose
 
 - name: yolo11n-pose
-  display_name: YOLO 11n Pose 640x640
+  display_name: YOLO 11n Pose
   source: public
   hub: ultralytics
   type: detection
@@ -203,7 +203,7 @@
     name: yolo11n-pose
 
 - name: yolo11s-seg
-  display_name: YOLO 11s Segmentation 640x640
+  display_name: YOLO 11s Segmentation
   source: public
   hub: ultralytics
   type: detection
@@ -222,7 +222,7 @@
     name: yolo11s-seg
 
 - name: yolo11n-seg
-  display_name: YOLO 11n Segmentation 640x640
+  display_name: YOLO 11n Segmentation
   source: public
   hub: ultralytics
   type: detection
