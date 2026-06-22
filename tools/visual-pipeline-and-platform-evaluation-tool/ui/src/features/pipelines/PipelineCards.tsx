@@ -220,7 +220,7 @@ export const PipelineCards = ({
                   >
                     <Badge
                       variant="secondary"
-                      className="cursor-pointer transition-opacity hover:opacity-70"
+                      className="cursor-pointer bg-variant-badge-bg transition-opacity hover:opacity-70"
                     >
                       {variant.name}
                     </Badge>
