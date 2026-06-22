@@ -1,3 +1,7 @@
+<!--hide_directive```{eval-rst}
+:orphan:
+```hide_directive-->
+
 # User Guide
 
 Use this guide to learn how to work with ViPPET after the platform is installed and running.

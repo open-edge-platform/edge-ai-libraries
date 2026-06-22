@@ -1,4 +1,4 @@
-# Getting Started
+# Get Started
 
 Use this guide to quickly set up ViPPET, run your first evaluation pipeline, and review performance results.
 If you are new to the platform, start with installation and then continue with the quickstart, user guide,

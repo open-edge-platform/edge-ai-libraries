@@ -65,23 +65,47 @@ in one place, making it easier to identify bottlenecks and compare platform beha
 - [Developer Guide](developer-guide.md)
 
 <!--hide_directive
+
 :::{toctree}
 :hidden:
+:caption: ----------------------
+ViPPET Home Page <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html>
+
+:::
+
+:::{toctree}
+:hidden:
+:caption: Get Started
+
 
 ./getting-started
 ./getting-started/installation
 ./getting-started/quickstart
 ./getting-started/support
-./user-guide
+
+:::
+
+:::{toctree}
+:hidden:
+:caption: User Guide
+
 ./user-guide/input-management
 ./user-guide/model-management
 ./user-guide/pipeline-management
 ./user-guide/benchmarking
-./developer-guide
+
+:::
+
+:::{toctree}
+:hidden:
+:caption: Developer Guide
+
 Architecture <./developer-guide/architecture>
 Performance Metrics <./developer-guide/metrics>
 ./developer-guide/contributing-guide
 ./troubleshooting
 ./release-notes
+
 :::
+
 hide_directive-->
