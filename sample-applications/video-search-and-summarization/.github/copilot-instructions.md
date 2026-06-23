@@ -17,8 +17,8 @@ Video Search and Summarization (VSS) is a foundational Intel sample application
 that summarizes and natural-language-searches video using VLMs, multimodal
 embeddings, and audio analysis, designed to run **locally** on Intel hardware.
 It ships as a multi-service Docker Compose stack fronted by an nginx gateway,
-with a NestJS **Pipeline Manager** as the central orchestrator/API. Further
-user documentation can be found under [Video Search and Summarization](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html); this file is the agent-facing map.
+with a NestJS **Pipeline Manager** as the central orchestrator/API. Deeper
+user docs live under [`docs/`](../../docs/); this file is the agent-facing map.
 
 ## Deployment Modes
 
