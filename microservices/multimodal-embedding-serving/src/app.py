@@ -25,7 +25,7 @@ comprehensive error handling and logging.
 from typing import List, Union, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from .utils import (
     ErrorMessages,
     logger,
@@ -33,6 +33,8 @@ from .utils import (
     decode_base64_image,
     download_image,
     sanitize_for_log,
+    validate_manifest_artifact_reference,
+    validate_video_artifact_reference,
 )
 from .models import ModelFactory, get_model_handler, list_available_models
 from .wrapper import EmbeddingModel
@@ -181,10 +183,20 @@ class VideoFileInput(BaseModel):
     video_path: str
     segment_config: dict
 
+    @field_validator("video_path")
+    @classmethod
+    def validate_video_path(cls, value):
+        return validate_video_artifact_reference(value)
+
 
 class FramesBatchInput(BaseModel):
     type: str
     frames_manifest_path: str
+
+    @field_validator("frames_manifest_path")
+    @classmethod
+    def validate_frames_manifest_path(cls, value):
+        return validate_manifest_artifact_reference(value)
 
 
 # Pydantic models for frames manifest validation
@@ -202,7 +214,8 @@ class FrameInfo(BaseModel):
     crop_bbox: Optional[List[int]] = Field(None, description="Bounding box coordinates [x1, y1, x2, y2]")
     crop_index: Optional[int] = Field(None, ge=0, description="Crop index for the frame")
     
-    @validator('crop_bbox')
+    @field_validator("crop_bbox", mode="before")
+    @classmethod
     def validate_bbox(cls, v):
         if v is not None:
             if len(v) != 4:
@@ -221,13 +234,14 @@ class FrameInfo(BaseModel):
 
 class FramesManifest(BaseModel):
     """Complete frames manifest structure."""
-    frames: List[FrameInfo] = Field(..., min_items=1, description="List of frame information")
+    frames: List[FrameInfo] = Field(..., min_length=1, description="List of frame information")
     
     # Optional metadata
     video_metadata: Optional[dict] = Field(None, description="Original video metadata")
     processing_metadata: Optional[dict] = Field(None, description="Processing configuration metadata")
     
-    @validator('frames')
+    @field_validator("frames")
+    @classmethod
     def validate_frames_not_empty(cls, v):
         if not v:
             raise ValueError('frames list cannot be empty')

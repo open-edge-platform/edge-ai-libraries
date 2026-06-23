@@ -36,7 +36,7 @@ TEXT_TO_SPEECH__MODELS__TTS__DEVICE=GPU python main.py
 ## Common Values
 
 - `models.tts.runtime`: `openvino` or `pytorch`
-- `models.tts.device`: `CPU`, `GPU`, or `NPU` depending on model/runtime support
+- `models.tts.device`: `CPU` or `GPU` depending on model/runtime support
 - `models.tts.dtype`: `int8`, `int4`, `fp16`, `fp32`
 - `models.tts.model_variant`: `custom_voice` or `voice_design` for Qwen variants
 - `models.tts.default_language`: keep this at `English`; other languages are not currently supported by the service API

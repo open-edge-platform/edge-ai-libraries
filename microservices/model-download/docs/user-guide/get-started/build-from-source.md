@@ -10,57 +10,64 @@ This section shows how to build the Model Download microservice from source.
 
 1. **Clone the repository**:
 
-      ```bash
-      # Clone the latest on the mainline
-        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-      # Alternatively, clone a specific release branch
-        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-      ```
+   ```bash
+   # Clone the latest on the mainline
+     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, clone a specific release branch
+     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   ```
+
 2. **Navigate to the directory**:
 
-    - Go to the model-download microservice directory
-      ```bash
-      cd microservices/model-download
-      ```
+   - Go to the model-download microservice directory
+
+     ```bash
+     cd microservices/model-download
+     ```
+
 3. **Configure the environment variables**
 
-    - Set the following environment variable:
+   - Set the following environment variable:
 
-      ```bash
-      export HUGGINGFACEHUB_API_TOKEN=<your huggingface token>
-      export MAX_UPLOAD_SIZE_MB=<max allowed size for zip file upload> # default is 500MB
-      export UPLOAD_CHUNK_SIZE_KB=<chunk size for streaming uploads in KB> # default is 8KB
-      ```
-    - To use the Geti™ software, set the following environment variables:
+     ```bash
+     export HUGGINGFACEHUB_API_TOKEN=<your huggingface token>
+     export MAX_UPLOAD_SIZE_MB=<max allowed size for zip file upload> # default is 500MB
+     export UPLOAD_CHUNK_SIZE_KB=<chunk size for streaming uploads in KB> # default is 8KB
+     ```
 
-      ```bash
-      export GETI_HOST=<GETI_HOST_ADDRESS>
-      export GETI_TOKEN=<GETI_ACCESS_TOKEN>
-      export GETI_SERVER_API_VERSION=v1
-      export GETI_SERVER_SSL_VERIFY=False  #DEFAULT is FALSE
-      ```
+   - To use the Geti™ software, set the following environment variables:
+
+     ```bash
+     export GETI_HOST=<GETI_HOST_ADDRESS>
+     export GETI_TOKEN=<GETI_ACCESS_TOKEN>
+     export GETI_SERVER_API_VERSION=v1
+     export GETI_SERVER_SSL_VERIFY=False  #DEFAULT is FALSE
+     ```
+
 4. **Build the Docker image**:
 
-      ```bash
-      source scripts/run_service.sh --build
-      ```
-      - When the image is complete as shown in the following figure,
-    ![alt text](../_assets/image.png)
+   ```bash
+   source scripts/run_service.sh --build
+   ```
 
-		you can do the following if needed:
-      - Force rebuild from scratch (no cache): `source scripts/run_service.sh --rebuild`
+   - When the image is complete as shown in the following figure,/
+     ![alt text](../_assets/image.png)
 
-      - Display usage information: `source scripts/run_service.sh --help`
+     you can do the following if needed:
+
+     - Force rebuild from scratch (no cache): `source scripts/run_service.sh --rebuild`
+
+     - Display usage information: `source scripts/run_service.sh --help`
 
 5. **Run the Docker container using the image**:
 
-      ```bash
-        source scripts/run_service.sh up --plugins all --model-path tmp/models
-      ```
+   ```bash
+     source scripts/run_service.sh up --plugins all --model-path tmp/models
+   ```
 
-> **Note:** Running the Docker container brings up the service and installs the dependencies for the available plugins. See the details of the available options at the end of point 4 of the [quick start with setup script](../get-started.md#4-launch-the-service-and-enable-the-plugins).
+   > **Note:** Running the Docker container brings up the service and installs the dependencies for the available    plugins. See the details of the available options at the end of point 4 of the [quick start with setup script](../   get-started.md#4-launch-the-service-and-enable-the-plugins).
 
-6.  **Access the application**:
+6. **Access the application**:
     - Open a browser and go to `http://<host-ip>:8200/api/v1/docs` to access the OpenAPI specification documentation for the application.
 
 ## Verify the Application
@@ -70,6 +77,7 @@ This section shows how to build the Model Download microservice from source.
   ```bash
   docker ps
   ```
+
 - Access the application dashboard and verify that it is functioning as expected.
 
 ## Troubleshooting

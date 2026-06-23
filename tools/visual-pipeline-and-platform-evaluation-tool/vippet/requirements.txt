@@ -7,5 +7,5 @@ pydantic==2.13.4
 PyYAML==6.0.3
 uvicorn==0.48.0
 onvif-zeep==0.2.12
-python-multipart==0.0.29
+python-multipart==0.0.32
 python-slugify==8.0.4

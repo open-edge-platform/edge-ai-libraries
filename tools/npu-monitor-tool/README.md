@@ -21,6 +21,11 @@ to track and analyze NPU performance.
 
 Disclaimer: The utilization percentage is a calculated metric, based on the difference in NPU busy timestamps when the inference starts and ends on NPU. It does not represent an exact hardware-level measurement. Hence, this metric is an approximation of workload and not a precise hardware utilization figure.
 
+### Prometheus/Grafana Dashboard
+
+[requirements-exporter.txt](./requirements-exporter.txt) is Python dependencies for the Prometheus exporter,
+which is not required for running npu-monitor-tool.py. Please read [docs/npu-metrics-exporter](docs/npu-metrics-exporter.md) for more details.
+
 ### Supported Platforms
 
 The tool supports the following Intel CPU generations with integrated NPU:
