@@ -8,7 +8,7 @@
 
 Welcome to **Edge AI Libraries** - highly optimized libraries, microservices,
 and tools designed for building and deploying real-time AI solutions
-on edge devices.
+on edge devices..
 
 If you are an AI developer, data scientist, or system integrator, these assets
 help you organize data, train models, run efficient inference, and deliver
