@@ -159,114 +159,188 @@ Internal event enum names include `socket.stateSync`, `socket.state.status`, `so
 
 ## Search through Pipeline Manager
 
-Search must be enabled (`--search`, `--summary --search`, or unified mode). The Pipeline Manager forwards one-off searches to the search microservice.
+Search must be enabled (`--search`, `--summary --search`, or `--summary-and-search`). Two modes are available through Pipeline Manager; a third path bypasses it entirely.
 
-### Time filter shape
+| | One-off `POST /search/query` | Managed `POST /search` |
+| --- | --- | --- |
+| Persistence | Not saved; result returned and discarded | Saved to Postgres; retrievable by `queryId` |
+| `tags` | Accepted in DTO, **not forwarded** to search-ms | Stored as `string[]`, **forwarded** on every run/refetch |
+| `timeFilter` | `value`+`unit` normalized → forwarded; `start`/`end`/`source` accepted but **not forwarded** | `value`+`unit` normalized; computed `start`/`end` stored and forwarded on every run/refetch |
+| Watch/Refetch | Not supported | `PATCH /{queryId}/watch`, `POST /{queryId}/refetch` |
+| Socket event | None | `search:update` emitted after each run |
 
-OpenAPI documents a nested `TimeFilterSelection`:
+### `TimeFilterSelection` — flat object (both Pipeline Manager endpoints)
 
-```json
-{"type":"relative","relative":{"value":24,"unit":"hours"}}
+The OpenAPI spec shows a nested shape — ignore it. The actual NestJS model is flat:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `value` | number | Relative lookback amount (e.g. `24`). Must be paired with `unit`. |
+| `unit` | string | `"minutes"` \| `"hours"` \| `"days"` \| `"weeks"`. Must be paired with `value`. |
+| `start` | ISO 8601 string | Absolute start. Stored by managed search; **not forwarded** by one-off endpoint. |
+| `end` | ISO 8601 string | Absolute end. Same behaviour as `start`. |
+| `source` | string | Label only (`"quick"`, `"relative"`). Stored; never sent to search-ms. |
+
+`normalizeTimeFilter()` converts `value`+`unit` into computed `start`/`end` ISO timestamps sent to search-ms. If either is missing or invalid, **no time filter is forwarded**.
+
+---
+
+## One-off search: `POST /search/query`
+
+Through nginx: `POST /manager/search/query`. Result returned immediately; nothing persisted.
+
+### Request body (`SearchQueryDTO`)
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `query` | string | **yes** | Natural-language search text. |
+| `tags` | string | no | Comma-separated (e.g. `"outdoor,night"`). Accepted, **not forwarded** — no tag filtering on this path. Use managed `POST /search` or direct search-ms for tag filtering. |
+| `timeFilter` | object | no | Only `value`+`unit` produce a forwarded range. `start`, `end`, `source` are accepted but ignored here. |
+
+### Examples
+
+```bash
+# Minimal
+curl -sS -X POST http://localhost:12345/manager/search/query \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "person walking"}' | python3 -m json.tool
+
+# All fields (tags and source are accepted but silently ignored)
+curl -sS -X POST http://localhost:12345/manager/search/query \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"car parked at intersection","tags":"outdoor,night","timeFilter":{"value":24,"unit":"hours","source":"quick"}}' \
+  | python3 -m json.tool
 ```
 
-The current NestJS controller model and `SearchStateService.normalizeTimeFilter()` actually use the flattened UI shape below for Pipeline Manager searches; `value` and `unit` are required for a time range to be forwarded:
-
-```json
-{"value":24,"unit":"hours","source":"quick"}
-```
-
-Pipeline Manager does not currently normalize an absolute-only `{ "start": "...", "end": "..." }` filter. Use the direct search microservice if you need explicit absolute `start`/`end`.
-
-### `POST /search/query`
-
-Through nginx: `POST /manager/search/query`. One-off query; not saved.
-
-Request:
+### Response (`200 OK`)
 
 ```json
 {
-  "query": "person walking",
-  "tags": "demo,api",
-  "timeFilter": {"value": 24, "unit": "hours"}
-}
-```
-
-Response shape from search service:
-
-```json
-{
-  "results": [
-    {
-      "query_id": "<uuid>",
-      "results": [
-        {
-          "id": null,
-          "metadata": {
-            "video_id": "...",
-            "video_url": "...",
-            "timestamp": 12.3,
-            "relevance_score": 0.12,
-            "segment_start": 0,
-            "segment_end": 30,
-            "seek_timestamp": 12.3,
-            "tags": "demo,api",
-            "created_at": "...",
-            "aggregated": true,
-            "rank": 1
-          },
-          "page_content": "Video segment from 0s to 30s, seeking to 12.3s",
-          "type": "Document",
-          "frame_scores": []
-        }
-      ],
-      "aggregation_stats": {}
+  "results": [{
+    "query_id": "<server-generated-uuid>",
+    "results": [{
+      "id": null,
+      "metadata": {
+        "video_id": "<videoId>", "video_url": "http://...", "video_path": "...",
+        "segment_start": 0, "segment_end": 30,
+        "timestamp": 12.3, "seek_timestamp": 12.3, "relevance_score": 0.82,
+        "tags": "outdoor,night", "created_at": "2026-06-01T00:00:00Z",
+        "fps": 30.0, "clip_duration": 30, "frames_in_clip": 900,
+        "total_frames": 3600, "rank": 1, "aggregated": true
+      },
+      "page_content": "Video segment from 0s to 30s, seeking to 12.3s",
+      "type": "Document", "frame_scores": []
+    }],
+    "aggregation_stats": {
+      "total_frame_matches": 8, "segments_created": 3,
+      "segments_after_filtering": 2, "final_results": 1,
+      "processing_time_ms": 14.2, "segmentation_time_ms": 1.1,
+      "scoring_time_ms": 0.6, "filtering_time_ms": 0.3, "formatting_time_ms": 0.2
     }
-  ]
+  }]
 }
 ```
 
-### Saved/managed search endpoints
+Key fields: `metadata.video_id` matches `POST /videos` response; `segment_start`/`segment_end` are boundaries in seconds; `seek_timestamp` is the best seek point; `relevance_score` is cosine similarity (higher = more relevant). `aggregation_stats` counts raw frame hits → segments → filtered segments → final results, with per-step timing in ms. Alternative shapes: `{"aggregation_enabled":false,"frame_count":N}` or `{"aggregation_failed":true,"error":"...","fallback_frame_count":N}`.
 
-- `POST /search` (`/manager/search`) creates and runs a saved query. Body is the same `SearchQueryDTO`: `{ "query": string, "tags"?: comma-separated string, "timeFilter"?: object }`. Response is a `SearchQuery` with fields like `queryId`, `query`, `watch`, `results`, `queryStatus`, `tags`, `timeFilter`, `createdAt`, and `updatedAt`.
-- `GET /search` returns all saved queries.
-- `GET /search/watched` returns watched queries.
-- `GET /search/{queryId}` returns one saved query.
-- `POST /search/{queryId}/refetch` reruns it. Optional body: `{ "timeFilter": { ... } }`.
-- `PATCH /search/{queryId}/watch` with `{ "watch": true }` or `{ "watch": false }` toggles watch mode.
-- `DELETE /search/{queryId}` deletes a saved query.
+---
+
+## Managed/persistent search: `POST /search`
+
+Through nginx: `POST /manager/search`. Saves a `SearchQuery` to Postgres, runs immediately, returns the initial state. Supports polling, watch mode, and refetch.
+
+### Request body (`SearchQueryDTO`)
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `query` | string | **yes** | Stored and forwarded to search-ms on every run. |
+| `tags` | string | no | Comma-separated. Split → `string[]`, stored, **forwarded** on every run/refetch; OR-matched server-side. |
+| `timeFilter` | object | no | `value`+`unit` normalized to `start`/`end`, stored in DB, forwarded on every run/refetch. `source` stored as label only. |
+
+### Example
+
+```bash
+curl -sS -X POST http://localhost:12345/manager/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"person walking near a vehicle","tags":"outdoor,daytime","timeFilter":{"value":7,"unit":"days","source":"quick"}}' \
+  | python3 -m json.tool
+```
+
+### Response (`201 Created`)
+
+```json
+{
+  "queryId": "3f4a...", "query": "person walking near a vehicle",
+  "watch": false, "results": [], "queryStatus": "running",
+  "tags": ["outdoor", "daytime"],
+  "timeFilter": {"value":7,"unit":"days","start":"2026-06-16T...","end":"2026-06-23T...","source":"quick"},
+  "createdAt": "2026-06-23T17:22:05Z", "updatedAt": "2026-06-23T17:22:05Z"
+}
+```
+
+`queryStatus`: `"running"` → in progress | `"idle"` → results ready | `"error"` → failed (`errorMessage` field set). `tags` is always `string[]` in the response; `timeFilter` has computed `start`/`end` added.
+
+### Poll, watch, refetch
+
+```bash
+QUERY_ID="3f4a..."
+
+# Poll until idle/error
+while true; do
+  S=$(curl -sS "http://localhost:12345/manager/search/$QUERY_ID" \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["queryStatus"])')
+  [ "$S" = "idle" ] || [ "$S" = "error" ] && break; sleep 2
+done
+curl -sS "http://localhost:12345/manager/search/$QUERY_ID" | python3 -m json.tool
+
+# Watch mode (reruns automatically when new embeddings arrive; emits search:update over Socket.IO)
+curl -sS -X PATCH "http://localhost:12345/manager/search/$QUERY_ID/watch" \
+  -H 'Content-Type: application/json' -d '{"watch": true}'
+
+# Refetch with stored filter
+curl -sS -X POST "http://localhost:12345/manager/search/$QUERY_ID/refetch"
+
+# Refetch with new time filter (updates stored filter)
+curl -sS -X POST "http://localhost:12345/manager/search/$QUERY_ID/refetch" \
+  -H 'Content-Type: application/json' -d '{"timeFilter":{"value":48,"unit":"hours"}}'
+```
+
+Other endpoints: `GET /manager/search` (all queries), `GET /manager/search/watched`, `GET /manager/search/{queryId}`, `DELETE /manager/search/{queryId}`.
+
+---
 
 ## Direct search microservice
 
-### `POST /query`
+Bypasses Pipeline Manager. Use when you need tag filtering on a one-off query or explicit absolute date ranges.
 
-Direct URL: `POST http://localhost:7890/query`. Body is a list of query requests, not a single object.
+Base URL: `http://<HOST_IP>:7890`. Body is a **list** of `QueryRequest` objects.
 
-Request model:
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `query_id` | string | **yes** | Client-supplied; echoed in response. |
+| `query` | string | **yes** | Search text. If `time_filter` is omitted, NLP parsing may derive a range from query text. |
+| `tags` | string[] | no | OR-matched server-side against result metadata. |
+| `time_filter.start` | ISO 8601 | required if `time_filter` present | Absolute range start; suppresses NLP time parsing. |
+| `time_filter.end` | ISO 8601 | required if `time_filter` present | Absolute range end. |
 
-```json
-[
-  {
-    "query_id": "q1",
-    "query": "person walking",
-    "tags": ["demo", "api"],
-    "time_filter": {"start": "2026-01-01T00:00:00Z", "end": "2026-12-31T23:59:59Z"}
-  }
-]
+```bash
+# Minimal
+curl -sS -X POST http://localhost:7890/query \
+  -H 'Content-Type: application/json' \
+  -d '[{"query_id":"q1","query":"person walking"}]'
+
+# With tags and absolute time range
+curl -sS -X POST http://localhost:7890/query \
+  -H 'Content-Type: application/json' \
+  -d '[{"query_id":"q1","query":"car parked at intersection","tags":["outdoor","night"],"time_filter":{"start":"2026-06-01T00:00:00Z","end":"2026-06-23T23:59:59Z"}}]' \
+  | python3 -m json.tool
 ```
 
-Notes:
+Response: same `{ "results": [ { "query_id", "results", "aggregation_stats" } ] }` structure; `query_id` echoes the client-supplied value.
 
-- `query_id` and `query` are required.
-- `tags` is an optional array of strings.
-- `time_filter` is optional and must contain explicit `start` and `end` strings.
-- If explicit `time_filter` is omitted, the service may derive a time filter from natural language in `query` via `src/utils/time_filters.py`.
-- Response is `{ "results": [ { "query_id", "results", "aggregation_stats" } ] }`.
+Other endpoints: `GET /health` → `{"status":"ok","timestamp":"..."}`, `GET /watcher-last-updated`, `GET /initial-upload-status`.
 
-Other direct endpoints:
-
-- `GET /health` returns `{ "status": "ok", "timestamp": "..." }`.
-- `GET /watcher-last-updated` returns `{ "last_updated": ... }`.
-- `GET /initial-upload-status` returns `{ "status": ... }`.
+---
 
 ## Search embeddings for uploaded video
 

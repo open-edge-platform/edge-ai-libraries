@@ -38,6 +38,38 @@
         "Describes the response as a top-level object containing results, where each entry includes query_id, results, and aggregation_stats.",
         "Points to per-hit metadata fields such as metadata.video_id, metadata.segment_start, metadata.segment_end, metadata.seek_timestamp, and metadata.relevance_score when explaining how to inspect matches."
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Show me how to create a persistent/managed search query on VSS at http://localhost:12345 using POST /manager/search. Use the query 'person walking near a vehicle', tags 'outdoor,daytime', and a relative time filter of 7 days. Then poll GET /manager/search/{queryId} until queryStatus is 'idle', and show how to refetch with a new time filter of 48 hours.",
+      "expected_output": "A complete managed search workflow covering create, poll, and refetch — correctly describing how tags and timeFilter are stored, forwarded, and reused across runs.",
+      "files": ["references/api-lifecycle.md"],
+      "expectations": [
+        "Uses POST /manager/search (not POST /manager/search/query) and expects HTTP 201 with a top-level queryId in the response body.",
+        "Request body uses the SearchQueryDTO with query as required string, tags as a comma-separated string (e.g. 'outdoor,daytime'), and timeFilter as a flat object with value=7 and unit='days'.",
+        "Explains that tags is split into a string[] and stored in the DB, and is forwarded to the search microservice on every run and refetch — unlike the one-off endpoint where tags are ignored.",
+        "Explains that timeFilter value+unit are normalized by normalizeTimeFilter() into computed start/end ISO timestamps stored in the DB as timeFilterStart/timeFilterEnd and forwarded as time_filter.start/end on every run.",
+        "Describes the initial 201 response shape: queryId, query, watch:false, results:[], queryStatus:'running', tags as string[], timeFilter with computed start/end added, createdAt, updatedAt.",
+        "States that queryStatus transitions from 'running' → 'idle' when results are ready, or to 'error' with an errorMessage if the search microservice fails (e.g. no videos indexed).",
+        "Polls GET /manager/search/{queryId} and stops when queryStatus is 'idle' or 'error', not when results[] is non-empty (results populate asynchronously via the event system).",
+        "Shows POST /manager/search/{queryId}/refetch with body {\"timeFilter\":{\"value\":48,\"unit\":\"hours\"}} and explains that the new timeFilter overrides the stored one (updates timeFilterStart/timeFilterEnd in the DB) and is used for this run and all future reruns.",
+        "Does not confuse the managed search response shape (top-level queryId, tags as array) with the one-off search response shape (results[] with nested query_id, no persistent handle)."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I want to call POST /manager/search/query with all optional fields populated: query 'car parked at intersection', tags 'outdoor,night', timeFilter with value=7, unit='days', and source='quick'. Show the exact curl request, the full expected JSON response shape including every aggregation_stats field, and explain what each aggregation_stats field means.",
+      "expected_output": "A curl command that fills all fields, the complete response schema with aggregation_stats, and a description of every aggregation_stats field.",
+      "files": ["references/api-lifecycle.md"],
+      "expectations": [
+        "Uses POST /manager/search/query (through nginx on port 12345) with Content-Type: application/json.",
+        "Request body contains query, tags as a comma-separated string, and timeFilter as a flat object with value, unit, and source.",
+        "Notes that tags is accepted but not forwarded to the search microservice in this one-off path, so tag filtering will not be applied to the results.",
+        "Response is a top-level object with a results array; each element contains query_id, results, and aggregation_stats.",
+        "Describes aggregation_stats fields: total_frame_matches (raw frame-level hits), segments_created, segments_after_filtering, final_results (capped at AGGREGATION_MAX_RESULTS default 20), processing_time_ms, segmentation_time_ms, scoring_time_ms, filtering_time_ms, and formatting_time_ms.",
+        "Mentions the two alternative aggregation_stats shapes: aggregation disabled ({aggregation_enabled:false, frame_count:N}) and aggregation failed ({aggregation_failed:true, error:'...', fallback_frame_count:N}).",
+        "Points to result metadata fields segment_start, segment_end, seek_timestamp, relevance_score, and video_id as the key fields for locating a match in a video."
+      ]
     }
   ]
 }
