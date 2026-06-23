@@ -13,12 +13,20 @@ sources:
     shared_archive_root: pipeline-zoo-models-main
     shared_model_subpath: storage/{model_name}
 
-  # Timeseries UDF tarballs from edge-ai-resources/timeseries-udf-deployment-packages/.
-  udf-timeseries:
-    kind: tarball
-    per_model_archive_url_template: "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{model_name}.tar"
-
   # OpenVINO Model Zoo downloads via omz_downloader/omz_converter.
   # Downloads to external-sources/omz/{model_name}/ with .xml + .bin artefacts.
   omz:
     kind: omz
+
+  # Generic runtime tarball hub. The archive URL is supplied per-request in
+  # `config.url` (an optional `{model_name}` placeholder is substituted), then
+  # validated against the allowlist below before download.
+  #
+  # The allowlist is matched as `host + path-prefix` on the parsed URL
+  # (scheme is forced to https). `EXTERNAL_SOURCES_URL_ALLOWLIST` (comma
+  # separated), if set, REPLACES `allowed_prefixes`. An empty allowlist
+  # rejects all runtime URLs (secure by default).
+  url:
+    kind: tarball
+    allowed_prefixes:
+      - github.com/open-edge-platform/edge-ai-resources/

@@ -190,8 +190,8 @@ install_dependencies() {
             print_info "Pipeline-zoo-models hub is served by the external-sources plugin (kind=tarball, no extra deps)"
             echo "0" > "${status_file}"
             ;;
-        udf-timeseries)
-            print_info "udf-timeseries hub is served by the external-sources plugin (kind=tarball, no extra deps)"
+        url)
+            print_info "url hub is served by the external-sources plugin (kind=tarball, no extra deps)"
             echo "0" > "${status_file}"
             ;;
         omz)
@@ -290,7 +290,7 @@ done
 # User-facing hubs accepted by --plugins. External Hubs served by the
 # external-sources plugin are listed individually; 'external-sources'
 # itself is an internal plugin name and is rejected if passed by the user.
-EXTERNAL_SOURCES_HUBS=(pipeline-zoo-models udf-timeseries omz)
+EXTERNAL_SOURCES_HUBS=(pipeline-zoo-models omz url)
 AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "${EXTERNAL_SOURCES_HUBS[@]}" "geti" "hls")
 
 # Install plugin-specific dependencies (in parallel)
@@ -388,7 +388,7 @@ for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
 
     # Tarball-based external-sources hubs run in the main app process; no venv needed.
     # (omz is handled above and continues before reaching here)
-    if [[ "$plugin" == "pipeline-zoo-models" || "$plugin" == "udf-timeseries" ]]; then
+    if [[ "$plugin" == "pipeline-zoo-models" || "$plugin" == "url" ]]; then
         continue
     fi
 

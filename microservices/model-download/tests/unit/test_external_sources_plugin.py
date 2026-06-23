@@ -31,7 +31,7 @@ class TestPluginProperties:
     def test_supported_hubs(self, plugin):
         hubs = plugin.supported_hubs()
         assert "pipeline-zoo-models" in hubs
-        assert "udf-timeseries" in hubs
+        assert "url" in hubs
         assert "omz" in hubs
 
     @pytest.mark.parametrize(
@@ -41,7 +41,7 @@ class TestPluginProperties:
             ("OMZ", True),
             ("pipeline-zoo-models", True),
             ("pipeline_zoo_models", True),
-            ("udf-timeseries", True),
+            ("url", True),
             ("huggingface", False),
             ("", False),
         ],
@@ -77,7 +77,12 @@ class TestDownloadValidation:
 
 
 class TestTarballDownload:
-    def test_per_model_tarball(self, plugin, temp_dir, monkeypatch):
+    _ALLOWED_URL = (
+        "https://github.com/open-edge-platform/edge-ai-resources/raw/main/"
+        "timeseries-udf-deployment-packages/{model_name}.tar"
+    )
+
+    def test_runtime_url_tarball(self, plugin, temp_dir, monkeypatch):
         captured = {}
 
         def fake_extract(url, target):
@@ -87,13 +92,16 @@ class TestTarballDownload:
 
         monkeypatch.setattr(plugin, "_download_and_extract_tarball", fake_extract)
 
-        result = plugin.download("pkg-a", temp_dir, hub="udf-timeseries")
+        result = plugin.download(
+            "pkg-a", temp_dir, hub="url", config={"url": self._ALLOWED_URL}
+        )
 
-        assert "pkg-a" in captured["url"]
-        target = Path(temp_dir) / "udf-timeseries" / "pkg-a"
+        # {model_name} is substituted before download.
+        assert captured["url"].endswith("/pkg-a.tar")
+        target = Path(temp_dir) / "url" / "pkg-a"
         assert (target / "model.xml").is_file()
         assert result["success"] is True
-        assert result["source"] == "udf-timeseries"
+        assert result["source"] == "url"
 
     def test_shared_archive_tarball(self, plugin, temp_dir, monkeypatch):
         # Build a fake extracted shared archive and skip the network fetch.
@@ -121,9 +129,80 @@ class TestTarballDownload:
         monkeypatch.setattr(plugin, "_download_and_extract_tarball", boom)
 
         with pytest.raises(RuntimeError, match="network down"):
-            plugin.download("pkg-a", temp_dir, hub="udf-timeseries")
+            plugin.download(
+                "pkg-a", temp_dir, hub="url", config={"url": self._ALLOWED_URL}
+            )
 
-        assert not (Path(temp_dir) / "udf-timeseries" / "pkg-a").exists()
+        assert not (Path(temp_dir) / "url" / "pkg-a").exists()
+
+
+class TestRuntimeUrlValidation:
+    _ALLOWLIST = ["github.com/open-edge-platform/edge-ai-resources/"]
+
+    def test_allowed_url_passes(self):
+        url = (
+            "https://github.com/open-edge-platform/edge-ai-resources/raw/main/"
+            "timeseries-udf-deployment-packages/m.tar"
+        )
+        # Should not raise.
+        ExternalSourcesPlugin._validate_runtime_url(url, self._ALLOWLIST)
+
+    def test_non_https_rejected(self):
+        url = "http://github.com/open-edge-platform/edge-ai-resources/m.tar"
+        with pytest.raises(ValueError, match="https"):
+            ExternalSourcesPlugin._validate_runtime_url(url, self._ALLOWLIST)
+
+    def test_disallowed_host_rejected(self):
+        url = "https://evil.com/open-edge-platform/edge-ai-resources/m.tar"
+        with pytest.raises(ValueError, match="not in allowlist"):
+            ExternalSourcesPlugin._validate_runtime_url(url, self._ALLOWLIST)
+
+    def test_disallowed_path_rejected(self):
+        url = "https://github.com/other-org/some-repo/m.tar"
+        with pytest.raises(ValueError, match="not in allowlist"):
+            ExternalSourcesPlugin._validate_runtime_url(url, self._ALLOWLIST)
+
+    def test_substring_bypass_rejected(self):
+        # Allowlist prefix appears in the query, not the host+path.
+        url = "https://evil.com/x?github.com/open-edge-platform/edge-ai-resources/m.tar"
+        with pytest.raises(ValueError, match="not in allowlist"):
+            ExternalSourcesPlugin._validate_runtime_url(url, self._ALLOWLIST)
+
+    def test_embedded_credentials_rejected(self):
+        url = (
+            "https://user:pass@github.com/open-edge-platform/edge-ai-resources/m.tar"
+        )
+        with pytest.raises(ValueError, match="credentials"):
+            ExternalSourcesPlugin._validate_runtime_url(url, self._ALLOWLIST)
+
+    def test_empty_allowlist_rejects_all(self):
+        url = (
+            "https://github.com/open-edge-platform/edge-ai-resources/m.tar"
+        )
+        with pytest.raises(ValueError, match="disabled"):
+            ExternalSourcesPlugin._validate_runtime_url(url, [])
+
+    def test_resolve_allowlist_from_profile(self, monkeypatch):
+        monkeypatch.delenv("EXTERNAL_SOURCES_URL_ALLOWLIST", raising=False)
+        profile = {"allowed_prefixes": ["github.com/open-edge-platform/edge-ai-resources/"]}
+        assert ExternalSourcesPlugin._resolve_allowlist(profile) == [
+            "github.com/open-edge-platform/edge-ai-resources/"
+        ]
+
+    def test_env_replaces_profile_allowlist(self, monkeypatch):
+        monkeypatch.setenv(
+            "EXTERNAL_SOURCES_URL_ALLOWLIST",
+            "github.com/myorg/, raw.githubusercontent.com/myorg/",
+        )
+        profile = {"allowed_prefixes": ["github.com/open-edge-platform/edge-ai-resources/"]}
+        assert ExternalSourcesPlugin._resolve_allowlist(profile) == [
+            "github.com/myorg/",
+            "raw.githubusercontent.com/myorg/",
+        ]
+
+    def test_url_hub_requires_config_url(self, plugin, temp_dir):
+        with pytest.raises(ValueError, match="requires 'url'"):
+            plugin.download("pkg-a", temp_dir, hub="url")
 
 
 class TestOmzDownload:

@@ -3,8 +3,10 @@
 
 """External sources downloader plugin.
 
-Handles tarball-based hubs (``pipeline-zoo-models``, ``udf-timeseries``)
-and OMZ downloads via a YAML-driven dispatch on ``kind``.
+Handles tarball-based hubs (``pipeline-zoo-models``, ``url``) and OMZ
+downloads via a YAML-driven dispatch on ``kind``. The ``url`` hub takes an
+archive URL from the request (``config.url``) and validates it against an
+allowlist before downloading.
 """
 
 from __future__ import annotations
@@ -16,10 +18,11 @@ import subprocess
 import tarfile
 import tempfile
 import threading
+import urllib.parse
 import urllib.request
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -127,9 +130,22 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         target_dir = os.path.join(output_dir, hub, model_name)
         kind = profile.get("kind")
 
+        # The 'url' hub takes the archive URL from the request and validates it
+        # against the allowlist before download.
+        runtime_url: Optional[str] = None
+        if hub == "url":
+            config = kwargs.get("config") or {}
+            raw_url = config.get("url") if isinstance(config, dict) else None
+            if not raw_url or not str(raw_url).strip():
+                raise ValueError("hub 'url' requires 'url' in the request config")
+            runtime_url = str(raw_url).strip().replace("{model_name}", model_name)
+            self._validate_runtime_url(runtime_url, self._resolve_allowlist(profile))
+
         try:
             if kind == "tarball":
-                self._fetch_tarball(hub, model_name, profile, target_dir)
+                self._fetch_tarball(
+                    hub, model_name, profile, target_dir, runtime_url=runtime_url
+                )
             elif kind == "omz":
                 self._fetch_omz(hub, model_name, target_dir)
             else:
@@ -159,47 +175,104 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             raise
 
     def _fetch_tarball(
-        self, hub: str, model_name: str, profile: Dict[str, Any], target_dir: str
+        self,
+        hub: str,
+        model_name: str,
+        profile: Dict[str, Any],
+        target_dir: str,
+        runtime_url: Optional[str] = None,
     ) -> None:
-        """Download and extract a tarball-based model (shared or per-model archive)."""
-        per_model_template = profile.get("per_model_archive_url_template")
+        """Download and extract a tarball-based model.
 
-        if per_model_template:
-            # Per-model tarball: download and extract directly to target
-            per_model_archive_url = per_model_template.format(model_name=model_name)
+        ``runtime_url`` (the ``url`` hub) downloads a per-request archive;
+        otherwise a shared archive declared in the profile is used.
+        """
+        if runtime_url is not None:
+            # Runtime URL: an already-validated per-model archive.
             os.makedirs(target_dir, exist_ok=True)
-            logger.info("external_sources_downloading_archive", hub=hub, model_name=model_name, url=per_model_archive_url)
-            self._download_and_extract_tarball(per_model_archive_url, target_dir)
             logger.info(
-                "external_sources_per_model_tarball_extracted",
+                "external_sources_downloading_archive",
+                hub=hub,
+                model_name=model_name,
+                url=runtime_url,
+            )
+            self._download_and_extract_tarball(runtime_url, target_dir)
+            logger.info(
+                "external_sources_runtime_url_tarball_extracted",
                 model_name=model_name,
                 target=target_dir,
             )
-        else:
-            # Shared archive: use persistent extracted cache to avoid downloading full tar on each request
-            extract_dir = self._ensure_shared_archive_extracted(hub, profile)
+            return
 
-            extracted_root = profile.get("shared_archive_root")
-            source_base = os.path.join(extract_dir, extracted_root) if extracted_root else extract_dir
+        # Shared archive: use persistent extracted cache to avoid downloading full tar on each request
+        extract_dir = self._ensure_shared_archive_extracted(hub, profile)
 
-            model_subdir_template = profile.get("shared_model_subpath", "{model_name}")
-            model_subdir = model_subdir_template.format(model_name=model_name)
-            if ".." in Path(model_subdir).parts:
-                raise ValueError(f"model_subdir resolves outside archive: {model_subdir!r}")
+        extracted_root = profile.get("shared_archive_root")
+        source_base = os.path.join(extract_dir, extracted_root) if extracted_root else extract_dir
 
-            source_dir = os.path.join(source_base, model_subdir)
-            if not os.path.isdir(source_dir):
-                raise FileNotFoundError(
-                    f"Model {model_name!r} not found in archive at {source_dir}"
-                )
+        model_subdir_template = profile.get("shared_model_subpath", "{model_name}")
+        model_subdir = model_subdir_template.format(model_name=model_name)
+        if ".." in Path(model_subdir).parts:
+            raise ValueError(f"model_subdir resolves outside archive: {model_subdir!r}")
 
-            os.makedirs(target_dir, exist_ok=True)
-            shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
-            logger.info(
-                "external_sources_shared_tarball_copied",
-                model_name=model_name,
-                target=target_dir,
+        source_dir = os.path.join(source_base, model_subdir)
+        if not os.path.isdir(source_dir):
+            raise FileNotFoundError(
+                f"Model {model_name!r} not found in archive at {source_dir}"
             )
+
+        os.makedirs(target_dir, exist_ok=True)
+        shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
+        logger.info(
+            "external_sources_shared_tarball_copied",
+            model_name=model_name,
+            target=target_dir,
+        )
+
+    @staticmethod
+    def _resolve_allowlist(profile: Dict[str, Any]) -> List[str]:
+        """Resolve the runtime-URL allowlist of ``host + path`` prefixes.
+
+        ``EXTERNAL_SOURCES_URL_ALLOWLIST`` (comma-separated), when set,
+        REPLACES the profile's ``allowed_prefixes``. An empty result means
+        runtime URL downloads are disabled.
+        """
+        env_value = os.environ.get("EXTERNAL_SOURCES_URL_ALLOWLIST")
+        if env_value is not None and env_value.strip():
+            return [p.strip() for p in env_value.split(",") if p.strip()]
+        return [
+            str(p).strip()
+            for p in (profile.get("allowed_prefixes") or [])
+            if str(p).strip()
+        ]
+
+    @staticmethod
+    def _validate_runtime_url(url: str, allowlist: List[str]) -> None:
+        """Validate a user-supplied archive URL against the allowlist.
+
+        Enforces ``https``, rejects embedded credentials, and requires the
+        parsed ``host + path`` to start with an allowed prefix. Raises
+        ``ValueError`` on any violation.
+        """
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme != "https":
+            raise ValueError(f"Runtime URL must use https scheme: {url!r}")
+        if not parsed.hostname:
+            raise ValueError(f"Runtime URL has no host: {url!r}")
+        if parsed.username or parsed.password:
+            raise ValueError("Runtime URL must not contain embedded credentials")
+        if not allowlist:
+            raise ValueError(
+                "No URL allowlist configured; runtime URL downloads are disabled. "
+                "Set EXTERNAL_SOURCES_URL_ALLOWLIST or sources.yaml allowed_prefixes."
+            )
+
+        host_path = f"{parsed.hostname}{parsed.path}"
+        if not any(host_path.startswith(prefix) for prefix in allowlist):
+            raise ValueError(
+                f"Runtime URL host/path not in allowlist: {parsed.hostname}{parsed.path}"
+            )
+
 
     def _ensure_shared_archive_extracted(self, hub: str, profile: Dict[str, Any]) -> str:
         """Ensure the shared archive for a hub is downloaded and extracted once."""

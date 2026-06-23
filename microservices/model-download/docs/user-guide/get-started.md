@@ -101,7 +101,7 @@ down                   Stop the services
    - Start the service with default settings: `source scripts/run_service.sh up`
    - Stop the service: `source scripts/run_service.sh down`
    - Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
-  - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,pipeline-zoo-models,udf-timeseries,omz,geti`
+  - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,pipeline-zoo-models,url,omz,geti`
    - Use a custom model storage: `source scripts/run_service.sh up --model-path /data/my-models`
    - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
    - Display usage information: `source scripts/run_service.sh --help`
@@ -302,9 +302,16 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=pipelin
 
 > **Note:** You can pass `"name": "all"` to download all available models from the Pipeline Zoo `storage` directory.
 
-**Download a UDF Timeseries package:**
+**Download a tarball model from a runtime URL (`url` hub):**
 
-Fetches a per-model tarball from `edge-ai-resources/timeseries-udf-deployment-packages/` and extracts it under `udf-timeseries/<model-name>/`.
+Provide the archive URL in `config.url`. An optional `{model_name}` placeholder
+is substituted with `name` before download. The URL is validated against an
+allowlist (`host + path` prefixes) before fetching — scheme must be `https`.
+
+The allowlist defaults to `allowed_prefixes` in `sources.yaml` and can be
+overridden per deployment with `EXTERNAL_SOURCES_URL_ALLOWLIST` (comma-separated;
+when set it **replaces** the YAML list). An empty allowlist rejects all runtime
+URLs.
 
 ```bash
 curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=udf_timeseries" \
@@ -313,14 +320,17 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=udf_tim
     "models": [
       {
         "name": "wind-turbine-anomaly-detection",
-        "hub": "udf-timeseries"
+        "hub": "url",
+        "config": {
+          "url": "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{model_name}.tar"
+        }
       }
     ],
     "parallel_downloads": false
   }'
 ```
 
-> **Note:** Pass hub names (`pipeline-zoo-models`, `udf-timeseries`) directly to `--plugins`. The internal plugin implementation is shared but not user-visible.
+> **Note:** Pass hub names (`pipeline-zoo-models`, `url`) directly to `--plugins`. The internal plugin implementation is shared but not user-visible.
 
 **Download fixed HLS models (3D pose, rPPG, AI-ECG):**
 

@@ -1040,7 +1040,7 @@ requires-dist = [
     { name = "ultralytics", marker = "extra == 'ultralytics'", specifier = "==8.2.3" },
     { name = "uvicorn", specifier = "==0.38.0" },
 ]
-provides-extras = ["dev", "cpu", "huggingface", "ultralytics", "openvino", "ollama", "geti", "hls", "pipeline-zoo-models", "udf-timeseries", "omz"]
+provides-extras = ["dev", "cpu", "huggingface", "ultralytics", "openvino", "ollama", "geti", "hls", "pipeline-zoo-models", "url", "omz"]
 
 [[package]]
 name = "mpmath"

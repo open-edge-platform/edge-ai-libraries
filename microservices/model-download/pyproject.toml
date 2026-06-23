@@ -71,7 +71,7 @@ pipeline-zoo-models = [
     # when ENABLED_PLUGINS is set to pipeline-zoo-models.
 ]
 
-udf-timeseries = [
+url = [
     # Intentionally empty: plugin uses Python stdlib only.
 ]
 
