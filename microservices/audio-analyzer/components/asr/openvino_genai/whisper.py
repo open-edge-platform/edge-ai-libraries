@@ -13,9 +13,12 @@ class Whisper(BaseASR):
         self.model_path = get_asr_model_path()
         self.model = ov_genai.WhisperPipeline( self.model_path, device=device)
  
-   def transcribe(self, audio_path: str, temperature: float) -> str:
+   def transcribe(self, audio_path: str, temperature: float = 0.0, language: str | None = None) -> dict:
         audio, sr = self._load_wav_mono_16k(audio_path)
-        result = self.model.generate(audio, return_timestamps=True)
+        gen_kwargs = {"return_timestamps": True}
+        if language:
+            gen_kwargs["language"] = language if language.startswith("<|") else f"<|{language}|>"
+        result = self.model.generate(audio, **gen_kwargs)
         segments = []
         if hasattr(result, "chunks") and result.chunks is not None:
             for seg in result.chunks:

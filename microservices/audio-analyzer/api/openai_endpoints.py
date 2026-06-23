@@ -8,7 +8,6 @@ from dto.audiosource import AudioSource
 from dto.transcription_dto import validate_transcription_options
 from pipeline import Pipeline
 from utils.audio_util import save_audio_file
-from utils.locks import audio_pipeline_lock
 from utils.session_manager import resolve_requested_session_id
 
 
@@ -52,14 +51,11 @@ def transcribe_audio(
     file: UploadFile = File(...),
     model: str = Form("whisper-1"),
     session_id: str | None = Form(None),
-    language: str | None = Form(None),
+    language: str | None = Form("en"),
     prompt: str | None = Form(None),
     response_format: str = Form("json"),
     temperature: float = Form(0.0),
 ):
-    if audio_pipeline_lock.locked():
-        raise HTTPException(status_code=429, detail="Session Active, Try Later")
-
     language, _ = validate_transcription_options(
         temperature=temperature,
         language=language,

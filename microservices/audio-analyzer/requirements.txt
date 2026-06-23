@@ -26,3 +26,4 @@ pyannote.audio==3.3.2
 hf_xet==1.4.3
 librosa==0.11.0
 soundfile==0.13.1
+pywhispercpp==1.5.0

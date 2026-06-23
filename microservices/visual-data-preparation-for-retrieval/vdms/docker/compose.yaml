@@ -32,8 +32,8 @@ services:
     vdms-dataprep:
         hostname: vdms-dataprep
         build:
-            context: ..
-            dockerfile: docker/Dockerfile
+            context: ../../..
+            dockerfile: visual-data-preparation-for-retrieval/vdms/docker/Dockerfile
             target: prod
         image: ${REGISTRY}vdms-dataprep:${TAG:-latest}
         environment:

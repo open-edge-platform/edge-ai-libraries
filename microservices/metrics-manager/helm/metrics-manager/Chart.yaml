@@ -30,7 +30,7 @@ keywords:
   - telegraf
   - intel
   - edge
-home: https://github.com/open-edge-platform/edge-ai-libraries/tree/main/metrics-manager
+home: https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/metrics-manager
 sources:
   - https://github.com/open-edge-platform/edge-ai-libraries
 maintainers:

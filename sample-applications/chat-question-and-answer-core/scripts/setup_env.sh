@@ -122,6 +122,7 @@ if [ -n "${HUGGINGFACEHUB_API_TOKEN}" ]; then
 else
     echo "INFO - HUGGINGFACEHUB_API_TOKEN is not set. HF_ACCESS_TOKEN will not be exported. Only publicly available models can be downloaded."
 fi
+export HOST_IP=$(ip route get 1 | awk '{print $7}')
 export MODEL_CACHE_PATH="$MODEL_CACHE_PATH"
 export APP_BACKEND_URL="/v1/chatqna"
 export COMPOSE_PROFILES=$PROFILES

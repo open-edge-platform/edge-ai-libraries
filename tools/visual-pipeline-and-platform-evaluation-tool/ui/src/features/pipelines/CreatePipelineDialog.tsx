@@ -206,7 +206,7 @@ export const CreatePipelineDialog = ({
 
       // Step 2: Validate pipeline graph
       await validatePipeline({
-        pipelineValidationInput: {
+        pipelineValidation: {
           pipeline_graph: graphResponse.pipeline_graph,
         },
       });
@@ -416,7 +416,7 @@ export const CreatePipelineDialog = ({
 
             <Field>
               <FieldLabel htmlFor="pipeline-description">
-                Pipeline Description
+                Pipeline Description (should not include gst-launch-1.0)
               </FieldLabel>
               <Textarea
                 id="pipeline-description"

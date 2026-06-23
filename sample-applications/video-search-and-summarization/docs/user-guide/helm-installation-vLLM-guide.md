@@ -42,8 +42,8 @@ See the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/conce
 ## Step 1: Acquire the Helm Chart
 
 ```bash
-# Clone the repository (main branch)
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Clone the main branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b main
 
 # Navigate to the chart directory
 cd edge-ai-libraries/sample-applications/video-search-and-summarization/chart

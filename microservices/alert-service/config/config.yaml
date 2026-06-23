@@ -1,0 +1,86 @@
+# Alert Service Configuration File
+# This file defines the global service options and subscription rules.
+
+# ==============================================================================
+# Service Configuration
+# ==============================================================================
+service:
+  # The number of retry attempts for a failed delivery target.
+  retry_attempts: 3
+  
+  # The wait interval in seconds between delivery retry attempts.
+  retry_interval_seconds: 5
+
+# ==============================================================================
+# Subscription Configuration
+# ==============================================================================
+# Define rules per alert type. Incoming alert matching is case-sensitive.
+subscriptions:
+  - alert_type: CONCEALMENT
+    # Deduplication settings to prevent duplicate alert delivery.
+    dedup:
+      # Set to true to enable deduplication for this alert type.
+      enabled: true
+      
+      # The deduplication strategy. Currently only 'field_hash' is supported.
+      strategy: field_hash
+      
+      # List of field paths (in dot-notation) to extract and hash for deduplication key.
+      fields:
+        - metadata.poi_id
+        - metadata.camera_id
+        
+      # The time window (in seconds) during which identical alerts are suppressed.
+      window_seconds: 30
+      
+      # Behavior when any of the configured fields are missing in the incoming alert.
+      # 'skip' = bypass deduplication for this alert (always deliver it).
+      on_missing: skip
+      
+      # Hashing settings to construct the deduplication key.
+      hash:
+        # Hashing algorithm: 'sha1' or 'md5'.
+        algorithm: sha1
+        # Truncate the hash digest to this number of characters.
+        truncate: 16
+
+    # List of delivery targets to forward matching alerts to.
+    delivery:
+      # 1. Webhook delivery target
+      - type: webhook
+        # Destination webhook URL. Supports ${ENV_VAR} placeholder substitution.
+        url: ${WEBHOOK_URL}
+        
+      # 2. MQTT delivery target
+      - type: mqtt
+        # MQTT topic to publish matching alerts to. 
+        # Defaults to 'alerts/<alert_type_in_lowercase>' if left empty.
+        topic: alerts/concealment
+        
+      # 3. Log delivery target
+      - type: log
+
+  - alert_type: LOITERING
+    dedup:
+      enabled: true
+      strategy: field_hash
+      fields:
+        - metadata.zone_id
+      window_seconds: 120
+      on_missing: skip
+      hash:
+        algorithm: sha1
+        truncate: 16
+
+    delivery:
+      - type: log
+
+  - alert_type: INTRUSION
+    # If deduplication is disabled, every incoming alert is delivered immediately.
+    dedup:
+      enabled: false
+
+    delivery:
+      - type: webhook
+        url: ${WEBHOOK_URL}
+      - type: log

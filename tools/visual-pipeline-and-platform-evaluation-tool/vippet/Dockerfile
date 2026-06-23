@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Use DLStreamer as the base image
-FROM intel/dlstreamer:2026.1.0-ubuntu24-rc1.1 AS prod
+FROM intel/dlstreamer:2026.1.0-ubuntu24 AS prod
 
 # Switch to root user to install dependencies
 USER root
@@ -25,7 +25,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install necessary dependencies
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends gstreamer1.0-plugins-ugly yq v4l-utils && \
+    apt-get install --yes --no-install-recommends yq v4l-utils && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -63,7 +63,15 @@ RUN \
     pip3 install --disable-pip-version-check --no-cache-dir -r requirements.txt && \
     python3 -m venv $OMZ_VIRTUAL_ENV && \
     $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check --no-cache-dir \
-        -r requirements-omz.txt
+        -r requirements-omz.txt && \
+    # Security override: bump ``onnx`` past the cap that ``openvino-dev``
+    # 2024.6.0 (archived upstream) inherited. Fixes CVE-2026-27489 (HIGH),
+    # CVE-2026-28500 and CVE-2026-34446. ``--upgrade`` + explicit version
+    # is required because the resolver would otherwise honor the cap, and
+    # we deliberately keep transitive deps intact (no --no-deps) so onnx's
+    # own runtime requirements (protobuf, numpy) are satisfied.
+    $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check --no-cache-dir \
+        --upgrade "onnx>=1.21.0"
 
 # Copy the Python scripts and configuration files into the container
 COPY --chown=dlstreamer:dlstreamer \
