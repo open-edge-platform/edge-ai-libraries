@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Video Search and Summarization
 
-Use the Video Search and Summarization (VSS) sample application to search through your videos, summarize them, and more.
+Use the Video Search and Summarization (VSS) sample application to search through your videos, summarize them, and more
 
 This foundational sample application provides four deployment modes:
 
