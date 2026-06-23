@@ -90,6 +90,14 @@ export DETECTION_DEVICE=CPU
 When targeting `NPU`, confirm the selected model supports NPU inference via the
 [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
 
+> **Running everything on NPU:** Setting both embedding and detection to `NPU`
+> (for example via `VDMS_DATAPREP_DEVICE=NPU`) is functionally supported — both
+> stages run on NPU through OpenVINO. However, the host has a single NPU, so the
+> embedding and detection stages contend for the same accelerator. It works, but
+> it is not optimal for throughput. For best performance, split the load across
+> accelerators (for example, keep embedding on `NPU` and detection on `GPU`/`CPU`,
+> or vice versa).
+
 ### Advanced tuning
 
 Additional environment variables are available for high-throughput scenarios:
@@ -291,3 +299,4 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 - **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/videos/minio` instead.
 - **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, or `DETECTION_DEVICE`) to `GPU`, and keep `SDK_USE_OPENVINO=true`.
 - **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, or `DETECTION_DEVICE`) to `NPU`, and keep `SDK_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
+- **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.
