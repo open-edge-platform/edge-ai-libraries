@@ -344,28 +344,28 @@ curl --location --request GET 'http://localhost:9777/model/capabilities'
 
 1. **Docker container fails to start**
 
-  - Run `docker logs multimodal-embedding-serving` to inspect failures.
-  - Ensure required ports (default `9777`) are available.
+   - Run `docker logs multimodal-embedding-serving` to inspect failures.
+   - Ensure required ports (default `9777`) are available.
 
 2. **Cannot access the microservice**
 
-  - Confirm the containers are running:
+   - Confirm the containers are running:
 
-    ```bash
-    docker ps
-    ```
+     ```bash
+     docker ps
+     ```
 
-  - Verify `EMBEDDING_MODEL_NAME` points to a supported entry and rerun `source setup.sh` if you make changes.
+   - Verify `EMBEDDING_MODEL_NAME` points to a supported entry and rerun `source setup.sh` if you make changes.
 
 3. **GPU runtime errors**
 
-  - Check Intel GPU device nodes:
+   - Check Intel GPU device nodes:
 
-    ```bash
-    ls -la /dev/dri
-    ```
+     ```bash
+     ls -la /dev/dri
+     ```
 
-  - Confirm `EMBEDDING_USE_OV=true` for best performance with OpenVINO on GPU.
+   - Confirm `EMBEDDING_USE_OV=true` for best performance with OpenVINO on GPU.
 
 ## Supporting Resources
 
