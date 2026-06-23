@@ -1,5 +1,5 @@
 ---
-# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 name: "[GEN-AI] Video-search-summarization-CI"
@@ -14,12 +14,51 @@ concurrency:
 on:
   pull_request:
     branches:
-      - main
+      - vss-workflow-test
     paths:
       - 'sample-applications/video-search-and-summarization/**'
 
 jobs:
-   
+  # Deploy VSS in search mode using make deploy-search
+  deploy-search:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    env:
+      MINIO_ROOT_USER: ${{ secrets.GENAI_MINIO_ROOT_USER }}
+      MINIO_ROOT_PASSWORD: ${{ secrets.GENAI_MINIO_ROOT_PASSWORD }}
+      POSTGRES_USER: ${{ secrets.GENAI_POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.GENAI_POSTGRES_PASSWORD }}
+      RABBITMQ_USER: ${{ secrets.GENAI_RABBITMQ_USER }}
+      RABBITMQ_PASSWORD: ${{ secrets.GENAI_RABBITMQ_PASSWORD }}
+      HUGGINGFACE_TOKEN: ${{ secrets.GENAI_HUGGINGFACE_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Deploy VSS in search mode
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          make deploy-search
+
+      - name: Print deployed service URLs
+        run: |
+          HOST_IP=$(hostname -I | awk '{print $1}')
+          PORT=${APP_HOST_PORT:-12345}
+          echo "Search UI:        http://${HOST_IP}:${PORT}/"
+          echo "Pipeline Manager: http://${HOST_IP}:${PORT}/manager/docs"
+          echo "Data Prep:        http://${HOST_IP}:7890/docs"
+          echo "Embedding server: http://${HOST_IP}:9777/docs"
+
+      - name: Stop VSS stack
+        if: always()
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          bash -c 'source setup.sh --stop'
+  
   trivy-scan:
     runs-on: ubuntu-22.04-32core-128GB
     permissions:
