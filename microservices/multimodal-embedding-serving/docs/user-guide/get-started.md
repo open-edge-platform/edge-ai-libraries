@@ -11,7 +11,6 @@ Before you begin, confirm the following:
 
 This guide assumes basic familiarity with Docker commands and terminal usage.
 
-
 ## Environment Variables Reference
 
 ### Model Configuration
@@ -31,18 +30,20 @@ This guide assumes basic familiarity with Docker commands and terminal usage.
 These variables control the video frame extraction pipeline performance and memory usage.
 
 #### Extraction Performance
+
 - **VIDEO_FRAME_BATCH_SIZE** - Batch size for video frame extraction (default: 64)
 - **VIDEO_FRAME_DECODER_WORKERS** - Number of workers for video frame decoding (default: 8)
 - **VIDEO_FRAME_QUEUE_SIZE** - Queue size for frame extraction pipeline (default: 32)
 
 #### Shared Memory Configuration
+
 - **VIDEO_FRAME_SHM_POOL_BLOCK_SIZE** - Shared memory block size in bytes (default: 1920*1080*3 = 6,220,800 bytes for 1080p RGB)
 - **VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER** - Multiplier for total shared memory blocks (default: 2)
   - Total blocks = VIDEO_FRAME_BATCH_SIZE × VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER
 
 #### Logging
-- **VIDEO_FRAME_LOG_LEVEL** - Logging level for video frame extraction (DEBUG/INFO/WARNING/ERROR/CRITICAL, default: INFO)
 
+- **VIDEO_FRAME_LOG_LEVEL** - Logging level for video frame extraction (DEBUG/INFO/WARNING/ERROR/CRITICAL, default: INFO)
 
 ## Set Environment Values
 
@@ -56,7 +57,7 @@ export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
 
 Refer to the [Supported Models](./supported-models.md) list for additional choices.
 
-> **_NOTE:_** You can change the model, OpenVINO conversion, device, or tokenization parameters by editing `setup.sh`.
+> ***NOTE:*** You can change the model, OpenVINO conversion, device, or tokenization parameters by editing `setup.sh`.
 
 ### Configure the Registry
 
@@ -68,11 +69,13 @@ export TAG=latest
 ### Configuration Examples
 
 **Basic CPU setup (default)**:
+
 ```bash
 export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
 ```
 
 **GPU acceleration with OpenVINO**:
+
 ```bash
 export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
 export EMBEDDING_DEVICE=GPU
@@ -80,6 +83,7 @@ export EMBEDDING_USE_OV=true
 ```
 
 **High Performance Video Processing**:
+
 ```bash
 export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
 export VIDEO_FRAME_BATCH_SIZE=256
@@ -91,6 +95,7 @@ export PREPROCESS_WORKERS=16
 ```
 
 **Memory-Constrained Environment**:
+
 ```bash
 export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
 export VIDEO_FRAME_BATCH_SIZE=64
@@ -100,6 +105,7 @@ export VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER=2
 ```
 
 **With OpenVINO Optimization on GPU**:
+
 ```bash
 export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-16
 export EMBEDDING_USE_OV=true
@@ -109,6 +115,7 @@ export PREPROCESS_WORKERS=16
 ```
 
 **Debug Mode with Detailed Logging**:
+
 ```bash
 export VIDEO_FRAME_LOG_LEVEL=INFO
 export EMBEDDING_DEVICE=CPU
@@ -117,16 +124,19 @@ export EMBEDDING_DEVICE=CPU
 ### Performance Tuning Guide
 
 #### For Video Processing Bottlenecks
+
 1. Increase `VIDEO_FRAME_BATCH_SIZE` (trades memory for throughput)
 2. Increase `VIDEO_FRAME_DECODER_WORKERS` (limited by CPU cores)
 3. Increase `VIDEO_FRAME_QUEUE_SIZE` if frames are being dropped
 
 #### For Memory Constraints
+
 1. Decrease `VIDEO_FRAME_BATCH_SIZE`
 2. Decrease `VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER`
 3. Reduce `VIDEO_FRAME_SHM_POOL_BLOCK_SIZE` if processing lower resolutions
 
 #### For Inference Performance
+
 1. Increase `INFER_BATCH_SIZE` and `PREPROCESS_WORKERS`
 2. Enable OpenVINO: `EMBEDDING_USE_OV=true`
 3. Use GPU or NPU if available: `EMBEDDING_DEVICE=GPU` or `EMBEDDING_DEVICE=NPU`
@@ -201,7 +211,7 @@ export EMBEDDING_DEVICE=NPU
 
 > **Note**: NPU support is model-dependent. Verify that the selected model is supported on NPU by checking the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html).
 
-### 2. Run Setup Script
+### 2. Run the Setup Script
 
 ```bash
 source setup.sh
@@ -209,7 +219,7 @@ source setup.sh
 
 > **Note**: When `EMBEDDING_DEVICE=NPU` is set, `setup.sh` automatically enables `EMBEDDING_USE_OV=true`.
 
-### 3. Start the Service
+### 3. Start the Service with docker compose
 
 ```bash
 docker compose -f docker/compose.yaml up -d
@@ -345,6 +355,7 @@ curl --location 'http://localhost:9777/embeddings' \
 ```
 
 ### Video Base64 Embedding
+
 set `num_frames: 0` to process all the frames.
 
 ```bash
@@ -382,39 +393,52 @@ curl --location --request GET 'http://localhost:9777/model/capabilities'
 
 1. **Docker container fails to start**
 
-  - Run `docker logs multimodal-embedding-serving` to inspect failures.
-  - Ensure required ports (default `9777`) are available.
+- Run `docker logs multimodal-embedding-serving` to inspect failures.
+- Ensure required ports (default `9777`) are available.
 
-2. **Cannot access the microservice**
+1. **Cannot access the microservice**
 
-  - Confirm the containers are running:
+- Confirm the containers are running:
 
     ```bash
     docker ps
     ```
 
-  - Verify `EMBEDDING_MODEL_NAME` points to a supported entry and rerun `source setup.sh` if you make changes.
+- Verify `EMBEDDING_MODEL_NAME` points to a supported entry and rerun `source setup.sh` if you make changes.
 
-3. **GPU runtime errors**
+1. **GPU runtime errors**
 
-  - Check Intel GPU device nodes:
+- Check Intel GPU device nodes:
 
     ```bash
     ls -la /dev/dri
     ```
 
-  - Confirm `EMBEDDING_USE_OV=true` for best performance with OpenVINO on GPU.
+- Confirm `EMBEDDING_USE_OV=true` for best performance with OpenVINO on GPU.
 
-4. **NPU acceleration inactive**
+1. **NPU acceleration inactive**
 
-  - Confirm `/dev/accel/accel0` is available on the host:
+- Confirm `/dev/accel/accel0` is available on the host:
 
     ```bash
     ls -l /dev/accel/accel0
     ```
 
-  - Ensure `EMBEDDING_DEVICE=NPU` is set and `EMBEDDING_USE_OV=true`.
-  - Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
+- Ensure `EMBEDDING_DEVICE=NPU` is set and `EMBEDDING_USE_OV=true`.
+- Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
+
+## Known Issues and NPU Notes
+
+- **First NPU run is slow (one-time model compilation)**: The first time a model
+  is loaded on NPU, OpenVINO compiles the model to an NPU-specific blob, which can
+  take noticeably longer than CPU/GPU startup. This is expected and happens only
+  once per model/configuration.
+- **Model caching speeds up subsequent runs**: The service caches the compiled
+  OpenVINO blob on disk, so later starts reuse it and come up quickly. The cache
+  location is controlled by `OV_CACHE_DIR` (or `EMBEDDING_OV_CACHE_DIR`); when
+  unset it defaults to an `ov_cache/` directory next to the OpenVINO IR. Persist
+  this directory (for example, via a mounted volume) to retain the cache across
+  container restarts.
 
 ## Supporting Resources
 

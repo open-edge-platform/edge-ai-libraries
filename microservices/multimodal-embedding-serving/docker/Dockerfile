@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Builder stage
-FROM python:3.12.12-slim AS builder
+FROM python:3.12-slim AS builder
 
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
@@ -30,16 +30,20 @@ RUN pip install --no-cache-dir poetry==${POETRY_VERSION} && \
         --no-deps
 
 # Final stage
-FROM python:3.12.12-slim
+FROM python:3.12-slim
 
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
 ARG INSTALL_DRIVER_VERSION="26.09.37435"
 ENV INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
+# NPU user-space stack versions (declared once, interpolated into the download URLs below).
+ARG NPU_DRIVER_VERSION="1.33.0"
+ARG NPU_DRIVER_BUILD="v1.33.0.20260529-26625960453-ubuntu2404"
+ARG LEVEL_ZERO_VERSION="1.27.0-1~24.04~ppa2"
+ARG LEVEL_ZERO_PPA_SNAPSHOT="20260324T100000Z"
 ARG COPYLEFT_SOURCES=false
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
     patch && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -g ${USER_GROUP_ID} appuser && useradd -m --no-log-init -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
@@ -58,9 +62,13 @@ RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/
 # Copy rest of the source code
 
 # Install GPU drivers in final image
+# curl is needed only at build time (the driver script downloads .deb packages),
+# so it is installed here and purged at the end to keep it out of the final image.
 COPY scripts/install_ubuntu_gpu_drivers.sh /tmp/install_gpu_drivers.sh
-RUN chmod +x /tmp/install_gpu_drivers.sh && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+chmod +x /tmp/install_gpu_drivers.sh && \
 /tmp/install_gpu_drivers.sh && \
+apt-get purge -y curl && apt-get autoremove -y && \
 apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
 
 # Install the NPU user-space stack: the Intel NPU driver/compiler/firmware (from the
@@ -70,14 +78,17 @@ apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists
 # Downloads use curl --retry because the PPA snapshot host intermittently returns 5xx,
 # every step is chained with && so a failed download aborts the build instead of silently
 # shipping a broken image, and the final assertion fails the build if the loader is missing.
+# curl is installed here for the downloads and purged at the end so it stays out of the
+# final image (reduces the runtime CVE/dependency surface).
 RUN mkdir -p /tmp/npu_deps && cd /tmp/npu_deps && \
-    apt-get update && apt-get install -y --no-install-recommends libtbb12 && \
-    curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/linux-npu-driver/releases/download/v1.33.0/linux-npu-driver-v1.33.0.20260529-26625960453-ubuntu2404.tar.gz && \
-    tar -xf linux-npu-driver-v1.33.0.20260529-26625960453-ubuntu2404.tar.gz && \
-    curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260324T100000Z/pool/main/l/level-zero-loader/libze1_1.27.0-1~24.04~ppa2_amd64.deb && \
+    apt-get update && apt-get install -y --no-install-recommends libtbb12 curl && \
+    curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/linux-npu-driver/releases/download/v${NPU_DRIVER_VERSION}/linux-npu-driver-${NPU_DRIVER_BUILD}.tar.gz && \
+    tar -xf linux-npu-driver-${NPU_DRIVER_BUILD}.tar.gz && \
+    curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/${LEVEL_ZERO_PPA_SNAPSHOT}/pool/main/l/level-zero-loader/libze1_${LEVEL_ZERO_VERSION}_amd64.deb && \
     dpkg -i ./*.deb && rm -Rf /tmp/npu_deps && \
     ldconfig && \
     test -e /usr/lib/x86_64-linux-gnu/libze_loader.so.1 && \
+    apt-get purge -y curl && apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
