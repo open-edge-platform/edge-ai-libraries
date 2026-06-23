@@ -20,7 +20,7 @@ services:
       - HTTP_PROXY=${http_proxy:-}
       - https_proxy=${https_proxy:-}
       - HTTPS_PROXY=${https_proxy:-}
-      - TARGET_DEVICE=${TARGET_DEVICE:-CPU}
+      - TARGET_DEVICE=${TARGET_DEVICE:-GPU}
     volumes:
       - ovms-models:/models
     command:
@@ -33,7 +33,7 @@ services:
       - --model_name 
       - "Phi-4-mini-instruct-int4-ov"
       - --target_device 
-      - ${TARGET_DEVICE:-CPU} 
+      - ${TARGET_DEVICE:-GPU} 
       - --task 
       - text_generation
     healthcheck:

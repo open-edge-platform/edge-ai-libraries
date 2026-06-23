@@ -51,7 +51,7 @@ Interactive API documentation (Swagger UI) is available at `http://<host>:9001/d
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/v1/health` | Liveness probe |
-| `GET` | `/api/v1/metrics` | Basic system metrics (CPU, memory, uptime) |
+| `GET` | `/api/v1/metrics` | Basic system metrics (GPU, memory, uptime) |
 
 ---
 

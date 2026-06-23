@@ -184,7 +184,7 @@ async def health():
 async def metrics():
     """Basic system metrics."""
     return {
-        "cpu_percent": psutil.cpu_percent(interval=None),
+        "gpu_percent": psutil.gpu_percent(interval=None),
         "memory_percent": psutil.virtual_memory().percent,
         "uptime_seconds": round(time.monotonic() - _startup_time, 1),
     }
