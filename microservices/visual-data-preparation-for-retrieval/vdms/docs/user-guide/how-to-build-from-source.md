@@ -23,39 +23,42 @@ Following options are provided to build the microservice.
 ### Setup in a container using Docker Script
 
 1. Clone the repository and change to project directory:
-```bash
-# Clone the latest on mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 
-cd edge-ai-libraries/microservices/visual-data-preparation-for-retrieval/vdms
-```
+   ```bash
+   # Clone the latest on mainline
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, Clone a specific release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+
+   cd edge-ai-libraries/microservices/visual-data-preparation-for-retrieval/vdms
+   ```
 
 2. Set the required environment variables:
 
-```bash
-# OPTIONAL - If you want to push the built images to a remote container registry, you need to name the images accordingly. For this, image name should include the registry URL as well. To do this, set the following environment variable from shell. Please note that this URL will be prefixed to the application name and tag to form the final image name.
+   ```bash
+   # OPTIONAL - If you want to push the built images to a remote container registry, you need to name the images accordingly. For this, image name should include the registry URL as well. To do this, set the following environment variable from shell. Please note that this URL will be prefixed to the application name and tag to form the final image name.
 
-export REGISTRY_URL=<your-registry-url>
-export TAG=<your-yag> # Default: latest
-```
-Refer to the [environmental variable](./get-started.md#environment-variables) setup section and configure the required variables.
+   export REGISTRY_URL=<your-registry-url>
+   export TAG=<your-yag> # Default: latest
+   ```
+
+   Refer to the [environmental variable](./get-started.md#environment-variables) setup section and configure the required variables.
 
 3. Build the VDMS DataPrep Docker image. This uses the `microservices/` build context so the local `multimodal-embedding-serving` source dependency is available during image build.
 
-```bash
-./build.sh
-```
+   ```bash
+   ./build.sh
+   ```
 
-> **Note:** The script automatically honours `REGISTRY_URL`, `PROJECT_NAME`, and `TAG` (just like `setup.sh`).
+   > **Note:** The script automatically honours `REGISTRY_URL`, `PROJECT_NAME`, and `TAG` (just like `setup.sh`).
 
 4. Verify the configuration.
 
-```bash
-source ./setup.sh --conf
-```
-This will output docker compose configs with all the environment variables resolved. You can verify whether they appear as expected.
+   ```bash
+   source ./setup.sh --conf
+   ```
+
+   This will output docker compose configs with all the environment variables resolved. You can verify whether they appear as expected.
 
 5. Spin up the services. Please go through different ways to spin up the services.
 
@@ -69,19 +72,20 @@ source ./setup.sh --nd
 
 6. Tear down all the services.
 
-```bash
-source ./setup.sh --down
-```
+   ```bash
+   source ./setup.sh --down
+   ```
 
 ## Validation
 
 1. **Verify Build Success**:
-   - Check the logs. Look for confirmation messages indicating the microservice started successfully.
+
+   Check the logs. Look for confirmation messages indicating the microservice started successfully.
 
 ## Troubleshooting
 
-
 ## Supporting Resources
-* [Overview](Overview.md)
-* [System Requirements](system-requirements.md)
-* [API Reference](api-reference.md)
+
+- [Overview](Overview.md)
+- [System Requirements](system-requirements.md)
+- [API Reference](api-reference.md)
