@@ -1077,26 +1077,38 @@ class Graph:
 
     def strip_watermark_if_all_sinks_are_fake(self) -> "Graph":
         """
-        Remove all gvawatermark nodes if every sink in the graph is a fakesink.
+        Remove all gvawatermark nodes when every sink in the graph is a fakesink.
 
-        If the graph contains at least one OUTPUT_PLACEHOLDER node, it means
-        non-fakesink outputs will be added later, so the graph is returned
-        unchanged.
+        This is an opt-in optimization for execution paths that do not need
+        a rendered video output. When the only sinks present are fakesink
+        elements, no overlay is ever consumed, so the gvawatermark elements
+        only add CPU/GPU cost without any visible effect.
 
-        When all sink nodes (nodes whose type ends with "sink") are fakesink,
-        gvawatermark elements serve no purpose because there is no real video
-        output to render overlays on. Removing them avoids unnecessary
-        processing overhead.
-
-        For each removed gvawatermark node, incoming and outgoing edges are
-        reconnected so that the predecessor connects directly to the successor.
+        Behavior:
+            - If any node is an OUTPUT_PLACEHOLDER, the graph is returned
+              unchanged. The placeholder marks the spot where a real video
+              sink (filesink for output_mode=file, rtspclientsink for
+              output_mode=live_stream) will be injected later by
+              PipelineManager, so the watermark must be kept.
+            - If there are no sink nodes at all, the graph is returned
+              unchanged.
+            - If at least one sink is NOT a fakesink (for example
+              splitmuxsink used as an intermediate recorder in NVR-style
+              pipelines), the graph is returned unchanged. Pipelines that
+              persist or display the stream are expected to keep the
+              overlay.
+            - Otherwise, every gvawatermark node is removed and its
+              incoming and outgoing edges are reconnected so each
+              predecessor is wired directly to each successor (fan-in and
+              fan-out preserved).
 
         Returns:
-            Graph: New Graph instance with gvawatermark nodes removed, or self
-                if conditions are not met.
+            Graph: New Graph instance with gvawatermark nodes removed, or
+                self when the conditions above are not met.
 
         Note:
-            This creates a deep copy of the graph to avoid modifying the original.
+            When a modification is needed a deep copy of the graph is
+            created, so the original instance is never mutated.
         """
         # Early exit: if any OUTPUT_PLACEHOLDER exists, real sinks will be
         # added later, so keep gvawatermark nodes intact.
@@ -1131,6 +1143,18 @@ class Graph:
 
         modified_graph = copy.deepcopy(self)
 
+        # Compute the next available edge ID once, before the removal loop.
+        # New reconnection edges keep counting from this value, which keeps
+        # IDs unique across the whole operation and avoids an O(N*E) rescan
+        # inside the per-watermark loop.
+        max_edge_id = 0
+        for e in modified_graph.edges:
+            try:
+                max_edge_id = max(max_edge_id, int(e.id))
+            except ValueError:
+                pass
+        next_edge_id = max_edge_id + 1
+
         for wm_id in watermark_ids:
             # Find incoming edges (edges targeting this watermark node)
             incoming_edges = [e for e in modified_graph.edges if e.target == wm_id]
@@ -1150,15 +1174,6 @@ class Graph:
             ]
 
             # Reconnect: create edges from each source to each target
-            # Find max edge ID for generating new unique IDs
-            max_edge_id = 0
-            for e in modified_graph.edges:
-                try:
-                    max_edge_id = max(max_edge_id, int(e.id))
-                except ValueError:
-                    pass
-
-            next_edge_id = max_edge_id + 1
 
             for src in source_ids:
                 for tgt in target_ids:

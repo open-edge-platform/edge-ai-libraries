@@ -1,34 +1,52 @@
-# Alert Service
+# Alert Service Microservice
 
-A lightweight, config-driven microservice for ingesting, deduplicating, and routing alerts to multiple delivery targets in real time. Built with **FastAPI** and **asyncio**, the Alert Service accepts any JSON alert payload via a REST API, applies configurable field-hash deduplication to suppress duplicates within a sliding time window, and fans out each alert to one or more pluggable delivery handlers — **Webhook**, **MQTT**, and **Log** — with automatic retry on failure. All subscription rules, dedup parameters, and delivery routing are defined in a single YAML configuration file, making it easy to adapt the service to different alert types and downstream systems without changing code.
+This repository provides a FastAPI-based microservice for ingesting, deduplicating, and routing alerts to multiple delivery targets in real time. It accepts any JSON alert payload via a REST API, applies configurable field-hash deduplication strategies to suppress duplicate events within sliding time windows, and fans out alerts to pluggable delivery handlers (Webhook, MQTT, Log, and WebSockets) with automatic isolated retries on failure.
 
----
+Below, you'll find links to detailed documentation to help you get started, configure, and deploy the microservice.
 
 ## Documentation
 
-| Document | Description |
-|---|---|
-| [Overview & Architecture](docs/overview-and-architecture.md) | Features, high-level design, component tables, delivery handlers, worker/retry, MQTT mode, project structure |
-| [Getting Started](docs/get-started.md) | Prerequisites, clone & setup, Makefile reference, running tests & coverage |
-| [Configuration & Customization](docs/configure.md) | Environment variables, MQTT mode, delivery handlers override, deduplication guide, MQTT guide, WebSocket testing, QA checklist |
+- Overview
 
----
+  - [Overview](./docs/user-guide/index.md): A high-level introduction to the
+    microservice and its capabilities.
+  - [How It Works](./docs/user-guide/how-it-works.md): Internal request flow and the main
+    components of the service.
 
-## Quick Start
+- Getting Started
 
-```bash
-make init-env        # create .env from .env.example
-make build           # build Docker image
-make up              # start services
-curl http://localhost:8000/api/v1/health   # verify
-```
+  - [Get Started](./docs/user-guide/get-started.md): Step-by-step entry point that walks
+    you through your first run.
+  - [System Requirements](./docs/user-guide/get-started/system-requirements.md): Hardware, OS, and
+    runtime prerequisites.
+  - [Run in Docker](./docs/user-guide/get-started/run-container.md): Step-by-step guide to running
+    the microservice in a container.
+  - [Run on the Host](./docs/user-guide/get-started/run-standalone.md): Step-by-step guide to
+    running the microservice directly on the host.
 
-Post an alert:
+- Deployment
 
-```bash
-curl -X POST http://localhost:8000/api/v1/alerts \
-  -H "Content-Type: application/json" \
-  -d '{"alert_type":"test","metadata":{"zone":"A"},"payload":{"msg":"hello"}}'
-```
+  - [Build From Source](./docs/user-guide/get-started/build-from-source.md): Instructions for
+    building the microservice from source.
+  - [Configuration](./docs/user-guide/get-started/configuration.md): Instructions for changing the
+    microservice configuration.
 
-See [Getting Started](docs/get-started.md) for full details.
+- API Reference
+
+  - [API Reference](./docs/user-guide/api-reference.md): Comprehensive reference for the
+    available REST API and WebSocket endpoints.
+
+- Support
+
+  - [Troubleshooting](./docs/user-guide/troubleshooting.md): Common issues and how to
+    resolve them.
+
+- Release Notes
+
+  - [Release Notes](./docs/user-guide/release-notes.md): Notable updates, improvements,
+    and known limitations.
+
+## Notes
+
+- Do not use this page as the run guide; use the linked docs above.
+- Ingestion is case-sensitive: alert types sent by API clients must match the subscriptions in `config/config.yaml` exactly.

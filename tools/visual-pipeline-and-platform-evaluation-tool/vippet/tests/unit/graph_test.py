@@ -5187,6 +5187,46 @@ class TestStripWatermarkIfAllSinksAreFake(unittest.TestCase):
         edge_ids = [e.id for e in result.edges]
         self.assertEqual(len(edge_ids), len(set(edge_ids)), "Edge IDs must be unique")
 
+    def test_removes_chained_watermarks_with_unique_ids(self):
+        """Direct ``gvawatermark -> gvawatermark`` chain must be fully removed.
+
+        This is the adversarial case for the reconnection logic: the edge
+        added when the first watermark is dropped immediately becomes an
+        input of the second watermark, so it is removed again in the
+        next iteration. The end result must be a single ``src -> sink``
+        edge with an ID that does not collide with any other edge in the
+        resulting graph.
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={}),
+                Node(id="1", type="gvawatermark", data={}),
+                Node(id="2", type="gvawatermark", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        result = graph.strip_watermark_if_all_sinks_are_fake()
+
+        # Both watermark nodes are gone, only src and sink remain.
+        result_types = [n.type for n in result.nodes]
+        self.assertNotIn("gvawatermark", result_types)
+        self.assertEqual(len(result.nodes), 2)
+
+        # Exactly one edge connecting filesrc directly to fakesink.
+        self.assertEqual(len(result.edges), 1)
+        self.assertEqual(result.edges[0].source, "0")
+        self.assertEqual(result.edges[0].target, "3")
+
+        # Edge IDs are unique strings.
+        edge_ids = [e.id for e in result.edges]
+        self.assertEqual(len(edge_ids), len(set(edge_ids)))
+
 
 class TestPrepareMainOutputPlaceholder(unittest.TestCase):
     """Test cases for Graph.prepare_main_output_placeholder method."""

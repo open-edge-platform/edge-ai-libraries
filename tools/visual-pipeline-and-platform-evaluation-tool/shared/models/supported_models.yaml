@@ -164,6 +164,82 @@
     config:
       quantize: coco128
 
+- name: yolo11s-pose
+  display_name: YOLO 11s Pose
+  source: public
+  hub: ultralytics
+  type: detection
+  precisions:
+    - precision: FP32
+      model_path: ultralytics/public/yolo11s-pose/FP32/yolo11s-pose.xml
+      model_proc: ""
+    - precision: FP16
+      model_path: ultralytics/public/yolo11s-pose/FP16/yolo11s-pose.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: true
+  download_request:
+    hub: ultralytics
+    name: yolo11s-pose
+
+- name: yolo11n-pose
+  display_name: YOLO 11n Pose
+  source: public
+  hub: ultralytics
+  type: detection
+  precisions:
+    - precision: FP32
+      model_path: ultralytics/public/yolo11n-pose/FP32/yolo11n-pose.xml
+      model_proc: ""
+    - precision: FP16
+      model_path: ultralytics/public/yolo11n-pose/FP16/yolo11n-pose.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: true
+  download_request:
+    hub: ultralytics
+    name: yolo11n-pose
+
+- name: yolo11s-seg
+  display_name: YOLO 11s Segmentation
+  source: public
+  hub: ultralytics
+  type: detection
+  precisions:
+    - precision: FP32
+      model_path: ultralytics/public/yolo11s-seg/FP32/yolo11s-seg.xml
+      model_proc: ""
+    - precision: FP16
+      model_path: ultralytics/public/yolo11s-seg/FP16/yolo11s-seg.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: true
+  download_request:
+    hub: ultralytics
+    name: yolo11s-seg
+
+- name: yolo11n-seg
+  display_name: YOLO 11n Segmentation
+  source: public
+  hub: ultralytics
+  type: detection
+  precisions:
+    - precision: FP32
+      model_path: ultralytics/public/yolo11n-seg/FP32/yolo11n-seg.xml
+      model_proc: ""
+    - precision: FP16
+      model_path: ultralytics/public/yolo11n-seg/FP16/yolo11n-seg.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: true
+  download_request:
+    hub: ultralytics
+    name: yolo11n-seg
+
 - name: face-detection-retail-0004
   display_name: Face Detection Retail 0004
   source: omz

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     # Service
     APP_NAME: str = "Alert Service"
+    TAG: str = "2026.1.0"
     API_V1_PREFIX: str = "/api/v1"
     LOG_LEVEL: str = "INFO"
     DEBUG: bool = False

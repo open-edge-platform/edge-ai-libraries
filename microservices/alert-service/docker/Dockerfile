@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 FROM python:3.12.12-slim AS build
 
 WORKDIR /app
