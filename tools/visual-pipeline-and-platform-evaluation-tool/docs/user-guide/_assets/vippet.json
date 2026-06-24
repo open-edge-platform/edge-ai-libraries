@@ -55,6 +55,55 @@
         }
       }
     },
+    "/benchmarks": {
+      "get": {
+        "tags": [
+          "benchmarks"
+        ],
+        "summary": "List all benchmark definitions",
+        "description": "Return all benchmark definitions with setup rows selected by benchmark type.\n\n- performance -> setup rows from BenchmarkPerformanceSetup\n- density -> setup rows from BenchmarkDensitySetup",
+        "operationId": "get_benchmarks",
+        "responses": {
+          "200": {
+            "description": "List of benchmark definitions with setup rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/BenchmarkWithPerformanceSetup"
+                      },
+                      {
+                        "$ref": "#/components/schemas/BenchmarkWithDensitySetup"
+                      },
+                      {
+                        "$ref": "#/components/schemas/BenchmarkWithPerformanceSetup"
+                      },
+                      {
+                        "$ref": "#/components/schemas/BenchmarkWithDensitySetup"
+                      }
+                    ]
+                  },
+                  "type": "array",
+                  "title": "Response 200 Get Benchmarks"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/convert/to-graph": {
       "post": {
         "tags": [
@@ -2382,6 +2431,46 @@
         }
       }
     },
+    "/tests/database/connection": {
+      "get": {
+        "tags": [
+          "tests"
+        ],
+        "summary": "Test database connection",
+        "description": "Run a simple query to verify the database connection.\n\nThis endpoint is intended for manual runtime checks in deployed\nenvironments (for example, Docker Compose) to confirm the API can\nconnect to its configured database.\n\nReturns:\n    JSONResponse: status details and query result.",
+        "operationId": "test_database_connection",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tests/database/benchmarks": {
+      "get": {
+        "tags": [
+          "tests"
+        ],
+        "summary": "List Benchmark table contents",
+        "description": "Return all rows from the Benchmark table.",
+        "operationId": "list_benchmarks",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/tests/performance": {
       "post": {
         "tags": [
@@ -3006,6 +3095,120 @@
         ],
         "title": "AppStatus",
         "description": "**Application status enum for tracking initialization progress.**\n\n## Values\n- `STARTING` - Application is starting, no initialization yet\n- `INITIALIZING` - Application is initializing resources (e.g., loading videos)\n- `READY` - Application is fully initialized and ready to serve requests\n- `SHUTDOWN` - Application is shutting down\n\n### Example\n```json\n\"ready\"\n```"
+      },
+      "BenchmarkDensitySetup": {
+        "properties": {
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id"
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "participation_rate": {
+            "type": "number",
+            "title": "Participation Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_id",
+          "variant_id",
+          "participation_rate"
+        ],
+        "title": "BenchmarkDensitySetup",
+        "description": "Pipeline setup entry for a density benchmark."
+      },
+      "BenchmarkPerformanceSetup": {
+        "properties": {
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id"
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "streams": {
+            "type": "integer",
+            "title": "Streams"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_id",
+          "variant_id",
+          "streams"
+        ],
+        "title": "BenchmarkPerformanceSetup",
+        "description": "Pipeline setup entry for a performance benchmark."
+      },
+      "BenchmarkWithDensitySetup": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "const": "density",
+            "title": "Type"
+          },
+          "setups": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkDensitySetup"
+            },
+            "type": "array",
+            "title": "Setups"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "setups"
+        ],
+        "title": "BenchmarkWithDensitySetup",
+        "description": "Density benchmark with setup rows from benchmark_density_setups."
+      },
+      "BenchmarkWithPerformanceSetup": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "const": "performance",
+            "title": "Type"
+          },
+          "setups": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkPerformanceSetup"
+            },
+            "type": "array",
+            "title": "Setups"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "setups"
+        ],
+        "title": "BenchmarkWithPerformanceSetup",
+        "description": "Performance benchmark with setup rows from benchmark_performance_setups."
       },
       "Body_upload_image_archive": {
         "properties": {
