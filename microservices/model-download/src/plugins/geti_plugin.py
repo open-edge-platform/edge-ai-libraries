@@ -14,6 +14,7 @@ from geti_sdk.http_session.exception import GetiRequestException
 from geti_sdk.rest_clients import ModelClient, ProjectClient
 
 from src.core.interfaces import DownloadTask, ModelDownloadPlugin
+from src.utils.helper import make_tree_writable
 from src.utils.logging import logger
 
 # Constants
@@ -651,6 +652,10 @@ class GetiPlugin(ModelDownloadPlugin):
             with tarfile.open(archive_path, "r:gz") as tar_ref:
                 safe_members = [m for m in tar_ref.getmembers() if _is_safe(m.name)]
                 tar_ref.extractall(extract_dir, members=safe_members)
+
+        # Extracted entries keep the archive's stored modes (which can be
+        # read-only); make them user/group writable so the model is editable.
+        make_tree_writable(extract_dir)
 
     async def extract_model_files(self, model_dir: str) -> None:
         """Extract nested model files from SDK structure.

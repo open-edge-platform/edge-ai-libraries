@@ -4,10 +4,29 @@
 import io
 import os
 import re
+import stat
 import zipfile
 import shutil
 from fastapi import HTTPException
 from .logging import logger
+
+
+def make_tree_writable(path: str) -> None:
+    """Add user+group write permission to every file and directory under ``path``.
+
+    Archive extraction (tar/zip) preserves the mode bits stored in the archive
+    and chmods each entry explicitly, bypassing the process umask. That can
+    leave downloaded models read-only. Walk ``path`` and add user+group write
+    so the mounted models volume stays editable by the shared group, while
+    preserving existing read/exec bits.
+    """
+    for root, dirs, files in os.walk(path):
+        for name in dirs + files:
+            entry = os.path.join(root, name)
+            try:
+                os.chmod(entry, os.stat(entry).st_mode | stat.S_IWUSR | stat.S_IWGRP)
+            except OSError as exc:
+                logger.warning(f"Could not set writable permission on {entry}: {exc}")
 
 
 def sanitize_path_part(value: str, field_name: str) -> str:

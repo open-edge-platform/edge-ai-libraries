@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Make downloaded artifacts group-writable (dirs 0775, files 0664) so the
+# mounted models volume can be edited by members of the shared group.
+umask 0002
+
 # Define color codes for messages
 GREEN='\033[0;32m'
 RED='\033[0;31m'

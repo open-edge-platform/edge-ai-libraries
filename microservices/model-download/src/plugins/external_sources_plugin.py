@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from src.core.interfaces import DownloadTask, ModelDownloadPlugin
+from src.utils.helper import make_tree_writable
 from src.utils.logging import logger
 
 
@@ -335,6 +336,9 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
                 msg = f"Downloaded file from {url!r} is not a valid tar archive: {e}"
                 logger.error(msg)
                 raise RuntimeError(msg)
+            # Extracted entries keep the archive's stored modes (which can be
+            # read-only); make them user/group writable so the model is editable.
+            make_tree_writable(target_dir)
 
     def _fetch_omz(self, hub: str, model_name: str, target_dir: str) -> None:
         """Download and convert an OMZ model using omz_downloader/omz_converter."""
