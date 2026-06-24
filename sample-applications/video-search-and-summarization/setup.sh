@@ -355,7 +355,7 @@ configure_device() {
     local accel="$1"  # "GPU", "NPU", or "CPU"
 
     if [[ "${accel}" == GPU* ]]; then
-        echo -e "${YELLOW}⚙️  GPU acceleration requested for one or more components...${NC}"
+        echo -e "${YELLOW}GPU acceleration requested for one or more components...${NC}"
         if ! lspci | grep -i "vga.*intel" > /dev/null 2>&1; then
             echo -e "${RED}Warning: No Intel GPU detected. GPU mode may not work properly.${NC}" >&2
         else
@@ -368,7 +368,7 @@ configure_device() {
         fi
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
     elif [[ "${accel}" == NPU* ]]; then
-        echo -e "${YELLOW}⚙️  NPU acceleration requested for one or more components...${NC}"
+        echo -e "${YELLOW}NPU acceleration requested for one or more components...${NC}"
         if [[ ! -e "/dev/accel/accel0" ]]; then
             echo -e "${RED}Warning: /dev/accel/accel0 not found. NPU acceleration may not be available.${NC}" >&2
         else

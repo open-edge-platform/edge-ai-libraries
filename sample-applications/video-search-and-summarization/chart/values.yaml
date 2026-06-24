@@ -96,7 +96,8 @@ global:
     VDMS_DATAPREP_LOG_LEVEL: "INFO"
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart
 
-# sharedClaimSize is the storage size for the shared collector-signals PVC.
+# sharedClaimSize is the storage size for the shared collector-signals PVC
+# consumed by pipeline-manager and vss-collector.
 sharedClaimSize: "7Gi"
 
 rabbitmq:

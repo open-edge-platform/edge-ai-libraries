@@ -65,6 +65,7 @@ export VLM_ACCESS_LOG_FILE="/dev/null"
 - **VLM_MAX_COMPLETION_TOKENS**: Limit response length
 - **HUGGINGFACE_TOKEN**: Required for gated models
 - **VLM_TELEMETRY_PATH / VLM_TELEMETRY_MAX_RECORDS**: Configure where `/v1/telemetry` data is stored and how many records are retained
+- **NPU export profile knobs**: `VLM_NPU_EXPORT_PROFILE`, `VLM_NPU_VLM_NUM_SAMPLES`, `VLM_NPU_VLM_GROUP_SIZE`, `VLM_NPU_VLM_RATIO`, and `VLM_NPU_VLM_SENSITIVITY_METRIC` (see [Environment Variables Guide](./environment-variables.md#vlm_npu_export_profile))
 
 For detailed information about each variable, configuration examples, and advanced setups, refer to the [Environment Variables Guide](./environment-variables.md).
 
