@@ -3554,6 +3554,7 @@
               "output_mode": "disabled",
               "max_runtime": 0.0,
               "metadata_mode": "disabled",
+              "test_run": false,
               "enable_latency_metrics": false
             },
             "examples": [
@@ -3674,6 +3675,12 @@
             "description": "Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints.",
             "default": "disabled"
           },
+          "test_run": {
+            "type": "boolean",
+            "title": "Test Run",
+            "description": "Controls test-run persistence behavior. false (default): use normal database persistence. true: do not save test data to the database.",
+            "default": false
+          },
           "enable_latency_metrics": {
             "type": "boolean",
             "title": "Enable Latency Metrics",
@@ -3683,7 +3690,7 @@
         },
         "type": "object",
         "title": "ExecutionConfig",
-        "description": "**Configuration for pipeline execution behavior.**\n\nThis configuration controls output generation, runtime limits, and\nmetadata publishing for test pipelines.\n\n## Attributes\n- `output_mode` - Mode for pipeline output generation:\n  - `disabled` - No output (fakesink remains, default)\n  - `file` - Save video to file (only allowed with max_runtime=0)\n  - `live_stream` - Stream output live to media server\n- `max_runtime` - Maximum runtime in seconds for the pipeline:\n  - 0: Run until natural completion (EOS), no time limit (default)\n  - >0: Stop pipeline after this duration, with looping if EOS comes early (only allowed with output_mode=disabled or output_mode=live_stream)\n  - <0: Not allowed (will be rejected)\n- `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:\n  - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)\n  - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints\n\n### Example (disabled output, no runtime limit)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (save to file, run until EOS)\n```json\n{\n  \"output_mode\": \"file\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (live streaming with 60 second limit)\n```json\n{\n  \"output_mode\": \"live_stream\",\n  \"max_runtime\": 60\n}\n```\n\n### Example (metadata publishing to file)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0,\n  \"metadata_mode\": \"file\"\n}\n```"
+        "description": "**Configuration for pipeline execution behavior.**\n\nThis configuration controls output generation, runtime limits,\nmetadata publishing, and test-run mode for test pipelines.\n\n## Attributes\n- `output_mode` - Mode for pipeline output generation:\n  - `disabled` - No output (fakesink remains, default)\n  - `file` - Save video to file (only allowed with max_runtime=0)\n  - `live_stream` - Stream output live to media server\n- `max_runtime` - Maximum runtime in seconds for the pipeline:\n  - 0: Run until natural completion (EOS), no time limit (default)\n  - >0: Stop pipeline after this duration, with looping if EOS comes early (only allowed with output_mode=disabled or output_mode=live_stream)\n  - <0: Not allowed (will be rejected)\n- `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:\n  - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)\n  - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints\n- `test_run` - Controls test-run persistence behavior:\n  - `false` - Run with normal database persistence (default)\n  - `true` - Run without saving test data to the database\n\n### Example (disabled output, no runtime limit)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (save to file, run until EOS)\n```json\n{\n  \"output_mode\": \"file\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (live streaming with 60 second limit)\n```json\n{\n  \"output_mode\": \"live_stream\",\n  \"max_runtime\": 60\n}\n```\n\n### Example (metadata publishing to file)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0,\n  \"metadata_mode\": \"file\"\n}\n```\n\n### Example (test-run enabled)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0,\n  \"metadata_mode\": \"disabled\",\n  \"test_run\": true\n}\n```"
       },
       "GraphInline": {
         "properties": {
@@ -4797,6 +4804,7 @@
               "output_mode": "disabled",
               "max_runtime": 0.0,
               "metadata_mode": "disabled",
+              "test_run": false,
               "enable_latency_metrics": false
             },
             "examples": [
