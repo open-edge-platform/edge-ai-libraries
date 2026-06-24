@@ -416,9 +416,7 @@ curl -X GET "http://<host-ip>:8200/api/v1/jobs/<job_id>"
   "output_dir": "/opt/models/ultra_folder",
   "status": "completed",
   "start_time": "2025-10-27T08:24:23.510870",
-  "plugin_name": "ultralytics",
   "model_type": "vision",
-  "plugin": "ultralytics",
   "completion_time": "2025-10-27T08:30:14.443898",
   "result": {
     "model_name": "yolov8s",

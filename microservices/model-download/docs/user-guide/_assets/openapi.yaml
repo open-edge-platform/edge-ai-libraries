@@ -172,9 +172,6 @@ components:
         output_dir:
           type: string
           description: Output directory for the operation
-        plugin_name:
-          type: string
-          description: Plugin handling the operation
         creation_time:
           type: string
           format: date-time
