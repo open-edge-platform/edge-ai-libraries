@@ -98,6 +98,31 @@ simplified view (`pipeline_graph_simple`) used by the visual editor. `vippet/gra
 GStreamer description and the graph form, and applies the `SIMPLE_VIEW_VISIBLE_ELEMENTS` /
 `SIMPLE_VIEW_INVISIBLE_ELEMENTS` filtering rules that decide which elements appear in the simplified canvas.
 
+### Automatic Graph Transformations
+
+`PipelineManager.build_pipeline_command()` does not run the variant graph as-is. For every stream it
+applies a small set of deterministic transformations defined in `vippet/graph.py`, so the same graph can
+be reused across different output modes without changes to the YAML or the saved user definition:
+
+- **Intermediate sink rewriting** (`prepare_intermediate_output_sinks`) — gives every non-fakesink
+  terminal a unique, stream-scoped file location under the job output directory.
+- **Main output placeholder** (`prepare_main_output_placeholder`) — when `output_mode` is `file` or
+  `live_stream`, the default `fakesink name=default_output_sink` is converted to an
+  `OUTPUT_PLACEHOLDER` node. It is replaced later by the encoder + filesink (for `file`) or by the
+  encoder + rtspclientsink (for `live_stream`) subpipeline built by `video_encoder`.
+- **Metadata file injection** (`inject_metadata_file_paths`) — when `metadata_mode=file`, every
+  `gvametapublish` node gets a unique file path under the job metadata directory.
+- **Automatic `gvawatermark` stripping** (`strip_watermark_if_all_sinks_are_fake`) — removes every
+  `gvawatermark` node when the only terminals left are fakesinks, i.e. there is no rendered video
+  output that would consume the overlay. The watermark is preserved whenever an `OUTPUT_PLACEHOLDER`
+  is present (`output_mode=file` or `live_stream`) or any non-fakesink terminal exists in the graph
+  (for example a `splitmuxsink` in NVR-style pipelines that records the stream itself). This keeps
+  the default `output_mode=disabled` measurement free of the overlay-rendering cost without
+  affecting live view, file output, or pipelines that persist the video.
+- **Unique element names and source/sink identifiers** (`unify_all_element_names`,
+  `apply_stream_identifiers`) — assigns deterministic, stream-unique names to every element so the
+  latency tracer can correlate its rows back to a specific source/sink pair.
+
 ### Job and Metrics Flow
 
 Tests, optimization runs, and validation runs are tracked as jobs. Each job has a status (`PENDING`,
