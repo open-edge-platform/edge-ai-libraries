@@ -164,21 +164,21 @@ def process(data: list[dict[str, int]] | None) -> bool:
 
 ViPPET has two test suites:
 
-| Suite | Framework | Location | Where it runs |
-|---|---|---|---|
-| Unit | `unittest` + coverage | `vippet/tests/unit/` | Inside the `test` Docker image |
-| Functional | `pytest` | `vippet/tests/functional/` | Local Python venv (`.venv`) |
+| Suite      | Framework             | Location                   | Where it runs                  |
+|------------|-----------------------|----------------------------|--------------------------------|
+| Unit       | `unittest` + coverage | `vippet/tests/unit/`       | Inside the `test` Docker image |
+| Functional | `pytest`              | `vippet/tests/functional/` | Local Python venv (`.venv`)    |
 
 ### How to run the tests
 
 All test targets are available through the `Makefile`. Run them from the
 repository root.
 
-| Command | What it does |
-|---|---|
-| `make test` | Run the full unit-test suite with coverage (Docker, `cpu` profile). |
-| `make test-smoke` | Run functional tests marked `smoke` (fast subset, local venv). |
-| `make test-full` | Run the complete functional suite (local venv). |
+| Command           | What it does                                                        |
+|-------------------|---------------------------------------------------------------------|
+| `make test`       | Run the full unit-test suite with coverage (Docker, `cpu` profile). |
+| `make test-smoke` | Run functional tests marked `smoke` (fast subset, local venv).      |
+| `make test-full`  | Run the complete functional suite (local venv).                     |
 
 #### Unit tests
 
