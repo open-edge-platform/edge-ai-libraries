@@ -19,14 +19,14 @@ sources:
     kind: omz
 
   # Generic runtime tarball hub. The archive URL is supplied per-request in
-  # `config.url` (an optional `{model_name}` placeholder is substituted), then
+  # `config.url` (an optional `{name}` placeholder is substituted), then
   # validated against the allowlist below before download.
   #
   # The allowlist is matched as `host + path-prefix` on the parsed URL
   # (scheme is forced to https). `EXTERNAL_SOURCES_URL_ALLOWLIST` (comma
   # separated), if set, REPLACES `allowed_prefixes`. An empty allowlist
   # rejects all runtime URLs (secure by default).
-  url:
+  remote-url:
     kind: tarball
     allowed_prefixes:
       - github.com/open-edge-platform/edge-ai-resources/

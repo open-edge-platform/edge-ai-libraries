@@ -357,7 +357,7 @@ async def list_plugins():
         "available_plugins": plugins_info,
         "total_count": total_plugins,
         "available_count": available_plugins,
-        "activation_instructions": "To enable/disable hubs, restart the container with --plugins specifying the hubs you need (e.g. huggingface,openvino,ultralytics,ollama,pipeline-zoo-models,url,omz) or 'all' to enable everything"
+        "activation_instructions": "To enable/disable hubs, restart the container with --plugins specifying the hubs you need (e.g. huggingface,openvino,ultralytics,ollama,pipeline-zoo-models,remote-url,omz) or 'all' to enable everything"
     }
 
 

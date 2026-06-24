@@ -31,7 +31,7 @@ class TestPluginProperties:
     def test_supported_hubs(self, plugin):
         hubs = plugin.supported_hubs()
         assert "pipeline-zoo-models" in hubs
-        assert "url" in hubs
+        assert "remote-url" in hubs
         assert "omz" in hubs
 
     @pytest.mark.parametrize(
@@ -41,7 +41,7 @@ class TestPluginProperties:
             ("OMZ", True),
             ("pipeline-zoo-models", True),
             ("pipeline_zoo_models", True),
-            ("url", True),
+            ("remote-url", True),
             ("huggingface", False),
             ("", False),
         ],
@@ -79,7 +79,7 @@ class TestDownloadValidation:
 class TestTarballDownload:
     _ALLOWED_URL = (
         "https://github.com/open-edge-platform/edge-ai-resources/raw/main/"
-        "timeseries-udf-deployment-packages/{model_name}.tar"
+        "timeseries-udf-deployment-packages/{name}.tar"
     )
 
     def test_runtime_url_tarball(self, plugin, temp_dir, monkeypatch):
@@ -93,15 +93,15 @@ class TestTarballDownload:
         monkeypatch.setattr(plugin, "_download_and_extract_tarball", fake_extract)
 
         result = plugin.download(
-            "pkg-a", temp_dir, hub="url", config={"url": self._ALLOWED_URL}
+            "pkg-a", temp_dir, hub="remote-url", config={"url": self._ALLOWED_URL}
         )
 
-        # {model_name} is substituted before download.
+        # {name} is substituted before download.
         assert captured["url"].endswith("/pkg-a.tar")
-        target = Path(temp_dir) / "url" / "pkg-a"
+        target = Path(temp_dir) / "remote-url" / "pkg-a"
         assert (target / "model.xml").is_file()
         assert result["success"] is True
-        assert result["source"] == "url"
+        assert result["source"] == "remote-url"
 
     def test_shared_archive_tarball(self, plugin, temp_dir, monkeypatch):
         # Build a fake extracted shared archive and skip the network fetch.
@@ -130,10 +130,10 @@ class TestTarballDownload:
 
         with pytest.raises(RuntimeError, match="network down"):
             plugin.download(
-                "pkg-a", temp_dir, hub="url", config={"url": self._ALLOWED_URL}
+                "pkg-a", temp_dir, hub="remote-url", config={"url": self._ALLOWED_URL}
             )
 
-        assert not (Path(temp_dir) / "url" / "pkg-a").exists()
+        assert not (Path(temp_dir) / "remote-url" / "pkg-a").exists()
 
 
 class TestRuntimeUrlValidation:
@@ -202,7 +202,7 @@ class TestRuntimeUrlValidation:
 
     def test_url_hub_requires_config_url(self, plugin, temp_dir):
         with pytest.raises(ValueError, match="requires 'url'"):
-            plugin.download("pkg-a", temp_dir, hub="url")
+            plugin.download("pkg-a", temp_dir, hub="remote-url")
 
 
 class TestOmzDownload:

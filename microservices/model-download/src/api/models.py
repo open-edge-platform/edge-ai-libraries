@@ -76,7 +76,7 @@ class ModelHub(str, Enum):
     OPENVINO = "openvino"
     GETI = "geti"
     HLS = "hls"
-    URL = "url"
+    REMOTE_URL = "remote-url"
     OMZ = "omz"
 
 class ModelType(str, Enum):

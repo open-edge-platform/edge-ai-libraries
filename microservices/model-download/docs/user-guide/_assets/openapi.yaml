@@ -43,7 +43,7 @@ components:
         - openvino
         - geti
         - hls
-        - url
+        - remote-url
       description: |
         The model hub source to download from. Each hub maps to a
         download mechanism (HuggingFace API, OpenVINO export, tarball
@@ -371,8 +371,10 @@ paths:
         - HUGGINGFACEHUB_API_TOKEN is required for gated/private HuggingFace models and for conversion
         - No authentication needed for Ollama, Ultralytics, Pipeline Zoo Models, Geti™, or HLS models
 
-        **URL Source (`url` hub):**
-        - Downloads a tarball from a runtime-provided `config.url`, validated against an allowlist of trusted host/path prefixes.
+        **URL Source (`remote-url` hub):**
+        - Downloads a per-model archive from a runtime-provided `config.url`, validated against an allowlist of trusted host/path prefixes.
+        - The URL must point to a tar archive (ex: `.tar`, `.tar.gz`) containing a single model's files — not a shared archive bundling multiple models.
+        - Use the optional `{name}` placeholder in `config.url`; it is replaced with the model's `name` field before download.
         - Set `EXTERNAL_SOURCES_URL_ALLOWLIST` (comma-separated) to override the default allowed prefixes.
 
         **Job Processing:**
@@ -435,14 +437,14 @@ paths:
                   models:
                     - name: dbnet
                       hub: pipeline-zoo-models
-              url_download:
-                summary: Download URL Tarball model
+              remote_url_download:
+                summary: Download Remote-URL model
                 value:
                   models:
                     - name: wind-turbine-anomaly-detection
-                      hub: url
+                      hub: remote-url
                       config:
-                        url: "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{model_name}.tar"
+                        url: "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{name}.tar"
               omz_download:
                 summary: Download OMZ model
                 value:
@@ -496,7 +498,7 @@ paths:
                 unsupported_hub:
                   summary: Unsupported model hub
                   value:
-                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'pipeline-zoo-models', 'omz', 'openvino', 'geti', 'hls', 'url'}."
+                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'pipeline-zoo-models', 'omz', 'openvino', 'geti', 'hls', 'remote-url'}."
                 plugin_unavailable:
                   summary: Plugin dependencies not installed
                   value:

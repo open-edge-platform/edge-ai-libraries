@@ -71,7 +71,7 @@ pipeline-zoo-models = [
     # when ENABLED_PLUGINS is set to pipeline-zoo-models.
 ]
 
-url = [
+remote-url = [
     # Intentionally empty: plugin uses Python stdlib only.
 ]
 

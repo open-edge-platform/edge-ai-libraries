@@ -60,6 +60,12 @@ export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
 
 > **Note:** For Geti™ software setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
 
+To customize the `remote-url` hub allowlist (optional), set:
+
+```bash
+export EXTERNAL_SOURCES_URL_ALLOWLIST=<comma-separated host/path prefixes> # optional; when unset, the default allowlist in src/plugins/external_sources/sources.yaml is used
+```
+
 ### 4. Launch the service and enable the plugins
 
 ```bash
@@ -101,7 +107,7 @@ down                   Stop the services
    - Start the service with default settings: `source scripts/run_service.sh up`
    - Stop the service: `source scripts/run_service.sh down`
    - Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
-  - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,pipeline-zoo-models,url,omz,geti`
+  - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,pipeline-zoo-models,remote-url,omz,geti`
    - Use a custom model storage: `source scripts/run_service.sh up --model-path /data/my-models`
    - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
    - Display usage information: `source scripts/run_service.sh --help`
@@ -302,13 +308,13 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=pipelin
 
 > **Note:** You can pass `"name": "all"` to download all available models from the Pipeline Zoo `storage` directory.
 
-**Download a tarball model from a runtime URL (`url` hub):**
+**Download a tarball model at runtime from a remote URL (`remote-url` hub):**
 
-Provide the archive URL in `config.url`. An optional `{model_name}` placeholder
-is substituted with `name` before download. The URL is validated against an
+Provide the archive URL in `config.url`. An optional `{name}` placeholder
+is replaced with the model's `name` field before download. The URL is validated against an
 allowlist (`host + path` prefixes) before fetching — scheme must be `https`.
 
-The allowlist defaults to `allowed_prefixes` in `sources.yaml` and can be
+The allowlist defaults to `allowed_prefixes` in `sources.yaml`. It can optionally be
 overridden per deployment with `EXTERNAL_SOURCES_URL_ALLOWLIST` (comma-separated;
 when set it **replaces** the YAML list). An empty allowlist rejects all runtime
 URLs.
@@ -320,9 +326,9 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=udf_tim
     "models": [
       {
         "name": "wind-turbine-anomaly-detection",
-        "hub": "url",
+        "hub": "remote-url",
         "config": {
-          "url": "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{model_name}.tar"
+          "url": "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{name}.tar"
         }
       }
     ],
@@ -330,7 +336,32 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=udf_tim
   }'
 ```
 
-> **Note:** Pass hub names (`pipeline-zoo-models`, `url`) directly to `--plugins`. The internal plugin implementation is shared but not user-visible.
+> **Note:** The URL must point to a tar archive (ex: `.tar`, `.tar.gz`) containing a single model's files — not a shared archive bundling multiple models.
+
+> **Note:** Pass hub names (`pipeline-zoo-models`, `remote-url`) directly to `--plugins`. The internal plugin implementation is shared but not user-visible.
+
+**Download an Open Model Zoo (OMZ) model:**
+
+The model is fetched with `omz_downloader`, converted to OpenVINO IR with
+`omz_converter`, and any model-specific post-processing (model-proc JSON, label
+injection) declared in `omz_rules.yaml` is applied automatically.
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=omz_model" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "mobilenet-v2-pytorch",
+        "hub": "omz"
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+> **Note:** Models without a matching entry in `omz_rules.yaml` are downloaded and
+> converted, but no post-processing is applied.
 
 **Download fixed HLS models (3D pose, rPPG, AI-ECG):**
 

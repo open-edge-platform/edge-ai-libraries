@@ -3,9 +3,9 @@
 
 """External sources downloader plugin.
 
-Handles tarball-based hubs (``pipeline-zoo-models``, ``url``) and OMZ
-downloads via a YAML-driven dispatch on ``kind``. The ``url`` hub takes an
-archive URL from the request (``config.url``) and validates it against an
+Handles tarball-based hubs (``pipeline-zoo-models``, ``remote-url``) and OMZ
+downloads via a YAML-driven dispatch on ``kind``. The ``remote-url`` hub takes
+an archive URL from the request (``config.url``) and validates it against an
 allowlist before downloading.
 """
 
@@ -18,6 +18,7 @@ import subprocess
 import tarfile
 import tempfile
 import threading
+import urllib.error
 import urllib.parse
 import urllib.request
 from functools import lru_cache
@@ -130,15 +131,15 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         target_dir = os.path.join(output_dir, hub, model_name)
         kind = profile.get("kind")
 
-        # The 'url' hub takes the archive URL from the request and validates it
-        # against the allowlist before download.
+        # The 'remote-url' hub takes the archive URL from the request and validates
+        # it against the allowlist before download.
         runtime_url: Optional[str] = None
-        if hub == "url":
+        if hub == "remote-url":
             config = kwargs.get("config") or {}
             raw_url = config.get("url") if isinstance(config, dict) else None
             if not raw_url or not str(raw_url).strip():
-                raise ValueError("hub 'url' requires 'url' in the request config")
-            runtime_url = str(raw_url).strip().replace("{model_name}", model_name)
+                raise ValueError("hub 'remote-url' requires 'url' in the request config")
+            runtime_url = str(raw_url).strip().replace("{name}", model_name)
             self._validate_runtime_url(runtime_url, self._resolve_allowlist(profile))
 
         try:
@@ -310,9 +311,30 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         """Download a tarball from URL and extract it to target_dir."""
         with tempfile.TemporaryDirectory(prefix="ext-") as tmp_dir:
             archive_path = os.path.join(tmp_dir, "archive.tar.gz")
-            urllib.request.urlretrieve(url, archive_path)  # noqa: S310
-            with tarfile.open(archive_path, "r:*") as tar_ref:
-                tar_ref.extractall(path=target_dir, filter="data")
+            try:
+                urllib.request.urlretrieve(url, archive_path)  # noqa: S310
+            except urllib.error.HTTPError as e:
+                msg = (
+                    f"Failed to download archive from {url!r}: "
+                    f"HTTP {e.code} {e.reason}. Verify the model name and "
+                    "that the archive exists at the resolved URL."
+                )
+                logger.error(msg)
+                raise RuntimeError(msg)
+            except urllib.error.URLError as e:
+                msg = (
+                    f"Failed to reach archive URL {url!r}: {e.reason}. "
+                    "Check network connectivity and that the host is reachable."
+                )
+                logger.error(msg)
+                raise RuntimeError(msg)
+            try:
+                with tarfile.open(archive_path, "r:*") as tar_ref:
+                    tar_ref.extractall(path=target_dir, filter="data")
+            except tarfile.TarError as e:
+                msg = f"Downloaded file from {url!r} is not a valid tar archive: {e}"
+                logger.error(msg)
+                raise RuntimeError(msg)
 
     def _fetch_omz(self, hub: str, model_name: str, target_dir: str) -> None:
         """Download and convert an OMZ model using omz_downloader/omz_converter."""
