@@ -25,7 +25,8 @@ variants:
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !
-      decodebin3 !
+      parsebin !
+      avdec_h264 !
       videoconvert !
       video/x-raw,format=RGB !
       gvagenai
