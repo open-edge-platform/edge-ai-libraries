@@ -5,6 +5,14 @@
                 "name": "pipeline_defect_detection",
                 "source": "gstreamer",
                 "queue_maxsize": 50,
+                "payload": {
+                    "destination": {
+                        "metadata": {
+                            "type": "mqtt",
+                            "topic": "apm/detections"
+                        }
+                    }
+                },
                 "pipeline": "multifilesrc loop=TRUE location=/home/pipeline-server/resources/videos/sample.mp4 name=source ! decodebin3 ! gvadetect model=/home/pipeline-server/models/pipeline-defect-detection.xml device=CPU threshold=0.4 name=detection ! gvametaconvert add-empty-results=true name=metaconvert ! queue ! gvafpscounter ! appsink name=destination",
                 "parameters": {
                     "type": "object",
@@ -17,7 +25,7 @@
                         }
                     }
                 },
-                "auto_start": false
+                "auto_start": true
             },
             {
                 "name": "pipeline_defect_detection_gpu",

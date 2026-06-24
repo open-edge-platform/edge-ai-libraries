@@ -38,8 +38,33 @@ def _on_connect(client, userdata, flags, rc, properties=None):
 def _on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode("utf-8"))
-        # DL Streamer publishes either a single detection dict or a list
-        detections = payload if isinstance(payload, list) else [payload]
+
+        # DL Streamer wraps detections: {"metadata": {"objects": [...], "timestamp": ...}, "blob": ""}
+        # Fall back to treating payload as a flat detection or list for other sources.
+        if isinstance(payload, dict) and "metadata" in payload:
+            meta = payload["metadata"]
+            timestamp_ns = meta.get("timestamp", 0)
+            frame_id = timestamp_ns // 33_333_333  # ~frame number at 30fps
+            objects = meta.get("objects", [])
+            detections = []
+            for obj in objects:
+                det = obj.get("detection", {})
+                label = det.get("label") or obj.get("roi_type", "unknown")
+                confidence = float(det.get("confidence", 0.0))
+                detections.append({
+                    "frame_id":   frame_id,
+                    "label":      label,
+                    "confidence": confidence,
+                    "x":          int(obj.get("x", 0)),
+                    "y":          int(obj.get("y", 0)),
+                    "width":      int(obj.get("w", obj.get("width", 0))),
+                    "height":     int(obj.get("h", obj.get("height", 0))),
+                    "metadata":   json.dumps(det.get("bounding_box", {})),
+                })
+        elif isinstance(payload, list):
+            detections = payload
+        else:
+            detections = [payload]
 
         for det in detections:
             storage_client.post_detection({
@@ -50,7 +75,7 @@ def _on_message(client, userdata, msg):
                 "y":          int(det.get("y", 0)),
                 "width":      int(det.get("width", 0)),
                 "height":     int(det.get("height", 0)),
-                "metadata":   json.dumps(det.get("metadata", {})),
+                "metadata":   det.get("metadata", json.dumps({})),
             })
 
         if _on_detection_callback:

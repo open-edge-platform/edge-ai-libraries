@@ -28,6 +28,23 @@
         <p class="info">&#9203; Pipeline is running… page auto-refreshes every 3 seconds.</p>
       {% elif result.get("error") %}
         <p class="error">&#10005; Error: {{ result.error }}</p>
+        <table class="pipeline-status">
+          <thead><tr><th>Agent</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for agent in [("Policy", result.policy), ("Analysis", result.analysis), ("Evidence", result.evidence), ("Ticket", result.ticket)] %}
+            <tr>
+              <td>{{ agent[0] }}</td>
+              <td>
+                {% if agent[1] %}
+                  <span class="status-badge status-completed">&#10003; completed</span>
+                {% else %}
+                  <span class="status-badge status-error">&#10005; failed / skipped</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       {% else %}
 
         {% if result.get("ticket") %}
@@ -94,7 +111,13 @@
 
       {% endif %}
     </section>
-    <p><a href="/">&larr; Back to Dashboard</a></p>
+    <p>
+      <a href="/">&larr; Back to Dashboard</a>
+      &nbsp;
+      <form method="POST" action="/run" style="display:inline;">
+        <button type="submit" class="btn-primary">&#9654; Run Again</button>
+      </form>
+    </p>
   </main>
 
   <footer><p>&#169; Intel Corporation — Agentic Predictive Maintenance Blueprint</p></footer>

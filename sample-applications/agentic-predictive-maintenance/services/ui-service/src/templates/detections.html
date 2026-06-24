@@ -24,13 +24,22 @@
       <form method="GET" action="/detections" class="filter-form">
         <label>Label: <input type="text" name="label" value="{{ filter_label }}"></label>
         <label>Min Confidence: <input type="number" name="min_confidence" step="0.01" min="0" max="1" value="{{ filter_confidence }}"></label>
+        <label>Limit:
+          <select name="limit">
+            {% for n in [50, 100, 250, 500] %}
+            <option value="{{ n }}" {% if filter_limit == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </label>
         <button type="submit" class="btn-primary">Filter</button>
         <a href="/detections" class="btn-secondary">Reset</a>
       </form>
     </section>
 
     <section class="card">
-      <h2>Detections ({{ detections|length }})</h2>
+      <h2>Detections
+        <span class="count-info">— showing {{ detections|length }}{% if total_count %} of {{ total_count }} total{% endif %}</span>
+      </h2>
       {% if detections %}
       <table>
         <thead><tr><th>#</th><th>Frame</th><th>Label</th><th>Confidence</th><th>BBox (x,y,w,h)</th><th>Timestamp</th></tr></thead>
@@ -55,6 +64,12 @@
       {% else %}
       <p class="empty">No detections match the current filter.</p>
       {% endif %}
+    </section>
+    <section class="card card-danger">
+      <h2>&#9888; Danger Zone</h2>
+      <form method="POST" action="/clear-detections">
+        <button type="submit" class="btn-danger" onclick="return confirm('This will permanently delete all detection records. Continue?')">&#10005; Clear All Detections</button>
+      </form>
     </section>
   </main>
 

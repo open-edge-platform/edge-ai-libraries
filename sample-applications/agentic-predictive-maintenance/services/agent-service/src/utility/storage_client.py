@@ -12,12 +12,13 @@ log = logging.getLogger(__name__)
 
 _STORAGE_URL = os.environ.get("STORAGE_SERVICE_URL", "http://apm-storage:5001")
 _TIMEOUT = 10
+_NO_PROXY = {"http": None, "https": None}  # bypass system proxy for internal Docker calls
 
 
 def get_detections(
     label: str | None = None,
     min_confidence: float | None = None,
-    limit: int | None = None,
+    limit: int | None = 500,
 ) -> list[dict]:
     params: dict = {}
     if label:
@@ -26,18 +27,18 @@ def get_detections(
         params["min_confidence"] = min_confidence
     if limit is not None:
         params["limit"] = limit
-    r = requests.get(f"{_STORAGE_URL}/detections", params=params, timeout=_TIMEOUT)
+    r = requests.get(f"{_STORAGE_URL}/detections", params=params, timeout=_TIMEOUT, proxies=_NO_PROXY)
     r.raise_for_status()
     return r.json()
 
 
 def get_summary() -> dict:
-    r = requests.get(f"{_STORAGE_URL}/detections/summary", timeout=_TIMEOUT)
+    r = requests.get(f"{_STORAGE_URL}/detections/summary", timeout=_TIMEOUT, proxies=_NO_PROXY)
     r.raise_for_status()
     return r.json()
 
 
 def post_detection(payload: dict) -> dict:
-    r = requests.post(f"{_STORAGE_URL}/detections", json=payload, timeout=_TIMEOUT)
+    r = requests.post(f"{_STORAGE_URL}/detections", json=payload, timeout=_TIMEOUT, proxies=_NO_PROXY)
     r.raise_for_status()
     return r.json()

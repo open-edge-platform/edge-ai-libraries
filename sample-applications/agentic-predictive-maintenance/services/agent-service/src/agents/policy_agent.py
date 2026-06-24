@@ -35,7 +35,7 @@ def run(
         f"Detection summary:\n{json.dumps(summary, indent=2)}"
     )
 
-    raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message)
+    raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message, max_tokens=512)
     log.info("Policy agent LLM response received (%d chars)", len(raw))
     return {"policy": raw, "mode": "llm", "summary": summary}
 

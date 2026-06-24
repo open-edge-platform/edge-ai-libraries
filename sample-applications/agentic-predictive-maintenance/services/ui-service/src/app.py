@@ -55,14 +55,22 @@ async def index(request: Request):
 async def detections_page(
     request: Request,
     label: Optional[str] = None,
-    min_confidence: Optional[float] = None,
+    min_confidence: Optional[str] = None,
     limit: int = 100,
 ):
+    # Treat empty string from form submission as no filter
+    parsed_confidence: Optional[float] = None
+    if min_confidence:
+        try:
+            parsed_confidence = float(min_confidence)
+        except ValueError:
+            pass
+
     params: dict = {"limit": limit}
     if label:
         params["label"] = label
-    if min_confidence is not None:
-        params["min_confidence"] = min_confidence
+    if parsed_confidence is not None:
+        params["min_confidence"] = parsed_confidence
 
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         try:
@@ -71,13 +79,22 @@ async def detections_page(
         except Exception:
             detections = []
 
+        try:
+            summary_r = await client.get(f"{_STORAGE_URL}/detections/summary")
+            summary = summary_r.json() if summary_r.status_code == 200 else {}
+            total_count = sum(c.get("count", 0) for c in summary.get("by_class", []))
+        except Exception:
+            total_count = None
+
     return templates.TemplateResponse(
         request=request, name="detections.html",
         context={
             "use_case_id": _USE_CASE_ID,
             "detections": detections,
             "filter_label": label or "",
-            "filter_confidence": min_confidence or "",
+            "filter_confidence": parsed_confidence if parsed_confidence is not None else "",
+            "filter_limit": limit,
+            "total_count": total_count,
         },
     )
 

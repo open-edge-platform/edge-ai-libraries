@@ -166,6 +166,18 @@ pre.llm-output {
 .timestamp { font-size: 0.8rem; color: #888; }
 code { font-family: monospace; font-size: 0.85em; background: #f5f5f5; padding: 0.1rem 0.3rem; border-radius: 3px; }
 
+.filter-form select { padding: 0.35rem 0.6rem; border: 1px solid #ccc; border-radius: var(--radius); font-size: 0.88rem; }
+
+/* Danger zone card */
+.card-danger { border: 1px solid #ffcdd2; }
+.card-danger h2 { color: var(--error); }
+
+/* Count info in heading */
+.count-info { font-size: 0.8rem; font-weight: 400; color: #888; }
+
+/* Pipeline status table in error state */
+.pipeline-status { margin-top: 0.75rem; max-width: 400px; }
+
 /* Footer */
 footer {
   text-align: center;

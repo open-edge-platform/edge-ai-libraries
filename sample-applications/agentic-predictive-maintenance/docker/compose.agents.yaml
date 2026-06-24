@@ -15,7 +15,10 @@ services:
     environment:
       http_proxy: ${http_proxy:-}
       https_proxy: ${https_proxy:-}
-      no_proxy: ${no_proxy:-},apm-storage,apm-vlm,mqtt-broker,localhost
+      no_proxy: ${no_proxy:-},apm-storage,apm-vlm,mqtt-broker,dlstreamer-pipeline-server,localhost
+      # DL Streamer Pipeline Server
+      DLSTREAMER_URL: http://dlstreamer-pipeline-server:8554
+      DLSTREAMER_PIPELINE_NAME: ${DLSTREAMER_PIPELINE_NAME:-pipeline_defect_detection}
       # Storage service
       STORAGE_SERVICE_URL: http://apm-storage:5001
       # LLM service (vlm-openvino-serving)

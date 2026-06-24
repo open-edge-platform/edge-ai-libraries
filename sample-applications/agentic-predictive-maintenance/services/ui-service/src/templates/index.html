@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agentic Predictive Maintenance — {{ use_case_id }}</title>
   <link rel="stylesheet" href="/static/css/style.css">
+  {% if runs and runs | selectattr("status", "equalto", "running") | list %}
+  <meta http-equiv="refresh" content="10">
+  {% endif %}
 </head>
 <body>
   <header>
@@ -16,7 +19,7 @@
   </header>
 
   <nav>
-    <a href="/">Dashboard</a>
+    <a href="/" class="active">Dashboard</a>
     <a href="/detections">Detections</a>
   </nav>
 
@@ -47,9 +50,6 @@
       <form method="POST" action="/run">
         <button type="submit" class="btn-primary">&#9654; Run Agents</button>
       </form>
-      <form method="POST" action="/clear-detections" style="display:inline-block; margin-left:1rem;">
-        <button type="submit" class="btn-danger" onclick="return confirm('Clear all detections?')">&#10005; Clear Detections</button>
-      </form>
     </section>
 
     <section class="card">
@@ -60,7 +60,7 @@
         <tbody>
           {% for run in runs[-10:]|reverse %}
           <tr>
-            <td><code>{{ run.run_id[:8] }}…</code></td>
+            <td><code title="{{ run.run_id }}">{{ run.run_id[:8] }}…</code></td>
             <td><span class="status-badge status-{{ run.status }}">{{ run.status }}</span></td>
             <td>
               {% if run.status == "completed" %}

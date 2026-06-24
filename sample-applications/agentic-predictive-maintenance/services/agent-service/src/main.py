@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from .meta_agent import run_pipeline
 from .mqtt_subscriber import start_subscriber, set_on_detection_callback
+from .utility.dlstreamer_client import start_watchdog
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +37,9 @@ async def lifespan(app: FastAPI):
         if _AUTO_RUN:
             set_on_detection_callback(_auto_trigger)
         start_subscriber()
+    # Start DL Streamer pipeline watchdog (ensures pipeline is always running)
+    if os.environ.get("DLSTREAMER_WATCHDOG_DISABLED", "false").lower() != "true":
+        start_watchdog()
     yield
 
 
@@ -90,8 +94,12 @@ def get_results(run_id: str):
 
 
 @app.get("/agents/runs")
-def list_runs():
-    """List all runs with their status."""
+def list_runs(id: Optional[str] = None):
+    """List all runs with their status. Optionally filter by run id."""
+    if id is not None:
+        if id not in _runs:
+            raise HTTPException(status_code=404, detail="Run not found")
+        return [{"run_id": id, "status": _runs[id]["status"]}]
     return [{"run_id": k, "status": v["status"]} for k, v in _runs.items()]
 
 

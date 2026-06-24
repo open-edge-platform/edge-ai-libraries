@@ -24,7 +24,14 @@ _FALLBACK_POLICY_PATH = os.environ.get(
 def create_client():
     """Return an OpenAI client pointed at the vlm-openvino-serving endpoint."""
     from openai import OpenAI  # lazy import — not required in fallback mode
-    return OpenAI(base_url=_LLM_BASE_URL, api_key=_LLM_API_KEY)
+    import httpx
+    # trust_env=False prevents httpx from picking up HTTP_PROXY env vars
+    # (vlm-openvino-serving is an internal Docker service, no proxy needed)
+    return OpenAI(
+        base_url=_LLM_BASE_URL,
+        api_key=_LLM_API_KEY,
+        http_client=httpx.Client(trust_env=False),
+    )
 
 
 def is_fallback_mode() -> bool:
