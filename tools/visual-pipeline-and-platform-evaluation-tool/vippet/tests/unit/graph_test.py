@@ -5187,6 +5187,46 @@ class TestStripWatermarkIfAllSinksAreFake(unittest.TestCase):
         edge_ids = [e.id for e in result.edges]
         self.assertEqual(len(edge_ids), len(set(edge_ids)), "Edge IDs must be unique")
 
+    def test_removes_chained_watermarks_with_unique_ids(self):
+        """Direct ``gvawatermark -> gvawatermark`` chain must be fully removed.
+
+        This is the adversarial case for the reconnection logic: the edge
+        added when the first watermark is dropped immediately becomes an
+        input of the second watermark, so it is removed again in the
+        next iteration. The end result must be a single ``src -> sink``
+        edge with an ID that does not collide with any other edge in the
+        resulting graph.
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={}),
+                Node(id="1", type="gvawatermark", data={}),
+                Node(id="2", type="gvawatermark", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        result = graph.strip_watermark_if_all_sinks_are_fake()
+
+        # Both watermark nodes are gone, only src and sink remain.
+        result_types = [n.type for n in result.nodes]
+        self.assertNotIn("gvawatermark", result_types)
+        self.assertEqual(len(result.nodes), 2)
+
+        # Exactly one edge connecting filesrc directly to fakesink.
+        self.assertEqual(len(result.edges), 1)
+        self.assertEqual(result.edges[0].source, "0")
+        self.assertEqual(result.edges[0].target, "3")
+
+        # Edge IDs are unique strings.
+        edge_ids = [e.id for e in result.edges]
+        self.assertEqual(len(edge_ids), len(set(edge_ids)))
+
 
 class TestPrepareMainOutputPlaceholder(unittest.TestCase):
     """Test cases for Graph.prepare_main_output_placeholder method."""
@@ -7749,6 +7789,106 @@ class TestInternalMarkersStrippedFromPipelineDescription(unittest.TestCase):
         self.assertNotIn("__internal_marker", description)
         self.assertNotIn("should-not-leak", description)
         self.assertIn("num-buffers=10", description)
+
+
+class TestUploadedModelFallback(unittest.TestCase):
+    """Cover the ``ModelManager`` fallback added to ``_model_path_to_display_name``
+    and ``_model_display_name_to_path`` so uploaded (custom) models keep
+    working through the simple-graph / convert-to-advanced flow.
+    """
+
+    def _node(self, model_value: str, model_proc: str | None = None) -> Node:
+        data: dict[str, str] = {"model": model_value}
+        if model_proc is not None:
+            data["model-proc"] = model_proc
+        return Node(id="n1", type="gvadetect", data=data)
+
+    # --- path -> display name ---------------------------------------
+
+    def test_path_to_display_name_falls_back_to_model_manager(self) -> None:
+        from graph import _model_path_to_display_name
+
+        node = self._node("/models/output/custom_uploaded_models/face-custom/model.xml")
+
+        yaml_manager = MagicMock()
+        yaml_manager.find_model_by_model_and_proc_path.return_value = None
+        mm = MagicMock()
+        mm.find_uploaded_model_by_path.return_value = MagicMock(
+            display_name="face-custom"
+        )
+
+        with (
+            patch("graph.SupportedModelsManager", return_value=yaml_manager),
+            patch("managers.model_manager.ModelManager", return_value=mm),
+        ):
+            _model_path_to_display_name([node])
+
+        self.assertEqual(node.data["model"], "face-custom")
+        # model-proc must be stripped after conversion.
+        self.assertNotIn("model-proc", node.data)
+        mm.find_uploaded_model_by_path.assert_called_once()
+
+    def test_path_to_display_name_empty_when_neither_resolves(self) -> None:
+        from graph import _model_path_to_display_name
+
+        node = self._node("/totally/unknown.xml")
+        yaml_manager = MagicMock()
+        yaml_manager.find_model_by_model_and_proc_path.return_value = None
+        mm = MagicMock()
+        mm.find_uploaded_model_by_path.return_value = None
+
+        with (
+            patch("graph.SupportedModelsManager", return_value=yaml_manager),
+            patch("managers.model_manager.ModelManager", return_value=mm),
+        ):
+            _model_path_to_display_name([node])
+
+        self.assertEqual(node.data["model"], "")
+
+    # --- display name -> path ---------------------------------------
+
+    def test_display_name_to_path_falls_back_to_model_manager(self) -> None:
+        from graph import _model_display_name_to_path
+
+        node = self._node("my-uploaded-model")
+        yaml_manager = MagicMock()
+        yaml_manager.find_installed_model_by_display_name.return_value = None
+
+        uploaded = MagicMock()
+        uploaded.model_path_full = "/abs/path/my-uploaded-model.xml"
+        uploaded.model_proc_full = ""  # uploads have no model-proc
+        mm = MagicMock()
+        mm.find_installed_uploaded_model_by_display_name.return_value = uploaded
+
+        with (
+            patch("graph.SupportedModelsManager", return_value=yaml_manager),
+            patch("managers.model_manager.ModelManager", return_value=mm),
+        ):
+            _model_display_name_to_path([node])
+
+        self.assertEqual(node.data["model"], "/abs/path/my-uploaded-model.xml")
+        # No model-proc must be injected when the model has none.
+        self.assertNotIn("model-proc", node.data)
+        mm.find_installed_uploaded_model_by_display_name.assert_called_once_with(
+            "my-uploaded-model"
+        )
+
+    def test_display_name_to_path_raises_when_unknown_everywhere(self) -> None:
+        from graph import _model_display_name_to_path
+
+        node = self._node("ghost-model")
+        yaml_manager = MagicMock()
+        yaml_manager.find_installed_model_by_display_name.return_value = None
+        mm = MagicMock()
+        mm.find_installed_uploaded_model_by_display_name.return_value = None
+
+        with (
+            patch("graph.SupportedModelsManager", return_value=yaml_manager),
+            patch("managers.model_manager.ModelManager", return_value=mm),
+        ):
+            with self.assertRaises(ValueError) as cm:
+                _model_display_name_to_path([node])
+        self.assertIn("ghost-model", str(cm.exception))
 
 
 if __name__ == "__main__":

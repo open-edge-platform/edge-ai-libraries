@@ -15,3 +15,14 @@
 openvino-dev[onnx]==2024.6.0
 torch==2.8.0
 torchvision==0.23.0
+
+# Security override:
+# ``openvino-dev[onnx]==2024.6.0`` transitively pins ``onnx<=1.17.0``,
+# which is affected by CVE-2026-27489 (HIGH, path traversal) and
+# CVE-2026-28500 / CVE-2026-34446. Upstream ``openvino-dev`` is archived
+# and will not be re-released, so we override the pin manually.
+# Installed in a second pip step in the Dockerfile with ``--upgrade``
+# because the resolver would otherwise refuse to violate the cap.
+# The ONNX file format is backward-compatible, so 1.21.x is a safe
+# drop-in for ``omz_converter`` which only uses ``onnx`` as a model
+# reader/writer.

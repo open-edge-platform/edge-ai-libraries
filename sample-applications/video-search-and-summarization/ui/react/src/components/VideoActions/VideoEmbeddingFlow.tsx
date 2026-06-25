@@ -21,6 +21,7 @@ import { videosLoad, videosSelector } from '../../redux/video/videoSlice';
 import { Video } from '../../redux/video/video';
 import axios from 'axios';
 import type { AxiosProgressEvent } from 'axios';
+import type { MouseEvent } from 'react';
 import { APP_URL, ASSETS_ENDPOINT } from '../../config';
 import { NotificationSeverity, notify } from '../Notification/notify';
 import { getSafePreviewVideoUrl } from '../../utils/util';
@@ -351,6 +352,10 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
   const safeVideoPreviewUrl = useMemo(
     () => getSafePreviewVideoUrl(videoPreviewUrl, ASSETS_ENDPOINT),
     [videoPreviewUrl]
+  );
+  const encodedSafeVideoPreviewUrl = useMemo(
+    () => (safeVideoPreviewUrl ? encodeURI(safeVideoPreviewUrl) : null),
+    [safeVideoPreviewUrl]
   );
 
   const buildSafeAssetVideoUrl = useCallback((video: Video): string | null => {
@@ -760,7 +765,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                       <MainButton 
                         kind="tertiary" 
                         style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto' }}
-                        onClick={(e) => {
+                        onClick={(e: MouseEvent<HTMLButtonElement>) => {
                           e.stopPropagation();
                           if (videoPreviewUrlRef.current) {
                             URL.revokeObjectURL(videoPreviewUrlRef.current);
@@ -926,16 +931,16 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                 }}
               >
                 {/* Video Preview inside the details box */}
-                {safeVideoPreviewUrl && (
+                {encodedSafeVideoPreviewUrl && (
                   <VideoPreviewContainer>
                     <StyledVideoPlayer controls>
-                      <source src={safeVideoPreviewUrl} type="video/mp4" />
+                      <source src={encodedSafeVideoPreviewUrl} type="video/mp4" />
                       Your browser does not support the video tag.
                     </StyledVideoPlayer>
                   </VideoPreviewContainer>
                 )}
                 
-                <div style={{ marginTop: safeVideoPreviewUrl ? '1rem' : '0' }}>
+                <div style={{ marginTop: encodedSafeVideoPreviewUrl ? '1rem' : '0' }}>
                   <div>
                     <strong>{t('videoNameLabel')}:</strong> {displayFileName || '-'}
                   </div>

@@ -27,8 +27,15 @@ FROM python:${PYTHON_VERSION}-slim as runtime
 ARG INSTALL_DRIVER_VERSION="26.14.37833"
 ENV INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
 
+# Security upgrades for known CVEs
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
+    apt-get upgrade -y --no-install-recommends \
+        python3.13 python3.13-minimal libpython3.13-minimal libpython3.13-stdlib \
+        libsystemd0 libudev1 libcap2 \
+        libc6 libc-bin \
+        curl libcurl4t64 \
+        libglib2.0-0t64 \
+        sed && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -63,7 +70,8 @@ RUN groupadd --gid $TIMESERIES_UID $TIMESERIES_USER_NAME && \
 COPY ./requirements.txt .
 
 # Install Python dependencies efficiently and clean up cache to reduce image size
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"

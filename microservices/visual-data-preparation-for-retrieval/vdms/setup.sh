@@ -9,6 +9,10 @@
 RED='\033[0;31m'
 NC='\033[0m'
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MICROSERVICES_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DOCKERFILE="$SCRIPT_DIR/docker/Dockerfile"
+
 # Common env vars ---------------------------------------------------
 export PROJECT_NAME=${PROJECT_NAME}
 export COVERAGE_REQ=80
@@ -200,7 +204,7 @@ elif [ "$1" = "--down" ] && [ "$#" -eq 1 ]; then
 # Build dataprep image
 elif [ "$1" = "--build" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
     default_image="${REGISTRY}vdms-dataprep:${TAG:-latest}"
-    if ./build.sh; then
+    if "$SCRIPT_DIR/build.sh"; then
         docker images | grep "${default_image}"
         echo "Image ${default_image} was successfully built."
 
@@ -216,9 +220,9 @@ elif [ "$1" = "--build" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
 # Build dataprep dev image
 elif [ "$1" = "--build-dev" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
     tag=${2:-intelgai/vdms-dataprep:dev}
-    docker build -t $tag -f docker/Dockerfile --target dev .
+    docker build -t "$tag" -f "$DOCKERFILE" --target dev "$MICROSERVICES_DIR"
     if [ $? = 0 ]; then
-        docker images | grep $tag
+        docker images | grep "$tag"
         echo "Dev Image ${tag} was successfully built."
     fi
 
@@ -227,10 +231,10 @@ elif [ "$1" = "--build-lint" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
     tag=${2:-intelgai/vdms-dataprep:dev}
 
     # Build the image targeting the lint stage
-    docker build -t $tag -f docker/Dockerfile --target lint .
+    docker build -t "$tag" -f "$DOCKERFILE" --target lint "$MICROSERVICES_DIR"
     
     if [ $? = 0 ]; then
-        docker images | grep $tag
+        docker images | grep "$tag"
         echo "Linter image ${tag} was successfully built."
     fi
 
@@ -240,10 +244,10 @@ elif [ "$1" = "--build-test" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
     tag=${2:-intelgai/vdms-dataprep:final-dev}
 
     # Build the image targeting the test stage
-    docker build --build-arg COVERAGE_REQ -t $tag -f docker/Dockerfile --target final-dev .
+    docker build --build-arg COVERAGE_REQ -t "$tag" -f "$DOCKERFILE" --target final-dev "$MICROSERVICES_DIR"
 
     if [ $? = 0 ]; then
-        docker images | grep $tag
+        docker images | grep "$tag"
         echo "Final-dev image ${tag} was successfully built."
     fi
 
@@ -253,14 +257,14 @@ elif [ "$1" = "--build-report" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
     reporter_container=intelgai-vdms-dataprep-report
 
     # Build the image targeting the test stage
-    docker build --build-arg COVERAGE_REQ -t $tag -f docker/Dockerfile --target report .
+    docker build --build-arg COVERAGE_REQ -t "$tag" -f "$DOCKERFILE" --target report "$MICROSERVICES_DIR"
 
     # Run the report server
     if [ $? = 0 ]; then
-        docker images | grep $tag
+        docker images | grep "$tag"
         echo "Reporter image ${tag} was successfully built."
-        docker run --rm -p "8899:8899" --name $reporter_container $tag
-        docker stop $reporter_container
+        docker run --rm -p "8899:8899" --name "$reporter_container" "$tag"
+        docker stop "$reporter_container"
     fi
 
 # Spin-up all services with dev env in daemon mode

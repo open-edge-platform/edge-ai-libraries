@@ -767,13 +767,12 @@ class TestGetImagesInSetEdgeCases(_BaseImagesTest):
 
 
 # --------------------------------------------------------------------------- #
-# Multi-format archive happy-paths (Jira ITEP-89626 explicit cases).
+# Multi-format archive happy-paths.
 # --------------------------------------------------------------------------- #
 
 
 class TestArchiveFormatsHappyPath(_BaseImagesTest):
-    """Cover the three archive formats with the three canonical image
-    extensions exactly as called out by Jira ITEP-89626."""
+    """Cover the three archive formats with the three canonical image extensions."""
 
     def _register(self, name: str, archive_bytes: bytes) -> ImageSet:
         path = _write_archive(self.tmpdir, "incoming.bin", archive_bytes)

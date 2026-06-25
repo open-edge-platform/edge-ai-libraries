@@ -38,6 +38,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import transformers
 from .common import ErrorMessages, logger, settings
+from .path_security import build_safe_temp_path
 
 # Only include proxies if they are defined
 proxies = {}
@@ -245,14 +246,6 @@ def resolve_safe_local_path(file_path: str, allowed_root: Path = _VIDEO_TMP_DIR)
     if os.path.commonpath([resolved_path, resolved_root_str]) != resolved_root_str:
         raise ValueError(f"Path outside allowed directory: {resolved_path}")
     return resolved_path
-
-
-def build_safe_temp_path(file_name: str, allowed_root: Path = _VIDEO_TMP_DIR) -> str:
-    """Build an internal temp path under the allowed root."""
-    resolved_root = allowed_root.expanduser().resolve()
-    candidate_path = (resolved_root / Path(file_name).name).resolve(strict=False)
-    candidate_path.relative_to(resolved_root)
-    return str(candidate_path)
 
 
 def _get_remote_media_client_kwargs(url: str) -> tuple[str, dict]:

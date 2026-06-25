@@ -169,9 +169,7 @@ def _record_sdk_pipeline(
             "pipeline_metrics": {
                 "pipeline_wall_duration": sdk_result.get("pipeline_wall_duration_s", -1),
                 # "pipeline_throughput_fps": sdk_result.get("pipeline_throughput_fps", -1),
-                "pipeline_throughput_fps": sdk_result.get(
-                    "pipeline_throughput_fps_with_OD", -1
-                ),
+                "pipeline_throughput_fps": sdk_result.get("pipeline_throughput_fps_with_OD", -1),
                 "pipeline_concurrency_factor": sdk_result.get("pipeline_concurrency_factor", -1),
                 "pipeline_efficiency_pct": sdk_result.get("pipeline_efficiency_pct", -1),
                 "parallel_efficiency_pct": sdk_result.get("parallel_efficiency_pct", -1),
@@ -196,9 +194,7 @@ def _record_sdk_pipeline(
                 .get("embed", {})
                 .get("throughput", 0.0),
                 # "pipeline_throughput": sdk_result.get("pipeline_throughput_fps", 0.0),
-                "pipeline_throughput": sdk_result.get(
-                    "pipeline_throughput_fps_with_OD", 0.0
-                ),
+                "pipeline_throughput": sdk_result.get("pipeline_throughput_fps_with_OD", 0.0),
                 "store_throughput": sdk_result.get("metrics", {})
                 .get("store", {})
                 .get("throughput", 0.0),
@@ -333,20 +329,20 @@ def _record_api_pipeline(
 def _get_client_key(endpoint: str | None = None, use_case: str = "default") -> str:
     """
     Generate a unique key for caching VDMS clients based on endpoint and use case.
-    
+
     Args:
         endpoint: Multimodal embedding service endpoint URL
         use_case: Type of processing ("video", "text", or "default")
-    
+
     Returns:
         A unique string key for the VDMS client cache
     """
     base_key = f"{settings.VDMS_VDB_HOST}:{settings.VDMS_VDB_PORT}:{settings.DB_COLLECTION}"
-    
+
     if endpoint:
         # Include endpoint in cache key since different endpoints may have different configs
         base_key += f":{endpoint}"
-    
+
     # Different use cases might need different client configurations
     return f"{base_key}:{use_case}"
 
@@ -354,25 +350,24 @@ def _get_client_key(endpoint: str | None = None, use_case: str = "default") -> s
 def _get_cached_vdms_client(use_case: str = "default") -> SimpleVDMSClient:
     """
     Get or create a cached VDMS client for the specified use case.
-    
+
     Args:
         use_case: Type of processing ("video", "text", or "default")
-        
+
     Returns:
         A SimpleVDMSClient instance
     """
-    cache_key = _get_client_key(
-        endpoint=settings.MULTIMODAL_EMBEDDING_ENDPOINT,
-        use_case=use_case
-    )
-    
+    cache_key = _get_client_key(endpoint=settings.MULTIMODAL_EMBEDDING_ENDPOINT, use_case=use_case)
+
     if cache_key not in _client_cache:
         logger.info(f"Creating new VDMS client for use case: {use_case}")
-        
+
         # Validate that model name is provided when using API mode
         if not settings.MULTIMODAL_EMBEDDING_MODEL_NAME:
-            raise ValueError("MULTIMODAL_EMBEDDING_MODEL_NAME must be explicitly provided when using API embedding mode - no default model is allowed")
-        
+            raise ValueError(
+                "MULTIMODAL_EMBEDDING_MODEL_NAME must be explicitly provided when using API embedding mode - no default model is allowed"
+            )
+
         client = SimpleVDMSClient(
             host=settings.VDMS_VDB_HOST,
             port=settings.VDMS_VDB_PORT,
@@ -385,7 +380,7 @@ def _get_cached_vdms_client(use_case: str = "default") -> SimpleVDMSClient:
         logger.debug(f"VDMS client cached with key: {cache_key}")
     else:
         logger.debug(f"Using cached VDMS client for: {cache_key}")
-    
+
     return _client_cache[cache_key]
 
 
@@ -403,11 +398,11 @@ async def generate_video_embedding(
 ) -> List[str]:
     """
     Video embedding generation with flag-based routing between API and SDK modes.
-    
+
     This function routes to either:
-    - API mode: Traditional HTTP API calls to multimodal embedding service  
+    - API mode: Traditional HTTP API calls to multimodal embedding service
     - SDK mode: Direct SDK calls for optimized performance
-    
+
     Args:
         bucket_name: Bucket name where the video is stored
         video_id: Directory containing the video
@@ -427,7 +422,7 @@ async def generate_video_embedding(
 
         logger.info(f"Starting video embedding for {video_id}/{filename}")
         logger.info(f"Processing mode: {settings.EMBEDDING_PROCESSING_MODE}")
-        
+
         # Route based on processing mode flag
         if settings.EMBEDDING_PROCESSING_MODE.lower() == "sdk":
             logger.info("Using SDK mode for optimized performance")
@@ -477,10 +472,10 @@ async def generate_video_embedding_from_content(
 ) -> List[str]:
     """
     Generate video embeddings directly from video content bytes (SDK mode only).
-    
+
     This function is optimized for SDK mode and processes video content directly
     from memory without writing to disk first, providing maximum performance.
-    
+
     Args:
         video_content: Video content as bytes (in memory)
         bucket_name: Bucket name where the video is stored
@@ -507,26 +502,28 @@ async def generate_video_embedding_from_content(
             "Video content size: %s bytes",
             sanitize_for_log(len(video_content), max_length=32),
         )
-        
+
         if settings.EMBEDDING_PROCESSING_MODE.lower() != "sdk":
             logger.warning("generate_video_embedding_from_content called but SDK mode not enabled")
             logger.warning("This function is optimized for SDK mode only")
-        
+
         # Create metadata for video (including video URLs for search-ms compatibility)
-        video_rel_url = f"/v1/dataprep/videos/download?video_id={video_id}&bucket_name={bucket_name}"
+        video_rel_url = (
+            f"/v1/dataprep/videos/download?video_id={video_id}&bucket_name={bucket_name}"
+        )
         video_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}{video_rel_url}"
-        
+
         # Create metadata dictionary for SDK processing
         metadata_dict = {
-            'bucket_name': bucket_name,
-            'video_id': video_id,
-            'filename': filename,
-            'tags': tags or [],
-            'processing_mode': 'sdk',
-            'video_url': video_url,
-            'video_rel_url': video_rel_url
+            "bucket_name": bucket_name,
+            "video_id": video_id,
+            "filename": filename,
+            "tags": tags or [],
+            "processing_mode": "sdk",
+            "video_url": video_url,
+            "video_rel_url": video_rel_url,
         }
-        
+
         # DEBUG: Print metadata dictionary to verify video URLs are created
         logger.info(
             "DEBUG: metadata_dict created in simplified_embedding_helper: %s",
@@ -537,7 +534,7 @@ async def generate_video_embedding_from_content(
             sanitize_for_log(video_url, max_length=512),
             sanitize_for_log(video_rel_url, max_length=512),
         )
-        
+
         # Process video using SDK mode directly from memory
         results = generate_video_embedding_sdk(
             video_content=video_content,
@@ -651,7 +648,7 @@ async def _generate_video_embedding_api_mode(
 ) -> List[str]:
     """
     Original API-based video embedding generation (for comparison).
-    
+
     This function preserves the original HTTP API-based approach for
     performance comparison with the new SDK approach.
     """
@@ -672,7 +669,12 @@ async def _generate_video_embedding_api_mode(
         tags=tags or [],
     )
     extraction_time = time.time() - extraction_start
-    logger.info("Video metadata created at %s", sanitize_for_log(metadata_file_path, max_length=512))
+    logger.info(
+        "Video metadata created at %s", sanitize_for_log(metadata_file_path, max_length=512)
+    )
+
+    # Rebuild metadata path from trusted temp root instead of carrying tainted dataflow
+    trusted_metadata_file_path = pathlib.Path(metadata_temp_path) / settings.METADATA_FILENAME
 
     client_setup_start = time.time()
     vdms_client = _get_cached_vdms_client(use_case="video")
@@ -680,7 +682,7 @@ async def _generate_video_embedding_api_mode(
     logger.debug("VDMS client ready in %.3fs", client_setup_time)
 
     storage_start = time.time()
-    storage_result = vdms_client.store_embeddings_from_manifest(metadata_file_path)
+    storage_result = vdms_client.store_embeddings_from_manifest(trusted_metadata_file_path)
     embedding_storage_time = time.time() - storage_start
 
     ids = storage_result.get("ids", [])
@@ -745,42 +747,40 @@ async def _generate_video_embedding_sdk_mode(
 ) -> List[str]:
     """
     SDK-based video embedding generation (optimized approach).
-    
+
     This function uses the SDK approach but still reads from the temp file.
     For maximum optimization, use generate_video_embedding_from_content().
     """
     logger.info("Processing video using SDK mode (direct calls)")
-    
+
     # Read video content from temp file
-    with open(temp_video_path, 'rb') as f:
+    with open(temp_video_path, "rb") as f:
         video_content = f.read()
-    
+
     logger.info(f"Loaded video content: {len(video_content)} bytes")
-    
+
     # Create video URL paths for search-ms compatibility
-    video_rel_url = (
-        f"/v1/dataprep/videos/download?video_id={video_id}&bucket_name={bucket_name}"
-    )
+    video_rel_url = f"/v1/dataprep/videos/download?video_id={video_id}&bucket_name={bucket_name}"
     app_host = settings.APP_HOST or "localhost"
     video_url = f"http://{app_host}:{settings.APP_PORT}{video_rel_url}"
-    
+
     # Create metadata for video
     metadata_dict = {
-        'bucket_name': bucket_name,
-        'video_id': video_id,
-        'filename': filename,
-        'tags': tags or [],
-        'processing_mode': 'sdk',
-        'video_url': video_url,
-        'video_rel_url': video_rel_url
+        "bucket_name": bucket_name,
+        "video_id": video_id,
+        "filename": filename,
+        "tags": tags or [],
+        "processing_mode": "sdk",
+        "video_url": video_url,
+        "video_rel_url": video_rel_url,
     }
-    
+
     # DEBUG: Print metadata dictionary to verify video URLs are created
     logger.info(
         "DEBUG: metadata_dict created in _generate_video_embedding_sdk_mode: %s",
         sanitize_for_log(metadata_dict, max_length=1024),
     )
-    
+
     # Process video using SDK mode
     results = generate_video_embedding_sdk(
         video_content=video_content,
@@ -820,14 +820,14 @@ async def _generate_video_embedding_sdk_mode(
 
 
 async def generate_text_embedding(
-    text: str, 
-    text_metadata: dict = {}, 
+    text: str,
+    text_metadata: dict = {},
     use_qwen_for_long_text: bool = True,
-    qwen_threshold: int = 500
+    qwen_threshold: int = 500,
 ) -> List[str]:
     """
     Generate and persist text embeddings using either SDK or API mode.
-    
+
     Args:
         text: The text content to embed
         text_metadata: Metadata associated with the text
@@ -843,7 +843,7 @@ async def generate_text_embedding(
         processing_mode = (settings.EMBEDDING_PROCESSING_MODE or "sdk").lower()
         use_sdk_mode = processing_mode == "sdk"
         model_name = (settings.MULTIMODAL_EMBEDDING_MODEL_NAME or "").strip() or "<unspecified>"
-        
+
         logger.info(
             f"Processing text embedding (length: {text_length}, use_qwen_hint={use_qwen_hint}, mode: {processing_mode}, model: {model_name})"
         )

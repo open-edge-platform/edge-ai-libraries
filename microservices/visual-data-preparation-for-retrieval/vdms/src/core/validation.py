@@ -47,15 +47,38 @@ def sanitize_bucket_name(bucket_name: Optional[str]) -> str:
     """
     from src.common import settings
 
-    min_length: str = 3
+    min_length = 3
 
     # Sanitize the bucket name
     bucket_name = sanitize_string(bucket_name or settings.DEFAULT_BUCKET_NAME)
+    if not bucket_name:
+        raise DataPrepException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            msg="Bucket name is required.",
+        )
 
     if len(bucket_name) < min_length:
         raise DataPrepException(
             status_code=HTTPStatus.BAD_REQUEST,
             msg=f"Bucket name must be at least {min_length} characters long.",
+        )
+
+    if len(bucket_name) > 63:
+        raise DataPrepException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            msg="Bucket name must be at most 63 characters long.",
+        )
+
+    if "/" in bucket_name or "\\" in bucket_name or ".." in bucket_name:
+        raise DataPrepException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            msg="Bucket name contains invalid path characters.",
+        )
+
+    if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket_name):
+        raise DataPrepException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            msg="Bucket name must contain only lowercase letters, numbers, dots, and hyphens, and must start/end with a letter or number.",
         )
 
     return bucket_name
@@ -80,6 +103,8 @@ def sanitize_video_id(video_id: Optional[str], min_length: int = 3) -> str:
 
     # Sanitize the video ID
     video_id = sanitize_string(video_id)
+    if not video_id:
+        raise DataPrepException(status_code=HTTPStatus.BAD_REQUEST, msg="Video ID is required.")
 
     if len(video_id) < min_length:
         raise DataPrepException(
@@ -87,11 +112,17 @@ def sanitize_video_id(video_id: Optional[str], min_length: int = 3) -> str:
             msg=f"Video ID must be at least {min_length} characters long.",
         )
 
-    # Check for invalid characters in directory path
-    if not re.match(r"^[a-zA-Z0-9.\-_/]+$", video_id):
+    if "/" in video_id or "\\" in video_id or ".." in video_id:
         raise DataPrepException(
             status_code=HTTPStatus.BAD_REQUEST,
-            msg="Video ID contains invalid characters. Use only alphanumeric characters, periods, hyphens, underscores, and forward slashes.",
+            msg="Video ID contains unsafe path characters.",
+        )
+
+    # Check for invalid characters
+    if not re.match(r"^[a-zA-Z0-9._-]+$", video_id):
+        raise DataPrepException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            msg="Video ID contains invalid characters. Use only alphanumeric characters, periods, hyphens, and underscores.",
         )
 
     return video_id
@@ -117,6 +148,12 @@ def sanitize_video_name(video_name: Optional[str]) -> Optional[str]:
     video_name = sanitize_string(video_name)
 
     if video_name:
+        if "/" in video_name or "\\" in video_name or ".." in video_name:
+            raise DataPrepException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                msg="Video name contains unsafe path characters.",
+            )
+
         # Check for invalid characters in filename
         if not re.match(r"^[a-zA-Z0-9.\-_\(\) ]+$", video_name):
             raise DataPrepException(

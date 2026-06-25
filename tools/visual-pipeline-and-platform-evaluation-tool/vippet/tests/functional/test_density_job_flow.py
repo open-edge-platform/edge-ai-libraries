@@ -58,7 +58,7 @@ def _build_density_payload(case: PipelineCase) -> JsonDict:
             }
         ],
         "execution_config": {
-            "max_runtime": "5",
+            "max_runtime": "20",
             "output_mode": "disabled",
         },
     }
@@ -136,7 +136,7 @@ def test_start_density_job_with_nonexistent_variant_returns_400(
                 "stream_rate": 10,
             }
         ],
-        "execution_config": {"max_runtime": "5", "output_mode": "disabled"},
+        "execution_config": {"max_runtime": "20", "output_mode": "disabled"},
     }
 
     response = http_client.post(f"{BASE_URL}/tests/density", json=payload, timeout=30)

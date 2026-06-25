@@ -28,7 +28,7 @@ return either raw WAV audio or a JSON payload with metadata.
 
 - OpenAI-style speech endpoint and a voices/metadata endpoint.
 - Multi-runtime backends: OpenVINO (Intel-optimized) and PyTorch.
-- Configurable device (`CPU`, `GPU`, `NPU`) and precision (`int8`, `int4`,
+- Configurable device (`CPU`, `GPU`) and precision (`int8`, `int4`,
   `fp16`, `fp32`) where the runtime/model supports it.
 - Selectable speaker / voice per model family.
 - Optional persistence of synthesized output for session reuse.

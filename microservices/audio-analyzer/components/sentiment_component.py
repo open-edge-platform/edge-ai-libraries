@@ -2,6 +2,7 @@ import logging
 from typing import List, Dict, Any
 
 from utils.config_loader import config
+from utils.ensure_model import get_sentiment_model_path
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +24,7 @@ class SentimentComponent:
         model_name = cfg.model
         device = cfg.device
         provider = cfg.provider
-        models_base = cfg.models_base_path
-
-        # Derive local model dir: models/sentiment/<slug>/
-        slug = model_name.replace("/", "_")
-        model_path = f"{models_base}/sentiment/{slug}"
+        model_path = get_sentiment_model_path()
 
         key = (model_name, device, provider)
         if SentimentComponent._model is None or SentimentComponent._model_key != key:

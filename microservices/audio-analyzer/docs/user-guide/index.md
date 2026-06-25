@@ -29,7 +29,7 @@ a live stream of partial results.
 ## Key Capabilities
 
 - OpenAI-style transcription endpoint and a streaming NDJSON variant.
-- Multi-backend ASR (OpenAI Whisper, OpenVINO, with whisper.cpp planned).
+- Multi-backend ASR (OpenAI Whisper, OpenVINO, and whisper.cpp).
 - Optional voice-sentiment analysis aggregated per session.
 - Session continuation so multiple uploads can extend the same conversation.
 - Runs on CPU; supports GPU acceleration on Intel hardware via OpenVINO.
@@ -40,7 +40,7 @@ a live stream of partial results.
 
 - Whisper family — `whisper-tiny`, `whisper-base`, `whisper-small`,
   `whisper-medium`, `whisper-large` — selectable via `models.asr.name`.
-- Backends: `openai` (PyTorch), `openvino` (Intel-optimized).
+- Backends: `openai` (PyTorch), `openvino` (Intel-optimized), `whispercpp` (CPU-only).
 
 **Sentiment (optional, voice-based):**
 
