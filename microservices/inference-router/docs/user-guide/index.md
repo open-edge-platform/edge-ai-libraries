@@ -86,16 +86,5 @@ Key Features:
 
 ## Learn More
 
-- Begin with the [Quick Start Guide](./quick-start-guide.md).
+- Begin with the [Quick Start Guide](./get-started.md).
 - See the [API Reference](./api-reference.md) for endpoint details.
-
-<!--hide_directive
-:::{toctree}
-:hidden:
-
-quick-start-guide
-api-reference
-release-notes
-
-:::
-hide_directive-->

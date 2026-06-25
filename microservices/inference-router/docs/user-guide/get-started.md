@@ -18,14 +18,26 @@ OpenAI-compatible API.
 The router itself is lightweight. Local model serving requirements depend on
 the backend you connect to.
 
-### Step 1: Configure
-
-Copy the example config and edit it to point at your backend:
+If you are cloning from the larger monorepo and only need this service, you
+can use sparse checkout:
 
 ```bash
-cd inference-router
+git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries
+git sparse-checkout set microservices/inference-router
+cd microservices/inference-router
+```
+
+### Step 1: Configure
+
+Copy the example config and edit it to point at your backend. If your provider
+needs API keys, also copy `.env.example` to `workspace/.env` and fill in the
+applicable values:
+
+```bash
 mkdir -p workspace
 cp config.example.yaml workspace/config.yaml
+cp .env.example workspace/.env
 ```
 
 A minimal `workspace/config.yaml` with one local vLLM model:
@@ -56,6 +68,10 @@ The router uses [LiteLLM](https://docs.litellm.ai/docs/#litellm-python-sdk) to
 support different provider backends. `type` is passed to LiteLLM as the prefix
 in `type/model`. Use `hosted_vllm` for a self-hosted vLLM server, or any other
 [LiteLLM-supported provider](https://docs.litellm.ai/docs/providers).
+
+When `workspace/config.yaml` references values such as `${OPENAI_API_KEY}` or
+`${ANTHROPIC_API_KEY}`, Docker Compose forwards them from `workspace/.env`
+into the container.
 
 ### Step 2: Build Image
 
@@ -176,12 +192,3 @@ curl http://localhost:8000/v1/metrics
 
 - Check the [API Reference](./api-reference.md) for endpoint details.
 - See the [Release Notes](./release-notes.md) for version history.
-
-<!--hide_directive
-:::{toctree}
-:hidden:
-
-./get-started/system-requirements
-
-:::
-hide_directive-->

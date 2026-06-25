@@ -398,7 +398,6 @@ def test_forced_provider_selection(
 		)
 
 		choice = response["choices"][0]
-		print(choice)
 		content = choice["message"].get("content")
 		assert token in content, (
 			f"Expected {token!r} in response when pinning model={model_id!r}, "

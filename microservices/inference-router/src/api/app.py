@@ -94,7 +94,7 @@ def create_app(
     async def root():
         return {
             "name": "Inference Router API",
-            "version": "1.0.0",
+            "version": "0.1.0",
             "status": "running",
             "endpoints": {
                 "health": "/health",
@@ -159,7 +159,7 @@ def create_app(
                     "message": "Request validation failed",
                     "type": "RequestValidationError",
                     "detail": exc.errors(),
-                    "body": raw_body,
+                    "body": None,
                 }
             },
         )
@@ -177,7 +177,7 @@ def create_app(
 
         return JSONResponse(
             status_code=500,
-            content={"error": {"message": str(exc), "type": type(exc).__name__}},
+            content={"error": {"message": "Internal server error", "type": type(exc).__name__}},
         )
 
     logger.info(f"Created FastAPI app with {len(app.routes)} routes")

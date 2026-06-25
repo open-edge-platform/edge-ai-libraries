@@ -20,15 +20,26 @@ endpoint.
 
 ## Quick Start
 
+If you are cloning from the larger monorepo and only need this service, you
+can use sparse checkout:
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries
+git sparse-checkout set microservices/inference-router
+cd microservices/inference-router
+```
+
 ### 1. Configure
 
 Create the runtime workspace folder, copy the example configuration into it,
-and edit it to point at your backend:
+and edit it to point at your backend. If your provider needs API keys, also
+copy `.env.example` to `workspace/.env` and fill in the applicable values:
 
 ```bash
-cd inference-router
 mkdir -p workspace
 cp config.example.yaml workspace/config.yaml
+cp .env.example workspace/.env
 ```
 
 ### 2. Build the Image
@@ -53,31 +64,4 @@ To stop the service:
 bash scripts/deploy_docker.sh --down
 ```
 
-See [docs/user-guide/get-started.md](docs/user-guide/get-started.md) for more information.
-
-## Architecture
-
-```
-┌─────────────────────────────────────────┐
-│  FastAPI Gateway (/v1/chat/completions) │
-└────────────────┬────────────────────────┘
-                 │
-       ┌─────────▼───────────┐
-       │  Router Orchestrator│ (applies routing policy)
-       └─────────┬───────────┘
-                 │
-    ┌────────────▼──────────────┐
-    │ ProviderAdapter Interface │
-    ├────────────┬──────────────┤
-    │  vLLM      │   (Ollama)   │
-    │ Provider   │   (Future)   │
-    └────────────┴──────────────┘
-                 │
-    ┌────────────▼──────────────┐
-    │ Backend Services          │
-    │ (vLLM, Ollama, etc)       │
-    └───────────────────────────┘
-
-    Telemetry Observable at Every Layer
-    (Events, Metrics, Pluggable Backends)
-```
+See [get-started.md](docs/user-guide/get-started.md) for more information.

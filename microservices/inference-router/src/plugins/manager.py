@@ -5,7 +5,10 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
+import pkgutil
+from pathlib import Path
 from typing import Any, Dict, List, Type
 
 from src.config import PluginConfig
@@ -14,6 +17,10 @@ from src.models import ChatCompletionRequest, ChatCompletionResponse
 from src.plugins.base import PluginSchemaError, RequestPlugin
 
 logger = logging.getLogger(__name__)
+
+# Modules that live next to the registry itself; importing them as plugins
+# would be circular or pointless.
+_DISCOVERY_SKIP = {"base", "manager"}
 
 
 class PluginManager:
@@ -63,14 +70,14 @@ class PluginManager:
         current = await self.process_postrouting_request(current)
         return current
 
-    def get_plugin_by_name(self, name: str) -> RequestPlugin:
+    def get_plugin_by_name(self, name: str) -> RequestPlugin | None:
         """Get plugin by name. Returns first match if name exists in multiple lists."""
         for plugin in self.plugins:
             if plugin.name == name:
                 return plugin
         return None
 
-    def get_plugin_by_name_and_node(self, name: str, node: str) -> RequestPlugin:
+    def get_plugin_by_name_and_node(self, name: str, node: str) -> RequestPlugin | None:
         """Get plugin by name and node type."""
         for plugin in self.plugins:
             if plugin.name == name and plugin.plugin_type() == node:
@@ -119,6 +126,7 @@ class PluginManager:
 
 
 _PLUGIN_REGISTRY: Dict[str, Type[RequestPlugin]] = {}
+_DISCOVERED = False
 
 
 def register_plugin(plugin_cls: Type[RequestPlugin]) -> Type[RequestPlugin]:
@@ -126,6 +134,29 @@ def register_plugin(plugin_cls: Type[RequestPlugin]) -> Type[RequestPlugin]:
     plugin_type = plugin_cls.plugin_type()
     _PLUGIN_REGISTRY[plugin_type] = plugin_cls
     return plugin_cls
+
+
+def _discover_plugin_modules() -> None:
+    """Import every module under ``src.plugins`` so ``@register_plugin`` runs.
+
+    Idempotent: subsequent calls are no-ops. Plugin authors only need to drop
+    a file (or subpackage) under ``src/plugins/`` — no central edit required.
+    """
+    global _DISCOVERED
+    if _DISCOVERED:
+        return
+
+    package_dir = Path(__file__).parent
+    for module_info in pkgutil.iter_modules([str(package_dir)]):
+        if module_info.name in _DISCOVERY_SKIP or module_info.name.startswith("_"):
+            continue
+        try:
+            importlib.import_module(f"src.plugins.{module_info.name}")
+        except Exception as exc:
+            logger.error("Failed to import plugin module '%s': %s", module_info.name, exc)
+            raise
+
+    _DISCOVERED = True
 
 
 def build_plugin(plugin_config: PluginConfig) -> RequestPlugin:
@@ -152,6 +183,7 @@ def build_plugin(plugin_config: PluginConfig) -> RequestPlugin:
 
 def create_plugin_manager(plugin_configs: List[PluginConfig]) -> PluginManager:
     """Create plugin manager from config while preserving list order."""
+    _discover_plugin_modules()
     prerouting_plugins: List[RequestPlugin] = []
     postrouting_plugins: List[RequestPlugin] = []
     postresponse_plugins: List[RequestPlugin] = []

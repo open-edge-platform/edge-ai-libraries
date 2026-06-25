@@ -70,7 +70,7 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
     logger.info(
         f"Request received: request_id={request_id}, "
         f"model={sanitize_for_log(request.model)}, "
-        f"stream={bool(request.stream)}"
+        f"stream={request.stream}"
     )
     logger.debug(
         f"Request details: request_id={request_id}, "
@@ -143,7 +143,7 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
             log_dir,
             verbose,
         )
-        raise HTTPException(status_code=500, detail=f"Inference error: {e}")
+        raise HTTPException(status_code=500, detail=f"Inference error (request_id={request_id})")
 
     # Forward the backend response untouched, only stamping the gateway's
     # request id so clients see a consistent identifier.
@@ -360,7 +360,7 @@ async def get_plugin(name: str, node: str, http_request: Request) -> PluginRespo
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get plugin {sanitize_for_log(name)}/{sanitize_for_log(node)}: {e}")
+        logger.error(f"Failed to get plugin {name}/{node}: {e}")
         raise HTTPException(status_code=500, detail="Failed to get plugin configuration")
 
 
@@ -380,7 +380,7 @@ async def update_plugin(
             )
 
         if update_req.settings:
-            new_settings = update_req.settings.dict(exclude_unset=True)
+            new_settings = update_req.settings.model_dump(exclude_unset=True)
             if not plugin_manager.update_plugin_settings(name, node, new_settings):
                 raise HTTPException(status_code=500, detail="Failed to update plugin settings")
 
@@ -396,7 +396,7 @@ async def update_plugin(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update plugin {sanitize_for_log(name)}/{sanitize_for_log(node)}: {e}")
+        logger.error(f"Failed to update plugin {name}/{node}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update plugin configuration")
 
 
@@ -411,7 +411,7 @@ async def create_or_update_plugin(
         plugin = plugin_manager.get_plugin_by_name_and_node(name, node)
         if plugin:
             if update_req.settings:
-                new_settings = update_req.settings.dict(exclude_unset=True)
+                new_settings = update_req.settings.model_dump(exclude_unset=True)
                 if not plugin_manager.update_plugin_settings(name, node, new_settings):
                     raise HTTPException(status_code=500, detail="Failed to update plugin settings")
 
@@ -432,5 +432,5 @@ async def create_or_update_plugin(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create/update plugin {sanitize_for_log(name)}/{sanitize_for_log(node)}: {e}")
+        logger.error(f"Failed to create/update plugin {name}/{node}: {e}")
         raise HTTPException(status_code=500, detail="Failed to configure plugin")

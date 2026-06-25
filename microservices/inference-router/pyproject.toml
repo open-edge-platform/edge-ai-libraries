@@ -10,7 +10,7 @@ name = "inference-router"
 version = "0.1.0"
 description = "A pluggable inference router for chat completion requests with local vLLM support"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10,<3.14"
 license = { text = "Apache-2.0" }
 authors = []
 classifiers = [

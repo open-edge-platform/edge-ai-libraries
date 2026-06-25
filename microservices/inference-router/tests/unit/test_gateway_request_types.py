@@ -368,7 +368,6 @@ class TestToolChoiceVariants:
 
         _assert_valid_response(response)
         choice = response["choices"][0]
-        print(choice)
         assert choice["finish_reason"] == "tool_calls"
         # tool_choice=required must produce a tool call
         tool_calls = choice["message"].get("tool_calls")
