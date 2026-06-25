@@ -1,8 +1,6 @@
 # How It Works
 
-This page describes the end-to-end flow of the Agentic Predictive Maintenance Blueprint so you can verify and debug each stage independently.
-
----
+The Agentic Predictive Maintenance (APM) blueprint runs a continuous detection and analysis loop: a video inference pipeline feeds detection events into a storage layer, and a multi-agent reasoning pipeline periodically processes those detections to generate structured maintenance tickets. This page describes each stage so you can understand, verify, and debug the pipeline independently.
 
 ## System Overview
 
@@ -29,7 +27,6 @@ Meta-Agent (LangGraph)
 UI (Nginx → UI Service)
 ```
 
----
 
 ## Stage 1 — Startup
 
@@ -62,7 +59,6 @@ Services started:
 docker ps --format "table {{.Names}}\t{{.Status}}"
 ```
 
----
 
 ## Stage 2 — Video Inference (DL Streamer → MQTT)
 
@@ -89,7 +85,6 @@ docker exec apm-mqtt-broker mosquitto_sub -t 'dlstreamer/detections'
 
 Each message is a JSON payload with `label`, `confidence`, `bbox`, `frame_id`, and `timestamp`.
 
----
 
 ## Stage 3 — Detection Storage (MQTT → SQLite)
 
@@ -115,7 +110,6 @@ Expected `stats` response:
 }
 ```
 
----
 
 ## Stage 4 — Triggering the Agent Pipeline
 
@@ -138,7 +132,6 @@ Returns:
 
 Set `AUTO_RUN_ON_DETECTION=true` in the use-case `.env` file. The agent pipeline fires automatically after each MQTT detection batch is saved.
 
----
 
 ## Stage 5 — Multi-Agent Reasoning (LangGraph)
 
@@ -200,7 +193,6 @@ LLM_MODE=fallback source setup.sh --use-case pipeline-defect-detection
 source setup.sh --use-case pipeline-defect-detection
 ```
 
----
 
 ## Stage 6 — Viewing Results
 
@@ -221,7 +213,6 @@ Open `http://localhost:8080` in a browser. The dashboard shows:
 - Run history with status
 - Generated maintenance tickets
 
----
 
 ## Quick Verification Checklist
 
@@ -250,7 +241,6 @@ curl http://localhost:8080/api/agents/runs/$RUN_ID
 curl http://localhost:8080/api/agents/runs/$RUN_ID | python3 -m json.tool
 ```
 
----
 
 ## Troubleshooting
 
