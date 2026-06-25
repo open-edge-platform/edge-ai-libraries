@@ -117,11 +117,11 @@ async def download_models(
 
         for model in request.models:
             # Check if the plugin's dependencies are installed
-            is_plugin_available, error_reason = plugin_registry.check_plugin_dependencies(model.hub)
+            is_plugin_available, error_reason = plugin_registry.check_plugin_dependencies(model.hub.value)
             if not is_plugin_available:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Plugin '{model.hub}' is not available: {error_reason}"
+                    detail=f"Plugin '{model.hub.value}' is not available: {error_reason}"
                 )
 
             extra_kwargs = model.model_dump().copy()

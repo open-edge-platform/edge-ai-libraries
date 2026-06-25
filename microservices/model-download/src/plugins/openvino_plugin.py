@@ -1,10 +1,12 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import os
 import subprocess
 from collections import deque
 from enum import Enum
+from pathlib import Path
 from typing import Dict, Any, Optional, List
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
 from src.core.plugin_venv import get_plugin_venv_python, get_plugin_venv_env, build_venv_command
@@ -13,6 +15,135 @@ from src.utils.logging import logger
 
 # Default OVMS release tag for export_model.py script
 OVMS_RELEASE_TAG = os.getenv("OVMS_RELEASE_TAG", "v2026.0")
+
+# Graph templates for OVMS serving configuration (aligned with export_model.py)
+TEXT_GENERATION_GRAPH_TEMPLATE = """# OVMS_GRAPH_QUEUE_MAX_SIZE: AUTO
+input_stream: "HTTP_REQUEST_PAYLOAD:input"
+output_stream: "HTTP_RESPONSE_PAYLOAD:output"
+
+node: {
+  name: "LLMExecutor"
+  calculator: "HttpLLMCalculator"
+  input_stream: "LOOPBACK:loopback"
+  input_stream: "HTTP_REQUEST_PAYLOAD:input"
+  input_side_packet: "LLM_NODE_RESOURCES:llm"
+  output_stream: "LOOPBACK:loopback"
+  output_stream: "HTTP_RESPONSE_PAYLOAD:output"
+  input_stream_info: {
+    tag_index: 'LOOPBACK:0',
+    back_edge: true
+  }
+  node_options: {
+      [type.googleapis.com / mediapipe.LLMCalculatorOptions]: {
+          models_path: "./",
+          plugin_config: '%(plugin_config)s',
+          enable_prefix_caching: %(enable_prefix_caching)s,
+          cache_size: %(cache_size)s,
+          max_num_seqs: %(max_num_seqs)s,
+          device: "%(target_device)s",
+      }
+  }
+  input_stream_handler {
+    input_stream_handler: "SyncSetInputStreamHandler",
+    options {
+      [mediapipe.SyncSetInputStreamHandlerOptions.ext] {
+        sync_set {
+          tag_index: "LOOPBACK:0"
+        }
+      }
+    }
+  }
+}"""
+
+EMBEDDINGS_GRAPH_TEMPLATE = """# OVMS_GRAPH_QUEUE_MAX_SIZE: AUTO
+input_stream: "REQUEST_PAYLOAD:input"
+output_stream: "RESPONSE_PAYLOAD:output"
+node {
+  name: "EmbeddingsExecutor"
+  input_side_packet: "EMBEDDINGS_NODE_RESOURCES:embeddings_servable"
+  calculator: "EmbeddingsCalculatorOV"
+  input_stream: "REQUEST_PAYLOAD:input"
+  output_stream: "RESPONSE_PAYLOAD:output"
+  node_options: {
+    [type.googleapis.com / mediapipe.EmbeddingsCalculatorOVOptions]: {
+      models_path: "./",
+      plugin_config: '{"NUM_STREAMS": "%(num_streams)s" }',
+      normalize_embeddings: %(normalize)s,
+      target_device: "%(target_device)s"
+    }
+  }
+}"""
+
+RERANK_GRAPH_TEMPLATE = """# OVMS_GRAPH_QUEUE_MAX_SIZE: AUTO
+input_stream: "REQUEST_PAYLOAD:input"
+output_stream: "RESPONSE_PAYLOAD:output"
+node {
+  name: "RerankExecutor"
+  input_side_packet: "RERANK_NODE_RESOURCES:rerank_servable"
+  calculator: "RerankCalculatorOV"
+  input_stream: "REQUEST_PAYLOAD:input"
+  output_stream: "RESPONSE_PAYLOAD:output"
+  node_options: {
+    [type.googleapis.com / mediapipe.RerankCalculatorOVOptions]: {
+      models_path: "./",
+      plugin_config: '{"NUM_STREAMS": "%(num_streams)s" }',
+      target_device: "%(target_device)s"
+    }
+  }
+}"""
+
+TEXT2SPEECH_GRAPH_TEMPLATE = """# OVMS_GRAPH_QUEUE_MAX_SIZE: AUTO
+input_stream: "HTTP_REQUEST_PAYLOAD:input"
+output_stream: "HTTP_RESPONSE_PAYLOAD:output"
+node {
+  name: "T2sExecutor"
+  input_side_packet: "TTS_NODE_RESOURCES:t2s_servable"
+  calculator: "T2sCalculator"
+  input_stream: "HTTP_REQUEST_PAYLOAD:input"
+  output_stream: "HTTP_RESPONSE_PAYLOAD:output"
+  node_options: {
+    [type.googleapis.com / mediapipe.T2sCalculatorOptions]: {
+      models_path: "./",
+      plugin_config: '{ "NUM_STREAMS": "%(num_streams)s" }',
+      target_device: "%(target_device)s",
+    }
+  }
+}"""
+
+SPEECH2TEXT_GRAPH_TEMPLATE = """# OVMS_GRAPH_QUEUE_MAX_SIZE: AUTO
+input_stream: "HTTP_REQUEST_PAYLOAD:input"
+output_stream: "HTTP_RESPONSE_PAYLOAD:output"
+node {
+  name: "S2tExecutor"
+  input_side_packet: "STT_NODE_RESOURCES:s2t_servable"
+  calculator: "S2tCalculator"
+  input_stream: "LOOPBACK:loopback"
+  input_stream: "HTTP_REQUEST_PAYLOAD:input"
+  output_stream: "LOOPBACK:loopback"
+  output_stream: "HTTP_RESPONSE_PAYLOAD:output"
+  input_stream_info: {
+    tag_index: 'LOOPBACK:0',
+    back_edge: true
+  }
+  node_options: {
+    [type.googleapis.com / mediapipe.S2tCalculatorOptions]: {
+      models_path: "./",
+      plugin_config: '{ "NUM_STREAMS": "%(num_streams)s" }',
+      target_device: "%(target_device)s",
+      enable_word_timestamps: %(enable_word_timestamps)s,
+    }
+  }
+  input_stream_handler {
+    input_stream_handler: "SyncSetInputStreamHandler",
+    options {
+      [mediapipe.SyncSetInputStreamHandlerOptions.ext] {
+        sync_set {
+          tag_index: "LOOPBACK:0"
+        }
+      }
+    }
+  }
+}"""
 
 
 class OpenVINOConverter(ModelDownloadPlugin):
@@ -74,6 +205,246 @@ class OpenVINOConverter(ModelDownloadPlugin):
         if isinstance(value, Enum):
             return value.value
         return str(value)
+
+    def _search_preconverted_model(
+        self,
+        model_name: str,
+        weight_format: str,
+        hf_token: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Search the OpenVINO organization on HuggingFace for a pre-converted model
+        matching the requested model name and precision.
+
+        Args:
+            model_name: Source model identifier (e.g., "meta-llama/Llama-3.1-8B")
+            weight_format: Precision format (e.g., "int4", "int8", "fp16")
+            hf_token: Optional HuggingFace API token
+
+        Returns:
+            The repo_id of the matching pre-converted model, or None if not found
+        """
+        try:
+            from huggingface_hub import HfApi
+            api = HfApi(token=hf_token)
+            # Extract the short model name (part after the slash, or the full name)
+            short_name = model_name.split("/")[-1] if "/" in model_name else model_name
+
+            logger.info(
+                f"Searching OpenVINO org for pre-converted model: "
+                f"model={short_name}, precision={weight_format}"
+            )
+
+            # List models under the OpenVINO organization matching the model name
+            models = api.list_models(
+                author="OpenVINO",
+                search=short_name,
+            )
+
+            # Filter results by precision in the repo name
+            weight_format_lower = weight_format.lower()
+            for model_info in models:
+                repo_name = model_info.id.lower()
+                # Match: repo contains the model short name and the precision
+                if (
+                    short_name.lower() in repo_name
+                    and weight_format_lower in repo_name
+                ):
+                    logger.info(
+                        f"Found pre-converted model: {model_info.id}"
+                    )
+                    return model_info.id
+
+            logger.info(
+                f"No pre-converted model found for {model_name} "
+                f"with precision {weight_format} in OpenVINO org"
+            )
+            return None
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to search for pre-converted models: {str(e)}. "
+                f"Falling back to conversion."
+            )
+            return None
+
+    def _try_pull_preconverted(
+        self,
+        model_name: str,
+        weight_format: str,
+        output_dir: str,
+        hf_token: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Attempt to pull a pre-converted OpenVINO model from HuggingFace.
+
+        Args:
+            model_name: Source model identifier
+            weight_format: Precision format
+            output_dir: Directory to download the model to
+            hf_token: Optional HuggingFace API token
+
+        Returns:
+            Dictionary with download result if successful, or None if no match found
+        """
+        repo_id = self._search_preconverted_model(
+            model_name=model_name,
+            weight_format=weight_format,
+            hf_token=hf_token,
+        )
+
+        if repo_id is None:
+            return None
+
+        try:
+            from huggingface_hub import snapshot_download
+            logger.info(
+                f"Pulling pre-converted model {repo_id} to {output_dir}"
+            )
+            os.makedirs(output_dir, exist_ok=True)
+
+            downloaded_path = snapshot_download(
+                repo_id=repo_id,
+                token=hf_token,
+                local_dir=output_dir,
+            )
+
+            logger.info(
+                f"Successfully pulled pre-converted model {repo_id} "
+                f"to {downloaded_path}"
+            )
+            return {
+                "repo_id": repo_id,
+                "download_path": downloaded_path,
+                "success": True,
+            }
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to pull pre-converted model {repo_id}: {str(e)}. "
+                f"Falling back to conversion."
+            )
+            return None
+
+    def _generate_serving_configs(
+        self,
+        model_name: str,
+        output_dir: str,
+        model_type: str,
+        config: Dict[str, Any],
+    ) -> None:
+        """
+        Generate graph.pbtxt and config_all.json for pre-converted (pulled) models.
+        These files are normally created by export_model.py during conversion.
+
+        Args:
+            model_name: Model identifier (e.g., "meta-llama/Llama-3.1-8B")
+            output_dir: Directory where the model was downloaded
+            model_type: Type of model (llm, vlm, embeddings, rerank, etc.)
+            config: Configuration parameters from the request
+        """
+        try:
+            target_device = str(config.get("device", config.get("target_device", "CPU"))).upper()
+            cache_size = config.get("cache_size", config.get("cache", 0)) or 0
+            num_streams = config.get("num_streams", 1) or 1
+
+            # Determine graph template and render parameters based on model type
+            if model_type in ("llm", "text_generation", "vlm"):
+                plugin_config = {}
+                kv_cache_precision = config.get("kv_cache_precision")
+                if kv_cache_precision:
+                    plugin_config["KV_CACHE_PRECISION"] = kv_cache_precision
+                ov_cache_dir = config.get("ov_cache_dir")
+                if ov_cache_dir:
+                    plugin_config["CACHE_DIR"] = ov_cache_dir
+
+                enable_prefix_caching = "true" if config.get("enable_prefix_caching") else "false"
+                max_num_seqs = config.get("max_num_seqs", 256) or 256
+
+                graph_content = TEXT_GENERATION_GRAPH_TEMPLATE % {
+                    "plugin_config": json.dumps(plugin_config),
+                    "enable_prefix_caching": enable_prefix_caching,
+                    "cache_size": cache_size,
+                    "max_num_seqs": max_num_seqs,
+                    "target_device": target_device,
+                }
+
+            elif model_type in ("embeddings", "embeddings_ov"):
+                normalize = "true" if config.get("normalize", True) else "false"
+                graph_content = EMBEDDINGS_GRAPH_TEMPLATE % {
+                    "num_streams": num_streams,
+                    "normalize": normalize,
+                    "target_device": target_device,
+                }
+
+            elif model_type in ("rerank", "rerank_ov"):
+                graph_content = RERANK_GRAPH_TEMPLATE % {
+                    "num_streams": num_streams,
+                    "target_device": target_device,
+                }
+
+            elif model_type in ("text2speech",):
+                graph_content = TEXT2SPEECH_GRAPH_TEMPLATE % {
+                    "num_streams": num_streams,
+                    "target_device": target_device,
+                }
+
+            elif model_type in ("speech2text",):
+                enable_word_timestamps = "true" if config.get("enable_word_timestamps") else "false"
+                graph_content = SPEECH2TEXT_GRAPH_TEMPLATE % {
+                    "num_streams": num_streams,
+                    "target_device": target_device,
+                    "enable_word_timestamps": enable_word_timestamps,
+                }
+
+            else:
+                logger.warning(
+                    f"No graph template available for model_type '{model_type}'. "
+                    f"Skipping graph.pbtxt generation."
+                )
+                graph_content = None
+
+            # Write graph.pbtxt
+            if graph_content:
+                graph_path = os.path.join(output_dir, "graph.pbtxt")
+                with open(graph_path, "w") as f:
+                    f.write(graph_content)
+                logger.info(f"Created graph.pbtxt at {graph_path}")
+
+            # Write config_all.json
+            config_file_path = os.path.join(output_dir, "config_all.json")
+            # Extract a short model name for the servable config
+            short_name = model_name.split("/")[-1] if "/" in model_name else model_name
+            base_path = Path(".").as_posix()
+
+            if os.path.isfile(config_file_path):
+                with open(config_file_path, "r") as f:
+                    config_data = json.load(f)
+            else:
+                config_data = {"model_config_list": []}
+
+            if "model_config_list" not in config_data:
+                config_data["model_config_list"] = []
+
+            # Update or add model entry
+            model_list = config_data["model_config_list"]
+            updated = False
+            for model_config in model_list:
+                if model_config.get("config", {}).get("name") == short_name:
+                    model_config["config"]["base_path"] = base_path
+                    updated = True
+            if not updated:
+                model_list.append({"config": {"name": short_name, "base_path": base_path}})
+
+            with open(config_file_path, "w") as f:
+                json.dump(config_data, f, indent=4)
+            logger.info(f"Created/updated config_all.json at {config_file_path}")
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to generate serving configs for pulled model: {str(e)}. "
+                f"Model files are downloaded but may need manual config setup."
+            )
 
     def _build_export_command(
         self,
@@ -167,11 +538,69 @@ class OpenVINOConverter(ModelDownloadPlugin):
         """
         Convert a model to OpenVINO Model Server (OVMS) format.
         This is the main conversion method expected by the model manager.
+        
+        Pull Mode: Before converting, attempts to find and download a pre-converted
+        model from the OpenVINO organization on HuggingFace. Falls back to conversion
+        if no pre-converted model is found.
         """        
         # Extract core parameters using helper (supports multiple sources)
         weight_format = kwargs.get("precision",kwargs.get("weight-format"))
         target_device = kwargs.get("device",kwargs.get("target_device"))
         cache_size = kwargs.get("cache_size", kwargs.get("cache", None))
+        
+        # Extract model metadata
+        huggingface_token = hf_token
+        model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
+        version = kwargs.get("version", "")
+
+        # --- Pull Mode: Try to find and download a pre-converted model first ---
+        logger.info(f"Attempting pull mode for model: {model_name}, precision: {weight_format}")
+        pull_result = self._try_pull_preconverted(
+            model_name=model_name,
+            weight_format=weight_format or "int8",
+            output_dir=output_dir,
+            hf_token=huggingface_token,
+        )
+
+        if pull_result is not None:
+            logger.info(f"Pull mode succeeded for {model_name} from {pull_result['repo_id']}")
+
+            # Generate serving config files (graph.pbtxt, config_all.json)
+            self._generate_serving_configs(
+                model_name=model_name,
+                output_dir=output_dir,
+                model_type=model_type,
+                config=kwargs,
+            )
+
+            host_path = output_dir
+            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                host_prefix = os.getenv("MODEL_PATH", "models")
+                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+
+            response_config = {}
+            if "precision" in kwargs:
+                response_config["precision"] = weight_format
+            if "device" in kwargs:
+                response_config["device"] = target_device
+            if ("cache_size" in kwargs or "cache" in kwargs) and cache_size is not None:
+                response_config["cache"] = cache_size
+
+            return {
+                "model_name": model_name,
+                "source": "openvino",
+                "type": model_type,
+                "conversion_path": host_path,
+                "is_ovms": True,
+                "config": response_config,
+                "success": True,
+                "mode": "pull",
+                "pulled_from": pull_result["repo_id"],
+                "message": f"Model successfully pulled from pre-converted repo: {pull_result['repo_id']}."
+            }
+
+        logger.info(f"Pull mode did not find a match. Proceeding with conversion for {model_name}.")
+        # --- End Pull Mode ---
         
         # Extract model metadata
         huggingface_token = hf_token
@@ -235,6 +664,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 "is_ovms": True,
                 "config": response_config,
                 "success": True,
+                "mode": "convert",
                 "message": "Model successfully converted to OVMS format."
             }
         except Exception as e:
