@@ -5,6 +5,6 @@ pydantic==2.10.6
 pymilvus==2.5.8
 pytest==8.3.5
 PyYAML==6.0.2
-requests==2.32.4
+requests>=2.33.0
 tqdm==4.67.0
 uvicorn[standard]==0.34.0

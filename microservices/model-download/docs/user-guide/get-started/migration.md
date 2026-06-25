@@ -56,7 +56,4 @@ are available and ready before application startup.
 
 > **Note:**
 > Currently, Model Download provides Helm charts for Kubernetes
-> deployments; however, a separate deployment package is not yet available
-> for Edge Manageability Framework. As a result, Model Download is
-> integrated into the application-level deployment package. Intel will
-> create a dedicated deployment package for Model Download.
+> deployments and is integrated into the application-level deployment package.
