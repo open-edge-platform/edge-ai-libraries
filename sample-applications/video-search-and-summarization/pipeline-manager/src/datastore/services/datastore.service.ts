@@ -82,6 +82,7 @@ export class DatastoreService {
     const baseName = path.basename(originalFileName || '').trim();
     const fileExtn = this.getExtension(baseName);
     const hasFileExtension = baseName.includes('.') && !baseName.endsWith('.');
+    // Use a deterministic storage key so downstream services never depend on user-supplied names.
     const storageFileName = hasFileExtension ? `source.${fileExtn}` : 'source';
     return { objectPath: `${stateId}/${storageFileName}`, fileExtn };
   }

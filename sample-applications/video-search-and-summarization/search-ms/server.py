@@ -74,16 +74,13 @@ def _normalize_tags(tags: Optional[list[str] | str]) -> list[str]:
     return [tag.strip() for tag in raw_tags if isinstance(tag, str) and tag.strip()]
 
 
-def build_combined_vdms_filter(query_request: QueryRequest) -> Tuple[Optional[dict], Optional[dict]]:
-    """Return (vdms_filter, effective_time_filter) for explicit/parsed time constraints."""
+def build_combined_vdms_filter(query_request: QueryRequest) -> Optional[dict]:
+    """Return the effective VDMS time filter from explicit or parsed query constraints."""
     explicit_time_filter = _build_explicit_time_filter(query_request.time_filter)
     parsed_time_filter = build_vdms_time_filter(query_request.query) if not explicit_time_filter else None
     effective_time_filter = explicit_time_filter or parsed_time_filter
 
-    if not effective_time_filter:
-        return None, None
-
-    return effective_time_filter, effective_time_filter
+    return effective_time_filter
 
 
 def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
@@ -183,9 +180,9 @@ async def query_endpoint(request: list[QueryRequest]):
             logger.debug(f"Query tags: {query_tags}")
 
             # Build time-based VDMS filter with fallback to NLP time parsing
-            vdms_filter, applied_time_filter = build_combined_vdms_filter(query_request)
-            if applied_time_filter:
-                logger.info(f"Applying time filter to VDMS query: {applied_time_filter}")
+            vdms_filter = build_combined_vdms_filter(query_request)
+            if vdms_filter:
+                logger.info(f"Applying time filter to VDMS query: {vdms_filter}")
             else:
                 logger.debug("No explicit or derived time filter applied")
             if query_tags_set:

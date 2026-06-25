@@ -40,6 +40,7 @@ export class VideoService {
   }
 
   private getStorageObjectFileName(video: Video): string {
+    // Prefer persisted object path so downstream lookup uses the real object-store filename.
     const objectPath = video.url || '';
     const objectFileName = objectPath.split('/').pop()?.trim();
     if (objectFileName) {

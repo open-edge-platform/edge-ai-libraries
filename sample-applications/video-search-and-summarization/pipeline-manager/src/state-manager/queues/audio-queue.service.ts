@@ -28,6 +28,7 @@ export class AudioQueueService {
     objectPath: string,
     fallbackFileName: string,
   ): string {
+    // audio-analyzer resolves objects from video_id + video_name; this must match the stored object key.
     const fileName = objectPath.split('/').pop()?.trim();
     return fileName || fallbackFileName;
   }
