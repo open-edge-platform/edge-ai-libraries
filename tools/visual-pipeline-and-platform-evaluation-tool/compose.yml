@@ -49,6 +49,7 @@ x-vippet: &vippet
     UPLOAD_ALLOWED_CODECS: "h264,h265"
     UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
     METADATA_DIR: /metadata
+    HOST_IP: ${HOST_IP:-}
     SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
@@ -99,9 +100,11 @@ services:
         http_proxy:
         https_proxy:
         no_proxy:
+        VITE_SERVERS_HOST: ${VITE_SERVERS_HOST:-}
+        VITE_ADMIN_API_KEY: ${VITE_ADMIN_API_KEY:-}
     container_name: ui
     ports:
-      - "80:80"
+      - "0.0.0.0:80:80"
     restart: on-failure:5
     depends_on:
       vippet:
@@ -166,13 +169,13 @@ services:
     <<: *vippet
     container_name: vippet
     ports:
-      - "7860:7860"
+      - "0.0.0.0:7860:7860"
   metrics-manager:
     image: docker.io/intel/metrics-manager:2026.1.0
     container_name: metrics-manager
     ports:
-      - "9090:9090"
-      - "9273:9273"
+      - "0.0.0.0:9090:9090"
+      - "0.0.0.0:9273:9273"
     privileged: true
     pid: host
     security_opt:
@@ -208,9 +211,9 @@ services:
       - MTX_RTSPADDRESS=:8554
       - MTX_WEBRTCADDITIONALHOSTS=${HOST_IPS}
     ports:
-      - "8554:8554"     # RTSP
-      - "8889:8889"     # WebRTC signaling/HTTP
-      - "8189:8189/udp" # WebRTC/ICE UDP
+      - "0.0.0.0:8554:8554"     # RTSP
+      - "0.0.0.0:8889:8889"     # WebRTC signaling/HTTP
+      - "0.0.0.0:8189:8189/udp" # WebRTC/ICE UDP
   onvif-discovery:
     image: docker.io/intel/vippet-onvif-discovery:${DOCKER_TAG}
     build:

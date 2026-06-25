@@ -136,6 +136,8 @@ make generate_openapi
 
 Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automatically by `setup_env.sh`.
 
+**Note**: All services bind to `0.0.0.0` (all network interfaces), enabling access from external networks. Configure firewall rules as needed.
+
 ## Coding Standards
 
 ### Python (backend)

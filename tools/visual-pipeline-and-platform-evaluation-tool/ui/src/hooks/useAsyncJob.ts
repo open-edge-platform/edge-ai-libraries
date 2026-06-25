@@ -279,7 +279,7 @@ export function useAsyncJob<
     handleJobCompletion();
   }, [jobStatus, jobId, isJobCancelled]);
 
-  const execute = async (args: TMutationArgs) => {
+  const execute = async (args: TMutationArgs): Promise<TStatus> => {
     const response = await triggerMutation(args).unwrap();
 
     if (isMultipleRef.current) {

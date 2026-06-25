@@ -219,3 +219,56 @@ If you are able to discover network cameras but cannot authenticate to them, che
 - Ensure time synchronization between the ViPPET host and the cameras,
   as some ONVIF implementations require closely synchronized clocks for authentication.
 - Check for any specific ONVIF profiles or settings required by the cameras for authentication.
+
+---
+
+## 15. Cannot access ViPPET from external network
+
+If you cannot access ViPPET from an external network (another machine on the same network or
+over the internet), check the following:
+
+**Service Configuration**:
+All ViPPET services are configured to bind to `0.0.0.0` (all network interfaces) by default,
+enabling external access. The following ports are exposed:
+
+- **Frontend (UI)**: Port 80 (`0.0.0.0:80`)
+- **Backend API**: Port 7860 (`0.0.0.0:7860`)
+- **RTSP server**: Port 8554 (`0.0.0.0:8554`)
+- **Metrics service**: Ports 9090 and 9273 (`0.0.0.0:9090`, `0.0.0.0:9273`)
+
+**Firewall Configuration**:
+Ensure that the host firewall allows incoming connections on the required ports. On Ubuntu/Debian,
+you can use `ufw`:
+
+```bash
+# Allow HTTP for the UI
+sudo ufw allow 80/tcp
+
+# Allow the API port
+sudo ufw allow 7860/tcp
+
+# Allow RTSP for live streaming
+sudo ufw allow 8554/tcp
+
+# Allow metrics service (if needed)
+sudo ufw allow 9090/tcp
+sudo ufw allow 9273/tcp
+```
+
+**Network Access**:
+- Access the UI from external networks using: `http://<HOST-IP>:80` or `http://<HOST-IP>`
+- Access the API documentation using: `http://<HOST-IP>:7860/api/v1/docs`
+- Access RTSP streams using: `rtsp://<HOST-IP>:8554/{stream_name}`
+
+Replace `<HOST-IP>` with the actual IP address of the machine running ViPPET.
+
+**Verify Port Binding**:
+Check that Docker is correctly binding ports to all interfaces:
+
+```bash
+docker compose ps
+netstat -tlnp | grep -E ':(80|7860|8554|9090|9273)'
+```
+
+The output should show `0.0.0.0:<port>` rather than `127.0.0.1:<port>`.
+

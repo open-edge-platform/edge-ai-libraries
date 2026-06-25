@@ -5,6 +5,7 @@ import { useModelsLoader } from "@/hooks/useModels.ts";
 import { useDevicesLoader } from "@/hooks/useDevices.ts";
 import { Navigation } from "@/components/Navigation.tsx";
 import { PageTitle } from "@/components/PageTitle.tsx";
+import { AddServerDialog } from "@/components/AddServerDialog.tsx";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button.tsx";
@@ -17,7 +18,8 @@ import { Separator } from "@/components/ui/separator.tsx";
 import { routeConfig, keepAliveRoutes } from "@/config/navigation.ts";
 import { BackgroundJobsProvider } from "@/contexts/BackgroundJobsContext";
 import { BackgroundJobsWidget } from "@/components/BackgroundJobsWidget";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { SERVERS_BASE_URL, ADMIN_API_KEY } from "@/api/apiSlice.ts";
 import { useAppSelector } from "@/store/hooks";
 import { selectIsAnyModelDownloaded } from "@/store/reducers/models";
 import { toast } from "@/lib/toast";
@@ -28,7 +30,19 @@ const Layout = () => {
   useDevicesLoader();
   const { theme, setTheme } = useTheme();
   const location = useLocation();
+  const [isServerRole, setIsServerRole] = useState(false);
   const hasModels = useAppSelector(selectIsAnyModelDownloaded);
+
+  useEffect(() => {
+    fetch(`${SERVERS_BASE_URL}/servers/db-status`, {
+      headers: {
+        ...(ADMIN_API_KEY && { "X-Admin-Key": ADMIN_API_KEY }),
+      },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setIsServerRole(data?.role === "vippet_server"))
+      .catch(() => setIsServerRole(false));
+  }, []);
 
   useEffect(() => {
     if (!hasModels) {
@@ -71,6 +85,7 @@ const Layout = () => {
                 </h1>
               </div>
               <div className="flex items-center gap-2 px-4">
+                {isServerRole && <AddServerDialog />}
                 <Button
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                   aria-label="Toggle theme"

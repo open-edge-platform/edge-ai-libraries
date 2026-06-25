@@ -9,3 +9,5 @@ uvicorn==0.48.0
 onvif-zeep==0.2.12
 python-multipart==0.0.32
 python-slugify==8.0.4
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10

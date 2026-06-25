@@ -1,6 +1,12 @@
 # Use Node.js base image for building the React app
 FROM node:22 AS build
 
+# Build-time variables for Vite (baked into the JS bundle by npm run build)
+ARG VITE_SERVERS_HOST
+ARG VITE_ADMIN_API_KEY
+ENV VITE_SERVERS_HOST=${VITE_SERVERS_HOST} \
+    VITE_ADMIN_API_KEY=${VITE_ADMIN_API_KEY}
+
 # Set working directory
 WORKDIR /app
 

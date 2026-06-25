@@ -7,9 +7,11 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.middleware import InitializationMiddleware
 from api.routes import health
+from database import init_db
 from images import ImagesManager
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
@@ -63,6 +65,17 @@ def _initialize_in_background(app: FastAPI) -> None:
             InternalAppStatus.INITIALIZING, "Downloading videos and loading metadata..."
         )
 
+        # Initialize database - create tables if needed.
+        # This is intentionally non-fatal: if the database is unreachable
+        # (e.g. DATABASE_URL is wrong), all other API endpoints remain
+        # available. The /servers/db-status endpoint will report the failure.
+        try:
+            init_db()
+        except Exception as db_err:
+            logger.warning(
+                f"Database initialization failed (server registration will be unavailable): {db_err}"
+            )
+
         # Initialize VideosManager - downloads videos, scans files,
         # extracts metadata, and converts to TS format
         VideosManager()
@@ -112,6 +125,7 @@ def register_routers(app: FastAPI) -> None:
         models,
         pipeline_templates,
         pipelines,
+        sysinfo,
         tests,
         videos,
         cameras,
@@ -128,6 +142,7 @@ def register_routers(app: FastAPI) -> None:
         tags=["pipeline-templates"],
     )
     app.include_router(pipelines.router, prefix="/pipelines", tags=["pipelines"])
+    app.include_router(sysinfo.router, prefix="/sysinfo", tags=["sysinfo"])
     app.include_router(tests.router, prefix="/tests", tags=["tests"])
     app.include_router(videos.router, prefix="/videos", tags=["videos"])
     app.include_router(images.router, prefix="/images", tags=["images"])
@@ -242,6 +257,15 @@ async def redoc_html():
     </html>
     """)
 
+
+# Add CORS middleware to allow cross-origin requests from other servers
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for remote server testing
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 # Add middleware to block requests during initialization
 app.add_middleware(InitializationMiddleware)

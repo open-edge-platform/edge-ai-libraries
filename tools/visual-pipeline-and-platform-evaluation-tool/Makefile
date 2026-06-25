@@ -8,7 +8,7 @@ SHELL := bash -eu -o pipefail
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
 	build-videogenerator build-onvif-discovery docker-build env-setup \
-	test-smoke test-full
+	test-smoke test-full servers build-servers run-servers stop-servers
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -75,6 +75,7 @@ env-setup: ## Environment setup target: always run before build/run targets that
 	mkdir -p shared/videos/input && chmod o+w shared/videos/input
 	mkdir -p shared/videos/output && chmod o+w shared/videos/output
 	mkdir -p shared/videos/video-generator && chmod o+w shared/videos/video-generator
+	mkdir -p shared/database && chmod o+w shared/database
 	./setup_env.sh
 
 build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery)
@@ -121,6 +122,29 @@ test-smoke: $(VENV_DIR) ## Run smoke functional tests
 test-full: $(VENV_DIR) ## Run full functional tests
 	set +u; . ./$</bin/activate; set -u ;\
 	python -m pytest --log-cli-level=INFO vippet/tests/functional/
+
+servers: $(VENV_DIR) ## Run servers-only REST API on port 7861 (no GStreamer or pipeline services needed)
+	set +u; . ./$</bin/activate; set -u ;\
+	cd $(PROJECT_NAME) ;\
+	PYTHONPATH=. uvicorn api.servers_app:app --host 0.0.0.0 --port 7861
+
+build-servers: ## Build the servers-only Docker image
+	docker compose -f compose.servers.yml build
+
+run-servers: ## Run the servers-only Docker container (requires POSTGRES_PASSWORD & ADMIN_API_KEY env vars)
+	docker compose -f compose.servers.yml up
+
+stop-servers: ## Stop and remove the servers and PostgreSQL containers
+	docker compose -f compose.servers.yml down
+
+install-models-once: env-setup ## Handle models download and installation (once)
+	. .env && MODEL_INSTALLATION=once docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models
+
+install-models-force: env-setup ## Handle models download and installation (force)
+	. .env && MODEL_INSTALLATION=force docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models
+
+install-models-all: env-setup ## Install all models automatically (no dialog)
+	. .env && MODEL_INSTALLATION=all docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models
 
 shell: env-setup ## Open shell in specified container (i.e. make shell SERVICE=vippet)
 	docker exec -it $(SERVICE) bash
