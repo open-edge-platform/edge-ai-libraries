@@ -261,7 +261,8 @@ to help users get started quickly and understand integration patterns: 
 - [Video Search and Summarization](./sample-applications/video-search-and-summarization) 
 
   Application combining video content analysis with search and
-  summarization capabilities. 
+  summarization capabilities. 🧪 Now with experimental support for 
+  Intel Arc Pro B-series GPUs (B60, B65, B70). 
 
 - [Edge Developer Kit Reference Scripts](https://github.com/open-edge-platform/edge-developer-kit-reference-scripts) 
 
