@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Video Search and Summarization
+# Video Search and Summarization.
 
 Use the Video Search and Summarization (VSS) sample application to search through your videos, summarize them, and more
 
