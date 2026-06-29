@@ -108,7 +108,7 @@ When the job completes, ViPPET reports the best configuration that met the FPS f
 
 ![Density Results](../../_assets/ViPPET-UI-Density-Results-light.png)
 
-### Comparing results across platforms
+## Comparing results across platforms
 
 Use density results to compare hardware capabilities:
 

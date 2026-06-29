@@ -4,16 +4,16 @@
 
 - [Demo mode](#demo-mode) - A dedicated UI specifically tailored to conference/tradeshow settings.
 - [New predefined pipelines](#new-predefined-pipelines) - New pipelines for retail (Goods Detection,
-  Goods Detection & Classification, Age & Gender Recognition), manufacturing (Defect Detection) and
+  Goods Detection and Classification, Age and Gender Recognition), manufacturing (Defect Detection) and
   metro (Smart Parking)
 - [Pipeline variants](#pipeline-variants): Each pipeline can now contain multiple variants
-  (e.g. CPU, GPU, and NPU), each with its own graph definition
+  (e.g., CPU, GPU, and NPU), each with its own graph definition
 - [Pipeline templates](#pipeline-templates-and-creation-from-templates): Predefined and highly
   optimized Detect and Detect + Classify pipeline templates as starting points for creating new pipelines
 - [Simple view for pipeline graphs](#simple-view-for-pipeline-graphs): A simplified pipeline view
   is now available alongside the advanced full GStreamer graph view
 - [Cameras as input source](#camera-discovery-and-management): Camera discovery service automatically
-  detects both USB and network cameras, which can be as the input sources in pipeline editor
+  detects both USB and network cameras, which can be used as the input sources in the pipeline editor
 - [Live pipeline output preview](#live-pipeline-output-preview): A WebRTC-based video player is
   integrated into the UI, enabling real-time preview of pipeline output during execution
 - [Timed pipeline execution](#timed-pipeline-execution): Pipelines can now be configured to run for
@@ -22,7 +22,7 @@
   eight live charts, including GPU frequency, GPU power consumption, GPU memory usage, GPU utilization,
   CPU temperature, CPU frequency, CPU utilization, and CPU power
 - [UI improvements](#new-navigation-and-updated-look-and-feel): New navigation style, updated
-  Look&Feel, redesigned pipeline editor layout
+  look and feel, redesigned pipeline editor layout
 
 ## Release Details
 
