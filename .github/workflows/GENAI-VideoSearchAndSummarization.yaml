@@ -63,7 +63,7 @@ jobs:
           pytest
 
       - name: Upload test reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: vss-functional-test-reports
@@ -124,7 +124,7 @@ jobs:
           make trivy-scan-image
 
       - name: Upload Trivy scan results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: vss-trivy-scan-results
@@ -152,7 +152,7 @@ jobs:
           make bandit-scan
 
       - name: Upload Bandit scan results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: vss-bandit-scan-results
@@ -186,7 +186,7 @@ jobs:
           make clamav-scan
 
       - name: Upload ClamAV results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: vss-clamav-scan-results
@@ -220,7 +220,7 @@ jobs:
           make gitleaks-scan
 
       - name: Upload Gitleaks results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: vss-gitleaks-scan-results
