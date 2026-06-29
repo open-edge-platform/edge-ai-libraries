@@ -172,7 +172,7 @@ paths:
                         "udfs": {
                             "name": "udf_name",
                             "model": "model_name",
-                            "device": "cpu or gpu"},
+                            "device": "CPU/cpu or GPU/gpu"},
                         "alerts": {
                         }
         responses:
