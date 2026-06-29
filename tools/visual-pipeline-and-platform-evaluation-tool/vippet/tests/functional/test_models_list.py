@@ -12,12 +12,17 @@ logger = logging.getLogger(__name__)
 
 type ModelDict = dict[str, Any]
 
-VALID_MODEL_CATEGORIES: set[str] = {"detection", "classification", "segmentation"}
-VALID_MODEL_PRECISIONS: set[str] = {"FP32", "FP16", "INT8"}
+VALID_MODEL_CATEGORIES: set[str] = {
+    "detection",
+    "classification",
+    "segmentation",
+    "genai",
+}
+VALID_MODEL_PRECISIONS: set[str] = {"FP32", "FP16", "INT8", "INT4"}
 
 
 def _expand_model_precisions(models: list[ModelDict]) -> list[ModelDict]:
-    """Flatten a list of model config entries into one entry per precision variant."""
+    """Flatten YAML model config entries into one entry per precision variant."""
     return [
         {
             "name": m["name"],
@@ -30,11 +35,36 @@ def _expand_model_precisions(models: list[ModelDict]) -> list[ModelDict]:
     ]
 
 
+def _api_model_variants(api_models: list[ModelDict]) -> list[ModelDict]:
+    """Flatten the API response into one entry per ``ModelVariant``.
+
+    The /models endpoint exposes each model as a single object with a
+    nested ``variants`` array (one entry per precision / model-proc).
+    These tests assert at the variant level so the helper flattens the
+    response to align with the YAML expectations produced by
+    :func:`_expand_model_precisions`.
+    """
+    flattened: list[ModelDict] = []
+    for model in api_models:
+        category = model.get("category")
+        for variant in model.get("variants", []):
+            flattened.append(
+                {
+                    "name": variant.get("name", ""),
+                    "display_name": variant.get("display_name", ""),
+                    "category": category,
+                    "precision": variant.get("precision", ""),
+                }
+            )
+    return flattened
+
+
 def _assert_models_present_in_api(
     api_models: list[ModelDict],
     expected_models: list[ModelDict],
 ) -> None:
     """Assert that every expected model+precision combination exists in the API response."""
+    api_variants = _api_model_variants(api_models)
     for model_cfg in expected_models:
         name: str = model_cfg["name"]
         display_name: str = model_cfg["display_name"]
@@ -42,12 +72,12 @@ def _assert_models_present_in_api(
         expected_precision: str = model_cfg["precision"]
 
         matches = [
-            m
-            for m in api_models
-            if m.get("name", "").startswith(name)
-            and m.get("display_name", "").startswith(display_name)
-            and m.get("category") == category
-            and m.get("precision") == expected_precision
+            v
+            for v in api_variants
+            if v.get("name", "").startswith(name)
+            and v.get("display_name", "").startswith(display_name)
+            and v.get("category") == category
+            and v.get("precision") == expected_precision
         ]
         assert matches, (
             f"Model '{name}' with precision '{expected_precision}' is missing from API response"
@@ -56,7 +86,14 @@ def _assert_models_present_in_api(
 
 @pytest.mark.smoke
 def test_models_endpoint_returns_models(http_client: requests.Session) -> None:
-    """Basic schema validation: every entry returned by the API is well-formed."""
+    """Basic schema validation: every entry returned by the API is well-formed.
+
+    User-uploaded models (``source == "custom"``) are excluded from the
+    precision/category whitelist checks: they are free-form uploads
+    that do not carry a precision tag and may use a category outside
+    the catalogue allow-list. They are still required to satisfy the
+    name/display_name/variants structural invariants.
+    """
     models: list[ModelDict] = fetch_models(http_client)
 
     assert models, "Models endpoint returned an empty list"
@@ -69,14 +106,41 @@ def test_models_endpoint_returns_models(http_client: requests.Session) -> None:
             isinstance(model_entry.get("display_name"), str)
             and model_entry["display_name"]
         ), "Model entry has invalid display_name"
-        assert (
-            isinstance(model_entry.get("category"), str)
-            and model_entry["category"] in VALID_MODEL_CATEGORIES
-        ), f"Model entry has unsupported category: {model_entry.get('category')}"
-        assert (
-            isinstance(model_entry.get("precision"), str)
-            and model_entry["precision"] in VALID_MODEL_PRECISIONS
-        ), f"Model entry has unsupported precision: {model_entry.get('precision')}"
+
+        is_custom = str(model_entry.get("source") or "").lower() == "custom"
+
+        category = model_entry.get("category")
+        assert isinstance(category, str) and category, (
+            "Model entry has missing or empty category"
+        )
+        if not is_custom:
+            assert category in VALID_MODEL_CATEGORIES, (
+                f"Model entry has unsupported category: {category}"
+            )
+
+        variants = model_entry.get("variants")
+        assert isinstance(variants, list) and variants, (
+            "Model entry has missing or empty variants list"
+        )
+        for variant in variants:
+            assert isinstance(variant, dict), "Each variant must be an object"
+            assert isinstance(variant.get("name"), str) and variant["name"], (
+                "Variant has invalid name"
+            )
+            assert (
+                isinstance(variant.get("display_name"), str) and variant["display_name"]
+            ), "Variant has invalid display_name"
+            if is_custom:
+                # Uploaded models do not advertise a precision; accept
+                # any string (including the empty string).
+                assert isinstance(variant.get("precision"), str), (
+                    "Variant precision must be a string"
+                )
+            else:
+                assert (
+                    isinstance(variant.get("precision"), str)
+                    and variant["precision"] in VALID_MODEL_PRECISIONS
+                ), f"Variant has unsupported precision: {variant.get('precision')}"
 
 
 @pytest.mark.smoke

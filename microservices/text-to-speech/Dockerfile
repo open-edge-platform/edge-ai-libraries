@@ -1,23 +1,44 @@
-FROM openvino/ubuntu22_runtime:2026.1.0
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+FROM intel/dlstreamer:2026.1.0-ubuntu24
+
+ARG APP_UID=1000
+ARG APP_GID=1000
 
 USER root
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app/text-to-speech
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libsndfile1 python3-pip sox \
+    && apt-get install -y --no-install-recommends libsndfile1 python3-venv sox \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./requirements.txt
 
-RUN python3 -m pip install --upgrade pip \
-    && python3 -m pip install -r requirements.txt
+RUN python3 -m venv "$VIRTUAL_ENV" \
+    && "$VIRTUAL_ENV/bin/pip" install --upgrade pip \
+    && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt
+
 
 COPY . .
+
+# Ensure all relevant directories exist and contain a .keep file so Docker copies ownership
+RUN mkdir -p /app/text-to-speech/models/openvino \
+    && mkdir -p /app/text-to-speech/storage/dummy \
+    && mkdir -p /app/text-to-speech/.cache/dummy \
+    && touch /app/text-to-speech/models/.keep \
+    && touch /app/text-to-speech/models/openvino/.keep \
+    && touch /app/text-to-speech/storage/.keep \
+    && touch /app/text-to-speech/.cache/.keep \
+    && chown -R ${APP_UID}:${APP_GID} /app/text-to-speech
+
+USER ${APP_UID}:${APP_GID}
 
 EXPOSE 8011
 

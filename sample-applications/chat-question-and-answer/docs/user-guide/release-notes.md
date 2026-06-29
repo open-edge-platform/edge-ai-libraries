@@ -1,24 +1,21 @@
 # Release Notes: Chat Q&A
 
 
-## Version 2026.1.0-rc1
+## Version 2026.1.0
 
-**May 14, 2026**
+**June 17, 2026**
 
-**New**
-    - EMF deployment package support has been removed.
-    - Security fixes.
+**Deprecated**
+
+- TEI as an embedding model server is no longer supported and will be removed in the next release. Use OVMS for embeddings.
 
 **Known Issues**
 
 - The upload button is temporarily disabled during chat response generation to prevent delays. File or link uploads trigger embedding generation, which runs on the same OVMS server as the LLM, potentially slowing response streaming if both run together.
-- Chat data is stored in localStorage for session continuity. After container restarts, old chats may reappear — clear your browser’s localStorage to start fresh.
+- Chat data is stored in `localStorage` for session continuity. After container restarts, old chats may reappear — clear the `localStorage` of your browser to start fresh.
 - Limited validation done on EMT-S due to EMT-S issues. It is not recommended to use Chat Q&A modular on EMT-S until full validation is completed.
 - DeepSeek/Phi Models are observed, at times, to continue generating responses in an endless loop. Close the browser and restart in such cases.
 - When multiple applications use the model download service concurrently, downloads may take longer than usual. In such cases, retry with increased `SLEEP_SECS` in the `download_ovms_model` function in `setup.sh`.
-
-
-
 
 ## Previous Releases
 

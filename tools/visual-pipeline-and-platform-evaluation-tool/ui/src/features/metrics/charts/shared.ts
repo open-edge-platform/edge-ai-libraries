@@ -1,6 +1,6 @@
 /*SPDX-License-Identifier: Apache-2.0*/
 
-export const CHART_MAX_DATA_POINTS = 30;
+export const CHART_MAX_DATA_POINTS = 56;
 
 export const getRecentYAxisMax = (
   values: number[],

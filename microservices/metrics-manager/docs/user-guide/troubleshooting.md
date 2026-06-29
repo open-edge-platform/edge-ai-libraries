@@ -9,11 +9,13 @@ This guide covers common issues and solutions.
 **Symptom**: `curl: (7) Failed to connect to localhost port 9090: Connection refused`
 
 **Check:**
+
 1. Container is running: `docker ps | grep metrics-manager`
 2. Port is bound: `docker port metrics-manager`
 3. Service is healthy: `docker logs metrics-manager | tail -20`
 
 **Solution:**
+
 ```bash
 # Check if container is running
 docker ps
@@ -34,6 +36,7 @@ docker logs metrics-manager
 **Symptom**: Metric accepted (201 response) but doesn't appear in query.
 
 **Check:**
+
 ```bash
 # Verify metric was accepted
 curl -X POST http://localhost:9090/api/v1/metrics/simple \
@@ -46,12 +49,12 @@ curl http://localhost:9090/api/v1/metrics | jq '.metrics | keys'
 
 **Causes and Solutions:**
 
-| Cause | Solution |
-|-------|----------|
-| Metric expired (default 300s) | Set `METRICS_RETENTION_SECONDS=3600` to keep longer |
-| Memory limit reached | Set `MAX_METRICS_IN_MEMORY=500000` to increase limit |
-| Telegraf :8186 unreachable | Check Telegraf is running: `docker logs metrics-manager \| grep telegraf` |
-| Invalid metric format | Check request format matches one of the four supported formats |
+| Cause                         | Solution                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| Metric expired (default 300s) | Set `METRICS_RETENTION_SECONDS=3600` to keep longer                       |
+| Memory limit reached          | Set `MAX_METRICS_IN_MEMORY=500000` to increase limit                      |
+| Telegraf :8186 unreachable    | Check Telegraf is running: `docker logs metrics-manager \| grep telegraf` |
+| Invalid metric format         | Check request format matches one of the four supported formats            |
 
 ---
 
@@ -62,6 +65,7 @@ curl http://localhost:9090/api/v1/metrics | jq '.metrics | keys'
 **Root cause**: Metric hasn't been persisted to Telegraf yet (debounced 100ms by default).
 
 **Solution:**
+
 ```bash
 # Wait a moment and check again
 sleep 1
@@ -69,6 +73,7 @@ curl http://localhost:9273/metrics | grep my_metric
 ```
 
 Or reduce debounce delay:
+
 ```bash
 FILE_PERSIST_DEBOUNCE_MS=10 docker compose up
 ```
@@ -82,7 +87,9 @@ FILE_PERSIST_DEBOUNCE_MS=10 docker compose up
 **Root cause**: SSE client not polling frequently enough (default 500ms).
 
 **Solution:**
+
 1. Reduce polling interval:
+
    ```bash
    PROMETHEUS_POLLER_INTERVAL_MS=100 docker compose up
    ```
@@ -103,6 +110,7 @@ FILE_PERSIST_DEBOUNCE_MS=10 docker compose up
 **Symptom**: No `gpu_*` or `engine_usage_*` metrics in `:9273/metrics`.
 
 **Check:**
+
 ```bash
 # Verify Intel GPU is present
 lspci | grep -i intel | grep -i graphics
@@ -119,12 +127,12 @@ docker logs metrics-manager | grep qmassa
 
 **Solutions:**
 
-| Issue | Fix |
-|-------|-----|
-| No Intel GPU | Expected. qmassa logs `No DRM devices found` and exits. Other metrics continue. |
-| `/dev/dri` not accessible | Ensure `--device /dev/dri` in `docker run` or `devices:` in `compose.yaml` |
-| Old GPU drivers | Update GPU drivers: `sudo apt update && sudo apt install intel-media-driver` (Ubuntu) |
-| qmassa process crashed | Check logs: `docker logs metrics-manager \| grep -i qmassa` |
+| Issue                     | Fix                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| No Intel GPU              | Expected. qmassa logs `No DRM devices found` and exits. Other metrics continue.       |
+| `/dev/dri` not accessible | Ensure `--device /dev/dri` in `docker run` or `devices:` in `compose.yaml`            |
+| Old GPU drivers           | Update GPU drivers: `sudo apt update && sudo apt install intel-media-driver` (Ubuntu) |
+| qmassa process crashed    | Check logs: `docker logs metrics-manager \| grep -i qmassa`                           |
 
 ---
 
@@ -133,6 +141,7 @@ docker logs metrics-manager | grep qmassa
 **Symptom**: No `npu_power`, `npu_frequency`, etc. in `:9273/metrics`.
 
 **Check:**
+
 ```bash
 # Verify Intel NPU driver is loaded
 ls /sys/bus/pci/drivers/intel_vpu/
@@ -152,13 +161,13 @@ docker exec metrics-manager supervisorctl -c /etc/supervisor/supervisord.conf st
 
 **Solutions:**
 
-| Issue | Fix |
-|-------|-----|
-| `intel_vpu` driver not loaded | Load it: `sudo modprobe intel_vpu` (host) |
-| Container not privileged | Run with `privileged: true` (Docker) or `docker run --privileged` |
-| `/sys` not accessible | Mount with `--privileged` or `-v /sys:/sys:ro` |
-| Old hardware (pre-PTL) | `npu_memory_mb` returns `-1` — expected on MTL/ARL |
-| No NPU hardware | Expected. Reader logs warning, then enters idle mode. Other metrics continue. |
+| Issue                         | Fix                                                                           |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `intel_vpu` driver not loaded | Load it: `sudo modprobe intel_vpu` (host)                                     |
+| Container not privileged      | Run with `privileged: true` (Docker) or `docker run --privileged`             |
+| `/sys` not accessible         | Mount with `--privileged` or `-v /sys:/sys:ro`                                |
+| Old hardware (pre-PTL)        | `npu_memory_mb` returns `-1` — expected on MTL/ARL                            |
+| No NPU hardware               | Expected. Reader logs warning, then enters idle mode. Other metrics continue. |
 
 ---
 
@@ -169,6 +178,7 @@ docker exec metrics-manager supervisorctl -c /etc/supervisor/supervisord.conf st
 **Symptom**: `:9273/metrics` returns 404 or empty response.
 
 **Check:**
+
 ```bash
 # Verify Telegraf is running
 docker exec metrics-manager supervisorctl -c /etc/supervisor/supervisord.conf status telegraf
@@ -182,11 +192,11 @@ docker exec metrics-manager telegraf -config /etc/telegraf/telegraf.conf -test
 
 **Common issues:**
 
-| Issue | Solution |
-|-------|----------|
-| Telegraf config error | Check logs: `docker logs metrics-manager \| grep -i error` |
-| CPU metrics disabled | Verify `[[inputs.cpu]]` block in `telegraf.conf` |
-| Prometheus output not configured | Verify `[[outputs.prometheus_client]]` in `telegraf.conf` |
+| Issue                            | Solution                                                   |
+| -------------------------------- | ---------------------------------------------------------- |
+| Telegraf configuration error     | Check logs: `docker logs metrics-manager \| grep -i error` |
+| CPU metrics disabled             | Verify `[[inputs.cpu]]` block in `telegraf.conf`           |
+| Prometheus output not configured | Verify `[[outputs.prometheus_client]]` in `telegraf.conf`  |
 
 ---
 
@@ -197,6 +207,7 @@ docker exec metrics-manager telegraf -config /etc/telegraf/telegraf.conf -test
 **Symptom**: `HTTP/1.1 429 Too Many Requests`
 
 **Check:**
+
 ```bash
 # Current rate limit config
 curl http://localhost:9090/api/v1/stats | jq '.requests_total, .errors_total'
@@ -297,6 +308,7 @@ docker exec metrics-manager ps aux | grep uvicorn
 **Solution:**
 
 1. Change ports in `.env`:
+
    ```bash
    HOST_METRICS_PORT=19090
    HOST_TELEGRAF_PORT=19273
@@ -304,6 +316,7 @@ docker exec metrics-manager ps aux | grep uvicorn
    ```
 
 2. Or find and stop the process using the port:
+
    ```bash
    lsof -i :9090  # Find process on port 9090
    kill <PID>     # Kill the process
@@ -363,18 +376,18 @@ echo -e "\n=== All tests passed! ==="
 1. **Check logs**: `docker logs metrics-manager`
 2. **Check service health**: `curl http://localhost:9090/api/health`
 3. **Increase log level**: `LOG_LEVEL=DEBUG docker compose up`
-4. **Search GitHub issues**: https://github.com/open-edge-platform/edge-ai-libraries/issues (use `metrics-manager` label)
+4. **Search GitHub issues**: [Edge AI Libraries Issues Page](https://github.com/open-edge-platform/edge-ai-libraries/issues) (use `metrics-manager` label)
 5. **Manual endpoint testing**: Use curl commands from [API Reference](./api-reference.md)
+
+## Supporting Resources
+
+- [API Reference](./api-reference.md)
+- [Environment Variables](./get-started/environment-variables.md)
+- [How It Works](./how-it-works.md)
+- [Get Started Guide](./get-started.md)
 
 ## License
 
 Copyright (C) 2025-2026 Intel Corporation
 
 SPDX-License-Identifier: Apache-2.0
-
-## Supporting Resources
-
-- [API Reference](./api-reference.md)
-- [Configuration Guide](./get-started/environment-variables.md)
-- [How It Works](./how-it-works.md)
-- [Get Started Guide](./get-started.md)

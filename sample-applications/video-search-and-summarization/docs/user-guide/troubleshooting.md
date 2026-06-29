@@ -9,6 +9,7 @@ You can try resetting the volume storage by deleting the previously created volu
 ```bash
 source setup.sh --clean-data
 ```
+
 ## OpenGL/Mesa Library Dependencies (Certain Kernel Versions)
 
 On some Linux systems with certain kernel versions, you may encounter OpenCV-related errors due to missing OpenGL/Mesa libraries. If you experience issues with the summary stack or video processing, try installing the following dependencies:
@@ -19,6 +20,7 @@ sudo apt install libgl1-mesa-dri libgl1-mesa-dev
 ```
 
 After installing these dependencies:
+
 1. Remove the `ov_models/` directory (if it exists)
 2. Redeploy the VSS stack using the latest tagged images
 3. Rerun your tests
@@ -214,11 +216,13 @@ Alternatively, switch to a model with a larger context window.
 
 - OVMS container exits unexpectedly or restarts repeatedly
 - OVMS logs contain errors like:
-  ```
+
+  ```bash
   onednn_verbose,v1,primitive,error,ocl,errcode -5,CL_OUT_OF_RESOURCES
   Exception from src/plugins/intel_gpu/src/graph/impls/onednn/primitive_onednn_base.h
   Error occurred in LLM executor
   ```
+
 - Inference requests hang and then fail
 - Only one model works at a time but loading both causes failures
 
@@ -234,11 +238,62 @@ Alternatively, switch to a model with a larger context window.
    source setup.sh --summary
    ```
 
+## OVMS KV Cache Exhaustion
+
+**Problem**: LLM or VLM inference requests are slow, produce incomplete responses, or fail under concurrent usage.
+
+**Cause**: The OVMS KV cache is fully consumed. The KV cache holds intermediate attention state during text generation; when it is exhausted, OVMS must preempt or reject new requests.
+
+**Symptoms**:
+
+- OVMS logs show cache usage at or near 100 %:
+
+  ```bash
+  llm_executor.hpp:104] All requests: 1; Scheduled requests: 1; Cache type: static, cache usage: 100.0% of 4.0 GB;
+  ```
+
+- Requests take significantly longer than expected or time out
+- Under concurrent requests, some are rejected or produce truncated output
+
+**Diagnosis**:
+
+1. Check OVMS container logs for cache usage lines:
+
+   ```bash
+   docker logs <ovms-container-name> 2>&1 | grep "cache usage"
+   ```
+
+2. If usage is consistently at or near **100 %**, the cache is too small for your workload.
+
+**Solution**:
+
+Increase the KV cache size by setting the `OVMS_CACHE_SIZE_GB` environment variable before running the setup script. The default is dynamically calculated based on available memory:
+
+| Device | Allocation | Clamp range |
+| ------ | ---------- | ----------- |
+| CPU | 25 % of system RAM | [2, 16] GB |
+| Integrated GPU (iGPU) | 25 % of system RAM | [2, 6] GB |
+| Discrete GPU (dGPU) | 33 % of dedicated VRAM | [2, 16] GB |
+
+The setup script automatically detects the GPU type using the OpenVINO runtime. Setting `OVMS_CACHE_SIZE_GB` overrides the dynamic calculation for all device types.
+
+```bash
+# Example: set KV cache to 8 GB
+export OVMS_CACHE_SIZE_GB=8
+source setup.sh --summary   # or --search
+```
+
+The updated cache size is applied to the existing model configuration on the next run — no re-export is required.
+
+> **Note:** On integrated GPUs (iGPU), memory is shared with the system. Setting a very large cache size may leave insufficient memory for model weights and cause `CL_OUT_OF_RESOURCES` errors. Start with modest increases (e.g., 4 → 6 → 8 GB) and monitor both cache usage and GPU memory utilization.
+
 ## Accuracy of search results
+
 The accuracy of search results vary based on the embedding model used, configuration on frame sampling, object detection enabled or disabled, and the diversity of the video contents. The user is encouraged to check on these aspects in case the accuracy of the search results is not found to be satisfactory. Note that higher accuracy is normally a tradeoff with performance. Some specific pointers are provided below:
+
 1. Model selection: Among the supported models, models with higher dimensionality will provide better results.
 2. Higher frame sampling leads to better accuracy but at the cost of higher compute requirements.
 3. Enabling object detection normally provides a better accuracy. Consider this option in alignment with selected model capability.
 4. If the video diversity is very low, any query will seem to return the same results. Example: Same camera feed or video used for testing will return results from the same video irrespective of the query. Check the relevance score to determine how strong the match is.
 
-Raise an issue in case of continued challenges faced. 
+Raise an issue in case of continued challenges faced.

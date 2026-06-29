@@ -1,11 +1,13 @@
 import logging
 import os
+import time
 
 import soundfile as sf
 
 from components.tts_component import TTSComponent
 from utils.app_paths import get_session_dir
 from utils.config_loader import config
+from utils.latency_store import tts_latency
 from utils.session_manager import generate_session_id
 from utils.storage_manager import StorageManager
 
@@ -36,12 +38,14 @@ class Pipeline:
         instructions: str | None = None,
         persist_output: bool | None = None,
     ) -> dict:
+        _t0 = time.monotonic()
         result = self.tts_component.synthesize(
             text=text,
             language=language,
             speaker=speaker,
             instructions=instructions,
         )
+        tts_latency.record((time.monotonic() - _t0) * 1000)
 
         output_path = None
         should_persist_output = config.pipeline.persist_outputs if persist_output is None else persist_output

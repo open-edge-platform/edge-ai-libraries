@@ -28,7 +28,7 @@ License-Identifier: MIT License
 License-Identifier: Apache License 2.0
 dpctl==0.21.1
 pyOpenSSL==26.2.0
-python-multipart==0.0.27
+python-multipart==0.0.32
 scikit-learn-intelex==2025.11.0
 sortedcontainers==2.4.0
 aiofiles==25.1.0

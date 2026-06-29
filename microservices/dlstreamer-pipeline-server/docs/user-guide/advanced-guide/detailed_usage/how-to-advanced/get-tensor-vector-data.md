@@ -6,11 +6,11 @@ Follow the below steps to publish tensor vector data along with other metadata v
 
 1. A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. Refer below snippets:
 
-```sh
-    volumes:
-      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json to config file that DL Streamer Pipeline Server container loads.
-      - "../configs/sample_mqtt_publisher/config.json:/home/pipeline-server/config.json"
-```
+   ```sh
+       volumes:
+         # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json to config file that DL Streamer Pipeline Server container loads.
+         - "../configs/sample_mqtt_publisher/config.json:/home/pipeline-server/config.json"
+   ```
 
 2. Update pipeline present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json` with the pipeline below (edit the path to model xml and proc json to your needs) -
     `NOTE` The model used in the below pipeline is from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/supported_models.md). Please refer the documentation from DL Streamer on how to download it for your usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/model_preparation.md)
@@ -22,10 +22,10 @@ Follow the below steps to publish tensor vector data along with other metadata v
     `NOTE` The property `add-tensor-data` for the dlstreamer element gvametaconvert is set to `true`.
 
 3. Configure MQTT `host` and `port` present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`.
-    ```sh
-    MQTT_HOST=<mqtt_broker_address>
-    MQTT_PORT=1883
-    ```
+   ```sh
+   MQTT_HOST=<mqtt_broker_address>
+   MQTT_PORT=1883
+   ```
 
     `NOTE` By default, DL Streamer Pipeline Server provides a MQTT broker as part of the docker compose file. In case, the user wants to use a different broker please update the above variables accordingly.
 
@@ -154,6 +154,7 @@ Follow the below steps to publish tensor vector data along with other metadata v
         "timestamp": 0
     }
     ```
+
 7. To stop DL Streamer Pipeline Server and other services, run the following.
     ```sh
     docker compose down

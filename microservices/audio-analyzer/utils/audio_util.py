@@ -1,5 +1,6 @@
-import os
 import logging
+import os
+import subprocess
 from fastapi import UploadFile, HTTPException
 from utils.config_loader import config
 from utils.app_paths import get_audio_upload_dir
@@ -15,6 +16,30 @@ def _build_unique_file_path(project_path: str, safe_filename: str) -> str:
         candidate = os.path.join(project_path, f"{stem}_{suffix}{ext}")
         suffix += 1
     return candidate
+
+
+def _audio_stream_exists(file_path: str) -> bool:
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=codec_type",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            file_path,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    return result.returncode == 0 and "audio" in result.stdout.lower()
 
 def save_audio_file(file: UploadFile, session_id: str | None = None):
     if not file.filename:
@@ -46,9 +71,16 @@ def save_audio_file(file: UploadFile, session_id: str | None = None):
 
     file.file.seek(0)
 
+    if total_read == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
     file_path = _build_unique_file_path(project_path, safe_filename)
     with open(file_path, "wb") as f:
         f.write(contents)
+
+    if not _audio_stream_exists(file_path):
+        os.remove(file_path)
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid audio file")
 
     logger.info(f"File saved: {file_path}")
 

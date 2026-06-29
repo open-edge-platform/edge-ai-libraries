@@ -457,7 +457,7 @@ If not set while installing the chart, all services will claim a default amount 
 - Ensure that all pods are running and the services are accessible.
 - Access the Video Summarization application dashboard and verify that it is functioning as expected.
 - Upload a test video to verify that the ingestion, processing, and summarization pipeline works correctly.
-- Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, audio analyzer) are functioning properly.
+- Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, Audio Analyzer) are functioning properly.
 
 ## Troubleshooting
 
