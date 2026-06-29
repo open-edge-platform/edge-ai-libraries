@@ -67,11 +67,30 @@ class ASRComponent(PipelineComponent):
 
         self.pyannote_diarizer = None
         if self.enable_diarization:
-            from components.asr.diarization.pyannote_diarizer import PyannoteDiarizer
+            try:
+                from components.asr.diarization.pyannote_diarizer import PyannoteDiarizer
+                from utils.ensure_model import _resolve_hf_token
 
-            self.pyannote_diarizer = PyannoteDiarizer(
-                hf_token=config.models.asr.hf_token
-            )
+                diar_device = str(
+                    getattr(getattr(config.models, "diarization", None), "device", "cpu")
+                ).lower()
+
+                self.pyannote_diarizer = PyannoteDiarizer(
+                    device=diar_device,
+                    hf_token=_resolve_hf_token(),
+                )
+                logger.info("[DIARIZATION] PyannoteDiarizer loaded on device=%s", diar_device)
+            except Exception as exc:
+                logger.warning(
+                    "[DIARIZATION] ⚠️  Failed to load PyannoteDiarizer — diarization disabled for this session. "
+                    "Cause: %s. "
+                    "If this is a 403 error, accept the model at "
+                    "https://huggingface.co/pyannote/speaker-diarization-community-1 "
+                    "then restart the container.",
+                    exc,
+                )
+                self.enable_diarization = False
+                self.pyannote_diarizer = None
 
     def process(self, input_generator, language: str | None = None):
 
@@ -100,6 +119,22 @@ class ASRComponent(PipelineComponent):
                     speaker_turns = self.pyannote_diarizer.diarize(chunk_path)
                     transcribed_lines = []
 
+                    logger.info(
+                        "[DIARIZATION] session=%s chunk=%s | pyannote detected %d speaker turn(s): %s",
+                        self.session_id,
+                        os.path.basename(chunk_path),
+                        len(speaker_turns),
+                        ", ".join(
+                            f"{t['speaker']}[{t['start']:.2f}s–{t['end']:.2f}s]"
+                            for t in speaker_turns
+                        ) or "none",
+                    )
+                    logger.info(
+                        "[DIARIZATION] session=%s | whisper produced %d segment(s)",
+                        self.session_id,
+                        len(transcription["segments"]),
+                    )
+
                     for sent in transcription["segments"]:
                         text = sent["text"].strip()
                         if not text:
@@ -112,6 +147,13 @@ class ASRComponent(PipelineComponent):
                             if turn["start"] <= mid <= turn["end"]:
                                 speaker = turn["speaker"]
                                 break
+
+                        logger.info(
+                            "[DIARIZATION] segment [%.2fs–%.2fs] midpoint=%.2fs → speaker=%s | text=%r",
+                            sent["start"], sent["end"], mid,
+                            speaker if speaker else "UNKNOWN",
+                            text[:80],
+                        )
 
                         chunk_offset = float(chunk_data.get("start_time", 0.0))
                         start = float(sent["start"]) + chunk_offset
@@ -133,6 +175,13 @@ class ASRComponent(PipelineComponent):
                         transcribed_lines.append(text)
 
                     transcribed_text = "\n".join(transcribed_lines) + "\n"
+
+                    logger.info(
+                        "[DIARIZATION] session=%s chunk=%s | full transcript (all speakers): %r",
+                        self.session_id,
+                        os.path.basename(chunk_path),
+                        transcribed_text.strip()[:200],
+                    )
 
                 else:
                     if transcription.get("segments"):

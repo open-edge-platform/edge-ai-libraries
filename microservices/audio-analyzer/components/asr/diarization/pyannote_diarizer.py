@@ -1,36 +1,56 @@
-from pyannote.audio import Pipeline
+import os
 import torch
+import torchaudio
 from torch.serialization import safe_globals
 import torch.torch_version
+from pyannote.audio import Pipeline
 from pyannote.audio.core.task import Specifications, Problem, Resolution, Task
+from utils.ensure_model import get_diarization_model_path
+from utils.config_loader import config
 
 
 class PyannoteDiarizer:
-    def __init__(self, device="cpu", hf_token=None):
+    def __init__(self, device: str = "cpu", hf_token: str | None = None):
+        diar_cfg = config.models.diarization
+        pipeline_source = diar_cfg.name
 
-        # Allow all needed globals for torch ≥2.6 checkpoint loading
+        # Prefer locally cached snapshot (offline-capable); fall back to HF Hub
+        local_model_path = get_diarization_model_path()
+        local_config_path = os.path.join(local_model_path, "config.yaml")
+        if os.path.exists(local_config_path):
+            pipeline_source = local_config_path
+
+        # Allow all pyannote checkpoint globals required by torch ≥ 2.6
         with safe_globals([
             torch.torch_version.TorchVersion,
             Specifications,
             Problem,
             Resolution,
-            Task
+            Task,
         ]):
             self.pipeline = Pipeline.from_pretrained(
-                "pyannote/speaker-diarization-3.1",
-                use_auth_token=hf_token
+                pipeline_source,
+                token=hf_token,
             )
 
         self.device = torch.device(device)
         self.pipeline.to(self.device)
 
-    def diarize(self, audio_path):
-        diarization = self.pipeline(audio_path)
+    def diarize(self, audio_path: str) -> list[dict]:
+        """Return speaker turn segments for the given audio file.
+
+        Returns:
+            List of dicts with keys ``start``, ``end``, ``speaker``.
+        """
+        waveform, sample_rate = torchaudio.load(audio_path)
+        audio_input = {"waveform": waveform, "sample_rate": sample_rate}
+        output = self.pipeline(audio_input)
+        diarization = output.exclusive_speaker_diarization
         segments = []
         for turn, _, speaker in diarization.itertracks(yield_label=True):
             segments.append({
                 "start": float(turn.start),
                 "end": float(turn.end),
-                "speaker": speaker
+                "speaker": speaker,
             })
         return segments

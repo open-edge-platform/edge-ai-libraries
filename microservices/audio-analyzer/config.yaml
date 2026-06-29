@@ -48,6 +48,12 @@ models:
     word_timestamps: false
     threads: 0
 
+  diarization: # Only applicable when models.asr.diarization is set to True
+    provider: "huggingface"
+    name: "pyannote/speaker-diarization-community-1"
+    device: CPU  # CPU or GPU
+    models_base_path: "models"
+
 audio_preprocessing:
   chunk_duration_sec: 15
   silence_threshold: -35  # in dB

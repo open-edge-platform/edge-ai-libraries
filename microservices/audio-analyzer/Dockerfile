@@ -4,6 +4,9 @@ FROM intel/dlstreamer:2026.1.0-ubuntu24
 
 ARG APP_UID=1000
 ARG APP_GID=1000
+# HF_TOKEN: HuggingFace token required to download gated pyannote models.
+# Pass at build time with --build-arg HF_TOKEN=<token> or at runtime via -e HF_TOKEN=<token>.
+ARG HF_TOKEN=""
 
 USER root
 
@@ -11,7 +14,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     VIRTUAL_ENV=/opt/venv \
-    PATH="/opt/venv/bin:$PATH"
+    PATH="/opt/venv/bin:$PATH" \
+    HF_TOKEN=${HF_TOKEN}
 
 WORKDIR /app/audio_analyzer
 
