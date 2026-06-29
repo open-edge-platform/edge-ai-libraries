@@ -34,8 +34,8 @@ All notable changes to this project are documented in this file.
 - <Description of docs-only change.> ([#NN])
 
 ---
-[#NN]: https://github.com/open-edge-platform/edge-ai-libraries/pull/NN
-[abcdef]: https://github.com/open-edge-platform/edge-ai-libraries/commit/abcdef1234567890
+[#NN]: <repo_url>/pull/NN
+[abcdef]: <repo_url>/commit/abcdef1234567890
 
 ---
 
@@ -74,8 +74,8 @@ reference-style links for every PR/commit cited:
 
 ```markdown
 ---
-[#29]: https://github.com/open-edge-platform/edge-ai-libraries/pull/29
-[0a74a61]: https://github.com/open-edge-platform/edge-ai-libraries/commit/0a74a613d92f08f321a60d8eedcebec2a6cb22b4
+[#29]: <repo_url>/pull/29
+[0a74a61]: <repo_url>/commit/0a74a613d92f08f321a60d8eedcebec2a6cb22b4
 ```
 
 Use the **full commit hash** (40 characters) in the URL even though the anchor
@@ -116,17 +116,17 @@ All notable changes to this project are documented in this file.
 - Fixed broken reference in Weld Defect Detection documentation. ([#2581])
 
 ---
-[#2352]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2352
-[#2354]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2354
-[#2424]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2424
-[#2441]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2441
-[#2450]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2450
-[#2504]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2504
-[#2509]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2509
-[#2579]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2579
-[#2581]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2581
-[#2584]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2584
-[#2884]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2884
+[#2352]: <repo_url>/pull/2352
+[#2354]: <repo_url>/pull/2354
+[#2424]: <repo_url>/pull/2424
+[#2441]: <repo_url>/pull/2441
+[#2450]: <repo_url>/pull/2450
+[#2504]: <repo_url>/pull/2504
+[#2509]: <repo_url>/pull/2509
+[#2579]: <repo_url>/pull/2579
+[#2581]: <repo_url>/pull/2581
+[#2584]: <repo_url>/pull/2584
+[#2884]: <repo_url>/pull/2884
 
 ---
 
