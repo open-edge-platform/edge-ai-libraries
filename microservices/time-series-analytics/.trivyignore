@@ -1,0 +1,58 @@
+# Trivy vulnerability suppressions for time-series-analytics-microservice
+#
+# These CVEs affect Go libraries compiled into the kapacitor/kapacitord/tickfmt
+# binaries (kapacitor v1.8.5, the latest upstream release as of 2026-05-06).
+# They cannot be patched via apt-get; a new upstream kapacitor release is needed.
+#
+# Each suppression is justified by the deployment context:
+#   - Only port 5000 (FastAPI) is published externally.
+#   - kapacitord runs locally inside the container; port 9092 is never published.
+#   - No Docker socket is mounted.
+#   - No gRPC, Thrift, or Prometheus listener is enabled in kapacitor.conf.
+#   - pprof is disabled (pprof-enabled = false).
+#   - No email/mail parsing paths are reachable from untrusted input.
+#
+# Review when kapacitor releases a version newer than v1.8.5.
+
+# CVE-2026-33186 [CRITICAL] google.golang.org/grpc v1.58.3 - gRPC authorization bypass
+# Not exploitable: kapacitor exposes no gRPC listener in this deployment; the library
+# is compiled in but never invoked as a server. No gRPC port is published.
+CVE-2026-33186
+
+# CVE-2026-33811 [HIGH] Go stdlib v1.25.9 - DoS via long CNAME in LookupCNAME
+# Not exploitable: DNS lookups target only operator-configured, trusted OPC UA hostnames.
+# No attacker-controlled DNS input path exists.
+CVE-2026-33811
+
+# CVE-2026-33814 [HIGH] Go stdlib v1.25.9 - HTTP/2 SETTINGS frame infinite loop
+# Not exploitable: InfluxDB integration is disabled by default in kapacitor.conf.
+# Kapacitor's HTTP port 9092 is internal-only and not published.
+CVE-2026-33814
+
+# CVE-2026-39820 [HIGH] Go stdlib v1.25.9 - DoS via ParseAddress/ParseAddressList in net/mail
+# Not exploitable: no email-parsing paths exist in this service; SMTP/alerting handlers
+# are not configured in kapacitor.conf.
+CVE-2026-39820
+
+# CVE-2026-39836 [HIGH] Go stdlib v1.25.9 - panic on NUL byte in net.Dial/LookupPort
+# Not exploitable: this CVE is Windows-specific; the container runs Linux.
+CVE-2026-39836
+
+# CVE-2026-42499 [HIGH] Go stdlib v1.25.9 - DoS via consumePhrase in net/mail
+# Not exploitable: same as CVE-2026-39820; no email parsing is exposed or configured.
+CVE-2026-42499
+
+# CVE-2026-41602 [HIGH] github.com/apache/thrift v0.17.0 - integer overflow in TFramedTransport
+# Not exploitable: no Thrift listener is configured or enabled in kapacitor.conf.
+# The library is compiled in but no Thrift server runs.
+CVE-2026-41602
+
+# CVE-2026-34040 [HIGH] github.com/docker/docker v27.1.1 - authorization bypass
+# Not exploitable: no Docker socket (/var/run/docker.sock) is mounted in the container,
+# and the Docker API is never called by this service.
+CVE-2026-34040
+
+# CVE-2022-21698 [HIGH] github.com/prometheus/client_golang v1.10.0 - DoS via InstrumentHandlerCounter
+# Not exploitable: pprof is disabled (pprof-enabled = false in kapacitor.conf) and no
+# Prometheus scrape endpoint is published or reachable externally.
+CVE-2022-21698

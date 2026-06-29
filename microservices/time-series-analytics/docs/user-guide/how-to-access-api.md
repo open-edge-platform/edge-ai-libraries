@@ -58,7 +58,7 @@ The service will use the input for processing data.
     ```
 
 3. Expand the endpoint, enter the alert data in the request body, and click **Execute**.
-4. The service sends alert to OPC UA server as configured in the config.
+4. The service sends an alert to the OPC UA server as configured in the config.
 
 > **Note:** Before using the OPC UA alerts API, ensure that you have the OPC-UA server running and have added `opcua` to the `alerts` section in `config.json` file
 

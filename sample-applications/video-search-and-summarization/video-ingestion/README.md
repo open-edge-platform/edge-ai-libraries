@@ -30,51 +30,54 @@ This project demonstrates video ingestion and processing using Deep Learning Str
 
 2. Download and Convert Models to OpenVINO IR format
 
-This repository uses a custom script to download and convert models like [yoloworld](https://docs.ultralytics.com/models/yolo-world/) to the OpenVINO supported format.
-Ensure you have Python installed and run the following commands to execute the script.
+    This repository uses a custom script to download and convert models like [yoloworld](https://docs.ultralytics.com/models/yolo-world/) to the OpenVINO     supported format.
+    Ensure you have Python installed and run the following commands to execute the script.
 
-2.1. Create a virtual environment.
+    2.1. Create a virtual environment.
 
-```sh
-python -m venv ov_env
-```
+    ```sh
+    python -m venv ov_env
+    ```
 
-2.2 Activate the virtual environment
+    2.2 Activate the virtual environment
 
-```sh
-source ov_env/bin/activate
-```
-2.3. Download and install dependencies
+    ```sh
+    source ov_env/bin/activate
+    ```
 
-```sh
-pip install -q "openvino>=2025.0.0" "nncf>=2.9.0"
-pip install -q "torch>=2.1" "torchvision>=0.16" "ultralytics==8.3.59" onnx tqdm opencv-python --extra-index-url https://download.pytorch.org/whl/cpu
-```
-2.4. Download the models
+    2.3. Download and install dependencies
 
-Convert the default model (yolov8l-worldv2):
-```sh
-python resources/scripts/converter.py
-```
+    ```sh
+    pip install -q "openvino>=2025.0.0" "nncf>=2.9.0"
+    pip install -q "torch>=2.1" "torchvision>=0.16" "ultralytics==8.3.59" onnx tqdm opencv-python --extra-index-url https://download.pytorch.org/whl/cpu
+    ```
 
-**Advanced Usage**:
+    2.4. Download the models
 
-The script accepts command-line arguments to customize the conversion:
+    Convert the default model (yolov8l-worldv2):
 
-```sh
-python resources/scripts/converter.py --model-name yolov8l-worldv2 --model-type yolo_v8 --output-dir ov_models/yoloworld
-```
+    ```sh
+    python resources/scripts/converter.py
+    ```
 
-Available arguments:
-- `--model-name`: Name of the model without extension (default: 'yolov8l-worldv2')
-- `--model-type`: Type of model (default: 'yolo_v8')
-- `--output-dir`: Directory to save the converted models (default: 'models/yoloworld')
+    **Advanced Usage**:
 
-2.5. Deacticvate
+    The script accepts command-line arguments to customize the conversion:
 
-```sh
-deactivate
-```
+    ```sh
+    python resources/scripts/converter.py --model-name yolov8l-worldv2 --model-type yolo_v8 --output-dir ov_models/yoloworld
+    ```
+
+    Available arguments:
+    - `--model-name`: Name of the model without extension (default: 'yolov8l-worldv2')
+    - `--model-type`: Type of model (default: 'yolo_v8')
+    - `--output-dir`: Directory to save the converted models (default: 'models/yoloworld')
+
+    2.5. Deacticvate
+
+    ```sh
+    deactivate
+    ```
 
 3. Set the credentials for **RabbitMQ** and **Minio** Service by running following commands. You can use any desired value instead of example values being set here:
 
@@ -122,24 +125,29 @@ This will start the following services:
 Upload the video to the MinIO server before running the pipeline. Follow these steps to upload the video and make the bucket public:
 
 1. **Access MinIO Console**:
-  Open your web browser and navigate to the MinIO console using the URL provided by following command:
-    ```bash
-    echo http://${host_ip}:${MINIO_CONSOLE_HOST_PORT}
-    ```
-  Log in using the `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` credentials.(As set in `generate_env.sh`)
+
+   Open your web browser and navigate to the MinIO console using the URL provided by following command:
+
+     ```bash
+     echo http://${host_ip}:${MINIO_CONSOLE_HOST_PORT}
+     ```
+
+   Log in using the `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` credentials.(As set in `generate_env.sh`)
 
 2. **Create a Bucket**:
-  In the MinIO console, create a new bucket with name : `videosummtest-1`
+
+   In the MinIO console, create a new bucket with name : `videosummtest-1`
 
 3. **Upload the Video**:
-  Upload video files to the newly created bucket. A sample video file `store-aisle-detection.mp4` can be found in `resources/videos` directory of the repo. We will use the same video for this example.
+
+   Upload video files to the newly created bucket. A sample video file `store-aisle-detection.mp4` can be found in `resources/videos` directory of the repo. We will use the same video for this example.
 
 4. **Make the Bucket Public**:
 
-  To make the bucket public, follow these steps:
+   To make the bucket public, follow these steps:
 
-  - Go to the bucket settings.
-  - Set the bucket policy to allow public read access.
+   - Go to the bucket settings.
+   - Set the bucket policy to allow public read access.
 
 To run a sample pipeline, use the following `curl` command.
 
@@ -173,9 +181,10 @@ curl http://${host_ip}:${EVAM_HOST_PORT}/pipelines/user_defined_pipelines/object
   }'
 ```
 
-> **_NOTE:_** You can tweak `frame`, `chunk_duration` and `frame_width` parameter in above curl request to get results with different accuracy. However, note that increasing the `frame` and `frame_width` will cause significant performance degradation.
-
-> Also note, these parameters have a minimum and maximum allowed value defined. For any invalid value outside the allowed limit, the pipeline will fail. Please refer to `resources\conf\config.json` file to verify the permitted values for these parameters in JSON Schema.
+> **Note:**
+>
+> - You can tweak `frame`, `chunk_duration` and `frame_width` parameter in above curl request to get results with different accuracy. However, note that increasing the `frame` and `frame_width` will cause significant performance degradation.
+> - Also note, these parameters have a minimum and maximum allowed value defined. For any invalid value outside the allowed limit, the pipeline will fail. Please refer to `resources\conf\config.json` file to verify the permitted values for these parameters in JSON Schema.
 
 Once the pipeline starts, you will receive a UUID (ex: b729ce2ef34711ef99eb0242ac170004) that you can use to track the pipeline's statistics. The metadata generated during the pipeline execution will be sent to the RabbitMQ queue. Additionally, the processed video frames and a `metadata.json` file will be stored in the specified MinIO bucket.
 
@@ -187,7 +196,7 @@ To view the frames and metadata:
 
 This setup allows you to monitor and analyze the processed video data efficiently.
 
-> Note: Due to current limitations in EVAM, the `frame` and `interval` values need to be specified in two different sections of the pipeline configuration.
+> **Note:** Due to current limitations in EVAM, the `frame` and `interval` values need to be specified in two different sections of the pipeline configuration.
 
 This command will start the Video ingestion object detection pipeline using the specified video file and model, and publish the results RabbitMQ queue to the specified topic.
 
