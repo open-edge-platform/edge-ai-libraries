@@ -187,7 +187,7 @@ When the job completes, ViPPET reports the best configuration that met the FPS f
 <!-- //TODO: Add screenshot of a completed mixed-mode density job result
      showing the fixed and incremented per-pipeline stream counts. -->
 
-### Comparing results across platforms
+## Comparing results across platforms
 
 Use density results to compare hardware capabilities:
 

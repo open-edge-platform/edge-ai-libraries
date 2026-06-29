@@ -31,7 +31,7 @@ To create a pipeline from a GST description string, switch to the *From Descript
 - *Description* - High-level pipeline description
 - *Tags* - Tags used to categorize the pipeline
 - *Variant Name* - Name of the pipeline variant. Default: "default"
-- *Pipeline Description* - DLStreamer launch string (you can type it in the text field or upload it as a text file)
+- *Pipeline Description* - DL Streamer launch string (you can type it in the text field or upload it as a text file)
 
 ![New Pipeline from GST Description](../../_assets/ViPPET-UI-Pipelines-New-Form-Desc-light.png)
 

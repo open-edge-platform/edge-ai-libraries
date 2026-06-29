@@ -1,6 +1,6 @@
 # System Requirements
 
-This page provides detailed hardware & software requirements to help set up and run the application
+This page provides detailed hardware and software requirements to help set up and run the application
 efficiently.
 
 ## Hardware Requirements
@@ -16,6 +16,6 @@ efficiently.
 
 - OS: Ubuntu 24.04.1 LTS
 - Docker Engine version 20.10 or higher.
-- For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
-script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in:
-[Install Guide Ubuntu - Prerequisites](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/get_started/install/install_guide_ubuntu.md#prerequisites)
+- For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DL Streamer installation
+script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in
+[DL Streamer Install Guide - Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/get_started/install/install_guide_ubuntu.html#prerequisites).
