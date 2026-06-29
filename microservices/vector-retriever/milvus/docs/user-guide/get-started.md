@@ -12,9 +12,9 @@
 - Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
 - Install Intel Client GPU driver: [Installation Guide](https://dgpu-docs.intel.com/driver/client/overview.html).
 
-### Step 1: Get the docker images
+### Step 1: Get the Docker Images
 
-#### Option 1: Build from source
+#### Option 1: Build from Source
 
 Clone the source code repository, if you have not done so already.
 
@@ -33,7 +33,7 @@ cd multimodal-embedding-serving
 docker build -t multimodal-embedding-serving:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f docker/Dockerfile .
 ```
 
-#### Option 2: use remote prebuilt images
+#### Option 2: Use Remote Prebuilt Images
 
 Set a remote registry by exporting environment variables:
 
@@ -42,7 +42,7 @@ export REGISTRY="intel/"
 export TAG="latest"
 ```
 
-> **Note**: If you are using a release version package, you will have a pre-defined docker compose file where the image registry and tag are already set to the release version. In such case, you do not need to set the environment variables above, simply move forward to the next step. You may refer to the release notes for details on the version number or check the docker compose file that is used in the steps below.
+> **Note:** If you are using a release version package, you will have a pre-defined docker compose file where the image registry and tag are already set to the release version. In such case, you do not need to set the environment variables above, simply move forward to the next step. You may refer to the release notes for details on the version number or check the docker compose file that is used in the steps below.
 
 ### Step 2: Deploy
 
@@ -50,21 +50,22 @@ export TAG="latest"
 
 1. Go to the deployment files.
 
-   ``` bash
+   ```bash
    cd vector-retriever/milvus/deployment/docker-compose/
    ```
 
-2. Set up environment variables, note that you need to set an embedding model first for Multimodal Embedding Serving.
+2. Set up the environment variables; note that first you need to set an embedding model for Multimodal Embedding Serving.
 
-   ``` bash
+   ```bash
    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14" # Replace with your preferred model
    source env.sh
    ```
 
-    **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
-    See [Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for Multimodal Embedding Serving for available options.
+    **Important:** You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
+    See [Supported Models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html)
+    for Multimodal Embedding Serving for available options.
 
-    **Note**: `env.sh` sets `HF_ENDPOINT` to a Hugging Face mirror, which is necessary for users in the PRC to download models. Users in other regions may remove or unset this variable to use the default Hugging Face endpoint:
+    **Note:** `env.sh` sets `HF_ENDPOINT` to a Hugging Face mirror, which is necessary for users in the PRC to download models. Users in other regions may remove or unset this variable to use the default Hugging Face endpoint:
 
     ```bash
     unset HF_ENDPOINT
@@ -74,22 +75,22 @@ export TAG="latest"
     <summary>For EMT-S platform</summary>
     If you are on an EMT-S platform, please set up the variables correspondingly by running
 
-    ``` bash
+    ```bash
     cd emt-s   # go to emt-s specific files
     export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14" # Replace with your preferred model
     source env.sh
     ```
     </details>
 
-3. Deploy with docker compose.
+3. Deploy with Docker Compose.
 
    ```bash
    docker compose -f compose_milvus.yaml up -d
    ```
 
-   It might take a while to start the services for the first time, as there are some models to be prepared.
+   It might take a while to start the services for the first time, while models are being prepared.
 
-   Check if all microservices are up and runnning.
+   Check if all microservices are up and running.
 
    ```bash
    docker compose -f compose_milvus.yaml ps
@@ -108,17 +109,17 @@ export TAG="latest"
 
 ## Sample curl commands
 
-> **Note**: This microservice retrieves data from a Milvus database. If there is no data added into the database, the curl commands below will return `collection not found`. To test data retrieval, please insert some data with the [Visual Data Preparation for Retrieval service](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/milvus/docs/user-guide/get-started.md) first. After setting up the data preparation service, you can insert, for example a directory, with the curl command:
-
-```console
-curl -X POST http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
--H "Content-Type: application/json" \
--d '{
-    "file_dir": "/path/to/directory",
-    "frame_extract_interval": 15,
-    "do_detect_and_crop": true
-}'
-```
+> **Note:** This microservice retrieves data from a Milvus database. If there is no data added into the database, the curl commands below will return `collection not found`. To test data retrieval, please insert some data with the [Visual Data Preparation for Retrieval service](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/milvus/docs/user-guide/get-started.md) first. After setting up the data preparation service, you can insert, for example a directory, with the curl command:
+>
+> ```console
+> curl -X POST http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
+> -H "Content-Type: application/json" \
+> -d '{
+>     "file_dir": "/path/to/directory",
+>     "frame_extract_interval": 15,
+>     "do_detect_and_crop": true
+> }'
+> ```
 
 ### Basic Query
 
@@ -149,7 +150,9 @@ curl -X POST http://localhost:$RETRIEVER_SERVICE_PORT/v1/retrieval \
 
 ### Network failure when downloading models
 
-If service startup fails with errors that look like a network failure while downloading models from Hugging Face, the configured `HF_ENDPOINT` mirror may be unreachable from your network. Try unsetting it before redeploying:
+If service startup fails with errors that look like a network failure while downloading models
+from Hugging Face, the configured `HF_ENDPOINT` mirror may be unreachable from your network.
+Try unsetting it before redeploying:
 
 ```bash
 unset HF_ENDPOINT
@@ -157,12 +160,13 @@ docker compose -f compose_milvus.yaml down
 docker compose -f compose_milvus.yaml up -d
 ```
 
-This falls back to the default Hugging Face endpoint, which is typically the right choice for users outside the PRC.
+This falls back to the default Hugging Face endpoint, which is typically the right choice for
+users outside the PRC.
 
 ## Learn More
 
 - Check the [API reference](./api-reference.md).
-- This microservice depends on the [multimodal embedding service](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) for embedding extraction.
+- This microservice depends on the [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/get-started.html) service for embedding extraction.
 
 <!--hide_directive
 :::{toctree}
