@@ -370,7 +370,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/user-apps/tools/usr/lib/
 
 The same method applies to any other required packages (for example, `git`, `wget`). Refer to the [EMT-S documentation](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node) for further details.
 
-> **NOTE :** **For GPU deployments on EMT-S host** If the host does not include the host OpenCL runtime required by OpenVINO GPU discover, the script uses a conservative integrated-GPU OVMS cache size and continues; inference still runs inside the GPU-enabled OVMS container. Set `OVMS_CACHE_SIZE_GB` before sourcing `setup.sh` if you need an explicit cache size.
+> **For GPU deployments on EMT-S host :** If the host does not include the host OpenCL runtime required by OpenVINO GPU discover, the script uses a conservative integrated-GPU OVMS cache size and continues; inference still runs inside the GPU-enabled OVMS container. Set `OVMS_CACHE_SIZE_GB` before sourcing `setup.sh` if you need an explicit cache size.
 
 ## Run the Application
 
