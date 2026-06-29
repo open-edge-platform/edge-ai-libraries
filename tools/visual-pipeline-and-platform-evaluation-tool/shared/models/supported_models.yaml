@@ -285,7 +285,7 @@
       model_path: openvino_models/cpu/int4/google/gemma-3-4b-it/
       model_proc: ""
   extra_model_procs: []
-  unsupported_devices: ""
+  unsupported_devices: "NPU"
   default: false
   download_request:
     hub: openvino
@@ -307,7 +307,7 @@
       model_path: openvino_models/cpu/int4/openbmb/MiniCPM-V-2_6/
       model_proc: ""
   extra_model_procs: []
-  unsupported_devices: ""
+  unsupported_devices: "NPU"
   default: false
   download_request:
     hub: openvino
