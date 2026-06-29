@@ -1,5 +1,5 @@
 ---
-# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 name: "[GEN-AI] Video-search-summarization-CI"
@@ -17,252 +17,67 @@ on:
       - main
     paths:
       - 'sample-applications/video-search-and-summarization/**'
+      - 'microservices/visual-data-preparation-for-retrieval/**'
+      - 'microservices/multimodal-embedding-serving/**'
 
 jobs:
-   
-  trivy-scan:
+  # Deploy VSS in dual mode using make deploy-dual
+  deploy-dual:
     runs-on: ubuntu-22.04-32core-128GB
     permissions:
       contents: read
+    env:
+      MINIO_ROOT_USER: ${{ secrets.GENAI_MINIO_ROOT_USER }}
+      MINIO_ROOT_PASSWORD: ${{ secrets.GENAI_MINIO_ROOT_PASSWORD }}
+      POSTGRES_USER: ${{ secrets.GENAI_POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.GENAI_POSTGRES_PASSWORD }}
+      RABBITMQ_USER: ${{ secrets.GENAI_RABBITMQ_USER }}
+      RABBITMQ_PASSWORD: ${{ secrets.GENAI_RABBITMQ_PASSWORD }}
+      HUGGINGFACE_TOKEN: ${{ secrets.GENAI_HUGGINGFACE_TOKEN }}
+
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
       
-      - name: Build Docker images
+      - name: Install Poetry
+        run: |
+          pip install poetry  
+
+      - name: Deploy VSS in search mode
         run: |
           cd sample-applications/video-search-and-summarization/
-          
-          # Set environment variables as per build.sh script
-          export TAG=latest
-          export REGISTRY_URL=""
-          export PROJECT_NAME=""
-          
-          # Build frontend UI (following build.sh patterns)
-          docker build -f ./ui/react/Dockerfile -t videosummary-frontend:latest ./ui/react/
-          
-          # Build search microservice (Poetry-based)
-          docker build -f ./search-ms/docker/Dockerfile -t videosummary-search-ms:latest ./search-ms/
-          
-          # Build video ingestion microservice (requirements.txt based)
-          docker build -f ./video-ingestion/docker/Dockerfile -t videosummary-video-ingestion:latest ./video-ingestion/
-          
-          # Build pipeline manager microservice (NestJS/npm based)
-          docker build -f ./pipeline-manager/Dockerfile -t videosummary-pipeline-manager:latest ./pipeline-manager/
-          
-      - name: Verify Docker images
+          make deploy-dual
+
+      - name: Functional test
         run: |
-          echo "=== Built Docker Images ==="
-          docker images | grep videosummary
-          echo "=== Image Build Verification Complete ==="
-      
-      - name: Run Trivy Filesystem Scan
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        id: trivy-fs
-        with:
-          scan_type: "fs"  
-          scan-scope: "all"  
-          severity: "HIGH,CRITICAL" 
-          format: "json"
-          scan_target: "sample-applications/video-search-and-summarization/"
-          report_suffix: "-fs-video-summary-CT7"
-      
-         
-      - name: Run trivy Scan - videosummary-frontend (HTML Report)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        id: videosummary-frontend-html
-        with:
-          scan_type: "image"  
-          scan-scope: "all"
-          scan_target: "videosummary-frontend:latest"  
-          severity: "HIGH,CRITICAL"  
-          format: "table"
-          report_suffix: "-image-videosummary-frontend-html-CT248"
-          generate_sbom: "false"
+          cd sample-applications/video-search-and-summarization/test-functional/
+          mkdir -p reports
+          pip install -r requirements.txt
+          pytest
 
-      - name: Run trivy Scan - videosummary-frontend (SPDX SBOM)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        id: videosummary-frontend-spdx
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
         with:
-          scan_type: "image"  
-          scan-scope: "all"
-          scan_target: "videosummary-frontend:latest"  
-          severity: "HIGH,CRITICAL"  
-          format: "spdx-json"
-          scanners: "vuln"
-          report_suffix: "-image-videosummary-frontend-spdx-CT248"
-          generate_sbom: "false"
+          name: vss-functional-test-reports
+          path: sample-applications/video-search-and-summarization/test-functional/reports/
+          retention-days: 30
 
-      - name: Run trivy Scan - videosummary-search-ms (HTML Report)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        id: videosummary-search-ms-html
-        with:
-          scan_type: "image"  
-          scan-scope: "all"
-          scan_target: "videosummary-search-ms:latest"  
-          severity: "HIGH,CRITICAL"  
-          format: "table"
-          report_suffix: "-image-videosummary-search-ms-html-CT248"
-          generate_sbom: "false"
+      - name: Stop VSS stack
+        if: always()
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          bash -c 'source setup.sh --stop'
+  
 
-      - name: Run trivy Scan - videosummary-search-ms (SPDX SBOM)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        id: videosummary-search-ms-spdx
-        with:
-          scan_type: "image"  
-          scan-scope: "all"
-          scan_target: "videosummary-search-ms:latest"  
-          severity: "HIGH,CRITICAL"  
-          format: "spdx-json"
-          scanners: "vuln"
-          report_suffix: "-image-videosummary-search-ms-spdx-CT248"
-          generate_sbom: "false"
-
-      - name: Run trivy Scan - videosummary-video-ingestion (HTML Report)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        id: videosummary-video-ingestion-html
-        with:
-          scan_type: "image"  
-          scan-scope: "all"
-          scan_target: "videosummary-video-ingestion:latest"  
-          severity: "HIGH,CRITICAL"  
-          format: "table"
-          report_suffix: "-image-videosummary-video-ingestion-html-CT248"
-          generate_sbom: "false"
-
-      - name: Run trivy Scan - videosummary-video-ingestion (SPDX SBOM)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        id: videosummary-video-ingestion-spdx
-        with:
-          scan_type: "image"  
-          scan-scope: "all"
-          scan_target: "videosummary-video-ingestion:latest"  
-          severity: "HIGH,CRITICAL"  
-          format: "spdx-json"
-          scanners: "vuln"
-          report_suffix: "-image-videosummary-video-ingestion-spdx-CT248"
-          generate_sbom: "false"
-
-      - name: Run trivy Scan - videosummary-pipeline-manager (HTML Report)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        id: videosummary-pipeline-manager-html
-        with:
-          scan_type: "image"  
-          scan-scope: "all"
-          scan_target: "videosummary-pipeline-manager:latest"  
-          severity: "HIGH,CRITICAL"  
-          format: "table"
-          report_suffix: "-image-videosummary-pipeline-manager-html-CT248"
-          generate_sbom: "false"
-
-      - name: Run trivy Scan - videosummary-pipeline-manager (SPDX SBOM)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        id: videosummary-pipeline-manager-spdx
-        with:
-          scan_type: "image"  
-          scan-scope: "all"
-          scan_target: "videosummary-pipeline-manager:latest"  
-          severity: "HIGH,CRITICAL"  
-          format: "spdx-json"
-          scanners: "vuln"
-          report_suffix: "-image-videosummary-pipeline-manager-spdx-CT248"
-          generate_sbom: "false"
-
-      - name: Scan Dockerfile with Trivy-frontend
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        with:
-          scan_type: "config"
-          scan_target: "sample-applications/video-search-and-summarization/ui/react/"
-          severity: "HIGH,CRITICAL"
-          format: "json"
-          misconfig_scanners: "dockerfile"
-          report_suffix: "-config-videosummary-frontend-CT222"
-
-      - name: Scan Dockerfile with Trivy-search-ms
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        with:
-          scan_type: "config"
-          scan_target: "sample-applications/video-search-and-summarization/search-ms/"
-          severity: "HIGH,CRITICAL"
-          format: "json"
-          misconfig_scanners: "dockerfile"
-          report_suffix: "-config-videosummary-search-ms-CT222"
-
-      - name: Scan Dockerfile with Trivy-video-ingestion
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        with:
-          scan_type: "config"
-          scan_target: "sample-applications/video-search-and-summarization/video-ingestion/"
-          severity: "HIGH,CRITICAL"
-          format: "json"
-          misconfig_scanners: "dockerfile"
-          report_suffix: "-config-videosummary-video-ingestion-CT222"
-
-      - name: Scan Dockerfile with Trivy-pipeline-manager
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        with:
-          scan_type: "config"
-          scan_target: "sample-applications/video-search-and-summarization/pipeline-manager/"
-          severity: "HIGH,CRITICAL"
-          format: "json"
-          misconfig_scanners: "dockerfile"
-          report_suffix: "-config-videosummary-pipeline-manager-CT222"
-           
-      - name: Upload Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: trivy-report-video-summary
-          path: security-results/trivy*
-
-  bandit-scan:
-    runs-on: ubuntu-22.04-32core-128GB
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      
-      - name: Run Bandit Scan
-        uses: open-edge-platform/orch-ci/.github/actions/security/bandit@27276444a9bcf247a27369406686b689933bd1ff
-        id: bandit
-        with:
-          scan-scope: "all"  
-          output-format: "txt" 
-          fail-on-findings: "false"
-          paths: "sample-applications/video-search-and-summarization/"
-          report_suffix: "-bandit-video-summary-CT161"
-          
-      - name: Upload Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: bandit-report-video-summary
-          path: bandit-report-*.txt
-        
-
-  clamav-scan:
-    runs-on: ubuntu-22.04-32core-128GB
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      
-      - name: Run ClamAV Scan
-        uses: open-edge-platform/orch-ci/.github/actions/security/clamav@27276444a9bcf247a27369406686b689933bd1ff
-        id: clamav
-        with:
-          scan-scope: "all"  
-          output-format: "txt" 
-          fail-on-findings: "false"
-          paths: "sample-applications/video-search-and-summarization/"
-          exclude_dirs: ".git,node_modules,venv,ui/test,tests"
-          
-      - name: Upload Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: clamav-report-video-summary
-          path: security-results/clamav*
-
-  # GitLeaks scanning job
-  gitleaks-scan:
+  trivy-scan:
     runs-on: ubuntu-22.04-32core-128GB
     permissions:
       contents: read
@@ -271,242 +86,143 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-          
-      - name: Install gitleaks
-        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          bootstrap_tools: "gitleaks"
-          
-      - name: Get current timestamp
-        id: timestamp
-        run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
-        
-      - name: Clone CI repo
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install Trivy
+        run: |
+          if ! command -v trivy >/dev/null 2>&1; then
+            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+              | sh -s -- -b /usr/local/bin
+          fi
+          trivy --version
+
+      - name: Run Trivy filesystem scan
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          make trivy-scan-fs
+
+      - name: Run Trivy config scan
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          make trivy-scan-config
+
+      - name: Build Docker images
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          make build
+
+      - name: Run Trivy image scan
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          make trivy-scan-image
+
+      - name: Upload Trivy scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vss-trivy-scan-results
+          path: sample-applications/video-search-and-summarization/security-results/trivy-*
+          retention-days: 30
+
+  bandit-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          repository: open-edge-platform/orch-ci
-          path: ci
           persist-credentials: false
-          
-      - name: Scan for secrets
-        run: |
-          gitleaks dir "sample-applications/video-search-and-summarization/" -v -c ci/.gitleaks.toml --baseline-path ci/gitleaks_baselines/gitleaks-video-summary.json -r gitleaks-video-summary.json || true
-          
-      - name: Upload Gitleaks Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: gitleaks-report-video-summary-${{ steps.timestamp.outputs.time }}
-          path: gitleaks-video-summary.json
 
-  # Python linting with pylint - Search MS
-  pylint-scan-search-ms:
-    runs-on: ubuntu-22.04-32core-128GB
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-      
-      - name: Install Poetry
-        run: |
-          pip install poetry
-          
-      - name: Install dependencies and pylint
-        run: |
-          cd sample-applications/video-search-and-summarization/search-ms/
-          poetry install --with dev || true 
-          poetry add --group dev pylint pytest pytest-cov || true
-      
-      - name: Run pylint
-        run: |
-          cd sample-applications/video-search-and-summarization/search-ms/
-          mkdir -p security-results
-          echo "=== Pylint Scan Results - Search MS ===" > security-results/pylint-report-search-ms.txt
-          echo "Scan Date: $(date)" >> security-results/pylint-report-search-ms.txt
-          echo "" >> security-results/pylint-report-search-ms.txt
-          
-          # Create a basic pylint config
-          cat > .pylintrc << EOF
-          [MESSAGES CONTROL]
-          disable=C0111,C0103,R0903,R0913,W0613,W0622,R0801,R0902,R0914,R0915,R0912,C0301,C0302
-          
-          [FORMAT]
-          max-line-length=120
-          
-          [REPORTS]
-          output-format=text
-          reports=yes
-          EOF
-          
-          # Find all Python files and lint them
-          find src/ -type f -name "*.py" -exec poetry run pylint --rcfile=.pylintrc {} + >> security-results/pylint-report-search-ms.txt 2>&1 || true
-          poetry run pylint --rcfile=.pylintrc server.py >> security-results/pylint-report-search-ms.txt 2>&1 || true
-          
-          echo "Pylint scan completed"
-      
-      - name: Upload pylint Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: pylint-report-search-ms
-          path: sample-applications/video-search-and-summarization/search-ms/security-results/pylint-report-search-ms.txt
 
-  # Python linting with pylint - Video Ingestion
-  pylint-scan-video-ingestion:
+      - name: Run Bandit security scan
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          make bandit-scan
+
+      - name: Upload Bandit scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vss-bandit-scan-results
+          path: sample-applications/video-search-and-summarization/security-results/bandit-*
+          retention-days: 30
+
+  clamav-scan:
     runs-on: ubuntu-22.04-32core-128GB
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      
-      - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          python-version: '3.12'
-      
-      - name: Install dependencies and pylint
-        run: |
-          cd sample-applications/video-search-and-summarization/video-ingestion/
-          pip install -r requirements.txt
-          pip install pylint
-      
-      - name: Run pylint
-        run: |
-          cd sample-applications/video-search-and-summarization/video-ingestion/
-          mkdir -p security-results
-          echo "=== Pylint Scan Results - Video Ingestion ===" > security-results/pylint-report-video-ingestion.txt
-          echo "Scan Date: $(date)" >> security-results/pylint-report-video-ingestion.txt
-          echo "" >> security-results/pylint-report-video-ingestion.txt
-          
-          # Create a basic pylint config
-          cat > .pylintrc << EOF
-          [MESSAGES CONTROL]
-          disable=C0111,C0103,R0903,R0913,W0613,W0622,R0801,R0902,R0914,R0915,R0912,C0301,C0302
-          
-          [FORMAT]
-          max-line-length=120
-          
-          [REPORTS]
-          output-format=text
-          reports=yes
-          EOF
-          
-          # Find all Python files and lint them
-          find src/ -type f -name "*.py" -exec pylint --rcfile=.pylintrc {} + >> security-results/pylint-report-video-ingestion.txt 2>&1 || true
-          
-          echo "Pylint scan completed"
-      
-      - name: Upload pylint Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: pylint-report-video-ingestion
-          path: sample-applications/video-search-and-summarization/video-ingestion/security-results/pylint-report-video-ingestion.txt
+          persist-credentials: false
 
-  # ShellCheck scanning job
-  shellcheck-scan:
+      - name: Install ClamAV
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y clamav clamav-daemon
+
+      - name: Update ClamAV virus database
+        run: |
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam
+          clamscan --version
+
+      - name: Run ClamAV scan
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          make clamav-scan
+
+      - name: Upload ClamAV results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vss-clamav-scan-results
+          path: sample-applications/video-search-and-summarization/security-results/clamav-*
+          retention-days: 30
+
+  gitleaks-scan:
     runs-on: ubuntu-22.04-32core-128GB
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      
-      - name: Setup environment with shellcheck
-        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
-          bootstrap_tools: "shellcheck"
-      
-      - name: Run ShellCheck
-        run: |
-          mkdir -p security-results
-          echo "=== ShellCheck Scan Results ===" > security-results/shellcheck-report-video-summary.txt
-          echo "Scan Date: $(date)" >> security-results/shellcheck-report-video-summary.txt
-          echo "" >> security-results/shellcheck-report-video-summary.txt
-          
-          # Find all shell scripts and check them
-          find sample-applications/video-search-and-summarization/ -type f \( -name "*.sh" -o -name "*.bash" \) -print0 | while IFS= read -r -d '' file; do
-            echo "Checking: $file" >> security-results/shellcheck-report-video-summary.txt
-            shellcheck "$file" >> security-results/shellcheck-report-video-summary.txt 2>&1 || true
-            echo "---" >> security-results/shellcheck-report-video-summary.txt
-          done
-          
-          echo "ShellCheck scan completed"
-      
-      - name: Upload ShellCheck Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: shellcheck-report-video-summary
-          path: security-results/shellcheck-report-video-summary.txt
+          persist-credentials: false
 
-  # Run jslinter Frontend
-  run-jslinter-frontend:
-    runs-on: ubuntu-22.04-32core-128GB
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      
-      - name: Install Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version: '22'
-          
-      - name: Install dependencies
+      - name: Install Gitleaks
+        env:
+          GITLEAKS_VERSION: "8.21.2"
         run: |
-          cd sample-applications/video-search-and-summarization/ui/react/
-          npm install
-      
-      - name: Run linting with reports
-        run: |
-          cd sample-applications/video-search-and-summarization/ui/react/
-          mkdir -p lint-results
-          
-          # Use project's npm scripts (for project-specific config)
-          npm run lint > lint-results/npm-lint-output.txt 2>&1 || true
-          npm run prettier > lint-results/prettier-check.txt 2>&1 || true
-          
-          # Generate structured reports with npx eslint
-          npx eslint . --format json --output-file lint-results/eslint-report.json || true
-          npx eslint . --format html --output-file lint-results/eslint-report.html || true
-      
-      - name: Upload lint results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: frontend-lint-results
-          path: sample-applications/video-search-and-summarization/ui/react/lint-results/
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks
+          rm /tmp/gitleaks.tar.gz
+          gitleaks version
 
-  # Run jslinter Pipeline Manager (Node.js/TypeScript)
-  run-jslinter-pipeline-manager:
-    runs-on: ubuntu-22.04-32core-128GB
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      
-      - name: Install Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version: '22'
-          
-      - name: Install dependencies
+      - name: Run Gitleaks secrets scan
         run: |
-          cd sample-applications/video-search-and-summarization/pipeline-manager/
-          npm install
-      
-      - name: Run linting with reports
-        run: |
-          cd sample-applications/video-search-and-summarization/pipeline-manager/
-          mkdir -p lint-results
-          
-          # Use npx for linting (NestJS typically uses ESLint)
-          npx eslint . --format json --output-file lint-results/eslint-report.json || true
-          npx eslint . --format html --output-file lint-results/eslint-report.html || true
-          npx prettier --check "**/*.{js,ts,json}" > lint-results/prettier-check.txt 2>&1 || true
-      
-      - name: Upload lint results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+          cd sample-applications/video-search-and-summarization/
+          make gitleaks-scan
+
+      - name: Upload Gitleaks results
+        uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: pipeline-manager-lint-results
-          path: sample-applications/video-search-and-summarization/pipeline-manager/lint-results/
+          name: vss-gitleaks-scan-results
+          path: sample-applications/video-search-and-summarization/security-results/gitleaks-*
+          retention-days: 30
