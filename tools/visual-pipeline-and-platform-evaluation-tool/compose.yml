@@ -22,7 +22,9 @@ x-vippet: &vippet
     mediamtx:
       condition: service_started
     model-download:
-      condition: service_healthy
+      condition: service_started
+    onvif-discovery:
+      condition: service_started
   environment:
     GST_DEBUG: "1"
     APP_LOG_LEVEL: INFO
@@ -107,7 +109,7 @@ services:
       vippet:
         condition: service_healthy
       metrics-manager:
-        condition: service_healthy
+        condition: service_started
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
@@ -132,7 +134,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60m
-      start_interval: 2s
+      start_interval: 1s
     restart: on-failure:5
     environment:
       MODELS_DIR: /models/output
@@ -170,6 +172,7 @@ services:
   metrics-manager:
     image: docker.io/intel/metrics-manager:2026.1.0
     container_name: metrics-manager
+    init: true
     ports:
       - "9090:9090"
       - "9273:9273"
@@ -199,6 +202,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+      start_interval: 1s
   mediamtx:
     image: bluenviron/mediamtx:1.15.6
     container_name: mediamtx
@@ -223,6 +227,7 @@ services:
     container_name: onvif-discovery
     network_mode: host
     restart: on-failure:5
+    init: true
     user: "${UID:-1000}:${GID:-1000}"
     environment:
       OUTPUT_FILE: /out/onvif_cameras.json
