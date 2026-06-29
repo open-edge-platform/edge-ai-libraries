@@ -86,7 +86,6 @@ git -C <folder_path> remote get-url origin
 
 Strip `.git` suffix. Supports GitHub, GitLab, Gitea, and other hosting platforms.
 
-## Inputs
 
 ## Workflow
 
@@ -243,8 +242,6 @@ Commits processed: <count>
 Comparison: <base_ref>...<target_ref>
 Repository: <repo_url>
 ```
-
-## Workflow
 
 ## Edge cases
 

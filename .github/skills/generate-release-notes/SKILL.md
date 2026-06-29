@@ -1,7 +1,7 @@
 ---
 name: generate-release-notes
 description: 'Generate formatted release notes for a specific folder/module in a repository by comparing two git branches or tags. Use this skill whenever the user mentions release notes, changelog, what changed between branches, version summary, release prep, or wants to document what is new or fixed in a release, especially when they mention a component folder or subproject path. Compares commits and diffs between a base branch or tag and a release branch or tag for the requested folder only, then produces structured Markdown release notes with New, Improved, and Fixed bold-heading sections, bold bullet titles, and an intro summary sentence, following the Time Series Analytics product style. Always use this skill rather than writing release notes freehand.'
-argument-hint: '<base-branch-or-tag> <release-branch-or-tag> <version> <month year> <folder-path>'
+argument-hint: '<product-name> <base-branch-or-tag> <release-branch-or-tag> <version> <month year> <folder-path>'
 ---
 
 # Generate Release Notes
