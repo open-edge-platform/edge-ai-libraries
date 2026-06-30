@@ -195,7 +195,6 @@ Format the new version block using the **detected CHANGELOG style** from Step 3:
 ### Security
 - Vulnerability patched ([#126])
 
-[<version>]: <repo_url>/compare/<base_ref>...<target_ref>
 [#123]: <repo_url>/pull/123
 [#124]: <repo_url>/pull/124
 [#125]: <repo_url>/pull/125
