@@ -653,6 +653,25 @@ ensure_ov_venv() {
 #          servables, so this function does not handle NPU.
 #
 # Users can override all of this by exporting OVMS_CACHE_SIZE_GB.
+
+# Get a minimal fallback cache size when OpenVINO cannot query the GPU.
+get_fallback_ovms_cache_size() {
+    local total_ram_gb="$1"
+    local cache_gb
+    
+    # Cache size: ~25% of system RAM (shared memory), clamped to [2, 6]
+    cache_gb=$((total_ram_gb * 25 / 100))
+    cache_gb=$(( cache_gb < 2 ? 2 : cache_gb > 6 ? 6 : cache_gb ))
+    echo "$cache_gb"
+}
+
+warn_ovms_cache_fallback () {
+    local target_device="$1"
+    local cache_gb="$2"
+    echo -e "[ovms-service] ${YELLOW}Warning: Could not determine VRAM size for device '${target_device}' via OpenVINO; using conservative iGPU cache size ${cache_gb} GB.${NC}" >&2
+    echo -e "[ovms-service] ${YELLOW}GPU inference runs inside the OVMS container. Set OVMS_CACHE_SIZE_GB to override this value.${NC}" >&2
+}
+
 get_ovms_cache_size() {
     local target_device="$1"
     # Allow user override via OVMS_CACHE_SIZE_GB environment variable (validated at startup)
@@ -672,7 +691,12 @@ get_ovms_cache_size() {
             # This natively handles GPU / GPU.0 / GPU.1 device addressing and
             # returns accurate VRAM size and device type (DISCRETE vs INTEGRATED)
             # across all driver generations (i915, xe, future).
-            ensure_ov_venv || return 1
+            if ! ensure_ov_venv; then
+                cache_gb=$(get_fallback_ovms_cache_size "$total_ram_gb")
+                warn_ovms_cache_fallback "$target_device" "$cache_gb"
+                echo "$cache_gb"
+                return
+            fi
             local ov_result=""
             ov_result=$("${OV_VENV_DIR}/bin/python3" - "$target_device" <<'PY' 2>/dev/null
 import sys
@@ -695,18 +719,16 @@ PY
             ov_mem_bytes=$(echo "$ov_result" | awk '{print $2}')
 
             if [[ -z "$ov_device_type" ]]; then
-                echo -e "${RED}ERROR: Failed to query GPU device '${target_device}' via OpenVINO.${NC}" >&2
-                echo -e "${YELLOW}Ensure the GPU device is available. You can override with OVMS_CACHE_SIZE_GB.${NC}" >&2
-                return 1
+                cache_gb=$(get_fallback_ovms_cache_size "$total_ram_gb")
+                warn_ovms_cache_fallback "$target_device" "$cache_gb"
             elif [[ "$ov_device_type" == *DISCRETE* && -n "$ov_mem_bytes" && "$ov_mem_bytes" -gt 0 ]] 2>/dev/null; then
                 # dGPU: ~33% of dedicated VRAM, clamped to [2, 16]
                 local dgpu_vram_gb=$((ov_mem_bytes / 1073741824))
                 cache_gb=$((dgpu_vram_gb * 33 / 100))
                 cache_gb=$(( cache_gb < 2 ? 2 : cache_gb > 16 ? 16 : cache_gb ))
             else
-                # iGPU: ~25% of system RAM (shared memory), clamped to [2, 6]
-                cache_gb=$((total_ram_gb * 25 / 100))
-                cache_gb=$(( cache_gb < 2 ? 2 : cache_gb > 6 ? 6 : cache_gb ))
+                cache_gb=$(get_fallback_ovms_cache_size "$total_ram_gb")
+                warn_ovms_cache_fallback "$target_device" "$cache_gb"
             fi
             ;;
         *)
