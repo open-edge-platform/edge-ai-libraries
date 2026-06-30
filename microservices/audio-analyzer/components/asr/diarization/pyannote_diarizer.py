@@ -1,6 +1,7 @@
 import os
+import numpy as np
 import torch
-import torchaudio
+import soundfile as sf
 from torch.serialization import safe_globals
 import torch.torch_version
 from pyannote.audio import Pipeline
@@ -42,7 +43,9 @@ class PyannoteDiarizer:
         Returns:
             List of dicts with keys ``start``, ``end``, ``speaker``.
         """
-        waveform, sample_rate = torchaudio.load(audio_path)
+        waveform, sample_rate = sf.read(audio_path, dtype="float32", always_2d=True)
+        waveform = np.ascontiguousarray(waveform.T)
+        waveform = torch.from_numpy(waveform)
         audio_input = {"waveform": waveform, "sample_rate": sample_rate}
         output = self.pipeline(audio_input)
         diarization = output.exclusive_speaker_diarization

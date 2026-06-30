@@ -20,14 +20,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app/audio_analyzer
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends alsa-utils python3-venv \
+    && apt-get install -y --no-install-recommends alsa-utils ffmpeg libsndfile1 python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./requirements.txt
 
 RUN python3 -m venv "$VIRTUAL_ENV" \
     && "$VIRTUAL_ENV/bin/pip" install --upgrade pip \
-    && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt
+    && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt \
+    && "$VIRTUAL_ENV/bin/pip" uninstall -y torchcodec || true
 
 COPY . .
 
