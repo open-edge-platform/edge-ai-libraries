@@ -35,7 +35,8 @@ Click on a completed job to view its detailed results:
 
 - **Performance jobs** — Total FPS, Per Stream FPS, stream count, output video paths, and live stream URLs.
 - **Density jobs** — Maximum sustainable stream count, per-stream FPS at that count, and stream distribution
-  across pipelines.
+  across pipelines. In mixed density mode the pinned pipeline always reports its fixed `streams` value
+  while the other pipeline reports the highest count that still met `fps_floor`.
 - **Latency metrics** — If latency metrics were enabled for the job, the results include avg/min/max latency
   values (in milliseconds) per reporting interval.
 

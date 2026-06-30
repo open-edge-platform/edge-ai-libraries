@@ -176,7 +176,10 @@ exposes capabilities and encodings to the rest of the stack. Key methods: `disco
 
 Runs performance and density benchmarks. Performance tests run a single pipeline variant under defined
 conditions; density tests use the algorithm in `benchmark.py` to find the maximum number of concurrent streams
-the hardware can sustain. Each invocation returns a `job_id` that the UI can poll, summarize, or cancel. Key
+the hardware can sustain. Density supports two modes selected automatically from the request shape:
+**classic mode** (search variable = total stream count, distributed across pipelines by `stream_rate`) and
+**mixed mode** (exactly two pipelines; one pinned to a fixed `streams` value, the other incremented by the
+search variable). Each invocation returns a `job_id` that the UI can poll, summarize, or cancel. Key
 methods: `test_performance()`, `test_density()`, `get_job_status()`, `get_job_summary()`,
 `get_job_statuses_by_type()`, `stop_job()`.
 
