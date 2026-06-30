@@ -8,6 +8,10 @@ import { SearchDbService } from '../services/search-db.service';
 import { SearchShimService } from '../services/search-shim.service';
 import { of } from 'rxjs';
 
+jest.mock('uuid', () => ({
+  v4: jest.fn(() => 'mock-query-id'),
+}));
+
 describe('SearchController', () => {
   let controller: SearchController;
   let searchStateService: jest.Mocked<SearchStateService>;
@@ -34,7 +38,11 @@ describe('SearchController', () => {
             newQuery: jest.fn().mockResolvedValue(mockQuery),
             reRunQuery: jest.fn().mockResolvedValue(mockQuery),
             addToWatch: jest.fn().mockResolvedValue(true),
-            removeFromWatch: jest.fn().mockResolvedValue(true)
+            removeFromWatch: jest.fn().mockResolvedValue(true),
+            buildTimeFilterRange: jest.fn().mockReturnValue({
+              selection: null,
+              range: null,
+            }),
           }
         },
         {
@@ -103,7 +111,7 @@ describe('SearchController', () => {
       const result = await controller.addQuery(reqBody);
       
       expect(result).toEqual(mockQuery);
-      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', []);
+      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', [], undefined);
     });
 
     it('should add a new query with tags', async () => {
@@ -115,7 +123,7 @@ describe('SearchController', () => {
       const result = await controller.addQuery(reqBody);
       
       expect(result).toEqual(mockQuery);
-      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', ['tag1', 'tag2', 'tag3']);
+      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', ['tag1', 'tag2', 'tag3'], undefined);
     });
 
     it('should handle empty tags string', async () => {
@@ -127,7 +135,7 @@ describe('SearchController', () => {
       const result = await controller.addQuery(reqBody);
       
       expect(result).toEqual(mockQuery);
-      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', []);
+      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', [], undefined);
     });
 
     it('should handle error when adding query', async () => {
@@ -145,7 +153,7 @@ describe('SearchController', () => {
       const result = await controller.refetchQuery({ queryId });
       
       expect(result).toEqual(mockQuery);
-      expect(searchStateService.reRunQuery).toHaveBeenCalledWith(queryId);
+      expect(searchStateService.reRunQuery).toHaveBeenCalledWith(queryId, undefined);
     });
   });
 
@@ -159,6 +167,52 @@ describe('SearchController', () => {
       expect(searchShimService.search).toHaveBeenCalledWith([{
         query: 'direct search query',
         query_id: expect.any(String)
+      }]);
+    });
+
+    it('should include tags in direct search payload', async () => {
+      const reqBody = { query: 'direct search query', tags: 'red, ketchup' };
+
+      await controller.searchQuery(reqBody);
+
+      expect(searchShimService.search).toHaveBeenCalledWith([{
+        query: 'direct search query',
+        query_id: expect.any(String),
+        tags: ['red', 'ketchup'],
+      }]);
+    });
+
+    it('should include absolute time_filter in direct search payload', async () => {
+      searchStateService.buildTimeFilterRange.mockReturnValueOnce({
+        selection: {
+          start: '2026-06-24T05:00:00.000Z',
+          end: '2026-06-24T06:00:00.000Z',
+          source: 'absolute',
+        },
+        range: {
+          start: '2026-06-24T05:00:00.000Z',
+          end: '2026-06-24T06:00:00.000Z',
+        },
+      });
+      const reqBody = {
+        query: 'direct search query',
+        tags: 'red',
+        timeFilter: {
+          start: '2026-06-24T05:00:00Z',
+          end: '2026-06-24T06:00:00Z',
+        },
+      };
+
+      await controller.searchQuery(reqBody);
+
+      expect(searchShimService.search).toHaveBeenCalledWith([{
+        query: 'direct search query',
+        query_id: expect.any(String),
+        tags: ['red'],
+        time_filter: {
+          start: '2026-06-24T05:00:00.000Z',
+          end: '2026-06-24T06:00:00.000Z',
+        },
       }]);
     });
   });

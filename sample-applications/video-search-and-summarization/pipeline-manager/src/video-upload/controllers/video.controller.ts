@@ -11,7 +11,7 @@ import {
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import { Video, VideoDTO, VideoRO } from '../models/video.model';
+import { SearchEmbeddingsDTO, Video, VideoDTO, VideoRO } from '../models/video.model';
 import { VideoService } from '../services/video.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FeaturesService } from '../../features/features.service';
@@ -107,18 +107,44 @@ export class VideoController {
 
   @Post('search-embeddings/:videoId')
   @ApiOperation({ summary: 'Create search embeddings for a video' })
+  @ApiBody({
+    required: false,
+    schema: {
+      type: 'object',
+      properties: {
+        tags: {
+          type: 'string',
+          example: 'outdoor,daytime',
+          description: 'Optional comma-separated tags to merge into existing video tags before embedding',
+        },
+      },
+    },
+  })
   @ApiParam({
     name: 'videoId',
     type: String,
     description: 'ID of the video to create search embeddings for',
   })
   @ApiCreatedResponse({ description: 'Search embeddings creation started' })
-  async createSearchEmbeddings(@Param() params: { videoId: string }) {
+  async createSearchEmbeddings(
+    @Param() params: { videoId: string },
+    @Body() reqBody: SearchEmbeddingsDTO = {},
+  ) {
     if (this.$feature.getFeatures().search === FEATURE_STATE.OFF) {
       throw new NotFoundException('Search feature is disabled');
     }
 
-    const embeddings = await this.$video.createSearchEmbeddings(params.videoId);
+    const tagsArray = reqBody.tags
+      ? reqBody.tags
+          .split(',')
+          .map((curr) => curr.trim())
+          .filter((curr) => curr.length > 0)
+      : [];
+
+    const embeddings = await this.$video.createSearchEmbeddings(
+      params.videoId,
+      tagsArray,
+    );
 
     if (embeddings.data?.status !== 'success') {
       throw new UnprocessableEntityException(

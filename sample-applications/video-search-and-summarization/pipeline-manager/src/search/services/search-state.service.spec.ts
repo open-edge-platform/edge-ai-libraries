@@ -13,6 +13,10 @@ import { of, throwError } from 'rxjs';
 import { SearchEvents } from 'src/events/Pipeline.events';
 import { SocketEvent } from 'src/events/socket.events';
 
+jest.mock('uuid', () => ({
+  v4: jest.fn(() => 'mock-query-id'),
+}));
+
 describe('SearchStateService', () => {
   let service: SearchStateService;
   let searchDbService: jest.Mocked<SearchDbService>;
@@ -32,7 +36,7 @@ describe('SearchStateService', () => {
     };
 
     const mockVideoService = {
-      getVideos: jest.fn(),
+      getVideos: jest.fn().mockResolvedValue([]),
     };
 
     const mockEventEmitter = {
@@ -74,6 +78,37 @@ describe('SearchStateService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('buildTimeFilterRange', () => {
+    it('should build relative time range', () => {
+      const result = service.buildTimeFilterRange({ value: 1, unit: 'hours' });
+
+      expect(result.range).not.toBeNull();
+      expect(result.selection?.source).toBe('relative');
+    });
+
+    it('should preserve valid absolute time range', () => {
+      const result = service.buildTimeFilterRange({
+        start: '2026-06-24T05:00:00Z',
+        end: '2026-06-24T06:00:00Z',
+      });
+
+      expect(result.range).toEqual({
+        start: '2026-06-24T05:00:00.000Z',
+        end: '2026-06-24T06:00:00.000Z',
+      });
+      expect(result.selection?.source).toBe('absolute');
+    });
+
+    it('should reject invalid absolute time range', () => {
+      const result = service.buildTimeFilterRange({
+        start: '2026-06-24T06:00:00Z',
+        end: '2026-06-24T05:00:00Z',
+      });
+
+      expect(result).toEqual({ selection: null, range: null });
+    });
   });
 
   describe('getQueries', () => {
@@ -190,18 +225,21 @@ describe('SearchStateService', () => {
 
       const result = await service.newQuery(query, tags);
 
-      expect(searchDbService.create).toHaveBeenCalledWith({
-        queryId: expect.any(String),
-        query,
-        watch: false,
-        results: [],
-        tags,
-        queryStatus: SearchQueryStatus.RUNNING,
-        createdAt: expect.any(String),
-        updatedAt: expect.any(String),
-      });
+      expect(searchDbService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryId: expect.any(String),
+          query,
+          watch: false,
+          results: [],
+          tags,
+          timeFilter: null,
+          queryStatus: SearchQueryStatus.RUNNING,
+          createdAt: expect.any(String),
+          updatedAt: expect.any(String),
+        }),
+      );
       expect(eventEmitter.emit).toHaveBeenCalledWith(SearchEvents.RUN_QUERY, mockCreatedQuery.queryId);
-      expect(result).toEqual(mockCreatedQuery);
+      expect(result).toEqual(expect.objectContaining(mockCreatedQuery));
     });
 
     it('should create query with default empty tags', async () => {
@@ -476,7 +514,7 @@ describe('SearchStateService', () => {
       expect(searchDbService.addResults).toHaveBeenCalledWith(queryId, resultsBody.results);
       expect(searchDbService.updateQueryStatus).toHaveBeenCalledWith(queryId, SearchQueryStatus.IDLE);
       expect(eventEmitter.emit).toHaveBeenCalledWith(SocketEvent.SEARCH_UPDATE, expect.any(Object));
-      expect(result).toEqual(mockUpdatedQuery);
+      expect(result).toEqual(expect.objectContaining(mockUpdatedQuery));
     });
 
     it('should return null when addResults returns null', async () => {
