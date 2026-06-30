@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+ # SPDX-License-Identifier: Apache-2.0
 # extract_commits.sh
 # Usage: bash extract_commits.sh <repo_or_folder_path> <base_branch> <target_branch> [scope_path]
 #

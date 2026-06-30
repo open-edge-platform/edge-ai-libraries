@@ -10,7 +10,17 @@ description: >
   infers version numbers from branch/tag names, detects existing CHANGELOG format, and
   produces well-categorized entries (Added, Changed, Removed, Fixed, Security, Documentation)
   matching the repository's established style. Works with ANY folder structure or repository.
+license: Apache-2.0
+metadata:
+  author: Intel Corporation
+  version: 2026.2.0
+  tags: "changelog release-notes"
 ---
+
+ <!--
+ SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+ SPDX-License-Identifier: Apache-2.0
+ -->
 
 # Changelog Generator
 

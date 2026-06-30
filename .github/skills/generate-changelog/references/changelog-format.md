@@ -1,3 +1,8 @@
+ <!--
+ SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+ SPDX-License-Identifier: Apache-2.0
+ -->
+
 # Changelog Format Reference
 
 This document defines the exact structure and style for `CHANGELOG.md` entries
