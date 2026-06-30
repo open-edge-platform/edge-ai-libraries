@@ -18,7 +18,7 @@ from src.utils.directory_watcher import (
     get_last_updated,
     start_watcher,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, AliasChoices, ConfigDict
 
 app = FastAPI()
 app.add_middleware(
@@ -45,10 +45,17 @@ class TimeRange(BaseModel):
 
 
 class QueryRequest(BaseModel):
-    query_id: str
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    query_id: str = Field(
+        validation_alias=AliasChoices("query_id", "queryId")
+    )
     query: str
-    tags: Optional[list[str]] = None
-    time_filter: Optional[TimeRange] = None
+    tags: Optional[list[str] | str] = None
+    time_filter: Optional[TimeRange] = Field(
+        default=None,
+        validation_alias=AliasChoices("time_filter", "timeFilter"),
+    )
 
 
 def _build_explicit_time_filter(time_filter: Optional[TimeRange], property_name: str = "created_at") -> Optional[dict]:
@@ -58,35 +65,22 @@ def _build_explicit_time_filter(time_filter: Optional[TimeRange], property_name:
     return {property_name: [">=", time_filter.start, "<=", time_filter.end]}
 
 
-def _build_tag_filter(tags: Optional[list[str]]) -> Optional[dict]:
-    """Build VDMS tag filter using OR-array syntax for multiple tags."""
+def _normalize_tags(tags: Optional[list[str] | str]) -> list[str]:
+    """Normalize tags from list/string input and trim whitespace."""
     if not tags:
-        return None
-    cleaned = [t.strip() for t in tags if t and t.strip()]
-    if not cleaned:
-        return None
-    if len(cleaned) == 1:
-        return {"tags": ["==", cleaned[0]]}
+        return []
 
-    return {"tags": ["==", cleaned]}
+    raw_tags = tags.split(",") if isinstance(tags, str) else tags
+    return [tag.strip() for tag in raw_tags if isinstance(tag, str) and tag.strip()]
 
 
-def build_combined_vdms_filter(query_request: QueryRequest) -> Tuple[Optional[dict], Optional[dict]]:
-    """Return (vdms_filter, effective_time_filter) combining explicit + parsed time and tag filters."""
+def build_combined_vdms_filter(query_request: QueryRequest) -> Optional[dict]:
+    """Return the effective VDMS time filter from explicit or parsed query constraints."""
     explicit_time_filter = _build_explicit_time_filter(query_request.time_filter)
     parsed_time_filter = build_vdms_time_filter(query_request.query) if not explicit_time_filter else None
     effective_time_filter = explicit_time_filter or parsed_time_filter
 
-    tag_filter = _build_tag_filter(query_request.tags)
-
-    if not effective_time_filter and not tag_filter:
-        return None, None
-
-    if effective_time_filter and tag_filter:
-        merged_filter = {**effective_time_filter, **tag_filter}
-        return merged_filter, effective_time_filter
-
-    return effective_time_filter or tag_filter, effective_time_filter
+    return effective_time_filter
 
 
 def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
@@ -178,19 +172,21 @@ async def query_endpoint(request: list[QueryRequest]):
             """Process a single query request with frame-to-video aggregation."""
 
             query_start = time.perf_counter()
+            query_tags = _normalize_tags(query_request.tags)
+            query_tags_set = set(query_tags)
             logger.info(
                 f"Processing query: {query_request.query} (ID: {query_request.query_id})"
             )
-            logger.debug(f"Query tags: {query_request.tags}")
+            logger.debug(f"Query tags: {query_tags}")
 
-            # Build combined VDMS filter from explicit time_filter + tags, with fallback to NLP time parsing
-            vdms_filter, applied_time_filter = build_combined_vdms_filter(query_request)
-            if applied_time_filter:
-                logger.info(f"Applying time filter to VDMS query: {applied_time_filter}")
+            # Build time-based VDMS filter with fallback to NLP time parsing
+            vdms_filter = build_combined_vdms_filter(query_request)
+            if vdms_filter:
+                logger.info(f"Applying time filter to VDMS query: {vdms_filter}")
             else:
                 logger.debug("No explicit or derived time filter applied")
-            if query_request.tags:
-                logger.info(f"Applying tag filter to VDMS query: {query_request.tags}")
+            if query_tags_set:
+                logger.info(f"Applying tag filter to search results: {query_tags}")
 
             # Get more initial results for aggregation (before filtering)
             initial_k = getattr(
@@ -238,19 +234,13 @@ async def query_endpoint(request: list[QueryRequest]):
                 res.metadata["relevance_score"] = score
 
                 # Filter by tags if specified
-                if query_request.tags:
-                    result_tags: list = []
-                    if res.metadata.get("tags"):
-                        # construct a list of tags from the tag string in results metadata
-                        if isinstance(res.metadata["tags"], str):
-                            result_tags = res.metadata["tags"].split(",")
-                        else:
-                            result_tags = res.metadata["tags"]
+                if query_tags_set:
+                    result_tags = _normalize_tags(res.metadata.get("tags"))
 
-                    # check if any of the query tags are in the result tags
-                    if not set(query_request.tags).intersection(set(result_tags)):
+                    # Keep results when they match any requested tag (subset semantics).
+                    if not query_tags_set.intersection(set(result_tags)):
                         logger.debug(
-                            f"Filtering out result due to tags: query_tags={query_request.tags}, result_tags={result_tags}"
+                            f"Filtering out result due to tags: query_tags={query_tags}, result_tags={result_tags}"
                         )
                         continue
 

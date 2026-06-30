@@ -92,7 +92,7 @@ describe('VideoService', () => {
   const mockVideo: Video = {
     videoId: 'test-video-id',
     name: 'test-video.mp4',
-    url: '/test/path/to/video',
+    url: 'test-video-id/test-video.mp4',
     tags: ['tag1', 'tag2'],
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',
@@ -251,6 +251,66 @@ describe('VideoService', () => {
       } as DataPrepMinioDTO);
       expect(result.data).toEqual(mockEmbeddingsResponse);
     });
+
+    it('should merge and persist additional tags before creating embeddings', async () => {
+      const videoId = 'test-video-id';
+      const mergedTags = ['tag1', 'tag2', 'new-tag'];
+      const updatedVideo = { ...mockVideo, tags: mergedTags };
+      const mockEmbeddingsResponse = { success: true };
+
+      videoDbService.read.mockResolvedValue(mockVideo);
+      videoDbService.update.mockResolvedValue(updatedVideo as any);
+      dataPrepShimService.createEmbeddings.mockReturnValue(of({
+        data: mockEmbeddingsResponse,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {},
+      } as any));
+
+      const result = await service.createSearchEmbeddings(videoId, ['new-tag', 'tag1']);
+
+      expect(videoDbService.update).toHaveBeenCalledWith(videoId, { tags: mergedTags });
+      expect(tagsService.addTags).toHaveBeenCalledWith(['new-tag', 'tag1']);
+      expect(dataPrepShimService.createEmbeddings).toHaveBeenCalledWith({
+        bucket_name: updatedVideo.dataStore!.bucket,
+        video_id: updatedVideo.dataStore!.objectName,
+        video_name: updatedVideo.dataStore!.fileName,
+        tags: mergedTags,
+      } as DataPrepMinioDTO);
+      expect(result.data).toEqual(mockEmbeddingsResponse);
+    });
+
+    it('should use object-storage filename for embeddings payload when display name differs', async () => {
+      const videoId = 'test-video-id';
+      const videoWithDifferentDisplayName = {
+        ...mockVideo,
+        url: 'test-video-id/original_-_Copy.mp4',
+        dataStore: {
+          ...mockVideo.dataStore!,
+          fileName: 'original - Copy.mp4',
+        },
+      };
+      const mockEmbeddingsResponse = { success: true };
+
+      videoDbService.read.mockResolvedValue(videoWithDifferentDisplayName);
+      dataPrepShimService.createEmbeddings.mockReturnValue(of({
+        data: mockEmbeddingsResponse,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {},
+      } as any));
+
+      await service.createSearchEmbeddings(videoId);
+
+      expect(dataPrepShimService.createEmbeddings).toHaveBeenCalledWith({
+        bucket_name: videoWithDifferentDisplayName.dataStore!.bucket,
+        video_id: videoWithDifferentDisplayName.dataStore!.objectName,
+        video_name: 'original_-_Copy.mp4',
+        tags: videoWithDifferentDisplayName.tags,
+      } as DataPrepMinioDTO);
+    });
   });
 
   describe('uploadVideo', () => {
@@ -327,6 +387,31 @@ describe('VideoService', () => {
         }),
       );
       expect(result).toBe('test-video-id');
+    });
+
+    it('should preserve display filename while using sanitized object path', async () => {
+      const originalNameWithSpaces = 'store aisle clip.mp4';
+      datastoreService.getObjectName.mockReturnValue({
+        objectPath: '/bucket/test-video-id/store_aisle_clip.mp4',
+        fileExtn: '.mp4',
+      });
+
+      await service.uploadVideo(videoFilePath, originalNameWithSpaces, {});
+
+      expect(datastoreService.uploadFile).toHaveBeenCalledWith(
+        '/bucket/test-video-id/store_aisle_clip.mp4',
+        videoFilePath,
+      );
+      expect(videoDbService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: '/bucket/test-video-id/store_aisle_clip.mp4',
+          dataStore: {
+            bucket: 'test-bucket',
+            fileName: originalNameWithSpaces,
+            objectName: 'test-video-id',
+          },
+        }),
+      );
     });
 
     it('should handle datastore upload error', async () => {
