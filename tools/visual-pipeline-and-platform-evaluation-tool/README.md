@@ -65,11 +65,15 @@ configurations and optimization of settings.
 
 ## Learn More
 
-- [System Requirements](docs/user-guide/get-started/system-requirements.md)
-- [Get Started](docs/user-guide/get-started.md)
-- [How to Build Source](docs/user-guide/get-started/build-from-source.md)
-- [How to Use ViPPET](docs/user-guide/use-vippet.md)
-- [How to Use Video Generator](docs/user-guide/how-to-guides/use-video-generator.md)
+The following resources provide comprehensive guidance on installation, usage, and development of the Visual
+Pipeline and Platform Evaluation Tool:
+
+- [System Requirements](docs/user-guide/getting-started/installation/system-requirements.md)
+- [Get Started](docs/user-guide/getting-started.md)
+- [Quickstart Guide](docs/user-guide/getting-started/quickstart.md)
+- [User Guide](docs/user-guide/user-guide.md)
+- [Developer Guide](docs/user-guide/developer-guide.md)
+- [Troubleshooting](docs/user-guide/troubleshooting.md)
 - [Release Notes](docs/user-guide/release-notes.md)
 
 ## Contribution Rules
