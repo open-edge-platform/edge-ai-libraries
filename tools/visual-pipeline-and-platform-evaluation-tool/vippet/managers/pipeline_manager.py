@@ -688,7 +688,19 @@ class PipelineManager:
                     if paths:
                         metadata_file_paths[pipeline_id] = paths
 
-                # Remove gvawatermark nodes when all sinks are fakesink (no real video output)
+                # Drop gvawatermark elements when the pipeline has no real
+                # video output to render onto. This is decided per stream
+                # by Graph.strip_watermark_if_all_sinks_are_fake():
+                #   * output_mode=disabled and the pipeline only has
+                #     fakesink terminals -> gvawatermark is stripped to
+                #     save the overlay rendering cost.
+                #   * output_mode=file or live_stream installs an
+                #     OUTPUT_PLACEHOLDER above, so the call is a no-op and
+                #     the overlay is kept (the user will see it).
+                #   * Pipelines with intermediate non-fakesink terminals
+                #     (e.g. splitmuxsink in NVR-style pipelines) keep
+                #     gvawatermark, because the recorded file is itself a
+                #     visible output for the user.
                 graph_instance = graph_instance.strip_watermark_if_all_sinks_are_fake()
 
                 # Assign explicit, unique element names to the main-branch

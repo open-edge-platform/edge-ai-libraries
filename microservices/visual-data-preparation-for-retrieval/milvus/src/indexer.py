@@ -24,6 +24,7 @@ EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "openai/clip-vit-base-p
 def create_milvus_data(embedding, meta=None):
     data = {}
     data["id"] = generate_unique_id()
+    data["text"] = ""
     data["meta"] = meta
     data["vector"] = embedding
     return data

@@ -25,6 +25,7 @@ import { DensityJobDetail } from "@/pages/DensityJobDetail.tsx";
 import { OptimizationJobDetail } from "@/pages/OptimizationJobDetail.tsx";
 import { PipelineList } from "@/pages/PipelineList";
 import { Cameras } from "@/pages/Cameras";
+import { Benchmarks } from "@/pages/Benchmarks";
 
 export type NavigationItem = {
   url: string;
@@ -52,6 +53,7 @@ export const menuItems: Array<NavigationItem> = [
   },
   { url: "/tests/density", title: "Density", icon: Grid3x3 },
   { url: "/jobs", title: "Jobs", icon: ListTodo },
+  { url: "/benchmarks", title: "Benchmarks", icon: Grid3x3 },
 ];
 
 export const routeConfig: Array<RouteObject> = [
@@ -76,6 +78,7 @@ export const routeConfig: Array<RouteObject> = [
   { path: "jobs/density/:jobId", Component: DensityJobDetail },
   { path: "jobs/optimize", Component: Jobs },
   { path: "jobs/optimize/:jobId", Component: OptimizationJobDetail },
+  { path: "benchmarks", Component: Benchmarks },
 ];
 
 // Routes that should stay mounted (keep-alive) when navigating away

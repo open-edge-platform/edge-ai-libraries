@@ -26,7 +26,7 @@ impactful tools in the repository:
   audio/video media analytics using GStreamer for optimized media operations
   and OpenVINO for optimized inferencing
 
-- [Intel® SceneScape](https://github.com/open-edge-platform/scenescape)
+- [Scenescape](https://github.com/open-edge-platform/scenescape)
 
   Create 3D/4D dynamic digital twins from multimodal sensor data for advanced
   spatial analytics.
@@ -115,7 +115,7 @@ indexing, and audio analysis.
   Services handling vision-language models and embedding generation
   for multimodal search.
 
-- [Intel® SceneScape](https://github.com/open-edge-platform/scenescape)
+- [Scenescape](https://github.com/open-edge-platform/scenescape)
 
   Software for creating dynamic 3D/4D digital twins for spatial
   analytics.

@@ -220,6 +220,16 @@ export const Pipelines = () => {
     resetHistory();
   }, [variant, resetHistory, setCurrentNodes, setCurrentEdges]);
 
+  // Default Metadata JSON ON for the VLM pipeline (its only output is metadata
+  // JSON lines); OFF for other pipelines.
+  useEffect(() => {
+    const variantData = data?.variants.find((v) => v.id === variant);
+    const isVlmPipeline =
+      variantData?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ??
+      false;
+    setMetadataEnabled(isVlmPipeline);
+  }, [variant, data]);
+
   const handleViewportChange = (viewport: Viewport) => {
     setCurrentViewport(viewport);
   };
@@ -353,9 +363,9 @@ export const Pipelines = () => {
           execution_config: {
             output_mode: outputMode,
             max_runtime: maxRuntimeSeconds,
-            metadata_mode:
-              hasMetadata && metadataEnabled ? "file" : "disabled",
+            metadata_mode: hasMetadata && metadataEnabled ? "file" : "disabled",
             enable_latency_metrics: latencyMetricsEnabled,
+            test_run: true,
           },
         },
       });

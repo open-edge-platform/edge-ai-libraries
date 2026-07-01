@@ -83,11 +83,9 @@ Change them in `compose.yml` and restart the stack to take effect.
 | `UPLOAD_ALLOWED_CODECS`     | `h264,h265`                            | Comma-separated list of video codecs accepted after probing.                                                                                                                                  |
 | `UPLOAD_MAX_SIZE_BYTES`     | `2147483648` (2 GiB)                   | Maximum accepted upload body size in bytes. Enforced per chunk while streaming the upload to disk. Keep in sync with the `client_max_body_size` directive in `ui/nginx.conf` if you raise it. |
 
-:::info[Note]
-Tightening these allow-lists never deletes files that are already on disk; it only prevents new
-uploads from being accepted. Widening the codec or container list does not implicitly add the
-matching file extensions - extend `UPLOAD_ALLOWED_EXTENSIONS` as well.
-:::
+> **Note:** Tightening these allow-lists never deletes files that are already on disk; it only prevents new
+> uploads from being accepted. Widening the codec or container list does not implicitly add the
+> matching file extensions - extend `UPLOAD_ALLOWED_EXTENSIONS` as well.
 
 ## Upload errors and how to resolve them
 
