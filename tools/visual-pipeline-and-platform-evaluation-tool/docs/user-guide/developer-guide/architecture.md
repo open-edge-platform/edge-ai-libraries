@@ -3,7 +3,7 @@
 This section summarizes the core components ViPPET is built from. These components are grouped into
 ViPPET application specific services and foundational services, which provide platform-wide capabilities.
 
-![alt text](../_assets/VIPPET-architecture-2026.1.svg "Title")
+![ViPPET architecture](../_assets/VIPPET-architecture-2026.1.svg "vippet architecture")
 
 ## Application Specific Microservices
 

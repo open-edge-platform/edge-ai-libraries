@@ -14,6 +14,8 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
+# syntax=docker/dockerfile:1.7
+
 # Use DLStreamer as the base image
 FROM intel/dlstreamer:2026.1.0-ubuntu24 AS prod
 
@@ -24,10 +26,13 @@ USER root
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install necessary dependencies
-RUN apt-get update && \
-    apt-get install --yes --no-install-recommends yq v4l-utils && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# BuildKit cache mounts keep apt downloads/metadata between builds. The
+# cache lives outside the image layer, so runtime image size is unchanged.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install --yes --no-install-recommends yq v4l-utils
 
 # Switch to dlstreamer user
 USER dlstreamer
@@ -59,10 +64,17 @@ COPY --chown=dlstreamer:dlstreamer vippet/requirements-omz.txt /home/dlstreamer/
 
 # Install the production runtime dependencies into the main venv and the
 # OMZ tooling into its own isolated venv.
-RUN \
-    pip3 install --disable-pip-version-check --no-cache-dir -r requirements.txt && \
+#
+# A BuildKit cache mount keeps pip's HTTP/wheel cache between builds. The
+# cache lives outside the image layer, so runtime image size is unchanged.
+# ``mode=0777`` lets the non-root ``dlstreamer`` user write to it without
+# needing to know its uid/gid at build time.
+RUN --mount=type=cache,target=/tmp/pip-cache,mode=0777,sharing=locked \
+    PIP_CACHE_DIR=/tmp/pip-cache \
+    pip3 install --disable-pip-version-check -r requirements.txt && \
     python3 -m venv $OMZ_VIRTUAL_ENV && \
-    $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check --no-cache-dir \
+    PIP_CACHE_DIR=/tmp/pip-cache \
+    $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check \
         -r requirements-omz.txt && \
     # Security override: bump ``onnx`` past the cap that ``openvino-dev``
     # 2024.6.0 (archived upstream) inherited. Fixes CVE-2026-27489 (HIGH),
@@ -70,7 +82,8 @@ RUN \
     # is required because the resolver would otherwise honor the cap, and
     # we deliberately keep transitive deps intact (no --no-deps) so onnx's
     # own runtime requirements (protobuf, numpy) are satisfied.
-    $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check --no-cache-dir \
+    PIP_CACHE_DIR=/tmp/pip-cache \
+    $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check \
         --upgrade "onnx>=1.21.0"
 
 # Copy the Python scripts and configuration files into the container
@@ -96,4 +109,6 @@ FROM prod AS test
 COPY --chown=dlstreamer:dlstreamer vippet/requirements-dev.txt /home/dlstreamer/vippet/requirements-dev.txt
 
 # Install only dev requirements on top of prod image
-RUN pip3 install --disable-pip-version-check --no-cache-dir -r requirements-dev.txt
+RUN --mount=type=cache,target=/tmp/pip-cache,mode=0777,sharing=locked \
+    PIP_CACHE_DIR=/tmp/pip-cache \
+    pip3 install --disable-pip-version-check -r requirements-dev.txt

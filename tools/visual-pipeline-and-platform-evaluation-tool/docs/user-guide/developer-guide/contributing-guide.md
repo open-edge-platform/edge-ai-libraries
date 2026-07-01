@@ -11,11 +11,11 @@ area-specific guides and summarizes what to expect from each.
 
 ## Where to contribute
 
-| Area                                                        | What you can add or change                                                                       |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| [Backend](./contributing/backend.md)                        | FastAPI routes, managers, GStreamer/DLStreamer integration, pipeline execution and benchmarking. |
-| [How to add a new pipeline](./contributing/new-pipeline.md) | Built-in pipeline YAML files under `vippet/pipelines/` and user-created pipelines via the API.   |
-| [How to add a new element](./contributing/new-element.md)   | Custom `gvapython` modules and notes on element visibility in the simple/advanced views.         |
+| Area                                                        | What you can add or change                                                                        |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [Backend](./contributing/backend.md)                        | FastAPI routes, managers, GStreamer/DL Streamer integration, pipeline execution and benchmarking. |
+| [How to add a new pipeline](./contributing/new-pipeline.md) | Built-in pipeline YAML files under `vippet/pipelines/` and user-created pipelines via the API.    |
+| [How to add a new element](./contributing/new-element.md)   | Custom `gvapython` modules and notes on element visibility in the simple/advanced views.          |
 
 <!--hide_directive Input for Frontend and Documentation needed
 | Area | What you can add or change |

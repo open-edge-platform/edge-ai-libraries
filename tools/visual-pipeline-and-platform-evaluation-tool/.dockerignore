@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Excludes for the Docker build context (build context = repo root, see
+# compose.yml `x-vippet.build.context: .`).
+#
+# Keep this list aggressive: everything not COPIED in any Dockerfile under
+# this repo should be excluded so BuildKit does not stat/hash large
+# directories (shared/, .venv, ui/node_modules, etc.) on every build.
+
+# VCS / IDE / OS noise
+.git
+.gitignore
+.github
+.idea
+.vscode
+.DS_Store
+
+# Local Python venvs / caches
+.venv
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/.coverage
+**/.coverage.*
+.coverage
+.coverage.*
+
+# Runtime-mounted volume — never part of any image. This also covers
+# Make-generated sentinels that live under shared/ (e.g.
+# shared/.env-dirs.done, shared/.vippet-test-image.stamp).
+shared
+
+# Frontend build artifacts and dependencies
+ui/node_modules
+ui/dist
+ui/.vite
+ui/coverage
+
+# Logs
+*.log
+
+# Docs / Markdown — not COPIED by any Dockerfile
+docs

@@ -29,8 +29,8 @@ services:
       timeout: 5s
       retries: 20
     environment:
-      no_proxy: "ia-time-series-analytics-microservice,ia-influxdb,ia-mqtt-broker,ia-opcua-server,localhost,model-registry"
-      NO_PROXY: "ia-time-series-analytics-microservice,ia-influxdb,ia-mqtt-broker,ia-opcua-server,localhost,model-registry"
+      no_proxy: "ia-time-series-analytics-microservice,ia-influxdb,ia-mqtt-broker,ia-opcua-server,localhost"
+      NO_PROXY: "ia-time-series-analytics-microservice,ia-influxdb,ia-mqtt-broker,ia-opcua-server,localhost"
       KAPACITOR_PORT: ${KAPACITOR_PORT}
       INFLUX_SERVER: ""
       KAPACITOR_INFLUXDB_0_USERNAME: ""
@@ -45,7 +45,6 @@ services:
       PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
       UDF_MAX_FILE_SIZE_MB: 100
       SSL_CERT_FILE: /run/secrets/ca_certificate.pem
-      MODEL_REGISTRY_URL: http://model-registry:8111
     networks:
     - timeseries_network
     ports:

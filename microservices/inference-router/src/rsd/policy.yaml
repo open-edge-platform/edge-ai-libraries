@@ -1,0 +1,14 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+policies:
+  - name: Balanced
+    criterion: FirstMatch
+    strategies:
+      - Planning
+      - ContextLengthQuality
+
+  - name: CostFirst
+    criterion: FirstMatch
+    strategies:
+      - ZeroCost
