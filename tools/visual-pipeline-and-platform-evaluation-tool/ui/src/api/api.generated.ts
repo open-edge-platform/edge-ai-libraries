@@ -1,6 +1,7 @@
 import { apiSlice as api } from "./apiSlice";
 export const addTagTypes = [
   "health",
+  "benchmarks",
   "convert",
   "devices",
   "jobs",
@@ -26,6 +27,12 @@ const injectedRtkApi = api
         query: () => ({ url: `/status` }),
         providesTags: ["health"],
       }),
+      getBenchmarks: build.query<GetBenchmarksApiResponse, GetBenchmarksApiArg>(
+        {
+          query: () => ({ url: `/benchmarks` }),
+          providesTags: ["benchmarks"],
+        },
+      ),
       toGraph: build.mutation<ToGraphApiResponse, ToGraphApiArg>({
         query: (queryArg) => ({
           url: `/convert/to-graph`,
@@ -469,6 +476,12 @@ export type GetHealthApiArg = void;
 export type GetStatusApiResponse =
   /** status 200 Successful Response */ StatusResponse;
 export type GetStatusApiArg = void;
+export type GetBenchmarksApiResponse =
+  /** status 200 List of benchmark definitions with setup rows */ (
+    | BenchmarkWithPerformanceSetup
+    | BenchmarkWithDensitySetup
+  )[];
+export type GetBenchmarksApiArg = void;
 export type ToGraphApiResponse =
   /** status 200 Conversion successful */ PipelineGraphResponse;
 export type ToGraphApiArg = {
@@ -733,6 +746,32 @@ export type StatusResponse = {
   message: string | null;
   ready: boolean;
 };
+export type BenchmarkPerformanceSetup = {
+  pipeline_id: string;
+  variant_id: string;
+  streams: number;
+};
+export type BenchmarkWithPerformanceSetup = {
+  id: number;
+  name: string;
+  type: "performance";
+  setups: BenchmarkPerformanceSetup[];
+};
+export type BenchmarkDensitySetup = {
+  pipeline_id: string;
+  variant_id: string;
+  participation_rate: number;
+};
+export type BenchmarkWithDensitySetup = {
+  id: number;
+  name: string;
+  type: "density";
+  setups: BenchmarkDensitySetup[];
+};
+export type MessageResponse = {
+  /** Human-readable error or status message. */
+  message: string;
+};
 export type Node = {
   id: string;
   type: string;
@@ -756,10 +795,6 @@ export type PipelineGraphResponse = {
   pipeline_graph: PipelineGraph;
   /** Simplified graph view showing only sources, inference nodes, and sinks. */
   pipeline_graph_simple: PipelineGraph;
-};
-export type MessageResponse = {
-  /** Human-readable error or status message. */
-  message: string;
 };
 export type ValidationError = {
   loc: (string | number)[];
@@ -1118,6 +1153,8 @@ export type ExecutionConfig = {
   max_runtime?: number;
   /** Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints. */
   metadata_mode?: MetadataMode;
+  /** Controls test-run persistence behavior. false (default): use normal database persistence. true: do not save test data to the database. */
+  test_run?: boolean;
   /** When true, activates the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval by setting `GST_DEBUG=GST_TRACER:7` (appended if already set) and `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on the GStreamer subprocess environment. When false (default), neither environment variable is modified. */
   enable_latency_metrics?: boolean;
 };
@@ -1296,6 +1333,8 @@ export const {
   useLazyGetHealthQuery,
   useGetStatusQuery,
   useLazyGetStatusQuery,
+  useGetBenchmarksQuery,
+  useLazyGetBenchmarksQuery,
   useToGraphMutation,
   useToDescriptionMutation,
   useGetDevicesQuery,
