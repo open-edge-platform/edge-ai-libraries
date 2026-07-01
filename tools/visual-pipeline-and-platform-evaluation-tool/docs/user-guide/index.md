@@ -52,19 +52,19 @@ in one place, making it easier to identify bottlenecks and compare platform beha
 
 ## Resources
 
-- [Getting Started](getting-started.md)
-- [User Guide](user-guide.md)
-- [Developer Guide](developer-guide.md)
+- [Get Started](./get-started.md)
+- [User Guide](./user-guide.md)
+- [Developer Guide](./developer-guide.md)
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
-./getting-started
+./get-started
 ./user-guide
 ./developer-guide
 ./troubleshooting
-./release-notes
+Release Notes <./release-notes.md>
 
 :::
 hide_directive-->
