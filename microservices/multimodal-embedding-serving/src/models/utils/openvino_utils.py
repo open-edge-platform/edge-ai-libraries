@@ -89,14 +89,22 @@ def check_and_convert_openvino_models(
     return str(image_encoder_path), str(text_encoder_path)
 
 
-def _enable_model_cache(core, image_encoder_path, text_encoder_path):
+def _enable_model_cache(core, image_encoder_path, text_encoder_path, device=None):
     """
     Enable OpenVINO model caching on the given Core instance.
 
-    Compiling models for accelerators such as GPU/NPU can take a long time
-    (graph compilation happens on every startup). OpenVINO can persist the
-    compiled blob and reuse it on subsequent runs by setting the ``CACHE_DIR``
-    property. This is generic across devices and models.
+    Compiling models for the NPU can take a long time (graph compilation
+    happens on every startup). OpenVINO can persist the compiled blob and
+    reuse it on subsequent runs by setting the ``CACHE_DIR`` property.
+
+    Caching is **NPU-only by default**. On GPU/CPU it is left disabled
+    because importing a GPU-compiled cache blob under throughput/AUTO-stream
+    configuration can make the plugin over-allocate device memory and raise
+    ``std::bad_alloc`` when the infer-request queue is created; a fresh
+    compile on those devices is fast and avoids the problem. The default can
+    be overridden with ``OV_ENABLE_MODEL_CACHE``:
+    - ``1``/``true``/``yes``/``on``  -> force-enable on any device.
+    - ``0``/``false``/``no``/``off`` -> force-disable on any device.
 
     The cache directory is resolved without hardcoding any path:
     - ``OV_CACHE_DIR`` / ``EMBEDDING_OV_CACHE_DIR`` env var, when set, wins.
@@ -104,15 +112,24 @@ def _enable_model_cache(core, image_encoder_path, text_encoder_path):
       (i.e. the configured OpenVINO models directory) as an ``ov_cache``
       subdirectory, so it persists alongside the IR on the same volume.
 
-    Caching can be disabled by setting ``OV_ENABLE_MODEL_CACHE`` to one of
-    ``0``/``false``/``no``/``off``.
-
     Returns the resolved cache directory as a string, or ``None`` if caching
     was disabled or could not be enabled.
     """
     enable_flag = (os.getenv("OV_ENABLE_MODEL_CACHE") or "").strip().lower()
+    device_upper = (device or "").upper()
+    is_npu = device_upper.startswith("NPU")
+
     if enable_flag in {"0", "false", "no", "off"}:
         logger.info("OpenVINO model caching disabled via OV_ENABLE_MODEL_CACHE.")
+        return None
+    if enable_flag not in {"1", "true", "yes", "on"} and not is_npu:
+        # Default policy: cache only on NPU. GPU/CPU cache import can trigger
+        # std::bad_alloc, and their compile is cheap enough to skip caching.
+        logger.info(
+            "OpenVINO model caching skipped for device '%s' (enabled only for NPU by "
+            "default; set OV_ENABLE_MODEL_CACHE=1 to force-enable).",
+            device or "unknown",
+        )
         return None
 
     cache_dir = os.getenv("OV_CACHE_DIR") or os.getenv("EMBEDDING_OV_CACHE_DIR")
@@ -195,7 +212,7 @@ def load_openvino_models(
         infer_new_request() method, similar to the detector implementation.
     """
     core = ov.Core()
-    _enable_model_cache(core, image_encoder_path, text_encoder_path)
+    _enable_model_cache(core, image_encoder_path, text_encoder_path, device)
 
     def _resolve_int_env(keys, default_value):
         for key in keys:
