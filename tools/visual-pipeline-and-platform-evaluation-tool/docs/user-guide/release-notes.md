@@ -1,4 +1,4 @@
-# Release Notes
+# Release Notes: Visual Pipeline and Platform Evaluation Tool
 
 Details about the changes, improvements, and known issues in this release of the application.
 
@@ -17,8 +17,8 @@ Details about the changes, improvements, and known issues in this release of the
   them as input for pipelines.
 - **Image-Set Upload Support**: Users can now upload image files and use them
   as input for pipelines.
-- **Custom Model Upload Support**: Users can now upload OpenVINO models,
-  including models trained using Intel Geti platform.
+- **Custom Model Upload Support**: Users can now upload OpenVINO™ models,
+  including models trained using Intel Geti™ platform.
 
 **Improved**:
 
@@ -213,9 +213,9 @@ Details about the changes, improvements, and known issues in this release of the
 :::{toctree}
 :hidden:
 
-./getting-started/release-notes/release-2026.1
-./getting-started/release-notes/release-2026.0
-./getting-started/release-notes/release-2025.2
+Release Notes 2026.1 <./release-notes/release-2026.1.md>
+Release Notes 2026.0 <./release-notes/release-2026.0.md>
+Release Notes 2025.2 <./release-notes/release-2025.2.md>
 
 :::
 hide_directive-->

@@ -16,7 +16,7 @@ Before starting, ensure the following:
 
 For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
 script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
-[Install Guide Ubuntu - Prerequisites](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/get_started/install/install_guide_ubuntu.md#prerequisites)
+[Install Guide Ubuntu - Prerequisites](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/get_started/install/install_guide_ubuntu.html#prerequisites)
 
 This guide assumes basic familiarity with terminal usage.
 
@@ -44,7 +44,7 @@ For alternative ways to set up the sample application, refer to
 2. Download all required files:
 
    ```bash
-   BRANCH=release-2026.1.0
+   BRANCH=main
    BASE_URL="https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/${BRANCH}/tools/visual-pipeline-and-platform-evaluation-tool"
 
    # Top-level files used by docker compose and the Makefile

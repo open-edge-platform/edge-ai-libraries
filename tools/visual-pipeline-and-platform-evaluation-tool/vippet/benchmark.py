@@ -124,22 +124,59 @@ class Benchmark:
         self.logger = logging.getLogger(__name__)
 
     @staticmethod
+    def _is_mixed_mode(
+        pipeline_density_specs: list[InternalPipelineDensitySpec],
+    ) -> bool:
+        """
+        Return True if the request uses mixed-density mode.
+
+        Mixed-density mode is selected when any spec has its ``streams``
+        field set. The route layer already enforces "exactly two specs,
+        exactly one with streams set" for this mode; here we only need
+        to detect it.
+        """
+        return any(spec.streams is not None for spec in pipeline_density_specs)
+
+    @staticmethod
     def _calculate_streams_per_pipeline(
-        pipeline_density_specs: list[InternalPipelineDensitySpec], total_streams: int
+        pipeline_density_specs: list[InternalPipelineDensitySpec], search_value: int
     ) -> list[int]:
         """
-        Calculate the number of streams for each pipeline based on their stream_rate ratios.
+        Calculate the number of streams for each pipeline for the current
+        search iteration.
+
+        The semantics of ``search_value`` depend on the mode:
+
+        * Classic density mode (no spec has ``streams`` set):
+          ``search_value`` is the total stream count to distribute across
+          pipelines according to their ``stream_rate`` ratios (which must
+          sum to 100).
+        * Mixed-density mode (exactly one of two specs has ``streams``
+          set): ``search_value`` is the stream count of the
+          *incremented* pipeline (the one without ``streams``). The
+          pipeline with ``streams`` is pinned to that fixed value.
 
         Args:
-            pipeline_density_specs: List of InternalPipelineDensitySpec with stream_rate ratios.
-            total_streams: Total number of streams to distribute.
+            pipeline_density_specs: List of InternalPipelineDensitySpec.
+            search_value: Current search variable (see semantics above).
 
         Returns:
-            List of stream counts per pipeline.
+            List of stream counts per pipeline, in the same order as the
+            input specs.
 
         Raises:
-            ValueError: If stream_rate ratios don't sum to 100.
+            ValueError: In classic mode, if stream_rate ratios don't sum to 100.
         """
+        # Mixed-density: pin the fixed pipeline, set the other to search_value.
+        if Benchmark._is_mixed_mode(pipeline_density_specs):
+            return [
+                spec.streams if spec.streams is not None else search_value
+                for spec in pipeline_density_specs
+            ]
+
+        # Classic density: split search_value across pipelines by stream_rate.
+        total_streams = search_value
+
         # Validate that ratios sum to 100
         total_ratio = sum(spec.stream_rate for spec in pipeline_density_specs)
         if total_ratio != 100:
@@ -173,9 +210,26 @@ class Benchmark:
         """
         Run the benchmark and return the best configuration.
 
+        Supports two density modes, selected automatically from the
+        contents of ``pipeline_density_specs``:
+
+        * Classic mode (no spec has ``streams`` set): the search variable
+          is the total stream count, which is distributed across pipelines
+          using their ``stream_rate`` ratios (must sum to 100).
+        * Mixed mode (exactly one of two specs has ``streams`` set): the
+          spec with ``streams`` is pinned to that value for every
+          iteration; the other spec is incremented by the search
+          variable. The route layer already enforces the "exactly two
+          specs, exactly one with streams" constraint.
+
+        In both modes the same exponential growth + bisection algorithm
+        is used and the same pass/fail criterion (``fps_floor``) decides
+        when to stop.
+
         Args:
             pipeline_density_specs: List of InternalPipelineDensitySpec with resolved
-                pipeline information and stream_rate ratios.
+                pipeline information. ``stream_rate`` is used in classic mode,
+                ``streams`` selects/drives mixed mode.
             fps_floor: Minimum FPS threshold per stream.
             execution_config: InternalExecutionConfig for output and runtime.
                 Note: output_mode=live_stream is not supported for density tests.
@@ -188,7 +242,7 @@ class Benchmark:
 
         Raises:
             ValueError: If output_mode is live_stream (not supported for density tests).
-            ValueError: If stream_rate ratios don't sum to 100.
+            ValueError: In classic mode, if stream_rate ratios don't sum to 100.
             RuntimeError: If pipeline execution fails.
         """
         # Validate that live_stream is not used for density tests
@@ -198,6 +252,21 @@ class Benchmark:
                 "Use output_mode='disabled' or output_mode='file' instead."
             )
 
+        # The search loop drives a single "search variable" through an
+        # exponential growth + bisection refinement. Its semantics depend
+        # on the density mode (see ``_calculate_streams_per_pipeline``):
+        #
+        # * Classic mode: search_value == total streams across all pipelines.
+        # * Mixed mode:   search_value == stream count of the incremented
+        #                  pipeline; the fixed pipeline keeps its
+        #                  ``streams`` value across every iteration.
+        #
+        # ``n_streams`` (the value reported in results and used as the
+        # FPS denominator) is always derived as the sum of per-pipeline
+        # counts, so the same loop body works for both modes.
+        mixed_mode = self._is_mixed_mode(pipeline_density_specs)
+
+        search_value = 1
         n_streams = 1
         per_stream_fps = 0.0
         exponential = True
@@ -209,10 +278,14 @@ class Benchmark:
         best_config = _BestConfig()
 
         while True:
-            # Calculate streams per pipeline based on ratios
+            # Resolve per-pipeline stream counts for this search step.
+            # In classic mode this splits ``search_value`` by stream_rate;
+            # in mixed mode it pins the fixed pipeline and assigns
+            # ``search_value`` to the incremented pipeline.
             streams_per_pipeline_counts = self._calculate_streams_per_pipeline(
-                pipeline_density_specs, n_streams
+                pipeline_density_specs, search_value
             )
+            n_streams = sum(streams_per_pipeline_counts)
 
             # Build run specs with calculated stream counts
             # Convert density specs to performance specs for pipeline command building
@@ -229,7 +302,10 @@ class Benchmark:
             ]
 
             self.logger.info(
-                "Running benchmark with n_streams=%d, streams_per_pipeline=%s",
+                "Running benchmark with mixed_mode=%s, search_value=%d, "
+                "n_streams=%d, streams_per_pipeline=%s",
+                mixed_mode,
+                search_value,
                 n_streams,
                 streams_per_pipeline_counts,
             )
@@ -272,8 +348,9 @@ class Benchmark:
                 raise RuntimeError("Pipeline returned zero or invalid FPS metrics.")
 
             self.logger.info(
-                "exit_code=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s, details=%s",
+                "exit_code=%d, search_value=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s, details=%s",
                 result.exit_code,
+                search_value,
                 n_streams,
                 total_fps,
                 per_stream_fps,
@@ -301,7 +378,7 @@ class Benchmark:
                 )
             ]
 
-            # increase number of streams exponentially until we drop below fps_floor
+            # increase the search variable exponentially until we drop below fps_floor
             if exponential:
                 if per_stream_fps >= fps_floor:
                     best_config = self._snapshot_best(
@@ -310,12 +387,12 @@ class Benchmark:
                         per_stream_fps=per_stream_fps,
                         video_output_paths=video_output_paths,
                     )
-                    n_streams *= 2
+                    search_value *= 2
                 else:
                     exponential = False
-                    higher_bound = n_streams
-                    lower_bound = max(1, n_streams // 2)
-                    n_streams = (lower_bound + higher_bound) // 2
+                    higher_bound = search_value
+                    lower_bound = max(1, search_value // 2)
+                    search_value = (lower_bound + higher_bound) // 2
             # use bisecting search for fine tune maximum number of streams
             else:
                 if per_stream_fps >= fps_floor:
@@ -325,17 +402,17 @@ class Benchmark:
                         per_stream_fps=per_stream_fps,
                         video_output_paths=video_output_paths,
                     )
-                    lower_bound = n_streams + 1
+                    lower_bound = search_value + 1
                 else:
-                    higher_bound = n_streams - 1
+                    higher_bound = search_value - 1
 
                 if lower_bound > higher_bound:
                     break  # Binary search complete
 
-                n_streams = (lower_bound + higher_bound) // 2
+                search_value = (lower_bound + higher_bound) // 2
 
-            if n_streams <= 0:
-                n_streams = 1  # Prevent N from going below 1
+            if search_value <= 0:
+                search_value = 1  # Prevent search variable from going below 1
 
         if best_config.n_streams > 0:
             # Use the best configuration found

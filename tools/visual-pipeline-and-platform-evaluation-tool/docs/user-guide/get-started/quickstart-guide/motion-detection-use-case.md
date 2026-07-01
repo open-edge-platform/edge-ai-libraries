@@ -26,7 +26,7 @@ example heavy foliage or rain), or workloads that require recognizing static obj
 3. Click the tile (or one of its variant badges) to open it in the **Pipeline Builder**.
 
 The pipeline ships with three variants - **CPU**, **GPU**, and **NPU** - all using the same YOLOv8n
-INT8 OpenVINO model. They differ only in the target inference device and in the pre-processing backend
+INT8 OpenVINO™ model. They differ only in the target inference device and in the pre-processing backend
 used for that variant. Select the variant matching the hardware you want to benchmark.
 
 ## Step 2. Configure the Motion Detection element
@@ -50,13 +50,11 @@ The following parameters are exposed in the UI:
 | **pixel-diff-threshold** | `25`         | Minimum per-pixel intensity difference (0-255) for a pixel to count as changed when comparing consecutive frames.                                                        |
 | **min-rel-area**         | `0.005`      | Minimum relative area (fraction of the full frame) for a detected motion region to be reported. Filters out very small specks of motion.                                 |
 
-:::info[Note]
-The defaults shown above are the UI defaults applied when you place a fresh
-`gvamotiondetect` node on the canvas. The predefined **Motion Detection** pipeline overrides two of
-them in its variants: `motion-threshold=0.07` and `min-persistence=2`, which makes the detector
-noticeably more sensitive than the bare UI defaults. Edit these values in the panel to match your
-scene and noise level.
-:::
+> **Note:** The defaults shown above are the UI defaults applied when you place a fresh
+> `gvamotiondetect` node on the canvas. The predefined **Motion Detection** pipeline overrides two of
+> them in its variants: `motion-threshold=0.07` and `min-persistence=2`, which makes the detector
+> noticeably more sensitive than the bare UI defaults. Edit these values in the panel to match your
+> scene and noise level.
 
 The downstream `gvadetect` node runs YOLOv8n object detection with `inference-region=roi-list`, so it
 only inspects the motion ROIs produced by `gvamotiondetect` rather than the whole frame. The
