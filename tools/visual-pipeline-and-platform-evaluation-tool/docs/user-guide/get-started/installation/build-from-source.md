@@ -21,7 +21,7 @@ Before starting, ensure the following:
 
 For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
 script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
-[Install Guide Ubuntu](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/get_started/install/install_guide_ubuntu.md#prerequisites)
+[Install Guide Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/get_started/install/install_guide_ubuntu.html#prerequisites)
 
 This guide assumes basic familiarity with Git commands and terminal usage. For more information, see
 [Git Documentation](https://git-scm.com/doc).
@@ -35,7 +35,7 @@ Hugging Face Hub.
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
    cd edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
    ```
 

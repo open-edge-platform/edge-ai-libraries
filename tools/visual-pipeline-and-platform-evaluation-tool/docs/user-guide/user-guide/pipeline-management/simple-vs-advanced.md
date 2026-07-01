@@ -35,6 +35,6 @@ Advanced View allows you to export and import pipelines. There are two export/im
 
 ![Export Pipeline](../../_assets/ViPPET-UI-Pipelines-Adv-Export-light.png)
 
-> **Note:** All initial vatiants of predefined pipelines are **read only**. This means you will
+> **Note:** All initial variants of predefined pipelines are **read only**. This means you will
 > not be able to import into these variants. Import will be available in advanced mode of user
 > created pipelines or new variants of predefined pipelines.

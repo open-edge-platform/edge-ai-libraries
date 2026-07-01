@@ -2,7 +2,7 @@
 
 The ViPPET backend lives in [`vippet/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet).
 It is a Python 3.12 / FastAPI service that exposes a REST API on port `7860`,
-orchestrates GStreamer + DLStreamer pipelines as subprocesses, runs
+orchestrates GStreamer + DL Streamer pipelines as subprocesses, runs
 benchmarks, and proxies model installation to the `model-download`
 microservice.
 
@@ -18,7 +18,7 @@ vippet/
 ├── api/                  # FastAPI app
 │   ├── main.py           # App entrypoint, router registration, middleware
 │   ├── api_schemas.py    # Pydantic v2 request/response models
-│   ├── middleware.py     # Custom middleware (e.g. upload size limits)
+│   ├── middleware.py     # Custom middleware (e.g., upload size limits)
 │   ├── routes/           # Route handlers, one module per resource
 │   │   ├── pipelines.py
 │   │   ├── pipeline_templates.py
@@ -71,21 +71,21 @@ A few invariants worth knowing:
   the container context (`PYTHONPATH=/app`). Tests run inside the same image.
 - GStreamer pipelines are **not** executed in-process. `pipeline_runner.py`
   builds a command line and starts `gst_runner.py` as a subprocess.
-- OpenVINO device detection (`device.py`) happens at startup and drives
+- OpenVINO™ device detection (`device.py`) happens at startup and drives
   which hardware profile (`cpu`, `gpu`, `npu`) is selected at compose time.
 
 ## Tech stack
 
-| Layer            | Technology                                        |
-|------------------|---------------------------------------------------|
-| Language         | Python 3.12                                       |
-| Web framework    | FastAPI + uvicorn                                 |
-| Validation       | Pydantic v2                                       |
-| AI inference     | OpenVINO™ 2025.x, DLStreamer 2026.x, GStreamer 1.0|
-| Metrics          | Telegraf, qmassa (GPU), InfluxDB line protocol    |
-| Containerization | Docker Compose (profiles: `cpu`, `gpu`, `npu`)    |
-| Lint / type      | ruff, pyright (strict)                            |
-| Tests            | unittest + coverage (unit), pytest (functional)   |
+| Layer            | Technology                                          |
+| ---------------- | --------------------------------------------------- |
+| Language         | Python 3.12                                         |
+| Web framework    | FastAPI + uvicorn                                   |
+| Validation       | Pydantic v2                                         |
+| AI inference     | OpenVINO™ 2025.x, DL Streamer 2026.x, GStreamer 1.0 |
+| Metrics          | Telegraf, qmassa (GPU), InfluxDB line protocol      |
+| Containerization | Docker Compose (profiles: `cpu`, `gpu`, `npu`)      |
+| Lint / type      | ruff, pyright (strict)                              |
+| Tests            | unittest + coverage (unit), pytest (functional)     |
 
 ## Local development loop
 
@@ -104,7 +104,7 @@ make shell-vippet     # exec into the vippet container
 Useful targets while iterating:
 
 | Target                       | Description                                                 |
-|------------------------------|-------------------------------------------------------------|
+| ---------------------------- | ----------------------------------------------------------- |
 | `make run-dev`               | Start the stack with live code reload.                      |
 | `make stop`                  | Stop all compose services.                                  |
 | `make clean`                 | Stop containers and remove generated volumes.               |
