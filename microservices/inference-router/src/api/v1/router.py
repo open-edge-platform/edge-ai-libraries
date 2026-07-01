@@ -22,7 +22,7 @@ from src.api.v1._chat_helpers import (
     record_request_telemetry,
     stream_chat_completions,
 )
-from src.exceptions import RoutingError
+from src.exceptions import ProviderError, RoutingError
 from src.models import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -130,6 +130,20 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
     except RoutingError as routing_err:
         logger.error(f"Routing failed: request_id={request_id}, error={routing_err}")
         raise HTTPException(status_code=400, detail=str(routing_err))
+    except ProviderError as provider_err:
+        # Forward upstream client errors (4xx) verbatim instead of masking them
+        # as a 500 — e.g. litellm's BadRequestError for an invalid payload.
+        status_code = provider_err.status_code
+        if isinstance(status_code, int) and 400 <= status_code < 500:
+            logger.warning(
+                f"Upstream client error: request_id={request_id}, "
+                f"status={status_code}, error={provider_err}"
+            )
+            raise HTTPException(status_code=status_code, detail=str(provider_err))
+        logger.error(f"Provider error: request_id={request_id}, error={provider_err}")
+        raise HTTPException(
+            status_code=502, detail=f"Upstream provider error (request_id={request_id})"
+        )
     except HTTPException:
         raise
     except Exception as e:
