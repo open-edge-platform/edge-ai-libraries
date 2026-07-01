@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     
     # Service configuration
     service_name: str = Field(default="semantic-search-agent", alias="SERVICE_NAME")
-    service_version: str = Field(default="1.0.0", alias="SERVICE_VERSION")
+    service_version: str = Field(default="2026.1.0", alias="SERVICE_VERSION")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     api_port: int = Field(default=8080, alias="API_PORT")
     metrics_port: int = Field(default=9090, alias="METRICS_PORT")

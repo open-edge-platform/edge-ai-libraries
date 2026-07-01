@@ -243,64 +243,64 @@ Steps to run MQTT:
 
 1. Start the MQTT broker, here we use [Eclipse Mosquitto](https://hub.docker.com/_/eclipse-mosquitto/), an open source message broker.
 
-```bash
-docker run --network=host eclipse-mosquitto:1.6
-```
+   ```bash
+   docker run --network=host eclipse-mosquitto:1.6
+   ```
 
 2. Start the Pipeline Server with host network enabled
 
-```bash
-docker/run.sh -v /tmp:/tmp --network host
-```
+   ```bash
+   docker/run.sh -v /tmp:/tmp --network host
+   ```
 
 3. Send the REST request : Using the default 1883 MQTT port.
 
-```bash
-curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-'Content-Type: application/json' -d \
-'{
-  "source": {
-      "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
-      "type": "uri"
-  },
-  "destination": {
-      "metadata": {
-          "type": "mqtt",
-          "host": "<MQTT-HOST-IP>:1883",
-          "topic": "pipeline-server",
-          "mqtt-client-id": "gva-meta-publish"
-      }
-  },
-  "parameters": {
-      "detection-properties": {
-          "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
-          "device": "CPU"
-      }
-  }
-}'
-```
+   ```bash
+   curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
+   'Content-Type: application/json' -d \
+   '{
+     "source": {
+         "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
+         "type": "uri"
+     },
+     "destination": {
+         "metadata": {
+             "type": "mqtt",
+             "host": "<MQTT-HOST-IP>:1883",
+             "topic": "pipeline-server",
+             "mqtt-client-id": "gva-meta-publish"
+         }
+     },
+     "parameters": {
+         "detection-properties": {
+             "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
+             "device": "CPU"
+         }
+     }
+   }'
+   ```
 
 4. Connect to MQTT broker to view inference results
 
-```bash
-docker run -it --network=host --entrypoint mosquitto_sub eclipse-mosquitto:1.6 --topic pipeline-server --id mosquitto-sub
-```
+   ```bash
+   docker run -it --network=host --entrypoint mosquitto_sub eclipse-mosquitto:1.6 --topic pipeline-server --id mosquitto-sub
+   ```
 
-```bash
-{"objects":[{"detection":{"bounding_box":{"x_max":0.4873234033584595,"x_min":0.4171516001224518,"y_max":0.5046840906143188,"y_min":0.42876100540161133},"confidence":0.8322018384933472,"label":"defect","label_id":2},"h":36,"region_id":7649,"roi_type":"defect","w":45,"x":267,"y":206},{"detection":{"bounding_box":{"x_max":0.5919315814971924,"x_min":0.2966548502445221,"y_max":0.6308711767196655,"y_min":0.27925050258636475},"confidence":0.8213143348693848,"label":"box","label_id":0},"h":169,"region_id":7650,"roi_type":"box","w":189,"x":190,"y":134}],"resolution":{"height":480,"width":640},"tags":{},"timestamp":45458560046}
-{"objects":[{"detection":{"bounding_box":{"x_max":0.5899640917778015,"x_min":0.29215648770332336,"y_max":0.6300166249275208,"y_min":0.27991005778312683},"confidence":0.8384196162223816,"label":"box","label_id":0},"h":168,"region_id":7651,"roi_type":"box","w":191,"x":187,"y":134},{"detection":{"bounding_box":{"x_max":0.48560789227485657,"x_min":0.4089825749397278,"y_max":0.5054529309272766,"y_min":0.42728742957115173},"confidence":0.7293270230293274,"label":"defect","label_id":2},"h":38,"region_id":7652,"roi_type":"defect","w":49,"x":262,"y":205}],"resolution":{"height":480,"width":640},"tags":{},"timestamp":45491960898}
-```
+   ```bash
+   {"objects":[{"detection":{"bounding_box":{"x_max":0.4873234033584595,"x_min":0.4171516001224518,"y_max":0.5046840906143188,"y_min":0.42876100540161133},   "confidence":0.8322018384933472,"label":"defect","label_id":2},"h":36,"region_id":7649,"roi_type":"defect","w":45,"x":267,"y":206},{"detection":   {"bounding_box":{"x_max":0.5919315814971924,"x_min":0.2966548502445221,"y_max":0.6308711767196655,"y_min":0.27925050258636475},"confidence":0.8213143348693848,   "label":"box","label_id":0},"h":169,"region_id":7650,"roi_type":"box","w":189,"x":190,"y":134}],"resolution":{"height":480,"width":640},"tags":{},   "timestamp":45458560046}
+   {"objects":[{"detection":{"bounding_box":{"x_max":0.5899640917778015,"x_min":0.29215648770332336,"y_max":0.6300166249275208,"y_min":0.27991005778312683},   "confidence":0.8384196162223816,"label":"box","label_id":0},"h":168,"region_id":7651,"roi_type":"box","w":191,"x":187,"y":134},{"detection":{"bounding_box":   {"x_max":0.48560789227485657,"x_min":0.4089825749397278,"y_max":0.5054529309272766,"y_min":0.42728742957115173},"confidence":0.7293270230293274,   "label":"defect","label_id":2},"h":38,"region_id":7652,"roi_type":"defect","w":49,"x":262,"y":205}],"resolution":{"height":480,"width":640},"tags":{},   "timestamp":45491960898}
+   ```
 
 5. In the MQTT broker terminal, you should see the connection from client with specified `mqtt-client-id`
 
-```
-<snip>
-1632949258: New connection from 127.0.0.1 on port 1883.
-1632949258: New client connected from 127.0.0.1 as gva-meta-publish (p2, c1, k20).
-1632949271: New connection from 127.0.0.1 on port 1883.
-1632949271: New client connected from 127.0.0.1 as mosquitto-sub (p2, c1, k60).
-1632949274: Client gva-meta-publish disconnected.
-```
+   ```text
+   <snip>
+   1632949258: New connection from 127.0.0.1 on port 1883.
+   1632949258: New client connected from 127.0.0.1 as gva-meta-publish (p2, c1, k20).
+   1632949271: New connection from 127.0.0.1 on port 1883.
+   1632949271: New client connected from 127.0.0.1 as mosquitto-sub (p2, c1, k60).
+   1632949274: Client gva-meta-publish disconnected.
+   ```
 
 ## Frame Destination
 
@@ -312,47 +312,47 @@ Steps for visualizing output over RTSP assuming Pipeline Server and your VLC cli
 
 1. Start a pipeline with frame destination type set as `rtsp` and an endpoint path `pallet-defect-detection`.
 
-```bash
-curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-'Content-Type: application/json' -d \
-'{
-    "source": {
-        "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
-        "type": "uri"
-    },
-    "destination": {
-        "metadata": {
-            "type": "file",
-            "format": "json-lines",
-            "path": "/tmp/results.jsonl"
-        },
-        "frame": {
-            "type": "rtsp",
-            "path": "pallet-defect-detection"
-        }
-    },
-    "parameters": {
-        "detection-properties": {
-            "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
-            "device": "CPU"
-        }
-    }
-}'
-```
+   ```bash
+   curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
+   'Content-Type: application/json' -d \
+   '{
+       "source": {
+           "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
+           "type": "uri"
+       },
+       "destination": {
+           "metadata": {
+               "type": "file",
+               "format": "json-lines",
+               "path": "/tmp/results.jsonl"
+           },
+           "frame": {
+               "type": "rtsp",
+               "path": "pallet-defect-detection"
+           }
+       },
+       "parameters": {
+           "detection-properties": {
+               "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
+               "device": "CPU"
+           }
+       }
+   }'
+   ```
 
 2. Use an RTSP client such as VLC to visualize the stream at address `rtsp://localhost:8554/pallet-defect-detection`.
 
-The following parameters can be optionally used to customize the stream:
+   The following parameters can be optionally used to customize the stream:
 
-- path (required): custom string to uniquely identify the stream
-- cache-length (default 30): number of frames to buffer in rtsp pipeline.
-- encoding-quality (default 85): jpeg encoding quality (0 - 100). Lower values increase compression but sacrifice quality.
-- sync-with-source: rate limit processing pipeline to encoded frame rate (e.g. 30 fps). Can be set to either `true` or `false`.
-- sync-with-destination (default True): block processing pipeline if rtsp pipeline is blocked.
+   - path (required): custom string to uniquely identify the stream
+   - cache-length (default 30): number of frames to buffer in rtsp pipeline.
+   - encoding-quality (default 85): jpeg encoding quality (0 - 100). Lower values increase compression but sacrifice quality.
+   - sync-with-source: rate limit processing pipeline to encoded frame rate (e.g. 30 fps). Can be set to either `true` or `false`.
+   - sync-with-destination (default True): block processing pipeline if rtsp pipeline is blocked.
 
-> **Note:** If the RTSP stream playback is choppy this may be due to
-> network bandwidth. Decreasing the encoding-quality or increasing the
-> cache-length can help.
+   > **Note:** If the RTSP stream playback is choppy this may be due to
+   > network bandwidth. Decreasing the encoding-quality or increasing the
+   > cache-length can help.
 
 ### WebRTC
 
@@ -362,33 +362,33 @@ The following parameters can be optionally used to customize the stream:
 
 2. Start a pipeline to request frame destination type set as WebRTC and unique `peer-id` value set. For demonstration, peer-id is set as `pallet_defect_detection` in example request below.
 
-```bash
-curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
-'Content-Type: application/json' -d \
-'{
-    "source": {
-        "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
-        "type": "uri"
-    },
-    "destination": {
-        "metadata": {
-            "type": "file",
-            "format": "json-lines",
-            "path": "/tmp/results.jsonl"
-        },
-        "frame": {
-            "type": "webrtc",
-            "peer-id": "pallet_defect_detection"
-        }
-    },
-    "parameters": {
-        "detection-properties": {
-            "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
-            "device": "CPU"
-        }
-    }
-}'
-```
+   ```bash
+   curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
+   'Content-Type: application/json' -d \
+   '{
+       "source": {
+           "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
+           "type": "uri"
+       },
+       "destination": {
+           "metadata": {
+               "type": "file",
+               "format": "json-lines",
+               "path": "/tmp/results.jsonl"
+           },
+           "frame": {
+               "type": "webrtc",
+               "peer-id": "pallet_defect_detection"
+           }
+       },
+       "parameters": {
+           "detection-properties": {
+               "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
+               "device": "CPU"
+           }
+       }
+   }'
+   ```
 
 3. Check that pipeline is running using [status request](../../detailed_usage/rest_api/restapi_reference_guide.md#get-pipelinesstatus) before trying to connect the WebRTC peer.
 4. View the pipeline stream in your browser with url `http://<HOST_IP>:8889/pallet_defect_detection` where `pallet_defect_detection` is the `peer-id` value which we sent in the request.

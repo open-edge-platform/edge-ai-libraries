@@ -1,0 +1,51 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Inference Router Configuration
+# Copy this file to config.yaml and customize for your deployment
+
+log_level: "INFO"
+
+# Providers Configuration
+# Each provider must have a name, type, and type-specific settings
+providers:
+  - name: "local"
+    type: "hosted_vllm"
+    model: "Qwen/Qwen3.5-9B"
+    enabled: true
+    metadata:
+      labels:
+        - "planning"
+        - "local"
+      cost: 0
+      performance: 0.85
+      capability:
+        complexity: 0.75
+    settings:
+      endpoint: "http://localhost:5000/v1"
+      timeout: 300.0
+      max_retries: 3
+      retry_delay: 1.0
+      max_input_len: 12000
+      auth:
+        scheme: "none"
+        api_key: null
+        custom_headers: {}
+
+# Request Plugins Configuration
+# Plugins can run before routing, after routing, or after provider response.
+plugins:
+  prerouting: []
+  postrouting: []
+  postresponse: []
+
+
+# Routing Configuration
+routing:
+  policy: "Balanced"  # Must exist in src/rsd/policy.yaml
+
+# Telemetry Configuration
+telemetry:
+  backend: "memory"  # Options: 'memory', 'file'
+  enabled: true
+  file_path: null  # Required if backend is 'file', e.g., "/var/log/inference_router.jsonl"
