@@ -108,8 +108,8 @@ export enum EVAMPipelines {
 
 `EvamService.availablePipelines()` exposes:
 
-- `object_detection` — "Ingestion with Object Detection"
-- `video_ingestion` — "Simple ingestion"
+- `object_detection`: "Ingestion with Object Detection"
+- `video_ingestion`: "Simple ingestion"
 
 `video-ingestion/resources/conf/config.json` defines those same names.
 

@@ -14,7 +14,7 @@
     },
     {
       "name": "frame-extraction-rate-location",
-      "prompt": "I want to change the frame extraction rate in the ingestion pipeline — where exactly do I make that change?",
+      "prompt": "I want to change the frame extraction rate in the ingestion pipeline - where exactly do I make that change?",
       "expectations": [
         "Points to video-ingestion/resources/conf/config.json as the place where both object_detection and video_ingestion define the GStreamer template using framerate={parameters[frame]}/{parameters[chunk_duration]}.",
         "Explains that the actual runtime values are populated in pipeline-manager/src/evam/services/evam.service.ts from userInputs.samplingFrame and userInputs.chunkDuration when startChunkingStub() builds the EVAM request.",
@@ -25,7 +25,7 @@
     },
     {
       "name": "evam-startup-crash-debugging",
-      "prompt": "I modified the GStreamer pipeline config and now the EVAM service crashes on startup — what's the most likely cause and how do I debug it?",
+      "prompt": "I modified the GStreamer pipeline config and now the EVAM service crashes on startup - what's the most likely cause and how do I debug it?",
       "expectations": [
         "Calls out video-ingestion/resources/conf/config.json as the most likely fault domain and warns that a broken GStreamer string, caps typo, missing !, bad element name, or parameter-placeholder mismatch can crash/fail the Pipeline Server at runtime.",
         "Mentions that parameter mappings must stay aligned with named elements: detection-properties expects an element named detection, and publish expects gvapython name=publish with kwarg JSON fields minio_bucket, video_identifier, and topic.",

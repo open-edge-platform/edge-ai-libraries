@@ -1,12 +1,12 @@
 [
   {"query": "Add a new NestJS module to pipeline-manager for video transcription with a controller, service, and DTOs", "should_trigger": true},
   {"query": "Scaffold a clip-extraction feature module in the VSS pipeline-manager following the repo conventions", "should_trigger": true},
-  {"query": "I need to wire a background queue processor in pipeline-manager for a new tagging pipeline — how do I do that the VSS way?", "should_trigger": true},
+  {"query": "I need to wire a background queue processor in pipeline-manager for a new tagging pipeline - how do I do that the VSS way?", "should_trigger": true},
   {"query": "extend the VSS orchestrator with an analytics module that exposes a REST endpoint and uses DI to get AppConfigService", "should_trigger": true},
-  {"query": "add notifications module to pipeline-manager — needs controller, service, TypeORM entity, and socket event", "should_trigger": true},
+  {"query": "add notifications module to pipeline-manager - needs controller, service, TypeORM entity, and socket event", "should_trigger": true},
   {"query": "how do i scaffold a nestjs module inside pipeline-manager that listens on AppEvents.FAST_TICK and enqueues items?", "should_trigger": true},
   {"query": "Create a recommendations module for pipeline-manager with request/response DTOs, Swagger decorators, and a BullMQ-style queue service", "should_trigger": true},
-  {"query": "I want to add a new /manager/clips endpoint — scaffold the NestJS module, thin controller, and service layer for it", "should_trigger": true},
+  {"query": "I want to add a new /manager/clips endpoint - scaffold the NestJS module, thin controller, and service layer for it", "should_trigger": true},
   {"query": "Wire up a new pipeline-manager feature that imports VideoUploadModule and StateManagerModule via NestJS DI", "should_trigger": true},
   {"query": "Add a keyframe-extraction module to the VSS pipeline-manager backend with a queue service that emits PipelineEvents on completion", "should_trigger": true},
 

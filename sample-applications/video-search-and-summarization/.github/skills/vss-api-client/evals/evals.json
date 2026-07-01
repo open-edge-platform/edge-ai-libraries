@@ -42,12 +42,12 @@
     {
       "id": 4,
       "prompt": "Show me how to create a persistent/managed search query on VSS at http://localhost:12345 using POST /manager/search. Use the query 'person walking near a vehicle', tags 'outdoor,daytime', and a relative time filter of 7 days. Then poll GET /manager/search/{queryId} until queryStatus is 'idle', and show how to refetch with a new time filter of 48 hours.",
-      "expected_output": "A complete managed search workflow covering create, poll, and refetch — correctly describing how tags and timeFilter are stored, forwarded, and reused across runs.",
+      "expected_output": "A complete managed search workflow covering create, poll, and refetch - correctly describing how tags and timeFilter are stored, forwarded, and reused across runs.",
       "files": ["references/api-lifecycle.md"],
       "expectations": [
         "Uses POST /manager/search (not POST /manager/search/query) and expects HTTP 201 with a top-level queryId in the response body.",
         "Request body uses the SearchQueryDTO with query as required string, tags as a comma-separated string (e.g. 'outdoor,daytime'), and timeFilter as a flat object with value=7 and unit='days'.",
-        "Explains that tags is split into a string[] and stored in the DB, and is forwarded to the search microservice on every run and refetch — unlike the one-off endpoint where tags are ignored.",
+        "Explains that tags is split into a string[] and stored in the DB, and is forwarded to the search microservice on every run and refetch - unlike the one-off endpoint where tags are ignored.",
         "Explains that timeFilter value+unit are normalized by normalizeTimeFilter() into computed start/end ISO timestamps stored in the DB as timeFilterStart/timeFilterEnd and forwarded as time_filter.start/end on every run.",
         "Describes the initial 201 response shape: queryId, query, watch:false, results:[], queryStatus:'running', tags as string[], timeFilter with computed start/end added, createdAt, updatedAt.",
         "States that queryStatus transitions from 'running' → 'idle' when results are ready, or to 'error' with an errorMessage if the search microservice fails (e.g. no videos indexed).",

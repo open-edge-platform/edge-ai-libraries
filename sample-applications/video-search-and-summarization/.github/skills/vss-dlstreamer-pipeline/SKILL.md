@@ -11,11 +11,11 @@ Use this skill for the Video Search & Summarization sample app when work touches
 
 Before editing, read these repo paths; do not infer pipeline names or payloads from generic DL Streamer examples:
 
-- `video-ingestion/resources/conf/config.json` — the actual pipeline definitions loaded into the DL Streamer Pipeline Server image.
-- `video-ingestion/src/publish.py` — `gvapython` sink that writes frames/metadata to MinIO and publishes chunk messages.
-- `pipeline-manager/src/evam/models/evam.model.ts` — request DTO and `EVAMPipelines` enum.
-- `pipeline-manager/src/evam/services/evam.service.ts` — endpoint and request body sent to EVAM.
-- `pipeline-manager/src/config/configuration.ts` and `docker/compose.summary.yaml` — host, ports, model path, device, RabbitMQ, MinIO wiring.
+- `video-ingestion/resources/conf/config.json` - the actual pipeline definitions loaded into the DL Streamer Pipeline Server image.
+- `video-ingestion/src/publish.py` - `gvapython` sink that writes frames/metadata to MinIO and publishes chunk messages.
+- `pipeline-manager/src/evam/models/evam.model.ts` - request DTO and `EVAMPipelines` enum.
+- `pipeline-manager/src/evam/services/evam.service.ts` - endpoint and request body sent to EVAM.
+- `pipeline-manager/src/config/configuration.ts` and `docker/compose.summary.yaml` - host, ports, model path, device, RabbitMQ, MinIO wiring.
 - For architecture language, see `docs/user-guide/how-it-works/*.md`; `docs/user-guide/how-it-works.md` references `_assets/TEAI_VideoPipelines.png`.
 
 ## Actual flow in this repo

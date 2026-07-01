@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I need to add a new 'clip-export' module to pipeline-manager that exposes a REST endpoint and emits a processing-complete event — show me the files and structure.",
+      "prompt": "I need to add a new 'clip-export' module to pipeline-manager that exposes a REST endpoint and emits a processing-complete event - show me the files and structure.",
       "expected_output": "Explain the concrete file scaffold for a new pipeline-manager feature module, including the template files to rename, the Nest module/controller/service/data layer split, and the root wiring in app.module.ts and Pipeline.events.ts.",
       "files": [],
       "expectations": [
@@ -29,7 +29,7 @@
     },
     {
       "id": 3,
-      "prompt": "I added my new module but the dependency injection is failing with 'cannot resolve dependencies' — what's the typical cause in this codebase?",
+      "prompt": "I added my new module but the dependency injection is failing with 'cannot resolve dependencies' - what's the typical cause in this codebase?",
       "expected_output": "Diagnose the common NestJS wiring mistakes in pipeline-manager, especially missing imports/exports/provider registration and TypeORM repository registration.",
       "files": [],
       "expectations": [

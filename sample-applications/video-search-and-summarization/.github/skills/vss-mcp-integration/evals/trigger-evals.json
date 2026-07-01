@@ -1,22 +1,22 @@
 [
   {"query": "How do I start the VSS MCP server so Claude can call VSS search tools?", "should_trigger": true},
   {"query": "Add a new MCP tool that exposes the GET /videos/{videoId} endpoint in the VSS FastMCP proxy", "should_trigger": true},
-  {"query": "My MCP tool isn't showing up in Claude — how do I debug why it's missing from the VSS MCP server?", "should_trigger": true},
+  {"query": "My MCP tool isn't showing up in Claude - how do I debug why it's missing from the VSS MCP server?", "should_trigger": true},
   {"query": "Connect Claude Desktop to the VSS search MCP server using Streamable HTTP transport", "should_trigger": true},
   {"query": "Run the FastMCP proxy for VSS locally with Poetry instead of Docker Compose", "should_trigger": true},
   {"query": "How do I edit search.json to expose a new VSS REST endpoint as an MCP tool?", "should_trigger": true},
   {"query": "Register the POST /search/query route as an MCP tool in the VSS filter config", "should_trigger": true},
   {"query": "Configure API_SPEC_URL and FILTER_FILE_PATH env vars for the VSS MCP server", "should_trigger": true},
-  {"query": "Why does build_mcp_names skip my endpoint — the tool never appears in the MCP client", "should_trigger": true},
+  {"query": "Why does build_mcp_names skip my endpoint - the tool never appears in the MCP client", "should_trigger": true},
   {"query": "spin up the vss mcp proxy with docker compose and hook it up to an ai agent", "should_trigger": true},
   {"query": "How do I upload a video to VSS using the REST API?", "should_trigger": false},
-  {"query": "Set up the MCP server for a different project — not VSS, just a generic FastMCP proxy over my own OpenAPI spec", "should_trigger": false},
+  {"query": "Set up the MCP server for a different project - not VSS, just a generic FastMCP proxy over my own OpenAPI spec", "should_trigger": false},
   {"query": "How do I search for videos in VSS using the search-ms microservice directly?", "should_trigger": false},
   {"query": "Configure Claude Desktop with an MCP server for filesystem access", "should_trigger": false},
   {"query": "Build and push the VSS Docker images with build.sh", "should_trigger": false},
   {"query": "Deploy VSS in search mode using setup.sh and check if the pipeline manager is healthy", "should_trigger": false},
-  {"query": "Write an MCP tool in Python using FastMCP that calls a weather API — nothing to do with VSS", "should_trigger": false},
+  {"query": "Write an MCP tool in Python using FastMCP that calls a weather API - nothing to do with VSS", "should_trigger": false},
   {"query": "Debug why the VSS search-ms embeddings microservice is returning empty results", "should_trigger": false},
   {"query": "How do I expose a new REST endpoint in the VSS Pipeline Manager NestJS API?", "should_trigger": false},
-  {"query": "Connect an AI agent to VSS using the REST API at /manager/search — no MCP involved", "should_trigger": false}
+  {"query": "Connect an AI agent to VSS using the REST API at /manager/search - no MCP involved", "should_trigger": false}
 ]

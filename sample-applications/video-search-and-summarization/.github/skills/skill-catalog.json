@@ -6,44 +6,6 @@
   "skillsRoot": ".github/skills",
   "skills": [
     {
-      "name": "vss-up",
-      "path": ".github/skills/vss-up/SKILL.md",
-      "description": "Deploy, dry-run, stop, or clean the VSS stack in summary, search, dual, or unified mode using setup.sh.",
-      "triggers": [
-        "deploy vss",
-        "start vss",
-        "bring up vss",
-        "stop vss",
-        "clean vss data",
-        "summary mode",
-        "search mode",
-        "dual mode",
-        "unified mode"
-      ],
-      "requires": [
-        "setup.sh",
-        ".github/skills/vss-up/vss.config.env",
-        ".github/skills/vss-up/scripts/gen-secrets.sh"
-      ]
-    },
-    {
-      "name": "vss-doctor",
-      "path": ".github/skills/vss-doctor/SKILL.md",
-      "description": "Diagnose a running or failing VSS deployment through health endpoints, feature/config probes, Docker Compose state, and logs.",
-      "triggers": [
-        "is vss up",
-        "check vss health",
-        "what mode is running",
-        "debug vss",
-        "vss is broken",
-        "container logs"
-      ],
-      "requires": [
-        "curl",
-        "docker compose"
-      ]
-    },
-    {
       "name": "vss-build",
       "path": ".github/skills/vss-build/SKILL.md",
       "description": "Build and optionally push VSS Docker images from source using build.sh.",
@@ -62,13 +24,17 @@
     {
       "name": "vss-deploy",
       "path": ".github/skills/vss-deploy/SKILL.md",
-      "description": "Deploy, switch modes, inspect configuration, and tear down VSS using setup.sh with Docker Compose overlays.",
+      "description": "Deploy, dry-run, switch modes, inspect configuration, stop, or clean VSS using setup.sh with Docker Compose overlays; generates credentials, waits for health, and prints UI/API URLs.",
       "triggers": [
-        "spin up vss",
         "deploy vss",
+        "spin up vss",
+        "start vss",
+        "bring up vss",
         "switch deployment mode",
         "compose files",
+        "stop vss",
         "tear down vss",
+        "clean vss data",
         "summary mode",
         "search mode",
         "dual mode",
@@ -77,12 +43,14 @@
       "requires": [
         "setup.sh",
         "docker/compose.*.yaml",
-        "docker compose"
+        "docker compose",
+        ".github/skills/vss-deploy/vss.config.env",
+        ".github/skills/vss-deploy/scripts/gen-secrets.sh"
       ]
     },
     {
-      "name": "vss-summarize",
-      "path": ".github/skills/vss-summarize/SKILL.md",
+      "name": "vss-summarize-video",
+      "path": ".github/skills/vss-summarize-video/SKILL.md",
       "description": "Run and inspect VSS video summarization through the Pipeline Manager summary API.",
       "triggers": [
         "summarize this video",
@@ -96,8 +64,8 @@
       ]
     },
     {
-      "name": "vss-search",
-      "path": ".github/skills/vss-search/SKILL.md",
+      "name": "vss-search-index",
+      "path": ".github/skills/vss-search-index/SKILL.md",
       "description": "Upload, index, and search videos with natural language through the Pipeline Manager search API.",
       "triggers": [
         "search my videos",
@@ -115,8 +83,14 @@
     {
       "name": "vss-troubleshoot",
       "path": ".github/skills/vss-troubleshoot/SKILL.md",
-      "description": "Diagnose a broken VSS deployment — containers, OVMS/vLLM load, DLStreamer, RabbitMQ/MinIO/Postgres/VDMS, 'no summary', 'search returns nothing'.",
+      "description": "Diagnose a running or broken VSS deployment: health/mode detection via Pipeline Manager, then containers, OVMS/vLLM load, DLStreamer, RabbitMQ/MinIO/Postgres/VDMS, 'no summary', 'search returns nothing'.",
       "triggers": [
+        "is vss up",
+        "check vss health",
+        "what mode is running",
+        "debug vss",
+        "vss is broken",
+        "container logs",
         "vss troubleshoot",
         "diagnose vss",
         "no summary appearing",
@@ -148,8 +122,8 @@
       ]
     },
     {
-      "name": "vss-helm-deploy",
-      "path": ".github/skills/vss-helm-deploy/SKILL.md",
+      "name": "vss-deploy-helm",
+      "path": ".github/skills/vss-deploy-helm/SKILL.md",
       "description": "Deploy VSS to Kubernetes via Helm chart with mode mapping to values.yaml.",
       "triggers": [
         "deploy to kubernetes",
@@ -160,7 +134,7 @@
       "requires": [
         "helm",
         "kubernetes cluster",
-        ".github/skills/vss-helm-deploy/chart/"
+        ".github/skills/vss-deploy-helm/chart/"
       ]
     },
     {

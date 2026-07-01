@@ -17,13 +17,13 @@
 #   - File is created with 0600 perms and never committed.
 #
 # Usage:
-#   ./.github/skills/vss-up/scripts/gen-secrets.sh            # create if absent
-#   ./.github/skills/vss-up/scripts/gen-secrets.sh --force    # rotate (wipes file)
+#   ./.github/skills/vss-deploy/scripts/gen-secrets.sh            # create if absent
+#   ./.github/skills/vss-deploy/scripts/gen-secrets.sh --force    # rotate (wipes file)
 #   VSS_SECRETS_FILE=/path/to/secrets.env ./...gen-secrets.sh # custom location
 #
 # Then:
-#   source .github/skills/vss-up/vss.config.env
-#   source .github/skills/vss-up/vss.secrets.env
+#   source .github/skills/vss-deploy/vss.config.env
+#   source .github/skills/vss-deploy/vss.secrets.env
 #   source setup.sh --summary
 
 set -euo pipefail
@@ -35,7 +35,7 @@ if [ "${1:-}" = "--force" ]; then
   rm -f "$SECRETS_FILE"
 elif [ -f "$SECRETS_FILE" ]; then
   echo "Secrets already present, reusing: $SECRETS_FILE"
-  echo "(use --force to rotate — note this invalidates existing data volumes)"
+  echo "(use --force to rotate - note this invalidates existing data volumes)"
   exit 0
 fi
 
@@ -51,7 +51,7 @@ cat > "$SECRETS_FILE" <<EOF
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
-# AUTO-GENERATED local VSS credentials — DO NOT COMMIT (this file is gitignored).
+# AUTO-GENERATED local VSS credentials - DO NOT COMMIT (this file is gitignored).
 # Regenerate with scripts/gen-secrets.sh --force (invalidates existing volumes).
 export MINIO_ROOT_USER="${MINIO_ROOT_USER:-vss_minio}"
 export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-$(rand)}"

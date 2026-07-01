@@ -14,7 +14,7 @@
     },
     {
       "id": "add-vss-endpoint-as-tool",
-      "prompt": "I want to expose an additional VSS endpoint as an MCP tool — what do I change in search.json and filters/config.py?",
+      "prompt": "I want to expose an additional VSS endpoint as an MCP tool - what do I change in search.json and filters/config.py?",
       "expectations": [
         "Explains that the primary change is adding an exact \"METHOD /path\" entry under apis in mcp/search.json with type: \"tool\", a valid identifier name, and optional description; for example POST /search/query or another real OpenAPI route.",
         "References the real validation behavior in mcp/src/filters/config.py: only tool/resource are allowed, names must be identifiers, wildcards are rejected, duplicate names are rejected, and resources must be GET-only.",
@@ -25,7 +25,7 @@
     },
     {
       "id": "debug-missing-mcp-tool",
-      "prompt": "My MCP tool isn't showing up in my AI agent's tool list even though I added it to the spec — what should I check?",
+      "prompt": "My MCP tool isn't showing up in my AI agent's tool list even though I added it to the spec - what should I check?",
       "expectations": [
         "Checks the real silent-drop path: mcp/src/openapi/mapping.py returns MCPType.EXCLUDE for routes absent from the filter, so adding an endpoint to the upstream spec alone is not enough without a matching search.json entry.",
         "Tells the user to compare the filter key to the live OpenAPI method/path exactly, including parameter names such as GET /videos/{videoId} versus GET /videos/{id}, because filters/config.py normalizes spacing/case but not path semantics.",

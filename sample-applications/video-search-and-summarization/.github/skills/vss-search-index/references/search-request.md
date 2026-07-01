@@ -8,13 +8,13 @@ SPDX-License-Identifier: Apache-2.0
 Source: `pipeline-manager/src/search/models/*` (`SearchQueryDTO`,
 `TimeFilterSelection`, `SearchResult`).
 
-## Request — `POST /manager/search/query`
+## Request: `POST /manager/search/query`
 
 ```jsonc
 {
-  "query": "person walking",        // REQUIRED — natural-language query
-  "tags": "outdoor,daytime",        // optional — comma-separated; results must match
-  "timeFilter": {                   // optional — relative OR absolute, not both
+  "query": "person walking",        // REQUIRED: natural-language query
+  "tags": "outdoor,daytime",        // optional: comma-separated; results must match
+  "timeFilter": {                   // optional: relative OR absolute, not both
     "value": 7,                     // relative: amount...
     "unit": "days",                 // ...with unit: minutes | hours | days | weeks
     "start": "2025-01-01T00:00:00Z",// absolute: ISO-8601 start
@@ -30,7 +30,7 @@ fixed window. Omit entirely for no time constraint.
 ## Response shape
 
 `POST /manager/search/query` returns an **object that wraps** the result groups
-(NOT a bare array) — the ranked clips are at `.results[].results[]`:
+(NOT a bare array) - the ranked clips are at `.results[].results[]`:
 
 ```jsonc
 {
@@ -81,6 +81,6 @@ curl -s -X POST "$HOST/manager/search/query" -H 'Content-Type: application/json'
 
 ## Persistent vs one-off
 
-- `POST /manager/search/query` — stateless, returns results immediately.
-- `POST /manager/search` — creates a stored query (`queryId`) you can
+- `POST /manager/search/query` - stateless, returns results immediately.
+- `POST /manager/search` - creates a stored query (`queryId`) you can
   `GET`, `refetch`, `watch`, list via `/search/watched`, or `DELETE`.

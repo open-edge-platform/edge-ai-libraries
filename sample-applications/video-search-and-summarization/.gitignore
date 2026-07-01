@@ -17,7 +17,7 @@ workspace
 !poetry.lock
 !uv.lock
 .env
-# Runtime-generated VSS credentials (never commit — see .github/skills/vss-up)
+# Runtime-generated VSS credentials (never commit — see .github/skills/vss-deploy)
 vss.secrets.env
 **/vss.secrets.env
 .coverage

@@ -1,6 +1,6 @@
 ---
 name: vss-troubleshoot
-description: Provides structured cross-service triage for the video-search-and-summarization sample app, grounded in its setup.sh, Docker Compose files, health routes, and OVMS config. Use when users say "VSS isn't working", "OVMS won't start", "no summary appears", "search returns nothing", containers are crash-looping, healthchecks fail, or ports are conflicting in the VSS sample app.
+description: Diagnose a running or failing video-search-and-summarization deployment. Probes Pipeline Manager health and feature/config endpoints to detect whether the backend is up and which mode is live, then runs structured cross-service triage grounded in setup.sh, Docker Compose files, health routes, and OVMS config. Use when users say "is vss up", "what mode is running", "check vss health", "debug vss", "VSS isn't working", "OVMS won't start", "no summary appears", "search returns nothing", containers are crash-looping, healthchecks fail, or ports are conflicting in the VSS sample app.
 ---
 
 # VSS Troubleshoot
@@ -22,6 +22,36 @@ If Docker Compose cannot resolve services, run from the app root and compare wit
 ```bash
 source setup.sh --summary config     # or --search config / --summary-and-search config
 ```
+
+## Quick health & mode check
+
+Before diving into the decision tree, confirm whether the backend is even up and
+which mode is live. Set `HOST=http://${HOST_IP:-localhost}:${APP_HOST_PORT:-12345}`
+and **run each command yourself**, then relay the result. If nothing is deployed,
+hand off to the [`vss-deploy`](../vss-deploy/SKILL.md) skill.
+
+```bash
+# 1. Is the Pipeline Manager reachable?
+curl -sf --max-time 5 "$HOST/manager/health" && echo "  ← Pipeline Manager healthy" \
+  || echo "UNREACHABLE - backend down or wrong HOST_IP/APP_HOST_PORT"
+
+# 2. Which capabilities/mode are live, and the resolved config
+curl -s "$HOST/manager/app/features" | jq .   # search/summary flags
+curl -s "$HOST/manager/app/config"   | jq .   # resolved system config
+
+# 3. Subsystem probes
+curl -s "$HOST/manager/metrics/status" | jq .  # telemetry collector
+curl -s "$HOST/manager/audio/models"   | jq .  # whisper models (summary modes)
+curl -s "$HOST/manager/pipeline/evam"  | jq .  # EVAM pipeline status
+```
+
+`app/features` returns **string flags**, not booleans -
+`{"summary":"FEATURE_ON","search":"FEATURE_OFF"}` - so test against the string
+(e.g. `jq -e '.search=="FEATURE_ON"'`). Use it to decide which workflow applies:
+`vss-search-index` needs `search==FEATURE_ON`; `vss-summarize-video` needs
+`summary==FEATURE_ON`. A backend that 404s on `/manager/health` while the model
+servers (`ovms-service`, `vllm-cpu-service`, embedding server) are still loading
+is usually **starting**, not broken - wait and re-probe.
 
 ## Decision tree
 

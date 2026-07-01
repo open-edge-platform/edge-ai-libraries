@@ -6,8 +6,8 @@ SPDX-License-Identifier: Apache-2.0
 # VSS Skills
 
 Agent skills for the **Video Search and Summarization (VSS)** sample application.
-Each skill teaches the agent how to drive VSS through its real interfaces —
-`setup.sh` deploy modes and the Pipeline Manager REST API — so common tasks run
+Each skill teaches the agent how to drive VSS through its real interfaces -
+`setup.sh` deploy modes and the Pipeline Manager REST API - so common tasks run
 the same way every time.
 
 These skills live under `.github/skills` as the canonical cross-harness
@@ -24,8 +24,8 @@ the agent runs), and `eval/` (behavior checks).
 
 A curated set of **agent skills** for the Video Search & Summarization (VSS) sample
 application. Each skill packages the institutional knowledge needed to work with a specific
-part of VSS — deploying it, calling its APIs, tuning the pipeline, onboarding models, extending
-the services, and more — so that an AI coding agent (GitHub Copilot CLI, Claude Code, Cursor,
+part of VSS - deploying it, calling its APIs, tuning the pipeline, onboarding models, extending
+the services, and more - so that an AI coding agent (GitHub Copilot CLI, Claude Code, Cursor,
 or any agent that supports the [Agent Skills format](https://anthropic.com/news/skills)
 gets it right the first time.
 
@@ -43,29 +43,25 @@ and `assets/` (templates).
 
 A comprehensive reference of all VSS skills and their use cases:
 
-> **Note:** `vss-up` and `vss-deploy` perform similar VSS deployment tasks and can be invoked interchangeably right now due to parallel instruction patterns. In future iterations, these will be consolidated into a single skill. Both are documented here for clarity during this transition period.
-
 | Skill | Persona | Use it when you want to… |
 |---|---|---|
-| [`vss-up`](./vss-up/SKILL.md) | Ops | Deploy, stop, dry-run VSS in any mode (Summary, Search, Dual, Unified); choose OVMS vs vLLM and CPU vs GPU; set env/proxy config. |
-| [`vss-deploy`](./vss-deploy/SKILL.md) | Ops | Deploy, switch modes, inspect configuration, and tear down VSS using setup.sh; manage Docker Compose overlays, services, ports, and credentials. |
-| [`vss-doctor`](./vss-doctor/SKILL.md) | Ops | Check health, see which mode is live, debug a broken stack; probes Pipeline Manager health and feature endpoints. |
+| [`vss-deploy`](./vss-deploy/SKILL.md) | Ops | Deploy, dry-run, switch modes, inspect config, stop, or clean VSS in any mode (Summary, Search, Dual, Unified); choose OVMS vs vLLM and CPU vs GPU; manage Compose overlays/ports/credentials. Generates secrets, waits for health, prints URLs. Ships `scripts/gen-secrets.sh`, `scripts/wait-health.sh`, and `vss.config.env`. |
 | [`vss-build`](./vss-build/SKILL.md) | Ops | Build or push the VSS Docker images from source; manage registry/tag and proxy controls. |
-| [`vss-troubleshoot`](./vss-troubleshoot/SKILL.md) | Ops | Diagnose a broken deployment — containers, OVMS/vLLM load, DLStreamer, RabbitMQ/MinIO/Postgres/VDMS, "no summary", "search returns nothing". Ships `scripts/triage.sh`. |
+| [`vss-troubleshoot`](./vss-troubleshoot/SKILL.md) | Ops | Check health and which mode is live, then diagnose a broken deployment - containers, OVMS/vLLM load, DLStreamer, RabbitMQ/MinIO/Postgres/VDMS, "no summary", "search returns nothing". Probes Pipeline Manager health/feature endpoints; ships `scripts/triage.sh`. |
 | [`vss-model-onboarding`](./vss-model-onboarding/SKILL.md) | Ops | Bring a new VLM/embedding model into OVMS (OpenVINO IR conversion + model-dir layout). Ships `scripts/prepare_ovms_model.py`. |
-| [`vss-helm-deploy`](./vss-helm-deploy/SKILL.md) | Ops | Deploy VSS to Kubernetes via the Helm chart; map Compose/modes to `values.yaml`. |
-| [`vss-summarize`](./vss-summarize/SKILL.md) | Integrator | Summarize a video through the Pipeline Manager; run/inspect the summary pipeline. Start, poll, and retrieve results. |
-| [`vss-search`](./vss-search/SKILL.md) | Integrator | Upload, index, and natural-language search videos; generate embeddings and run queries with optional filtering. |
+| [`vss-deploy-helm`](./vss-deploy-helm/SKILL.md) | Ops | Deploy VSS to Kubernetes via the Helm chart; map Compose/modes to `values.yaml`. |
+| [`vss-summarize-video`](./vss-summarize-video/SKILL.md) | Integrator | Summarize a video through the Pipeline Manager; run/inspect the summary pipeline. Start, poll, and retrieve results. |
+| [`vss-search-index`](./vss-search-index/SKILL.md) | Integrator | Upload, index, and natural-language search videos; generate embeddings and run queries with optional filtering. |
 | [`vss-api-client`](./vss-api-client/SKILL.md) | Integrator | Call the REST/WebSocket APIs correctly (upload → process → progress → summary, and search queries). Ships `scripts/api_smoke.py`. |
 | [`vss-e2e-smoke`](./vss-e2e-smoke/SKILL.md) | Integrator | One-command end-to-end verification per mode. Ships `scripts/e2e_summary.sh` and `e2e_search.sh`. |
 | [`vss-mcp-integration`](./vss-mcp-integration/SKILL.md) | Integrator | Configure/extend the spec-driven FastMCP proxy that exposes VSS search to AI agents. |
-| [`vss-pipeline-config`](./vss-pipeline-config/SKILL.md) | Contributor | Tune chunk duration, frames per chunk, multi-frame factor, sampling, audio transcript — with latency/quality trade-offs. |
+| [`vss-pipeline-config`](./vss-pipeline-config/SKILL.md) | Contributor | Tune chunk duration, frames per chunk, multi-frame factor, sampling, audio transcript - with latency/quality trade-offs. |
 | [`vss-dlstreamer-pipeline`](./vss-dlstreamer-pipeline/SKILL.md) | Contributor | Understand/modify the EVAM (DLStreamer Pipeline Server) ingestion pipelines and frame/chunk extraction. |
 | [`vss-add-nest-module`](./vss-add-nest-module/SKILL.md) | Contributor | Scaffold a new pipeline-manager NestJS module the idiomatic way. Ships `assets/module-template/`. |
 | [`vss-search-internals`](./vss-search-internals/SKILL.md) | Contributor | Work on embeddings & VDMS retrieval; understand frame-embedding (Search) vs summary-text-embedding (Unified). |
 | [`vss-observability`](./vss-observability/SKILL.md) | Contributor | Enable OpenTelemetry, trace a video end-to-end, find latency bottlenecks. |
 
-You don't invoke skills by hand in normal use — the agent reads each skill's `description` and
+You don't invoke skills by hand in normal use - the agent reads each skill's `description` and
 **automatically consults the relevant one** when your request matches. Installation just makes
 them discoverable.
 
@@ -76,7 +72,7 @@ them discoverable.
 Skills are discovered from a skills directory that your agent scans at startup. Pick the option
 that matches your agent.
 
-### Option A — GitHub Copilot CLI / Claude Code (per-user, recommended)
+### Option A - GitHub Copilot CLI / Claude Code (per-user, recommended)
 
 These agents load skills from `~/.agents/skills/`. The cleanest approach is to **symlink** each
 skill from this repo so updates flow automatically (no copying, no drift):
@@ -101,7 +97,7 @@ Prefer copies over symlinks (e.g., to pin a version)? Swap the `ln -sfn` line fo
 > Some setups also scan `~/.copilot/skills/`. If yours does, use that path instead of
 > `~/.agents/skills/` in the commands above.
 
-### Option C — Project-local (share with your team via the repo)
+### Option C - Project-local (share with your team via the repo)
 
 Keep the skills in the repo (where they already live) and point your agent's skills path at this
 directory, if your agent supports a configurable skills path. That way everyone who clones the
@@ -116,7 +112,7 @@ sample-applications/video-search-and-summarization/.github/skills
 
 Start a fresh agent session and ask something a skill should catch, e.g.:
 
-> "Deploy VSS in summary mode with GPU"  → should consult **vss-up**
+> "Deploy VSS in summary mode with GPU"  → should consult **vss-deploy**
 > "VSS is up but no summary ever appears"  → should consult **vss-troubleshoot**
 
 If the agent lists the skill among its available skills (or visibly uses it), you're set.
@@ -125,7 +121,7 @@ If the agent lists the skill among its available skills (or visibly uses it), yo
 
 ## Usage
 
-Once installed, **just describe your task in natural language** — the agent decides when a skill
+Once installed, **just describe your task in natural language** - the agent decides when a skill
 applies based on its `description`. You generally don't name skills explicitly. 
 
 #### Some Examples:
@@ -134,17 +130,17 @@ applies based on its `description`. You generally don't name skills explicitly.
 
 | You say… | Skill that fires |
 |---|---|
-| "Deploy VSS in summary mode with GPU" | `vss-up` |
+| "Deploy VSS in summary mode with GPU" | `vss-deploy` |
 | "Spin up VSS in search mode" | `vss-deploy` |
 | "Switch my VSS deployment from summary to search mode" | `vss-deploy` |
 | "What compose files do I need for dual mode?" | `vss-deploy` |
 | "Bring VSS down and clean the data" | `vss-deploy` |
 | "OVMS won't start and the container keeps restarting" | `vss-troubleshoot` |
-| "Is VSS up? What mode is running?" | `vss-doctor` |
-| "VSS is broken — debug it for me" | `vss-doctor` |
+| "Is VSS up? What mode is running?" | `vss-troubleshoot` |
+| "VSS is broken - debug it for me" | `vss-troubleshoot` |
 | "I want to use a different VLM for summarization" | `vss-model-onboarding` |
-| "Deploy VSS to our k8s cluster with vLLM" | `vss-helm-deploy` |
-| "Summaries are too slow — what can I tune?" | `vss-pipeline-config` |
+| "Deploy VSS to our k8s cluster with vLLM" | `vss-deploy-helm` |
+| "Summaries are too slow - what can I tune?" | `vss-pipeline-config` |
 | "Add a new module to pipeline-manager for X" | `vss-add-nest-module` |
 | "Change how frames are extracted in the ingestion pipeline" | `vss-dlstreamer-pipeline` |
 | "How does unified-mode search differ from search mode?" | `vss-search-internals` |
@@ -152,8 +148,8 @@ applies based on its `description`. You generally don't name skills explicitly.
 | "Write a script to upload a video and poll for the summary" | `vss-api-client` |
 | "Expose VSS search to my AI agent over MCP" | `vss-mcp-integration` |
 | "Verify my fresh VSS install actually works" | `vss-e2e-smoke` |
-| "Summarize this video for me" | `vss-summarize` |
-| "Search my videos for X" | `vss-search` |
+| "Summarize this video for me" | `vss-summarize-video` |
+| "Search my videos for X" | `vss-search-index` |
 | "Build and push the VSS images" | `vss-build` |
 
 If the agent doesn't pick up a skill when it should, you can nudge it: *"use the vss-deploy
@@ -162,7 +158,7 @@ skill"* or similar.
 ### Running the bundled scripts directly
 
 Some skills ship scripts you (or the agent) can run standalone. They take the deployment's base
-URL/ports as arguments or environment variables — check each script's header for usage:
+URL/ports as arguments or environment variables - check each script's header for usage:
 
 ```bash
 # Cross-service triage of a running deployment
