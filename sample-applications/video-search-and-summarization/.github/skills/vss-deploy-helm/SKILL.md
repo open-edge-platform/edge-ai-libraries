@@ -1,5 +1,5 @@
 ---
-name: vss-helm-deploy
+name: vss-deploy-helm
 description: Use this skill whenever a developer needs to deploy VSS to Kubernetes, helm install VSS, configure values.yaml for VSS, or run VSS on k8s with GPU/vLLM for the video-search-and-summarization sample app. This skill is especially useful when translating Docker Compose/setup.sh modes (--summary, --search, --summary-and-search/--unified, dual UI, ENABLE_VLLM, OVMS GPU/NPU) into the actual Helm chart override files and values keys. Prefer this skill for VSS Helm install/upgrade/troubleshooting even if the user only says “put VSS on k8s” or “make values.yaml for VSS”.
 ---
 

@@ -1,6 +1,6 @@
 ---
-name: vss-search
-description: Search a video library with natural language via the VSS Pipeline Manager — upload a video (POST /videos), generate its embeddings (POST /videos/search-embeddings/{id}), then run a query (POST /search/query) with optional tag and time filters and read the ranked clip results. Use when the user says "search my videos", "find <thing> in the videos", "when did X happen", or wants to ingest/index a video for search. Requires a search-capable deployment (--search, --dual, or --unified).
+name: vss-search-index
+description: Search a video library with natural language via the VSS Pipeline Manager - upload a video (POST /videos), generate its embeddings (POST /videos/search-embeddings/{id}), then run a query (POST /search/query) with optional tag and time filters and read the ranked clip results. Use when the user says "search my videos", "find <thing> in the videos", "when did X happen", or wants to ingest/index a video for search. Requires a search-capable deployment (--search, --dual, or --unified).
 license: Apache-2.0
 metadata:
   version: "1.0.0"
@@ -21,8 +21,8 @@ Set `HOST=http://${HOST_IP:-localhost}:${APP_HOST_PORT:-12345}`.
 
 ## Preconditions
 
-Backend healthy and **search enabled** — probe first; if not, use
-[`vss-doctor`](../vss-doctor/SKILL.md) / [`vss-up`](../vss-up/SKILL.md):
+Backend healthy and **search enabled** - probe first; if not, use
+[`vss-troubleshoot`](../vss-troubleshoot/SKILL.md) / [`vss-deploy`](../vss-deploy/SKILL.md):
 ```bash
 curl -sf "$HOST/manager/health" >/dev/null && \
 curl -s "$HOST/manager/app/features" | jq '.search // .'
@@ -30,7 +30,7 @@ curl -s "$HOST/manager/app/features" | jq '.search // .'
 
 ## 1. Upload a video (if not already ingested)
 
-`POST /manager/videos` — `multipart/form-data`, field name **`video`**, optional
+`POST /manager/videos` - `multipart/form-data`, field name **`video`**, optional
 comma-separated `tags`. File must be a streamable MP4 (server rejects otherwise).
 ```bash
 curl -s -X POST "$HOST/manager/videos" \
@@ -57,9 +57,9 @@ Wait for completion (re-check the video record) before querying.
 
 ## 3. Query
 
-One-off query — `POST /manager/search/query`. **The response is an object
-`{ "results": [ { "query_id", "results": [ … ] } ] }`** — wrapped, NOT a bare
-array — so the ranked clips are at `.results[].results[]`:
+One-off query - `POST /manager/search/query`. **The response is an object
+`{ "results": [ { "query_id", "results": [ … ] } ] }`** - wrapped, NOT a bare
+array - so the ranked clips are at `.results[].results[]`:
 ```bash
 curl -s -X POST "$HOST/manager/search/query" \
   -H 'Content-Type: application/json' \
@@ -81,7 +81,7 @@ Each clip's `metadata` carries `relevance_score` (0..1; top hit can be exactly
 `tags`, and `video_metadata` (duration/fps). In search mode `page_content` is a
 segment **locator** ("Video segment from Ns to Ms…"), not a caption.
 
-**Filename is NOT in the result** — `metadata` has `video_id` but no `video` /
+**Filename is NOT in the result** - `metadata` has `video_id` but no `video` /
 `file_name`. To show the clip's filename, join `video_id` against the video list
 (`.videos[].dataStore.fileName`):
 ```bash

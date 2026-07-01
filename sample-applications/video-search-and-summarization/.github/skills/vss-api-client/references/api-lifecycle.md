@@ -169,9 +169,9 @@ Search must be enabled (`--search`, `--summary --search`, or `--summary-and-sear
 | Watch/Refetch | Not supported | `PATCH /{queryId}/watch`, `POST /{queryId}/refetch` |
 | Socket event | None | `search:update` emitted after each run |
 
-### `TimeFilterSelection` — flat object (both Pipeline Manager endpoints)
+### `TimeFilterSelection`: flat object (both Pipeline Manager endpoints)
 
-The OpenAPI spec shows a nested shape — ignore it. The actual NestJS model is flat:
+The OpenAPI spec shows a nested shape - ignore it. The actual NestJS model is flat:
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -194,7 +194,7 @@ Through nginx: `POST /manager/search/query`. Result returned immediately; nothin
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `query` | string | **yes** | Natural-language search text. |
-| `tags` | string | no | Comma-separated (e.g. `"outdoor,night"`). Accepted, **not forwarded** — no tag filtering on this path. Use managed `POST /search` or direct search-ms for tag filtering. |
+| `tags` | string | no | Comma-separated (e.g. `"outdoor,night"`). Accepted, **not forwarded** - no tag filtering on this path. Use managed `POST /search` or direct search-ms for tag filtering. |
 | `timeFilter` | object | no | Only `value`+`unit` produce a forwarded range. `start`, `end`, `source` are accepted but ignored here. |
 
 ### Examples

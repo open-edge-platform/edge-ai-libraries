@@ -1,22 +1,22 @@
 [
   {"query": "Run the VSS smoke test to make sure my deployment is working", "should_trigger": true},
   {"query": "Can you do a quick end-to-end check on the video-search-and-summarization stack?", "should_trigger": true},
-  {"query": "I just deployed VSS in summary mode — verify it's actually functional", "should_trigger": true},
+  {"query": "I just deployed VSS in summary mode - verify it's actually functional", "should_trigger": true},
   {"query": "Upload a sample video, trigger the summary pipeline, and confirm I get a non-empty result", "should_trigger": true},
   {"query": "Run e2e_summary.sh and e2e_search.sh against http://localhost:12345/manager and tell me if I get PASS", "should_trigger": true},
   {"query": "Smoke test the search mode: upload a video, create embeddings, query the search service, and check for hits", "should_trigger": true},
-  {"query": "My VSS stack just came up after a mode change to dual mode — run a full end-to-end validation", "should_trigger": true},
+  {"query": "My VSS stack just came up after a mode change to dual mode - run a full end-to-end validation", "should_trigger": true},
   {"query": "Use curl to hit Pipeline Manager, POST a video, poll states until done, and verify the summary is non-empty", "should_trigger": true},
-  {"query": "Something seems broken in VSS after the upgrade — can you run the e2e smoke scripts to pinpoint what's failing?", "should_trigger": true},
+  {"query": "Something seems broken in VSS after the upgrade - can you run the e2e smoke scripts to pinpoint what's failing?", "should_trigger": true},
   {"query": "Check that both the summary and search pipelines are operational on my fresh VSS unified-mode deployment", "should_trigger": true},
   {"query": "How do I write a unit test for the Pipeline Manager summary endpoint?", "should_trigger": false},
   {"query": "What environment variables does VSS support for configuring the vLLM service?", "should_trigger": false},
   {"query": "Show me the VSS architecture diagram and explain how nginx routes traffic to pipeline-manager", "should_trigger": false},
-  {"query": "Help me debug why the search-ms container keeps crashing on startup — check the Docker logs", "should_trigger": false},
+  {"query": "Help me debug why the search-ms container keeps crashing on startup - check the Docker logs", "should_trigger": false},
   {"query": "Start VSS in summary mode using setup.sh", "should_trigger": false},
   {"query": "Run the Python unit tests for the video-ingestion service", "should_trigger": false},
   {"query": "Check whether the Pipeline Manager health endpoint returns 200 right now", "should_trigger": false},
-  {"query": "I want to benchmark how long VSS takes to summarize a 10-minute video — set that up for me", "should_trigger": false},
+  {"query": "I want to benchmark how long VSS takes to summarize a 10-minute video - set that up for me", "should_trigger": false},
   {"query": "Generate a curl command to manually POST a video to /manager/videos and print the videoId", "should_trigger": false},
-  {"query": "Use vss-doctor to figure out which VSS mode is currently running and whether all containers are healthy", "should_trigger": false}
+  {"query": "Use vss-troubleshoot to figure out which VSS mode is currently running and whether all containers are healthy", "should_trigger": false}
 ]

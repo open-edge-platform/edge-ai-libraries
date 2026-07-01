@@ -9,23 +9,23 @@ Source: `pipeline-manager/src/summary/models/*` (`SummaryPipelineDTO`).
 
 ```jsonc
 {
-  "title": "string",                 // REQUIRED — 400 "Title is required" if absent
+  "title": "string",                 // REQUIRED: 400 "Title is required" if absent
   "videoId": "string",               // optional; if given it must exist (else 404)
 
   "sampling": {                      // REQUIRED block
-    "chunkDuration": 20,             // REQUIRED — seconds per chunk
-    "samplingFrame": 5,              // REQUIRED — frames sampled per chunk
-    "frameOverlap": 0,               // REQUIRED — overlap frame count
-    "multiFrame": 5,                 // REQUIRED — batch size; MUST equal frameOverlap + samplingFrame
-    "videoStart": 0,                 // optional — clip start (s)
-    "videoEnd": 120                  // optional — clip end (s)
+    "chunkDuration": 20,             // REQUIRED: seconds per chunk
+    "samplingFrame": 5,              // REQUIRED: frames sampled per chunk
+    "frameOverlap": 0,               // REQUIRED: overlap frame count
+    "multiFrame": 5,                 // REQUIRED: batch size; MUST equal frameOverlap + samplingFrame
+    "videoStart": 0,                 // optional: clip start (s)
+    "videoEnd": 120                  // optional: clip end (s)
   },
 
   "evam": {                         // REQUIRED block
     "evamPipeline": "object_detection"  // "object_detection" | "video_ingestion"
   },
 
-  "prompts": {                      // optional — all fields optional overrides
+  "prompts": {                      // optional: all fields optional overrides
     "framePrompt": "string",
     "summaryMapPrompt": "string",
     "summaryReducePrompt": "string",
@@ -45,7 +45,7 @@ Source: `pipeline-manager/src/summary/models/*` (`SummaryPipelineDTO`).
 }
 ```
 
-Response: `{ "summaryPipelineId": "<stateId>" }` — use it as `stateId` for
+Response: `{ "summaryPipelineId": "<stateId>" }` - use it as `stateId` for
 `GET /manager/summary/{stateId}` and `.../raw`.
 
 ## Validation gotchas (return 400)
