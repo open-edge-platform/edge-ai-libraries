@@ -6,7 +6,9 @@ Handles SQLAlchemy async engine setup, session factory, and database lifecycle.
 
 import logging
 import os
+from pathlib import Path
 from typing import Any, AsyncGenerator
+from sqlalchemy.engine import make_url
 
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
@@ -30,6 +32,39 @@ DATABASE_URL = os.environ.get(
 # SQLAlchemy async engine configuration
 engine = None
 async_session_maker = None
+
+
+def _load_orm_models() -> None:
+    """
+    Import ORM model modules so they register with Base metadata.
+
+    Add SQLAlchemy ORM classes in orm_models.py (or modules imported from it).
+    """
+    import orm_models  # noqa: F401
+
+
+def _ensure_sqlite_database_path() -> None:
+    """
+    Ensure the parent directory exists for file-based SQLite databases.
+
+    Raises:
+        PermissionError: If the database directory exists but is not writable.
+    """
+    if "sqlite" not in DATABASE_URL:
+        return
+
+    db_path = make_url(DATABASE_URL).database
+    if not db_path or db_path == ":memory:":
+        return
+
+    db_dir = Path(db_path).expanduser().parent
+    db_dir.mkdir(parents=True, exist_ok=True)
+
+    if not os.access(db_dir, os.W_OK):
+        raise PermissionError(
+            f"SQLite directory is not writable: '{db_dir}'. "
+            "Check docker volume permissions for shared/db."
+        )
 
 
 def _get_engine_kwargs() -> dict[str, Any]:
@@ -71,6 +106,12 @@ async def init_db() -> None:
 
     logger.info(f"Initializing database: {DATABASE_URL}")
 
+    # For file-based SQLite, ensure the DB directory exists before connecting.
+    _ensure_sqlite_database_path()
+
+    # Ensure ORM models are imported before creating metadata-driven tables.
+    _load_orm_models()
+
     # Create async engine
     engine = create_async_engine(
         DATABASE_URL,
@@ -88,6 +129,12 @@ async def init_db() -> None:
     # Create tables if they don't exist
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Seed startup data in an idempotent way.
+    if os.environ.get("DB_SEED_ON_STARTUP", "true").lower() == "true":
+        from db_seed import seed_initial_data
+
+        await seed_initial_data(async_session_maker)
 
     logger.info("Database initialization complete")
 

@@ -518,6 +518,8 @@ class InternalExecutionConfig:
         output_mode: Mode for pipeline output generation.
         max_runtime: Maximum runtime in seconds (0 = run until EOS).
         metadata_mode: Mode for metadata publishing via gvametapublish elements.
+        test_run: When True, run in test mode without persisting test data
+            to the database. Defaults to False.
         enable_latency_metrics: When True, the GStreamer subprocess runs with
             the DLStreamer `latency_tracer` active in pipeline-only mode with
             a 1000 ms interval. Defaults to False (tracer disabled).
@@ -526,6 +528,7 @@ class InternalExecutionConfig:
     output_mode: InternalOutputMode
     max_runtime: float
     metadata_mode: InternalMetadataMode
+    test_run: bool = False
     enable_latency_metrics: bool = False
 
 

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import threading
 import time
@@ -27,6 +28,12 @@ from managers.pipeline_manager import PipelineManager
 from managers.metadata_manager import MetadataManager
 from videos import collect_video_outputs_from_dirs
 from utils import slugify_text
+from database import async_session_maker
+from orm_models import (
+    BenchmarkResultPerformance,
+    BenchmarkRun,
+    BenchmarkRunPerformanceSetup,
+)
 
 logger = logging.getLogger("tests_manager")
 
@@ -530,6 +537,17 @@ class TestsManager:
                             job.latency_tracer_metrics = _map_latency_tracer_samples(
                                 result.latency_tracer_metrics
                             )
+
+                            # Save benchmark results to database
+                            if not internal_spec.execution_config.test_run:
+                                self._save_perf_test_results_async(
+                                    job_id,
+                                    1,
+                                    internal_spec.pipeline_performance_specs,
+                                    result.total_fps,
+                                    job.start_time,
+                                    max(0, (job.end_time or job.start_time) - job.start_time),
+                                )
                     else:
                         # Normal completion (exit_code is always 0 here because
                         # non-zero exit without cancellation raises RuntimeError
@@ -557,6 +575,17 @@ class TestsManager:
                         job.latency_tracer_metrics = _map_latency_tracer_samples(
                             result.latency_tracer_metrics
                         )
+
+                        # Save benchmark results to database
+                        if not internal_spec.execution_config.test_run:
+                            self._save_perf_test_results_async(
+                                job_id,
+                                1,
+                                internal_spec.pipeline_performance_specs,
+                                result.total_fps,
+                                job.start_time,
+                                max(0, (job.end_time or job.start_time) - job.start_time),
+                            )
 
                 # Clean up runner after completion regardless of outcome
                 self.runners.pop(job_id, None)
@@ -766,6 +795,131 @@ class TestsManager:
             self.logger.debug(f"Test job summary for {job_id}: {job_summary}")
 
             return job_summary
+
+    async def _save_performance_test_to_database(
+        self,
+        job_id: str,
+        benchmark_id: int,
+        pipeline_performance_specs: list[InternalPipelinePerformanceSpec],
+        total_fps: float | None,
+        start_time: int,
+        execution_time: int,
+    ) -> None:
+        """
+        Save performance test results to BenchmarkRun,
+        BenchmarkRunPerformanceSetup, and BenchmarkResultPerformance tables.
+
+        For variant-based pipeline specs (with pipeline_id format "/pipelines/{pid}/variants/{vid}"),
+        extract and save both pipeline_id and variant_id. For inline graphs/descriptions,
+        variant_id will be None (and should be handled by the caller if needed).
+
+        Args:
+            job_id: Job identifier to link to the benchmark run
+            benchmark_id: Benchmark ID (hardcoded to 1 for now)
+            pipeline_performance_specs: List of pipeline specs with streams information
+            total_fps: Aggregated FPS value for the completed performance run.
+            start_time: Job start timestamp in milliseconds since epoch.
+            execution_time: Final job runtime in milliseconds.
+        """
+        try:
+            if not async_session_maker:
+                self.logger.warning(
+                    f"Database not initialized, skipping benchmark result persistence for job {job_id}"
+                )
+                return
+
+            async with async_session_maker() as session:
+                # Create BenchmarkRun record
+                benchmark_run = BenchmarkRun(
+                    benchmark_id=benchmark_id,
+                    job_id=job_id,
+                    start_time=start_time,
+                    execution_time=execution_time,
+                )
+                session.add(benchmark_run)
+                await session.flush()  # Get the auto-generated ID
+
+                # Create BenchmarkRunPerformanceSetup records for each pipeline
+                for spec in pipeline_performance_specs:
+                    # Parse pipeline_id to extract variant_id
+                    # Format: "/pipelines/{pid}/variants/{vid}" for variant-based specs
+                    pid = None
+                    vid = None
+
+                    if "/variants/" in spec.pipeline_id:
+                        parts = spec.pipeline_id.split("/variants/")
+                        if len(parts) == 2:
+                            pid = parts[0].lstrip("/pipelines/").strip("/")
+                            vid = parts[1].strip("/")
+
+                    if pid and vid:
+                        setup = BenchmarkRunPerformanceSetup(
+                            benchmark_run_id=benchmark_run.id,
+                            pipeline_id=pid,
+                            variant_id=vid,
+                            streams=spec.streams,
+                        )
+                        session.add(setup)
+                    else:
+                        self.logger.warning(
+                            f"Skipping benchmark setup for pipeline_id {spec.pipeline_id} "
+                            f"(not a variant-based spec)"
+                        )
+
+                # Create BenchmarkResultPerformance for aggregated run metrics.
+                if total_fps is not None:
+                    benchmark_result = BenchmarkResultPerformance(
+                        benchmark_id=benchmark_id,
+                        benchmark_run_id=benchmark_run.id,
+                        total_fps=total_fps,
+                    )
+                    session.add(benchmark_result)
+                else:
+                    self.logger.warning(
+                        "Skipping BenchmarkResultPerformance for job %s because total_fps is None",
+                        job_id,
+                    )
+
+                await session.commit()
+                self.logger.info(
+                    f"Saved performance test results to database for job {job_id}, "
+                    f"benchmark_run_id={benchmark_run.id}"
+                )
+        except Exception as e:
+            self.logger.error(
+                f"Failed to save performance test results to database for job {job_id}: {e}",
+                exc_info=True,
+            )
+
+    def _save_perf_test_results_async(
+        self,
+        job_id: str,
+        benchmark_id: int,
+        pipeline_performance_specs: list[InternalPipelinePerformanceSpec],
+        total_fps: float | None,
+        start_time: int,
+        execution_time: int,
+    ) -> None:
+        """
+        Wrapper to run async database save in a background thread context.
+        Creates a new event loop for the async operation.
+        """
+        try:
+            asyncio.run(
+                self._save_performance_test_to_database(
+                    job_id,
+                    benchmark_id,
+                    pipeline_performance_specs,
+                    total_fps,
+                    start_time,
+                    execution_time,
+                )
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Error running async database save for job {job_id}: {e}",
+                exc_info=True,
+            )
 
     def stop_job(self, job_id: str) -> tuple[bool, str]:
         """

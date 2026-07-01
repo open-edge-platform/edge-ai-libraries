@@ -10,3 +10,4 @@ shared/videos/output/*
 shared/videos/video-generator/*
 shared/onvif/*
 shared/metadata/*
+shared/db/*

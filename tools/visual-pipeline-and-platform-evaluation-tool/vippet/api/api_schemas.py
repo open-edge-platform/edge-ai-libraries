@@ -1261,8 +1261,8 @@ class ExecutionConfig(BaseModel):
     """
     **Configuration for pipeline execution behavior.**
 
-    This configuration controls output generation, runtime limits, and
-    metadata publishing for test pipelines.
+    This configuration controls output generation, runtime limits,
+    metadata publishing, and test-run mode for test pipelines.
 
     ## Attributes
     - `output_mode` - Mode for pipeline output generation:
@@ -1276,6 +1276,9 @@ class ExecutionConfig(BaseModel):
     - `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:
       - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)
       - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints
+    - `test_run` - Controls test-run persistence behavior:
+      - `false` - Run with normal database persistence (default)
+      - `true` - Run without saving test data to the database
 
     ### Example (disabled output, no runtime limit)
     ```json
@@ -1309,6 +1312,16 @@ class ExecutionConfig(BaseModel):
       "metadata_mode": "file"
     }
     ```
+
+    ### Example (test-run enabled)
+    ```json
+    {
+      "output_mode": "disabled",
+      "max_runtime": 0,
+      "metadata_mode": "disabled",
+      "test_run": true
+    }
+    ```
     """
 
     output_mode: OutputMode = Field(
@@ -1323,6 +1336,10 @@ class ExecutionConfig(BaseModel):
     metadata_mode: MetadataMode = Field(
         default=MetadataMode.DISABLED,
         description="Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints.",
+    )
+    test_run: bool = Field(
+        default=False,
+        description="Controls test-run persistence behavior. false (default): use normal database persistence. true: do not save test data to the database.",
     )
     enable_latency_metrics: bool = Field(
         default=False,
@@ -1492,6 +1509,53 @@ class TestJobResponse(BaseModel):
         description="Identifier of the created test job.",
         examples=["job123"],
     )
+
+
+class BenchmarkType(str, Enum):
+    """Type of benchmark definition stored in the database."""
+
+    PERFORMANCE = "performance"
+    DENSITY = "density"
+
+
+class BenchmarkPerformanceSetup(BaseModel):
+    """Pipeline setup entry for a performance benchmark."""
+
+    pipeline_id: str
+    variant_id: str
+    streams: int
+
+
+class BenchmarkDensitySetup(BaseModel):
+    """Pipeline setup entry for a density benchmark."""
+
+    pipeline_id: str
+    variant_id: str
+    participation_rate: float
+
+
+class BenchmarkBase(BaseModel):
+    """Common benchmark fields shared by all benchmark types."""
+
+    id: int
+    name: str
+
+
+class BenchmarkWithPerformanceSetup(BenchmarkBase):
+    """Performance benchmark with setup rows from benchmark_performance_setups."""
+
+    type: Literal["performance"]
+    setups: list[BenchmarkPerformanceSetup]
+
+
+class BenchmarkWithDensitySetup(BenchmarkBase):
+    """Density benchmark with setup rows from benchmark_density_setups."""
+
+    type: Literal["density"]
+    setups: list[BenchmarkDensitySetup]
+
+
+BenchmarkWithSetup = BenchmarkWithPerformanceSetup | BenchmarkWithDensitySetup
 
 
 class LatencyMetrics(BaseModel):
