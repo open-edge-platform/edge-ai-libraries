@@ -68,13 +68,13 @@ configurations and optimization of settings.
 The following resources provide comprehensive guidance on installation, usage, and development of the Visual
 Pipeline and Platform Evaluation Tool:
 
-- [System Requirements](docs/user-guide/getting-started/installation/system-requirements.md)
-- [Get Started](docs/user-guide/getting-started.md)
-- [Quickstart Guide](docs/user-guide/getting-started/quickstart.md)
-- [User Guide](docs/user-guide/user-guide.md)
-- [Developer Guide](docs/user-guide/developer-guide.md)
-- [Troubleshooting](docs/user-guide/troubleshooting.md)
-- [Release Notes](docs/user-guide/release-notes.md)
+- [System Requirements](./docs/user-guide/get-started/installation/system-requirements.md)
+- [Get Started](./docs/user-guide/get-started.md)
+- [Quickstart Guide](./docs/user-guide/get-started/quickstart.md)
+- [User Guide](./docs/user-guide/user-guide.md)
+- [Developer Guide](./docs/user-guide/developer-guide.md)
+- [Troubleshooting](./docs/user-guide/troubleshooting.md)
+- [Release Notes](./docs/user-guide/release-notes.md)
 
 ## Contribution Rules
 
