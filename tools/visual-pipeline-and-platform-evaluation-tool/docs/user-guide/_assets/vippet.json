@@ -110,7 +110,7 @@
           "benchmarks"
         ],
         "summary": "Get benchmark definition by ID",
-        "description": "Return a single benchmark definition with request-shaped setup payload.\n\n- performance -> `pipeline_performance_specs`\n- density -> `pipeline_density_specs`",
+        "description": "Return a single benchmark definition with setup selected by benchmark type.\n\n- performance -> setup rows from BenchmarkPerformanceSetup\n- density -> setup rows from BenchmarkDensitySetup",
         "operationId": "get_benchmark",
         "parameters": [
           {
@@ -131,16 +131,16 @@
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/BenchmarkWithPerformanceSpecs"
+                      "$ref": "#/components/schemas/BenchmarkWithPerformanceSetup"
                     },
                     {
-                      "$ref": "#/components/schemas/BenchmarkWithDensitySpecs"
+                      "$ref": "#/components/schemas/BenchmarkWithDensitySetup"
                     },
                     {
-                      "$ref": "#/components/schemas/BenchmarkWithPerformanceSpecs"
+                      "$ref": "#/components/schemas/BenchmarkWithPerformanceSetup"
                     },
                     {
-                      "$ref": "#/components/schemas/BenchmarkWithDensitySpecs"
+                      "$ref": "#/components/schemas/BenchmarkWithDensitySetup"
                     }
                   ],
                   "title": "Response 200 Get Benchmark"
@@ -3196,12 +3196,12 @@
             "const": "density",
             "title": "Type"
           },
-          "setups": {
+          "setup": {
             "items": {
               "$ref": "#/components/schemas/BenchmarkDensitySetup"
             },
             "type": "array",
-            "title": "Setups"
+            "title": "Setup"
           }
         },
         "type": "object",
@@ -3209,43 +3209,10 @@
           "id",
           "name",
           "type",
-          "setups"
+          "setup"
         ],
         "title": "BenchmarkWithDensitySetup",
         "description": "Density benchmark with setup rows from benchmark_density_setups."
-      },
-      "BenchmarkWithDensitySpecs": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "type": {
-            "type": "string",
-            "const": "density",
-            "title": "Type"
-          },
-          "pipeline_density_specs": {
-            "items": {
-              "$ref": "#/components/schemas/PipelineDensitySpec"
-            },
-            "type": "array",
-            "title": "Pipeline Density Specs"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "type",
-          "pipeline_density_specs"
-        ],
-        "title": "BenchmarkWithDensitySpecs",
-        "description": "Density benchmark with request-shaped pipeline specs."
       },
       "BenchmarkWithPerformanceSetup": {
         "properties": {
@@ -3262,12 +3229,12 @@
             "const": "performance",
             "title": "Type"
           },
-          "setups": {
+          "setup": {
             "items": {
               "$ref": "#/components/schemas/BenchmarkPerformanceSetup"
             },
             "type": "array",
-            "title": "Setups"
+            "title": "Setup"
           }
         },
         "type": "object",
@@ -3275,43 +3242,10 @@
           "id",
           "name",
           "type",
-          "setups"
+          "setup"
         ],
         "title": "BenchmarkWithPerformanceSetup",
         "description": "Performance benchmark with setup rows from benchmark_performance_setups."
-      },
-      "BenchmarkWithPerformanceSpecs": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "type": {
-            "type": "string",
-            "const": "performance",
-            "title": "Type"
-          },
-          "pipeline_performance_specs": {
-            "items": {
-              "$ref": "#/components/schemas/PipelinePerformanceSpec"
-            },
-            "type": "array",
-            "title": "Pipeline Performance Specs"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "type",
-          "pipeline_performance_specs"
-        ],
-        "title": "BenchmarkWithPerformanceSpecs",
-        "description": "Performance benchmark with request-shaped pipeline specs."
       },
       "Body_upload_image_archive": {
         "properties": {
