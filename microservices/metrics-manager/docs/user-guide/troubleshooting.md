@@ -29,6 +29,54 @@ docker logs metrics-manager
 
 ---
 
+## Capabilities API
+
+### Capabilities Endpoint Not Reachable
+
+**Symptom**: `curl: (7) Failed to connect` or non-200 response for `/api/v1/capabilities`.
+
+**Check:**
+
+```bash
+curl -s http://localhost:9090/health | jq .
+curl -s "http://localhost:9090/api/v1/capabilities?profile=minimal" | jq .
+```
+
+**Solution:**
+
+- Ensure the service is running and healthy.
+- Ensure host port mapping targets container port `9090`.
+
+### Capabilities Response Missing Hardware Enrichment
+
+**Symptom**: Capabilities response is present, but model/vendor/memory-type/storage details are limited or unknown.
+
+**Check:**
+
+```bash
+# Confirm basic Linux host visibility in container
+docker exec metrics-manager ls /sys /proc
+
+# Confirm capabilities support tools exist
+docker exec metrics-manager dmidecode --version
+docker exec metrics-manager lspci -nn | head
+
+# Compare minimal vs expanded profile output
+curl -s "http://localhost:9090/api/v1/capabilities?profile=minimal" | jq .platform
+curl -s "http://localhost:9090/api/v1/capabilities?profile=expanded" | jq .devices
+```
+
+**Common causes and fixes:**
+
+| Cause | Fix |
+| --- | --- |
+| Host sysfs/proc not visible | Run with required mounts (`/sys`, `/run`) and host PID mode as documented in get-started guide |
+| GPU devices not visible | Add `--device /dev/dri` (or compose `devices:`) |
+| NPU sysfs path unavailable | Run privileged mode for NPU telemetry scenarios |
+| Missing runtime tools (`dmidecode`, `lspci`) | Ensure image includes `dmidecode` and `pciutils` |
+
+---
+
 ## Metrics Not Appearing
 
 ### Custom Metric Not Appearing on `/api/v1/metrics`
