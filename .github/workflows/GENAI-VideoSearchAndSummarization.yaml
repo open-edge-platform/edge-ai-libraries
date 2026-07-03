@@ -57,17 +57,17 @@ jobs:
 
       - name: Functional test
         run: |
-          cd sample-applications/video-search-and-summarization/test-functional/
+          cd sample-applications/video-search-and-summarization/tests/
           mkdir -p reports
-          pip install -r requirements.txt
-          pytest
+          poetry install --no-root
+          poetry run pytest
 
       - name: Upload test reports
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         if: always()
         with:
           name: vss-functional-test-reports
-          path: sample-applications/video-search-and-summarization/test-functional/reports/
+          path: sample-applications/video-search-and-summarization/tests/reports/
           retention-days: 30
 
       - name: Stop VSS stack
@@ -96,10 +96,12 @@ jobs:
         run: pip install poetry
 
       - name: Install Trivy
+        env:
+          TRIVY_VERSION: "0.72.0"
         run: |
           if ! command -v trivy >/dev/null 2>&1; then
             curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-              | sh -s -- -b /usr/local/bin
+              | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
           fi
           trivy --version
 
@@ -225,4 +227,94 @@ jobs:
         with:
           name: vss-gitleaks-scan-results
           path: sample-applications/video-search-and-summarization/security-results/gitleaks-*
+          retention-days: 30
+
+  shellcheck-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install ShellCheck
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y shellcheck
+          fi
+          shellcheck --version
+
+      - name: Run ShellCheck lint
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          make shellcheck
+
+      - name: Upload ShellCheck results
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        if: always()
+        with:
+          name: vss-shellcheck-results
+          path: sample-applications/video-search-and-summarization/security-results/shellcheck-*
+          retention-days: 30
+
+  pylint-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Run Pylint
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          make pylint
+
+      - name: Upload Pylint results
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        if: always()
+        with:
+          name: vss-pylint-results
+          path: sample-applications/video-search-and-summarization/security-results/pylint-*
+          retention-days: 30
+
+  eslint-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: '24'
+
+      - name: Run ESLint
+        run: |
+          cd sample-applications/video-search-and-summarization/
+          make eslint
+
+      - name: Upload ESLint results
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        if: always()
+        with:
+          name: vss-eslint-results
+          path: sample-applications/video-search-and-summarization/security-results/eslint-*
           retention-days: 30

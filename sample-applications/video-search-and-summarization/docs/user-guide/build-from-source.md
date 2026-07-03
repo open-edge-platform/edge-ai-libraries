@@ -37,7 +37,7 @@ This section shows how to build the Video Search and Summary sample application 
 
 3. **Build the Docker Image**:
 
-   If you need to customize the application or build your own images, you can use the `build.sh` script included in the repository.
+   If you need to customize the application or build your own images, you can use the `make build` command in the repository.
 
    **3.1 Customizing Build Configuration**
 
@@ -53,7 +53,7 @@ This section shows how to build the Video Search and Summary sample application 
 
    **3.2 Building Images**
 
-   The Makefile provides targets to build and push images. Use make commands to build the dependencies and application microservices. The following microservices are dependent: [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html) and [VDMS based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/vdms). VLM captioning and LLM summarization are handled by [OpenVINO™ Model Server](https://docs.openvino.ai/nightly/model-server/ovms_what_is_openvino_model_server.html) (OVMS) or [vLLM](https://docs.vllm.ai/en/latest/usage/).
+   The Makefile provides targets to build and push images. Use make commands to build the dependent microservices and application microservices. The following microservices are dependent: [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html) and [VDMS based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/vdms). VLM captioning and LLM summarization are handled by [OpenVINO™ Model Server](https://docs.openvino.ai/nightly/model-server/ovms_what_is_openvino_model_server.html) (OVMS) or [vLLM](https://docs.vllm.ai/en/latest/usage/).
 
    ```bash
 

@@ -143,37 +143,37 @@ TEST_TARGETS := $(addprefix test-,$(TEST_COMPONENTS))
 
 check-docker:
 	@command -v docker >/dev/null 2>&1 || \
-	  { echo "❌ docker is not installed or not in PATH."; \
+	  { echo "docker is not installed or not in PATH."; \
 	    echo "   Install: https://docs.docker.com/get-docker/"; exit 1; }
 
 check-poetry:
 	@command -v poetry >/dev/null 2>&1 || \
-	  { echo "❌ poetry is not installed or not in PATH."; \
+	  { echo "poetry is not installed or not in PATH."; \
 	    echo "   Required to build the multimodal-embedding wheel."; \
 	    echo "   Install: https://python-poetry.org/docs/#installation"; exit 1; }
 
 build: check-docker check-poetry build-deps
-	@$(if $(REGISTRY),,echo "⚠️  Warning: No registry prefix set. Images will be tagged without a registry prefix.")
-	@echo "📦 Building all application services..."
+	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
+	@echo "Building all application services..."
 	@$(foreach component,$(COMPONENTS), \
 		echo "  → Building $(component): $(REGISTRY)$(component):$(TAG)"; \
 		docker build $(DOCKER_BUILD_ARGS) \
 			-t $(REGISTRY)$(component):$(TAG) \
 			-f $($(component)_DOCKERFILE) $($(component)_CONTEXT_DIR); \
 	)
-	@echo "✅ All application services built successfully."
+	@echo "All application services built successfully."
 
 # Build external dependency microservices (vdms-dataprep, multimodal-embedding-serving).
 # Requires poetry to build the multimodal-embedding wheel.
 build-deps: check-docker check-poetry
-	@$(if $(REGISTRY),,echo "⚠️  Warning: No registry prefix set. Images will be tagged without a registry prefix.")
-	@echo "📦 Building dependency microservices..."
+	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
+	@echo "Building dependency microservices..."
 	@echo "  → Building vdms-dataprep via upstream build.sh..."
 	@if [ -x "$(USERVICES_DIR)/visual-data-preparation-for-retrieval/vdms/build.sh" ]; then \
 	  cd "$(USERVICES_DIR)/visual-data-preparation-for-retrieval/vdms" && \
 	  REGISTRY_URL="$(REGISTRY_URL)" PROJECT_NAME="$(PROJECT_NAME)" TAG="$(TAG)" ./build.sh; \
 	else \
-	  echo "❌ vdms build.sh not found or not executable: $(USERVICES_DIR)/visual-data-preparation-for-retrieval/vdms/build.sh"; \
+	  echo "vdms build.sh not found or not executable: $(USERVICES_DIR)/visual-data-preparation-for-retrieval/vdms/build.sh"; \
 	  exit 1; \
 	fi
 	@echo "  → Building multimodal-embedding-serving..."
@@ -183,28 +183,40 @@ build-deps: check-docker check-poetry
 	    -t $(REGISTRY)multimodal-embedding-serving:$(TAG) \
 	    -f docker/Dockerfile .; \
 	else \
-	  echo "❌ Dockerfile/compose.yaml not found for multimodal-embedding-serving."; \
+	  echo "Dockerfile/compose.yaml not found for multimodal-embedding-serving."; \
 	  exit 1; \
 	fi
-	@echo "✅ All dependency microservices built successfully."
+	@echo "All dependency microservices built successfully."
 
 # Push all built images (app services + dependency microservices) to the registry.
+# Images are pushed in parallel (backgrounded) to speed up multi-image pushes.
 push: check-docker
 	@if [ -z "$(REGISTRY)" ]; then \
-	  echo "❌ REGISTRY is empty. Refusing to push un-namespaced images to docker.io. Set REGISTRY or REGISTRY_URL+PROJECT_NAME."; \
+	  echo "REGISTRY is empty. Refusing to push un-namespaced images to docker.io. Set REGISTRY or REGISTRY_URL+PROJECT_NAME."; \
 	  exit 1; \
 	fi
-	@echo "🚀 Pushing images to registry..."
-	@push_ok=true; \
+	@echo "Pushing images to registry..."
+	@pids=""; \
 	for image in $(ALL_IMAGES); do \
 	  if docker image inspect "$$image" >/dev/null 2>&1; then \
-	    echo "  → Pushing $$image..."; \
-	    docker push "$$image" || { echo "  ❌ Failed to push $$image"; push_ok=false; }; \
+	    ( echo "  → Pushing $$image..."; \
+	      if docker push "$$image"; then \
+	        echo "  Pushed $$image"; \
+	      else \
+	        echo "  Failed to push $$image"; \
+	        exit 1; \
+	      fi \
+	    ) & \
+	    pids="$$pids $$!"; \
 	  else \
-	    echo "  ⚠️  Image $$image not found locally, skipping."; \
+	    echo "Image $$image not found locally, skipping."; \
 	  fi; \
 	done; \
-	$$push_ok && echo "✅ All images pushed successfully." || { echo "⚠️  Some images failed to push."; exit 1; }
+	push_ok=true; \
+	for pid in $$pids; do \
+	  wait "$$pid" || push_ok=false; \
+	done; \
+	$$push_ok && echo "All images pushed successfully." || { echo "Some images failed to push."; exit 1; }
 
 
 # ==============================================================================
@@ -263,7 +275,7 @@ endef
 
 deploy:
 	@echo ""
-	@echo "⚠️  Please specify a deployment mode:"
+	@echo "Please specify a deployment mode:"
 	@echo "  make deploy-summary   — summarization pipeline + summary UI"
 	@echo "  make deploy-search    — embedding/index/search + search UI"
 	@echo "  make deploy-dual      — both pipelines, two separate UIs"
@@ -276,41 +288,41 @@ deploy:
 	@exit 1
 
 deploy-summary: build
-	@echo "🚀 Deploying VSS in summary mode..."
+	@echo "Deploying VSS in summary mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary'
 	@$(WAIT_HEALTH_SCRIPT)
-	@echo "✅ VSS summary mode deployed."
+	@echo "VSS summary mode deployed."
 
 deploy-search: build
-	@echo "🚀 Deploying VSS in search mode..."
+	@echo "Deploying VSS in search mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --search'
 	@$(WAIT_HEALTH_SCRIPT)
-	@echo "✅ VSS search mode deployed."
+	@echo "VSS search mode deployed."
 
 deploy-dual: build
-	@echo "🚀 Deploying VSS in dual (summary + search) mode..."
+	@echo "Deploying VSS in dual (summary + search) mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary --search'
 	@$(WAIT_HEALTH_SCRIPT)
-	@echo "✅ VSS dual mode deployed."
+	@echo "VSS dual mode deployed."
 
 deploy-unified: build
-	@echo "🚀 Deploying VSS in unified mode (search over summaries)..."
+	@echo "Deploying VSS in unified mode (search over summaries)..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary-and-search'
 	@$(WAIT_HEALTH_SCRIPT)
-	@echo "✅ VSS unified mode deployed."
+	@echo "VSS unified mode deployed."
 
 deploy-stop:
-	@echo "🛑 Stopping all VSS containers..."
+	@echo "Stopping all VSS containers..."
 	@bash -c 'source setup.sh --stop'
-	@echo "✅ VSS stack stopped."
+	@echo "VSS stack stopped."
 
 deploy-clean:
-	@echo "🧹 Stopping VSS containers and wiping user-data volumes..."
+	@echo "Stopping VSS containers and wiping user-data volumes..."
 	@bash -c 'source setup.sh --clean-data'
-	@echo "✅ VSS stack stopped and data volumes wiped."
+	@echo "VSS stack stopped and data volumes wiped."
 
 health-check:
-	@echo "🩺 Checking VSS health..."
+	@echo "Checking VSS health..."
 	@$(WAIT_HEALTH_SCRIPT)
 
 
@@ -320,23 +332,23 @@ health-check:
 
 test: $(TEST_TARGETS)
 	@if [ -z "$(TEST_TARGETS)" ]; then \
-		echo "⚠️  No test components configured."; \
+		echo "No test components configured."; \
 	else \
-		echo "✅ All tests completed."; \
+		echo "All tests completed."; \
 	fi
 
 test-pipeline-manager:
-	@echo "🧪 Running pipeline-manager tests (NestJS/Jest)..."
+	@echo "Running pipeline-manager tests (NestJS/Jest)..."
 	@cd $(pipeline-manager_CONTEXT_DIR) && npm install && npm run test:cov
-	@echo "✅ pipeline-manager tests complete."
+	@echo "pipeline-manager tests complete."
 
 test-vss-ui:
-	@echo "🧪 Running UI tests (Vite/Vitest)..."
+	@echo "Running UI tests (Vite/Vitest)..."
 	@cd $(vss-ui_CONTEXT_DIR) && npm install && npm run coverage
-	@echo "✅ UI tests complete."
+	@echo "UI tests complete."
 
 test-video-search:
-	@echo "🧪 Running video-search tests (pytest)..."
+	@echo "Running video-search tests (pytest)..."
 	@cd $(video-search_CONTEXT_DIR) && \
 	python3 -m venv .test-venv && \
 	source .test-venv/bin/activate && \
@@ -350,10 +362,10 @@ test-video-search:
 		--cov-branch  && \
 	deactivate && \
 	rm -rf .test-venv
-	@echo "✅ video-search tests complete."
+	@echo "video-search tests complete."
 
 test-video-ingestion:
-	@echo "🧪 Running video-ingestion tests (pytest)..."
+	@echo "Running video-ingestion tests (pytest)..."
 	@cd $(video-ingestion_CONTEXT_DIR) && \
 	python3 -m venv .test-venv && \
 	source .test-venv/bin/activate && \
@@ -366,21 +378,21 @@ test-video-ingestion:
 		--cov-branch && \
 	deactivate && \
 	rm -rf .test-venv
-	@echo "✅ video-ingestion tests complete."
+	@echo "video-ingestion tests complete."
 
 # ==============================================================================
 # Code Quality Targets
 # ==============================================================================
 
 shellcheck:
-	@echo "🔍 Running ShellCheck..."
+	@echo "Running ShellCheck..."
 	@mkdir -p security-results
 	@find . -type f \( -name "*.sh" -o -name "*.bash" \) -print0 | xargs -0 -r \
 		shellcheck --format=json > security-results/shellcheck-report-$(SERVICE_NAME).json 2>/dev/null || true
-	@echo "✅ Report: security-results/shellcheck-report-$(SERVICE_NAME).json"
+	@echo "Report: security-results/shellcheck-report-$(SERVICE_NAME).json"
 
 pylint:
-	@echo "🔍 Running Pylint..."
+	@echo "Running Pylint..."
 	@mkdir -p security-results
 	@# --- search-ms (poetry-based) ---
 	@echo "  → Linting search-ms..."
@@ -406,7 +418,7 @@ pylint:
 		> ../security-results/pylint-report-search-ms.json 2>/dev/null || true && \
 	deactivate && \
 	rm -rf .pylint-venv .pylintrc
-	@echo "  ✅ search-ms: security-results/pylint-report-search-ms.json"
+	@echo "search-ms: security-results/pylint-report-search-ms.json"
 	@# --- video-ingestion (pip-based) ---
 	@echo "  → Linting video-ingestion..."
 	@cd $(video-ingestion_CONTEXT_DIR) && \
@@ -428,32 +440,32 @@ pylint:
 		> ../security-results/pylint-report-video-ingestion.json 2>/dev/null || true && \
 	deactivate && \
 	rm -rf .pylint-venv .pylintrc
-	@echo "  ✅ video-ingestion: security-results/pylint-report-video-ingestion.json"
+	@echo "video-ingestion: security-results/pylint-report-video-ingestion.json"
 
 eslint:
-	@echo "🔍 Running ESLint..."
+	@echo "Running ESLint..."
 	@mkdir -p security-results
 	@# --- pipeline-manager (NestJS/TypeScript) ---
 	@echo "  → Linting pipeline-manager..."
 	@cd $(pipeline-manager_CONTEXT_DIR) && \
 	npm install && \
 	npx eslint . --format json --output-file ../security-results/eslint-report-pipeline-manager.json || true
-	@echo "  ✅ pipeline-manager: security-results/eslint-report-pipeline-manager.json"
+	@echo "pipeline-manager: security-results/eslint-report-pipeline-manager.json"
 	@# --- vss-ui (React/Vite/TypeScript) ---
 	@echo "  → Linting vss-ui..."
 	@cd $(vss-ui_CONTEXT_DIR) && \
 	npm install && \
 	npx eslint . --format json --output-file ../../security-results/eslint-report-vss-ui.json || true
-	@echo "  ✅ vss-ui: security-results/eslint-report-vss-ui.json"
+	@echo "vss-ui: security-results/eslint-report-vss-ui.json"
 
 # ==============================================================================
 # Security Scan Targets
 # ==============================================================================
 
 trivy-scan: trivy-scan-fs trivy-scan-image trivy-scan-config
-	@echo "📦 Creating security scan archive..."
+	@echo "Creating security scan archive..."
 	@cd security-results && zip -r trivy-scan-$(SERVICE_NAME)-$$(date +%Y%m%d-%H%M%S).zip trivy-* 2>/dev/null || true
-	@echo "✅ All Trivy scans complete. Reports: security-results/trivy-*"
+	@echo "All Trivy scans complete. Reports: security-results/trivy-*"
 
 # Trivy HTML template - auto-detect or download
 TRIVY_HTML_TPL_URL := https://raw.githubusercontent.com/aquasecurity/trivy/main/pkg/report/templates/html.tpl
@@ -469,13 +481,13 @@ define ENSURE_TRIVY_HTML_TPL
 		mkdir -p security-results; \
 		curl -sSL -o $(TRIVY_HTML_TPL_LOCAL) $(TRIVY_HTML_TPL_URL) || \
 			wget -qO $(TRIVY_HTML_TPL_LOCAL) $(TRIVY_HTML_TPL_URL) || \
-			{ echo "  ⚠️  Could not download HTML template. HTML reports will be skipped."; TRIVY_HTML_TPL=""; }; \
+			{ echo "Could not download HTML template. HTML reports will be skipped."; TRIVY_HTML_TPL=""; }; \
 		TRIVY_HTML_TPL="$(TRIVY_HTML_TPL_LOCAL)"; \
 	fi
 endef
 
 trivy-scan-fs:
-	@echo "🔍 Running Trivy Filesystem Scan..."
+	@echo "Running Trivy Filesystem Scan..."
 	@mkdir -p security-results
 	@$(ENSURE_TRIVY_HTML_TPL); \
 	scan_dir() { \
@@ -497,19 +509,19 @@ trivy-scan-fs:
 			suffix="-$$(basename $$d)"; \
 			scan_dir "$$d" "$$suffix"; \
 		else \
-			echo "  ⚠️  build-dep dir not found, skipping: $$d"; \
+			echo "build-dep dir not found, skipping: $$d"; \
 		fi; \
 	done; \
-	echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME)*.{json,spdx.json,html}"
+	echo "Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME)*.{json,spdx.json,html}"
 
 trivy-scan-image: build
-	@echo "🔍 Running Trivy Image Scans..."
+	@echo "Running Trivy Image Scans..."
 	@mkdir -p security-results
 	@$(ENSURE_TRIVY_HTML_TPL); \
 	for component in $(COMPONENTS) $(DEP_COMPONENTS); do \
 		echo "  → Scanning $$component image..."; \
 		if [ -z "$$(docker images -q $(REGISTRY)$$component:$(TAG) 2>/dev/null)" ]; then \
-			echo "  ⚠️  Image '$(REGISTRY)$$component:$(TAG)' not found, skipping."; \
+			echo "Image '$(REGISTRY)$$component:$(TAG)' not found, skipping."; \
 		else \
 			trivy image --severity HIGH,CRITICAL --ignore-unfixed --format json \
 				--output security-results/trivy-image-$(SERVICE_NAME)-$$component.json \
@@ -525,10 +537,10 @@ trivy-scan-image: build
 			fi; \
 		fi; \
 	done
-	@echo "✅ Image scans complete: security-results/trivy-image-*.{json,spdx.json,html}"
+	@echo "Image scans complete: security-results/trivy-image-*.{json,spdx.json,html}"
 
 trivy-scan-config:
-	@echo "🔍 Running Trivy Config Scans..."
+	@echo "Running Trivy Config Scans..."
 	@mkdir -p security-results
 	@$(ENSURE_TRIVY_HTML_TPL); \
 	$(foreach component,$(COMPONENTS), \
@@ -543,10 +555,10 @@ trivy-scan-config:
 				--file-patterns "dockerfile:Dockerfile" $($(component)_CONTEXT_DIR); \
 		fi; \
 	)
-	@echo "✅ Config scans complete: security-results/trivy-config-*.{json,html}"
+	@echo "Config scans complete: security-results/trivy-config-*.{json,html}"
 
 clamav-scan:
-	@echo "🦠 Running ClamAV Antivirus Scan..."
+	@echo "Running ClamAV Antivirus Scan..."
 	@mkdir -p security-results
 	@clamscan -r . \
 		--exclude-dir=.git \
@@ -555,10 +567,10 @@ clamav-scan:
 		--exclude-dir=chart \
 		--exclude-dir=cli \
 		> security-results/clamav-$(SERVICE_NAME)-$$(date +%Y%m%d-%H%M%S).txt 2>&1 || true
-	@echo "✅ ClamAV scan complete: security-results/clamav-*"
+	@echo "ClamAV scan complete: security-results/clamav-*"
 
 bandit-scan:
-	@echo "🔐 Running Bandit Security Scan..."
+	@echo "Running Bandit Security Scan..."
 	@mkdir -p security-results
 	@python3 -m venv bandit-venv && \
 	source bandit-venv/bin/activate && \
@@ -566,31 +578,31 @@ bandit-scan:
 	pip install bandit[toml] && \
 	CONFIG_OPT=""; \
 	if [ -f "pyproject.toml" ]; then CONFIG_OPT="-c pyproject.toml"; fi; \
-	echo "📝 Generating TXT Report (matches CI)..." && \
+	echo "Generating TXT Report (matches CI)..." && \
 	bandit $$CONFIG_OPT --severity-level low --confidence-level low -r search-ms/ video-ingestion/ \
 		-f txt -o security-results/bandit-report-$(SERVICE_NAME).txt || true && \
-	echo "📊 Generating JSON Report..." && \
+	echo "Generating JSON Report..." && \
 	bandit $$CONFIG_OPT --severity-level low --confidence-level low -r search-ms/ video-ingestion/ \
 		-f json -o security-results/bandit-report-$(SERVICE_NAME).json || true && \
-	echo "🌐 Generating HTML Report..." && \
+	echo "Generating HTML Report..." && \
 	bandit $$CONFIG_OPT --severity-level low --confidence-level low -r search-ms/ video-ingestion/ \
 		-f html -o security-results/bandit-report-$(SERVICE_NAME).html || true && \
 	deactivate && \
 	rm -rf bandit-venv
-	@echo "✅ Bandit scan complete. Check security-results/ for txt, json, and html reports."
+	@echo "Bandit scan complete. Check security-results/ for txt, json, and html reports."
 
 gitleaks-scan:
-	@echo "🔑 Running Gitleaks Secrets Scan..."
+	@echo "Running Gitleaks Secrets Scan..."
 	@mkdir -p security-results
 	@gitleaks dir . -v \
 		-r security-results/gitleaks-$(SERVICE_NAME)-$$(date +%Y%m%d-%H%M%S).json || true
-	@echo "✅ Gitleaks scan complete: security-results/gitleaks-*"
+	@echo "Gitleaks scan complete: security-results/gitleaks-*"
 
 codeql-scan:
-	@echo "🛡️  Running CodeQL Security Analysis..."
+	@echo "Running CodeQL Security Analysis..."
 	@if ! command -v codeql >/dev/null 2>&1; then \
 		echo ""; \
-		echo "❌ CodeQL CLI is not installed."; \
+		echo "CodeQL CLI is not installed."; \
 		echo "Install: https://github.com/github/codeql-cli-binaries/releases"; \
 		echo ""; \
 		exit 1; \
@@ -598,22 +610,21 @@ codeql-scan:
 
 	@mkdir -p security-results
 	@echo ""
-
 	@# --- Download / verify required query packs ---
 	@echo "→ Checking CodeQL Python query pack..."
 	@if ! codeql resolve qlpacks 2>/dev/null | grep -q 'codeql/python-queries'; then \
-		echo "  ⬇️  Downloading codeql/python-queries..."; \
+		echo "Downloading codeql/python-queries..."; \
 		codeql pack download codeql/python-queries; \
 	else \
-		echo "  ✅ codeql/python-queries already available."; \
+		echo "codeql/python-queries already available."; \
 	fi
 
 	@echo "→ Checking CodeQL JavaScript/TypeScript query pack..."
 	@if ! codeql resolve qlpacks 2>/dev/null | grep -q 'codeql/javascript-queries'; then \
-		echo "  ⬇️  Downloading codeql/javascript-queries..."; \
+		echo "Downloading codeql/javascript-queries..."; \
 		codeql pack download codeql/javascript-queries; \
 	else \
-		echo "  ✅ codeql/javascript-queries already available."; \
+		echo "codeql/javascript-queries already available."; \
 	fi
 	@echo ""
 
@@ -635,7 +646,7 @@ codeql-scan:
 		codeql/python-queries \
 		--format=csv \
 		--output=security-results/codeql-python-search-ms.csv || true
-	@echo "✅ Python (search-ms) analysis complete."
+	@echo "Python (search-ms) analysis complete."
 	@echo ""
 
 	@# --- Python: video-ingestion ---
@@ -656,7 +667,7 @@ codeql-scan:
 		codeql/python-queries \
 		--format=csv \
 		--output=security-results/codeql-python-video-ingestion.csv || true
-	@echo "✅ Python (video-ingestion) analysis complete."
+	@echo "Python (video-ingestion) analysis complete."
 	@echo ""
 
 	@# --- JavaScript/TypeScript: pipeline-manager ---
@@ -677,7 +688,7 @@ codeql-scan:
 		codeql/javascript-queries \
 		--format=csv \
 		--output=security-results/codeql-js-pipeline-manager.csv || true
-	@echo "✅ TypeScript (pipeline-manager) analysis complete."
+	@echo "TypeScript (pipeline-manager) analysis complete."
 	@echo ""
 
 	@# --- JavaScript/TypeScript: vss-ui ---
@@ -698,9 +709,9 @@ codeql-scan:
 		codeql/javascript-queries \
 		--format=csv \
 		--output=security-results/codeql-js-vss-ui.csv || true
-	@echo "✅ TypeScript (vss-ui) analysis complete."
+	@echo "TypeScript (vss-ui) analysis complete."
 	@echo ""
-	@echo "✅ CodeQL scan complete: security-results/codeql-*.{sarif,csv}"
+	@echo "CodeQL scan complete: security-results/codeql-*.{sarif,csv}"
 
 # ==============================================================================
 # Info & Utility Targets
@@ -708,7 +719,7 @@ codeql-scan:
 
 list:
 	@echo "══════════════════════════════════════════════════"
-	@echo "📋 Configuration - $(SERVICE_NAME)"
+	@echo "Configuration - $(SERVICE_NAME)"
 	@echo "══════════════════════════════════════════════════"
 	@echo ""
 	@echo "Project:"
@@ -730,11 +741,11 @@ list:
 	@$(foreach component,$(TEST_COMPONENTS), echo "  • $(component)";)
 
 clean:
-	@echo "🧹 Removing Docker images..."
+	@echo "Removing Docker images..."
 	@$(foreach component,$(COMPONENTS), \
 		docker rmi -f $(REGISTRY)$(component):$(TAG) 2>/dev/null || true; \
 	)
-	@echo "✅ Cleanup complete."
+	@echo "Cleanup complete."
 
 # ==============================================================================
 # CI/CD Targets
