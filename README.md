@@ -20,7 +20,7 @@ and industrial use cases.
 These flagship components represent the most advanced, widely adopted, and
 impactful tools in the repository:
 
-- [Deep Learning Streamer](https://github.com/open-edge-platform/dlstreamer/blob/main/README.md)
+- [Deep Learning Streamer](https://github.com/open-edge-platform/dlstreamer/blob/v2026.1.0/README.md)
 
   Build efficient media analytics pipelines using streaming AI pipelines for
   audio/video media analytics using GStreamer for optimized media operations
@@ -330,4 +330,4 @@ The **Edge AI Libraries** project is licensed under the [APACHE 2.0](./LICENSE) 
 |:----------|:--------|
 | Dataset Management Framework (Datumaro) | [MIT License](https://github.com/open-edge-platform/datumaro/blob/develop/LICENSE) |
 | Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/main/LICENSE) |
-| Deep Learning Streamer | [MIT License](https://github.com/open-edge-platform/dlstreamer/blob/main/LICENSE) |
+| Deep Learning Streamer | [MIT License](https://github.com/open-edge-platform/dlstreamer/blob/v2026.1.0/LICENSE) |
