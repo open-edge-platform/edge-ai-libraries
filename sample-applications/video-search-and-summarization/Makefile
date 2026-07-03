@@ -20,8 +20,8 @@ SHELL := bash -eu -o pipefail
 .DEFAULT_GOAL := help
 
 # Auto-create .env from .env.example if it doesn't exist yet.
-# This runs at Makefile parse time, before any target is evaluated.
-$(shell [ -f .env ] || cp .env.example .env)
+# This runs only for targets that actually require the env file.
+$(if $(filter build build-deps push deploy-summary deploy-search deploy-dual deploy-unified health-check,$(MAKECMDGOALS)),$(shell [ -f .env ] || cp .env.example .env),)
 
 # Load registry/tag defaults from .env at parse time so that `make build`
 # and `make push` honour .env without requiring shell exports.
