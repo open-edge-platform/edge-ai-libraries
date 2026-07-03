@@ -50,7 +50,7 @@ jobs:
         run: |
           pip install poetry  
 
-      - name: Deploy VSS in search mode
+      - name: Deploy VSS in dual mode
         run: |
           cd sample-applications/video-search-and-summarization/
           make deploy-dual
