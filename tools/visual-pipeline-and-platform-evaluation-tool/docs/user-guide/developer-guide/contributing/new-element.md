@@ -2,7 +2,7 @@
 
 ViPPET does not implement its own GStreamer elements. The pipeline editor
 exposes every element that appears in a pipeline definition, both the
-standard GStreamer/DLStreamer elements (`filesrc`, `decodebin3`, `queue`,
+standard GStreamer/DL Streamer elements (`filesrc`, `decodebin3`, `queue`,
 `gvadetect`, `gvaclassify`, `gvatrack`, `gvawatermark`, `gvametaconvert`,
 `gvametapublish`, ...) and any custom Python module loaded through
 `gvapython`. To make a new element show up in the editor it is enough to
@@ -32,6 +32,9 @@ the filename to an absolute container path
 (`/scripts/<file>.py`) when building the runnable pipeline command, and
 maps it back to the bare filename when storing the graph.
 
+> **Note:** The `shared/scripts` directory is excluded from linter checks, as it
+> contains custom scripts that may not conform to standard linting rules.
+
 ### Limitations
 
 Passing values to the `kwarg` property of the `gvapython` element in the
@@ -42,11 +45,6 @@ pipeline is not supported.
 ```text
 gvapython class=ObjectFilter module=tracked_object_filter.py kwarg="{\"reclassify_interval\": $BARCODE_RECLASSIFY_INTERVAL}"
 ```
-
-### Note
-
-The `shared/scripts` directory is excluded from linter checks, as it
-contains custom scripts that may not conform to standard linting rules.
 
 ## Element visibility in the simple view
 

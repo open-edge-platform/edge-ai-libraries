@@ -1,21 +1,264 @@
+# SPDX-FileCopyrightText: Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # update the submodules on a weekly interval
 version: 2
 updates:
+
+  # ─────────────────────────────────────────
+  # Existing — Git Submodules
+  # ─────────────────────────────────────────
   - package-ecosystem: gitsubmodule
     directory: "/"
     cooldown:
       default-days: 7
     schedule:
       interval: "weekly"
-  # Update actions on a weekly interval
+
+  # ─────────────────────────────────────────
+  # Existing — GitHub Actions
+  # ─────────────────────────────────────────
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     cooldown:
       default-days: 7
+    open-pull-requests-limit: 5
     groups:
       github-actions-dependency:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  # ─────────────────────────────────────────
+  # Python (pip) — Microservices
+  # ─────────────────────────────────────────
+  - package-ecosystem: "pip"
+    directory: "/microservices/metrics-manager"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/vlm-openvino-serving"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/multimodal-embedding-serving"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/document-ingestion/pgvector"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/visual-data-preparation-for-retrieval/vdms"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/model-download"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  # ─────────────────────────────────────────
+  # Python (pip) — Sample Applications
+  # ─────────────────────────────────────────
+  - package-ecosystem: "pip"
+    directory: "/sample-applications/chat-question-and-answer"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/sample-applications/chat-question-and-answer-core"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/sample-applications/document-summarization"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/sample-applications/video-search-and-summarization/mcp"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/sample-applications/video-search-and-summarization/search-ms"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/sample-applications/video-search-and-summarization/video-ingestion"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  # ─────────────────────────────────────────
+  # Go (gomod) — Sample Applications
+  # ─────────────────────────────────────────
+  - package-ecosystem: "gomod"
+    directory: "/sample-applications/video-search-and-summarization/cli"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      go-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  # ─────────────────────────────────────────
+  # npm (Node.js) — UI & Backend Projects
+  # ─────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/sample-applications/chat-question-and-answer-core/ui"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      npm-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/sample-applications/chat-question-and-answer/ui/react"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      npm-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/sample-applications/video-search-and-summarization/ui/react"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      npm-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/sample-applications/video-search-and-summarization/pipeline-manager"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      npm-deps:
         applies-to: version-updates
         patterns:
           - "*"

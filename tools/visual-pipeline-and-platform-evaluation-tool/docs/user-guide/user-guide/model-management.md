@@ -25,12 +25,12 @@ You can select one or more models and click the "Install" button to download the
 ## Uploading Custom Models
 
 You can also upload your own custom models to ViPPET and use them in your pipelines.
-The package must be in .zip format that satisfy OpenVINO format. It should contain:
+The package must be in .zip format that satisfy OpenVINO™ format. It should contain:
 
 - model.bin
 - model.xml
 
-More about OpenVINO IR format can be found in the [OpenVINO documentation](https://docs.openvino.ai/2025/documentation/openvino-ir-format.html).
+More about OpenVINO™ IR format can be found in the [OpenVINO™ documentation](https://docs.openvino.ai/2026/documentation/openvino-ir-format.html).
 
 Models can be prepared and trained using [Geti](https://docs.geti.intel.com/).
 

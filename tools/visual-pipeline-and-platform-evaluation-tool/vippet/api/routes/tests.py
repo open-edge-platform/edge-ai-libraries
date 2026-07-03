@@ -203,18 +203,41 @@ def run_density_test(body: schemas.DensityTestSpec):
     ## Operation
 
     1. Validates the density test request
-    2. Uses requested fps_floor and per-pipeline stream_rate ratios
+    2. Selects the density mode from the request shape (classic or mixed)
     3. Creates a DensityJob with RUNNING state
     4. Spawns a background thread that runs a Benchmark to determine the maximum number of streams that still meets fps_floor
     5. Returns the job identifier for status polling
 
+    ## Density Modes
+
+    The endpoint supports two modes, selected automatically from the
+    request shape (no API version flag is required):
+
+    ### Classic density (default)
+    All `pipeline_density_specs` omit the optional `streams` field. The
+    benchmark searches for the maximum total stream count that still
+    meets `fps_floor` and splits the total across pipelines using
+    `stream_rate` percentages (which must sum to 100).
+
+    ### Mixed density
+    Exactly one of exactly two `pipeline_density_specs` sets `streams`
+    to a fixed value. That pipeline is pinned to that count for every
+    iteration; the other pipeline is incremented by the benchmark
+    using the same exponential growth + bisection algorithm as classic
+    density. The pass/fail stop criterion (`fps_floor`) is unchanged.
+    `stream_rate` is ignored in this mode.
+
     ## Request Body
 
     - `fps_floor`: Minimum acceptable FPS per stream
-    - `pipeline_density_specs`: List of pipelines with stream_rate percentages that must sum to 100. Each pipeline can be:
+    - `pipeline_density_specs`: List of pipelines. Each pipeline can be:
       - Variant reference: `{"source": "variant", "pipeline_id": "...", "variant_id": "..."}`
       - Inline graph: `{"source": "graph", "pipeline_graph": {...}}`
       - Pipeline description: `{"source": "description", "pipeline_description": "..."}`
+
+      Each spec also carries:
+      - `stream_rate` (classic mode): percentage share of total streams; all values must sum to 100.
+      - `streams` (mixed mode, optional): fixed input stream count for this pipeline. Setting it on exactly one of two specs switches the request into mixed-density mode.
     - `execution_config`: Configuration for output mode, metadata mode and runtime limits
       - `output_mode`: disabled (default) or file (live_stream not supported)
       - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
@@ -225,7 +248,7 @@ def run_density_test(body: schemas.DensityTestSpec):
     | Code | Description |
     |------|-------------|
     | 202  | TestJobResponse with job_id of the created density job |
-    | 400  | Invalid request (empty specs, duplicate pipeline_ids, stream_rate not summing to 100, missing variant, live_stream mode, invalid output config) |
+    | 400  | Invalid request (empty specs, duplicate pipeline_ids, stream_rate not summing to 100 in classic mode, mixed-mode constraints violated, missing variant, live_stream mode, invalid output config) |
     | 500  | Unexpected error when creating or starting the job |
 
     ## Conditions
@@ -234,7 +257,8 @@ def run_density_test(body: schemas.DensityTestSpec):
     - pipeline_density_specs is not empty
     - All referenced variants exist
     - No duplicate pipeline_ids in request
-    - stream_rate ratios sum to 100%
+    - Classic mode: stream_rate ratios sum to 100%
+    - Mixed mode: exactly two specs and exactly one of them with `streams` set
     - DensityTestSpec is valid and Benchmark.run() can be started in background thread
 
     ### ❌ Failure
@@ -243,7 +267,7 @@ def run_density_test(body: schemas.DensityTestSpec):
 
     ## Examples
 
-    Request (variant reference):
+    Request (classic mode, variant reference):
     ```json
     {
       "fps_floor": 30,
@@ -273,7 +297,7 @@ def run_density_test(body: schemas.DensityTestSpec):
     }
     ```
 
-    Request (inline graph):
+    Request (classic mode, inline graph):
     ```json
     {
       "fps_floor": 30,
@@ -297,6 +321,35 @@ def run_density_test(body: schemas.DensityTestSpec):
     }
     ```
 
+    Request (mixed mode - pipeline 1 fixed at 4 streams, pipeline 2 incremented):
+    ```json
+    {
+      "fps_floor": 30,
+      "pipeline_density_specs": [
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-a3f5d9e1",
+            "variant_id": "variant-abc123"
+          },
+          "streams": 4
+        },
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-b7c2e114",
+            "variant_id": "variant-def456"
+          }
+        }
+      ],
+      "execution_config": {
+        "output_mode": "disabled",
+        "max_runtime": 0,
+        "metadata_mode": "disabled"
+      }
+    }
+    ```
+
     Success (202):
     ```json
     {
@@ -304,10 +357,17 @@ def run_density_test(body: schemas.DensityTestSpec):
     }
     ```
 
-    Error (400):
+    Error (400, classic mode):
     ```json
     {
       "message": "Pipeline stream_rate ratios must sum to 100%, got 110%"
+    }
+    ```
+
+    Error (400, mixed mode):
+    ```json
+    {
+      "message": "Mixed-density mode requires exactly two pipeline_density_specs."
     }
     ```
     """
@@ -522,6 +582,7 @@ def _convert_pipeline_density_spec(
                 pipeline_name=pipeline.name,
                 pipeline_graph=graph,
                 stream_rate=spec.stream_rate,
+                streams=spec.streams,
             )
         case schemas.GraphInline() as graph_inline:
             # Validate and get pipeline ID
@@ -535,6 +596,7 @@ def _convert_pipeline_density_spec(
                 pipeline_name=pipeline_id,
                 pipeline_graph=graph,
                 stream_rate=spec.stream_rate,
+                streams=spec.streams,
             )
         case schemas.PipelineDescriptionSource() as description_source:
             # Validate and get pipeline ID
@@ -550,6 +612,7 @@ def _convert_pipeline_density_spec(
                 pipeline_name=pipeline_id,
                 pipeline_graph=graph,
                 stream_rate=spec.stream_rate,
+                streams=spec.streams,
             )
         case _:
             raise ValueError("Invalid pipeline source type in density spec")
@@ -638,6 +701,8 @@ def _convert_density_test_spec(
     Performs the following validations:
     - pipeline_density_specs list cannot be empty
     - All pipeline_ids must be unique (no duplicates after resolution)
+    - Mixed-density mode (any spec with `streams` set) requires exactly two
+      specs and exactly one of them with `streams` set.
 
     Args:
         spec: API DensityTestSpec from request.
@@ -652,6 +717,26 @@ def _convert_density_test_spec(
     # Validate non-empty list
     if not spec.pipeline_density_specs:
         raise ValueError("pipeline_density_specs cannot be empty")
+
+    # Detect mixed-density mode: any spec with `streams` set switches the
+    # request into the mixed flow. In mixed mode we require exactly two
+    # specs and exactly one of them with `streams` set; `stream_rate` is
+    # ignored.
+    mixed_mode = any(s.streams is not None for s in spec.pipeline_density_specs)
+    if mixed_mode:
+        if len(spec.pipeline_density_specs) != 2:
+            raise ValueError(
+                "Mixed-density mode requires exactly two pipeline_density_specs."
+            )
+        fixed_count = sum(
+            1 for s in spec.pipeline_density_specs if s.streams is not None
+        )
+        if fixed_count != 1:
+            raise ValueError(
+                "Mixed-density mode requires exactly one spec with 'streams' "
+                "set (the fixed pipeline) and one spec without 'streams' "
+                "(the incremented pipeline)."
+            )
 
     # Convert all pipeline specs
     internal_specs: List[InternalPipelineDensitySpec] = []

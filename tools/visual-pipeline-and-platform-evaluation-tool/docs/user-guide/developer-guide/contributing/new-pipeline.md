@@ -96,7 +96,7 @@ the same conventions used by the other built-in pipelines:
   pipelines use the following naming convention: `CPU`, `GPU`, `NPU`,
   `GPU_NPU`. Use whichever subset makes sense for the pipeline, only the
   variants you actually ship are exposed.
-- Insert `queue` elements where you would do so in a normal DLStreamer
+- Insert `queue` elements where you would do so in a normal DL Streamer
   pipeline (after inference, before sinks, around tee branches).
 - For metadata-only pipelines (no rendering) `gvametaconvert` then
   `gvametapublish` then `fakesink` is the standard tail.

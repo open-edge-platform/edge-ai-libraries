@@ -118,7 +118,7 @@ export const Home = () => {
         <div className="flex gap-3">
           <BookOpen className="w-6 h-6 text-brand-accent shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/get-started.html"
+            href="https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/get-started.html"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-brand-accent transition-colors"
@@ -133,14 +133,14 @@ export const Home = () => {
         <div className="flex gap-3">
           <Sparkles className="w-6 h-6 text-brand-accent shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/release-notes.html"
+            href="https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/release-notes.html"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-brand-accent transition-colors"
           >
             <h3 className="font-semibold text-base mb-1">What's new?</h3>
             <p className="text-sm text-muted-foreground">
-              Check out what's new in the latest ViPPET 2025.2 release
+              Check out what's new in the latest ViPPET 2026.1 release
             </p>
           </a>
         </div>
@@ -148,7 +148,7 @@ export const Home = () => {
         <div className="flex gap-3">
           <Code className="w-6 h-6 text-brand-accent shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/api-reference.html"
+            href={`${window.location.origin}/api/v1/docs`}
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-brand-accent transition-colors"

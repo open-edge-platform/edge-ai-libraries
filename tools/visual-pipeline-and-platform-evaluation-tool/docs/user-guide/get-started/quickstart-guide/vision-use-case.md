@@ -15,7 +15,7 @@ The application is served with several predefined pipelines that cover different
   suitable for inventory management, customer behavior analysis, and other retail use cases.
 - **Defect Detection** - Uses machine vision for automatic pallet defect detection, enabling efficient
   quality control in manufacturing.
-- **Age & Gender Recognition** - Detects faces and predicts age groups and gender, making it suitable
+- **Age and Gender Recognition** - Detects faces and predicts age groups and gender, making it suitable
   for customer demographics analysis and other retail use cases.
 
 Vision pipelines are constructed using *Object Detection* and *Object Classification* blocks.

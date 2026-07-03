@@ -24,7 +24,7 @@ default configuration:
 
 If the `vippet-ui` service cannot be accessed in the browser, it may be caused by a port
 conflict on the host. If that is the case, restart the stack and access ViPPET using the new
-port, e.g. `http://localhost:8081`:
+port, e.g., `http://localhost:8081`:
 
 - In the Compose file (`compose.yml`), find the `vippet-ui` service and its `ports` section:
 
