@@ -67,13 +67,24 @@ export class DatastoreService {
     return fileSplitted.pop()!;
   }
 
+  private encodeObjectPath(objectName: string): string {
+    const normalizedObjectName = objectName.replace(/^\/+/, '');
+    return normalizedObjectName
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+  }
+
   getObjectName(
     stateId: string,
     originalFileName: string,
   ): { objectPath: string; fileExtn: string } {
-    const fileName = originalFileName;
-    const fileExtn = this.getExtension(originalFileName);
-    return { objectPath: `${stateId}/${fileName}`, fileExtn };
+    const baseName = path.basename(originalFileName || '').trim();
+    const fileExtn = this.getExtension(baseName);
+    const hasFileExtension = baseName.includes('.') && !baseName.endsWith('.');
+    // Use a deterministic storage key so downstream services never depend on user-supplied names.
+    const storageFileName = hasFileExtension ? `source.${fileExtn}` : 'source';
+    return { objectPath: `${stateId}/${storageFileName}`, fileExtn };
   }
 
   getObjectURL(objectName: string): string {
@@ -84,7 +95,7 @@ export class DatastoreService {
   }
 
   getObjectRelativePath(objectName: string): string {
-    return `/${this.bucket}/${objectName}`;
+    return `/${this.bucket}/${this.encodeObjectPath(objectName)}`;
   }
 
   getWithURL(accessPath: string) {

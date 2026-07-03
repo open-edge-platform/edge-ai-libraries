@@ -23,7 +23,6 @@ def patch_config(monkeypatch):
     if getattr(main, "config", None) is not None:
         main.config.clear()
     main.config = {
-        "model_registry": {"enable": True, "version": "2.0"},
         "udfs": {"name": "udf_name", "model": "model_name"},
         "alerts": {"opcua": {"opcua_server": "opc.tcp://localhost:4840", "node_id": "ns=2;i=2", "namespace": 2}}
     }
@@ -80,7 +79,6 @@ def test_receive_data_kapacitor_down(monkeypatch):
 def test_get_config(monkeypatch):
     resp = client.get("/config")
     assert resp.status_code == 200
-    assert "model_registry" in resp.json()
     assert "udfs" in resp.json()
     assert "alerts" in resp.json()
 
@@ -91,12 +89,11 @@ def test_get_config_with_restart(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", fake_restart)
     resp = client.get("/config?restart=true")
     assert resp.status_code == 200
-    assert "model_registry" in resp.json()
+    assert "udfs" in resp.json()
 
 def test_post_config(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
     data = {
-        "model_registry": {"enable": True, "version": "3.0"},
         "udfs": {"name": "udf_name", "model": "model_name"},
         "alerts": {}
     }
@@ -349,10 +346,10 @@ async def test_get_config_returns_full_config(monkeypatch):
 async def test_get_config_filters_by_query(monkeypatch):
     # Simulate a request with query params to filter config
     class DummyRequest:
-        query_params = {"model_registry": "1"}
+        query_params = {"udfs": "1"}
     result = await main.get_config(DummyRequest())
     # Should only return the filtered key
-    assert result == {"model_registry": main.config["model_registry"]}
+    assert result == {"udfs": main.config["udfs"]}
 
 @pytest.mark.asyncio
 async def test_get_config_removes_restart_param(monkeypatch):
@@ -544,7 +541,6 @@ def test_main_config_load_exception(monkeypatch):
 def test_post_config_success(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
     data = {
-        "model_registry": {"enable": True, "version": "3.1"},
         "udfs": {"name": "udf_name", "model": "model_name"},
         "alerts": {"opcua": {"opcua_server": "opc.tcp://localhost:4840", "node_id": "ns=2;i=2", "namespace": 2}}
     }
@@ -557,7 +553,6 @@ def test_post_config_success(monkeypatch):
 def test_post_config_alerts_optional(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
     data = {
-        "model_registry": {"enable": False, "version": "1.0"},
         "udfs": {"name": "udf_name", "model": "model_name"}
         # alerts omitted
     }
@@ -573,7 +568,6 @@ def test_post_config_invalid_json(monkeypatch):
     class DummyConfig:
         def model_dump(self):
             return {}
-        model_registry = property(lambda self: (_ for _ in ()).throw(main.json.JSONDecodeError("msg", "doc", 1)))
         udfs = {}
         alerts = {}
     with pytest.raises(main.HTTPException) as exc:
@@ -587,9 +581,6 @@ def test_post_config_missing_key(monkeypatch):
     class DummyConfig:
         def model_dump(self):
             return {}
-        @property
-        def model_registry(self):
-            raise KeyError("model_registry")
         udfs = {}
         alerts = {}
     with pytest.raises(main.HTTPException) as exc:
@@ -606,7 +597,6 @@ def test_post_config_triggers_background_task(monkeypatch):
             fake_add_task(fn)
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
     data = {
-        "model_registry": {"enable": True, "version": "2.0"},
         "udfs": {"name": "udf_name", "model": "model_name"},
         "alerts": {}
     }

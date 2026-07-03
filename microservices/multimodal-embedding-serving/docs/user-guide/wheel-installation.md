@@ -42,24 +42,24 @@ pip install dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl
 
 1. Copy the wheel to your project:
 
-```bash
-mkdir -p /path/to/your-project/wheels
-cp dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl /path/to/your-project/wheels/
-```
+   ```bash
+   mkdir -p /path/to/your-project/wheels
+   cp dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl /path/to/your-project/wheels/
+   ```
 
 2. Add to your `pyproject.toml`:
 
-```toml
-[tool.poetry.dependencies]
-python = "^3.8"
-multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl"}
-```
+   ```toml
+   [tool.poetry.dependencies]
+   python = "^3.8"
+   multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl"}
+   ```
 
 3. Install:
 
-```bash
-poetry install
-```
+   ```bash
+   poetry install
+   ```
 
 #### Method C: pip requirements.txt
 

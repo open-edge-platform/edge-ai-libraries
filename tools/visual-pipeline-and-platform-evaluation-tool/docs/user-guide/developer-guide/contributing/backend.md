@@ -2,7 +2,7 @@
 
 The ViPPET backend lives in [`vippet/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet).
 It is a Python 3.12 / FastAPI service that exposes a REST API on port `7860`,
-orchestrates GStreamer + DLStreamer pipelines as subprocesses, runs
+orchestrates GStreamer + DL Streamer pipelines as subprocesses, runs
 benchmarks, and proxies model installation to the `model-download`
 microservice.
 
@@ -18,7 +18,7 @@ vippet/
 ├── api/                  # FastAPI app
 │   ├── main.py           # App entrypoint, router registration, middleware
 │   ├── api_schemas.py    # Pydantic v2 request/response models
-│   ├── middleware.py     # Custom middleware (e.g. upload size limits)
+│   ├── middleware.py     # Custom middleware (e.g., upload size limits)
 │   ├── routes/           # Route handlers, one module per resource
 │   │   ├── pipelines.py
 │   │   ├── pipeline_templates.py
@@ -71,21 +71,21 @@ A few invariants worth knowing:
   the container context (`PYTHONPATH=/app`). Tests run inside the same image.
 - GStreamer pipelines are **not** executed in-process. `pipeline_runner.py`
   builds a command line and starts `gst_runner.py` as a subprocess.
-- OpenVINO device detection (`device.py`) happens at startup and drives
+- OpenVINO™ device detection (`device.py`) happens at startup and drives
   which hardware profile (`cpu`, `gpu`, `npu`) is selected at compose time.
 
 ## Tech stack
 
-| Layer            | Technology                                        |
-|------------------|---------------------------------------------------|
-| Language         | Python 3.12                                       |
-| Web framework    | FastAPI + uvicorn                                 |
-| Validation       | Pydantic v2                                       |
-| AI inference     | OpenVINO™ 2025.x, DLStreamer 2026.x, GStreamer 1.0|
-| Metrics          | Telegraf, qmassa (GPU), InfluxDB line protocol    |
-| Containerization | Docker Compose (profiles: `cpu`, `gpu`, `npu`)    |
-| Lint / type      | ruff, pyright (strict)                            |
-| Tests            | unittest + coverage (unit), pytest (functional)   |
+| Layer            | Technology                                          |
+| ---------------- | --------------------------------------------------- |
+| Language         | Python 3.12                                         |
+| Web framework    | FastAPI + uvicorn                                   |
+| Validation       | Pydantic v2                                         |
+| AI inference     | OpenVINO™ 2025.x, DL Streamer 2026.x, GStreamer 1.0 |
+| Metrics          | Telegraf, qmassa (GPU), InfluxDB line protocol      |
+| Containerization | Docker Compose (profiles: `cpu`, `gpu`, `npu`)      |
+| Lint / type      | ruff, pyright (strict)                              |
+| Tests            | unittest + coverage (unit), pytest (functional)     |
 
 ## Local development loop
 
@@ -104,7 +104,7 @@ make shell-vippet     # exec into the vippet container
 Useful targets while iterating:
 
 | Target                       | Description                                                 |
-|------------------------------|-------------------------------------------------------------|
+| ---------------------------- | ----------------------------------------------------------- |
 | `make run-dev`               | Start the stack with live code reload.                      |
 | `make stop`                  | Stop all compose services.                                  |
 | `make clean`                 | Stop containers and remove generated volumes.               |
@@ -162,35 +162,84 @@ def process(data: list[dict[str, int]] | None) -> bool:
 
 ## Tests
 
-Unit tests live in `vippet/tests/unit/` and use Python's `unittest`
-framework with `coverage`. They are device-agnostic and run inside the
-`cpu` profile image:
+ViPPET has two test suites:
+
+| Suite      | Framework             | Location                   | Where it runs                  |
+|------------|-----------------------|----------------------------|--------------------------------|
+| Unit       | `unittest` + coverage | `vippet/tests/unit/`       | Inside the `test` Docker image |
+| Functional | `pytest`              | `vippet/tests/functional/` | Local Python venv (`.venv`)    |
+
+### How to run the tests
+
+All test targets are available through the `Makefile`. Run them from the
+repository root.
+
+| Command           | What it does                                                        |
+|-------------------|---------------------------------------------------------------------|
+| `make test`       | Run the full unit-test suite with coverage (Docker, `cpu` profile). |
+| `make test-smoke` | Run functional tests marked `smoke` (fast subset, local venv).      |
+| `make test-full`  | Run the complete functional suite (local venv).                     |
+
+#### Unit tests
 
 ```bash
 make test
 ```
 
-This builds an image with `TARGET=test`, mounts the source tree, runs
-`unittest discover` against `tests/unit/`, and prints a coverage report
-plus an HTML report under `/tmp/.vippet-coverage-html` inside the
-container.
+This builds an image with `TARGET=test`, mounts the source tree, and runs
+`unittest discover` against `tests/unit/` (test files match the
+`*_test.py` pattern). It then prints a coverage report to the terminal and
+writes an HTML report to `/tmp/.vippet-coverage-html` inside the container.
 
-Functional / smoke tests use pytest:
+Unit tests are device-agnostic and always run under the `cpu` profile, so
+they need no GPU/NPU hardware.
+
+#### Functional tests
+
+Functional tests exercise the running service through `pytest` and execute
+in a local virtual environment, which the target creates automatically on
+first run (`.venv`, from `vippet/requirements-dev.txt`):
 
 ```bash
-make test-smoke   # marker: smoke
-make test-full    # full functional suite
+make test-smoke   # only tests marked `smoke` (quick check)
+make test-full    # the full functional suite
 ```
 
-When you add a feature:
+Prerequisites:
 
-- Put unit tests next to existing ones in
-  `vippet/tests/unit/<area>_tests/` (for example
-  `managers_tests/`, `api_tests/`).
+- The VIPPET stack must be **running and reachable** before you start the
+  tests (for example `make run`). The suite targets
+  `http://localhost/api/v1` by default; override it with the
+  `VIPPET_BASE_URL` environment variable.
+- The models the tests rely on must already be **installed** through the
+  Models page in the UI (or the `/api/v1/models` endpoints):
+  - `make test-smoke` needs the default models (those marked
+    `default: true` in `shared/models/supported_models.yaml`).
+  - `make test-full` needs **all** models listed in
+    `shared/models/supported_models.yaml`.
+
+Tests that depend on optional hardware adapt automatically: pipeline
+variants are selected from the devices reported by `/devices`, and USB
+camera tests are skipped when `/cameras` reports no camera.
+
+Under the hood these run, respectively:
+
+```bash
+python -m pytest --log-cli-level=INFO -m smoke vippet/tests/functional/
+python -m pytest --log-cli-level=INFO          vippet/tests/functional/
+```
+
+### When you add a feature
+
+- Put unit tests next to existing ones in `vippet/tests/unit/`; API route
+  tests go under `vippet/tests/unit/api_tests/`. Name files `*_test.py` so
+  `unittest discover` picks them up.
 - Cover both the happy path and the error paths (invalid input, missing
   resource, conflicting state).
 - For new API endpoints, add tests that exercise the route through FastAPI's
-  `TestClient`.
+  `TestClient`, and add a functional test under
+  `vippet/tests/functional/` (named `test_*.py`) when the behavior spans
+  the running service.
 
 ## Linting and formatting
 

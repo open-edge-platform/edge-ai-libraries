@@ -667,6 +667,25 @@ convert_object_detection_models() {
 #          servables, so this function does not handle NPU.
 #
 # Users can override all of this by exporting OVMS_CACHE_SIZE_GB.
+
+# Get a minimal fallback cache size when OpenVINO cannot query the GPU.
+get_fallback_ovms_cache_size() {
+    local total_ram_gb="$1"
+    local cache_gb
+    
+    # Cache size: ~25% of system RAM (shared memory), clamped to [2, 6]
+    cache_gb=$((total_ram_gb * 25 / 100))
+    cache_gb=$(( cache_gb < 2 ? 2 : cache_gb > 6 ? 6 : cache_gb ))
+    echo "$cache_gb"
+}
+
+warn_ovms_cache_fallback () {
+    local target_device="$1"
+    local cache_gb="$2"
+    echo -e "[ovms-service] ${YELLOW}Warning: Could not determine VRAM size for device '${target_device}' via OpenVINO; using conservative iGPU cache size ${cache_gb} GB.${NC}" >&2
+    echo -e "[ovms-service] ${YELLOW}GPU inference runs inside the OVMS container. Set OVMS_CACHE_SIZE_GB to override this value.${NC}" >&2
+}
+
 get_ovms_cache_size() {
     local target_device="$1"
     # Allow user override via OVMS_CACHE_SIZE_GB environment variable (validated at startup)
