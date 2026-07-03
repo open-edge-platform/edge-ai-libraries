@@ -190,7 +190,10 @@ build-deps: check-docker check-poetry
 
 # Push all built images (app services + dependency microservices) to the registry.
 push: check-docker
-	@$(if $(REGISTRY),,echo "⚠️  Warning: No registry prefix set. Images will be pushed to the default Docker registry (docker.io).")
+	@if [ -z "$(REGISTRY)" ]; then \
+	  echo "❌ REGISTRY is empty. Refusing to push un-namespaced images to docker.io. Set REGISTRY or REGISTRY_URL+PROJECT_NAME."; \
+	  exit 1; \
+	fi
 	@echo "🚀 Pushing images to registry..."
 	@push_ok=true; \
 	for image in $(ALL_IMAGES); do \
