@@ -25,26 +25,18 @@ spec:
           {{- toYaml . | nindent 10 }}
       {{- end }}
       initContainers:
+        # Download the object detection model via the model-download microservice
+        # REST API. The script lives in the vss-model-download-helper ConfigMap
+        # (chart/templates/model-download-helper.yaml) to keep this template clean.
         - name: model-converter
-          image: "{{ .Values.videoingestion.image.repository }}:{{ .Values.videoingestion.image.tag }}"
-          imagePullPolicy: {{ .Values.videoingestion.image.pullPolicy }}
-          command: ["/bin/bash", "-c"]
-          args:
-            - |
-              # Check if model directory exists but is incomplete
-              if [ -d "${OD_MODEL_OUTPUT_DIR}" ] && ( [ ! -d "${OD_MODEL_OUTPUT_DIR}/FP32" ] || [ ! -d "${OD_MODEL_OUTPUT_DIR}/FP16" ] ); then
-                echo "Model directory exists but appears incomplete. Removing it to trigger fresh conversion."
-                rm -rf "${OD_MODEL_OUTPUT_DIR}"
-              fi
-              # Run the original conversion script
-              /scripts/model-converter.sh
+          image: "{{ .Values.global.modelDownload.image.repository }}:{{ .Values.global.modelDownload.image.tag }}"
+          imagePullPolicy: {{ .Values.global.modelDownload.image.pullPolicy }}
+          command: ["/bin/sh", "/scripts/download-od-model.sh"]
           env:
-            - name: OD_MODEL_OUTPUT_DIR
-              value: /models/yoloworld/v2
-            - name: OD_MODEL_NAME
+            - name: MODEL_NAME
               value: {{ required "Value for odModelName is required!" .Values.odModelName | quote }}
-            - name: OD_MODEL_TYPE
-              value: {{ required "Value for odModelType is required!" .Values.odModelType | quote }}
+            - name: MODEL_PATH
+              value: /opt/models
             - name: no_proxy
               value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
             - name: http_proxy
@@ -52,12 +44,14 @@ spec:
             - name: https_proxy
               value: "{{ .Values.global.proxy.https_proxy }}"
           volumeMounts:
-            - name: model-converter-scripts
-              mountPath: /scripts
             - name: models-volume
-              mountPath: /models
+              mountPath: /opt/models
               subPath: ov-models/videoingestion
+            - name: model-download-scripts
+              mountPath: /scripts
           securityContext:
+            runAsUser: 0
+            runAsGroup: 0
             privileged: true
       containers:
         - name: {{ .Chart.Name }}
@@ -143,10 +137,6 @@ spec:
       - name: run-udev
         hostPath:
           path: /run/udev
-      - name: model-converter-scripts
-        configMap:
-          name: {{ include "videoingestion.fullname" . }}-model-converter
-          defaultMode: 0755
       - name: models-volume
         {{- if .Values.global.usePvc }}
         persistentVolumeClaim:
@@ -158,4 +148,8 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
+      - name: model-download-scripts
+        configMap:
+          name: vss-model-download-helper
+          defaultMode: 0755
       restartPolicy: Always

@@ -106,7 +106,7 @@ Before running the application, you need to set several environment variables:
       | `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | YOLO model for object detection during video ingestion. |
       | `MULTIMODAL_EMBEDDING_MODEL` | Search, Dual UI | Multimodal model for generating video frame embeddings. |
       | `TEXT_EMBEDDING_MODEL` | Unified UI | Text embedding model for generating summary text embeddings. |
-      | `OVMS_LLM_MODEL_NAME` | _(Optional)_ Any of Summary, Dual UI or Unified UI mode with `ENABLE_OVMS_LLM_SUMMARY=true` | LLM for OVMS-based final summary generation. |
+      | `OVMS_LLM_MODEL_NAME` | _(Optional)_ Summary, Dual UI, or Unified UI | LLM for OVMS-based final summary generation. When set and different from `VLM_MODEL_NAME`, enables split-model mode (separate VLM for captioning, LLM for summarization). |
       | `PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | _(Optional)_ Summary, Dual UI | Enables condensed transcript summary injection in the prompt to generate video summary. |
 
      **Common to all modes except `--search`:**
@@ -132,8 +132,10 @@ Before running the application, you need to set several environment variables:
       # You can provide just one or comma-separated list of models.
       export ENABLED_WHISPER_MODELS="tiny.en,small.en,medium.en"
 
-      # Object detection model used for Video Ingestion Service. Only Yolo models are supported.
-      export OD_MODEL_NAME="yolov8l-worldv2"
+      # Object detection model used for Video Ingestion Service. Only generic
+      # YOLO models supported by the model-download ultralytics hub are
+      # supported (e.g. yolov8l, yolov8s, yolov5su).
+      export OD_MODEL_NAME="yolov8l"
       ```
 
      **Required in `--search` and `--summary --search` mode:**

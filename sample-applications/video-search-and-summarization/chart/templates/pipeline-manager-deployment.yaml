@@ -1,26 +1,12 @@
-{{- /* OVMS device configuration from global.devices.ovms */ -}}
-{{- $ovmsVlmDevice := default "CPU" .Values.global.devices.ovms.vlm.device -}}
-{{- $ovmsLlmDevice := default "CPU" .Values.global.devices.ovms.llm.device -}}
-{{- $ovmsVlmUsesGpu := contains "GPU" $ovmsVlmDevice -}}
+{{- /* OVMS model-serving parameters — single source of truth: templates/_ovms-model-config.tpl.
+       Storage names here MUST match what the OVMS subchart registers in config.json. */ -}}
+{{- $ovms := include "vss.ovms.modelConfig" (dict "global" .Values.global "ovmsEnv" .Values.ovms.env "parentEnv" .Values.env) | fromYaml -}}
+{{- $ovmsVlmDevice := $ovms.vlmDevice -}}
+{{- $ovmsLlmDevice := $ovms.llmDevice -}}
 {{- $ovmsVlmUsesAccelerator := or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice) -}}
+{{- $vlmStorageName := $ovms.vlmStorageName -}}
+{{- $llmStorageName := $ovms.llmStorageName -}}
 {{- $useVllm := .Values.vllm.enabled -}}
-{{- $ovmsChartEnv := .Values.ovms.env -}}
-{{- $ovmsParentEnv := .Values.env -}}
-{{- /* Weight format: use explicit value or auto-detect based on device */ -}}
-{{- $ovmsVlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice))) (default $ovmsChartEnv.VLM_WEIGHT_FORMAT $ovmsParentEnv.VLM_WEIGHT_FORMAT) -}}
-{{- $ovmsLlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsLlmDevice))) (default $ovmsChartEnv.LLM_WEIGHT_FORMAT $ovmsParentEnv.LLM_WEIGHT_FORMAT) -}}
-{{- /* Generate storage model names for OVMS */ -}}
-{{- $vlmSanitized := .Values.global.vlmName | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
-{{- $vlmIsOpenvino := hasPrefix "OpenVINO/" .Values.global.vlmName -}}
-{{- $vlmStorageName := ternary (printf "%s_%s" $vlmSanitized $ovmsVlmDevice) (printf "%s_%s_%s" $vlmSanitized $ovmsVlmDevice $ovmsVlmWeightFormat) $vlmIsOpenvino -}}
-{{- $effectiveOvmLlmModel := default .Values.global.vlmName .Values.global.llmName -}}
-{{- $llmSanitized := $effectiveOvmLlmModel | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
-{{- $llmIsOpenvino := hasPrefix "OpenVINO/" $effectiveOvmLlmModel -}}
-{{- $ovmsSplitModel := or (ne $effectiveOvmLlmModel .Values.global.vlmName) (ne $ovmsLlmDevice $ovmsVlmDevice) (ne $ovmsLlmWeightFormat $ovmsVlmWeightFormat) -}}
-{{- $llmStorageName := $vlmStorageName -}}
-{{- if $ovmsSplitModel -}}
-{{- $llmStorageName = ternary (printf "%s_%s" $llmSanitized $ovmsLlmDevice) (printf "%s_%s_%s" $llmSanitized $ovmsLlmDevice $ovmsLlmWeightFormat) $llmIsOpenvino -}}
-{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -136,6 +122,10 @@ spec:
               value: "{{ .Values.rabbitmq.service.mqttPort }}"
             - name: EVAM_DEVICE
               value: "CPU"
+            - name: EVAM_DETECTION_MODEL
+              value: {{ .Values.videoingestion.odModelName | default "yolov8l" | quote }}
+            - name: EVAM_DETECTION_MODEL_PATH
+              value: {{ printf "/home/pipeline-server/models/object-detection/ultralytics/public/%s/FP32/%s.xml" (.Values.videoingestion.odModelName | default "yolov8l") (.Values.videoingestion.odModelName | default "yolov8l") | quote }}
             - name: RABBITMQ_HOST
               value: "{{ .Values.rabbitmq.name }}"
             - name: RABBITMQ_USER

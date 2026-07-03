@@ -1,0 +1,194 @@
+{{- /*
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+
+Shared scripts for model-download init containers (OVMS and Video Ingestion).
+Each script starts the model-download service in the background, waits for it
+to be healthy, submits a download job via the REST API, polls until the job
+completes, and then exits — causing the init container to proceed to the next
+init container or the main container.
+
+Scripts read their parameters from environment variables so that the deployment
+templates remain clean (no Helm values embedded inside shell code).
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vss-model-download-helper
+  labels:
+    app: vss-model-download-helper
+data:
+  # ---------------------------------------------------------------------------
+  # download-vlm.sh
+  # Downloads a VLM model and converts it to OpenVINO/OVMS format in one step
+  # using the model-download service's openvino plugin (hub=openvino, is_ovms=true).
+  #
+  # Required env vars (set by OVMS deployment init container):
+  #   MODEL_NAME    HuggingFace model id, e.g. "Qwen/Qwen2.5-VL-3B-Instruct"
+  #   WEIGHT_FORMAT Compression precision, e.g. "int8" or "int4"
+  #   DEVICE        Target device in lowercase, e.g. "cpu" or "gpu"
+  # ---------------------------------------------------------------------------
+  download-vlm.sh: |-
+    #!/bin/sh
+    set -e
+
+    BASE_URL="http://localhost:8000"
+    MODEL_DIR="/opt/models/ovms/openvino_models/${DEVICE}/${WEIGHT_FORMAT}/${MODEL_NAME}"
+
+    # Skip if already converted (export_model.py places files directly at MODEL_DIR).
+    # MediaPipe/GenAI graphs are not versioned — no /1/ subdirectory is needed.
+    if [ -d "${MODEL_DIR}" ] && ls "${MODEL_DIR}"/*.xml >/dev/null 2>&1; then
+      echo "Model already converted at ${MODEL_DIR}, skipping."
+      exit 0
+    fi
+
+    # Start the model-download service (openvino plugin handles download + conversion)
+    /opt/entrypoint.sh --plugins "huggingface,openvino" &
+    SVC_PID=$!
+
+    echo "Waiting for model-download service..."
+    RETRIES=0
+    until curl -sf "${BASE_URL}/health" >/dev/null 2>&1; do
+      RETRIES=$((RETRIES + 1))
+      [ "$RETRIES" -ge 60 ] && { echo "ERROR: Service did not start within 5 minutes"; exit 1; }
+      sleep 5
+    done
+    echo "Service ready. Submitting download+conversion for ${MODEL_NAME}"
+
+    # Config expects precision (lowercase) and device (uppercase) in the nested config object.
+    DEVICE_UPPER=$(echo "$DEVICE" | tr '[:lower:]' '[:upper:]')
+    RESP=$(curl -sf -X POST "${BASE_URL}/models/download?download_path=ovms" \
+      -H "Content-Type: application/json" \
+      -d "{\"models\":[{\"name\":\"${MODEL_NAME}\",\"hub\":\"openvino\",\"type\":\"vlm\",\"is_ovms\":true,\"config\":{\"precision\":\"${WEIGHT_FORMAT}\",\"device\":\"${DEVICE_UPPER}\"}}]}")
+    JOB_ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_ids'][0])")
+    echo "Job: ${JOB_ID}"
+
+    while true; do
+      JOB=$(curl -sf "${BASE_URL}/jobs/${JOB_ID}")
+      STATUS=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+      if [ "$STATUS" = "completed" ]; then
+        echo "VLM download and conversion complete."
+        break
+      elif [ "$STATUS" = "failed" ]; then
+        echo "ERROR: $(echo "$JOB" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("error","unknown"))')"
+        exit 1
+      fi
+      echo "Status: ${STATUS}"; sleep 10
+    done
+
+    kill "$SVC_PID" 2>/dev/null || true
+    wait "$SVC_PID" 2>/dev/null || true
+
+  # ---------------------------------------------------------------------------
+  # download-llm.sh
+  # Downloads a text LLM and converts to OpenVINO/OVMS format in one step.
+  # Used in OVMS split-model mode (global.llmName is set separately from vlmName).
+  #
+  # Required env vars (set by OVMS deployment init container):
+  #   MODEL_NAME    HuggingFace model id, e.g. "Intel/neural-chat-7b-v3-3"
+  #   WEIGHT_FORMAT Compression precision, e.g. "int8" or "int4"
+  #   DEVICE        Target device in lowercase, e.g. "cpu" or "gpu"
+  # ---------------------------------------------------------------------------
+  download-llm.sh: |-
+    #!/bin/sh
+    set -e
+
+    BASE_URL="http://localhost:8000"
+    MODEL_DIR="/opt/models/ovms/openvino_models/${DEVICE}/${WEIGHT_FORMAT}/${MODEL_NAME}"
+
+    if [ -d "${MODEL_DIR}" ] && ls "${MODEL_DIR}"/*.xml >/dev/null 2>&1; then
+      echo "LLM already converted at ${MODEL_DIR}, skipping."
+      exit 0
+    fi
+
+    /opt/entrypoint.sh --plugins "huggingface,openvino" &
+    SVC_PID=$!
+
+    echo "Waiting for model-download service..."
+    RETRIES=0
+    until curl -sf "${BASE_URL}/health" >/dev/null 2>&1; do
+      RETRIES=$((RETRIES + 1))
+      [ "$RETRIES" -ge 60 ] && { echo "ERROR: Service did not start within 5 minutes"; exit 1; }
+      sleep 5
+    done
+    echo "Service ready. Submitting download+conversion for ${MODEL_NAME}"
+
+    DEVICE_UPPER=$(echo "$DEVICE" | tr '[:lower:]' '[:upper:]')
+    RESP=$(curl -sf -X POST "${BASE_URL}/models/download?download_path=ovms" \
+      -H "Content-Type: application/json" \
+      -d "{\"models\":[{\"name\":\"${MODEL_NAME}\",\"hub\":\"openvino\",\"type\":\"llm\",\"is_ovms\":true,\"config\":{\"precision\":\"${WEIGHT_FORMAT}\",\"device\":\"${DEVICE_UPPER}\"}}]}")
+    JOB_ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_ids'][0])")
+    echo "Job: ${JOB_ID}"
+
+    while true; do
+      JOB=$(curl -sf "${BASE_URL}/jobs/${JOB_ID}")
+      STATUS=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+      if [ "$STATUS" = "completed" ]; then
+        echo "LLM download and conversion complete."
+        break
+      elif [ "$STATUS" = "failed" ]; then
+        echo "ERROR: $(echo "$JOB" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("error","unknown"))')"
+        exit 1
+      fi
+      echo "Status: ${STATUS}"; sleep 10
+    done
+
+    kill "$SVC_PID" 2>/dev/null || true
+    wait "$SVC_PID" 2>/dev/null || true
+
+  # ---------------------------------------------------------------------------
+  # download-od-model.sh
+
+  # Downloads an object-detection model via the ultralytics hub (no conversion).
+  #
+  # Required env vars (set by video-ingestion deployment init container):
+  #   MODEL_NAME    Ultralytics model id, e.g. "yolov8l"
+  # ---------------------------------------------------------------------------
+  download-od-model.sh: |-
+    #!/bin/sh
+    set -e
+
+    BASE_URL="http://localhost:8000"
+    MODEL_DIR="/opt/models/object-detection/ultralytics/public/${MODEL_NAME}"
+
+    # Skip if already downloaded (supports pod restarts without re-downloading).
+    # The ultralytics plugin places the IR under a precision subdir (FP32/INT8),
+    # so search recursively rather than globbing the top-level directory.
+    if [ -d "${MODEL_DIR}" ] && find "${MODEL_DIR}" -name '*.xml' 2>/dev/null | grep -q .; then
+      echo "OD model already downloaded at ${MODEL_DIR}, skipping."
+      exit 0
+    fi
+
+    /opt/entrypoint.sh --plugins "ultralytics" &
+    SVC_PID=$!
+
+    echo "Waiting for model-download service..."
+    RETRIES=0
+    until curl -sf "${BASE_URL}/health" >/dev/null 2>&1; do
+      RETRIES=$((RETRIES + 1))
+      [ "$RETRIES" -ge 60 ] && { echo "ERROR: Service did not start within 5 minutes"; exit 1; }
+      sleep 5
+    done
+    echo "Service ready. Submitting download for ${MODEL_NAME}"
+
+    RESP=$(curl -sf -X POST "${BASE_URL}/models/download?download_path=object-detection" \
+      -H "Content-Type: application/json" \
+      -d "{\"models\":[{\"name\":\"${MODEL_NAME}\",\"hub\":\"ultralytics\"}]}")
+    JOB_ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_ids'][0])")
+    echo "Download job: ${JOB_ID}"
+
+    while true; do
+      JOB=$(curl -sf "${BASE_URL}/jobs/${JOB_ID}")
+      STATUS=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+      if [ "$STATUS" = "completed" ]; then
+        echo "Download complete."
+        break
+      elif [ "$STATUS" = "failed" ]; then
+        echo "ERROR: Download failed: $(echo "$JOB" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("error","unknown"))')"
+        exit 1
+      fi
+      echo "Download status: ${STATUS}"; sleep 10
+    done
+
+    kill "$SVC_PID" 2>/dev/null || true
+    wait "$SVC_PID" 2>/dev/null || true

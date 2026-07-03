@@ -28,53 +28,26 @@ This project demonstrates video ingestion and processing using Deep Learning Str
     cd edge-ai-libraries/sample-applications/video-search-and-summarization/video-ingestion
     ```
 
-2. Download and Convert Models to OpenVINO IR format
+2. Download and convert the object detection model to OpenVINO IR format.
 
-This repository uses a custom script to download and convert models like [yoloworld](https://docs.ultralytics.com/models/yolo-world/) to the OpenVINO supported format.
-Ensure you have Python installed and run the following commands to execute the script.
+    The model is downloaded and converted in one shot by the [Model Download microservice](../../../microservices/model-download/README.md) running in **ephemeral mode**.
+    
+    ```bash
+    # Fetch the one-shot helper script (downloads the model-download image on first use)
+    curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/model-download/scripts/get_model.sh
 
-2.1. Create a virtual environment.
+    # Download + convert the default object detection model (yolov8l) into ./ov_models
+    source ./get_model.sh \
+      --model-name yolov8l \
+      --hub ultralytics \
+      --plugins ultralytics \
+      --download-path object-detection \
+      --model-path ./ov_models
+    ```
 
-```sh
-python -m venv ov_env
-```
+    This produces the IR on the host at `./ov_models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml` (seen inside the container as `/home/pipeline-server/models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml`).
 
-2.2 Activate the virtual environment
-
-```sh
-source ov_env/bin/activate
-```
-2.3. Download and install dependencies
-
-```sh
-pip install -q "openvino>=2025.0.0" "nncf>=2.9.0"
-pip install -q "torch>=2.1" "torchvision>=0.16" "ultralytics==8.3.59" onnx tqdm opencv-python --extra-index-url https://download.pytorch.org/whl/cpu
-```
-2.4. Download the models
-
-Convert the default model (yolov8l-worldv2):
-```sh
-python resources/scripts/converter.py
-```
-
-**Advanced Usage**:
-
-The script accepts command-line arguments to customize the conversion:
-
-```sh
-python resources/scripts/converter.py --model-name yolov8l-worldv2 --model-type yolo_v8 --output-dir ov_models/yoloworld
-```
-
-Available arguments:
-- `--model-name`: Name of the model without extension (default: 'yolov8l-worldv2')
-- `--model-type`: Type of model (default: 'yolo_v8')
-- `--output-dir`: Directory to save the converted models (default: 'models/yoloworld')
-
-2.5. Deacticvate
-
-```sh
-deactivate
-```
+    > **_NOTE:_** To use a different detection model, replace `yolov8l` with any [Ultralytics hub id](https://docs.ultralytics.com/models/) (e.g. `yolov8s`, `yolov5su`) and update the `model` path in the pipeline request (see [Run the Sample Pipeline](#run-the-sample-pipeline)) accordingly.
 
 3. Set the credentials for **RabbitMQ** and **Minio** Service by running following commands. You can use any desired value instead of example values being set here:
 
@@ -161,7 +134,7 @@ curl http://${host_ip}:${EVAM_HOST_PORT}/pipelines/user_defined_pipelines/object
       "chunk_duration": 10,
       "frame_width": 480,
       "detection-properties": {
-        "model": "/home/pipeline-server/models/yoloworld/FP32/yolov8l-worldv2.xml",
+        "model": "/home/pipeline-server/models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml",
         "device": "CPU"
       },
       "publish": {

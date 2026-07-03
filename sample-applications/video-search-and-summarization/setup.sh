@@ -157,11 +157,6 @@ elif [ "$1" = "--stop" ] || [ "$1" = "--clean-data" ]; then
     # Remove volumes if --clean-data is specified
     if [ "$1" = "--clean-data" ]; then
         remove_volumes || return 1
-        # Remove the persistent OpenVINO venv
-        if [ -d "${OV_VENV_DIR:-.ov_venv}" ]; then
-            echo -e "${YELLOW}Removing OpenVINO venv at ${OV_VENV_DIR:-.ov_venv}...${NC}"
-            rm -rf "${OV_VENV_DIR:-.ov_venv}"
-        fi
         echo -e "${GREEN}Clean operation completed successfully! ${NC}"
     fi
     return 0
@@ -443,11 +438,17 @@ export CONFIG_SOCKET_APPEND=${CONFIG_SOCKET_APPEND} # Set this to CONFIG_ON in y
 # Telemetry collector toggle for search (disabled by default)
 export ENABLE_VSS_COLLECTOR=${ENABLE_VSS_COLLECTOR:-false}
 
-# Object detection model settings
-export OD_MODEL_NAME=${OD_MODEL_NAME}
-export OD_MODEL_TYPE=${OD_MODEL_TYPE:-"yolo_v8"}
-export OD_MODEL_OUTPUT_DIR=${PWD}/ov_models/yoloworld/v2
-echo -e "[video-ingestion] ${GREEN}Using object detection model: ${YELLOW}$OD_MODEL_NAME of type $OD_MODEL_TYPE ${NC}"
+# Object detection model (ultralytics hub id; converted to OpenVINO IR by the
+# model-download microservice).
+export OD_MODEL_NAME=${OD_MODEL_NAME:-yolov8l}
+export OD_MODELS_ROOT=${PWD}/ov_models
+export OD_MODEL_DOWNLOAD_PATH="object-detection"
+# Host IR dir: <root>/<download_path>/ultralytics/public/<model>(/FP32/<model>.xml)
+export OD_MODEL_OUTPUT_DIR=${OD_MODELS_ROOT}/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}
+# IR path inside the video-ingestion container (consumed by pipeline-manager).
+export EVAM_DETECTION_MODEL=${EVAM_DETECTION_MODEL:-${OD_MODEL_NAME}}
+export EVAM_DETECTION_MODEL_PATH=${EVAM_DETECTION_MODEL_PATH:-/home/pipeline-server/models/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}/FP32/${OD_MODEL_NAME}.xml}
+echo -e "[video-ingestion] ${GREEN}Using object detection model: ${YELLOW}$OD_MODEL_NAME ${NC}"
 echo -e "[video-ingestion] ${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL_OUTPUT_DIR ${NC}"
 
 
@@ -492,13 +493,6 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
             echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}" >&2
             echo -e "${YELLOW}This is required for all modes except --search.${NC}" >&2
             return 1
-        fi
-        if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
-            if [ -z "$OVMS_LLM_MODEL_NAME" ]; then
-                echo -e "${RED}ERROR: OVMS_LLM_MODEL_NAME is not set in your shell environment.${NC}" >&2
-                echo -e "${YELLOW}This is required for all modes except --search.${NC}" >&2
-                return 1
-            fi
         fi
     fi
     if { [ "$1" = "--search" ] || [ "$1" = "--dual" ]; } && [ -z "$MULTIMODAL_EMBEDDING_MODEL" ]; then
@@ -564,71 +558,91 @@ else
     echo -e "${YELLOW}/dev/accel/accel0 not found, NPU not available.${NC}"
 fi
 
-# Function to convert object detection models
+# =================== Model Download Microservice (ephemeral) ===================
+# Image auto-pulled by `docker run` if absent. Override MODEL_DOWNLOAD_IMAGE to pin a tag.
+export MODEL_DOWNLOAD_TAG=${MODEL_DOWNLOAD_TAG:-${TAG:-latest}}
+export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-${REGISTRY}model-download:${MODEL_DOWNLOAD_TAG}}
+# OVMS release tag used by the openvino plugin's export_model.py.
+export MODEL_DOWNLOAD_OVMS_TAG=${MODEL_DOWNLOAD_OVMS_TAG:-v2026.1}
+# Sub-path under the OVMS models dir for converted models (kept lowercase).
+export OVMS_MS_DOWNLOAD_PATH=${OVMS_MS_DOWNLOAD_PATH:-ovms}
+
+# One-shot (ephemeral) model download+convert via the microservice container.
+# Usage: download_model_via_ms <host_models_dir> <plugins> [get_model.sh args...]
+download_model_via_ms() {
+    local host_models_dir="$1"; shift
+    local plugins="$1"; shift
+
+    if [ -z "$host_models_dir" ] || [ -z "$plugins" ]; then
+        echo -e "${RED}ERROR: download_model_via_ms requires <host_models_dir> and <plugins>.${NC}" >&2
+        return 1
+    fi
+
+    mkdir -p "$host_models_dir"
+
+    local env_args=(
+        -e "ENABLED_PLUGINS=${plugins}"
+        -e "MODEL_PATH=/opt/models"
+        -e "HF_HUB_ENABLE_HF_TRANSFER=1"
+        -e "OVMS_RELEASE_TAG=${MODEL_DOWNLOAD_OVMS_TAG}"
+        -e "no_proxy=${no_proxy:-}"
+        -e "http_proxy=${http_proxy:-}"
+        -e "https_proxy=${https_proxy:-}"
+    )
+
+    local hf_token="${HUGGINGFACE_TOKEN:-${HUGGINGFACEHUB_API_TOKEN:-}}"
+    if [ -n "$hf_token" ]; then
+        env_args+=(-e "HF_TOKEN=${hf_token}")
+    fi
+
+    echo -e "[model-download] ${BLUE}Running ${YELLOW}${MODEL_DOWNLOAD_IMAGE}${BLUE} (plugins: ${plugins}) — image auto-pulls if absent...${NC}"
+    docker run --rm \
+        "${env_args[@]}" \
+        -v "${host_models_dir}:/opt/models" \
+        --group-add "$(id -g)" \
+        "${MODEL_DOWNLOAD_IMAGE}" \
+        --plugins "${plugins}" --ephemeral "$@"
+}
+
+# Fix ownership of files written by the model-download container (runs as UID 1001):
+# chown back to the host user and add group-write so re-downloads still work.
+fix_model_dir_ownership() {
+    local host_dir="$1"
+    [ -d "$host_dir" ] || return 0
+    docker run --rm -u root \
+        -v "${host_dir}:/target" \
+        busybox sh -c "chown -R $(id -u):$(id -g) /target && chmod -R g+w /target && find /target -type d -exec chmod g+x {} +" 2>/dev/null || {
+        echo -e "${YELLOW}WARNING: Could not fix ownership of ${host_dir}. Cache-size patching may fail.${NC}" >&2
+    }
+}
+
+# Download & convert the object detection model via the model-download
+# microservice (ultralytics plugin -> OpenVINO IR, FP16 + FP32).
 convert_object_detection_models() {
-    echo -e  "Setting up Python environment for object detection model conversion..."
-    # Check if python3-venv is already available
-    if ! python3 -m venv --help > /dev/null 2>&1; then
-        echo -e  "Installing python3-venv package..."
-        if command -v apt-get > /dev/null 2>&1; then
-            sudo apt-get install -y python3-venv
-        elif command -v dnf > /dev/null 2>&1; then
-            sudo dnf install -y python3
-        else
-            echo -e "${RED}ERROR: Unsupported package manager. Please install python3-venv manually.${NC}"
-            return 1
-        fi
-    else
-        echo -e  "python3-venv is already available, skipping installation"
-    fi
+    echo -e "[video-ingestion] ${BLUE}Downloading & converting object detection model '${OD_MODEL_NAME}' via model-download microservice...${NC}"
 
-    # Create and activate virtual environment for model conversion
-    python3 -m venv ov_model_venv
-    source ov_model_venv/bin/activate
+    download_model_via_ms \
+        "${OD_MODELS_ROOT}" \
+        "ultralytics" \
+        --model-name "${OD_MODEL_NAME}" \
+        --hub ultralytics \
+        --download-path "${OD_MODEL_DOWNLOAD_PATH}"
 
-    echo -e  "Installing required packages for model conversion..."
-    pip install -q "ultralytics==8.3.232" "openvino==2025.4.1" --extra-index-url https://download.pytorch.org/whl/cpu
-    
-    # Run script to convert the model to OpenVINO format and verify conversion
-    echo -e  "Converting object detection model: ${OD_MODEL_NAME} (${OD_MODEL_TYPE})..."
-    python3 video-ingestion/resources/scripts/converter.py --model-name "${OD_MODEL_NAME}" --model-type "${OD_MODEL_TYPE}" --output-dir "${OD_MODEL_OUTPUT_DIR}"
     if [ $? -ne 0 ]; then
-        echo -e "${RED}ERROR: Model conversion failed for ${OD_MODEL_NAME}.${NC}" >&2
+        echo -e "${RED}ERROR: Model download/conversion failed for ${OD_MODEL_NAME}.${NC}" >&2
+        return 1
+    fi
+
+    fix_model_dir_ownership "${OD_MODELS_ROOT}/${OD_MODEL_DOWNLOAD_PATH}"
+
+    if [ -f "${OD_MODEL_OUTPUT_DIR}/FP32/${OD_MODEL_NAME}.xml" ]; then
+        echo -e "[video-ingestion] ${GREEN}Object detection model ${OD_MODEL_NAME} ready at ${OD_MODEL_OUTPUT_DIR}/FP32/${NC}"
     else
-        echo -e "${GREEN}Model conversion succeeded for ${OD_MODEL_NAME}.${NC}"
-        echo -e  "${BLUE}Object detection model ${OD_MODEL_NAME} has been successfully converted and saved to ${OD_MODEL_OUTPUT_DIR}${NC}"
+        echo -e "${RED}ERROR: Expected IR not found at ${OD_MODEL_OUTPUT_DIR}/FP32/${OD_MODEL_NAME}.xml after download.${NC}" >&2
+        return 1
     fi
-    echo -e "Cleaning up virtual environment..."
-    deactivate
-    rm -rf ov_model_venv
 }
 
-# Directory for the persistent OpenVINO virtual environment.
-# This venv is kept across runs so that get_ovms_cache_size can query GPU
-# properties without requiring the caller to activate a venv first.
-# Cleaned up by --clean-data.
-OV_VENV_DIR="${OV_VENV_DIR:-$(pwd)/.ov_venv}"
-
-# Ensure a lightweight Python venv with openvino is available.
-# Creates the venv on first call; subsequent calls are no-ops.
-ensure_ov_venv() {
-    if [ -x "${OV_VENV_DIR}/bin/python3" ] && "${OV_VENV_DIR}/bin/python3" -c "import openvino" 2>/dev/null; then
-        return 0
-    fi
-    echo -e "[ovms-service] ${BLUE}Creating persistent OpenVINO venv at ${OV_VENV_DIR}...${NC}" >&2
-    if ! python3 -m venv --help > /dev/null 2>&1; then
-        if command -v apt-get > /dev/null 2>&1; then
-            sudo apt-get install -y python3-venv || return 1
-        elif command -v dnf > /dev/null 2>&1; then
-            sudo dnf install -y python3 || return 1
-        else
-            echo -e "${RED}ERROR: Unsupported package manager. Please install python3-venv manually.${NC}" >&2
-            return 1
-        fi
-    fi
-    python3 -m venv "$OV_VENV_DIR" || return 1
-    "${OV_VENV_DIR}/bin/pip" install --no-cache-dir -q openvino || return 1
-}
 
 # Compute the OVMS KV cache size (in GB) for a given target device.
 #
@@ -646,7 +660,7 @@ ensure_ov_venv() {
 #          weights. The lower upper clamp (6 GB) prevents starving
 #          the GPU driver's limited memory pool.
 #   dGPU — 33% of dedicated VRAM, clamped to [2, 16] GB.
-#          Discrete GPUs have their own VRAM (queried via OpenVINO).
+#          Discrete GPUs have their own VRAM (queried via sysfs).
 #          A higher percentage is safe because VRAM isn't shared with
 #          the OS, but we still reserve ~67% for model weights.
 #   NPU  — Not applicable; OVMS ignores cache_size for NPU stateful
@@ -668,43 +682,29 @@ get_ovms_cache_size() {
     local cache_gb
     case "$target_device" in
         *GPU*)
-            # Query the specific GPU device via OpenVINO Python API.
-            # This natively handles GPU / GPU.0 / GPU.1 device addressing and
-            # returns accurate VRAM size and device type (DISCRETE vs INTEGRATED)
-            # across all driver generations (i915, xe, future).
-            ensure_ov_venv || return 1
-            local ov_result=""
-            ov_result=$("${OV_VENV_DIR}/bin/python3" - "$target_device" <<'PY' 2>/dev/null
-import sys
-try:
-    import openvino as ov
-    core = ov.Core()
-    device = sys.argv[1]
-    dtype = str(core.get_property(device, "DEVICE_TYPE"))
-    mem_bytes = 0
-    if "DISCRETE" in dtype:
-        mem_bytes = core.get_property(device, "GPU_DEVICE_TOTAL_MEM_SIZE")
-    print(f"{dtype} {mem_bytes}")
-except Exception:
-    pass
-PY
-            )
+            # Detect dedicated VRAM via sysfs (mem_info_vram_total, i915/xe drivers).
+            local vram_bytes=0
+            local vram_file
+            for vram_file in \
+                /sys/bus/pci/drivers/i915/*/mem_info_vram_total \
+                /sys/bus/pci/drivers/xe/*/mem_info_vram_total; do
+                [[ -f "$vram_file" ]] || continue
+                local v
+                v=$(cat "$vram_file" 2>/dev/null)
+                if [[ -n "$v" && "$v" -gt "$vram_bytes" ]] 2>/dev/null; then
+                    vram_bytes="$v"
+                fi
+            done
 
-            local ov_device_type ov_mem_bytes
-            ov_device_type=$(echo "$ov_result" | awk '{print $1}')
-            ov_mem_bytes=$(echo "$ov_result" | awk '{print $2}')
-
-            if [[ -z "$ov_device_type" ]]; then
-                echo -e "${RED}ERROR: Failed to query GPU device '${target_device}' via OpenVINO.${NC}" >&2
-                echo -e "${YELLOW}Ensure the GPU device is available. You can override with OVMS_CACHE_SIZE_GB.${NC}" >&2
-                return 1
-            elif [[ "$ov_device_type" == *DISCRETE* && -n "$ov_mem_bytes" && "$ov_mem_bytes" -gt 0 ]] 2>/dev/null; then
+            if [[ "$vram_bytes" -gt 0 ]] 2>/dev/null; then
                 # dGPU: ~33% of dedicated VRAM, clamped to [2, 16]
-                local dgpu_vram_gb=$((ov_mem_bytes / 1073741824))
+                local dgpu_vram_gb=$((vram_bytes / 1073741824))
                 cache_gb=$((dgpu_vram_gb * 33 / 100))
                 cache_gb=$(( cache_gb < 2 ? 2 : cache_gb > 16 ? 16 : cache_gb ))
             else
-                # iGPU: ~25% of system RAM (shared memory), clamped to [2, 6]
+                # VRAM not readable (iGPU/shared memory): fall back to 25% of system RAM, [2, 6] GB.
+                echo -e "${YELLOW}WARNING: Could not read GPU VRAM from sysfs. Assuming iGPU or shared-memory GPU.${NC}" >&2
+                echo -e "${YELLOW}         If this is a discrete GPU, set OVMS_CACHE_SIZE_GB to the correct value.${NC}" >&2
                 cache_gb=$((total_ram_gb * 25 / 100))
                 cache_gb=$(( cache_gb < 2 ? 2 : cache_gb > 6 ? 6 : cache_gb ))
             fi
@@ -833,16 +833,28 @@ is_openvino_namespace_model() {
     [[ "$1" == OpenVINO/* ]]
 }
 
-# Function to export and save requested model for OVMS
-# Uses storage-aware naming: {model}_{device}_{format} to allow multiple configs
+# Host dir where the openvino plugin writes the converted OVMS model:
+#   <models>/<download_path>/openvino_models/<device>/<precision>/<source_model>  (lowercased except source_model).
+ovms_ms_model_dir() {
+    local source_model="$1"
+    local target_device="$2"
+    local weight_format="$3"
+    local device_lc format_lc
+    device_lc=$(printf '%s' "$target_device" | tr '[:upper:]' '[:lower:]')
+    format_lc=$(printf '%s' "$weight_format" | tr '[:upper:]' '[:lower:]')
+    printf '%s/models/%s/openvino_models/%s/%s/%s' \
+        "${OVMS_CONFIG_DIR}" "${OVMS_MS_DOWNLOAD_PATH}" "${device_lc}" "${format_lc}" "${source_model}"
+}
+
+# Export a model for OVMS via the model-download microservice (ephemeral).
+# Storage-aware naming {model}_{device}_{format} lets multiple configs coexist.
 export_model_for_ovms() {
     local source_model="$1"
     local target_device="$2"
     local weight_format="$3"
     local pipeline_type="$4"
-    local extra_args=()
-    local export_status
-    local storage_model_name
+    local storage_model_name cache_size model_type config_json model_dir
+    local ms_args=()
 
     if [ -z "$source_model" ]; then
         echo -e "${RED}ERROR: Missing source model for OVMS export.${NC}" >&2
@@ -853,118 +865,57 @@ export_model_for_ovms() {
     storage_model_name=$(get_ovms_storage_model_name "$source_model" "$target_device" "$weight_format")
     echo -e "[ovms-service] ${BLUE}Storage model name: ${YELLOW}${storage_model_name}${NC}"
 
-    # Compute cache size before entering the subshell so the log is visible
-    local cache_size
     cache_size=$(get_ovms_cache_size "$target_device") || return 1
     echo -e "[ovms-service] ${BLUE}Cache size: ${YELLOW}${cache_size} GB${NC} for device ${YELLOW}${target_device}${NC}"
 
+    # A non-empty pipeline_type (e.g. VLM_CB) marks a vision-language model.
     if [ -n "$pipeline_type" ]; then
-        extra_args+=(--pipeline_type "$pipeline_type")
+        model_type="vlm"
+        config_json="{\"pipeline_type\":\"${pipeline_type}\"}"
+    else
+        model_type="llm"
+        config_json=""
     fi
-    
-    # Export storage_model_name and cache_size so they're available in subshell
-    export storage_model_name cache_size
-    
-    (
-        mkdir -p "${OVMS_CONFIG_DIR}"
-        cd "${OVMS_CONFIG_DIR}" || exit 1
 
-        # Always pull latest export_model.py script
-        echo -e "Downloading latest export_model.py from OVMS repository..."
-        curl -fsSL https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/export_model.py -o export_model.py || exit 1
+    mkdir -p "${OVMS_CONFIG_DIR}/models"
 
-        echo -e "Creating Python virtual environment for model export..."
-        if ! python3 -m venv --help > /dev/null 2>&1; then
-            echo -e "Installing python3-venv package..."
-            if command -v apt-get > /dev/null 2>&1; then
-                sudo apt-get install -y python3-venv || exit 1
-            elif command -v dnf > /dev/null 2>&1; then
-                sudo dnf install -y python3 || exit 1
-            else
-                echo -e "${RED}ERROR: Unsupported package manager. Please install python3-venv manually.${NC}"
-                exit 1
-            fi
-        else
-            echo -e "python3-venv is already available, skipping installation"
-        fi
-
-        python3 -m venv ovms_venv || exit 1
-        # shellcheck disable=SC1091
-        source ovms_venv/bin/activate || exit 1
-
-        # Check if model is from OpenVINO namespace (pre-converted)
-        if [[ "$source_model" == OpenVINO/* ]]; then
-            echo -e "${GREEN}Model '${source_model}' is from OpenVINO namespace (pre-converted).${NC}"
-            echo -e "${YELLOW}Skipping full requirements installation - only need huggingface_hub for download.${NC}"
-            
-            # Lightweight dependencies: huggingface_hub (<0.27 for huggingface-cli support) and jinja2 (for graph.pbtxt).
-            # Note: huggingface_hub 0.27+ deprecated huggingface-cli in favor of 'hf' command
-            if ! pip install --no-cache-dir 'huggingface_hub<0.27' jinja2; then
-                echo -e "${RED}ERROR: Failed to install minimal dependencies for OpenVINO model.${NC}" >&2
-                deactivate
-                rm -rf ovms_venv
-                exit 1
-            fi
-        else
-            # Full conversion path: install all requirements for optimum-cli conversion
-            local ovms_requirements_url="https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/requirements.txt"
-            local tmp_requirements
-            tmp_requirements=$(mktemp)
-
-            if ! curl -fsSL "$ovms_requirements_url" -o "$tmp_requirements"; then
-                echo -e "${RED}ERROR: Failed to download OVMS requirements from ${ovms_requirements_url}.${NC}" >&2
-                rm -f "$tmp_requirements"
-                deactivate
-                rm -rf ovms_venv
-                exit 1
-            fi
-
-            if ! pip install --no-cache-dir -r "$tmp_requirements"; then
-                echo -e "${RED}ERROR: Failed to install OVMS requirements.${NC}" >&2
-                rm -f "$tmp_requirements"
-                deactivate
-                rm -rf ovms_venv
-                exit 1
-            fi
-            rm -f "$tmp_requirements"
-        fi
-
-        if [ "$GATED_MODEL" = true ]; then
-            pip install --no-cache-dir -U huggingface_hub[hf_xet]==0.36.0 || exit 1
-            echo -e "${BLUE}Logging in to Hugging Face to access gated models...${NC}"
-            hf auth login --token "$HUGGINGFACE_TOKEN" || exit 1
-        fi
-
-        mkdir -p models
-
-        # Use cache_size computed before entering the subshell
-
-        # Use storage_model_name for --model_name to create device/format-specific folder
-        # --source_model is the HuggingFace model ID for downloading
-        # --model_name is the folder name where it will be stored
-        if ! python3 export_model.py text_generation \
-            --source_model "$source_model" \
-            --model_name "$storage_model_name" \
-            --weight-format "$weight_format" \
-            --config_file_path models/config.json \
-            --model_repository_path models \
-            --target_device "$target_device" \
-            --cache_size "$cache_size" \
-            "${extra_args[@]}"; then
-            echo -e "${RED}ERROR: Failed to export the model '${source_model}' for OVMS.${NC}" >&2
-            deactivate
-            rm -rf ovms_venv
-            exit 1
-        fi
-
-        echo -e "Cleaning up virtual environment..."
-        deactivate
-        rm -rf ovms_venv
+    ms_args=(
+        --model-name "$source_model"
+        --hub openvino
+        --type "$model_type"
+        --is-ovms
+        --precision "$weight_format"
+        --device "$target_device"
+        --cache-size "$cache_size"
+        --download-path "$OVMS_MS_DOWNLOAD_PATH"
     )
-    export_status=$?
-    if [ $export_status -ne 0 ]; then
-        return $export_status
+    [ -n "$config_json" ] && ms_args+=(--config-json "$config_json")
+
+    # The microservice handles gated models via the HF_TOKEN env (forwarded by
+    # download_model_via_ms); no host-side `hf auth login` is required.
+    if ! download_model_via_ms "${OVMS_CONFIG_DIR}/models" "huggingface,openvino" "${ms_args[@]}"; then
+        echo -e "${RED}ERROR: Failed to export the model '${source_model}' for OVMS via model-download.${NC}" >&2
+        return 1
     fi
+
+    fix_model_dir_ownership "${OVMS_CONFIG_DIR}/models/${OVMS_MS_DOWNLOAD_PATH}"
+
+    model_dir=$(ovms_ms_model_dir "$source_model" "$target_device" "$weight_format")
+    if [ ! -f "${model_dir}/graph.pbtxt" ]; then
+        echo -e "${RED}ERROR: Converted OVMS model not found at ${model_dir} (missing graph.pbtxt).${NC}" >&2
+        return 1
+    fi
+
+    # Patch the KV cache size in graph.pbtxt to the desired value.
+    local existing_cache_size
+    existing_cache_size=$(grep -oP 'cache_size:\s*\K[0-9]+' "${model_dir}/graph.pbtxt" 2>/dev/null)
+    if [[ -n "$existing_cache_size" && "$existing_cache_size" -ne "$cache_size" ]]; then
+        sed -i "s/cache_size:\s*${existing_cache_size}/cache_size: ${cache_size}/" "${model_dir}/graph.pbtxt"
+        echo -e "[ovms-service] ${BLUE}Updated cache size: ${YELLOW}${existing_cache_size} → ${cache_size} GB${NC} in graph.pbtxt"
+    fi
+
+    # Register the converted model under its storage-aware name in OVMS config.
+    add_model_to_ovms_config "${OVMS_CONFIG_DIR}/models/config.json" "${storage_model_name}" "${model_dir}"
 }
 
 ensure_ovms_model() {
@@ -978,7 +929,7 @@ ensure_ovms_model() {
 
     # Generate storage-aware model name (includes device and format)
     storage_model_name=$(get_ovms_storage_model_name "$model_name" "$target_device" "$weight_format")
-    model_path="${OVMS_CONFIG_DIR}/models/${storage_model_name}"
+    model_path=$(ovms_ms_model_dir "$model_name" "$target_device" "$weight_format")
 
     echo -e "[ovms-service] ${BLUE}Checking for model: ${YELLOW}${storage_model_name}${NC}"
 
@@ -992,7 +943,11 @@ ensure_ovms_model() {
         existing_cache_size=$(grep -oP 'cache_size:\s*\K[0-9]+' "${model_path}/graph.pbtxt" 2>/dev/null)
 
         if [[ -n "$existing_cache_size" && "$existing_cache_size" -ne "$desired_cache_size" ]]; then
-            sed -i "s/cache_size:\s*${existing_cache_size}/cache_size: ${desired_cache_size}/" "${model_path}/graph.pbtxt"
+            fix_model_dir_ownership "${model_path}"
+            sed -i "s/cache_size:\s*${existing_cache_size}/cache_size: ${desired_cache_size}/" "${model_path}/graph.pbtxt" || {
+                echo -e "${RED}ERROR: Failed to patch cache_size in ${model_path}/graph.pbtxt${NC}" >&2
+                return 1
+            }
             echo -e "[ovms-service] ${BLUE}Updated cache size: ${YELLOW}${existing_cache_size} → ${desired_cache_size} GB${NC} in graph.pbtxt"
         else
             echo -e "[ovms-service] ${BLUE}Cache size: ${YELLOW}${desired_cache_size} GB${NC}"

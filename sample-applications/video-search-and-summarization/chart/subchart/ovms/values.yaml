@@ -15,6 +15,15 @@ global:
   # llmName is optional when OVMS serves a separate summarization model.
   llmName: ""
 
+  # model-download microservice image used (ephemeral mode) by the OVMS init
+  # containers to download & convert the VLM/LLM models.
+  modelDownload:
+    image:
+      repository: intel/model-download
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    ovmsReleaseTag: "v2026.1"
+
   proxy:
     no_proxy:
     http_proxy:
@@ -58,8 +67,6 @@ ovms:
     VLM_WEIGHT_FORMAT: ""
     ALLOWED_MEDIA_DOMAINS: "minio-server,localhost"
     model_directory_name: "converted_model"
-  script:
-    name: "ovms-model-preparation"
 
 livenessProbe:
   httpGet:
