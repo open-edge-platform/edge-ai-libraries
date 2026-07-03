@@ -179,6 +179,35 @@ updates:
         patterns:
           - "*"
 
+  - package-ecosystem: "pip"
+    directory: "/sample-applications/video-search-and-summarization/video-ingestion"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  # ─────────────────────────────────────────
+  # Go (gomod) — Sample Applications
+  # ─────────────────────────────────────────
+  - package-ecosystem: "gomod"
+    directory: "/sample-applications/video-search-and-summarization/cli"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      go-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
   # ─────────────────────────────────────────
   # npm (Node.js) — UI & Backend Projects
   # ─────────────────────────────────────────
