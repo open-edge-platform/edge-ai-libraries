@@ -51,6 +51,11 @@ the connections between units.
 - **Feature 7**: Support specify temporal enhancement settings in user requests.
 - **Feature 8**: Designed to work effortlessly with GenAI model servings that provide
 OpenAI-compatible APIs.
+- **Feature 9**: Support subtitle-aware summarization — pass subtitles alongside a video for
+extra per-chunk context, or run caption-only (`video: "none"` + subtitles) to summarize a
+pre-built event log without any VLM inference.
+- **Feature 10**: Support runtime-registered dynamic prompt tasks via the `/v1/tasks` API, in
+addition to the built-in `summary` / `summary_zh` tasks.
 
 ## How It Works
 

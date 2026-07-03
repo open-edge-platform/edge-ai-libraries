@@ -21,6 +21,11 @@ services:
     read_only: true  # Mount root filesystem as read-only
     volumes:
       - tmp_volume:/tmp:rw  # Mount container /tmp as read-write
+      # Runtime prompt registry cache on the host. Export VIDEO_SUMMARY_CACHE_HOST
+      # to a user-owned directory before `docker compose up`; e.g.
+      #   export VIDEO_SUMMARY_CACHE_HOST=~/.cache/.multilevel-video-understanding
+      #   mkdir -p "$VIDEO_SUMMARY_CACHE_HOST/tasks"
+      - ${VIDEO_SUMMARY_CACHE_HOST}:/home/appuser/.cache/.multilevel-video-understanding:rw
     environment:
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
