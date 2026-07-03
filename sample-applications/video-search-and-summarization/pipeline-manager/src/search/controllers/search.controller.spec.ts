@@ -6,6 +6,7 @@ import { SearchController } from './search.controller';
 import { SearchStateService } from '../services/search-state.service';
 import { SearchDbService } from '../services/search-db.service';
 import { SearchShimService } from '../services/search-shim.service';
+import { FeaturesService } from 'src/features/features.service';
 import { of } from 'rxjs';
 
 jest.mock('uuid', () => ({
@@ -17,6 +18,7 @@ describe('SearchController', () => {
   let searchStateService: jest.Mocked<SearchStateService>;
   let searchDbService: jest.Mocked<SearchDbService>;
   let searchShimService: jest.Mocked<SearchShimService>;
+  let featuresService: jest.Mocked<FeaturesService>;
 
   const mockQuery = {
     queryId: 'test-query-123',
@@ -60,6 +62,12 @@ describe('SearchController', () => {
               of({ data: { results: [{ id: '1', content: 'test result' }] } })
             )
           }
+        },
+        {
+          provide: FeaturesService,
+          useValue: {
+            isImageSearchEnabled: jest.fn().mockReturnValue(true),
+          }
         }
       ]
     }).compile();
@@ -68,6 +76,7 @@ describe('SearchController', () => {
     searchStateService = module.get(SearchStateService);
     searchDbService = module.get(SearchDbService);
     searchShimService = module.get(SearchShimService);
+    featuresService = module.get(FeaturesService);
   });
 
   it('should be defined', () => {
@@ -111,7 +120,7 @@ describe('SearchController', () => {
       const result = await controller.addQuery(reqBody);
       
       expect(result).toEqual(mockQuery);
-      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', [], undefined);
+      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', [], undefined, null);
     });
 
     it('should add a new query with tags', async () => {
@@ -123,7 +132,7 @@ describe('SearchController', () => {
       const result = await controller.addQuery(reqBody);
       
       expect(result).toEqual(mockQuery);
-      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', ['tag1', 'tag2', 'tag3'], undefined);
+      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', ['tag1', 'tag2', 'tag3'], undefined, null);
     });
 
     it('should handle empty tags string', async () => {
@@ -135,7 +144,7 @@ describe('SearchController', () => {
       const result = await controller.addQuery(reqBody);
       
       expect(result).toEqual(mockQuery);
-      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', [], undefined);
+      expect(searchStateService.newQuery).toHaveBeenCalledWith('new test query', [], undefined, null);
     });
 
     it('should handle error when adding query', async () => {
@@ -214,6 +223,15 @@ describe('SearchController', () => {
           end: '2026-06-24T06:00:00.000Z',
         },
       }]);
+    });
+
+    it('should reject image search when disabled', async () => {
+      featuresService.isImageSearchEnabled.mockReturnValueOnce(false);
+
+      await expect(
+        controller.searchQuery({ image: 'base64-image' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(searchShimService.search).not.toHaveBeenCalled();
     });
   });
 

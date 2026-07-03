@@ -23,8 +23,20 @@ export class TimeFilterSelection {
 }
 
 export class SearchQueryDTO {
-  @ApiProperty({ description: 'Search query string', example: 'person walking' })
-  query: string;
+  @ApiPropertyOptional({
+    description:
+      'Text search query. Provide either `query` or `image` (not both).',
+    example: 'person walking',
+  })
+  query?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Query image as a base64 string or data URL, for image-based search. ' +
+      'Provide either `query` or `image` (not both). Only supported in ' +
+      'frame-embedding modes (--search/--dual).',
+  })
+  image?: string;
 
   @ApiPropertyOptional({ description: 'Comma-separated tags to filter by', example: 'outdoor,daytime' })
   tags?: string;
@@ -51,7 +63,8 @@ export enum SearchQueryStatus {
 
 export interface SearchShimQuery {
   query_id: string;
-  query: string;
+  query?: string;
+  image_base64?: string;
   tags?: string[];
   time_filter?: { start: string; end: string };
 }
@@ -101,6 +114,7 @@ export interface SearchQuery {
   dbId?: number;
   queryId: string;
   query: string;
+  image?: string | null;
   watch: boolean;
   results: SearchResult[];
   queryStatus: SearchQueryStatus;

@@ -214,6 +214,8 @@ spec:
               value: "{{ .Values.pipelinemanager.env.SUMMARY_FEATURE }}"
             - name: SEARCH_FEATURE
               value: "{{ .Values.pipelinemanager.env.SEARCH_FEATURE }}"
+            - name: VS_INDEX_NAME
+              value: "{{ .Values.global.vdmsIndexName | default "" }}"
             {{- if .Values.videosearch.enabled }}
             - name: SEARCH_ENDPOINT
               value: "http://{{ .Values.videosearch.name }}:{{ .Values.videosearch.service.port }}"

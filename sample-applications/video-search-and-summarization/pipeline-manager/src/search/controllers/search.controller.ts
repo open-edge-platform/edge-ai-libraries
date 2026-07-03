@@ -16,6 +16,7 @@ import { SearchQueryDTO, SearchShimQuery, RefetchBodyDTO, WatchBodyDTO } from '.
 import { SearchStateService } from '../services/search-state.service';
 import { SearchDbService } from '../services/search-db.service';
 import { SearchShimService } from '../services/search-shim.service';
+import { FeaturesService } from 'src/features/features.service';
 import { lastValueFrom } from 'rxjs';
 
 import { v4 as uuidV4 } from 'uuid';
@@ -27,7 +28,22 @@ export class SearchController {
     private $search: SearchStateService,
     private $searchDB: SearchDbService,
     private $searchShim: SearchShimService,
+    private $feature: FeaturesService,
   ) {}
+
+  /**
+   * Reject an image-based search unless the deployment supports it (frame-embedding
+   * modes only). Returns true when the request carries an image.
+   */
+  private assertImageSearchAllowed(image?: string): boolean {
+    const hasImage = !!(image && image.trim());
+    if (hasImage && !this.$feature.isImageSearchEnabled()) {
+      throw new BadRequestException(
+        'Image search is not supported in this deployment mode.',
+      );
+    }
+    return hasImage;
+  }
 
   @Get('')
   @ApiOperation({ summary: 'Get all search queries' })
@@ -56,18 +72,34 @@ export class SearchController {
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search query created' })
   async addQuery(@Body() reqBody: SearchQueryDTO) {
+    const hasImage = this.assertImageSearchAllowed(reqBody.image);
+    if (!hasImage && !(reqBody.query && reqBody.query.trim())) {
+      throw new BadRequestException(
+        'Provide either a text query or an image to search.',
+      );
+    }
+
     try {
       let tags: string[] = [];
 
-      const searchQuery = reqBody.query;
+      const searchQuery = reqBody.query ?? '';
 
       if (reqBody.tags && reqBody.tags.length > 0) {
         tags = reqBody.tags.split(',').map((tag) => tag.trim());
       }
 
-      const query = await this.$search.newQuery(searchQuery, tags, reqBody.timeFilter);
+      const query = await this.$search.newQuery(
+        searchQuery,
+        tags,
+        reqBody.timeFilter,
+        hasImage ? reqBody.image : null,
+      );
       return query;
     } catch (error) {
+      // Preserve explicit client errors (e.g. unsupported mode / bad input).
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       Logger.error('Error adding query', error);
       throw new BadRequestException('Error adding query');
     }
@@ -88,6 +120,13 @@ export class SearchController {
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search results' })
   async searchQuery(@Body() reqBody: SearchQueryDTO) {
+    const hasImage = this.assertImageSearchAllowed(reqBody.image);
+    if (!hasImage && !(reqBody.query && reqBody.query.trim())) {
+      throw new BadRequestException(
+        'Provide either a text query or an image to search.',
+      );
+    }
+
     const normalized = this.$search.buildTimeFilterRange(reqBody.timeFilter);
     const tags = reqBody.tags
       ? reqBody.tags
@@ -96,11 +135,15 @@ export class SearchController {
           .filter((tag) => tag.length > 0)
       : [];
     const queryShim: SearchShimQuery = {
-      query: reqBody.query,
       query_id: uuidV4(),
     };
     if (tags.length > 0) {
       queryShim.tags = tags;
+    }
+    if (hasImage) {
+      queryShim.image_base64 = reqBody.image;
+    } else {
+      queryShim.query = reqBody.query;
     }
     if (normalized.range) {
       queryShim.time_filter = normalized.range;

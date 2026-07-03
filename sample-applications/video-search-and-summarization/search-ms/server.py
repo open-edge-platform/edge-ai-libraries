@@ -18,7 +18,7 @@ from src.utils.directory_watcher import (
     get_last_updated,
     start_watcher,
 )
-from pydantic import BaseModel, Field, AliasChoices, ConfigDict
+from pydantic import BaseModel, Field, AliasChoices, ConfigDict, model_validator
 
 app = FastAPI()
 app.add_middleware(
@@ -50,12 +50,23 @@ class QueryRequest(BaseModel):
     query_id: str = Field(
         validation_alias=AliasChoices("query_id", "queryId")
     )
-    query: str
+    query: Optional[str] = None
+    image_base64: Optional[str] = None
     tags: Optional[list[str] | str] = None
     time_filter: Optional[TimeRange] = Field(
         default=None,
         validation_alias=AliasChoices("time_filter", "timeFilter"),
     )
+
+    @model_validator(mode="after")
+    def _require_text_or_image(self) -> "QueryRequest":
+        has_text = bool(self.query and self.query.strip())
+        has_image = bool(self.image_base64 and self.image_base64.strip())
+        if has_text == has_image:
+            raise ValueError(
+                "Provide exactly one of 'query' (text) or 'image_base64' (image)."
+            )
+        return self
 
 
 def _build_explicit_time_filter(time_filter: Optional[TimeRange], property_name: str = "created_at") -> Optional[dict]:
@@ -77,7 +88,12 @@ def _normalize_tags(tags: Optional[list[str] | str]) -> list[str]:
 def build_combined_vdms_filter(query_request: QueryRequest) -> Optional[dict]:
     """Return the effective VDMS time filter from explicit or parsed query constraints."""
     explicit_time_filter = _build_explicit_time_filter(query_request.time_filter)
-    parsed_time_filter = build_vdms_time_filter(query_request.query) if not explicit_time_filter else None
+    # NL time parsing only applies to text queries; image queries carry no phrase.
+    parsed_time_filter = (
+        build_vdms_time_filter(query_request.query)
+        if not explicit_time_filter and query_request.query
+        else None
+    )
     effective_time_filter = explicit_time_filter or parsed_time_filter
 
     return effective_time_filter
@@ -174,8 +190,12 @@ async def query_endpoint(request: list[QueryRequest]):
             query_start = time.perf_counter()
             query_tags = _normalize_tags(query_request.tags)
             query_tags_set = set(query_tags)
+            is_image_query = bool(
+                query_request.image_base64 and query_request.image_base64.strip()
+            )
+            query_desc = "<image>" if is_image_query else query_request.query
             logger.info(
-                f"Processing query: {query_request.query} (ID: {query_request.query_id})"
+                f"Processing query: {query_desc} (ID: {query_request.query_id})"
             )
             logger.debug(f"Query tags: {query_tags}")
 
@@ -194,16 +214,35 @@ async def query_endpoint(request: list[QueryRequest]):
             )  # Get more frame results before aggregation
             logger.debug(f"Searching with initial_k={initial_k}")
 
-            vdms_start = time.perf_counter()
-            vdms_attempt = 1
-            try:
-                docs_with_score: List[Tuple[Any, float]] = db.similarity_search_with_score(
+            image_embedding: Optional[List[float]] = None
+            if is_image_query:
+                # VDMS stores the embedding client as `.embedding` (and exposes it
+                # via the `.embeddings` property); tolerate either name.
+                embedding_client = getattr(db, "embedding", None) or db.embeddings
+                image_embedding = embedding_client.embed_image(
+                    query_request.image_base64
+                )
+
+            def _run_search(vector_db: VDMS) -> List[Tuple[Any, float]]:
+                if is_image_query:
+                    return vector_db.similarity_search_with_score_by_vector(
+                        image_embedding,
+                        k=initial_k,
+                        fetch_k=initial_k + 1,  # ensure fetch_k > k for langchain_vdms
+                        filter=vdms_filter,
+                    )
+                return vector_db.similarity_search_with_score(
                     query_request.query,
                     k=initial_k,
                     fetch_k=initial_k + 1,  # ensure fetch_k > k for langchain_vdms
                     filter=vdms_filter,
                     # normalize_distance=True
                 )
+
+            vdms_start = time.perf_counter()
+            vdms_attempt = 1
+            try:
+                docs_with_score: List[Tuple[Any, float]] = _run_search(db)
             except Exception as first_error:
                 first_attempt_duration_ms = (time.perf_counter() - vdms_start) * 1000
                 logger.warning(
@@ -214,12 +253,7 @@ async def query_endpoint(request: list[QueryRequest]):
                 refreshed_db: VDMS = get_vectordb()
                 vdms_attempt = 2
                 vdms_start = time.perf_counter()
-                docs_with_score = refreshed_db.similarity_search_with_score(
-                    query_request.query,
-                    k=initial_k,
-                    fetch_k=initial_k + 1,
-                    filter=vdms_filter,
-                )
+                docs_with_score = _run_search(refreshed_db)
             vdms_duration_ms = (time.perf_counter() - vdms_start) * 1000
             logger.info(
                 f"VDMS similarity search (attempt {vdms_attempt}, embedding + retrieval) completed in {vdms_duration_ms:.2f} ms with {len(docs_with_score)} results"

@@ -13,7 +13,8 @@ export interface TimeFilterSelection {
 }
 
 export interface SearchQueryDTO {
-  query: string;
+  query?: string;
+  image?: string;
   tags?: string;
   timeFilter?: TimeFilterSelection | null;
 }
@@ -75,6 +76,8 @@ export interface SearchQuery {
   dbId?: number;
   queryId: string;
   query: string;
+  // Query image (base64/data URL) for image-based searches; empty for text queries.
+  image?: string | null;
   watch: boolean;
   results: SearchResult[];
   queryStatus: SearchQueryStatus;

@@ -72,6 +72,23 @@ class EmbeddingAPI(Embeddings):
         embeddings = self._post_embeddings(payload)
         return embeddings[0]
 
+    def embed_image(self, image_base64: str) -> List[float]:
+        """Embed a single query image (base64) into the shared multimodal space.
+
+        Accepts either a raw base64 string or a full ``data:image/...;base64,``
+        data URL; the prefix is stripped so any caller can be tolerant.
+        """
+        logger.debug("Embedding single image query")
+        if "," in image_base64 and image_base64.strip().lower().startswith("data:"):
+            image_base64 = image_base64.split(",", 1)[1]
+        payload = {
+            "model": self.model_name,
+            "input": {"type": "image_base64", "image_base64": image_base64},
+            "encoding_format": "float",
+        }
+        embeddings = self._post_embeddings(payload)
+        return embeddings[0]
+
     def get_embedding_length(self) -> int:
         logger.debug(
             "Retrieving embedding dimensionality for model %s via API probe", self.model_name
