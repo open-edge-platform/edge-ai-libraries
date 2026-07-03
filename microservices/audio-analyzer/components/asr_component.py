@@ -16,11 +16,23 @@ logger = logging.getLogger(__name__)
 ENABLE_DIARIZATION = config.models.asr.diarization
 DELETE_CHUNK_AFTER_USE = config.pipeline.delete_chunks_after_use
 
+_diar_cfg = getattr(config.models, "diarization", None)
+_identity_cfg = getattr(_diar_cfg, "identity", None)
+IDENTITY_ENABLED = bool(getattr(_identity_cfg, "enabled", True))
+IDENTITY_SIMILARITY_THRESHOLD = float(getattr(_identity_cfg, "similarity_threshold", 0.75))
+IDENTITY_LOCK_MIN_DURATION_SEC = float(getattr(_identity_cfg, "lock_min_duration_sec", 0.75))
+IDENTITY_SESSION_TTL_SECONDS = float(getattr(_identity_cfg, "session_ttl_seconds", 1800.0))
+
 
 class ASRComponent(PipelineComponent):
 
     _model = None
     _config = None
+    # Shared across all ASRComponent instances/sessions — keyed by session_id
+    # internally — so primary-speaker identity persists across chunk calls
+    # for the same session regardless of which ASRComponent instance handles
+    # a given chunk.
+    _speaker_identity_store = None
 
     @staticmethod
     def _resolve_backend(provider: str, model_name: str, device: str):
@@ -80,6 +92,15 @@ class ASRComponent(PipelineComponent):
                     hf_token=_resolve_hf_token(),
                 )
                 logger.info("[DIARIZATION] PyannoteDiarizer loaded on device=%s", diar_device)
+
+                if IDENTITY_ENABLED and ASRComponent._speaker_identity_store is None:
+                    from components.asr.diarization.speaker_identity import SpeakerIdentityStore
+
+                    ASRComponent._speaker_identity_store = SpeakerIdentityStore(
+                        similarity_threshold=IDENTITY_SIMILARITY_THRESHOLD,
+                        lock_min_duration_sec=IDENTITY_LOCK_MIN_DURATION_SEC,
+                        session_ttl_seconds=IDENTITY_SESSION_TTL_SECONDS,
+                    )
             except Exception as exc:
                 logger.warning(
                     "[DIARIZATION] ⚠️  Failed to load PyannoteDiarizer — diarization disabled for this session. "
@@ -116,7 +137,7 @@ class ASRComponent(PipelineComponent):
                 transcribed_text = ""
 
                 if self.enable_diarization and transcription.get("segments"):
-                    speaker_turns = self.pyannote_diarizer.diarize(chunk_path)
+                    speaker_turns, label_embeddings = self.pyannote_diarizer.diarize(chunk_path)
                     transcribed_lines = []
 
                     logger.info(
@@ -135,23 +156,36 @@ class ASRComponent(PipelineComponent):
                         len(transcription["segments"]),
                     )
 
+                    primary_map: dict[str, bool] = {}
+                    if ASRComponent._speaker_identity_store is not None:
+                        primary_map = ASRComponent._speaker_identity_store.resolve(
+                            self.session_id, label_embeddings, speaker_turns,
+                        )
+
                     for sent in transcription["segments"]:
                         text = sent["text"].strip()
                         if not text:
                             continue
 
-                        mid = (sent["start"] + sent["end"]) / 2.0
-
+                        # Assign the speaker turn with the greatest time overlap
+                        # (strictly more correct than a midpoint lookup, which
+                        # breaks when a segment spans two speaker turns or
+                        # falls in a gap between turns).
                         speaker = None
+                        best_overlap = 0.0
                         for turn in speaker_turns:
-                            if turn["start"] <= mid <= turn["end"]:
+                            overlap = min(sent["end"], turn["end"]) - max(sent["start"], turn["start"])
+                            if overlap > best_overlap:
+                                best_overlap = overlap
                                 speaker = turn["speaker"]
-                                break
 
+                        is_primary = primary_map.get(speaker, False) if speaker is not None else False
                         logger.info(
-                            "[DIARIZATION] segment [%.2fs–%.2fs] midpoint=%.2fs → speaker=%s | text=%r",
-                            sent["start"], sent["end"], mid,
+                            "[DIARIZATION] segment [%.2fs–%.2fs] max-overlap=%.2fs → speaker=%s is_primary=%s (%s) | text=%r",
+                            sent["start"], sent["end"], best_overlap,
                             speaker if speaker else "UNKNOWN",
+                            is_primary,
+                            "PRIMARY — picked" if is_primary else "SECONDARY — will be dropped downstream",
                             text[:80],
                         )
 
@@ -169,6 +203,11 @@ class ASRComponent(PipelineComponent):
                                 segment[key] = sent[key]
                         if speaker is not None:
                             segment["speaker"] = speaker
+                            # Stable, cross-chunk primary-speaker signal — resolved
+                            # here in audio-analyzer via speaker embeddings, so
+                            # downstream consumers (kiosk-core) don't need their
+                            # own model or lock-on logic.
+                            segment["is_primary"] = is_primary
 
                         ui_segments.append(segment)
                         self.all_segments.append(segment)
@@ -176,6 +215,18 @@ class ASRComponent(PipelineComponent):
 
                     transcribed_text = "\n".join(transcribed_lines) + "\n"
 
+                    primary_count = sum(1 for seg in ui_segments if seg.get("is_primary"))
+                    secondary_count = sum(
+                        1 for seg in ui_segments if "speaker" in seg and not seg.get("is_primary")
+                    )
+                    logger.info(
+                        "[DIARIZATION] session=%s chunk=%s | speaker resolution summary: "
+                        "%d primary segment(s), %d secondary segment(s)",
+                        self.session_id,
+                        os.path.basename(chunk_path),
+                        primary_count,
+                        secondary_count,
+                    )
                     logger.info(
                         "[DIARIZATION] session=%s chunk=%s | full transcript (all speakers): %r",
                         self.session_id,
