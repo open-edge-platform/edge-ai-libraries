@@ -98,15 +98,20 @@ async def download_models(
     gated models from HuggingFace. Public models can be downloaded without authentication.
     """
     try:
-        supported_hubs = set()
+        supported_hubs = set(plugin_registry.supported_hubs())
+        # Converters (e.g. openvino) advertise hubs through plugin_name
+        # rather than supported_hubs(); keep them addressable for
+        # backward compatibility with is_ovms requests.
         for plugin_type in plugin_registry.plugins:
-            supported_hubs.update(name.lower() for name in plugin_registry.get_plugin_names(plugin_type))
+            supported_hubs.update(
+                name.lower() for name in plugin_registry.get_plugin_names(plugin_type)
+            )
         for model in request.models:
             logger.info(f"Requested Model Hub: {model.hub}")
             if model.hub.lower() not in supported_hubs:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Unsupported model download/conversion detected. Supported methods are {supported_hubs}.",
+                    detail=f"Unsupported model download/conversion detected. Supported methods are {sorted(supported_hubs)}.",
                 )
 
         # Get HuggingFace token from environment variable
@@ -145,7 +150,6 @@ async def download_models(
                     model_name=model.name,
                     hub=model.hub,
                     output_dir=model_download_path,
-                    plugin_name=model.hub,
                     model_type=model.type,
                 )
 
@@ -203,7 +207,6 @@ async def download_models(
                     model_name=model.name,
                     hub=model.hub,
                     output_dir=convert_output_dir,
-                    plugin_name="openvino",
                     model_type=model.type,
                 )
 
@@ -352,7 +355,7 @@ async def list_plugins():
         "available_plugins": plugins_info,
         "total_count": total_plugins,
         "available_count": available_plugins,
-        "activation_instructions": "To enable/disable plugins, restart the container with the --plugins option specifying the plugins you need (e.g. huggingface,openvino,ultralytics,ollama) or use 'all' to enable all plugins"
+        "activation_instructions": "To enable/disable hubs, restart the container with --plugins specifying the hubs you need (e.g. huggingface,openvino,ultralytics,ollama,pipeline-zoo-models,remote-url,omz) or 'all' to enable everything"
     }
 
 

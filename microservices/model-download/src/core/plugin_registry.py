@@ -91,6 +91,47 @@ class PluginRegistry:
             if hasattr(plugin, "can_handle") and plugin.can_handle(model_name, hub, **kwargs):
                 return plugin
         return None
+
+    def supported_hubs(self) -> List[str]:
+        """Return the union of every hub claimed by a registered plugin.
+
+        Plugins may either expose a ``supported_hubs()`` method (when
+        they handle multiple hubs, e.g. ``external-sources``) or simply
+        register under a hub-named ``plugin_name``.
+        """
+        hubs: set[str] = set()
+        for plugins_by_name in self.plugins.values():
+            for plugin_name, plugin in plugins_by_name.items():
+                supported = getattr(plugin, "supported_hubs", None)
+                if callable(supported):
+                    hubs.update(str(h).lower() for h in (supported() or []))
+                else:
+                    hubs.add(plugin_name.lower())
+        return sorted(hubs)
+
+    def hub_is_available(self, hub: str) -> Tuple[bool, str]:
+        """Return whether ``hub`` is served by a registered, activated plugin.
+
+        Resolves the hub against every registered plugin, downloader and
+        converter alike, so converter-only hubs (e.g. ``openvino`` used for
+        is_ovms conversion) are recognised. ACTIVATED_PLUGINS is a list of
+        hub names (the entrypoint rejects plugin names like
+        'external-sources'), so this is a direct membership check.
+        """
+        hub_lower = hub.lower()
+        if hub_lower not in set(self.supported_hubs()):
+            return False, f"No plugin registered for hub '{hub}'"
+
+        if not self.activated_plugins or "all" in self.activated_plugins:
+            return True, ""
+
+        if hub_lower in self.activated_plugins:
+            return True, ""
+
+        return False, (
+            f"Hub '{hub}' was not activated during container startup. "
+            f"Active hubs: {', '.join(sorted(self.activated_plugins))}"
+        )
         
     def check_plugin_dependencies(self, plugin_name: str) -> Tuple[bool, str]:
         """

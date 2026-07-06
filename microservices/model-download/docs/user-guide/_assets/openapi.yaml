@@ -39,10 +39,15 @@ components:
         - ollama
         - ultralytics
         - pipeline-zoo-models
+        - omz
         - openvino
         - geti
         - hls
-      description: The model hub source to download from
+        - remote-url
+      description: |
+        The model hub source to download from. Each hub maps to a
+        download mechanism (HuggingFace API, OpenVINO export, tarball
+        fetch, etc.) configured via YAML profiles shipped with the image.
 
     ModelType:
       type: string
@@ -88,6 +93,11 @@ components:
           nullable: true
           description: Ultralytics quantization dataset used to enable INT8 export
           example: coco128
+        post_processing:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Optional post-processing overrides for omz model-specific workflows
       description: Configuration for OVMS model conversion
 
     ModelRequest:
@@ -162,9 +172,6 @@ components:
         output_dir:
           type: string
           description: Output directory for the operation
-        plugin_name:
-          type: string
-          description: Plugin handling the operation
         creation_time:
           type: string
           format: date-time
@@ -361,6 +368,12 @@ paths:
         - HUGGINGFACEHUB_API_TOKEN is required for gated/private HuggingFace models and for conversion
         - No authentication needed for Ollama, Ultralytics, Pipeline Zoo Models, Geti™, or HLS models
 
+        **URL Source (`remote-url` hub):**
+        - Downloads a per-model archive from a runtime-provided `config.url`, validated against an allowlist of trusted host/path prefixes.
+        - The URL must point to a tar archive (ex: `.tar`, `.tar.gz`) containing a single model's files — not a shared archive bundling multiple models.
+        - Use the optional `{name}` placeholder in `config.url`; it is replaced with the model's `name` field before download.
+        - Set `EXTERNAL_SOURCES_URL_ALLOWLIST` (comma-separated) to override the default allowed prefixes.
+
         **Job Processing:**
         - Each model download creates a separate job
         - If conversion is requested, an additional conversion job is created
@@ -421,6 +434,20 @@ paths:
                   models:
                     - name: dbnet
                       hub: pipeline-zoo-models
+              remote_url_download:
+                summary: Download Remote-URL model
+                value:
+                  models:
+                    - name: wind-turbine-anomaly-detection
+                      hub: remote-url
+                      config:
+                        url: "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{name}.tar"
+              omz_download:
+                summary: Download OMZ model
+                value:
+                  models:
+                    - name: mobilenet-v2-pytorch
+                      hub: omz
               geti_download:
                 summary: Download Geti™ model
                 value:
@@ -468,7 +495,7 @@ paths:
                 unsupported_hub:
                   summary: Unsupported model hub
                   value:
-                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'pipeline-zoo-models', 'openvino', 'geti', 'hls'}."
+                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'pipeline-zoo-models', 'omz', 'openvino', 'geti', 'hls', 'remote-url'}."
                 plugin_unavailable:
                   summary: Plugin dependencies not installed
                   value:

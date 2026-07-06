@@ -4,6 +4,7 @@
 import io
 import os
 import re
+import stat
 import zipfile
 import shutil
 from fastapi import HTTPException
