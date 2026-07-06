@@ -42,7 +42,7 @@ export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 export VLM_DEVICE=GPU
 
 # NPU acceleration
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export VLM_MODEL_NAME=microsoft/Phi-3.5-vision-instruct
 export VLM_COMPRESSION_WEIGHT_FORMAT=int4
 export VLM_DEVICE=NPU
 export VLM_NPU_EXPORT_PROFILE=safe
@@ -558,6 +558,29 @@ These steps will help you verify the functionality of the microservice and ensur
       ```bash
       docker ps
       ```
+
+3. **NPU: `VLM pipeline on NPU may only process input embeddings up to 1024 tokens`**:
+    - Full error (seen in `docker logs vlm-openvino-serving` during a chat completion request):
+
+      ```text
+      Error occurred in chat_completions endpoint: Check 'inputs_embeds.get_shape().at(1) <= m_max_prompt_len' failed
+      ... VLM pipeline on NPU may only process input embeddings up to 1024 tokens. 1539 is passed.
+      Set the "MAX_PROMPT_LEN" config option to increase the limit.
+      ```
+
+    - **Cause**: On NPU, the OpenVINO GenAI VLM pipeline compiles with a fixed maximum prompt length (default `1024` tokens). Image-plus-text requests can easily exceed this once image tokens are added to the text prompt, so the request is rejected.
+    - **Fix**: Increase the NPU prompt budget via `OV_CONFIG` before starting the server, then restart it so the model is recompiled with the new limit:
+
+      ```bash
+      # Increase NPU prompt budget for image+text heavy requests (example)
+      export OV_CONFIG='{"DEVICE_PROPERTIES":{"NPU":{"MAX_PROMPT_LEN":2048,"MIN_RESPONSE_LEN":512}}}'
+      ```
+
+    - **Notes**:
+        - Set `MAX_PROMPT_LEN` above the largest prompt you expect (in the example above, `1539` tokens needs a limit of at least `2048`). `MIN_RESPONSE_LEN` reserves token budget for the generated response.
+        - Larger values increase NPU memory use and compilation time; raise them only as needed.
+        - This setting only takes effect at model load/compile time — restart the server after changing it.
+        - For details, see [Prompt and response length options](https://docs.openvino.ai/2026/openvino-workflow-generative/inference-with-genai/inference-with-genai-on-npu.html#prompt-and-response-length-options).
 
 ## Supporting Resources
 
