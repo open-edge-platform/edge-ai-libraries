@@ -61,7 +61,7 @@ services:
       - "${OVMS_HTTP_HOST_PORT}:80"
       - "${OVMS_GRPC_HOST_PORT}:81"
     volumes:
-      - "../config/ovms_config:/workspace:ro"
+      - "../ov_models:/workspace:ro"
     devices:
       # NPU device passthrough (mount /dev/null if not available)
       - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
@@ -73,7 +73,7 @@ services:
       timeout: 10s
       retries: 3
     command:
-      ["--port", "81", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/models/config.json", "--metrics_enable", "--allowed_media_domains", "${OVMS_ALLOWED_MEDIA_DOMAINS}"]
+      ["--port", "81", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/ovms/config.json", "--metrics_enable", "--allowed_media_domains", "${OVMS_ALLOWED_MEDIA_DOMAINS}"]
     networks:
       - vs_network
 

@@ -13,7 +13,10 @@ NC='\033[0m' # No Color
 
 # =================== Setup Config Directories ======================
 nginx_config_dir="${PWD}/config/nginx"
-export OVMS_CONFIG_DIR="${PWD}/config/ovms_config"
+# Host root for all OpenVINO model assets — holds both the object-detection IRs
+# and the OVMS converted models + config.json (written by the model-download
+# microservice).
+export OV_MODELS_ROOT="${PWD}/ov_models"
 
 # ================================= SETUP ALIASES ======================================
 if [ "$#" -eq 1 ] && [ "$1" = "config" ]; then    # config with no args defaults to both summary and search
@@ -441,10 +444,17 @@ export ENABLE_VSS_COLLECTOR=${ENABLE_VSS_COLLECTOR:-false}
 # Object detection model (ultralytics hub id; converted to OpenVINO IR by the
 # model-download microservice).
 export OD_MODEL_NAME=${OD_MODEL_NAME:-yolov8l}
-export OD_MODELS_ROOT=${PWD}/ov_models
+# Default object detection model; used as fallback for unsupported selections.
+OD_MODEL_DEFAULT="yolov8l"
+# yolov8l-worldv2 (open-vocabulary YOLO-World) is not supported by the
+# object-detection pipeline. Warn and fall back to the default model.
+if [ "$OD_MODEL_NAME" = "yolov8l-worldv2" ]; then
+    echo -e "[video-ingestion] ${YELLOW}Warning: object detection model '${RED}${OD_MODEL_NAME}${YELLOW}' is not supported. Falling back to the default model '${GREEN}${OD_MODEL_DEFAULT}${YELLOW}'.${NC}" >&2
+    export OD_MODEL_NAME="$OD_MODEL_DEFAULT"
+fi
 export OD_MODEL_DOWNLOAD_PATH="object-detection"
 # Host IR dir: <root>/<download_path>/ultralytics/public/<model>(/FP32/<model>.xml)
-export OD_MODEL_OUTPUT_DIR=${OD_MODELS_ROOT}/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}
+export OD_MODEL_OUTPUT_DIR=${OV_MODELS_ROOT}/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}
 # IR path inside the video-ingestion container (consumed by pipeline-manager).
 export EVAM_DETECTION_MODEL=${EVAM_DETECTION_MODEL:-${OD_MODEL_NAME}}
 export EVAM_DETECTION_MODEL_PATH=${EVAM_DETECTION_MODEL_PATH:-/home/pipeline-server/models/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}/FP32/${OD_MODEL_NAME}.xml}
@@ -561,7 +571,7 @@ fi
 # =================== Model Download Microservice (ephemeral) ===================
 # Image auto-pulled by `docker run` if absent. Override MODEL_DOWNLOAD_IMAGE to pin a tag.
 export MODEL_DOWNLOAD_TAG=${MODEL_DOWNLOAD_TAG:-${TAG:-latest}}
-export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-${REGISTRY}model-download:${MODEL_DOWNLOAD_TAG}}
+export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-intel/model-download:${MODEL_DOWNLOAD_TAG}}
 # OVMS release tag used by the openvino plugin's export_model.py.
 export MODEL_DOWNLOAD_OVMS_TAG=${MODEL_DOWNLOAD_OVMS_TAG:-v2026.1}
 # Sub-path under the OVMS models dir for converted models (kept lowercase).
@@ -622,7 +632,7 @@ convert_object_detection_models() {
     echo -e "[video-ingestion] ${BLUE}Downloading & converting object detection model '${OD_MODEL_NAME}' via model-download microservice...${NC}"
 
     download_model_via_ms \
-        "${OD_MODELS_ROOT}" \
+        "${OV_MODELS_ROOT}" \
         "ultralytics" \
         --model-name "${OD_MODEL_NAME}" \
         --hub ultralytics \
@@ -633,7 +643,7 @@ convert_object_detection_models() {
         return 1
     fi
 
-    fix_model_dir_ownership "${OD_MODELS_ROOT}/${OD_MODEL_DOWNLOAD_PATH}"
+    fix_model_dir_ownership "${OV_MODELS_ROOT}/${OD_MODEL_DOWNLOAD_PATH}"
 
     if [ -f "${OD_MODEL_OUTPUT_DIR}/FP32/${OD_MODEL_NAME}.xml" ]; then
         echo -e "[video-ingestion] ${GREEN}Object detection model ${OD_MODEL_NAME} ready at ${OD_MODEL_OUTPUT_DIR}/FP32/${NC}"
@@ -806,7 +816,7 @@ PY
 # Function to reset OVMS config.json to only include specified models
 # This ensures stale models from previous runs are removed
 reset_ovms_config() {
-    local ovms_model_config="${OVMS_CONFIG_DIR}/models/config.json"
+    local ovms_model_config="${OV_MODELS_ROOT}/${OVMS_MS_DOWNLOAD_PATH}/config.json"
     local models_to_keep=("$@")
 
     if [ ! -f "${ovms_model_config}" ]; then
@@ -861,8 +871,8 @@ ovms_ms_model_dir() {
     local device_lc format_lc
     device_lc=$(printf '%s' "$target_device" | tr '[:upper:]' '[:lower:]')
     format_lc=$(printf '%s' "$weight_format" | tr '[:upper:]' '[:lower:]')
-    printf '%s/models/%s/openvino_models/%s/%s/%s' \
-        "${OVMS_CONFIG_DIR}" "${OVMS_MS_DOWNLOAD_PATH}" "${device_lc}" "${format_lc}" "${source_model}"
+    printf '%s/%s/openvino_models/%s/%s/%s' \
+        "${OV_MODELS_ROOT}" "${OVMS_MS_DOWNLOAD_PATH}" "${device_lc}" "${format_lc}" "${source_model}"
 }
 
 # Export a model for OVMS via the model-download microservice (ephemeral).
@@ -896,7 +906,7 @@ export_model_for_ovms() {
         config_json=""
     fi
 
-    mkdir -p "${OVMS_CONFIG_DIR}/models"
+    mkdir -p "${OV_MODELS_ROOT}"
 
     ms_args=(
         --model-name "$source_model"
@@ -912,12 +922,12 @@ export_model_for_ovms() {
 
     # The microservice handles gated models via the HF_TOKEN env (forwarded by
     # download_model_via_ms); no host-side `hf auth login` is required.
-    if ! download_model_via_ms "${OVMS_CONFIG_DIR}/models" "huggingface,openvino" "${ms_args[@]}"; then
+    if ! download_model_via_ms "${OV_MODELS_ROOT}" "huggingface,openvino" "${ms_args[@]}"; then
         echo -e "${RED}ERROR: Failed to export the model '${source_model}' for OVMS via model-download.${NC}" >&2
         return 1
     fi
 
-    fix_model_dir_ownership "${OVMS_CONFIG_DIR}/models/${OVMS_MS_DOWNLOAD_PATH}"
+    fix_model_dir_ownership "${OV_MODELS_ROOT}/${OVMS_MS_DOWNLOAD_PATH}"
 
     model_dir=$(ovms_ms_model_dir "$source_model" "$target_device" "$weight_format")
     if [ ! -f "${model_dir}/graph.pbtxt" ]; then
@@ -934,7 +944,7 @@ export_model_for_ovms() {
     fi
 
     # Register the converted model under its storage-aware name in OVMS config.
-    add_model_to_ovms_config "${OVMS_CONFIG_DIR}/models/config.json" "${storage_model_name}" "${model_dir}"
+    add_model_to_ovms_config "${OV_MODELS_ROOT}/${OVMS_MS_DOWNLOAD_PATH}/config.json" "${storage_model_name}" "${model_dir}"
 }
 
 ensure_ovms_model() {
@@ -942,7 +952,7 @@ ensure_ovms_model() {
     local target_device="$2"
     local weight_format="$3"
     local pipeline_type="$4"
-    local ovms_model_config="${OVMS_CONFIG_DIR}/models/config.json"
+    local ovms_model_config="${OV_MODELS_ROOT}/${OVMS_MS_DOWNLOAD_PATH}/config.json"
     local storage_model_name
     local model_path
 
