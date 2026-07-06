@@ -287,25 +287,25 @@ deploy:
 	@echo ""
 	@exit 1
 
-deploy-summary: build
+deploy-summary: build build-deps
 	@echo "Deploying VSS in summary mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary'
 	@$(WAIT_HEALTH_SCRIPT)
 	@echo "VSS summary mode deployed."
 
-deploy-search: build
+deploy-search: build build-deps
 	@echo "Deploying VSS in search mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --search'
 	@$(WAIT_HEALTH_SCRIPT)
 	@echo "VSS search mode deployed."
 
-deploy-dual: build
+deploy-dual: build build-deps
 	@echo "Deploying VSS in dual (summary + search) mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary --search'
 	@$(WAIT_HEALTH_SCRIPT)
 	@echo "VSS dual mode deployed."
 
-deploy-unified: build
+deploy-unified: build build-deps
 	@echo "Deploying VSS in unified mode (search over summaries)..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary-and-search'
 	@$(WAIT_HEALTH_SCRIPT)
