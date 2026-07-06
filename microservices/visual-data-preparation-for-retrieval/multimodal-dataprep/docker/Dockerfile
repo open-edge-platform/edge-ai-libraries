@@ -1,0 +1,203 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+ARG ARCH="cpu"
+ARG INSTALL_DRIVER_VERSION="25.48.36300"
+FROM python:3.12-slim AS python-base
+ARG ARCH
+# Setting env vars for python, pip and poetry
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=off \ 
+    # off value above actually emplies, no cache will be used. Confusing.
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100 \
+    POETRY_VERSION=2.3.1 \
+    # Poetry installation location
+    POETRY_HOME="/opt/poetry" \
+    # Create the virtual environment dir .venv in the project's root
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    # Disable interactive prompts
+    POETRY_NO_INTERACTION=1 \
+    # Location where packages gets installed
+    SETUP_PATH="/opt/projsetup" \
+    # Location where virtual env is created
+    VENV_PATH="/opt/projsetup/.venv"
+
+# Add poetry and venv to path
+ENV PATH="$PATH:$POETRY_HOME/bin:$VENV_PATH/bin"
+
+# Create non-root user
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
+
+# upgrade pip to the latest version
+RUN pip install --upgrade pip
+
+# `builder-base` image used to install build dependecies and required packages 
+FROM python-base AS builder-base
+ARG ARCH
+RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
+    curl \
+    build-essential \
+    git
+
+# Install poetry. Installs in $POETRY_HOME with version $POETRY_VERSION
+RUN curl -sSL https://install.python-poetry.org | python3 - 
+
+WORKDIR $SETUP_PATH
+COPY multimodal-embedding-serving /multimodal-embedding-serving
+COPY visual-data-preparation-for-retrieval/multimodal-dataprep/poetry.lock visual-data-preparation-for-retrieval/multimodal-dataprep/pyproject.toml ./
+
+
+# Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
+# If value of ARCH is cpu, install with optional cpu dependencies else install main dependencies
+RUN if [ "${ARCH}" = "cpu" ]; \
+    then poetry install --no-root --with cpu; \
+    else poetry install --no-root --only main; fi
+
+# Install additional packages that have dependency conflicts with --no-deps
+# These are required for the multimodal embedding service SDK
+RUN poetry run pip install git+https://github.com/apple/ml-mobileclip.git salesforce-lavis==1.0.2 --no-deps
+
+# Set ownership of poetry and setup directories to appuser
+RUN chown -R appuser:appuser $POETRY_HOME $SETUP_PATH
+
+
+# `dev` image is used during development / testing
+FROM python-base AS dev
+ENV FASTAPI_ENV=development
+WORKDIR $SETUP_PATH
+
+# Copy the poetry installation and the virtual env to current image
+COPY --from=builder-base $POETRY_HOME $POETRY_HOME
+COPY --from=builder-base $SETUP_PATH $SETUP_PATH
+
+# Install dev dependencies. Prod dependencies are already installed.
+RUN poetry install --no-root --with dev
+
+# Copy the entrypoint script and makeit executable
+COPY visual-data-preparation-for-retrieval/multimodal-dataprep/scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Source code will be mounted here
+WORKDIR /app
+
+# Create temporary directory to store app artifacts. Ownership is changed to appuser later.
+RUN mkdir -p /tmp/dataprep
+
+# Create model directory for persistent storage mount
+RUN mkdir -p /app/models/yolox /app/ov_models
+
+# Set ownership of directories to appuser
+RUN chown -R appuser:appuser /app /tmp/dataprep /entrypoint.sh
+
+# Switch to non-root user
+USER appuser
+
+EXPOSE 8000
+
+ENTRYPOINT [ "/entrypoint.sh" ] 
+CMD [ "poetry", "run", "uvicorn", "--host", "0.0.0.0", "--port", "8000", "--reload", "src.main:app" ]
+
+# `prod` image used for runtime
+# NOTE: This stage is placed before lint/test stages to ensure the legacy Docker
+# builder (non-BuildKit) can build prod without executing lint checks. BuildKit
+# skips unneeded stages automatically, but the legacy builder executes stages
+# in order. Keep prod before lint to support both builders.
+FROM python-base AS prod
+
+ARG INSTALL_DRIVER_VERSION
+
+ENV FASTAPI_ENV=production \
+    INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
+
+# Install curl for health checks and debugging
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder-base $SETUP_PATH $SETUP_PATH
+
+COPY visual-data-preparation-for-retrieval/multimodal-dataprep/scripts/ /
+RUN chmod +x /entrypoint.sh /install_ubuntu_gpu_drivers.sh && \
+/install_ubuntu_gpu_drivers.sh
+
+COPY visual-data-preparation-for-retrieval/multimodal-dataprep/ /app/
+
+# Optionally download copyleft sources if requested
+ARG COPYLEFT_SOURCES=false
+RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
+        apt-get update && \
+        # Get list of installed deb packages with copyleft licenses \
+        sed -Ei 's/# deb-src /deb-src /' /etc/apt/sources.list && \
+        apt-get update && \
+        mkdir -p /copyleft_sources/deb && cd /copyleft_sources/deb && \
+        echo -n $null > copyleft_package_list.txt && \
+        for package in $(dpkg -l | awk '/^ii/ {print $2}' | cut -d: -f1); do \
+            grep -l 'Copyleft\|GPL\|LGPL\|EPL\|MPL\|CDDL' /usr/share/doc/${package}/copyright; \
+            exit_status=$?; \
+            if [ $exit_status -eq 0 ]; then \
+                echo $package >> copyleft_package_list.txt; \
+                apt-get source -q --download-only $package; \
+            fi; \
+        done; \
+        # Get source code for installed Python packages with copyleft licenses \
+        mkdir -p /copyleft_sources/python && \
+        cd /copyleft_sources/python && \
+        apt-get update && apt-get install --no-install-recommends -y gcc build-essential libffi-dev python3-dev && \
+        # Download python package sources with relevant licenses \
+        pip3 freeze | cut -d= -f1 | while read pkg; do \
+            meta=$(pip3 show $pkg 2>/dev/null); \
+            lic=$(echo "$meta" | grep -i '^License:' | grep -E 'MPL|GPL|General Public License|EPL|Eclipse Public License|CDDL|LGPL'); \
+            if [ ! -z "$lic" ]; then \
+                echo "Downloading source for $pkg with license: $lic"; \
+                pip3 download --no-binary :all: $pkg || true; \
+            fi; \
+        done; \
+        apt-get remove --purge -y gcc build-essential libffi-dev python3-dev; \
+    fi
+
+WORKDIR /app
+
+# Create temporary directory to store app artifacts. Ownership is changed to appuser later.
+# Create model directory for persistent storage mount
+RUN mkdir -p /tmp/dataprep /app/models/yolox /app/ov_models /home/appuser/.cache/huggingface
+
+
+# Set ownership of all necessary directories to appuser
+RUN chown -R appuser:appuser /app  /tmp/dataprep /entrypoint.sh /home/appuser/.cache/huggingface
+
+# Switch to non-root user
+USER appuser
+
+EXPOSE 8000
+
+ENTRYPOINT [ "/entrypoint.sh" ]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.main:app", "--timeout", "1200", "--log-level", "debug"]
+
+# Linter stage to lint code in dev image
+FROM dev AS lint
+
+USER root
+COPY --chown=appuser:appuser visual-data-preparation-for-retrieval/multimodal-dataprep/ .
+USER appuser
+
+RUN black --config ./pyproject.toml --check tests src
+RUN isort --settings-path ./pyproject.toml --check-only .
+
+# Final dev stage after passing linting and tests criteria.
+FROM lint AS final-dev
+ARG COVERAGE_REQ
+RUN coverage run --rcfile ./pyproject.toml -m pytest ./tests
+RUN coverage report -m --fail-under $COVERAGE_REQ
+
+# Generate test coverage report on lint stage and serve it using python http server.
+FROM lint AS report
+# Copy script with proper ownership from the start
+USER root
+COPY --chown=appuser:appuser visual-data-preparation-for-retrieval/multimodal-dataprep/scripts/reporter.sh /reporter.sh
+RUN chmod +x /reporter.sh
+USER appuser
+
+CMD [ "/reporter.sh" ]
