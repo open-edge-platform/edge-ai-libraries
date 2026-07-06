@@ -152,7 +152,7 @@ check-poetry:
 	    echo "   Required to build the multimodal-embedding wheel."; \
 	    echo "   Install: https://python-poetry.org/docs/#installation"; exit 1; }
 
-build: check-docker check-poetry build-deps
+build: check-docker check-poetry
 	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
 	@echo "Building all application services..."
 	@$(foreach component,$(COMPONENTS), \
