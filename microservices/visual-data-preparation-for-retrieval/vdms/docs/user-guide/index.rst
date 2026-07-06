@@ -6,6 +6,7 @@
 .. toctree::
    
    overview-architecture
+   pluggable-backends
    system-requirements
    get-started
 

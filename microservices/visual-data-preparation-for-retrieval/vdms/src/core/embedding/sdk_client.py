@@ -1,22 +1,17 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""SDK-based VDMS client that stores embeddings produced by the MME SDK."""
+"""SDK-based embedding client that stores embeddings produced by the MME SDK."""
 
 import threading
 import time
 import traceback
-import uuid
 from collections.abc import Iterable
 from typing import Any
-from typing import Dict
 from typing import List
 from typing import Optional
 
 import numpy as np
-from langchain_core.embeddings import Embeddings
-from langchain_vdms.vectorstores import VDMS
-from langchain_vdms.vectorstores import VDMS_Client
 from multimodal_embedding_serving import EmbeddingModel
 from multimodal_embedding_serving import get_model_handler
 from PIL import Image
@@ -24,38 +19,21 @@ from PIL import Image
 from src.common import Strings
 from src.common import logger
 from src.common import settings
-
-
-class DummyEmbedding(Embeddings):
-    """
-    Minimal dummy embedding class that satisfies VDMS requirements.
-    We won't actually use these methods since storage is handled entirely by langchain-vdms.
-    """
-    
-    def __init__(self, dimensions: int = 512):
-        self.dimensions = dimensions
-    
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        """Won't be called since we use pre-computed embeddings."""
-        raise NotImplementedError("Use pre-computed embeddings instead")
-    
-    def embed_query(self, text: str) -> List[float]:
-        """Won't be called since we use pre-computed embeddings.""" 
-        raise NotImplementedError("Use pre-computed embeddings instead")
+from src.core.vectorstores import get_vector_store
 
 
 class SDKVDMSClient:
     """
-    Optimized VDMS Client using SDK-based embedding generation with langchain-vdms persistence.
+    Optimized embedding client using SDK-based embedding generation with vector store persistence.
 
     This client provides maximum performance by combining:
     1. SDK-based embedding generation (no HTTP overhead)
-    2. Standard langchain-vdms vector store APIs for durability across restarts
+    2. Standard vector store APIs for durability across restarts
     3. Optimized batch processing for high-throughput storage
 
     Performance improvements:
     - Eliminates network latency for embedding generation
-    - Uses optimized batch sizes for VDMS operations
+    - Uses optimized batch sizes for vector store operations
     - Aligns with standard persistence flows to maintain index continuity
     """
     @staticmethod
@@ -97,16 +75,16 @@ class SDKVDMSClient:
         collection_name: Optional[str] = None,
     ) -> None:
         """
-        Initialize the SDK client with embedding model and VDMS storage.
+        Initialize the SDK client with embedding model and the vector store.
         
         Args:
             model_id: Model identifier for embedding generation
             device: Device to run the model on (CPU, GPU, etc.)
             use_openvino: Whether to use OpenVINO optimization
             ov_models_dir: Directory for OpenVINO models
-            vdms_host: VDMS database host (defaults to settings)
-            vdms_port: VDMS database port (defaults to settings)  
-            collection_name: VDMS collection name (defaults to settings)
+            vdms_host: Vector DB host (defaults to settings)
+            vdms_port: Vector DB port (defaults to settings)  
+            collection_name: Vector DB collection name (defaults to settings)
         """
         # Store embedding model configuration
         self.model_id = model_id
@@ -114,12 +92,12 @@ class SDKVDMSClient:
         self.use_openvino = use_openvino
         self.ov_models_dir = ov_models_dir
         
-        # Store VDMS configuration  
+        # Store Vector DB configuration  
         self.vdms_host = vdms_host or settings.VDMS_VDB_HOST
         self.vdms_port = vdms_port or settings.VDMS_VDB_PORT
         self.collection_name = collection_name or settings.DB_COLLECTION
         
-        # Synchronization for VDMS operations
+        # Synchronization for vector store operations
         self._vdms_lock = threading.RLock()
 
         # Initialize the embedding model
@@ -140,7 +118,7 @@ class SDKVDMSClient:
 
         self.embedding_dimensions = self._resolve_embedding_dimensions()
         
-        # Initialize VDMS database connection
+        # Initialize vector store connection
         self._init_vdms()
 
         logger.info("SDK client initialized with model: %s", self.model_id)
@@ -247,86 +225,28 @@ class SDKVDMSClient:
             return 512
     
     def _init_vdms(self):
-        """Initialize VDMS Client and database connection."""
+        """Initialize the active vector store backend via the factory.
+
+        Persistence is delegated to the pluggable vector store
+        (``VECTORDB_BACKEND``); this client no longer talks to VDMS directly.
+        """
         try:
-            logger.info("Connecting to VDMS server at %s:%s...", self.vdms_host, self.vdms_port)
-            
-            # Create VDMS client for collection management only
-            self.vdms_client = VDMS_Client(host=self.vdms_host, port=int(self.vdms_port))
-            
-            # For VDMS v2.10.0, skip connection test to avoid API validation issues
-            # The client will fail later if the connection is not valid
-            logger.info("VDMS client created successfully")
-            logger.info("Connection will be validated when first query is executed")
-
-            # Initialize VDMS database with minimal dummy embedding for collection setup
-            dummy_embedding = DummyEmbedding(self.embedding_dimensions)
-            
-            self.video_db = VDMS(
-                client=self.vdms_client,
-                embedding=dummy_embedding,  # Only used for collection setup
-                collection_name=self.collection_name,
-                engine="FaissFlat",
-                distance_strategy="IP",
-                # distance_strategy="L2",
-                embedding_dimensions=self.embedding_dimensions
-            )
-            
-            logger.info("VDMS initialized - Collection: %s", self.collection_name)
-            logger.info("Collection configured with %dD embeddings", self.embedding_dimensions)
-            logger.warning(
-                "If you see 'Dimensions mismatch' errors from VDMS, the collection was created "
-                "with different dimensions. To fix: 1) Delete the collection using VDMS CLI, or "
-                "2) Use a different collection_name, or 3) Restart VDMS to clear all collections"
-            )
-
+            self.vector_store = get_vector_store()
+            # Propagate the resolved embedding dimensions to backends that need
+            # them at collection-creation time (e.g. VDMS).
+            if self.embedding_dimensions and hasattr(
+                self.vector_store, "embedding_dimensions"
+            ):
+                self.vector_store.embedding_dimensions = self.embedding_dimensions
+            self.vector_store.connect()
+            logger.info("Vector store backend initialized for SDKVDMSClient")
         except Exception as ex:
-            logger.error("Error initializing VDMS: %s", ex)
+            logger.error("Error initializing vector store: %s", ex)
             raise Exception(Strings.db_conn_error)
-
-    def _clean_metadata_for_vdms(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Clean metadata for VDMS storage by converting complex types to VDMS-compatible formats.
-        
-        VDMS accepts:
-        - Integers (123)
-        - Doubles (123.45)
-        - Booleans (true/false)
-        - Strings ("hello")
-        
-        VDMS does NOT accept:
-        - Arrays/lists (must be converted to strings)
-        - Objects/nested structures (must be flattened or converted to strings)
-        """
-        cleaned = {}
-        for key, value in metadata.items():
-            if value is None:
-                # Skip None values
-                continue
-            elif isinstance(value, (str, int, float, bool)):
-                # Primitive types are accepted as-is
-                cleaned[key] = value
-            elif isinstance(value, list):
-                # Convert arrays to comma-separated strings
-                if all(isinstance(item, (int, float)) for item in value):
-                    # Numeric array - join as comma-separated string
-                    cleaned[key] = ",".join(str(item) for item in value)
-                else:
-                    # Mixed or string array - join as comma-separated string
-                    cleaned[key] = ",".join(str(item) for item in value)
-            elif isinstance(value, dict):
-                # Convert objects to JSON strings
-                import json
-                cleaned[key] = json.dumps(value)
-            else:
-                # Convert any other type to string
-                cleaned[key] = str(value)
-        
-        return cleaned
 
     def store_frame_embeddings(self, embeddings: List[List[float]], frame_metadatas: List[dict]) -> List[str]:
         """
-        Store frame embeddings using optimized langchain-vdms batching.
+        Store frame embeddings using optimized vector store batching.
 
         Args:
             embeddings: Pre-computed embeddings from SDK
@@ -361,14 +281,14 @@ class SDKVDMSClient:
                 else:
                     frame_text = f"frame_{frame_num}_{video_id}"
                 
-                # Clean metadata to remove problematic fields for VDMS
-                cleaned_metadata = self._clean_metadata_for_vdms(metadata)
-                
+                # Pass canonical metadata through unmodified; the active vector
+                # store backend adapts it per-backend (VDMS flattens lists,
+                # Milvus preserves them).
                 frame_texts.append(frame_text)
-                cleaned_metadatas.append(cleaned_metadata)
+                cleaned_metadatas.append(metadata)
             logger.debug("Prepared metadata for %d frames", len(frame_texts))
 
-            # Store embeddings using optimized langchain-vdms approach
+            # Store embeddings using optimized vector store approach
             logger.debug(
                 "Storage payload: dim=%s, sample_text=%s, metadata_keys=%s",
                 len(embeddings[0]) if embeddings and len(embeddings[0]) > 0 else "unknown",
@@ -394,67 +314,25 @@ class SDKVDMSClient:
         texts: List[str],
         metadatas: List[dict],
     ) -> List[str]:
-        """Persist embeddings using the langchain-vdms vector store."""
+        """Persist embeddings via the active vector store backend.
+
+        Metadata is passed through unmodified (canonical form); the backend
+        adapts it. The store lock is retained to serialize concurrent stores from
+        the SDK's parallel pipeline.
+        """
 
         if not embeddings:
             return []
 
-        logger.info("Storing %d embeddings via langchain-vdms", len(embeddings))
-        batch_size = 200
-        generated_ids: List[str] = []
-
+        logger.info("Storing %d embeddings via vector store backend", len(embeddings))
         with self._vdms_lock:
-            for start_idx in range(0, len(embeddings), batch_size):
-                end_idx = min(start_idx + batch_size, len(embeddings))
+            generated_ids = self.vector_store.add_embeddings(
+                texts=texts,
+                embeddings=embeddings,
+                metadatas=metadatas,
+            )
 
-                batch_embeddings = embeddings[start_idx:end_idx]
-                batch_texts = texts[start_idx:end_idx]
-                batch_metadatas = metadatas[start_idx:end_idx]
-                batch_ids = [str(uuid.uuid4()) for _ in batch_embeddings]
-
-                try:
-                    inserted_ids = self.video_db.add_from(
-                        texts=batch_texts,
-                        embeddings=batch_embeddings,
-                        metadatas=batch_metadatas,
-                        ids=batch_ids,
-                        batch_size=batch_size,
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "VDMS add_from failed for batch %d-%d. Reinitializing VDMS client and retrying once. Error: %s",
-                        start_idx,
-                        end_idx - 1,
-                        exc,
-                    )
-                    self._init_vdms()
-                    try:
-                        inserted_ids = self.video_db.add_from(
-                            texts=batch_texts,
-                            embeddings=batch_embeddings,
-                            metadatas=batch_metadatas,
-                            ids=batch_ids,
-                            batch_size=batch_size,
-                        )
-                    except Exception as retry_exc:
-                        logger.error(
-                            "VDMS add_from retry failed for batch %d-%d: %s",
-                            start_idx,
-                            end_idx - 1,
-                            retry_exc,
-                        )
-                        raise
-
-                if not inserted_ids or len(inserted_ids) != len(batch_ids):
-                    raise ValueError(
-                        "VDMS add_from returned unexpected result size. "
-                        f"Expected {len(batch_ids)}, received {len(inserted_ids) if inserted_ids else 0}."
-                    )
-
-                generated_ids.extend(inserted_ids)
-
-        self.video_db.check_and_update_properties()
-        logger.info("Stored %d embeddings in VDMS", len(generated_ids))
+        logger.info("Stored %d embeddings", len(generated_ids))
         return generated_ids
     
 
@@ -601,14 +479,13 @@ class SDKVDMSClient:
         embedding_vector: List[float],
         metadata: Optional[dict] = None,
     ) -> List[str]:
-        """Store a pre-computed text embedding vector in VDMS."""
+        """Store a pre-computed text embedding vector via the vector store."""
         metadata = metadata or {}
         if not embedding_vector:
             raise ValueError("Embedding vector cannot be empty")
 
-        cleaned_metadata = self._clean_metadata_for_vdms(metadata)
         return self._store_embeddings(
             embeddings=[embedding_vector],
             texts=[text],
-            metadatas=[cleaned_metadata],
+            metadatas=[metadata],
         )

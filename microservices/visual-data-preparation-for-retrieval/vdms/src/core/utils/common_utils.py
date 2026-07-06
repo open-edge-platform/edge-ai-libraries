@@ -9,11 +9,10 @@ the VDMS DataPrep microservice.
 
 import logging
 from typing import NamedTuple, Optional, Tuple
-from minio import Minio
 
-from src.common import DataPrepException, Strings, logger, sanitize_for_log, settings
-from src.core.minio_client import MinioClient
+from src.common import DataPrepException, logger, sanitize_for_log, settings
 from src.core.object_detection.detector import YOLOXDetector
+from src.core.storage import BaseStorage, get_storage
 from .config_utils import get_config
 
 
@@ -50,33 +49,21 @@ def sanitize_input(input: str) -> str | None:
     return input
 
 
-def get_minio_client() -> MinioClient:
-    """Get a configured Minio client instance.
+def get_minio_client() -> BaseStorage:
+    """Return the active storage backend.
+
+    Retained as a backward-compatible shim: it now delegates to the pluggable
+    storage factory (``STORAGE_BACKEND``) and returns a :class:`BaseStorage`
+    implementation (MinIO or local filesystem). The returned object exposes the
+    same method surface previously provided by ``MinioClient``.
 
     Returns:
-        MinioClient: A configured Minio client
+        BaseStorage: The configured storage backend.
 
     Raises:
-        Exception: If Minio client configuration is missing
+        Exception: If the configured storage backend cannot be initialized.
     """
-    if (
-        not settings.MINIO_ENDPOINT
-        or not settings.MINIO_ACCESS_KEY
-        or not settings.MINIO_SECRET_KEY
-    ):
-        logger.error("Minio configuration is incomplete")
-        raise Exception(Strings.minio_conn_error)
-
-    try:
-        return MinioClient(
-            endpoint=settings.MINIO_ENDPOINT,
-            access_key=settings.MINIO_ACCESS_KEY,
-            secret_key=settings.MINIO_SECRET_KEY,
-            secure=settings.MINIO_SECURE,
-        )
-    except Exception as e:
-        logger.error(f"Failed to create Minio client: {e}")
-        raise Exception(Strings.minio_conn_error)
+    return get_storage()
 
 
 def create_detector_instance(config: Optional[dict] = None, enable_object_detection: Optional[bool] = None, detection_confidence: Optional[float] = None):

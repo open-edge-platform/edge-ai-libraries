@@ -2,6 +2,10 @@
 
 [VDMS](https://github.com/IntelLabs/vdms) based DataPrep microservice uses VDMS LangChain integration to efficiently ingest and manage multimodal data—such as images, text, and audio—by converting them into embeddings and storing them with metadata in VDMS. The microservice stores the source video files directly in Minio object storage.
 
+The microservice is **vector-database and storage agnostic**: the vector store
+(`vdms`, `milvus`) and object storage (`minio`, `local`) are each selected at
+startup behind a factory. See [Pluggable Backends](docs/user-guide/pluggable-backends.md).
+
 _Note_: Only MP4 video file format is supported for creating embeddings currently.
 
 Below, you'll find links to detailed documentation to help you get started, configure, and deploy the microservice.
@@ -11,6 +15,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
 - **Overview**
   - [Overview](docs/user-guide/Overview.md): A high-level introduction to the microservice.
   - [Overview Architecture](docs/user-guide/overview-architecture.md): Detailed architecture.
+  - [Pluggable Backends](docs/user-guide/pluggable-backends.md): Vector-database (VDMS/Milvus) and storage (MinIO/local) selection, configuration, and how to add a new backend.
 
 - **Getting Started**
   - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to getting started with the microservice.

@@ -28,6 +28,29 @@ class Settings(BaseSettings):
     DEFAULT_BUCKET_NAME: str = "video-summary"  # Reuse existing bucket from sample app
     DB_COLLECTION: str = "video-rag-test"
 
+    # ------------------------------------------------------------------
+    # Pluggable backend selection (vector DB + storage)
+    # ------------------------------------------------------------------
+    # Active vector database backend. Supported: "vdms", "milvus".
+    # Default "vdms" preserves the historical behavior of this microservice.
+    VECTORDB_BACKEND: str = Field(
+        default="vdms",
+        validation_alias=AliasChoices("VECTORDB_BACKEND", "VECTOR_DB_BACKEND"),
+        description="Active vector database backend: 'vdms' or 'milvus'",
+    )
+    # Active storage backend for media/artifacts. Supported: "minio", "local".
+    STORAGE_BACKEND: str = Field(
+        default="minio",
+        description="Active storage backend: 'minio' or 'local'",
+    )
+
+    @field_validator("VECTORDB_BACKEND", "STORAGE_BACKEND", mode="before")
+    @classmethod
+    def _normalize_backend(cls, value):
+        if value in (None, ""):
+            return value
+        return str(value).strip().lower()
+
     METADATA_FILENAME: str = "metadata.json"
     CONFIG_FILEPATH: Path = Path(__file__).resolve().parent.parent / "config.yaml"
 
@@ -40,6 +63,31 @@ class Settings(BaseSettings):
     # VDMS and embedding settings
     VDMS_VDB_HOST: str = ""
     VDMS_VDB_PORT: str = ""
+
+    # Milvus settings (used when VECTORDB_BACKEND == "milvus")
+    MILVUS_HOST: str = Field(default="", description="Milvus server host")
+    MILVUS_PORT: str = Field(default="19530", description="Milvus server port")
+    MILVUS_URI: str = Field(
+        default="",
+        description="Full Milvus URI (e.g. http://host:port). Overrides MILVUS_HOST/PORT when set.",
+    )
+    # Distance/similarity metric shared across backends. Inner-Product by default.
+    VDB_METRIC_TYPE: str = Field(
+        default="IP",
+        description="Vector similarity metric (e.g. IP, L2). Applied to both VDMS and Milvus.",
+    )
+    VDB_INDEX_TYPE: str = Field(
+        default="FLAT",
+        description="Vector index type for backends that require it (e.g. Milvus FLAT).",
+    )
+
+    # Local filesystem storage settings (used when STORAGE_BACKEND == "local")
+    LOCAL_STORAGE_PATH: str = Field(
+        default="/tmp/dataprep/storage",
+        description="Root directory for the local filesystem storage backend; "
+        "each bucket maps to a subdirectory.",
+    )
+
     MULTIMODAL_EMBEDDING_MODEL_NAME: str = ""  # Model name for both SDK and API modes - must be explicitly set
     MULTIMODAL_EMBEDDING_ENDPOINT: str = ""  # 0 means auto-detect from API
     

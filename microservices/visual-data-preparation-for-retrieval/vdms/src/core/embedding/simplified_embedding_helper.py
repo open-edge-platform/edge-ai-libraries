@@ -20,7 +20,7 @@ from .sdk_embedding_helper import (
     get_sdk_client,
 )
 
-# Cache to store VDMS client instances for different use cases
+# Cache to store embedding client instances for different use cases
 _client_cache: dict[str, SimpleVDMSClient] = {}
 
 
@@ -328,14 +328,14 @@ def _record_api_pipeline(
 
 def _get_client_key(endpoint: str | None = None, use_case: str = "default") -> str:
     """
-    Generate a unique key for caching VDMS clients based on endpoint and use case.
+    Generate a unique key for caching embedding clients based on endpoint and use case.
 
     Args:
         endpoint: Multimodal embedding service endpoint URL
         use_case: Type of processing ("video", "text", or "default")
 
     Returns:
-        A unique string key for the VDMS client cache
+        A unique string key for the embedding client cache
     """
     base_key = f"{settings.VDMS_VDB_HOST}:{settings.VDMS_VDB_PORT}:{settings.DB_COLLECTION}"
 
@@ -349,7 +349,7 @@ def _get_client_key(endpoint: str | None = None, use_case: str = "default") -> s
 
 def _get_cached_vdms_client(use_case: str = "default") -> SimpleVDMSClient:
     """
-    Get or create a cached VDMS client for the specified use case.
+    Get or create a cached embedding client for the specified use case.
 
     Args:
         use_case: Type of processing ("video", "text", or "default")
@@ -360,7 +360,7 @@ def _get_cached_vdms_client(use_case: str = "default") -> SimpleVDMSClient:
     cache_key = _get_client_key(endpoint=settings.MULTIMODAL_EMBEDDING_ENDPOINT, use_case=use_case)
 
     if cache_key not in _client_cache:
-        logger.info(f"Creating new VDMS client for use case: {use_case}")
+        logger.info(f"Creating new embedding client for use case: {use_case}")
 
         # Validate that model name is provided when using API mode
         if not settings.MULTIMODAL_EMBEDDING_MODEL_NAME:
@@ -377,9 +377,9 @@ def _get_cached_vdms_client(use_case: str = "default") -> SimpleVDMSClient:
             model_name=settings.MULTIMODAL_EMBEDDING_MODEL_NAME,  # Must be explicitly set - no default
         )
         _client_cache[cache_key] = client
-        logger.debug(f"VDMS client cached with key: {cache_key}")
+        logger.debug(f"embedding client cached with key: {cache_key}")
     else:
-        logger.debug(f"Using cached VDMS client for: {cache_key}")
+        logger.debug(f"Using cached embedding client for: {cache_key}")
 
     return _client_cache[cache_key]
 
@@ -679,7 +679,7 @@ async def _generate_video_embedding_api_mode(
     client_setup_start = time.time()
     vdms_client = _get_cached_vdms_client(use_case="video")
     client_setup_time = time.time() - client_setup_start
-    logger.debug("VDMS client ready in %.3fs", client_setup_time)
+    logger.debug("Embedding client ready in %.3fs", client_setup_time)
 
     storage_start = time.time()
     storage_result = vdms_client.store_embeddings_from_manifest(trusted_metadata_file_path)

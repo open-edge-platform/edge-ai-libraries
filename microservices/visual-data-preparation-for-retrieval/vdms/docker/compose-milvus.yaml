@@ -1,0 +1,190 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Example deployment of vdms-dataprep using the **Milvus** vector database backend.
+#
+# This mirrors docker/compose.yaml but swaps the VDMS vector store for a Milvus
+# standalone stack (etcd + object storage + milvus) and selects the backend via
+# VECTORDB_BACKEND=milvus. The MinIO instance used by the dataprep service for
+# media/artifact storage (STORAGE_BACKEND=minio) is kept separate from the MinIO
+# instance that Milvus uses internally for its own segment storage.
+#
+# Notes:
+#  * Proxy env vars are disabled (both lower- and upper-case) for the Milvus
+#    etcd/standalone containers and for the dataprep -> Milvus gRPC path; an HTTP
+#    proxy in front of localhost/in-cluster gRPC causes Milvus startup ("etcd
+#    context deadline exceeded") and ConnectionNotExist errors.
+#  * Milvus uses local segment storage (COMMON_STORAGETYPE=local), so it needs no
+#    internal MinIO/S3 service. The only MinIO here (minio-server) is the
+#    dataprep service's own media/artifact storage (STORAGE_BACKEND=minio).
+#  * Pin to a Milvus 2.6.x image; langchain-milvus 0.3.x relies on the pymilvus
+#    2.6 ORM API that this service depends on.
+services:
+    # ---- Storage backend used by the dataprep service (media + artifacts) ----
+    minio-server:
+        image: coollabsio/minio:RELEASE.2025-10-15T17-29-55Z
+        environment:
+            - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+            - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+        ports:
+            - '${MINIO_API_HOST_PORT:-6010}:9000'
+            - '${MINIO_CONSOLE_HOST_PORT:-6011}:9001'
+        volumes:
+            - '${MINIO_MOUNT_PATH:-/mnt/miniodata}:/data'
+        command: |
+            server /data 
+            --address ":9000" 
+            --console-address ":9001"
+
+    # ---- Milvus standalone stack (etcd + milvus, local segment storage) ----
+    milvus-etcd:
+        image: quay.io/coreos/etcd:v3.5.18
+        environment:
+            - ETCD_AUTO_COMPACTION_MODE=revision
+            - ETCD_AUTO_COMPACTION_RETENTION=1000
+            - ETCD_QUOTA_BACKEND_BYTES=4294967296
+            - ETCD_SNAPSHOT_COUNT=50000
+            # Disable proxy (both cases) so etcd cluster bootstrap does not time out.
+            - http_proxy=
+            - https_proxy=
+            - no_proxy=
+            - HTTP_PROXY=
+            - HTTPS_PROXY=
+            - NO_PROXY=
+        volumes:
+            - milvus-etcd:/etcd
+        command: >
+            etcd -advertise-client-urls=http://127.0.0.1:2379
+            -listen-client-urls http://0.0.0.0:2379
+            --data-dir /etcd
+        healthcheck:
+            test: ["CMD", "etcdctl", "endpoint", "health"]
+            interval: 30s
+            timeout: 20s
+            retries: 3
+
+    milvus-standalone:
+        image: milvusdb/milvus:v2.6.16
+        command: ["milvus", "run", "standalone"]
+        security_opt:
+            - seccomp:unconfined
+        environment:
+            - ETCD_ENDPOINTS=milvus-etcd:2379
+            # Use local disk for Milvus segment storage (no internal MinIO needed).
+            - COMMON_STORAGETYPE=local
+            # Disable proxy (both cases) for in-cluster gRPC/etcd communication.
+            - http_proxy=
+            - https_proxy=
+            - no_proxy=
+            - HTTP_PROXY=
+            - HTTPS_PROXY=
+            - NO_PROXY=
+        volumes:
+            - milvus-data:/var/lib/milvus
+        ports:
+            - '${MILVUS_HOST_PORT:-19530}:19530'
+            - '${MILVUS_METRICS_HOST_PORT:-9091}:9091'
+        depends_on:
+            milvus-etcd:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+            interval: 30s
+            timeout: 20s
+            retries: 5
+            start_period: 90s
+
+    # ---- DataPrep service configured for the Milvus backend ----
+    vdms-dataprep:
+        hostname: vdms-dataprep
+        build:
+            context: ../../..
+            dockerfile: visual-data-preparation-for-retrieval/vdms/docker/Dockerfile
+            target: prod
+        image: ${REGISTRY}vdms-dataprep:${TAG:-latest}
+        environment:
+            # Disable proxy for the dataprep -> Milvus gRPC path.
+            no_proxy: ${no_proxy},milvus-standalone,${MULTIMODAL_EMBEDDING_HOST},${MINIO_HOST},localhost,127.0.0.1
+            http_proxy: ${http_proxy}
+            https_proxy: ${https_proxy}
+            APP_HOST: vdms-dataprep
+            # ---- Backend selection ----
+            VECTORDB_BACKEND: milvus
+            STORAGE_BACKEND: minio
+            # ---- Milvus connection ----
+            MILVUS_URI: http://milvus-standalone:19530
+            VDB_METRIC_TYPE: ${VDB_METRIC_TYPE:-IP}
+            VDB_INDEX_TYPE: ${VDB_INDEX_TYPE:-FLAT}
+            # ---- Storage (MinIO) ----
+            MINIO_ENDPOINT: ${MINIO_HOST}:${MINIO_API_HOST_PORT:-4001}
+            MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+            MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+            MINIO_SECURE: false
+            DEFAULT_BUCKET_NAME: ${DEFAULT_BUCKET_NAME}
+            DB_COLLECTION: ${VS_INDEX_NAME}
+            # ---- Embedding ----
+            MULTIMODAL_EMBEDDING_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT}
+            MULTIMODAL_EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
+            EMBEDDING_PROCESSING_MODE: ${EMBEDDING_PROCESSING_MODE:-sdk}
+            SDK_USE_OPENVINO: ${SDK_USE_OPENVINO:-true}
+            VDMS_DATAPREP_DEVICE: ${VDMS_DATAPREP_DEVICE:-CPU}
+            OV_MODELS_DIR: ${OV_MODELS_DIR:-/app/ov_models}
+            OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
+            EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
+            MAX_PARALLEL_WORKERS: ${MAX_PARALLEL_WORKERS:-}
+            FRAME_INTERVAL: ${FRAME_INTERVAL:-15}
+            ENABLE_OBJECT_DETECTION: ${ENABLE_OBJECT_DETECTION:-true}
+            DETECTION_CONFIDENCE: ${DETECTION_CONFIDENCE:-0.85}
+            FRAMES_TEMP_DIR: ${FRAMES_TEMP_DIR:-/tmp/dataprep}
+            DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH}
+            LOG_LEVEL: ${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+            ALLOW_ORIGINS: ${ALLOW_ORIGINS:-*}
+            ALLOW_METHODS: ${ALLOW_METHODS:-*}
+            ALLOW_HEADERS: ${ALLOW_HEADERS:-*}
+        ports:
+            - "${VDMS_DATAPREP_HOST_PORT}:8000"
+        healthcheck:
+            test:
+                [
+                "CMD-SHELL",
+                "curl -f http://localhost:8000/v1/dataprep/health || exit 1",
+                ]
+            interval: 10s
+            timeout: 10s
+            retries: 40
+            start_period: 5s
+        volumes:
+            - '${YOLOX_MODELS_VOLUME_NAME:-vdms-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
+            - data-prep:/tmp/dataprep
+            - ov-models:/home/appuser/.cache/huggingface
+            - ov-models:${OV_MODELS_DIR:-/app/ov_models}
+        devices:
+            - /dev/dri:/dev/dri
+        ulimits:
+            nofile:
+                soft: 32768
+                hard: 65535
+        ipc: host
+        group_add:
+            - ${USER_GROUP_ID:-1000}
+            - ${VIDEO_GROUP_ID:-44}
+            - ${RENDER_GROUP_ID:-1002}
+        depends_on:
+            - minio-server
+            - milvus-standalone
+
+networks:
+    default:
+        driver: bridge
+
+volumes:
+    vdms-yolox-models:
+        driver: local
+    ov-models:
+        driver: local
+    data-prep:
+        driver: local
+    milvus-etcd:
+        driver: local
+    milvus-data:
+        driver: local

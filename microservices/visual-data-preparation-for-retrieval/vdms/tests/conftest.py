@@ -5,13 +5,8 @@ import io
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
 
 from src.core.minio_client import MinioClient
-from src.main import app
-
-# application packages
-from src.main import app
 
 
 @pytest.fixture(scope="function")
@@ -33,6 +28,10 @@ def invalid_video_file(tmp_path):
 @pytest.fixture(scope="module")
 def test_client():
     """A fixture to help send HTTP REST requests to API endpoints."""
+
+    from fastapi.testclient import TestClient
+
+    from src.main import app
 
     client = TestClient(app)
     yield client

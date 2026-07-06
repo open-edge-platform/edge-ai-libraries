@@ -17,11 +17,10 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from langchain_vdms.vectorstores import VDMS_Utils
 
 from src.common import logger, settings
 from src.common.schema import DataPrepResponse, StatusEnum
-from src.core.embedding import _client_cache
+from src.core.vectorstores import get_vector_store
 from src.endpoints import (
     check_health_router,
     delete_video_router,
@@ -148,45 +147,15 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        clients_to_update: list[tuple[str, object]] = []
-
-        if _client_cache:
-            for client_key, client_wrapper in _client_cache.items():
-                client = getattr(client_wrapper, "client", None)
-                if client is not None:
-                    clients_to_update.append((client_key, client))
-
+        # Flush/refresh the active vector store index before teardown. This is a
+        # backend-agnostic call: VDMS persists its descriptor-set index, Milvus
+        # is a no-op (eager indexing).
         try:
-            from src.core.embedding.sdk_embedding_helper import _sdk_client
-        except Exception:  # pragma: no cover - defensive import guard
-            _sdk_client = None
-
-        if _sdk_client is not None:
-            sdk_client = getattr(_sdk_client, "vdms_client", None)
-            if sdk_client is not None:
-                clients_to_update.append(("sdk_client", sdk_client))
-
-        if clients_to_update:
-            logger.info("Updating VDMS index before tearing down . . .")
-
-        for client_key, client in clients_to_update:
-            try:
-                vdms_utils = VDMS_Utils(client)
-                query = vdms_utils.add_descriptor_set(
-                    "FindDescriptorSet",
-                    name=settings.DB_COLLECTION,
-                    storeIndex=True,
-                )
-
-                res, _ = vdms_utils.run_vdms_query([query])
-                if res and "FailedCommand" in res[0]:
-                    raise ValueError(
-                        f"Failed to update VDMS index for collection {settings.DB_COLLECTION}."
-                    )
-
-                logger.info(f"VDMS client '{client_key}' index updated successfully.")
-            except Exception as exc:  # pragma: no cover - best effort logging
-                logger.error(f"Error updating index for VDMS client '{client_key}': {exc}")
+            logger.info("Updating vector store index before tearing down . . .")
+            get_vector_store().update_index()
+            logger.info("Vector store index updated successfully.")
+        except Exception as exc:  # pragma: no cover - best effort logging
+            logger.error(f"Error updating vector store index: {exc}")
 
         logger.info("Tearing down VDMS-Dataprep Service . . .")
 

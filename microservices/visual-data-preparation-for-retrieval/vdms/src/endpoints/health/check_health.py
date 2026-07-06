@@ -36,6 +36,23 @@ async def check_health() -> HealthResponse:
         health_status["detection_model"] = "yolox_s"
         health_status["detection_device"] = settings.DETECTION_DEVICE or "CPU"
 
+    # Report the active vector store backend health (backend-agnostic).
+    try:
+        from src.core.vectorstores import get_vector_store
+
+        vector_health = get_vector_store().health()
+        health_status["vectordb_backend"] = settings.VECTORDB_BACKEND
+        health_status["vectordb_status"] = vector_health.get("status", "unknown")
+        if vector_health.get("error"):
+            health_status["vectordb_error"] = vector_health["error"]
+    except Exception as e:
+        health_status["vectordb_backend"] = settings.VECTORDB_BACKEND
+        health_status["vectordb_status"] = "error"
+        health_status["vectordb_error"] = str(e)
+
+    # Report the active storage backend.
+    health_status["storage_backend"] = settings.STORAGE_BACKEND
+
     # If in SDK mode, check if client is preloaded
     if settings.EMBEDDING_PROCESSING_MODE.lower() == "sdk":
         try:

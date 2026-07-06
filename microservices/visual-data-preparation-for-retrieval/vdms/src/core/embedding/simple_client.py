@@ -5,45 +5,24 @@ import json
 import datetime
 import pathlib
 import time
-import uuid
 from typing import Any, List
 
 import requests
 
-from langchain_vdms.vectorstores import VDMS, VDMS_Client
-from langchain_core.embeddings import Embeddings
-
 from src.common import Strings, logger
-
-
-class DummyEmbedding(Embeddings):
-    """
-    Minimal dummy embedding class that satisfies VDMS requirements.
-    We won't actually use these methods since we use add_from() directly.
-    """
-
-    def __init__(self, dimensions: int = 512):
-        self.dimensions = dimensions
-
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        """Won't be called since we use add_from() directly."""
-        raise NotImplementedError("Use add_from() method instead")
-
-    def embed_query(self, text: str) -> List[float]:
-        """Won't be called since we use add_from() directly."""
-        raise NotImplementedError("Use add_from() method instead")
+from src.core.vectorstores import get_vector_store
 
 
 class SimpleVDMSClient:
     """
-    Dramatically simplified VDMS client that doesn't need any embedding service.
+    API-mode embedding client that persists via the pluggable vector store.
 
     This client:
-    1. Creates VDMS without embedding function (just provides dimensions)
-    2. Gets embeddings directly from multimodal API
-    3. Stores embeddings using add_from() method
+    1. Gets embeddings directly from the multimodal API.
+    2. Delegates persistence to the active vector store backend
+       (``VECTORDB_BACKEND``) via the factory, so it is no longer tied to VDMS.
 
-    Much simpler than the previous complex wrapper architecture!
+    The class name is retained for backward compatibility with existing callers.
     """
 
     def __init__(
@@ -55,7 +34,7 @@ class SimpleVDMSClient:
         multimodal_api_url: str = None,
         model_name: str = None,  # Must be explicitly provided
     ):
-        logger.debug("Initializing Simple VDMS Client...")
+        logger.debug("Initializing simple embedding client...")
         if not model_name:
             raise ValueError(
                 "Model name must be explicitly provided - no default model name is allowed"
@@ -74,7 +53,7 @@ class SimpleVDMSClient:
 
         logger.info(f"Using embedding dimensions: {self.embedding_dimensions}")
 
-        # Initialize VDMS without embedding function
+        # Initialize vector store without embedding function
         self.init_db()
 
     @staticmethod
@@ -153,71 +132,24 @@ class SimpleVDMSClient:
             return 512
 
     def init_db(self):
-        """Initialize VDMS Client without any embedding function."""
+        """Initialize the active vector store backend via the factory.
+
+        Persistence is delegated to the pluggable vector store
+        (``VECTORDB_BACKEND``); this client no longer talks to VDMS directly.
+        """
         try:
-            logger.info(f"Connecting to VDMS DB server at {self.host}:{self.port}...")
-            self.client = VDMS_Client(host=self.host, port=self.port)
-
-            logger.info("Creating VDMS instance with minimal dummy embedding...")
-            # Use minimal dummy embedding to satisfy VDMS requirements
-            # We won't actually use it since we call add_from() directly
-            dummy_embedding = DummyEmbedding(self.embedding_dimensions)
-
-            self.video_db = VDMS(
-                client=self.client,
-                embedding=dummy_embedding,  # Minimal dummy embedding
-                collection_name=self.collection_name,
-                engine="FaissFlat",
-                distance_strategy="IP",
-                # distance_strategy="L2",
-                embedding_dimensions=self.embedding_dimensions,
-            )
-            logger.info("VDMS initialized successfully with dummy embedding (won't be used)")
-
+            self.vector_store = get_vector_store()
+            # Propagate the auto-detected embedding dimensions to backends that
+            # need them at collection-creation time (e.g. VDMS).
+            if self.embedding_dimensions and hasattr(
+                self.vector_store, "embedding_dimensions"
+            ):
+                self.vector_store.embedding_dimensions = self.embedding_dimensions
+            self.vector_store.connect()
+            logger.info("Vector store backend initialized for SimpleVDMSClient")
         except Exception as ex:
             logger.error(f"Error in init_db: {ex}")
             raise Exception(Strings.db_conn_error)
-
-    def _clean_metadata_for_vdms(self, metadata: dict) -> dict:
-        """
-        Clean metadata for VDMS storage by converting complex types to VDMS-compatible formats.
-
-        VDMS accepts:
-        - Integers (123)
-        - Doubles (123.45)
-        - Booleans (true/false)
-        - Strings ("hello")
-
-        VDMS does NOT accept:
-        - Arrays/lists (must be converted to strings)
-        - Objects/nested structures (must be flattened or converted to strings)
-        """
-        cleaned = {}
-        for key, value in metadata.items():
-            if value is None:
-                # Skip None values
-                continue
-            elif isinstance(value, (str, int, float, bool)):
-                # Primitive types are accepted as-is
-                cleaned[key] = value
-            elif isinstance(value, list):
-                # Convert arrays to comma-separated strings
-                if all(isinstance(item, (int, float)) for item in value):
-                    # Numeric array - join as comma-separated string
-                    cleaned[key] = ",".join(str(item) for item in value)
-                else:
-                    # Mixed or string array - join as comma-separated string
-                    cleaned[key] = ",".join(str(item) for item in value)
-            elif isinstance(value, dict):
-                # Convert objects to JSON strings
-                import json
-
-                cleaned[key] = json.dumps(value)
-            else:
-                # Convert any other type to string
-                cleaned[key] = str(value)
-
-        return cleaned
 
     def _store_embeddings(
         self,
@@ -225,66 +157,22 @@ class SimpleVDMSClient:
         texts: List[str],
         metadatas: List[dict],
     ) -> List[str]:
-        """Store embeddings using the langchain-vdms vector store APIs."""
+        """Persist embeddings via the active vector store backend.
+
+        Metadata is passed through unmodified (canonical form); the backend
+        adapts it (VDMS flattens lists; Milvus preserves them).
+        """
 
         if not embeddings:
             return []
 
-        logger.info("Starting VDMS storage for %d embeddings", len(embeddings))
-        batch_size = 200
-        generated_ids: List[str] = []
-
-        for start_idx in range(0, len(embeddings), batch_size):
-            end_idx = min(start_idx + batch_size, len(embeddings))
-
-            batch_embeddings = embeddings[start_idx:end_idx]
-            batch_texts = texts[start_idx:end_idx]
-            batch_metadatas = metadatas[start_idx:end_idx]
-            batch_ids = [str(uuid.uuid4()) for _ in batch_embeddings]
-
-            try:
-                inserted_ids = self.video_db.add_from(
-                    texts=batch_texts,
-                    embeddings=batch_embeddings,
-                    metadatas=batch_metadatas,
-                    ids=batch_ids,
-                    batch_size=batch_size,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "VDMS add_from failed for batch %d-%d. Reinitializing VDMS client and retrying once. Error: %s",
-                    start_idx,
-                    end_idx - 1,
-                    exc,
-                )
-                self.init_db()
-                try:
-                    inserted_ids = self.video_db.add_from(
-                        texts=batch_texts,
-                        embeddings=batch_embeddings,
-                        metadatas=batch_metadatas,
-                        ids=batch_ids,
-                        batch_size=batch_size,
-                    )
-                except Exception as retry_exc:
-                    logger.error(
-                        "VDMS add_from retry failed for batch %d-%d: %s",
-                        start_idx,
-                        end_idx - 1,
-                        retry_exc,
-                    )
-                    raise
-
-            if not inserted_ids or len(inserted_ids) != len(batch_ids):
-                raise ValueError(
-                    "VDMS add_from returned unexpected result size. "
-                    f"Expected {len(batch_ids)}, received {len(inserted_ids) if inserted_ids else 0}."
-                )
-
-            generated_ids.extend(inserted_ids)
-
-        self.video_db.check_and_update_properties()
-        logger.info("Stored %d embeddings in VDMS", len(generated_ids))
+        logger.info("Storing %d embeddings via vector store backend", len(embeddings))
+        generated_ids = self.vector_store.add_embeddings(
+            texts=texts,
+            embeddings=embeddings,
+            metadatas=metadatas,
+        )
+        logger.info("Stored %d embeddings", len(generated_ids))
         return generated_ids
 
     def store_frame_embeddings(
@@ -337,9 +225,11 @@ class SimpleVDMSClient:
                 else:
                     frame_text = f"frame_{frame_num}_{video_id}"
 
-                cleaned_metadata = self._clean_metadata_for_vdms(metadata)
+                # Pass canonical metadata through unmodified; the active vector
+                # store backend adapts it per-backend (VDMS flattens lists,
+                # Milvus preserves them).
                 frame_texts.append(frame_text)
-                cleaned_metadatas.append(cleaned_metadata)
+                cleaned_metadatas.append(metadata)
 
             logger.debug("Prepared metadata for %d frames", len(frame_texts))
 
@@ -568,13 +458,9 @@ class SimpleVDMSClient:
                 time.time() - request_start,
             )
 
-            import uuid
-
-            text_id = str(uuid.uuid4())
-            ids = self.video_db.add_from(
+            ids = self.vector_store.add_embeddings(
                 texts=[text],
                 embeddings=[embedding],
-                ids=[text_id],
                 metadatas=[metadata],
             )
 
@@ -603,13 +489,9 @@ class SimpleVDMSClient:
             if not embedding_vector:
                 raise ValueError("Embedding vector cannot be empty")
 
-            import uuid
-
-            text_id = str(uuid.uuid4())
-            ids = self.video_db.add_from(
+            ids = self.vector_store.add_embeddings(
                 texts=[text],
                 embeddings=[embedding_vector],
-                ids=[text_id],
                 metadatas=[metadata],
             )
 

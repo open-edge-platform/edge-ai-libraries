@@ -9,13 +9,13 @@ as an SDK for direct function calls. Final implementation strategy:
 
 1. **SDK-based Embedding Generation**: Direct function calls instead of HTTP API
 2. **Parallel Processing**: Process embeddings in parallel using ThreadPoolExecutor
-3. **Bulk Vector DB Storage**: Store all embeddings in VDMS in single bulk operation
+3. **Bulk Vector DB Storage**: Store all embeddings in the vector store in a single bulk operation
 4. **Memory-based Video Processing**: Process video directly from memory using PyAV
 
 Performance Benefits:
 - Eliminates network latency for embedding generation
 - Parallel embedding generation for better CPU utilization
-- Bulk storage reduces VDMS operation overhead
+- Bulk storage reduces vector store operation overhead
 - Memory-only processing avoids disk I/O
 """
 
