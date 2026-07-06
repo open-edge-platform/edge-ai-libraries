@@ -256,7 +256,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
 
 > **Note:**
 >
-> - Need additional OpenVINO export knobs? Review the parameter matrix in the [OpenVINO Model Server export guide](https://github.com/openvinotoolkit/model_server/blob/main/demos/common/export_models/README.md#quick-start) and pass the corresponding fields through `config`.
+> - Need additional OpenVINO export knobs? Review the parameter matrix in the [OpenVINO Model Server export guide](https://github.com/openvinotoolkit/model_server/blob/releases/2026/1/demos/common/export_models/README.md#quick-start) and pass the corresponding fields through `config`.
 > - Visual-language models automatically set `pipeline_type` to `VLM` for type 'VLM'.
 > - Unknown parameters keep their original spelling (underscores included) and are forwarded as `--<param_name>`, so options such as `reasoning_parser`, `tool_parser` etc.
 > - Boolean flags are emitted only when they evaluate to true. Leave them unset or false to skip the corresponding CLI switch.
