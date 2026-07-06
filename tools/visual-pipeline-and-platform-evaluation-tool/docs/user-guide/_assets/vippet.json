@@ -3191,6 +3191,11 @@
             "type": "string",
             "title": "Name"
           },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Human-readable benchmark description."
+          },
           "type": {
             "type": "string",
             "const": "density",
@@ -3208,6 +3213,7 @@
         "required": [
           "id",
           "name",
+          "description",
           "type",
           "setup"
         ],
@@ -3223,6 +3229,11 @@
           "name": {
             "type": "string",
             "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Human-readable benchmark description."
           },
           "type": {
             "type": "string",
@@ -3241,6 +3252,7 @@
         "required": [
           "id",
           "name",
+          "description",
           "type",
           "setup"
         ],
