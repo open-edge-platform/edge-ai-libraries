@@ -911,6 +911,67 @@ class TestOpenVINOPullMode:
 
         assert result is None
 
+    @patch('huggingface_hub.HfApi')
+    def test_search_preconverted_model_npu_selects_cw_variant(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model selects 'cw' variant for NPU device"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+
+        mock_model_cpu = MagicMock()
+        mock_model_cpu.id = "OpenVINO/Llama-3.1-8B-int4-ov"
+        mock_model_npu = MagicMock()
+        mock_model_npu.id = "OpenVINO/Llama-3.1-8B-int4-cw-ov"
+        mock_api.list_models.return_value = [mock_model_cpu, mock_model_npu]
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            hf_token="test_token",
+            target_device="NPU",
+        )
+
+        assert result == "OpenVINO/Llama-3.1-8B-int4-cw-ov"
+
+    @patch('huggingface_hub.HfApi')
+    def test_search_preconverted_model_non_npu_skips_cw_variant(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model skips 'cw' variant for non-NPU device"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+
+        mock_model_cpu = MagicMock()
+        mock_model_cpu.id = "OpenVINO/Llama-3.1-8B-int4-ov"
+        mock_model_npu = MagicMock()
+        mock_model_npu.id = "OpenVINO/Llama-3.1-8B-int4-cw-ov"
+        mock_api.list_models.return_value = [mock_model_cpu, mock_model_npu]
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            hf_token="test_token",
+            target_device="CPU",
+        )
+
+        assert result == "OpenVINO/Llama-3.1-8B-int4-ov"
+
+    @patch('huggingface_hub.HfApi')
+    def test_search_preconverted_model_npu_no_cw_available(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model returns None for NPU when no 'cw' variant exists"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+
+        mock_model = MagicMock()
+        mock_model.id = "OpenVINO/Llama-3.1-8B-int4-ov"
+        mock_api.list_models.return_value = [mock_model]
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            hf_token="test_token",
+            target_device="NPU",
+        )
+
+        assert result is None
+
     @patch('huggingface_hub.snapshot_download')
     @patch.object(OpenVINOConverter, '_search_preconverted_model')
     def test_try_pull_preconverted_success(
@@ -930,10 +991,11 @@ class TestOpenVINOPullMode:
         assert result is not None
         assert result["repo_id"] == "OpenVINO/Llama-3.1-8B-int4-ov"
         assert result["success"] is True
+        expected_model_dir = os.path.join(temp_dir, "meta-llama/Llama-3.1-8B")
         mock_snapshot.assert_called_once_with(
             repo_id="OpenVINO/Llama-3.1-8B-int4-ov",
             token="test_token",
-            local_dir=temp_dir,
+            local_dir=expected_model_dir,
         )
 
     @patch.object(OpenVINOConverter, '_search_preconverted_model')
@@ -1084,7 +1146,7 @@ class TestOpenVINOServingConfigs:
             config={"device": "CPU", "cache_size": 10},
         )
 
-        graph_path = os.path.join(temp_dir, "graph.pbtxt")
+        graph_path = os.path.join(temp_dir, "meta-llama/Llama-3.1-8B", "graph.pbtxt")
         config_path = os.path.join(temp_dir, "config_all.json")
 
         assert os.path.isfile(graph_path)
@@ -1099,7 +1161,8 @@ class TestOpenVINOServingConfigs:
         with open(config_path) as f:
             config_data = json.load(f)
         assert len(config_data["model_config_list"]) == 1
-        assert config_data["model_config_list"][0]["config"]["name"] == "Llama-3.1-8B"
+        assert config_data["model_config_list"][0]["config"]["name"] == "meta-llama/Llama-3.1-8B"
+        assert config_data["model_config_list"][0]["config"]["base_path"] == "meta-llama/Llama-3.1-8B"
 
     def test_generate_serving_configs_embeddings(self, openvino_plugin, temp_dir):
         """Test graph.pbtxt generation for embeddings model"""
@@ -1110,7 +1173,7 @@ class TestOpenVINOServingConfigs:
             config={"device": "CPU", "num_streams": 4, "normalize": True},
         )
 
-        graph_path = os.path.join(temp_dir, "graph.pbtxt")
+        graph_path = os.path.join(temp_dir, "BAAI/bge-small-en-v1.5", "graph.pbtxt")
         assert os.path.isfile(graph_path)
 
         with open(graph_path) as f:
@@ -1128,7 +1191,7 @@ class TestOpenVINOServingConfigs:
             config={"device": "GPU", "num_streams": 2},
         )
 
-        graph_path = os.path.join(temp_dir, "graph.pbtxt")
+        graph_path = os.path.join(temp_dir, "BAAI/bge-reranker-v2-m3", "graph.pbtxt")
         assert os.path.isfile(graph_path)
 
         with open(graph_path) as f:
@@ -1145,7 +1208,7 @@ class TestOpenVINOServingConfigs:
             config={"device": "CPU"},
         )
 
-        graph_path = os.path.join(temp_dir, "graph.pbtxt")
+        graph_path = os.path.join(temp_dir, "some/model", "graph.pbtxt")
         config_path = os.path.join(temp_dir, "config_all.json")
 
         assert not os.path.isfile(graph_path)
@@ -1174,7 +1237,7 @@ class TestOpenVINOServingConfigs:
         assert len(config_data["model_config_list"]) == 2
         names = [m["config"]["name"] for m in config_data["model_config_list"]]
         assert "existing-model" in names
-        assert "new-model" in names
+        assert "org/new-model" in names
 
     @patch.object(OpenVINOConverter, '_try_pull_preconverted')
     def test_convert_pull_mode_generates_configs(self, mock_pull, openvino_plugin, temp_dir):
@@ -1197,7 +1260,9 @@ class TestOpenVINOServingConfigs:
 
         assert result["mode"] == "pull"
         # Verify config files were created
-        assert os.path.isfile(os.path.join(temp_dir, "graph.pbtxt"))
+        # graph.pbtxt goes inside the model subfolder
+        assert os.path.isfile(os.path.join(temp_dir, "meta-llama/Llama-3.1-8B", "graph.pbtxt"))
+        # config_all.json stays at the repository (output_dir) level
         assert os.path.isfile(os.path.join(temp_dir, "config_all.json"))
 
     def test_generate_serving_configs_text2speech(self, openvino_plugin, temp_dir):
@@ -1209,7 +1274,7 @@ class TestOpenVINOServingConfigs:
             config={"device": "CPU", "num_streams": 2},
         )
 
-        graph_path = os.path.join(temp_dir, "graph.pbtxt")
+        graph_path = os.path.join(temp_dir, "microsoft/speecht5_tts", "graph.pbtxt")
         assert os.path.isfile(graph_path)
 
         with open(graph_path) as f:
@@ -1227,7 +1292,7 @@ class TestOpenVINOServingConfigs:
             config={"device": "CPU", "enable_word_timestamps": True},
         )
 
-        graph_path = os.path.join(temp_dir, "graph.pbtxt")
+        graph_path = os.path.join(temp_dir, "openai/whisper-large-v3", "graph.pbtxt")
         assert os.path.isfile(graph_path)
 
         with open(graph_path) as f:
@@ -1245,7 +1310,7 @@ class TestOpenVINOServingConfigs:
             config={"device": "CPU"},
         )
 
-        graph_path = os.path.join(temp_dir, "graph.pbtxt")
+        graph_path = os.path.join(temp_dir, "openai/whisper-large-v3", "graph.pbtxt")
         with open(graph_path) as f:
             content = f.read()
         assert "enable_word_timestamps: false" in content

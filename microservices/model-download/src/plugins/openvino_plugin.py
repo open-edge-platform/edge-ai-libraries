@@ -6,7 +6,6 @@ import os
 import subprocess
 from collections import deque
 from enum import Enum
-from pathlib import Path
 from typing import Dict, Any, Optional, List
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
 from src.core.plugin_venv import get_plugin_venv_python, get_plugin_venv_env, build_venv_command
@@ -211,15 +210,22 @@ class OpenVINOConverter(ModelDownloadPlugin):
         model_name: str,
         weight_format: str,
         hf_token: Optional[str] = None,
+        target_device: Optional[str] = None,
     ) -> Optional[str]:
         """
         Search the OpenVINO organization on HuggingFace for a pre-converted model
         matching the requested model name and precision.
 
+        Models optimized for NPU contain the substring "cw" in the repo name
+        (see https://huggingface.co/collections/OpenVINO/llms-optimized-for-npu).
+        When target_device is "NPU", only "cw" variants are matched.
+        For other devices, "cw" variants are excluded.
+
         Args:
             model_name: Source model identifier (e.g., "meta-llama/Llama-3.1-8B")
             weight_format: Precision format (e.g., "int4", "int8", "fp16")
             hf_token: Optional HuggingFace API token
+            target_device: Target inference device (e.g., "NPU", "CPU", "GPU")
 
         Returns:
             The repo_id of the matching pre-converted model, or None if not found
@@ -230,9 +236,11 @@ class OpenVINOConverter(ModelDownloadPlugin):
             # Extract the short model name (part after the slash, or the full name)
             short_name = model_name.split("/")[-1] if "/" in model_name else model_name
 
+            is_npu = target_device and target_device.upper() == "NPU"
             logger.info(
                 f"Searching OpenVINO org for pre-converted model: "
-                f"model={short_name}, precision={weight_format}"
+                f"model={short_name}, precision={weight_format}, "
+                f"device={target_device}, npu_mode={is_npu}"
             )
 
             # List models under the OpenVINO organization matching the model name
@@ -250,6 +258,14 @@ class OpenVINOConverter(ModelDownloadPlugin):
                     short_name.lower() in repo_name
                     and weight_format_lower in repo_name
                 ):
+                    # NPU-optimized models have "cw" in their repo name
+                    has_cw = "cw" in repo_name
+                    if is_npu and not has_cw:
+                        # Skip non-NPU variants when targeting NPU
+                        continue
+                    if not is_npu and has_cw:
+                        # Skip NPU-optimized variants when not targeting NPU
+                        continue
                     logger.info(
                         f"Found pre-converted model: {model_info.id}"
                     )
@@ -257,7 +273,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
 
             logger.info(
                 f"No pre-converted model found for {model_name} "
-                f"with precision {weight_format} in OpenVINO org"
+                f"with precision {weight_format} "
+                f"(device={target_device}) in OpenVINO org"
             )
             return None
 
@@ -274,6 +291,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         weight_format: str,
         output_dir: str,
         hf_token: Optional[str] = None,
+        target_device: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Attempt to pull a pre-converted OpenVINO model from HuggingFace.
@@ -283,6 +301,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             weight_format: Precision format
             output_dir: Directory to download the model to
             hf_token: Optional HuggingFace API token
+            target_device: Target inference device (e.g., "NPU", "CPU", "GPU")
 
         Returns:
             Dictionary with download result if successful, or None if no match found
@@ -291,6 +310,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             model_name=model_name,
             weight_format=weight_format,
             hf_token=hf_token,
+            target_device=target_device,
         )
 
         if repo_id is None:
@@ -298,15 +318,20 @@ class OpenVINOConverter(ModelDownloadPlugin):
 
         try:
             from huggingface_hub import snapshot_download
+
+            # Create model name subfolder to match the structure produced by
+            # export_model.py (model_repository_path/<model_name>/...)
+            # Preserves org/model structure as nested directories
+            model_dir = os.path.join(output_dir, model_name)
             logger.info(
-                f"Pulling pre-converted model {repo_id} to {output_dir}"
+                f"Pulling pre-converted model {repo_id} to {model_dir}"
             )
-            os.makedirs(output_dir, exist_ok=True)
+            os.makedirs(model_dir, exist_ok=True)
 
             downloaded_path = snapshot_download(
                 repo_id=repo_id,
                 token=hf_token,
-                local_dir=output_dir,
+                local_dir=model_dir,
             )
 
             logger.info(
@@ -347,6 +372,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
             target_device = str(config.get("device", config.get("target_device", "CPU"))).upper()
             cache_size = config.get("cache_size", config.get("cache", 0)) or 0
             num_streams = config.get("num_streams", 1) or 1
+            # Use full model name preserving "/" for nested directory structure and config naming
+            safe_model_name = model_name
 
             # Determine graph template and render parameters based on model type
             if model_type in ("llm", "text_generation", "vlm"):
@@ -404,18 +431,19 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 )
                 graph_content = None
 
-            # Write graph.pbtxt
+            # Write graph.pbtxt inside the model subfolder (matches export_model.py behavior)
             if graph_content:
-                graph_path = os.path.join(output_dir, "graph.pbtxt")
+                model_subdir = os.path.join(output_dir, safe_model_name)
+                os.makedirs(model_subdir, exist_ok=True)
+                graph_path = os.path.join(model_subdir, "graph.pbtxt")
                 with open(graph_path, "w") as f:
                     f.write(graph_content)
                 logger.info(f"Created graph.pbtxt at {graph_path}")
 
-            # Write config_all.json
+            # Write config_all.json at the output_dir (repository) level
             config_file_path = os.path.join(output_dir, "config_all.json")
-            # Extract a short model name for the servable config
-            short_name = model_name.split("/")[-1] if "/" in model_name else model_name
-            base_path = Path(".").as_posix()
+            # base_path points to the model subfolder relative to config_all.json
+            base_path = safe_model_name
 
             if os.path.isfile(config_file_path):
                 with open(config_file_path, "r") as f:
@@ -430,11 +458,11 @@ class OpenVINOConverter(ModelDownloadPlugin):
             model_list = config_data["model_config_list"]
             updated = False
             for model_config in model_list:
-                if model_config.get("config", {}).get("name") == short_name:
+                if model_config.get("config", {}).get("name") == safe_model_name:
                     model_config["config"]["base_path"] = base_path
                     updated = True
             if not updated:
-                model_list.append({"config": {"name": short_name, "base_path": base_path}})
+                model_list.append({"config": {"name": safe_model_name, "base_path": base_path}})
 
             with open(config_file_path, "w") as f:
                 json.dump(config_data, f, indent=4)
@@ -554,12 +582,13 @@ class OpenVINOConverter(ModelDownloadPlugin):
         version = kwargs.get("version", "")
 
         # --- Pull Mode: Try to find and download a pre-converted model first ---
-        logger.info(f"Attempting pull mode for model: {model_name}, precision: {weight_format}")
+        logger.info(f"Attempting pull mode for model: {model_name}, precision: {weight_format}, device: {target_device}")
         pull_result = self._try_pull_preconverted(
             model_name=model_name,
             weight_format=weight_format or "int8",
             output_dir=output_dir,
             hf_token=huggingface_token,
+            target_device=target_device,
         )
 
         if pull_result is not None:
