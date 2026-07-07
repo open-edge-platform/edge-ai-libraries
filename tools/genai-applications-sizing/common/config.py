@@ -178,7 +178,7 @@ def get_global_details(config):
         config: Pre-loaded configuration dict.
 
     Returns:
-        tuple: (report_dir, perf_tool_repo, profile_path)
+        tuple: (report_dir, metrics_collector, profile_path)
     """
     from common.utils import setup_report_permissions
 
@@ -186,11 +186,11 @@ def get_global_details(config):
 
     # Extract configuration values with defaults
     report_dir = global_details.get('report_dir', 'reports')
-    perf_tool_repo = global_details.get('perf_tool_repo', '')
+    metrics_collector = global_details.get('metrics_collector', '')
     profile_path = global_details.get('input_profiles_path', 'profiles/profiles.yaml')
 
     # Ensure report directory exists and set up permissions
     os.makedirs(report_dir, exist_ok=True)
     setup_report_permissions(report_dir)
 
-    return report_dir, perf_tool_repo, profile_path
+    return report_dir, metrics_collector, profile_path

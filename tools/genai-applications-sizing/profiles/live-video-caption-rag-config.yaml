@@ -4,12 +4,12 @@ global:
   metrics_collector: 'intel/metrics-manager:2026.1.0'  # Metrics Manager image used as the resource-metrics collector
 
 apis:
-  video_search:
+  live_caption_rag:
     enabled: true
-    service_name: 'search'
+    service_name: 'live_caption_rag'
     endpoints:
-      upload: '12345/manager/videos'
-      search: '12345/manager/search'
-      embedding: '12345/manager/videos/search-embeddings'
-      telemetry: '6016/telemetry'
-    input_profile: 'video_search_wsf'  # Reference to input profile
+      runs: '4173/api/generate_captions_alerts'
+      metadata: '4173/api/generate_captions_alerts/metadata-stream'
+      chat: '4172/api/chat'
+    captioning_time: 120 
+    input_profile: 'live_video_caption_rag_wsf'  
