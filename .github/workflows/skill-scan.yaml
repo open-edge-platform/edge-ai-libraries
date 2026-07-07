@@ -7,7 +7,7 @@ on:
       - "**/.github/skills/**"
       - ".github/workflows/skill-scan.yaml"
   push:
-    branches: ["main"]
+    branches: ["main", "feature/vkb1/add-skill-scan-workflow"]
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
