@@ -191,3 +191,87 @@ def test_summary_accepts_registered_dynamic_task(isolated_registry, test_client:
     assert kwargs["task"] == FRIDGE_TASK
     assert kwargs["video_path"] == "none"          # caption-only
     assert kwargs["video_subtitles"] is not None
+
+
+# ---------------------------------------------------------------- registration fallbacks
+@pytest.mark.api
+def test_register_global_and_local_only_autofills_rest(isolated_registry, test_client: TestClient):
+    """Only GLOBAL + LOCAL required; MACRO and T_MINUS_1 are auto-filled."""
+    content = (
+        "GLOBAL_PROMPT='''Summarize the day's events into a short report.'''\n\n"
+        "LOCAL_PROMPT='''Describe what happens in this clip.'''"
+    )
+    resp = test_client.post(
+        "/v1/tasks",
+        json={"task_name": "minimal_task", "mode": "full", "content": {"text": content}},
+    )
+    assert resp.status_code == 201, resp.text
+
+    detail = test_client.get("/v1/tasks/minimal_task").json()["content"]
+    # MACRO + T_MINUS_1 sections now exist, and the required time/context
+    # placeholders were scaffolded in.
+    assert "MACRO_CHUNK_PROMPT" in detail and "T_MINUS_1_PROMPT" in detail
+    assert "{st_tm}" in detail and "{end_tm}" in detail
+    assert "{dur}" in detail and "{past_summary}" in detail
+
+
+@pytest.mark.api
+def test_register_missing_placeholders_are_scaffolded(isolated_registry, test_client: TestClient):
+    """A LOCAL without {st_tm}/{end_tm} and a T_MINUS without its placeholders
+    still register — the placeholders are auto-scaffolded."""
+    content = (
+        "GLOBAL_PROMPT='''Final report.'''\n\n"
+        "MACRO_CHUNK_PROMPT='''Aggregate the period.'''\n\n"
+        "LOCAL_PROMPT='''Describe the clip in detail.'''\n\n"
+        "T_MINUS_1_PROMPT='''Consider the previous clip.'''"
+    )
+    resp = test_client.post(
+        "/v1/tasks",
+        json={"task_name": "sparse_task", "mode": "full", "content": {"text": content}},
+    )
+    assert resp.status_code == 201, resp.text
+    detail = test_client.get("/v1/tasks/sparse_task").json()["content"]
+    assert "{st_tm}" in detail and "{end_tm}" in detail        # scaffolded into macro/local
+    assert "{dur}" in detail and "{past_summary}" in detail    # t_minus envelope
+
+
+@pytest.mark.api
+def test_register_prompt_with_literal_json_braces(isolated_registry, test_client: TestClient):
+    """Example JSON / code braces in a prompt render literally, not as placeholders."""
+    content = '''GLOBAL_PROMPT = """Output strictly like {"severity": "high", "meta": {"n": 1}}. User prompt: {question}"""
+
+LOCAL_PROMPT = """Flag danger such as {jumping} or {climbing}. Clip {st_tm}-{end_tm}."""'''
+    resp = test_client.post(
+        "/v1/tasks",
+        json={"task_name": "json_task", "mode": "full", "content": {"text": content}},
+    )
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.api
+def test_register_task_using_chunk_subtitle(isolated_registry, test_client: TestClient):
+    """A dynamic task may reference {chunk_subtitle} (optional) without failing."""
+    content = (
+        "GLOBAL_PROMPT='''Summarize. Subs help: {chunk_subtitle}'''\n\n"
+        "LOCAL_PROMPT='''Describe {st_tm}-{end_tm}.\n##Subtitles:\n{chunk_subtitle}'''"
+    )
+    resp = test_client.post(
+        "/v1/tasks",
+        json={"task_name": "subs_task", "mode": "full", "content": {"text": content}},
+    )
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.api
+def test_register_missing_required_anchor_hint(isolated_registry, test_client: TestClient):
+    """Omitting GLOBAL (a required anchor) fails with a helpful hint."""
+    resp = test_client.post(
+        "/v1/tasks",
+        json={"task_name": "no_global", "mode": "full",
+              "content": {"text": "LOCAL_PROMPT='''desc {st_tm}-{end_tm}'''"}},
+    )
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert detail["error"] == "missing_anchors"
+    assert "GLOBAL_PROMPT" in detail["missing"]
+    assert "hint" in detail

@@ -4,6 +4,29 @@
 import string
 from abc import ABC, abstractmethod
 
+# Placeholders the pipeline supplies to a prompt at render time. Any other
+# `{...}` in a (dynamic) template is treated as literal text — see
+# `escape_unknown_braces`.
+KNOWN_PLACEHOLDERS = frozenset(
+    {"question", "st_tm", "end_tm", "dur", "past_summary", "chunk_subtitle"}
+)
+
+
+def escape_unknown_braces(text: str) -> str:
+    """Escape every `{`/`}` that is not part of a recognized placeholder so the
+    string survives `str.format`.
+
+    Doubling all braces then un-doubling the known placeholders means example
+    JSON / code / lone braces in a user prompt (e.g. ``{"severity": "high"}`` or
+    a stray ``}``) render literally instead of raising KeyError/ValueError, while
+    ``{st_tm}`` and friends stay live substitution points.
+    """
+    escaped = text.replace("{", "{{").replace("}", "}}")
+    for name in KNOWN_PLACEHOLDERS:
+        escaped = escaped.replace("{{" + name + "}}", "{" + name + "}")
+    return escaped
+
+
 class BasePrompt(ABC):
 	"""Abstract base for prompt builders."""
 	task_name: str = ""

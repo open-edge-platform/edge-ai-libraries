@@ -8,16 +8,20 @@ existing prompt_builder factory / VideoSummarizer call chain without special
 cases elsewhere in the codebase.
 """
 
-from video_analyzer.prompts.prompt_base import BasePrompt
+from video_analyzer.prompts.prompt_base import BasePrompt, escape_unknown_braces
 
 
 class DynamicPrompt(BasePrompt):
     """Runtime-registered prompt set.
 
-    Each section string may contain `{question}` as an optional placeholder
-    (stripped when the question is empty). The T-minus-1 section has stricter
-    required fields — see _render_validated calls below.
+    `{question}` and `{chunk_subtitle}` are optional (their lines/sections are
+    stripped when the value is empty). All other `{...}` that are not recognized
+    placeholders are escaped at construction time so example JSON / code in a
+    user prompt renders literally instead of breaking `str.format`.
     """
+
+    # Placeholders that may be absent at render time (default to empty).
+    _OPTIONAL = frozenset({"question", "chunk_subtitle"})
 
     def __init__(
         self,
@@ -28,39 +32,68 @@ class DynamicPrompt(BasePrompt):
         t_minus_prompt: str,
     ):
         self.task_name = task_name
-        self._global = global_prompt
-        self._macro = macro_prompt
-        self._local = local_prompt
-        self._t_minus = t_minus_prompt
+        # Escape unknown braces so arbitrary user content is safe to `.format`.
+        self._global = escape_unknown_braces(global_prompt)
+        self._macro = escape_unknown_braces(macro_prompt)
+        self._local = escape_unknown_braces(local_prompt)
+        self._t_minus = escape_unknown_braces(t_minus_prompt)
 
     # ------------------------------------------------------------------ shared
     @staticmethod
-    def _strip_empty_question_line(rendered: str) -> str:
-        """Drop lines starting with '用户提问:' when the question is empty."""
-        lines = rendered.splitlines()
-        lines = [ln for ln in lines if not ln.strip().startswith("用户提问:")]
-        return "\n".join(lines) + "\n"
+    def _strip_empty_question_line(lines):
+        """Drop lines that are just an (empty) user-prompt echo."""
+        return [
+            ln for ln in lines
+            if not ln.strip().startswith("User prompt:")
+            and not ln.strip().startswith("用户提问:")
+        ]
 
-    def _render_optional_question(self, template: str, kwargs: dict) -> str:
-        """Render with {question} treated as optional (empty -> strip line)."""
-        question = kwargs.get("question", "")
+    @staticmethod
+    def _strip_empty_subtitle_section(lines):
+        """Drop a '##Subtitles:' header and its (now empty) body."""
+        out = []
+        skip = 0
+        for i, ln in enumerate(lines):
+            if skip:
+                skip -= 1
+                continue
+            if ln.strip().startswith("##Subtitles:"):
+                skip = 1
+                if i + 2 < len(lines) and not lines[i + 2].strip():
+                    skip = 2
+                continue
+            out.append(ln)
+        while out and not out[0].strip():
+            out.pop(0)
+        while out and not out[-1].strip():
+            out.pop()
+        return out
+
+    def _render_optional(self, template: str, kwargs: dict) -> str:
+        """Render with {question} and {chunk_subtitle} treated as optional.
+
+        Empty values default to '' and their surrounding line/section is stripped.
+        """
         fields = self._get_template_fields(template)
-        optional = {"question"} & fields
+        optional = self._OPTIONAL & fields
         rendered = self._render_validated(template, kwargs, optional_fields=optional)
-        if not str(question).strip() and "question" in fields:
-            return self._strip_empty_question_line(rendered)
-        return rendered
+
+        lines = rendered.splitlines()
+        if "question" in fields and not str(kwargs.get("question", "")).strip():
+            lines = self._strip_empty_question_line(lines)
+        if "chunk_subtitle" in fields and not str(kwargs.get("chunk_subtitle", "")).strip():
+            lines = self._strip_empty_subtitle_section(lines)
+        return "\n".join(lines) + "\n"
 
     # ----------------------------------------------------------- BasePrompt impl
     def assign_global_prompt(self, **kwargs) -> str:
-        return self._render_optional_question(self._global, kwargs)
+        return self._render_optional(self._global, kwargs)
 
     def assign_macro_prompt(self, **kwargs) -> str:
-        return self._render_optional_question(self._macro, kwargs)
+        return self._render_optional(self._macro, kwargs)
 
     def assign_local_prompt(self, **kwargs) -> str:
-        return self._render_optional_question(self._local, kwargs)
+        return self._render_optional(self._local, kwargs)
 
     def assign_t_minus_prompt(self, **kwargs) -> str:
-        # T-1 context has no optional fields by convention.
-        return self._render_validated(self._t_minus, kwargs, optional_fields=set())
+        return self._render_optional(self._t_minus, kwargs)

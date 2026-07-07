@@ -55,6 +55,11 @@ ANCHOR_TO_KEY = {
 }
 KEY_TO_ANCHOR = {v: k for k, v in ANCHOR_TO_KEY.items()}
 
+# Only these anchors must be supplied by the user. MACRO_CHUNK_PROMPT and
+# T_MINUS_1_PROMPT are optional: a whole omitted section is filled with a
+# generic default, and a provided-but-incomplete section is scaffolded.
+REQUIRED_ANCHORS = ("GLOBAL_PROMPT", "LOCAL_PROMPT")
+
 REQUIRED_PLACEHOLDERS = {
     "global":  set(),
     "macro":   {"st_tm", "end_tm"},
@@ -114,7 +119,10 @@ def _raise_parse(detail: str) -> "RegistryError":
 def _raise_missing(missing: List[str]) -> "RegistryError":
     raise RegistryError(
         422, "missing_anchors",
-        missing=missing, reference_template=REFERENCE_TEMPLATE,
+        missing=missing,
+        hint=("Only GLOBAL_PROMPT and LOCAL_PROMPT are required; "
+              "MACRO_CHUNK_PROMPT and T_MINUS_1_PROMPT are optional (auto-filled)."),
+        reference_template=REFERENCE_TEMPLATE,
     )
 
 
@@ -160,57 +168,97 @@ def parse_full_content(text: str) -> Dict[str, str]:
             )
         found[name] = body
 
-    missing = [n for n in ANCHOR_NAMES if n not in found or not found[n].strip()]
+    missing = [n for n in REQUIRED_ANCHORS if n not in found or not found[n].strip()]
     if missing:
         _raise_missing(missing)
 
-    return {ANCHOR_TO_KEY[n]: found[n] for n in ANCHOR_NAMES}
+    # Optional anchors (MACRO / T_MINUS_1) default to "" and are filled by
+    # smart_autofill; required anchors are guaranteed present above.
+    return {ANCHOR_TO_KEY[n]: found.get(n, "") for n in ANCHOR_NAMES}
 
 
 # ======================================================================
 # Smart field auto-fill
 # ======================================================================
-# Appended to MACRO / LOCAL when st_tm/end_tm are missing.
-_TIME_SCAFFOLD = "\n开始时间: {st_tm} 秒\n结束时间: {end_tm} 秒\n"
+# --- scaffolding appended to a *provided* section that lacks a placeholder ---
+_TIME_SCAFFOLD = "\nStart time: {st_tm} sec\nEnd time: {end_tm} sec\n"
+_QUESTION_SCAFFOLD = "\nUser prompt: {question}\n"
+_SUBTITLE_SCAFFOLD = "\n##Subtitles:\n{chunk_subtitle}\n"
 
 # T-minus envelope: wraps the user's body so required placeholders all appear.
 _TMINUS_ENVELOPE = (
-    "##上下文:\n"
-    "前 {dur} 秒的视频总结放在方括号 [] 中。\n"
+    "##Context:\n"
+    "The summary of the previous {dur} seconds is in brackets []. Use it as\n"
+    "context for the current segment; do not copy it into your output.\n"
     "{user_body}\n"
     "[\n"
-    "开始时间: {st_tm} 秒\n"
-    "结束时间: {end_tm} 秒\n"
+    "Start time: {st_tm} sec\n"
+    "End time: {end_tm} sec\n"
     "{past_summary}\n"
     "]\n"
 )
 
+# --- whole-section defaults used when an optional section is omitted entirely ---
+_DEFAULT_MACRO_PROMPT = (
+    "##Task:\n"
+    "Summarize the events between {st_tm} and {end_tm} seconds into a concise,\n"
+    "coherent paragraph, preserving important details and their order.\n"
+    "User prompt: {question}\n"
+    "\n"
+    "##Inputs to be summarized:\n"
+    "The sub-summaries below are separated by the delimiter \">|<\".\n"
+)
+_DEFAULT_T_MINUS_1_PROMPT = (
+    "##Context:\n"
+    "Summary of the past {dur} seconds is in brackets []. Use it as context for\n"
+    "the current segment; do not copy it into your output.\n"
+    "[\n"
+    "Start time: {st_tm} sec\n"
+    "End time: {end_tm} sec\n"
+    "{past_summary}\n"
+    "]\n"
+)
+
+# Simple {name} placeholders only — tolerant of literal braces (JSON/code) so it
+# never raises on malformed content (unlike string.Formatter).
+_PLACEHOLDER_RE = re.compile(r"\{([a-zA-Z_]\w*)\}")
+
 
 def _placeholders_in(text: str) -> set:
-    """Names of {foo} placeholders present in `text`, via BasePrompt._get_template_fields."""
-    return BasePrompt._get_template_fields(text)
+    """Names of simple `{foo}` placeholders in `text`. Never raises."""
+    return set(_PLACEHOLDER_RE.findall(text))
 
 
 def smart_autofill(sections: Dict[str, str]) -> Dict[str, str]:
-    """Return a copy with canonical scaffolding appended where required
-    placeholders are missing. Does not mutate input."""
+    """Return a copy with omitted sections defaulted and missing placeholders
+    scaffolded in. Idempotent (guards on `if missing`). Does not mutate input."""
     out = dict(sections)
 
-    # MACRO / LOCAL: append time-range lines if they lack st_tm/end_tm.
-    for key in ("macro", "local"):
+    # 1) Whole optional section omitted -> generic default template.
+    if not out["macro"].strip():
+        out["macro"] = _DEFAULT_MACRO_PROMPT
+    if not out["t_minus"].strip():
+        out["t_minus"] = _DEFAULT_T_MINUS_1_PROMPT
+
+    # 2) Optional placeholders: append so the capability isn't silently lost;
+    #    they render as strip-when-empty blocks (zero impact when unused).
+    for key in ("global", "macro", "local"):
         present = _placeholders_in(out[key])
-        needed = REQUIRED_PLACEHOLDERS[key] - present
-        if needed:
-            # Only append when at least one of st_tm/end_tm is missing;
-            # the scaffold line provides both together.
+        if "question" not in present:
+            out[key] = out[key].rstrip() + _QUESTION_SCAFFOLD
+        if "chunk_subtitle" not in present:
+            out[key] = out[key].rstrip() + _SUBTITLE_SCAFFOLD
+
+    # 3) Required time range for MACRO / LOCAL.
+    for key in ("macro", "local"):
+        if REQUIRED_PLACEHOLDERS[key] - _placeholders_in(out[key]):
             out[key] = out[key].rstrip() + _TIME_SCAFFOLD
 
-    # T-minus: if it's missing any required placeholder, wrap into the envelope.
-    present_t = _placeholders_in(out["t_minus"])
-    if REQUIRED_PLACEHOLDERS["t_minus"] - present_t:
+    # 4) T-minus: wrap into the envelope if any required placeholder is missing.
+    if REQUIRED_PLACEHOLDERS["t_minus"] - _placeholders_in(out["t_minus"]):
         out["t_minus"] = _TMINUS_ENVELOPE.format_map({
             "user_body": out["t_minus"].strip(),
-            # Keep the literal placeholders unresolved — they must survive for the final .format() at runtime.
+            # Keep the placeholders unresolved for the final .format() at runtime.
             "dur": "{dur}",
             "st_tm": "{st_tm}",
             "end_tm": "{end_tm}",
@@ -258,12 +306,13 @@ def _validate_sections(sections: Dict[str, str]) -> None:
             raise RegistryError(
                 422, "missing_placeholders",
                 section=key, missing=sorted(missing),
+                hint=(f"section '{key}' must include {sorted(need)}; "
+                      f"or omit the section entirely to use the built-in default."),
                 reference_template=REFERENCE_TEMPLATE,
             )
 
-    # Render smoke test: build a DynamicPrompt and call each assign_* with
-    # canonical kwargs. Any KeyError / ValueError here means the template is
-    # unsafe to ship.
+    # Render smoke test: build a DynamicPrompt and render each section with
+    # canonical kwargs. Any failure here means the template is unsafe to ship.
     probe = DynamicPrompt(
         task_name="__probe__",
         global_prompt=sections["global"],
@@ -275,17 +324,25 @@ def _validate_sections(sections: Dict[str, str]) -> None:
         "question": "probe",
         "st_tm": 0, "end_tm": 10,
         "dur": 10, "past_summary": "probe",
+        "chunk_subtitle": "probe",
     }
-    try:
-        probe.assign_global_prompt(**smoke_kwargs_common)
-        probe.assign_macro_prompt(**smoke_kwargs_common)
-        probe.assign_local_prompt(**smoke_kwargs_common)
-        probe.assign_t_minus_prompt(**smoke_kwargs_common)
-    except Exception as e:
-        raise RegistryError(
-            422, "render_smoke_failed",
-            detail=str(e),
-        )
+    renderers = {
+        "global": probe.assign_global_prompt,
+        "macro": probe.assign_macro_prompt,
+        "local": probe.assign_local_prompt,
+        "t_minus": probe.assign_t_minus_prompt,
+    }
+    for key, render in renderers.items():
+        try:
+            render(**smoke_kwargs_common)
+        except Exception as e:
+            raise RegistryError(
+                422, "render_smoke_failed",
+                section=key, detail=str(e),
+                hint=("Recognized placeholders are {question, st_tm, end_tm, dur, "
+                      "past_summary, chunk_subtitle}; any other braces are treated "
+                      "as literal text."),
+            )
 
 
 # ======================================================================

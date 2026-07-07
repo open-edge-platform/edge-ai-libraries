@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
 
 MODEL_PATH="${MODEL_PATH:-Qwen/Qwen3.5-9B}"
 SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-${MODEL_PATH}}"
@@ -42,15 +46,3 @@ python3 -m vllm.entrypoints.openai.api_server \
     --tool-call-parser qwen3_coder \
     --reasoning-parser qwen3 \
     --default-chat-template-kwargs '{"enable_thinking": false}'
-
-
-
-    # --allow-deprecated-quantization ipex_awq
-
-
-# remove `--disable-sliding-window` for VLM models
-# --disable-sliding-window \
-
-# when test performance: --no-enable-prefix-caching \
-
-# --kv-cache-dtype {auto,bfloat16,fp8,fp8_ds_mla,fp8_e4m3,fp8_e5m2,fp8_inc}

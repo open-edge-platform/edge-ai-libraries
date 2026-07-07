@@ -141,12 +141,18 @@ A response with the processing status and summary output.
 
 ## 4. Prompt Tasks API
 
-A **task** bundles the four prompt sections used across the summarization hierarchy:
+A **task** bundles up to four prompt sections used across the summarization hierarchy:
 
-- `GLOBAL_PROMPT` — final whole-video summary / report.
-- `MACRO_CHUNK_PROMPT` — mid-level aggregation over a time range.
-- `LOCAL_PROMPT` — per-chunk (per-clip) description.
-- `T_MINUS_1_PROMPT` — previous-chunk context for temporal coherence.
+- `GLOBAL_PROMPT` — final whole-video summary / report. **Required.**
+- `LOCAL_PROMPT` — per-chunk (per-clip) description. **Required.**
+- `MACRO_CHUNK_PROMPT` — mid-level aggregation over a time range. *Optional* — a generic default is used if omitted.
+- `T_MINUS_1_PROMPT` — previous-chunk context for temporal coherence. *Optional* — a generic default is used if omitted.
+
+**Registration is forgiving** (avoidable errors are auto-fixed rather than rejected):
+
+- Only `GLOBAL_PROMPT` + `LOCAL_PROMPT` are required; the other two sections are auto-filled from generic defaults when omitted.
+- Missing placeholders are auto-scaffolded: `MACRO_CHUNK_PROMPT`/`LOCAL_PROMPT` get `{st_tm}`/`{end_tm}`, `T_MINUS_1_PROMPT` gets `{dur}`/`{st_tm}`/`{end_tm}`/`{past_summary}`, and `{question}`/`{chunk_subtitle}` are appended where absent (they render only when supplied at request time).
+- Recognized placeholders are `{question, st_tm, end_tm, dur, past_summary, chunk_subtitle}`. **Any other `{...}` (e.g. example JSON or code) is treated as literal text** and rendered as-is — it will not break registration.
 
 Only two tasks are **built-in**: `summary` (English) and `summary_zh` (Chinese). Any other task is **dynamic** — registered at runtime through the endpoints below and persisted under the service cache directory (`VIDEO_SUMMARY_CACHE`, default `~/.cache/.multilevel-video-understanding/tasks/`). Built-in tasks cannot be modified or deleted.
 
@@ -166,7 +172,7 @@ Only two tasks are **built-in**: `summary` (English) and `summary_zh` (Chinese).
 
 **POST /v1/tasks** — register a new dynamic task. `task_name` must be lowercase ascii (`^[a-z][a-z0-9_]{1,63}$`) and must not collide with a built-in.
 
-- `mode: "full"` — supply the four anchors yourself via `content`:
+- `mode: "full"` — supply the sections via `content` (at minimum `GLOBAL_PROMPT` + `LOCAL_PROMPT`):
 
 ```json
 {
@@ -178,7 +184,7 @@ Only two tasks are **built-in**: `summary` (English) and `summary_zh` (Chinese).
 }
 ```
 
-  `content` may instead be `{"url": "https://.../task.txt"}` (HTTPS only, ≤ 256 KB, SSRF-protected). Required placeholders are auto-scaffolded when omitted, then the sections are render-validated before persisting.
+  `content` may instead be `{"url": "https://.../task.txt"}` (HTTPS only, ≤ 256 KB, SSRF-protected). Omitted optional sections and missing placeholders are auto-filled (see "Registration is forgiving" above), then the sections are render-validated before persisting. On failure the error names the offending `section` and includes a `hint`.
 
 - `mode: "autogen"` — the service's own LLM drafts all four sections from a natural-language `description`:
 

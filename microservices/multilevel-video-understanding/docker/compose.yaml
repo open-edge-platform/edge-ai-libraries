@@ -77,7 +77,6 @@ services:
       #   export VIDEO_SUMMARY_CACHE_HOST=~/.cache/.multilevel-video-understanding
       #   mkdir -p "$VIDEO_SUMMARY_CACHE_HOST/tasks"
       - ${VIDEO_SUMMARY_CACHE_HOST}:/home/appuser/.cache/.multilevel-video-understanding:rw
-      - ${SMARTBUILDING_DATA_DIR:-${HOME}/.mcp-smartbuilding}:/data:ro
     environment:
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
