@@ -33,6 +33,9 @@ class MetadataDestinationConfig(BaseModel):
 class FrameDestinationConfig(BaseModel):
     type: str   # "rtsp", "webrtc", …
     path: Optional[str] = None  # stream identifier / RTSP mount-point
+    peer_id: Optional[str] = None  # WebRTC peer / WHIP mount identifier
+    bitrate: int = 2048            # WebRTC H.264 encoder bitrate
+    overlay: bool = True           # draw detections (gvawatermark) before streaming
 
     model_config = {"extra": "allow"}
 

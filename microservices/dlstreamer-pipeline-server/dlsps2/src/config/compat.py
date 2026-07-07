@@ -40,6 +40,24 @@ Destination - frame
 
       A compatible RTSP server (e.g. MediaMTX) must be reachable at that
       address to accept the push stream.
+  ``type=webrtc``
+      Replaces ``appsink name=appsink`` in the pipeline template with an
+      encode + ``whipclientsink`` chain that publishes to a WHIP signaling
+      server at ``http://<WHIP_SERVER_IP>:<WHIP_SERVER_PORT>/<peer-id>/whip``.
+      The signaling server host and port are read from the ``WHIP_SERVER_IP``
+      (default ``localhost``) and ``WHIP_SERVER_PORT`` (default ``8889``)
+      environment variables.
+
+      The replacement sink chain added is::
+
+          videoconvert ! [gvawatermark !] openh264enc name=h264enc \
+              bitrate=<bitrate> ! video/x-h264,profile=baseline ! \
+              whipclientsink name=webrtc_sink \
+              signaller::whip-endpoint=http://<host>:<port>/<peer-id>/whip
+
+      A WHIP-compatible signaling/relay server (e.g. MediaMTX) must be
+      reachable at that address.  View the stream at
+      ``http://<host>:<port>/<peer-id>``.
 
 Destination - metadata (Python elements)
   ``type=mqtt``
@@ -59,10 +77,6 @@ Destination - frame (Python elements)
       Replaces ``appsink name=appsink`` with
       ``s3sinkpy bucket=<path>``.
       S3 connection details come from ``S3_STORAGE_*`` env vars.
-
-Not yet implemented
--------------------
-- WebRTC frame destination
 """
 
 from __future__ import annotations
@@ -89,6 +103,10 @@ _APPSINK_RE = re.compile(r"appsink\b[^!]*", re.IGNORECASE)
 # RTSP server coordinates — override via environment variables.
 _RTSP_HOST = os.environ.get("RTSP_HOST", "localhost")
 _RTSP_PORT = os.environ.get("RTSP_PORT", "8554")
+
+# WebRTC/WHIP signaling server coordinates — override via environment variables.
+_WHIP_HOST = os.environ.get("WHIP_SERVER_IP", "localhost")
+_WHIP_PORT = os.environ.get("WHIP_SERVER_PORT", "8889")
 
 
 def _replace_appsink_with_rtsp(pipeline: str, path: str) -> str:
@@ -118,6 +136,47 @@ def _replace_appsink_with_rtsp(pipeline: str, path: str) -> str:
         )
         return pipeline
     logger.debug("Replaced appsink with rtspclientsink at %s", rtsp_url)
+    return replaced
+
+
+def _replace_appsink_with_webrtc(
+    pipeline: str,
+    peer_id: str,
+    *,
+    overlay: bool = True,
+    bitrate: int = 2048,
+) -> str:
+    """Replace ``appsink`` with an encode + whipclientsink chain.
+
+    The replacement chain is::
+
+        videoconvert ! [gvawatermark !] openh264enc name=h264enc \
+            bitrate=<bitrate> ! video/x-h264,profile=baseline ! \
+            whipclientsink name=webrtc_sink \
+            signaller::whip-endpoint=http://<WHIP_HOST>:<WHIP_PORT>/<peer_id>/whip
+
+    ``gvawatermark`` is included only when ``overlay`` is true.  A
+    WHIP-compatible signaling/relay server (e.g. MediaMTX) must be reachable at
+    the endpoint.  If no ``appsink`` element is found the original string is
+    returned unchanged and a warning is logged.
+    """
+    mount = peer_id.strip("/")
+    whip_url = f"http://{_WHIP_HOST}:{_WHIP_PORT}/{mount}/whip"
+    overlay_element = "gvawatermark ! " if overlay else ""
+    webrtc_chain = (
+        f"videoconvert ! {overlay_element}"
+        f"openh264enc name=h264enc bitrate={bitrate} ! "
+        f"video/x-h264,profile=baseline ! "
+        f"whipclientsink name=webrtc_sink signaller::whip-endpoint={whip_url}"
+    )
+    replaced, n = _APPSINK_RE.subn(webrtc_chain, pipeline, count=1)
+    if n == 0:
+        logger.warning(
+            "WebRTC frame destination requested but no 'appsink' element found "
+            "in pipeline — WebRTC sink not added."
+        )
+        return pipeline
+    logger.debug("Replaced appsink with whipclientsink at %s", whip_url)
     return replaced
 
 
@@ -256,6 +315,15 @@ def apply_destination(pipeline: str, destination: DestinationConfig | None) -> s
         if frame_type == "rtsp":
             path = frame.path or "stream"
             pipeline = _replace_appsink_with_rtsp(pipeline, path)
+
+        elif frame_type == "webrtc":
+            peer_id = frame.peer_id or frame.path or "dlstreamer"
+            pipeline = _replace_appsink_with_webrtc(
+                pipeline,
+                peer_id,
+                overlay=frame.overlay,
+                bitrate=frame.bitrate,
+            )
 
         elif frame_type in ("s3_write", "s3"):
             # S3 bucket from frame.path; connection from S3_STORAGE_* env vars.
