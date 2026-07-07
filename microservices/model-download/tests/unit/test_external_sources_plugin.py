@@ -10,6 +10,7 @@ import pytest
 
 import src.plugins.external_sources_plugin as esp
 from src.plugins.external_sources_plugin import ExternalSourcesPlugin
+from src.core.interfaces import ListingNotSupportedError
 
 
 @pytest.fixture
@@ -33,6 +34,10 @@ class TestPluginProperties:
         assert "pipeline-zoo-models" in hubs
         assert "remote-url" in hubs
         assert "omz" in hubs
+
+    def test_listing_properties(self, plugin):
+        assert plugin.supports_listing is True
+        assert plugin.listing_filter_fields == ["search"]
 
     @pytest.mark.parametrize(
         "hub,expected",
@@ -134,6 +139,60 @@ class TestTarballDownload:
             )
 
         assert not (Path(temp_dir) / "remote-url" / "pkg-a").exists()
+
+
+class TestListModels:
+    def test_pipeline_zoo_listing(self, plugin, temp_dir, monkeypatch):
+        extract_root = Path(temp_dir) / "extracted"
+        storage_dir = extract_root / "pipeline-zoo-models-main" / "storage"
+        (storage_dir / "dbnet").mkdir(parents=True)
+        (storage_dir / "yolov5m-320").mkdir()
+
+        monkeypatch.setattr(
+            plugin, "_ensure_shared_archive_extracted", lambda hub, profile: str(extract_root)
+        )
+
+        result = plugin.list_models(hub="pipeline-zoo-models", filters={"search": "yolo"})
+
+        assert result["total"] == 1
+        assert result["items"][0]["name"] == "yolov5m-320"
+        assert result["items"][0]["owner"] == "dlstreamer"
+        assert "model_type" not in result["items"][0]
+
+    def test_pipeline_zoo_listing_stringifies_search(self, plugin, temp_dir, monkeypatch):
+        extract_root = Path(temp_dir) / "extracted"
+        storage_dir = extract_root / "pipeline-zoo-models-main" / "storage"
+        (storage_dir / "123-model").mkdir(parents=True)
+        (storage_dir / "abc-model").mkdir()
+
+        monkeypatch.setattr(
+            plugin, "_ensure_shared_archive_extracted", lambda hub, profile: str(extract_root)
+        )
+
+        result = plugin.list_models(hub="pipeline-zoo-models", filters={"search": 123})
+
+        assert result["total"] == 1
+        assert result["items"][0]["name"] == "123-model"
+
+    def test_pipeline_zoo_listing_pagination(self, plugin, temp_dir, monkeypatch):
+        extract_root = Path(temp_dir) / "extracted"
+        storage_dir = extract_root / "pipeline-zoo-models-main" / "storage"
+        for name in ["a", "b", "c"]:
+            (storage_dir / name).mkdir(parents=True)
+
+        monkeypatch.setattr(
+            plugin, "_ensure_shared_archive_extracted", lambda hub, profile: str(extract_root)
+        )
+
+        result = plugin.list_models(hub="pipeline-zoo-models", limit=1, offset=1)
+
+        assert result["total"] == 3
+        assert [item["name"] for item in result["items"]] == ["b"]
+
+    @pytest.mark.parametrize("hub", ["remote-url", "omz"])
+    def test_listing_unsupported_external_hubs(self, plugin, hub):
+        with pytest.raises(ListingNotSupportedError):
+            plugin.list_models(hub=hub)
 
 
 class TestRuntimeUrlValidation:

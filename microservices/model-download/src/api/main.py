@@ -16,7 +16,8 @@ from pydantic import ValidationError
 from ..core.plugin_registry import PluginRegistry
 from ..core.model_manager import ModelManager
 import importlib
-from .models import ModelDownloadRequest, ModelHub
+from .models import ModelDownloadRequest, ModelHub, ModelListItem, ModelListRequest, ModelListResponse
+from ..core.interfaces import ListingAuthError, ListingNotSupportedError
 from ..utils.logging import logger
 from ..utils.helper import validate_zip_contents_within_target, validate_zip_file, sanitize_path_part
 
@@ -77,6 +78,77 @@ async def health_check():
     Health check endpoint to verify the service is running.
     """
     return {"status": "ok"}
+
+
+async def _list_hub_models(
+    hub: str,
+    filters: Optional[Dict[str, Any]] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> ModelListResponse:
+    if limit < 1 or limit > 200:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 200")
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="offset must be >= 0")
+
+    hub_name = hub.lower()
+    plugin = plugin_registry.get_plugin("downloader", hub_name)
+    if plugin is None:
+        plugin = plugin_registry.find_plugin_for_model("downloader", "", hub_name)
+    if plugin is None:
+        raise HTTPException(status_code=400, detail=f"Unknown hub '{hub}'")
+
+    if not getattr(plugin, "supports_listing", False):
+        raise HTTPException(status_code=501, detail=f"Hub '{hub}' does not support listing models")
+
+    is_available, reason = plugin_registry.hub_is_available(hub_name)
+    if not is_available:
+        raise HTTPException(status_code=400, detail=f"Hub '{hub}' is not available: {reason}")
+
+    try:
+        result = await asyncio.to_thread(
+            plugin.list_models,
+            filters=filters or {},
+            limit=limit,
+            offset=offset,
+            hub=hub_name,
+        )
+    except ListingNotSupportedError:
+        raise HTTPException(status_code=501, detail=f"Hub '{hub}' does not support listing models")
+    except ListingAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Failed to list models for hub '{hub}': {exc}")
+        raise HTTPException(status_code=502, detail=f"Failed to list models from hub '{hub}'")
+
+    items = [ModelListItem(**item) for item in result.get("items", [])]
+    return ModelListResponse(
+        hub=hub_name,
+        items=items,
+        total=result.get("total"),
+        limit=limit,
+        offset=offset,
+    )
+
+
+# TODO: Replace this POST endpoint with HTTP QUERY once FastAPI, OpenAPI tooling,
+# and deployment proxies support QUERY consistently for safe requests with bodies.
+@app.post("/hubs/{hub}/models", response_model=ModelListResponse, tags=["Models"])
+async def list_hub_models_with_body(hub: str, request: ModelListRequest) -> ModelListResponse:
+    """
+    List models available on a hub using hub-specific filters.
+    """
+    filters = request.filters.copy()
+    body_extras = request.model_extra or {}
+    filters.update({key: value for key, value in body_extras.items() if value is not None})
+    return await _list_hub_models(
+        hub,
+        filters=filters,
+        limit=request.limit,
+        offset=request.offset,
+    )
 
 
 @app.post("/models/download")
@@ -338,6 +410,8 @@ async def list_plugins():
                 "description": getattr(plugin, "__doc__", "No description available").strip(),
                 "capabilities": {
                     "supports_parallel_downloads": can_handle_parallel,
+                    "supports_listing": getattr(plugin, "supports_listing", False),
+                    "listing_filter_fields": getattr(plugin, "listing_filter_fields", []),
                 },
                 "available": is_available,
                 "unavailable_reason": reason if not is_available else None

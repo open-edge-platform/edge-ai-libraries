@@ -312,3 +312,53 @@ class ModelRequest(BaseModel):
 class ModelDownloadRequest(BaseModel):
     models: List[ModelRequest]
     parallel_downloads: Optional[bool] = False
+
+
+class ModelListRequest(BaseModel):
+    """Request body for listing models from a hub."""
+    model_config = ConfigDict(extra="allow")
+
+    filters: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Hub-specific listing filters such as owner, organization, author, search, filter, and tags.",
+    )
+    limit: int = Field(50, ge=1, le=200, description="Maximum models to return.")
+    offset: int = Field(0, ge=0, description="Number of models to skip.")
+
+
+class ModelListItem(BaseModel):
+    """A single model entry returned by a hub listing."""
+    model_config = ConfigDict(extra="allow", protected_namespaces=())
+
+    name: str = Field(
+        ..., description="Model name to pass as 'name' in POST /api/v1/models/download."
+    )
+    owner: Optional[str] = Field(
+        None, description="Owner / organization / project (whatever applies to the hub)."
+    )
+    precisions: List[str] = Field(
+        default_factory=list,
+        description="Available precisions / formats / variants.",
+    )
+    tags: List[str] = Field(default_factory=list, description="Tags associated with the model.")
+    model_type: Optional[str] = Field(None, description="Model type/task, if available.")
+    last_modified: Optional[str] = Field(
+        None, description="Last update timestamp (ISO 8601), if available."
+    )
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Extra hub-specific metadata."
+    )
+
+
+class ModelListResponse(BaseModel):
+    """Response body for a hub model listing."""
+
+    hub: str = Field(..., description="The hub the models were listed from.")
+    items: List[ModelListItem] = Field(
+        default_factory=list, description="Models discovered on the hub."
+    )
+    total: Optional[int] = Field(
+        None, description="Total number of matching models, if the hub reports it."
+    )
+    limit: int = Field(..., description="Applied page size.")
+    offset: int = Field(..., description="Applied offset.")

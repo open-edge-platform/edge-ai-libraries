@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from src.core.interfaces import DownloadTask, ModelDownloadPlugin
+from src.core.interfaces import DownloadTask, ListingNotSupportedError, ModelDownloadPlugin
 from src.utils.logging import logger
 
 
@@ -95,6 +95,55 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
 
     def supported_hubs(self) -> List[str]:
         return list(_load_profile().keys())
+
+    @property
+    def supports_listing(self) -> bool:
+        return True
+
+    @property
+    def listing_filter_fields(self) -> List[str]:
+        return ["search"]
+
+    def list_models(self, filters=None, limit=50, offset=0, **kwargs) -> Dict[str, Any]:
+        """List models for external hubs that have a discoverable catalog."""
+        hub = (kwargs.get("hub") or "").lower().replace("_", "-")
+        if hub != "pipeline-zoo-models":
+            raise ListingNotSupportedError(
+                f"Hub '{hub}' does not support listing models"
+            )
+
+        profile = _load_profile().get(hub)
+        if profile is None:
+            raise ListingNotSupportedError(
+                f"Hub '{hub}' does not support listing models"
+            )
+
+        extract_dir = self._ensure_shared_archive_extracted(hub, profile)
+        extracted_root = profile.get("shared_archive_root")
+        source_base = Path(extract_dir) / extracted_root if extracted_root else Path(extract_dir)
+        model_subpath = profile.get("shared_model_subpath", "{model_name}")
+        prefix = model_subpath.split("{model_name}", 1)[0].strip("/")
+        model_root = source_base / prefix if prefix else source_base
+        if not model_root.is_dir():
+            raise RuntimeError(f"Pipeline-zoo model directory not found at {model_root}")
+
+        names = sorted(path.name for path in model_root.iterdir() if path.is_dir())
+        search_term = str((filters or {}).get("search", "")).lower()
+        if search_term:
+            names = [name for name in names if search_term in name.lower()]
+
+        total = len(names)
+        page = names[offset: offset + limit]
+        items = [
+            {
+                "name": name,
+                "owner": "dlstreamer",
+                "tags": ["pipeline-zoo-models"],
+                "metadata": {"source": hub},
+            }
+            for name in page
+        ]
+        return {"items": items, "total": total}
 
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         normalized = (hub or "").lower().replace("_", "-")

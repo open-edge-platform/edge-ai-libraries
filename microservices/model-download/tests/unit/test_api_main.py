@@ -595,8 +595,12 @@ class TestAPIMain:
         # Setup mocks
         mock_hf_plugin = MagicMock()
         mock_hf_plugin.__doc__ = "HuggingFace plugin for model downloads"
+        mock_hf_plugin.supports_listing = True
+        mock_hf_plugin.listing_filter_fields = ["author", "search"]
         mock_ollama_plugin = MagicMock()
         mock_ollama_plugin.__doc__ = "Ollama plugin for local models"
+        mock_ollama_plugin.supports_listing = False
+        mock_ollama_plugin.listing_filter_fields = []
         mock_openvino_plugin = MagicMock()
         mock_openvino_plugin.__doc__ = "OpenVINO converter plugin"
 
@@ -631,6 +635,49 @@ class TestAPIMain:
         assert "converter" in data["available_plugins"]
         assert data["total_count"] == 3
         assert data["available_count"] == 2  # huggingface and openvino are available
+        hf_capabilities = data["available_plugins"]["downloader"][0]["capabilities"]
+        assert hf_capabilities["supports_listing"] is True
+        assert hf_capabilities["listing_filter_fields"] == ["author", "search"]
+
+    @patch('src.api.main.plugin_registry')
+    def test_list_hub_models_resolves_external_source_hub(self, mock_registry, client):
+        """Test listing can resolve a hub served by a multi-hub plugin"""
+        mock_plugin = MagicMock()
+        mock_plugin.supports_listing = True
+        mock_plugin.list_models.return_value = {"items": [{"name": "dbnet"}], "total": 1}
+        mock_registry.get_plugin.return_value = None
+        mock_registry.find_plugin_for_model.return_value = mock_plugin
+        mock_registry.hub_is_available.return_value = (True, None)
+
+        response = client.post(
+            "/hubs/pipeline-zoo-models/models",
+            json={"filters": {"owner": "dlstreamer"}, "search": "db", "limit": 25, "offset": 0},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["items"][0]["name"] == "dbnet"
+        mock_registry.find_plugin_for_model.assert_called_once_with(
+            "downloader", "", "pipeline-zoo-models"
+        )
+        mock_plugin.list_models.assert_called_once_with(
+            filters={"owner": "dlstreamer", "search": "db"},
+            limit=25,
+            offset=0,
+            hub="pipeline-zoo-models",
+        )
+
+    @patch('src.api.main.plugin_registry')
+    def test_list_hub_models_unsupported(self, mock_registry, client):
+        """Test that hubs without listing support return 501"""
+        mock_plugin = MagicMock()
+        mock_plugin.supports_listing = False
+        mock_registry.get_plugin.return_value = mock_plugin
+
+        response = client.post("/hubs/geti/models", json={})
+
+        assert response.status_code == 501
+        assert response.json()["detail"] == "Hub 'geti' does not support listing models"
 
     def test_invalid_request_format(self, client):
         """Test API with invalid request format"""

@@ -300,6 +300,14 @@ components:
           properties:
             supports_parallel_downloads:
               type: boolean
+            supports_listing:
+              type: boolean
+              description: Whether the plugin can list models available on one or more hubs
+            listing_filter_fields:
+              type: array
+              items:
+                type: string
+              description: Hub-specific filter fields accepted by the listing endpoint
         available:
           type: boolean
           description: Whether the plugin is available
@@ -335,6 +343,90 @@ components:
           enum: [ok]
           description: Health status of the service
 
+    ModelListItem:
+      type: object
+      description: A single model entry returned by the hub listing endpoint.
+      additionalProperties: true
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Model name to pass as `name` in POST /api/v1/models/download
+          example: microsoft/Phi-3.5-mini-instruct
+        owner:
+          type: string
+          nullable: true
+          description: Owner, organization, or project that publishes the model
+        precisions:
+          type: array
+          items:
+            type: string
+          description: Weight precisions reported by the hub, when available
+        tags:
+          type: array
+          items:
+            type: string
+          description: Hub tags associated with the model
+        model_type:
+          type: string
+          nullable: true
+          description: Model task/type as reported by the hub
+        last_modified:
+          type: string
+          nullable: true
+          description: ISO 8601 timestamp of the model's last modification, when available
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Hub-specific extra metadata
+
+    ModelListRequest:
+      type: object
+      description: Request body for listing models from a hub using hub-specific filters.
+      additionalProperties: true
+      properties:
+        filters:
+          type: object
+          additionalProperties: true
+          description: Hub-specific listing filters such as owner, organization, author, search, filter, and tags
+          example:
+            owner: microsoft
+            search: phi
+        limit:
+          type: integer
+          default: 50
+          minimum: 1
+          maximum: 200
+          description: Maximum number of items to return
+        offset:
+          type: integer
+          default: 0
+          minimum: 0
+          description: Number of items to skip for pagination
+
+    ModelListResponse:
+      type: object
+      properties:
+        hub:
+          type: string
+          description: The hub the models were listed from
+          example: huggingface
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelListItem"
+        total:
+          type: integer
+          nullable: true
+          description: Total number of models available, when the hub reports it
+        limit:
+          type: integer
+          description: Maximum number of items requested
+        offset:
+          type: integer
+          description: Number of items skipped for pagination
+
 paths:
   /health:
     get:
@@ -350,6 +442,79 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+
+  /hubs/{hub}/models:
+    post:
+      summary: List models available on a hub using filters
+      description: |
+        Lists models available on a hub using a JSON request body for
+        hub-specific filters and pagination. Listing is currently supported for
+        `huggingface`, `ultralytics`, and `pipeline-zoo-models`.
+
+        Supported filters:
+        - `huggingface`: `author`, `owner`, `organization`, `search`, `filter`, `tags`
+        - `ultralytics`: `search`
+        - `pipeline-zoo-models`: `search`
+
+        Extra top-level request body fields are accepted and merged into `filters`.
+        Use `GET /api/v1/plugins` to discover each plugin's `listing_filter_fields`.
+        This endpoint should move to HTTP QUERY once FastAPI, OpenAPI tooling,
+        and deployment proxies support QUERY consistently for safe requests with bodies.
+      operationId: listHubModels
+      tags:
+        - Models
+      parameters:
+        - in: path
+          name: hub
+          required: true
+          schema:
+            type: string
+          description: The hub to list models from
+          example: huggingface
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelListRequest"
+            examples:
+              huggingface_models:
+                summary: List Hugging Face models
+                value:
+                  filters:
+                    owner: microsoft
+                    search: phi
+                  limit: 10
+                  offset: 0
+              ultralytics_models:
+                summary: List Ultralytics models
+                value:
+                  filters:
+                    search: yolov8
+                  limit: 10
+                  offset: 0
+              pipeline_zoo_models:
+                summary: List Pipeline Zoo Models
+                value:
+                  filters:
+                    search: yolo
+                  limit: 10
+                  offset: 0
+      responses:
+        "200":
+          description: Models listed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelListResponse"
+        "400":
+          description: Invalid pagination parameters, unknown hub, or hub not activated
+        "401":
+          description: Authentication failed for the hub
+        "501":
+          description: Hub does not support listing models
+        "502":
+          description: Upstream hub request failed
 
   /models/download:
     post:
