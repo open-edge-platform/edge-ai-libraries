@@ -43,21 +43,21 @@ Destination - frame
   ``type=webrtc``
       Replaces ``appsink name=appsink`` in the pipeline template with an
       encode + ``whipclientsink`` chain that publishes to a WHIP signaling
-      server at ``http://<WHIP_SERVER_IP>:<WHIP_SERVER_PORT>/<peer-id>/whip``.
-      The signaling server host and port are read from the ``WHIP_SERVER_IP``
-      (default ``localhost``) and ``WHIP_SERVER_PORT`` (default ``8889``)
-      environment variables.
+      server at ``<WEBRTC_SIGNALING_SERVER>/<peer-id>/whip``.  The signaling
+      server base URL is read from the ``WEBRTC_SIGNALING_SERVER`` environment
+      variable (default ``http://mediamtx-server:8889``), matching the legacy
+      DLSPS ``server/arguments.py`` convention.
 
       The replacement sink chain added is::
 
           videoconvert ! [gvawatermark !] openh264enc name=h264enc \
               bitrate=<bitrate> ! video/x-h264,profile=baseline ! \
               whipclientsink name=webrtc_sink \
-              signaller::whip-endpoint=http://<host>:<port>/<peer-id>/whip
+              signaller::whip-endpoint=<WEBRTC_SIGNALING_SERVER>/<peer-id>/whip
 
       A WHIP-compatible signaling/relay server (e.g. MediaMTX) must be
       reachable at that address.  View the stream at
-      ``http://<host>:<port>/<peer-id>``.
+      ``<WEBRTC_SIGNALING_SERVER>/<peer-id>``.
 
 Destination - metadata (Python elements)
   ``type=mqtt``
@@ -104,9 +104,7 @@ _APPSINK_RE = re.compile(r"appsink\b[^!]*", re.IGNORECASE)
 _RTSP_HOST = os.environ.get("RTSP_HOST", "localhost")
 _RTSP_PORT = os.environ.get("RTSP_PORT", "8554")
 
-# WebRTC/WHIP signaling server coordinates — override via environment variables.
-_WHIP_HOST = os.environ.get("WHIP_SERVER_IP", "localhost")
-_WHIP_PORT = os.environ.get("WHIP_SERVER_PORT", "8889")
+_WEBRTC_SIGNALING_SERVER = os.environ.get("WEBRTC_SIGNALING_SERVER", "http://mediamtx-server:8889").rstrip("/")
 
 
 def _replace_appsink_with_rtsp(pipeline: str, path: str) -> str:
@@ -153,7 +151,7 @@ def _replace_appsink_with_webrtc(
         videoconvert ! [gvawatermark !] openh264enc name=h264enc \
             bitrate=<bitrate> ! video/x-h264,profile=baseline ! \
             whipclientsink name=webrtc_sink \
-            signaller::whip-endpoint=http://<WHIP_HOST>:<WHIP_PORT>/<peer_id>/whip
+            signaller::whip-endpoint=<WEBRTC_SIGNALING_SERVER>/<peer_id>/whip
 
     ``gvawatermark`` is included only when ``overlay`` is true.  A
     WHIP-compatible signaling/relay server (e.g. MediaMTX) must be reachable at
@@ -161,7 +159,7 @@ def _replace_appsink_with_webrtc(
     returned unchanged and a warning is logged.
     """
     mount = peer_id.strip("/")
-    whip_url = f"http://{_WHIP_HOST}:{_WHIP_PORT}/{mount}/whip"
+    whip_url = f"{_WEBRTC_SIGNALING_SERVER}/{mount}/whip"
     overlay_element = "gvawatermark ! " if overlay else ""
     webrtc_chain = (
         f"videoconvert ! {overlay_element}"

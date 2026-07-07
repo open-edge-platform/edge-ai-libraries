@@ -3,7 +3,7 @@
 
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------------------------
@@ -33,11 +33,11 @@ class MetadataDestinationConfig(BaseModel):
 class FrameDestinationConfig(BaseModel):
     type: str   # "rtsp", "webrtc", …
     path: Optional[str] = None  # stream identifier / RTSP mount-point
-    peer_id: Optional[str] = None  # WebRTC peer / WHIP mount identifier
+    peer_id: Optional[str] = Field(default=None, alias="peer-id")
     bitrate: int = 2048            # WebRTC H.264 encoder bitrate
     overlay: bool = True           # draw detections (gvawatermark) before streaming
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class DestinationConfig(BaseModel):
