@@ -604,14 +604,27 @@ download_model_via_ms() {
     if [ -n "$hf_token" ]; then
         env_args+=(-e "HF_TOKEN=${hf_token}")
     fi
+    
+    local log_file="${host_models_dir}/model-download.log"
 
     echo -e "[model-download] ${BLUE}Running ${YELLOW}${MODEL_DOWNLOAD_IMAGE}${BLUE} (plugins: ${plugins}) — image auto-pulls if absent...${NC}"
+    echo -e "[model-download] ${GRAY}This may take a while. Output is logged to ${log_file}${NC}"
     docker run --rm \
         "${env_args[@]}" \
         -v "${host_models_dir}:/opt/models" \
         --group-add "$(id -g)" \
         "${MODEL_DOWNLOAD_IMAGE}" \
-        --plugins "${plugins}" --ephemeral "$@"
+        --plugins "${plugins}" --ephemeral "$@" >"$log_file" 2>&1
+    local rc=$?
+
+    if [ $rc -eq 0 ]; then
+        rm -f "$log_file"
+    else
+        echo -e "${RED}ERROR: model-download failed (exit code ${rc}). Last log lines:${NC}" >&2
+        tail -n 20 "$log_file" >&2 2>/dev/null
+        echo -e "${YELLOW}Full log persisted at: ${log_file}${NC}" >&2
+    fi
+    return $rc
 }
 
 # Fix ownership of files written by the model-download container (runs as UID 1001):
