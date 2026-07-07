@@ -1,0 +1,108 @@
+#
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
+# Docker Compose for DL Streamer Pipeline Server 2.0 (dlsps2).
+#
+# Usage:
+#   cd dlsps2/docker
+#   docker compose up -d                # start broker + pipeline server
+#   docker compose logs -f dlstreamer-pipeline-server
+#   docker compose down
+#
+# The optional MQTT broker is provided for local testing of the mqttsinkpy
+# publisher. Remove the `broker` service if you use an external broker.
+
+services:
+  broker:
+    image: eclipse-mosquitto
+    hostname: mqtt
+    container_name: dlsps2-mqtt-broker
+    read_only: true
+    security_opt:
+      - no-new-privileges
+    volumes:
+      - ./mosquitto:/mosquitto/config:ro
+    ports:
+      - "1883:1883"
+    networks:
+      - app_network
+
+  dlstreamer-pipeline-server:
+    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE:-dlsps2.0-7}
+    hostname: dlstreamer-pipeline-server
+    container_name: dlsps2-pipeline-server
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE}
+        UID: ${UID}
+        USER: ${PIPELINE_SERVER_USER}
+        no_proxy: ${no_proxy}
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+    security_opt:
+      - no-new-privileges
+    privileged: false
+    tty: true
+    entrypoint: ["./run.sh"]
+    ports:
+      - "${REST_SERVER_PORT:-8080}:8080"
+    networks:
+      - app_network
+    environment:
+      - REST_SERVER_PORT=8080
+      - APP_LOG_LEVEL=${APP_LOG_LEVEL:-INFO}
+      - WEB_SERVER_LOG_LEVEL=${WEB_SERVER_LOG_LEVEL:-WARNING}
+      - GST_DEBUG=1
+      # Publisher sink connection settings
+      - MQTT_HOST=${MQTT_HOST}
+      - MQTT_PORT=${MQTT_PORT}
+      - OPCUA_SERVER_IP=${OPCUA_SERVER_IP}
+      - OPCUA_SERVER_PORT=${OPCUA_SERVER_PORT}
+      - OPCUA_SERVER_USERNAME=${OPCUA_SERVER_USERNAME}
+      - OPCUA_SERVER_PASSWORD=${OPCUA_SERVER_PASSWORD}
+      - INFLUXDB_HOST=${INFLUXDB_HOST}
+      - INFLUXDB_PORT=${INFLUXDB_PORT}
+      - INFLUXDB_USER=${INFLUXDB_USER}
+      - INFLUXDB_PASS=${INFLUXDB_PASS}
+      - S3_STORAGE_HOST=${S3_STORAGE_HOST}
+      - S3_STORAGE_PORT=${S3_STORAGE_PORT}
+      - S3_STORAGE_USER=${S3_STORAGE_USER}
+      - S3_STORAGE_PASS=${S3_STORAGE_PASS}
+      # Proxies
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - no_proxy=${no_proxy},mqtt,${INFLUXDB_HOST},${S3_STORAGE_HOST}
+      # NPU related environment variable
+      - ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so
+    depends_on:
+      - broker
+    volumes:
+      - "../../resources:/home/pipeline-server/resources/"
+      # Mount a legacy config.json to enable the named-pipeline API:
+      # - "../../configs/default/config.json:/home/pipeline-server/config.json:ro"
+      - "/run/udev:/run/udev:ro"
+      - "/dev:/dev"
+    # Writable scratch space (root filesystem stays clean; add read_only: true
+    # above once all writable paths are covered by tmpfs mounts).
+    tmpfs:
+      - /tmp
+      - /var/tmp
+    group_add:
+      # render group ID; export RENDER_GID on the host or set it in .env
+      - "${RENDER_GID}"
+    device_cgroup_rules:
+      - 'c 189:* rmw'   # USB
+      - 'c 209:* rmw'
+      - 'a 189:* rwm'
+    devices:
+      # GPU (dri) / NPU (accel) / USB cameras. Selective mounts are preferred
+      # over mounting all of /dev in production deployments.
+      - "/dev:/dev"
+
+networks:
+  app_network:
+    driver: bridge
