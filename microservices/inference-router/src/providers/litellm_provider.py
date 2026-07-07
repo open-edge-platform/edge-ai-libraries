@@ -70,7 +70,10 @@ class LitellmProvider(ProviderAdapter):
             raw = self._call_litellm(messages, stream=False, **kwargs)
         except Exception as exc:
             logger.error(f"litellm chat failed for provider={self.name}: {exc}")
-            raise ProviderError(f"Litellm chat failed: {exc}") from exc
+            raise ProviderError(
+                f"Litellm chat failed: {exc}",
+                status_code=getattr(exc, "status_code", None),
+            ) from exc
         return self._to_chat_response(raw)
 
     async def chat_stream(
@@ -81,7 +84,10 @@ class LitellmProvider(ProviderAdapter):
             stream_iter = self._call_litellm(messages, stream=True, **kwargs)
         except Exception as exc:
             logger.error(f"litellm stream failed for provider={self.name}: {exc}")
-            raise ProviderError(f"Litellm stream failed: {exc}") from exc
+            raise ProviderError(
+                f"Litellm stream failed: {exc}",
+                status_code=getattr(exc, "status_code", None),
+            ) from exc
 
         for chunk in stream_iter:
             yield self._to_stream_chunk(chunk)
