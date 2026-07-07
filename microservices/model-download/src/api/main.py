@@ -123,19 +123,34 @@ async def _list_hub_models(
         logger.error(f"Failed to list models for hub '{hub}': {exc}")
         raise HTTPException(status_code=502, detail=f"Failed to list models from hub '{hub}'")
 
-    items = [ModelListItem(**item) for item in result.get("items", [])]
+    raw_items = result.get("items", [])
+    items = [ModelListItem(**item) for item in raw_items[:limit]]
+    count = len(items)
+    total = result.get("total")
+    if total is not None:
+        has_more = offset + count < total
+    else:
+        has_more = len(raw_items) > limit
     return ModelListResponse(
         hub=hub_name,
         items=items,
-        total=result.get("total"),
+        count=count,
+        total=total,
         limit=limit,
         offset=offset,
+        has_more=has_more,
+        next_offset=offset + limit if has_more else None,
     )
 
 
 # TODO: Replace this POST endpoint with HTTP QUERY once FastAPI, OpenAPI tooling,
 # and deployment proxies support QUERY consistently for safe requests with bodies.
-@app.post("/hubs/{hub}/models", response_model=ModelListResponse, tags=["Models"])
+@app.post(
+    "/hubs/{hub}/models",
+    response_model=ModelListResponse,
+    response_model_exclude_none=True,
+    tags=["Models"],
+)
 async def list_hub_models_with_body(hub: str, request: ModelListRequest) -> ModelListResponse:
     """
     List models available on a hub using hub-specific filters.

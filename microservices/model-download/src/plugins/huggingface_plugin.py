@@ -40,7 +40,8 @@ class HuggingFacePlugin(ModelDownloadPlugin):
             model_filter = tags
 
         api = HfApi(token=token)
-        fetch_limit = (limit + offset) if offset else limit
+        # Fetch one extra item so the API can tell whether another page exists.
+        fetch_limit = offset + limit + 1
 
         try:
             results = api.list_models(
@@ -59,7 +60,8 @@ class HuggingFacePlugin(ModelDownloadPlugin):
                 raise ListingAuthError("HuggingFace credentials are missing or invalid.") from exc
             raise
 
-        page = models[offset: offset + limit] if offset else models[:limit]
+        page_end = offset + limit + 1
+        page = models[offset:page_end]
         items = [self._to_item(model) for model in page if getattr(model, "id", None)]
         return {"items": items, "total": None}
 

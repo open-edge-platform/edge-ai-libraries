@@ -157,7 +157,7 @@ class TestListModels:
         assert result["total"] == 1
         assert result["items"][0]["name"] == "yolov5m-320"
         assert result["items"][0]["owner"] == "dlstreamer"
-        assert "model_type" not in result["items"][0]
+        assert set(result["items"][0]) == {"name", "owner"}
 
     def test_pipeline_zoo_listing_stringifies_search(self, plugin, temp_dir, monkeypatch):
         extract_root = Path(temp_dir) / "extracted"

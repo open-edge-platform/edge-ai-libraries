@@ -43,7 +43,13 @@ class UltralyticsDownloader(ModelDownloadPlugin):
 
         total = len(models)
         page = models[offset: offset + limit]
-        items = [{"name": name} for name in page]
+        items = [
+            {
+                "name": name,
+                "owner": "ultralytics",
+            }
+            for name in page
+        ]
         return {"items": items, "total": total}
     
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:

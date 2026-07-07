@@ -336,18 +336,16 @@ class ModelListItem(BaseModel):
     owner: Optional[str] = Field(
         None, description="Owner / organization / project (whatever applies to the hub)."
     )
-    precisions: List[str] = Field(
-        default_factory=list,
+    precisions: Optional[List[str]] = Field(
+        None,
         description="Available precisions / formats / variants.",
     )
-    tags: List[str] = Field(default_factory=list, description="Tags associated with the model.")
+    tags: Optional[List[str]] = Field(None, description="Tags associated with the model.")
     model_type: Optional[str] = Field(None, description="Model type/task, if available.")
     last_modified: Optional[str] = Field(
         None, description="Last update timestamp (ISO 8601), if available."
     )
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict, description="Extra hub-specific metadata."
-    )
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Extra hub-specific metadata.")
 
 
 class ModelListResponse(BaseModel):
@@ -357,8 +355,15 @@ class ModelListResponse(BaseModel):
     items: List[ModelListItem] = Field(
         default_factory=list, description="Models discovered on the hub."
     )
+    count: int = Field(..., description="Number of models returned in this response.")
     total: Optional[int] = Field(
         None, description="Total number of matching models, if the hub reports it."
     )
     limit: int = Field(..., description="Applied page size.")
     offset: int = Field(..., description="Applied offset.")
+    has_more: Optional[bool] = Field(
+        None, description="Whether another page is available, if known."
+    )
+    next_offset: Optional[int] = Field(
+        None, description="Offset to request the next page, when another page is available."
+    )

@@ -656,7 +656,11 @@ class TestAPIMain:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["items"][0]["name"] == "dbnet"
+        assert data["items"][0] == {"name": "dbnet"}
+        assert data["count"] == 1
+        assert data["total"] == 1
+        assert data["has_more"] is False
+        assert "next_offset" not in data
         mock_registry.find_plugin_for_model.assert_called_once_with(
             "downloader", "", "pipeline-zoo-models"
         )
@@ -666,6 +670,31 @@ class TestAPIMain:
             offset=0,
             hub="pipeline-zoo-models",
         )
+
+    @patch('src.api.main.plugin_registry')
+    def test_list_hub_models_sets_next_offset_only_when_more_results_exist(self, mock_registry, client):
+        """Test API trims extra listing items and exposes next_offset only when has_more is true."""
+        mock_plugin = MagicMock()
+        mock_plugin.supports_listing = True
+        mock_plugin.list_models.return_value = {
+            "items": [{"name": "m0"}, {"name": "m1"}],
+            "total": None,
+        }
+        mock_registry.get_plugin.return_value = mock_plugin
+        mock_registry.hub_is_available.return_value = (True, None)
+
+        response = client.post(
+            "/hubs/huggingface/models",
+            json={"limit": 1, "offset": 0},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["items"] == [{"name": "m0"}]
+        assert data["count"] == 1
+        assert data["has_more"] is True
+        assert data["next_offset"] == 1
+        assert "total" not in data
 
     @patch('src.api.main.plugin_registry')
     def test_list_hub_models_unsupported(self, mock_registry, client):
@@ -693,6 +722,36 @@ class TestAPIMain:
         response = client.post("/models/download?download_path=test", json=invalid_request)
         
         assert response.status_code == 422
+
+    @patch('src.api.main.model_manager')
+    @patch('src.api.main.plugin_registry')
+    @patch('os.getenv')
+    def test_hub_name_normalizes_case_and_separator(self, mock_getenv, mock_registry, mock_manager, client):
+        """Test hub names are canonicalized before download processing."""
+        mock_getenv.return_value = "/opt/models"
+        mock_registry.plugins = {"downloader": {"pipeline-zoo-models": MagicMock()}}
+        mock_registry.supported_hubs.return_value = ["pipeline-zoo-models"]
+        mock_registry.get_plugin_names.return_value = ["pipeline-zoo-models"]
+        mock_registry.hub_is_available.return_value = (True, None)
+        mock_manager.register_job.return_value = "job-pz-normalized"
+        mock_manager.process_download = AsyncMock()
+
+        request_data = {
+            "models": [
+                {
+                    "name": "yolov5m-416_INT8",
+                    "hub": "Pipeline_Zoo_Models",
+                    "is_ovms": False
+                }
+            ]
+        }
+
+        response = client.post("/models/download?download_path=pipeline_zoo_models", json=request_data)
+
+        assert response.status_code == 200
+        call_kwargs = mock_manager.process_download.call_args.kwargs
+        assert call_kwargs["hub"] == "pipeline-zoo-models"
+        assert call_kwargs["downloader"] == "pipeline-zoo-models"
 
     @pytest.mark.parametrize("model_data,expected_status", [
         # Valid requests

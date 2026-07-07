@@ -501,8 +501,9 @@ class TestHuggingFaceListModels:
         api.list_models.return_value = iter([
             self._make_model("org/model-a", {"F16": 1000, "F32": 500}),
         ])
+        limit = 10
 
-        result = hf_plugin.list_models(filters={"author": "org"}, limit=10, offset=0)
+        result = hf_plugin.list_models(filters={"author": "org"}, limit=limit, offset=0)
 
         assert result["total"] is None
         assert len(result["items"]) == 1
@@ -514,6 +515,7 @@ class TestHuggingFaceListModels:
         assert item["last_modified"] == "2024-01-01T00:00:00"
         assert item["metadata"]["downloads"] == 100
         assert api.list_models.call_args.kwargs["author"] == "org"
+        assert api.list_models.call_args.kwargs["limit"] == limit + 1
 
     @patch('src.plugins.huggingface_plugin.HfApi')
     def test_list_models_maps_tags_to_filter(self, mock_hfapi, hf_plugin):
@@ -546,6 +548,21 @@ class TestHuggingFaceListModels:
 
         assert len(result["items"]) == 1
         assert result["items"][0]["name"] == "org/m2"
+        assert api.list_models.call_args.kwargs["limit"] == 4
+
+    @patch('src.plugins.huggingface_plugin.HfApi')
+    def test_list_models_returns_extra_item_when_more_results_exist(self, mock_hfapi, hf_plugin):
+        api = mock_hfapi.return_value
+        api.list_models.return_value = iter([
+            self._make_model("org/m0"),
+            self._make_model("org/m1"),
+        ])
+
+        result = hf_plugin.list_models(filters={"author": "org"}, limit=1, offset=0)
+
+        assert [item["name"] for item in result["items"]] == ["org/m0", "org/m1"]
+        assert "has_more" not in result
+        assert "next_offset" not in result
 
     @patch('src.plugins.huggingface_plugin.HfApi')
     def test_list_models_auth_error(self, mock_hfapi, hf_plugin):

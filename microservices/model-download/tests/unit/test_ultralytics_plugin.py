@@ -633,8 +633,14 @@ class TestUltralyticsListModels:
 
         assert result["total"] == 2
         assert result["items"] == [
-            {"name": "yolov8n.pt"},
-            {"name": "yolov8s.pt"},
+            {
+                "name": "yolov8n.pt",
+                "owner": "ultralytics",
+            },
+            {
+                "name": "yolov8s.pt",
+                "owner": "ultralytics",
+            },
         ]
 
     @patch.object(UltralyticsDownloader, 'get_supported_models')

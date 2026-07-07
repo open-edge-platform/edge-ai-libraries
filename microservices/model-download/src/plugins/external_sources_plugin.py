@@ -138,8 +138,6 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             {
                 "name": name,
                 "owner": "dlstreamer",
-                "tags": ["pipeline-zoo-models"],
-                "metadata": {"source": hub},
             }
             for name in page
         ]
