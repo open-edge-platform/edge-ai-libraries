@@ -11,8 +11,8 @@ description: >
   "write test", "stuck job", "extend microservice", "plugin not working",
   "how does model_manager work", "mock subprocess", "register new hub".
 argument-hint: >
-  Describe what you want to build or debug (e.g. "add a ModelScope plugin that
-  downloads models from modelscope.cn")
+  Describe what you want to build or debug (e.g. "add a new downloader plugin
+  for an internal model hub")
 ---
 
 # Model Download Developer Skill
@@ -41,7 +41,8 @@ Help developers extend, test, and debug the Model Download microservice.
 
 | File | Covers |
 |------|--------|
-| [examples/new-plugin.md](./examples/new-plugin.md) | Step-by-step: create a new downloader plugin end-to-end |
+| [examples/plugin-blueprint.md](./examples/plugin-blueprint.md) | Reusable skeleton for new downloader and converter plugins |
+| [examples/new-downloader-plugin.md](./examples/new-downloader-plugin.md) | Step-by-step: wire a new downloader plugin end-to-end |
 | [examples/writing-tests.md](./examples/writing-tests.md) | Unit test patterns for plugins with subprocess and async mocks |
 
 ---
@@ -59,7 +60,7 @@ src/
 │   ├── plugin_registry.py ← Auto-discovery, activation check, find_plugin_for_model
 │   └── plugin_venv.py   ← Per-plugin venv management
 └── plugins/
-    ├── __init__.py      ← PLUGINS dict — add your plugin class here
+    ├── __init__.py      ← PLUGINS tuple mapping — register module path + class name here
     ├── huggingface_plugin.py
     ├── ollama_plugin.py
     ├── openvino_plugin.py
@@ -73,80 +74,37 @@ src/
 
 ## Procedure: Adding a New Plugin
 
-Read [plugin-architecture.md](./references/plugin-architecture.md) for full interface details,
-then follow this sequence:
+Read [plugin-architecture.md](./references/plugin-architecture.md) first, then use the
+examples in this order:
 
-### Step 1 — Create the Plugin File
+1. [examples/plugin-blueprint.md](./examples/plugin-blueprint.md) for the reusable class skeleton
+2. [examples/new-downloader-plugin.md](./examples/new-downloader-plugin.md) for the end-to-end wiring steps
+3. [examples/writing-tests.md](./examples/writing-tests.md) for the unit-test shape
 
-Create `src/plugins/<name>_plugin.py` implementing `ModelDownloadPlugin`:
+The minimum set of surfaces that must stay aligned is:
 
-```python
-from src.core.interfaces import ModelDownloadPlugin
-from src.utils.logging import logger
-import os
+1. `plugin_name` in the class
+2. the key in `src/plugins/__init__.py`
+3. the `ModelHub` enum value in `src/api/models.py`
+4. the optional dependency extra in `pyproject.toml`
+5. activation support in `docker/entrypoint.sh`
 
-class MyHubPlugin(ModelDownloadPlugin):
-    @property
-    def plugin_name(self) -> str:
-        return "myhub"                    # must be unique, lowercase
-
-    @property
-    def plugin_type(self) -> str:
-        return "downloader"               # or "converter"
-
-    def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
-        return hub.lower() == "myhub"
-
-    async def download(self, model_name: str, output_dir: str, **kwargs) -> dict:
-        hub_dir = os.path.join(output_dir, "myhub")
-        os.makedirs(hub_dir, exist_ok=True)
-        # ... download logic ...
-        return {
-            "model_name": model_name,
-            "source": "myhub",
-            "download_path": hub_dir,
-            "success": True,
-        }
-```
-
-### Step 2 — Register in `__init__.py`
-
-Add your plugin class to `src/plugins/__init__.py`:
+Use the current tuple-based plugin registration format:
 
 ```python
-from .myhub_plugin import MyHubPlugin
-
 PLUGINS = {
-    ...
-    "myhub": MyHubPlugin,
+    # ... existing entries ...
+    "myhub": ("src.plugins.myhub_plugin", "MyHubPlugin"),
 }
 ```
 
-### Step 3 — Add to `ModelHub` Enum
+Important runtime detail:
 
-In `src/api/models.py`:
-```python
-class ModelHub(str, Enum):
-    ...
-    MYHUB = "myhub"
-```
+- `ENABLED_PLUGINS` controls which modules are imported by `src/plugins/__init__.py`
+- `ACTIVATED_PLUGINS` in `/opt/activated_plugins.env` is what `PluginRegistry` checks later
 
-### Step 4 — Add Optional Dependencies
-
-In `pyproject.toml`, add a new optional group:
-```toml
-[project.optional-dependencies]
-myhub = ["myhub-sdk>=1.0"]
-```
-
-### Step 5 — Update `entrypoint.sh` (if the plugin needs a venv)
-
-If your plugin requires isolated dependencies, use `PluginVenv` helpers or follow the
-pattern in `hls_plugin.py`.
-
-### Step 6 — Write Tests
-
-See [examples/writing-tests.md](./examples/writing-tests.md) for test structure and mock patterns.
+If the plugin is implemented but does not appear in `/api/v1/plugins`, assume one of those
+registration or activation surfaces is out of sync before you assume the core plugin logic is wrong.
 
 ---
 
@@ -163,7 +121,7 @@ docker logs model-download 2>&1 | tail -100
 # 2. Inspect the job status
 curl -s http://localhost:8200/api/v1/jobs/<job-id>
 
-# 3. Verify the plugin was activated
+# 3. Verify the plugin was activated and discovered
 curl -s http://localhost:8200/api/v1/plugins
 
 # 4. Test the plugin in isolation
@@ -180,4 +138,4 @@ Common causes of stuck jobs:
 - Plugin raised an exception that was swallowed — check logs
 - Plugin is blocking the event loop (use `asyncio.to_thread` for sync I/O)
 - Lock held by a crashed previous job (Ollama `_ollama_download_lock`) — restart container
-- `ACTIVATED_PLUGINS` check failed silently — verify plugin name matches exactly
+- Plugin was implemented but not activated — verify `docker/entrypoint.sh`, `ENABLED_PLUGINS`, and `ACTIVATED_PLUGINS`

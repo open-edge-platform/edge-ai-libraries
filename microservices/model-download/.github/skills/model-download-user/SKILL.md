@@ -34,10 +34,10 @@ or converting any supported model using the REST API.
 
 | Hub | `hub` value | What it does | Required env vars |
 |-----|-------------|--------------|-------------------|
-| HuggingFace | `huggingface` | Downloads any public or gated HF model | `HF_TOKEN` (gated only) |
+| HuggingFace | `huggingface` | Downloads any public or gated HF model | `HUGGINGFACEHUB_API_TOKEN` for compose-based startup (gated only) |
 | Ollama | `ollama` | Downloads Ollama models, runs local Ollama server | — |
 | Ultralytics | `ultralytics` | Downloads YOLO models, optional INT8 quantization | — |
-| OpenVINO | `openvino` | Converts HF models → OpenVINO IR for OVMS | `HF_TOKEN` (usually needed) |
+| OpenVINO | `huggingface` + `is_ovms: true` | Downloads from HuggingFace, then converts to OpenVINO IR for OVMS | `HUGGINGFACEHUB_API_TOKEN` for compose-based startup (usually needed) |
 | Geti | `geti` | Downloads trained models from Intel Geti platform | `GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID` |
 | Pipeline Zoo | `pipeline-zoo-models` | Downloads DL Streamer pipeline-zoo models | — |
 | HLS | `hls` | Downloads healthcare AI models (3d-pose, rppg, ai-ecg) | — |
@@ -138,13 +138,13 @@ Extract the following from the user's prompt. If anything is missing, ask before
 | Required | What to look for | Default if absent |
 |----------|-----------------|-------------------|
 | **Model name** | Exact model identifier (e.g. `meta-llama/Llama-3.2-1B`) | Must ask |
-| **Hub** | One of: `huggingface`, `ollama`, `ultralytics`, `openvino`, `geti`, `pipeline-zoo-models`, `hls` | Must ask |
+| **Hub** | One of: `huggingface`, `ollama`, `ultralytics`, `geti`, `pipeline-zoo-models`, `hls` | Must ask |
 | **Conversion needed?** | User says "OVMS", "OpenVINO format", "convert", "is_ovms" | `false` |
 | **Device** | CPU / GPU / NPU | `CPU` |
 | **Precision** | int4 / int8 / fp16 / fp32 | `int8` for LLMs; `fp16` for others |
 | **Model type** | llm / vlm / embeddings / rerank / vision / 3d-pose / rppg / ai-ecg | Infer from context |
 
-**OpenVINO-specific rules (ask only if hub is `openvino` or `is_ovms: true`):**
+**OpenVINO-specific rules (ask only if the user wants OVMS / OpenVINO conversion):**
 - NPU forces `int4` regardless of other settings
 - LLM/VLM conversions support `cache_size` (KV cache in GB) — ask if user mentioned memory constraints
 - Embeddings and reranker conversions use `text_generation`/`embeddings_ov`/`rerank_ov` export types internally — these are resolved automatically from `type`
@@ -165,7 +165,7 @@ git clone https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries/microservices/model-download
 
 # Set env vars
-export HUGGINGFACEHUB_API_TOKEN=<your-hf-token>   # if using HF or OpenVINO
+export HUGGINGFACEHUB_API_TOKEN=<your-hf-token>   # mapped into the container as HF_TOKEN
 export REGISTRY="intel/"
 export TAG=latest
 
@@ -210,7 +210,7 @@ The general request shape for `POST /api/v1/models/download?download_path=<subdi
 
 Key rules:
 - `is_ovms: true` triggers OpenVINO conversion after HuggingFace download
-- `hub: "openvino"` triggers pure conversion (model already implicitly from HuggingFace)
+- For the current `/models/download` flow, use `hub: "huggingface"` with `is_ovms: true`
 - `config` holds precision, device, cache_size, and plugin-specific params
 - `download_path` query param sets the subdirectory under the model store
 
@@ -253,8 +253,12 @@ curl -s "http://localhost:8200/api/v1/models/jobs?model_name=<model-name>" | pyt
 
 After confirming success, tell the user:
 - The host path where the model was saved (shown in the job result's `download_path`)
-- For OVMS conversions: how to mount the model directory into OVMS and which model name to use
+- For OVMS conversions: how to mount the model directory into OVMS and which model name to use; the result uses `conversion_path`
 - For Ollama: the model is stored inside the container's model store volume
+
+**Important accuracy note for OpenVINO conversions:** Even though the `openvino` plugin must be
+activated at startup, the current REST workflow should be requested as a HuggingFace download with
+`is_ovms: true`. Do not default to `hub: "openvino"` for `/models/download` requests.
 
 **Quick alternative:** For one-shot, ephemeral container use (CI/CD, scripted workflows), show the `get_model.sh` one-liner from [scripts/get_model.sh](../../../microservices/model-download/scripts/get_model.sh):
 ```bash
