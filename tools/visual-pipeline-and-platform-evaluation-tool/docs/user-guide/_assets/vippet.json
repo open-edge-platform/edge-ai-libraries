@@ -3196,6 +3196,16 @@
             "title": "Description",
             "description": "Human-readable benchmark description."
           },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "description": "Creation timestamp as UTC datetime."
+          },
+          "last_run_at": {
+            "type": "string",
+            "title": "Last Run At",
+            "description": "Last run timestamp as UTC datetime."
+          },
           "type": {
             "type": "string",
             "const": "density",
@@ -3214,6 +3224,8 @@
           "id",
           "name",
           "description",
+          "created_at",
+          "last_run_at",
           "type",
           "setup"
         ],
@@ -3235,6 +3247,16 @@
             "title": "Description",
             "description": "Human-readable benchmark description."
           },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "description": "Creation timestamp as UTC datetime."
+          },
+          "last_run_at": {
+            "type": "string",
+            "title": "Last Run At",
+            "description": "Last run timestamp as UTC datetime."
+          },
           "type": {
             "type": "string",
             "const": "performance",
@@ -3253,6 +3275,8 @@
           "id",
           "name",
           "description",
+          "created_at",
+          "last_run_at",
           "type",
           "setup"
         ],
