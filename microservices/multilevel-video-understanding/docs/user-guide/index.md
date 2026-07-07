@@ -73,11 +73,11 @@ Any OpenAI-compatible model servings are supported.
 
 The following models are validated by the service:
 
-| Model ID                      | Description               | Parameters    | HF link   |
-|-------------------------------| --------------------------|---------------|-----------|
-| Qwen/Qwen2.5-VL-7B-Instruct   | Vision and Language Model | ~7B           | [link](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct)      |
-| Qwen/Qwen3-32B-AWQ            | Language Model            | ~32B          | [link](https://huggingface.co/Qwen/Qwen3-32B-AWQ)      |
-| Qwen/Qwen3-32B                | Language Model            | ~32B          | [link](https://huggingface.co/Qwen/Qwen3-32B)      |
+| Model ID                    | Description                          | Parameters             | HF link   |
+|-----------------------------|--------------------------------------|------------------------|-----------|
+| Qwen/Qwen3.5-35B-A3B        | Multimodal (serves VLM + LLM roles)  | ~35B total / ~3B active | [link](https://huggingface.co/Qwen/Qwen3.5-35B-A3B)      |
+
+For the on-device deployment a single `Qwen3.5-35B-A3B` endpoint fills both the VLM and LLM roles. Any OpenAI-compatible serving is supported, so separate VLM and LLM models can still be configured via `VLM_BASE_URL` / `LLM_BASE_URL`.
 
 ## Supporting Resources
 

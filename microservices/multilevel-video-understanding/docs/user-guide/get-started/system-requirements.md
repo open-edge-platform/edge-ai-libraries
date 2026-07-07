@@ -4,7 +4,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 ## Supported Platforms
 
-This microservice currently supports Intel GPUs based runs only. This microservice is intended to run in the context of video summary pipeline. Hence, supported platform, OS configuration etc. is as per the documentation in the sample application. The documentation here, hence, does not provide separate requirements.
+This microservice runs **on-device** on Intel platforms whose integrated GPU shares system RAM, alongside a local OpenAI-compatible model serving (e.g. vLLM-IPEX). No discrete accelerator or remote inference cluster is required.
 
 **Operating Systems**
 
@@ -12,10 +12,12 @@ This microservice currently supports Intel GPUs based runs only. This microservi
 
 **Hardware Platforms**
 
-- Intel® Xeon™ Processor, such as: Intel Xeon GOLD 6530
-- Intel® Arc™ Pro B60 Graphics * 4
-- At least 64 GB RAM
-- At least 128 GB disk space
+- Intel® Core™ Ultra processor with integrated GPU (validated on Panther Lake, PTL 358H), sharing system RAM
+- At least **64 GB RAM** — default deployment target for `Qwen3.5-35B-A3B` (FP8, 60k context)
+- At least **32 GB swap** — so the model load and KV cache can spill under peak memory pressure
+- At least 128 GB disk space (model weights + Hugging Face cache)
+
+> **Note:** To fit smaller-memory hosts, lower `MAX_MODEL_LEN` or use `awq` / `sym_int4` quantization in `docker/set_env.sh`.
 
 <!-- ## Minimum Requirements
 - As per sample application documentation. -->
