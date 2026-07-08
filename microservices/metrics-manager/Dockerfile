@@ -220,9 +220,14 @@ COPY --from=telegraf-builder /usr/bin/telegraf /usr/bin/telegraf
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Install capabilities-required system tools.
+# - dmidecode: memory technology discovery (DDR4/DDR5/etc.)
+# - pciutils: lspci-based PCI/GPU branding discovery
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
-RUN pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
+RUN apt-get update && \
+    apt-get install --yes --no-install-recommends dmidecode pciutils && \
+    pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
     (dpkg -s perl-base >/dev/null 2>&1 && dpkg --purge --force-remove-essential perl-base || true) && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
