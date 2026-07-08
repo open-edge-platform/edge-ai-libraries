@@ -95,9 +95,9 @@ export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
 # Env vars for minio service ---------------------------
 export MINIO_HOST="minio-server"
 # Port on which we want to access API service outside container i.e. on host.
-export MINIO_API_HOST_PORT=6010
+export MINIO_API_HOST_PORT=${MINIO_API_HOST_PORT:-6010}
 # Port on which we want to access Minio Console outside container i.e. on host.
-export MINIO_CONSOLE_HOST_PORT=6011
+export MINIO_CONSOLE_HOST_PORT=${MINIO_CONSOLE_HOST_PORT:-6011}
 # Mount point for Minio objects storage. This helps persist objects stored on minio server.
 export MINIO_MOUNT_PATH="/mnt/miniodata"
 
