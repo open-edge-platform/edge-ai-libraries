@@ -25,8 +25,8 @@ export no_proxy=${no_proxy},multimodal-embedding-serving,minio-server,vdms-vecto
 export no_proxy_env=${no_proxy}
 # Env vars for minio service ---------------------------
 export MINIO_HOST="minio-server"
-export MINIO_API_HOST_PORT=6010
-export MINIO_CONSOLE_HOST_PORT=6011
+export MINIO_API_HOST_PORT=${MINIO_API_HOST_PORT:-6010}
+export MINIO_CONSOLE_HOST_PORT=${MINIO_CONSOLE_HOST_PORT:-6011}
 export MINIO_MOUNT_PATH="/mnt/miniodata"
 export MINIO_ROOT_USER=${MINIO_ROOT_USER}
 export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
