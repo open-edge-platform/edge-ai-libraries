@@ -23,7 +23,7 @@ Consult these based on the code you're working with. Skills reside under `.githu
 
 | Skill file | When to load |
 |---|---|
-| `.github/skills/security.md` | Dockerfile, Compose, Helm, auth/authz, input parsing, dependency changes, CVE-related work |
+| `.github/skills/security-review/SKILL.md` | Dockerfile, Compose, Helm, auth/authz, input parsing, file handling, secrets/logging, dependency upgrades, CI/CD workflow changes, privilege elevation |
 
 > **Instruction Placement Policy**: Keep this file focused on high-level routing and architecture context. Detailed procedural checklists belong in skill files under `.github/skills/`. Avoid duplicating checklist content between this file and skills.
 
@@ -52,7 +52,7 @@ Treat AI-generated output as **untrusted draft code** until reviewed and tested.
 Reject suggestions that bypass security controls for convenience or introduce unsafe defaults.
 
 For detailed security review guidance, follow:
-`.github/skills/security.md`.
+`.github/skills/security-review/SKILL.md`.
 
 ## Repository Structure
 
@@ -68,23 +68,6 @@ edge-ai-libraries/
     ├── workflows/      # Per-component CI (dlsps-*, timeseries-*, GENAI-*, modelregistry-*, …)
     └── skills/         # On-demand AI agent skill files
 ```
-
-### Key Microservices
-
-| Microservice | Purpose |
-|---|---|
-| `dlstreamer-pipeline-server` | REST/gRPC-managed DL Streamer video analytics pipelines |
-| `model-registry` | Model lifecycle management, versioning, and metadata store |
-| `time-series-analytics` | Industrial time-series data processing and ML inference |
-| `vlm-openvino-serving` | Vision-Language Model serving via OpenVINO |
-| `audio-analyzer` | Audio classification and event detection |
-| `model-download` | Model artifact download and caching service |
-| `multimodal-embedding-serving` | Embedding generation for multimodal retrieval |
-| `multilevel-video-understanding` | Hierarchical video understanding and summarization |
-| `semantic-search-agent` | Vector-based semantic search agent |
-| `vector-retriever` | Retrieval layer for vector database backends |
-| `visual-data-preparation-for-retrieval` | Dataset preprocessing for visual retrieval pipelines |
-| `document-ingestion` | Document parsing and indexing for RAG pipelines |
 
 ## Component Layout Convention
 
@@ -145,6 +128,7 @@ Each component follows a consistent layout:
 **Adding a Python dependency**:
 - `requirements.txt`-based: add to `requirements.txt`, rebuild image
 - `pyproject.toml`/`uv`-based: `uv add <package>`, commit updated `uv.lock`
+- Dependency upgrades are a security-review trigger — load `.github/skills/security-review/SKILL.md` to check for CVE-related concerns and lockfile hygiene
 
 **Running linters**:
 
@@ -170,18 +154,6 @@ yamllint .
 **DLStreamer**:
 - GStreamer-based video analytics pipeline server
 - Pipeline definitions via JSON or REST API; see `dlstreamer-pipeline-server/docs/`
-
-## File Organization Essentials
-
-- **`<component>/Makefile`**: Per-component build, lint, test, and coverage targets
-- **`<component>/Dockerfile`**: Container build definition (production image)
-- **`<component>/docker/`**: Docker Compose files and supporting configs for local development
-- **`<component>/helm/`** or **`chart/`**: Helm chart for Kubernetes deployment
-- **`<component>/src/`**: Application source code
-- **`<component>/tests/`**: Unit and integration tests
-- **`<component>/docs/`**: Component user guide and API documentation
-- **`.github/workflows/`**: Per-component CI pipeline definitions
-- **`.github/skills/security.md`**: On-demand security review skill
 
 ## Documentation Requirements (Always-On)
 
@@ -216,3 +188,4 @@ When adding a new microservice under `microservices/`:
 8. Add `document-versions.yaml` for documentation versioning
 9. Ensure SPDX license headers are present in all source files
 10. Register component in root `README.md` component table
+11. Run security review (`.github/skills/security-review/SKILL.md`) on Dockerfile, Helm chart, and CI/CD workflow before merging
