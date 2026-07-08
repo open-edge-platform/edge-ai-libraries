@@ -43,14 +43,17 @@ services:
       retries: 40
       start_period: 10s
     networks:
-      - my_network
+      - vlm_network
     volumes:
-      - ov-models:/home/appuser/.cache/huggingface
-      - ov-models:/app/ov-model
+      - vlm-hf-cache:/home/appuser/.cache/huggingface
+      - vlm-models:/app/ov-model
+      
 volumes:
-  ov-models:
-    external: true
+  vlm-models:
+    driver: local
+  vlm-hf-cache:
+    driver: local
 
 networks:
-  my_network:
+  vlm_network:
     driver: bridge

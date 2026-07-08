@@ -19,9 +19,6 @@ export TAG=${TAG:-latest}
 
 export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 
-docker volume create ov-models
-echo "Created docker volume for the models."
-
 export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-int8}
 # Number of uvicorn workers
 export WORKERS=${WORKERS:-1}
