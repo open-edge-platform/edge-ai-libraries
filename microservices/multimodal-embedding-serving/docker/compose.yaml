@@ -53,7 +53,7 @@ services:
     devices:
       - /dev/dri:/dev/dri
     networks:
-      - my_network
+      - mme_network
     volumes:
       - ov-models:/home/appuser/.cache/huggingface
       - data-prep:/tmp/dataprep
@@ -64,5 +64,5 @@ volumes:
   ov-models:
     external: true
 networks:
-  my_network:
+  mme_network:
     driver: bridge

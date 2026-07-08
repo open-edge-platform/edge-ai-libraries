@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Builder stage
-FROM python:3.12.12-slim AS builder
+FROM python:3.12-slim AS builder
 
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
@@ -30,7 +30,7 @@ RUN pip install --no-cache-dir poetry==${POETRY_VERSION} && \
         --no-deps
 
 # Final stage
-FROM python:3.12.12-slim
+FROM python:3.12-slim
 
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
@@ -101,7 +101,6 @@ RUN mkdir -p /tmp/dataprep/video /home/appuser/.cache/huggingface /app/ov_models
     chown -R appuser:appuser /home/appuser/.cache /app/ov_models /tmp/dataprep
 
 USER appuser
-
 EXPOSE 8000
 
 CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.app:app", "--timeout", "300", "--log-level", "debug"]
