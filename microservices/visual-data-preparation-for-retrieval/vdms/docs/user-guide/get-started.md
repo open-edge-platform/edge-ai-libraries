@@ -26,7 +26,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `DEFAULT_BUCKET_NAME` | ✅ | `vdms-bucket` (via `setup.sh`) | Destination bucket for uploaded videos and generated manifests. Override with `PM_MINIO_BUCKET` when running alongside pipeline-manager. |
 | `VDMS_VDB_HOST` / `VDMS_VDB_PORT` | ✅ | `vdms-vector-db` / `55555` | Connection information for VDMS Vector DB. |
 | `DB_COLLECTION` | ✅ | `video-rag` | VDMS collection that stores embeddings and metadata. |
-| `MULTIMODAL_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by both SDK and API execution paths (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
+| `EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by both SDK and API execution paths (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
 | `EMBEDDING_PROCESSING_MODE` | ✅ | `sdk` | Selects optimized in-process execution (`sdk`) or HTTP-based execution (`api`). |
 | `SDK_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration in SDK mode. Set `false` to stay on PyTorch. |
 | `VDMS_DATAPREP_DEVICE` | Optional | `CPU` | Processing device for embeddings, and object detection (`CPU` or `GPU`). |
@@ -69,7 +69,7 @@ Additional environment variables are available for high-throughput scenarios:
 Export overrides before sourcing the setup script:
 
 ```bash
-export MULTIMODAL_EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"
+export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"
 export MINIO_ROOT_USER="minioadmin"
 export MINIO_ROOT_PASSWORD="minioadmin"
 export EMBEDDING_PROCESSING_MODE="sdk"
@@ -131,13 +131,13 @@ The user has an option to either [build the docker images](./how-to-build-from-s
    ```bash
    export MINIO_ROOT_USER="minioadmin"
    export MINIO_ROOT_PASSWORD="minioadmin"
-   export MULTIMODAL_EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+   export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
    ```
 
    For text-only scenarios replace the last line with:
 
    ```bash
-   export MULTIMODAL_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
+   export EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
    ```
 
 3. **Choose your execution mode.**
@@ -247,7 +247,7 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 
 ## Troubleshooting
 
-- **Startup fails with “model name must be provided”:** Set `MULTIMODAL_EMBEDDING_MODEL_NAME` before launching Docker (required for both SDK and API modes).
+- **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before launching Docker (required for both SDK and API modes).
 - **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
 - **API mode returns 502:** Verify the multimodal embedding service is healthy at `MULTIMODAL_EMBEDDING_ENDPOINT` (see `docker compose -f docker/compose-with-embedding.yaml ps`).
 - **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/videos/minio` instead.
