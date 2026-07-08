@@ -1,23 +1,26 @@
 ---
 name: model-download-dev
 description: >
-  Extend, test, and debug the Model Download microservice codebase.
+  Extend, test, debug, or integrate the Model Download microservice codebase.
   Use this skill when a developer wants to: add a new plugin to the microservice;
   write tests for a plugin (including mocking subprocess calls, async methods,
   or the Ollama server); debug a job stuck in "downloading" or "converting";
   understand the plugin interface or registration mechanism; trace how a request
-  flows through ModelManager; extend the OpenVINO conversion parameters;
-  or add a new ModelHub value. Trigger on phrases like "add plugin",
-  "write test", "stuck job", "extend microservice", "plugin not working",
-  "how does model_manager work", "mock subprocess", "register new hub".
+  flows through ModelManager; extend the OpenVINO conversion parameters; add a
+  new ModelHub value; or embed model-download into an app, Docker Compose stack,
+  Helm deployment, CI/CD flow, or startup path. Trigger on phrases like
+  "add plugin", "write test", "stuck job", "extend microservice",
+  "plugin not working", "how does model_manager work", "mock subprocess",
+  "register new hub", "integrate model-download", "call the model-download API",
+  "poll model job", or "mount downloaded models".
 argument-hint: >
   Describe what you want to build or debug (e.g. "add a new downloader plugin
-  for an internal model hub")
+  for an internal model hub" or "wire model-download into our compose stack")
 ---
 
 # Model Download Developer Skill
 
-Help developers extend, test, and debug the Model Download microservice.
+Help developers extend, test, debug, and integrate the Model Download microservice.
 
 > Codebase root: `microservices/model-download/`
 
@@ -29,6 +32,9 @@ Help developers extend, test, and debug the Model Download microservice.
 - Understanding how `ModelManager`, `PluginRegistry`, or `PluginVenv` work
 - Extending the `ModelHub` enum or `Config` schema
 - Tracing plugin activation and `ACTIVATED_PLUGINS` env flow
+- Integrating model-download into a backend, gateway, Compose stack, Helm deployment, or CI/CD path
+- Designing app-side download/conversion workflows around `/models/download` and `/jobs/{job_id}`
+- Wiring model storage, health checks, plugin activation, and failure handling into a wider system
 
 ## Reference Lookup
 
@@ -36,6 +42,7 @@ Help developers extend, test, and debug the Model Download microservice.
 |-----------|-------------|
 | [plugin-architecture.md](./references/plugin-architecture.md) | Plugin interface contract, PluginRegistry, ModelManager, PluginVenv |
 | [testing-patterns.md](./references/testing-patterns.md) | Subprocess mocking, async fixtures, conftest patterns, parametrize |
+| [integration-patterns.md](./references/integration-patterns.md) | App-side architecture, request flow, polling, error handling, storage wiring |
 
 ## Example Walkthroughs
 
@@ -105,6 +112,48 @@ Important runtime detail:
 
 If the plugin is implemented but does not appear in `/api/v1/plugins`, assume one of those
 registration or activation surfaces is out of sync before you assume the core plugin logic is wrong.
+
+---
+
+## Procedure: Integrating into an Application or Platform
+
+Read [integration-patterns.md](./references/integration-patterns.md) first when the user is
+embedding model-download into another service or deployment stack.
+
+Start by identifying the integration role:
+
+- **Provisioning service**: pre-download models during deployment or CI/CD
+- **Runtime dependency**: app calls model-download on demand when a model is missing
+- **Ops/admin service**: internal tooling triggers downloads and exposes status to operators
+
+Prefer the public REST API as the integration boundary:
+
+1. Check readiness with `GET /api/v1/health`
+2. Submit work with `POST /api/v1/models/download?download_path=<subdir>`
+3. Store the returned `job_id`
+4. Poll `GET /api/v1/jobs/{job_id}` until `completed` or `failed`
+5. Use the reported `download_path` or `conversion_path`
+
+Before proposing code or deployment changes, capture these decisions:
+
+| Concern | Decide |
+|---------|--------|
+| Trigger point | deploy time, app startup, first request, or admin action |
+| Model source | huggingface, ollama, ultralytics, openvino, geti, pipeline-zoo-models, hls |
+| Needed plugins | minimal `--plugins` list |
+| Persistence | where `MODEL_PATH` lives and which services mount it |
+| Completion model | synchronous wait in caller, async background job, or external orchestrator |
+| Failure behavior | retry, fail startup, partial availability, or operator intervention |
+
+Expected integration outputs include one or more of:
+
+- an application architecture recommendation
+- Docker Compose or Helm changes
+- app-side client code for submit + poll + result handling
+- env var, plugin, and storage/mount checklists
+- a failure-handling and retry strategy
+
+Ground recommendations in the current API, deployment scripts, and plugin activation flow.
 
 ---
 

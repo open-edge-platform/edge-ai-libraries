@@ -7,7 +7,7 @@ description: >
   format for OVMS; download healthcare AI models (3D Pose, rPPG, AI-ECG) via
   the HLS plugin; set up the model download service; submit a download or
   conversion job via the REST API; or ask "how do I get model X working with
-  OVMS?". Also trigger on phrases like "pull model", "download weights",
+  OVMS?". Also trigger on phrases like "download model", "download weights",
   "convert to int4", "OVMS-ready model", "prepare model for inference".
 argument-hint: >
   Describe the model you want (e.g. "download Llama-3.2-1B from HuggingFace
