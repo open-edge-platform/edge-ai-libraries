@@ -449,12 +449,17 @@ paths:
       description: |
         Lists models available on a hub using a JSON request body for
         hub-specific filters and pagination. Listing is currently supported for
-        `huggingface`, `ultralytics`, and `pipeline-zoo-models`.
+        `huggingface`, `ultralytics`, `pipeline-zoo-models`, and `geti`.
 
         Supported filters:
         - `huggingface`: `author`, `owner`, `organization`, `search`, `filter`, `tags`
         - `ultralytics`: `search`
         - `pipeline-zoo-models`: `search`
+        - `geti`: `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_name`, `export_type`, `precision`, `model_format`
+
+        For `geti`, `model_type` is the Geti task type (for example,
+        `DETECTION` or `CLASSIFICATION`). Requires `GETI_HOST`, `GETI_TOKEN`,
+        and `GETI_WORKSPACE_ID` to be configured.
 
         Extra top-level request body fields are accepted and merged into `filters`.
         Use `GET /api/v1/plugins` to discover each plugin's `listing_filter_fields`.
@@ -498,6 +503,14 @@ paths:
                 value:
                   filters:
                     search: yolo
+                  limit: 10
+                  offset: 0
+              geti_models:
+                summary: List Geti™ models
+                value:
+                  filters:
+                    project_name: detection
+                    precision: FP16
                   limit: 10
                   offset: 0
       responses:

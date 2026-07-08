@@ -132,7 +132,7 @@ down                   Stop the services
 
 **List models available on a hub:**
 
-Use `POST /api/v1/hubs/{hub}/models` to discover model names before calling `POST /api/v1/models/download`. Listing is currently supported for `huggingface`, `ultralytics`, and `pipeline-zoo-models`. Hubs that do not expose a catalog return `501`.
+Use `POST /api/v1/hubs/{hub}/models` to discover model names before calling `POST /api/v1/models/download`. Listing is currently supported for `huggingface`, `ultralytics`, `pipeline-zoo-models`, and `geti`. Hubs that do not expose a catalog return `501`.
 
 ```bash
 curl -X POST "http://<host-ip>:8200/api/v1/hubs/huggingface/models" \
@@ -161,7 +161,22 @@ curl -X POST "http://<host-ip>:8200/api/v1/hubs/ultralytics/models" \
   }'
 ```
 
-Call `GET /api/v1/plugins` to see which plugins support listing and which `listing_filter_fields` each plugin accepts. Hugging Face supports `author`, `owner`, `organization`, `search`, `filter`, and `tags`. Ultralytics and Pipeline Zoo Models support `search`.
+For Geti™ software, listing discovers the latest model of every model group across the projects in the configured workspace. Each item's `model_type` is the Geti task type (for example, `DETECTION` or `CLASSIFICATION`) resolved from the model group's task, and `metadata` includes `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_id`, and `optimized_model_ids`. Requires `GETI_HOST`, `GETI_TOKEN`, and `GETI_WORKSPACE_ID` to be set.
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/hubs/geti/models" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": {
+      "project_name": "detection",
+      "precision": "FP16"
+    },
+    "limit": 10,
+    "offset": 0
+  }'
+```
+
+Call `GET /api/v1/plugins` to see which plugins support listing and which `listing_filter_fields` each plugin accepts. Hugging Face supports `author`, `owner`, `organization`, `search`, `filter`, and `tags`. Ultralytics and Pipeline Zoo Models support `search`. Geti™ supports `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_name`, `export_type`, `precision`, and `model_format`.
 
 **Download a Hugging Face model:**
 

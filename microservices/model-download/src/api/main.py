@@ -117,6 +117,8 @@ async def _list_hub_models(
         raise HTTPException(status_code=501, detail=f"Hub '{hub}' does not support listing models")
     except ListingAuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except HTTPException:
         raise
     except Exception as exc:
