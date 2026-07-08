@@ -12,6 +12,7 @@ The **Multi-level Video Understanding Microservice** enables developers to creat
 Before you begin, ensure the following:
 
 - **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
+- **iGPU Driver Installed**: This guide assumes the integrated GPU driver on the target PTL (Panther Lake) machine is already installed. If it is not, follow the [PTL Driver Installation Guide](./get-started/ptl-driver-installer.md) first.
 - **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
