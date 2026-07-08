@@ -64,6 +64,7 @@ class VideoSummarizer:
             llm_api_key: API key for remote language model
             user_prompt: User prompt to guide summarization details
             video_subtitles: Video subtitles, this should follow SubRip format. Accept video_subtitles as:
+                             - Local .srt file readable by the service (e.g. after `docker cp`): {"path": str}
                              - HTTP/HTTPS URL to an .srt file (preferred for containers): {"url": str}
                              - Inline SRT text for short videos: {"text": str}
                              - Base64+gzip SRT payload for long videos: {"b64gzip": str}

@@ -67,6 +67,8 @@ services:
     depends_on:
       vllm-ipex-serving:
         condition: service_healthy
+    group_add:
+      - ${USER_GROUP_ID:-1000}
     cap_drop:
       - NET_RAW
     read_only: true  # Mount root filesystem as read-only

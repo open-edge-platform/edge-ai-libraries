@@ -22,6 +22,7 @@ echo "MAX_MODEL_LEN is $MAX_MODEL_LEN"
 
 python3 "$(dirname "$0")/patch_vllm_video.py"
 
+VLLM_ALLOW_RUNTIME_LORA_UPDATING=True \
 TORCH_LLM_ALLREDUCE=1 \
 VLLM_USE_V1=1 \
 VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 \

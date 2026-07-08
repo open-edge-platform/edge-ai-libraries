@@ -24,8 +24,8 @@ import video_analyzer.prompts.prompt_registry as registry_mod
 from video_analyzer.core.settings import settings
 
 # The consolidated fridge task content lives next to the tests as a fixture.
-FRIDGE_CONTENT = (Path(__file__).resolve().parent.parent / "fixtures" / "refrigerator_monitor_en.py").read_text(encoding="utf-8")
-FRIDGE_TASK = "refrigerator_monitor_en"
+FRIDGE_CONTENT = (Path(__file__).resolve().parent.parent / "fixtures" / "refrigerator_monitor.txt").read_text(encoding="utf-8")
+FRIDGE_TASK = "refrigerator_monitor"
 
 
 @pytest.fixture

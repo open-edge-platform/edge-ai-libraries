@@ -48,6 +48,10 @@ export REGISTRY=${REGISTRY_URL}
 export TAG=latest
 export SERVICE_PORT=8192
 
+# Run multilevel-video-understanding as the host user
+# To ensure bind-mount directories (e.g. ~/.cache/...) are available in container
+export USER_GROUP_ID="$(id -g "$USER")"
+
 # Both roles are served by the same on-device vLLM-IPEX endpoint. The two
 # containers share `app-network`, so the microservice reaches it by service name.
 export VLM_BASE_URL=http://vllm-ipex-serving:8000/v1

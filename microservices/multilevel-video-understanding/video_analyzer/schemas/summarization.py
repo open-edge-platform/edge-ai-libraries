@@ -64,14 +64,16 @@ class SummarizationRequest(BaseModel):
     video: Annotated[str, Field(description="Path to the video file, support 'file://', 'http://', 'https://' and local path.")]
     video_subtitles: Annotated[Optional[Dict[str, str]], Field(description=(
         "Video subtitles in SubRip (.srt) format. Supported inputs:\n"
+        "- {\"path\": \"/app/subs.srt\"}: Local .srt file readable by the service (e.g. after `docker cp` into the container), mirroring the local-path support of `video`.\n"
         "- {\"url\": \"https://.../subs.srt\"}: Preferred in container environments. The service will download and parse via HTTP(S).\n"
         "- {\"text\": \"1\\n00:00:00,000 --> 00:00:02,000\\n...\"}: Inline SRT text. Best for short videos/small subtitles.\n"
         "- {\"b64gzip\": \"<base64>\"}: Base64 of gzip-compressed SRT. Recommended for long videos to reduce request size.\n"
         "Notes:\n"
         "- URL must be http/https; the service streams the download with a size cap.\n"
-        "- Inline text and b64gzip are checked against size limits (see settings.MAX_SUBTITLE_BYTES).\n"
+        "- Local path, inline text and b64gzip are checked against size limits (see settings.MAX_SUBTITLE_BYTES).\n"
         "- For object storage, use pre-signed URLs (e.g., S3/MinIO).\n"
         "Examples:\n"
+        "  {\"path\": \"/app/subs.srt\"}\n"
         "  {\"url\": \"https://bucket/video/subs.srt\"}\n"
         "  {\"text\": \"1\\n00:00:00,000 --> 00:00:02,000\\nHello\\n...\"}\n"
         "  {\"b64gzip\": \"H4sIAAAAA...\"}\n"

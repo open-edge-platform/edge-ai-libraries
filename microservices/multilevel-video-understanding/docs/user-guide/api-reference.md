@@ -83,7 +83,7 @@ The endpoint accepts three input combinations:
 Request parameters for the summarization endpoint
 
 - **video**: *Required.*. Path to the video file, support 'file:/', 'http://', 'https://' and local path. Set to the string `"none"` for caption-only mode (requires `video_subtitles`).
-- **video_subtitles**: *Optional*. Subtitles in SubRip (.srt) format, as one of `{"url": "https://..."}`, `{"text": "<srt>"}`, or `{"b64gzip": "<base64 of gzipped srt>"}`. Required when `video` is `"none"`. Inline/`b64gzip` inputs are capped by `MAX_SUBTITLE_BYTES`.
+- **video_subtitles**: *Optional*. Subtitles in SubRip (.srt) format, as one of `{"path": "/app/subs.srt"}` (a local .srt file readable by the service, e.g. after `docker cp` — mirrors the local-path support of `video`), `{"url": "https://..."}`, `{"text": "<srt>"}`, or `{"b64gzip": "<base64 of gzipped srt>"}`. Required when `video` is `"none"`. Local file, inline text and `b64gzip` inputs are capped by `MAX_SUBTITLE_BYTES`.
 - **task**: *Optional*. Prompt task selecting the summarization flavor. Built-in values: `"summary"` (English, default) and `"summary_zh"` (Chinese). Any other value must be a dynamic task registered via the Prompt Tasks API (see section 4); unknown names are rejected.
 - **prompt**: *Optional*. User prompt to guide summarization details.
 - **method**: *Optional*. Summarization method, choices: ["SIMPLE", "USE_VLM_T-1", "USE_LLM_T-1", "USE_ALL_T-1"]. Default as *"USE_ALL_T-1"*. Each method definition:

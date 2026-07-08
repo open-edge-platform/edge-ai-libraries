@@ -77,7 +77,7 @@ def parse_subtitle_text(content: str) -> List[Dict]:
 def load_subtitles(input, max_bytes: int = 10 * 1024 * 1024) -> List[Dict]:
     """
     Load subtitles from:
-      - dict: {"url": str} | {"text": str} | {"b64gzip": str}
+      - dict: {"path": str} | {"url": str} | {"text": str} | {"b64gzip": str}
       - local file path: str
     Returns a parsed list of subtitle entries.
     """
@@ -87,6 +87,11 @@ def load_subtitles(input, max_bytes: int = 10 * 1024 * 1024) -> List[Dict]:
 
     # dict input
     if isinstance(input, dict):
+        if "path" in input and input["path"]:
+            # Local file path visible to the service (e.g. after `docker cp`),
+            # mirroring the local-path support of the `video` field.
+            return load_subtitles(input["path"], max_bytes)
+
         if "url" in input and input["url"]:
             url = input["url"]
             if not url.startswith(("http://", "https://")):
