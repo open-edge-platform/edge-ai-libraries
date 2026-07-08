@@ -1,3 +1,7 @@
+---
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 name: Skill Scanner
 
 on:
@@ -7,7 +11,7 @@ on:
       - "**/.github/skills/**"
       - ".github/workflows/skill-scan.yaml"
   push:
-    branches: ["main", "feature/vkb1/add-skill-scan-workflow"]
+    branches: ["main"]
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
