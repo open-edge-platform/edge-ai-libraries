@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from enum import Enum
-from typing import Annotated, Any, Dict, List, Optional, Tuple
+from typing import Annotated, Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -101,7 +101,7 @@ class VideoRequest(BaseModel):
         ),
     ] = None
     tags: Annotated[
-        Optional[List[str]],
+        List[str],
         Field(
             default_factory=list,
             description="List of tags to be associated with the video. Useful for filtering the search.",
@@ -170,7 +170,7 @@ class VideoSummaryRequest(BaseModel):
         float, Field(description="End timestamp in seconds for the video or video chunk")
     ]
     tags: Annotated[
-        Optional[List[str]],
+        List[str],
         Field(
             default_factory=list,
             description="List of tags to be associated with the video. Useful for filtering the search.",
