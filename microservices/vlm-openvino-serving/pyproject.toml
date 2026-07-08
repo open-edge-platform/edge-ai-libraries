@@ -13,10 +13,10 @@ package-mode = false
 python = "^3.11,<3.14"
 torch = { version = "==2.12.0+cpu", source = "pytorch-cpu" }
 torchvision = { version = "==0.27.0+cpu", source = "pytorch-cpu" }
-fastapi = "^0.136.1"
+fastapi = ">=0.136.1,<0.139.0"
 fastapi-utils = "^0.8.0"
 typing-inspect = "^0.9.0"
-uvicorn = "^0.47.0"
+uvicorn = ">=0.47,<0.50"
 gunicorn = "^26.0.0"
 pydantic = "^2.13.4"
 pydantic-settings = "^2.14.1"
