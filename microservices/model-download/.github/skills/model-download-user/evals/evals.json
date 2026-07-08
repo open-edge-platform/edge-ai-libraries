@@ -34,7 +34,7 @@
       "files": [],
       "expectations": [
         "Uses source scripts/run_service.sh up --plugins huggingface,openvino.",
-        "Uses hub=huggingface, type=llm, and is_ovms=true in the request body.",
+        "Uses hub=openvino, type=llm, and is_ovms=true in the request body.",
         "Includes config.precision=int4, config.device=CPU, and config.cache_size=4.",
         "Uses port 8200.",
         "Explains where the converted OpenVINO artifacts will be written."

@@ -23,7 +23,7 @@ async def test_process_conversion_keeps_explicit_converter_for_huggingface_sourc
     job_id = manager.register_job(
         "convert",
         "meta-llama/Llama-3.2-1B",
-        "huggingface",
+        "openvino",
         str(output_dir),
         "openvino",
         "llm",
@@ -33,7 +33,7 @@ async def test_process_conversion_keeps_explicit_converter_for_huggingface_sourc
         job_id=job_id,
         model_path="llm-converted",
         model_name="meta-llama/Llama-3.2-1B",
-        hub="huggingface",
+        hub="openvino",
         hf_token="test-token",
         output_dir=str(output_dir),
         converter="openvino",
@@ -63,7 +63,7 @@ async def test_process_conversion_auto_detects_converter_for_huggingface_source(
     job_id = manager.register_job(
         "convert",
         "sentence-transformers/all-MiniLM-L6-v2",
-        "huggingface",
+        "openvino",
         str(output_dir),
         None,
         "embeddings",
@@ -73,7 +73,7 @@ async def test_process_conversion_auto_detects_converter_for_huggingface_source(
         job_id=job_id,
         model_path="embedding-models",
         model_name="sentence-transformers/all-MiniLM-L6-v2",
-        hub="huggingface",
+        hub="openvino",
         hf_token="test-token",
         output_dir=str(output_dir),
         converter=None,
@@ -84,7 +84,7 @@ async def test_process_conversion_auto_detects_converter_for_huggingface_source(
     assert result["status"] == "completed"
     registry.find_plugin_for_model.assert_called_once_with(
         "converter",
-        hub="huggingface",
+        hub="openvino",
         model_name="sentence-transformers/all-MiniLM-L6-v2",
         is_ovms=True,
         precision="int8",
