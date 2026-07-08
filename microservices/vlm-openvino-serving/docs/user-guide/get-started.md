@@ -160,7 +160,7 @@ export OV_CONFIG='{"DEVICE_PROPERTIES":{"NPU":{"MAX_PROMPT_LEN":2048,"MIN_RESPON
 > **Note**: For NPU prompt/response length tuning, see [Prompt and response length options](https://docs.openvino.ai/2026/openvino-workflow-generative/inference-with-genai/inference-with-genai-on-npu.html#prompt-and-response-length-options).
 
 ```bash
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export VLM_MODEL_NAME=microsoft/Phi-3.5-vision-instruct
 export VLM_COMPRESSION_WEIGHT_FORMAT=int4
 export VLM_DEVICE=NPU
 ```
