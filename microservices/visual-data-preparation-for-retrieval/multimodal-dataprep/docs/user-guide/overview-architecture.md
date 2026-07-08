@@ -27,7 +27,7 @@ VDMS DataPrep turns raw video content and associated summaries into searchable e
 2. **Frame extraction** – `src/core/utils/video_utils.py` reads the video via decord, sampling every Nth frame and saving crops when object detection is enabled. Extraction strategies and fallbacks (shared volume ➝ object storage ➝ base64 transfer) are configured in `src/config.yaml`.
 3. **Object detection** – YOLOX models are loaded once per worker and reused using `create_detector_instance`. Detection can be toggled per request or globally via `ENABLE_OBJECT_DETECTION`.
 4. **Embedding generation** – In SDK mode the service calls `generate_video_embedding_sdk`, which fans out work across multiple threads (`MAX_PARALLEL_WORKERS`) and stores embeddings in bulk. API mode defers to the HTTP-based client. All embeddings are stamped with download URLs, timestamps, and detector metadata.
-5. **Metadata persistence** – `metadata_utils` writes frames manifests and per-frame metadata, then hands them to the VDMS clients (`SimpleVDMSClient`/`SDKVDMSClient`) for storage.
+5. **Metadata persistence** – `metadata_utils` writes frames manifests and per-frame metadata, then hands them to the embedding clients (`SimpleEmbeddingClient`/`SDKEmbeddingClient`) for storage.
 
 ### Outputs
 

@@ -34,7 +34,7 @@ src/core/
 ```
 
 - Embedding generation is fully separated from persistence. The embedding clients
-  (`SimpleVDMSClient`, `SDKVDMSClient` — names retained for compatibility) compute
+  (`SimpleEmbeddingClient`, `SDKEmbeddingClient`) compute
   or fetch embeddings and then delegate persistence to `get_vector_store()`. They
   no longer import any vector-database SDK directly.
 - Both persistence paths route through the same `add_embeddings(...)` contract:
