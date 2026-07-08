@@ -175,26 +175,6 @@ class VideoSummaryHwSize(HttpUser):
                 VideoSummaryHwSize.report_dir, summary_response, summary_id
             )
 
-            # Collect telemetry KPIs
-            # telemetry_response = self.client.get(
-            #     f":{self.telemetry_endpoint}", headers=_JSON_HEADERS
-            # )
-            # if telemetry_response.status_code == 200:
-            #     telemetry_kpis, VideoSummaryHwSize.telemetry_details = (
-            #         get_video_summary_telemetry_kpis(
-            #             summary_start,
-            #             summary_end,
-            #             telemetry_response.json(),
-            #             video_properties,
-            #         )
-            #     )
-            #     VideoSummaryHwSize.metrics.append(telemetry_kpis)
-            # else:
-            #     print(
-            #         f"Failed to retrieve telemetry data. "
-            #         f"Status code: {telemetry_response.status_code}"
-            #     )
-
             telemetry_kpis = get_video_summary_telemetry_kpis(
                         summary_start,
                         summary_end,

@@ -16,7 +16,8 @@ import requests
 from common.video import stop_all_run_request
 from src.live_video_caption.locust_files import live_caption
 from src.live_video_caption.utilities.config import get_lvc_profile_details, get_lvc_rag_profile_details
-
+from src.live_video_caption.locust_files import live_caption
+from src.live_video_caption.locust_files import live_caption_rag
 
 def run_live_caption_warmup(url, payload, warmup_time):
     """
@@ -52,7 +53,7 @@ def run_live_caption_hw_sizing(users, total_requests, ip, profile_path, report_d
         warmup_time: Duration in seconds for warmup requests.
         config: Pre-loaded configuration dict.
     """
-    from src.live_video_caption.locust_files import live_caption
+    
     lvc_profile, runs_endpoint, metadata_endpoint, caption_duration, payload = get_lvc_profile_details(profile_path, config)
     print(f"Hardware sizing started for the '{lvc_profile}' profile...")
 
@@ -130,7 +131,7 @@ def run_live_caption_rag_hw_sizing(users, total_requests, ip, profile_path, repo
         warmup_time: Duration in seconds for warmup requests.
         config: Pre-loaded configuration dict.
     """
-    from src.live_video_caption.locust_files import live_caption_rag
+    
     lvc_profile, runs_endpoint, metadata_endpoint, caption_duration, payload, chat_endpoint, chat_payload = get_lvc_rag_profile_details(profile_path, config)
     print(f"Hardware sizing started for the '{lvc_profile}' profile...")
 

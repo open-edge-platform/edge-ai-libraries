@@ -22,6 +22,10 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+import math
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 import requests
 
@@ -436,13 +440,7 @@ def plot_graphs(log_dir):
         categories = [c for c in _CATEGORY_ORDER if c in series and series[c]]
         if not categories or t0 is None:
             print(f"No plottable metrics found in {stream_log}.")
-            return
-
-        import math
-
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
+            return   
 
         print(f"Generating usage graphs from {stream_log}...")
 
