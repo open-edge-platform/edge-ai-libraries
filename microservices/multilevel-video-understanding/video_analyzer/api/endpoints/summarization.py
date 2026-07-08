@@ -52,26 +52,6 @@ async def summarize_video(
         method = request.method
         task = request.task
 
-        # Handle caption-only mode: allow video="none" when subtitles are provided
-        if not request.video or str(request.video).lower() == "none":
-            if not video_subtitles:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=ErrorResponse(
-                        error_message="Summarization failed!",
-                        details="Either video or video_subtitles must be provided"
-                    ).model_dump()
-                )
-            # Caption-only mode
-            logger.info("Caption-only mode: no video file provided, using subtitles only")
-            video_path = "none"
-        else:
-            # Normal video mode: validate and download video file
-            video_path = validate_video_path(request.video)
-            temp_video_path = download_to_temp(video_path)
-            if temp_video_path:
-                video_path = temp_video_path
-
         # Validate summarization method
         available_methods = SummarizerParamsManager.list_supported_summarization_methods()
         if method not in available_methods:
@@ -91,6 +71,26 @@ async def summarize_video(
                     details=f"Unsupported summarization task: {task}, choices: {available_tasks}"
                 ).model_dump()
             )
+
+        # Handle caption-only mode: allow video="none" when subtitles are provided
+        if not request.video or str(request.video).lower() == "none":
+            if not video_subtitles:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ErrorResponse(
+                        error_message="Summarization failed!",
+                        details="Either video or video_subtitles must be provided"
+                    ).model_dump()
+                )
+            # Caption-only mode
+            logger.info("Caption-only mode: no video file provided, using subtitles only")
+            video_path = "none"
+        else:
+            # Normal video mode: validate and download video file
+            video_path = validate_video_path(request.video)
+            temp_video_path = download_to_temp(video_path)
+            if temp_video_path:
+                video_path = temp_video_path
 
         processor_kwargs = request.processor_kwargs
         logger.debug(f"Summarization parameters: task={task}, video={video_path}, method={method}, processor_kwargs:\n"
@@ -151,7 +151,7 @@ async def summarize_video(
         logger.error(f"Error details: {error_details}")
 
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
                 error_message=f"Summarization failed!",
                 details="An error occurred during Summarization. Please check logs for details."

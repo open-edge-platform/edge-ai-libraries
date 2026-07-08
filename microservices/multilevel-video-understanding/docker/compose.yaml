@@ -110,10 +110,11 @@ services:
           memory: 1G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
-      interval: 30s
-      timeout: 10s
+      start_period: 600s
+      start_interval: 10s
+      interval: 24h
+      timeout: 5s
       retries: 3
-      start_period: 15s
 
 networks:
   app-network:
