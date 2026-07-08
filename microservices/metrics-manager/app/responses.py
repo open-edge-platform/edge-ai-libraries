@@ -83,3 +83,64 @@ class ServiceInfoResponse(BaseModel):
     version: str = Field(..., description="Service version")
     description: str = Field(..., description="Service description")
     endpoints: dict[str, dict[str, str]] = Field(..., description="Available endpoints")
+
+
+class PlatformInfoResponse(BaseModel):
+    """Platform information for capability discovery."""
+
+    hostname: str = Field(..., description="Runtime hostname")
+    vendor: str | None = Field(default=None, description="System vendor identifier if known")
+    vendor_name: str | None = Field(default=None, description="System vendor name if known")
+    os: str = Field(..., description="Operating system name")
+    kernel: str = Field(..., description="Kernel release")
+    architecture: str = Field(..., description="CPU architecture")
+    system: dict[str, Any] = Field(
+        default_factory=dict,
+        description="System identity details (hostname/vendor/product)",
+    )
+    system_memory: dict[str, Any] = Field(..., description="Installed system memory details")
+    system_storage: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "System storage summary including total capacity, available bytes, "
+            "and vendor/device details"
+        ),
+    )
+    device_summary: dict[str, int] = Field(..., description="Detected device counts by category")
+
+
+class DeviceCapabilityResponse(BaseModel):
+    """Per-device capability description."""
+
+    id: str = Field(..., description="Stable device identifier")
+    category: str = Field(..., description="Device category (cpu|igpu|dgpu|npu)")
+    present: bool = Field(..., description="Whether the device is currently detected")
+    commercial_reference: str | None = Field(
+        default=None,
+        description="High-level/commercial device label for minimal profile",
+    )
+    model: str | None = Field(default=None, description="Device model name if known")
+    vendor: str | None = Field(default=None, description="Vendor identifier if known")
+    vendor_name: str | None = Field(default=None, description="Readable vendor name if known")
+    pci_device: str | None = Field(default=None, description="PCI device identifier if known")
+    driver: str | None = Field(default=None, description="Driver name if known")
+    capabilities: list[str] = Field(
+        default_factory=list, description="Supported telemetry capability names"
+    )
+    specs: dict[str, Any] = Field(default_factory=dict, description="Static device specification")
+    details: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+
+class CapabilitiesResponse(BaseModel):
+    """Platform and device capability snapshot response."""
+
+    generated_at: int = Field(..., description="Snapshot generation UNIX timestamp (seconds)")
+    profile: str = Field(..., description="Requested capability profile (minimal|expanded)")
+    categories: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Categorized capability sections suitable for UI presentation",
+    )
+    platform: PlatformInfoResponse = Field(..., description="Platform capability details")
+    devices: list[DeviceCapabilityResponse] = Field(
+        default_factory=list, description="Detected devices and capabilities"
+    )

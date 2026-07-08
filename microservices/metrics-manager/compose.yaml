@@ -100,7 +100,13 @@ services:
 
     # Health check (used by depends_on: condition: service_healthy)
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:9090/health', timeout=3)",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
