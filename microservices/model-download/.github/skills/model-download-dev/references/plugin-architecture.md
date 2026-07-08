@@ -65,6 +65,21 @@ class ModelDownloadPlugin(ABC):
 - `"downloader"` — fetches model files from a remote source
 - `"converter"` — transforms existing model files (e.g. OpenVINO conversion)
 
+
+
+**OpenVINO Converter — Pull Mode:**
+
+The OpenVINO converter plugin (`openvino_plugin.py`) supports a "pull mode" that attempts to
+find pre-converted models in the [OpenVINO HuggingFace org](https://huggingface.co/OpenVINO)
+before running expensive conversion. Key methods:
+
+- `_search_preconverted_model(model_name, weight_format, hf_token)` — uses `HfApi.list_models(author="OpenVINO")` to find matching repos by model name + precision
+- `_try_pull_preconverted(model_name, weight_format, output_dir, hf_token)` — downloads via `snapshot_download` if a match is found
+- `_generate_serving_configs(model_name, output_dir, model_type, config)` — creates `graph.pbtxt` and `config_all.json` for pulled models (same files `export_model.py` normally generates)
+
+The `convert()` method tries pull first, falls back to conversion. Response includes `mode: "pull"` or `mode: "convert"`.
+
+**Note:** `HfApi` and `snapshot_download` are imported lazily (inside methods, not at module level) to prevent plugin loading failures in environments where `huggingface_hub` isn't in the openvino venv.
 ---
 
 ## Plugin Registration
@@ -94,6 +109,16 @@ PLUGINS = {
 (set from the `--plugins` flag in `entrypoint.sh`), injects each plugin's dedicated venv
 site-packages into `sys.path`, imports the class, and exports it into the module namespace.
 Plugins whose dependencies aren't installed are silently skipped.
+
+**Important import-time detail:** the injected plugin venv path is removed immediately after
+the plugin module is imported. That means dependencies that exist **only** in the plugin's
+dedicated venv must either:
+
+- be imported during module import time, or
+- be invoked through a subprocess using the plugin venv helpers in `plugin_venv.py`
+
+If you lazily import a plugin-only SDK later inside `download()` or a helper called by it,
+you can get `ModuleNotFoundError` even though the plugin was activated correctly.
 
 ---
 

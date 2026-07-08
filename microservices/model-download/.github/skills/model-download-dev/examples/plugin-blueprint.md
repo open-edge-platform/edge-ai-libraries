@@ -78,6 +78,12 @@ class MyHubPlugin(ModelDownloadPlugin):
 
 Replace `download_from_provider(...)` with the provider SDK or subprocess call your plugin needs.
 
+If `download_from_provider` comes from a dependency that is installed only in the plugin's
+dedicated extra/venv, do **not** import it lazily inside `download()`. Plugin loading only
+temporarily injects that venv into `sys.path`; later lazy imports can fail after the path is
+removed. Prefer a module-level import (optionally guarded with `try/except ImportError` for
+testability), or call the dependency through the plugin venv subprocess helpers.
+
 ---
 
 ## Minimal Converter Blueprint
@@ -181,4 +187,3 @@ source scripts/run_service.sh up --plugins myhub --model-path $PWD/models
 - [ ] optional dependency extra added in `pyproject.toml`
 - [ ] activation support added in `docker/entrypoint.sh`
 - [ ] unit tests added in `tests/unit/test_<name>_plugin.py`
-

@@ -37,7 +37,7 @@ or converting any supported model using the REST API.
 | HuggingFace | `huggingface` | Downloads any public or gated HF model | `HUGGINGFACEHUB_API_TOKEN` for compose-based startup (gated only) |
 | Ollama | `ollama` | Downloads Ollama models, runs local Ollama server | — |
 | Ultralytics | `ultralytics` | Downloads YOLO models, optional INT8 quantization | — |
-| OpenVINO | `huggingface` + `is_ovms: true` | Downloads from HuggingFace, then converts to OpenVINO IR for OVMS | `HUGGINGFACEHUB_API_TOKEN` for compose-based startup (usually needed) |
+| OpenVINO | `openvino` | Converts HF models to OpenVINO IR for OVMS | `HUGGINGFACEHUB_API_TOKEN` for compose-based startup (usually needed) |
 | Geti | `geti` | Downloads trained models from Intel Geti platform | `GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID` |
 | Pipeline Zoo | `pipeline-zoo-models` | Downloads DL Streamer pipeline-zoo models | — |
 | HLS | `hls` | Downloads healthcare AI models (3d-pose, rppg, ai-ecg) | — |
@@ -142,7 +142,7 @@ Extract the following from the user's prompt. If anything is missing, ask before
 | **Conversion needed?** | User says "OVMS", "OpenVINO format", "convert", "is_ovms" | `false` |
 | **Device** | CPU / GPU / NPU | `CPU` |
 | **Precision** | int4 / int8 / fp16 / fp32 | `int8` for LLMs; `fp16` for others |
-| **Model type** | llm / vlm / embeddings / rerank / vision / 3d-pose / rppg / ai-ecg | Infer from context |
+| **Model type** | llm / vlm / embeddings / rerank / text2speech / speech2text / image_generation / vision / 3d-pose / rppg / ai-ecg | Infer from context |
 
 **OpenVINO-specific rules (ask only if the user wants OVMS / OpenVINO conversion):**
 - NPU forces `int4` regardless of other settings
@@ -209,8 +209,8 @@ The general request shape for `POST /api/v1/models/download?download_path=<subdi
 ```
 
 Key rules:
-- `is_ovms: true` triggers OpenVINO conversion after HuggingFace download
-- For the current `/models/download` flow, use `hub: "huggingface"` with `is_ovms: true`
+- `is_ovms: true` triggers OpenVINO conversion
+- Use `hub: "openvino"` with `is_ovms: true` and a `type` field for conversion
 - `config` holds precision, device, cache_size, and plugin-specific params
 - `download_path` query param sets the subdirectory under the model store
 
@@ -256,9 +256,8 @@ After confirming success, tell the user:
 - For OVMS conversions: how to mount the model directory into OVMS and which model name to use; the result uses `conversion_path`
 - For Ollama: the model is stored inside the container's model store volume
 
-**Important accuracy note for OpenVINO conversions:** Even though the `openvino` plugin must be
-activated at startup, the current REST workflow should be requested as a HuggingFace download with
-`is_ovms: true`. Do not default to `hub: "openvino"` for `/models/download` requests.
+**Important accuracy note for OpenVINO conversions:** Use `hub: "openvino"` with `is_ovms: true`
+for model conversion.
 
 **Quick alternative:** For one-shot, ephemeral container use (CI/CD, scripted workflows), show the `get_model.sh` one-liner from [scripts/get_model.sh](../../../microservices/model-download/scripts/get_model.sh):
 ```bash

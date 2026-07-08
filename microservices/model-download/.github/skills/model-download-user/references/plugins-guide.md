@@ -116,9 +116,12 @@ Use `hub: "openvino"` (pure conversion flow):**
 | `type` value | Export type used | Typical models |
 |--------------|-----------------|----------------|
 | `llm` | `text_generation` | Llama, Mistral, Phi, Qwen |
-| `vlm` | `text_generation` (VLM mode) | LLaVA, InternVL, Phi-3-Vision |
-| `embeddings` | `embeddings_ov` | sentence-transformers, BGE |
+| `vlm` | `text_generation` (VLM mode) | LLaVA, InternVL, Phi-3-Vision, Gemma-4 |
+| `embeddings` | `embeddings_ov` | sentence-transformers, BGE, GTE |
 | `rerank` | `rerank_ov` | cross-encoder rerankers |
+| `text2speech` | `text2speech` | SpeechT5, Kokoro |
+| `speech2text` | `speech2text` | Whisper |
+| `image_generation` | `image_generation` | Stable Diffusion, Dreamlike |
 
 **NPU constraint:** NPU device forces `int4` precision regardless of config.
 
