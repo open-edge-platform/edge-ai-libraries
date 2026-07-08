@@ -41,7 +41,8 @@ The following Debian packages will be generated under the `linux-kernel-overlay`
 ## Install Userspace and Kernel with a Script
 
 ```bash
-sudo -E ../../../scripts/ptl_driver/install_ubuntu_gpu_drivers.sh UBUNTU_NOBLE PTL mainline-tracking-overlay-v6.17.11-ubuntu-260128T080735Z default
+cd edge-ai-libraries/microservices/multilevel-video-understanding
+sudo -E ./scripts/ptl_driver/install_ubuntu_gpu_drivers.sh UBUNTU_NOBLE PTL mainline-tracking-overlay-v6.17.11-ubuntu-260128T080735Z default
 ```
 
 Once the installation is successful, the system will reboot automatically and you are ready to validate the platform.
