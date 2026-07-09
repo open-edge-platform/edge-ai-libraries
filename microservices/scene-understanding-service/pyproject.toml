@@ -1,0 +1,23 @@
+[project]
+name = "scene-understanding-service"
+version = "0.1.0"
+description = "Scene Understanding Service: Multi-scene behavioral analysis and suspicious activity detection"
+requires-python = ">=3.11"
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "paho-mqtt>=1.6.1,<2.0",
+    "structlog>=24.1.0",
+    "aiohttp>=3.9.0",
+    "minio>=7.2.0",
+    "Pillow>=10.0.0",
+    "PyYAML>=6.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+]

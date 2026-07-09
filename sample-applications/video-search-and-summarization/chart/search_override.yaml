@@ -11,7 +11,7 @@ global:
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: "video_frame_embeddings"
 
-  # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
+  # sharedPvcName is the PVC used for collector signal exchange (pipeline-manager <-> vss-collector).
   sharedPvcName: "vss-shared-pvc"
 
 pipelinemanager:

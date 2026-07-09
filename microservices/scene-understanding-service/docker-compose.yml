@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Standalone Docker Compose for the Scene Understanding Service.
+#
+# This runs the service on its own. It is an event consumer/producer and needs
+# a reachable SceneScape deployment (MQTT broker + REST API) to produce
+# meaningful output — point the `mqtt` and `scenescape_api` blocks in
+# configs/scene-config.yaml at your SceneScape instance.
+#
+# The optional behavioral-analysis, SeaweedFS, and alert-service integrations
+# are NOT included here. To use them, add those services to your own stack on a
+# shared network and enable the matching blocks in configs/scene-config.yaml.
+
+services:
+  scene-understanding-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-intel}/scene-understanding-service:${RELEASE_TAG:-latest}
+    container_name: scene-understanding-service
+    ports:
+      - "${SCENE_UNDERSTANDING_SERVICE_PORT:-8082}:8082"
+    environment:
+      # Identity included in alert payloads.
+      STORE_ID: ${STORE_ID:-store_001}
+      # SceneScape REST API credentials for zone auto-discovery.
+      SCENESCAPE_API_USER: ${SCENESCAPE_API_USER:-}
+      SCENESCAPE_API_PASSWORD: ${SCENESCAPE_API_PASSWORD:-}
+      # Optional: override the downstream alert-service endpoint. Only used
+      # when an alert_service block is present in scene-config.yaml.
+      ALERT_SERVICE_URL: ${ALERT_SERVICE_URL:-http://alert-service:8000}
+      # Optional proxy passthrough.
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: ${no_proxy:-localhost,127.0.0.1}
+    volumes:
+      # Required: the two config files the service reads.
+      - ./configs/scene-config.yaml:/app/configs/scene-config.yaml:ro
+      - ./configs/rules.yaml:/app/configs/rules.yaml:ro
+      # Optional: SceneScape TLS certs, only needed when mqtt.use_tls is true.
+      # - ./secrets:/app/secrets:ro
+      # Optional: persisted results/evidence.
+      - ${RESULTS_PATH:-./results}:/app/results
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/api/v1/lp/status', timeout=5).read()"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+    restart: unless-stopped
