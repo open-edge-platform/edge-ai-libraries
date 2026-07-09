@@ -23,7 +23,7 @@ All images in a package must have **the same dimensions** and extension. The max
 After upload, the images are extracted into a directory named after the package file (without its extension).
 This directory name is then used as the *Image Set* name when selecting images as pipeline input.
 
-> **Note**: During upload, images are processed in alphabetical order and then renamed to the
+> **Note:** During upload, images are processed in alphabetical order and then renamed to the
 > `<file_name>_<NNNN>.<ext>` pattern.
 
 To preview images in a set, click the set name.

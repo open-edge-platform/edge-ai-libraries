@@ -1,0 +1,40 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+strategies:
+  - name: Planning
+    description: "Routes based on message content indicating planning intent."
+    rules:
+      - type: MessageContentRule
+        param:
+          pattern: plan
+          roles:
+            - user
+    provider_selector:
+      label: planning
+      capability:
+        complexity: 0.7
+
+  - name: ContextLengthQuality
+    description: "Routes requests based on context length zones."
+    rules:
+      - type: ContextLengthRule
+        param:
+          zones:
+            - - 0
+              - 4000
+            - - 4001
+              - 16000
+            - - 16001
+              - 128000
+    provider_selector:
+      capability:
+        complexity:
+          0: 0.3
+          1: 0.5
+          2: 0.7
+
+  - name: ZeroCost
+    description: "Routes requests based on no cost provider."
+    provider_selector:
+      cost: 0

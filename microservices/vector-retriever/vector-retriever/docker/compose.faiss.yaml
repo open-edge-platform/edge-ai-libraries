@@ -1,0 +1,53 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  multimodal-embedding-serving:
+    image: intel/multimodal-embedding-serving:latest
+    container_name: multimodal-embedding-serving
+    ports:
+      - '${EMBEDDING_SERVER_PORT:-9777}:8000'
+    environment:
+      no_proxy: ${no_proxy:-},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},localhost
+      NO_PROXY: ${no_proxy:-},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},localhost
+      no_proxy_env: ${no_proxy:-},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},localhost
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-}
+      EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-CPU}
+      EMBEDDING_USE_OV: ${EMBEDDING_USE_OV:-true}
+      EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
+      DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC:-0}
+      DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION:--1}
+      DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES:-64}
+      OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-LATENCY}
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:8000/health || exit 1']
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+    volumes:
+      - ov-models:/home/appuser/.cache/huggingface
+      - data-prep:/tmp/dataprep
+      - ov-models:${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
+    networks:
+      - vr_network
+
+  vector-retriever:
+    environment:
+      RETRIEVER_BACKEND: faiss
+      EMBEDDINGS_ENDPOINT: ${EMBEDDINGS_ENDPOINT:-${MULTIMODAL_EMBEDDING_ENDPOINT:-http://multimodal-embedding-serving:8000/embeddings}}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-}
+      FAISS_INDEX_PATH: ${FAISS_INDEX_PATH:-}
+    depends_on:
+      - multimodal-embedding-serving
+    networks:
+      - vr_network
+
+volumes:
+  ov-models:
+    driver: local
+  data-prep:
+    driver: local

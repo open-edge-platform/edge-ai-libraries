@@ -37,6 +37,7 @@ class MilvusClientWrapper:
 
         schema.add_field(field_name="id", datatype=DataType.INT64, is_primary=True, auto_id=False)
         schema.add_field(field_name="vector", datatype=DataType.FLOAT_VECTOR, dim=dim)
+        schema.add_field(field_name="text", datatype=DataType.VARCHAR, max_length=65535)
         schema.add_field(field_name="meta", datatype=DataType.JSON)
 
         index_params = MilvusClient.prepare_index_params()

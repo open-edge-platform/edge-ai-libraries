@@ -103,13 +103,13 @@ All values are reported in **milliseconds (ms)**.
 
 **How to interpret the values:**
 
-- **Stable avg close to min** — the pipeline processes frames consistently with little variation.
-- **Large gap between min and max** — some frames take significantly longer than others. This may indicate
+- **Stable average close to minimum** — the pipeline processes frames consistently with little variation.
+- **Large gap between minimum and maximum** — some frames take significantly longer than others. This may indicate
   bursty inference workloads or resource contention with other streams.
-- **Rising avg over time** — the pipeline may be experiencing back-pressure (e.g., the system is becoming
+- **Rising average over time** — the pipeline may be experiencing back-pressure (e.g., the system is becoming
   saturated as more streams are added).
-- **avg below target frame interval** — the pipeline meets real-time requirements. For example, if your
-  target is 30 FPS, the frame interval is ~33 ms; an avg latency below 33 ms means the pipeline keeps up.
+- **Average below target frame interval** — the pipeline meets real-time requirements. For example, if your
+  target is 30 FPS, the frame interval is around 33 ms; an average latency below 33 ms means the pipeline keeps up.
 
 ### Latency in multi-stream tests
 

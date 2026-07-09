@@ -29,6 +29,10 @@ jest.mock('minio', () => {
 // Mock for path.join
 jest.mock('path', () => ({
   join: jest.fn().mockImplementation((...args) => args.join('/')),
+  basename: jest.fn().mockImplementation((input: string) => {
+    const segments = (input || '').split(/[\\/]/);
+    return segments.pop() || '';
+  }),
 }));
 
 describe('DatastoreService', () => {
@@ -205,7 +209,7 @@ describe('DatastoreService', () => {
     it('should generate correct object path and extension', () => {
       const result = service.getObjectName('state-123', 'sample.mp4');
       expect(result).toEqual({
-        objectPath: 'state-123/sample.mp4',
+        objectPath: 'state-123/source.mp4',
         fileExtn: 'mp4',
       });
     });
@@ -213,7 +217,7 @@ describe('DatastoreService', () => {
     it('should handle filenames with multiple dots', () => {
       const result = service.getObjectName('state-123', 'sample.original.mp4');
       expect(result).toEqual({
-        objectPath: 'state-123/sample.original.mp4',
+        objectPath: 'state-123/source.mp4',
         fileExtn: 'mp4',
       });
     });
@@ -221,8 +225,30 @@ describe('DatastoreService', () => {
     it('should handle filenames without extensions', () => {
       const result = service.getObjectName('state-123', 'README');
       expect(result).toEqual({
-        objectPath: 'state-123/README',
+        objectPath: 'state-123/source',
         fileExtn: 'README',
+      });
+    });
+
+    it('should use deterministic object filename for spaced names', () => {
+      const result = service.getObjectName(
+        'state-123',
+        'sample clip @2026!.mp4',
+      );
+      expect(result).toEqual({
+        objectPath: 'state-123/source.mp4',
+        fileExtn: 'mp4',
+      });
+    });
+
+    it('should use deterministic object filename for nested path inputs', () => {
+      const result = service.getObjectName(
+        'state-123',
+        '../../nested/path/my clip.mp4',
+      );
+      expect(result).toEqual({
+        objectPath: 'state-123/source.mp4',
+        fileExtn: 'mp4',
       });
     });
   });
@@ -236,7 +262,7 @@ describe('DatastoreService', () => {
     it('should handle objects with special characters', () => {
       const url = service.getObjectURL('test path/file with spaces.mp4');
       expect(url).toBe(
-        'http://localhost:9000/test-bucket/test path/file with spaces.mp4',
+        'http://localhost:9000/test-bucket/test%20path/file%20with%20spaces.mp4',
       );
     });
   });
@@ -245,6 +271,11 @@ describe('DatastoreService', () => {
     it('should return the correct relative path for an object', () => {
       const path = service.getObjectRelativePath('test-path/file.mp4');
       expect(path).toBe('/test-bucket/test-path/file.mp4');
+    });
+
+    it('should URL-encode path segments with spaces and symbols', () => {
+      const path = service.getObjectRelativePath('test path/file #1.mp4');
+      expect(path).toBe('/test-bucket/test%20path/file%20%231.mp4');
     });
   });
 

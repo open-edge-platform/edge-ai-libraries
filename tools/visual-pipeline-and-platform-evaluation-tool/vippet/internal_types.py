@@ -372,13 +372,22 @@ class InternalPipelineDensitySpec:
             For VariantReference: pipeline.name from stored pipeline.
             For GraphInline: same as pipeline_id.
         pipeline_graph: Resolved pipeline graph for execution as Graph object.
-        stream_rate: Relative share of total streams (percentage).
+        stream_rate: Relative share of total streams (percentage). Only used
+            in classic density mode (when ``streams`` is None on every spec).
+            Ignored in mixed-density mode.
+        streams: Fixed input stream count for this pipeline. When set on
+            exactly one of two specs, the benchmark switches to
+            mixed-density mode: this pipeline is pinned to ``streams`` and
+            the other pipeline is incremented by the benchmark algorithm.
+            ``None`` means the spec participates in classic density mode
+            (or, in mixed mode, is the pipeline that gets incremented).
     """
 
     pipeline_id: str
     pipeline_name: str
     pipeline_graph: Graph
     stream_rate: int
+    streams: int | None = None
 
 
 @dataclass
@@ -556,7 +565,10 @@ class InternalDensityTestSpec:
 
     Attributes:
         fps_floor: Minimum acceptable FPS per stream.
-        pipeline_density_specs: List of resolved pipeline specs with stream_rate ratios.
+        pipeline_density_specs: List of resolved pipeline specs. Each spec
+            carries both ``stream_rate`` (used in classic density mode) and
+            ``streams`` (set on one of two specs to switch into
+            mixed-density mode).
         execution_config: Execution configuration for output and runtime.
         original_request: Original API request as serialized dict for summary endpoint.
     """

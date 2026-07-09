@@ -1,7 +1,7 @@
 # ViPPET Backend
 
 The ViPPET backend (the `vippet-app` service) is a Python application that exposes the REST API used by the
-UI, manages pipelines and models, and runs GStreamer / DLStreamer workloads on the underlying hardware. It is
+UI, manages pipelines and models, and runs GStreamer / DL Streamer workloads on the underlying hardware. It is
 designed to keep request handling fast and non-blocking, while the actual media processing happens in isolated
 subprocesses.
 
@@ -20,10 +20,10 @@ All API payloads are defined as Pydantic v2 models in `vippet/api/api_schemas.py
 for validation, OpenAPI generation, and as the source of the typed RTK Query client consumed by the UI. See
 [Backend contributing guide](../contributing/backend.md) for the regeneration workflow.
 
-### OpenVINO, DLStreamer, GStreamer
+### OpenVINO, DL Streamer, GStreamer
 
-Inference workloads are executed by GStreamer pipelines that use DLStreamer elements (`gva*`) backed by
-OpenVINO. Available hardware (CPU / GPU / NPU) is probed at startup through the OpenVINO Core in
+Inference workloads are executed by GStreamer pipelines that use DL Streamer elements (`gva*`) backed by
+OpenVINO™. Available hardware (CPU / GPU / NPU) is probed at startup through the OpenVINO™ Core in
 `vippet/device.py`, and exposed through the `/devices` endpoint so the UI can offer the right per-device
 pipeline variants.
 
@@ -98,13 +98,38 @@ simplified view (`pipeline_graph_simple`) used by the visual editor. `vippet/gra
 GStreamer description and the graph form, and applies the `SIMPLE_VIEW_VISIBLE_ELEMENTS` /
 `SIMPLE_VIEW_INVISIBLE_ELEMENTS` filtering rules that decide which elements appear in the simplified canvas.
 
+### Automatic Graph Transformations
+
+`PipelineManager.build_pipeline_command()` does not run the variant graph as-is. For every stream it
+applies a small set of deterministic transformations defined in `vippet/graph.py`, so the same graph can
+be reused across different output modes without changes to the YAML or the saved user definition:
+
+- **Intermediate sink rewriting** (`prepare_intermediate_output_sinks`) — gives every non-fakesink
+  terminal a unique, stream-scoped file location under the job output directory.
+- **Main output placeholder** (`prepare_main_output_placeholder`) — when `output_mode` is `file` or
+  `live_stream`, the default `fakesink name=default_output_sink` is converted to an
+  `OUTPUT_PLACEHOLDER` node. It is replaced later by the encoder + filesink (for `file`) or by the
+  encoder + rtspclientsink (for `live_stream`) subpipeline built by `video_encoder`.
+- **Metadata file injection** (`inject_metadata_file_paths`) — when `metadata_mode=file`, every
+  `gvametapublish` node gets a unique file path under the job metadata directory.
+- **Automatic `gvawatermark` stripping** (`strip_watermark_if_all_sinks_are_fake`) — removes every
+  `gvawatermark` node when the only terminals left are fakesinks, i.e., there is no rendered video
+  output that would consume the overlay. The watermark is preserved whenever an `OUTPUT_PLACEHOLDER`
+  is present (`output_mode=file` or `live_stream`) or any non-fakesink terminal exists in the graph
+  (for example a `splitmuxsink` in NVR-style pipelines that records the stream itself). This keeps
+  the default `output_mode=disabled` measurement free of the overlay-rendering cost without
+  affecting live view, file output, or pipelines that persist the video.
+- **Unique element names and source/sink identifiers** (`unify_all_element_names`,
+  `apply_stream_identifiers`) — assigns deterministic, stream-unique names to every element so the
+  latency tracer can correlate its rows back to a specific source/sink pair.
+
 ### Job and Metrics Flow
 
 Tests, optimization runs, and validation runs are tracked as jobs. Each job has a status (`PENDING`,
 `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`), a structured summary, and per-stream metadata. Live runtime
 metrics (CPU, GPU, NPU usage, power, memory, FPS) are collected by the sibling `metrics-manager` service from
 Telegraf and qmassa, and streamed to the UI as Server-Sent Events through the nginx proxy at
-`/metrics/stream`. Per-frame inference metadata produced by DLStreamer is captured by `MetadataManager`, which
+`/metrics/stream`. Per-frame inference metadata produced by DL Streamer is captured by `MetadataManager`, which
 tails the metadata files and streams records to the UI through SSE.
 
 ## Managers
@@ -151,7 +176,10 @@ exposes capabilities and encodings to the rest of the stack. Key methods: `disco
 
 Runs performance and density benchmarks. Performance tests run a single pipeline variant under defined
 conditions; density tests use the algorithm in `benchmark.py` to find the maximum number of concurrent streams
-the hardware can sustain. Each invocation returns a `job_id` that the UI can poll, summarize, or cancel. Key
+the hardware can sustain. Density supports two modes selected automatically from the request shape:
+**classic mode** (search variable = total stream count, distributed across pipelines by `stream_rate`) and
+**mixed mode** (exactly two pipelines; one pinned to a fixed `streams` value, the other incremented by the
+search variable). Each invocation returns a `job_id` that the UI can poll, summarize, or cancel. Key
 methods: `test_performance()`, `test_density()`, `get_job_status()`, `get_job_summary()`,
 `get_job_statuses_by_type()`, `stop_job()`.
 
@@ -170,7 +198,7 @@ a reference) and tracks each run as a job. Key methods: `run_validation()`, `get
 
 ### MetadataManager
 
-Tails the per-job DLStreamer metadata files written during pipeline runs and exposes them to the UI both as
+Tails the per-job DL Streamer metadata files written during pipeline runs and exposes them to the UI both as
 paged snapshots and as live Server-Sent Events streams. Key methods: `register_job()`, `get_snapshot()`,
 `resolve_file_index()`, `stream_events()`, `stop_tailing()`.
 

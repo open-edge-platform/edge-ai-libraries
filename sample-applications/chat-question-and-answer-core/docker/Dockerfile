@@ -25,26 +25,19 @@ RUN if [ "$USE_GPU" = "true" ]; then \
     rm -rf /tmp/drivers /var/lib/apt/lists/* /tmp/*; \
     fi
 
-# Setting env vars for python, pip and poetry
+# Setting env vars for python and pip
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=off \
     PIP_DISABLE_PIP_VERSION_CHECK=on \
     PIP_DEFAULT_TIMEOUT=100 \
-    POETRY_VERSION=1.8.3 \
-    # Poetry installation location
-    POETRY_HOME="/opt/poetry" \
-    # Create the virtual environment dir .venv in the project's root
-    POETRY_VIRTUALENVS_IN_PROJECT=true \
-    # Disable interactive prompts
-    POETRY_NO_INTERACTION=1 \
     # Location where packages gets installed
     SETUP_PATH="/opt/projsetup" \
     # Location where virtual env is created
     VENV_PATH="/opt/projsetup/.venv"
 
-# Add poetry and venv to path
-ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
+# Add venv to path
+ENV PATH="$VENV_PATH/bin:$PATH"
 
 # Upgrade pip and setuptools to the latest version to fix vuln
 RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip setuptools wheel
@@ -58,14 +51,15 @@ RUN groupadd -g ${GID} appuser && \
 FROM python-base AS builder-base
 RUN apt-get update && apt-get install --no-install-recommends -y curl build-essential
 
-# Install poetry. Installs in $POETRY_HOME with version $POETRY_VERSION
-RUN curl -sSL https://install.python-poetry.org | python -
+# Install uv from official image
+COPY --from=ghcr.io/astral-sh/uv:0.11.21 /uv /usr/local/bin/uv
 
 WORKDIR $SETUP_PATH
-COPY poetry.lock pyproject.toml ./
-# Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
-RUN poetry install --with openvino --without dev --without ollama && \
-    $VENV_PATH/bin/pip install --upgrade --no-cache-dir pip setuptools wheel
+COPY pyproject.toml uv.lock ./
+RUN uv venv "$VENV_PATH"
+ENV UV_PROJECT_ENVIRONMENT="$VENV_PATH"
+# Install runtime deps from pyproject dependency groups.
+RUN uv sync --no-dev --group openvino --no-install-project
 
 # `dev` image is used during development / testing
 FROM python-base AS dev
@@ -73,12 +67,14 @@ ENV FASTAPI_ENV=development
 
 WORKDIR $SETUP_PATH
 
-# Copy the poetry installation and the virtual env to current image
-COPY --from=builder-base $POETRY_HOME $POETRY_HOME
+# Copy uv and the virtual env to current image
+COPY --from=builder-base /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
-# Install dev dependencies. Prod dependencies are already installed.
-RUN poetry install --with dev,openvino,ollama
+ENV UV_PROJECT_ENVIRONMENT="$VENV_PATH"
+
+# Install dev and ollama groups on top of runtime/openvino deps.
+RUN uv sync --group openvino --group dev --group ollama --no-install-project
 
 # Source code will be mounted here
 WORKDIR /app
@@ -101,7 +97,7 @@ RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy the poetry installation and the virtual env
+# Copy the virtual env and dependency metadata
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 
