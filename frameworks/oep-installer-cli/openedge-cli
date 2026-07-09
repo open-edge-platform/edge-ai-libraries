@@ -136,7 +136,7 @@ subcommand_bootstrap () {
   done
 
   if [ ${#scripts[@]} -gt 0 ]; then
-    [[ "$*" = *"--dry-run"* ]] || sed -i "$0" '/^subcommand_bootstrap [(][)]/,$/{d}' "$0"
+    [[ "$*" = *"--dry-run"* ]] || sed -i "$0" '/^subcommand_bootstrap [(][)]/,${d}' "$0"
     for script in "${scripts[@]}"; do
       echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
       [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$0"
