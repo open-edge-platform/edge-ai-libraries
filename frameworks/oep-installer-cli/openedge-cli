@@ -139,11 +139,11 @@ subcommand_bootstrap () {
   done
 
   if [ ${#scripts[@]} -gt 0 ]; then
-    if [[ "$*" = *"--dry-run"* ]]; then
+    if [[ "$*" != *"--dry-run"* ]]; then
       sed -i '/^subcommand_bootstrap *[(][)] *[{]/,${d}' "$0"
       local modules=(${*/#[!--default=]*/})
       if [ ${#modules[*]} -gt 0 ]; then
-        sed -i "1a[ \${#@} -eq 2 ] || set -- install ${modules[*]##--default=}" "$0"
+        sed -i "1i[ \${#@} -gt 1 ] || set -- install ${modules[*]##--default=}" "$0"
       fi
     fi
     for script in "${!scripts[@]}"; do
