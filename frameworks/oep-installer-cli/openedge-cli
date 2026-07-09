@@ -64,13 +64,14 @@ subcommand_install () {
 
   # scan for dependencies
   local modules=(${*##--*})
-  local installers=() i=0 installer
+  local -A installers=()
+  local i=0 installer
   while [ $i -lt ${#modules[*]} ]; do
     local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
     [ -z "$profiler" ] || modules+=($($profiler))
     installer=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_install_${modules[$i]}$" | cut -f3 -d' ')
     if [ -n "$installer" ]; then
-      installers+=($installer)
+      installers[$installer]=1
     else
       echo "Unknown component or profile: ${modules[$i]}"
       exit 3
@@ -79,11 +80,11 @@ subcommand_install () {
   done
 
   # install in sequence
-  if [ ${#installers[*]} -gt 0 ]; then
+  if [ ${#installers[@]} -gt 0 ]; then
     logecho () {
       awk -v n="$1" '{print strftime("%s"),n,$0;fflush()}'
     }
-    for installer in $(echo "${installers[*]}" | tr ' ' '\n' | sort | uniq); do
+    for installer in $(echo "${!installers[@]}" | tr ' ' '\n' | sort); do
       local name=$(echo $installer | cut -f4- -d_)
       echo "==== installing $name ====" > >(logecho $name)
       [[ "$*" = *"--dry-run"* ]] || $installer ${*//#[!--]*/} > >(logecho $name) 2> >(logecho $name) || exit
@@ -119,12 +120,13 @@ subcommand_bootstrap () {
   
   # scan for dependencies
   local modules=(${*##--*})
-  local scripts=() i=0 script
+  local -A scripts=()
+  local i=0 script
   while [ $i -lt ${#modules[*]} ]; do
     local script="$mydir"/profile/${ID_LIKE}_${modules[$i]}
     [ -r "$script" ] || script="$mydir"/module/${ID_LIKE}_${modules[$i]}
     if [ -r "$script" ]; then
-      scripts+=("$script")
+      scripts["$script"]=1
       . "$script"
       local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
       [ -z "$profiler" ] || modules+=($($profiler))
@@ -136,8 +138,8 @@ subcommand_bootstrap () {
   done
 
   if [ ${#scripts[@]} -gt 0 ]; then
-    [[ "$*" = *"--dry-run"* ]] || sed -i "$0" '/^subcommand_bootstrap [(][)]/,${d}' "$0"
-    for script in "${scripts[@]}"; do
+    [[ "$*" = *"--dry-run"* ]] || sed -i '/^subcommand_bootstrap *[(][)] *[{]/,${d}' "$0"
+    for script in "${!scripts[@]}"; do
       echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
       [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$0"
     done
@@ -146,5 +148,4 @@ subcommand_bootstrap () {
     exit 3
   fi
 }
-
 
