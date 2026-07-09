@@ -12,7 +12,7 @@ main () {
     case $v in
     --help)
       local cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
-      echo "Usage: <$(IFS='|';echo "${cmds[*]}")> <subcommand> component [component...]"
+      echo "Usage: <$(IFS='|';echo "${cmds[*]}")> component [component...]"
       echo "common options:"
       echo "  --help          this help message" 
       echo
