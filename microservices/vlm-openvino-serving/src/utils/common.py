@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, Any, Dict
 
@@ -52,7 +52,11 @@ class Settings(BaseSettings):
         default="int8", json_schema_extra={"env": "VLM_COMPRESSION_WEIGHT_FORMAT"}
     )
     VLM_DEVICE: str = Field(default="CPU", json_schema_extra={"env": "VLM_DEVICE"})
-    SEED: int = Field(default=42, json_schema_extra={"env": "SEED"})
+    SEED: int = Field(
+        default=42,
+        validation_alias=AliasChoices("VLM_SEED", "SEED"),
+        json_schema_extra={"env": "VLM_SEED"},
+    )
     VLM_LOG_LEVEL: str = Field(
         default="info", json_schema_extra={"env": "VLM_LOG_LEVEL"}
     )
@@ -149,6 +153,39 @@ class Settings(BaseSettings):
 
         # Default OpenVINO configuration
         return {"PERFORMANCE_HINT": "LATENCY"}
+
+    def get_vlm_pipeline_ov_config(self) -> Dict[str, Any]:
+        """
+        Return OV config compatible with current VLMPipeline Python bindings.
+
+        OpenVINO docs describe VLM NPU options under:
+        {"DEVICE_PROPERTIES": {"NPU": {...}}}
+        but some runtime versions expect those NPU properties flattened
+        at the top level for VLMPipeline kwargs.
+        """
+        ov_config = self.get_ov_config_dict()
+        if not isinstance(ov_config, dict):
+            return {"PERFORMANCE_HINT": "LATENCY"}
+
+        device_properties = ov_config.get("DEVICE_PROPERTIES")
+        if not isinstance(device_properties, dict):
+            return ov_config
+
+        # Keep non-device properties and merge selected device properties.
+        flattened_config = {k: v for k, v in ov_config.items() if k != "DEVICE_PROPERTIES"}
+        device_key = self.VLM_DEVICE.upper()
+        selected_device_props = device_properties.get(device_key)
+
+        if isinstance(selected_device_props, dict):
+            flattened_config.update(selected_device_props)
+            return flattened_config
+
+        _temp_logger.warning(
+            "OV_CONFIG DEVICE_PROPERTIES does not contain a valid '%s' mapping. "
+            "Using OV_CONFIG without DEVICE_PROPERTIES.",
+            device_key,
+        )
+        return flattened_config
 
 
 class ErrorMessages:
