@@ -43,10 +43,12 @@ main () {
 
 subcommand_install () {
   if [[ "$*" = "--help" ]]; then
-    echo "install options:"
-    echo "  --dry-run       dry-run the installation sequence."
-    echo
     local components=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_install_" | cut -f4- -d_))
+    if [ ${#components[*]} -gt 0 ]; then
+      echo "install options:"
+      echo "  --dry-run       dry-run the installation sequence."
+      echo
+    fi
     local profiles=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f4- -d_))
     mapfile -t profiles < <(printf '%s\n' ${profiles[*]} | grep -Fxv -f <(printf '%s\n' ${components[*]}))
     if [ ${#profiles[*]} -gt 0 ]; then
@@ -87,7 +89,7 @@ subcommand_install () {
       [[ "$*" = *"--dry-run"* ]] || $installer ${*/#[!--]*/} > >(logecho $name) 2> >(logecho $name) || exit
     done
   else
-    echo "No installer defined" 1>&2
+    echo "No installable component" 1>&2
     exit 3
   fi
 
@@ -96,15 +98,26 @@ subcommand_install () {
 }
 
 subcommand_bootstrap () {
+  local mydir="$(dirname "$(readlink -f "$0")")"
+
   if [[ "$*" = "--help" ]]; then
     echo "bootstrap options:"
     echo "  --dry-run       dry-run the bootstrap sequence."
     echo
+    local profiles=($(ls -1 "$mydir/profile" | grep -E "^${ID_LIKE}_" | cut -f2- -d_))
+    if [ ${#profiles[*]} -gt 0 ]; then
+      echo "  list of bootstrap profiles:"
+      echo "    ${profiles[*]}"
+    fi
+    local modules=($(ls -1 "$mydir/module" | grep -E "^${ID_LIKE}_" | cut -f2- -d_))
+    if [ ${#modules[*]} -gt 0 ]; then
+      echo "  list of bootstrap components:"
+      echo "    ${modules[*]}"
+    fi
     return 0
   fi
   
   # scan for dependencies
-  local mydir="$(dirname "$(readlink -f "$0")")"
   local modules=(${*//#--*/})
   local scripts=() i=0 script
   while [ $i -lt ${#modules[*]} ]; do
@@ -123,12 +136,13 @@ subcommand_bootstrap () {
   done
 
   if [ ${#scripts[@]} -gt 0 ]; then
-    sed -i "$0" '/^subcommand_bootstrap [(][)]/,$/{d}' "$0"
+    [[ "$*" = *"--dry-run"* ]] || sed -i "$0" '/^subcommand_bootstrap [(][)]/,$/{d}' "$0"
     for script in "${scripts[@]}"; do
-      cat "$script" >> "$0"
+      echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
+      [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$0"
     done
   else
-    echo "No installer defined" 1>&2
+    echo "No bootstrap component" 1>&2
     exit 3
   fi
 }
