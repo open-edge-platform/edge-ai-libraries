@@ -24,6 +24,7 @@ class SourceConfig(BaseModel):
 class MetadataDestinationConfig(BaseModel):
     type: str  # "file", "mqtt", "kafka", …
     path: Optional[str] = None    # file path
+    topic: Optional[str] = None   # mqtt/kafka topic (alternative to path)
     format: Optional[str] = None  # "json-lines", …
     publish_frame: bool = False   # include raw frame bytes in the message (mqtt)
 

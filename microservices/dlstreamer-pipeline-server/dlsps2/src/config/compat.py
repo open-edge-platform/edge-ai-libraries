@@ -19,10 +19,9 @@ Destination - metadata
       ``gvametapublish name=destination`` element already present in the
       pipeline template.
   ``type=mqtt``
-      Injects ``method=mqtt mqtt-address=<path>`` (path is used as the broker
-      address / topic string).
+      Injects ``method=mqtt mqtt-address=<topic>``.
   ``type=kafka``
-      Injects ``method=kafka kafka-address=<path>``.
+      Injects ``method=kafka kafka-address=<topic-or-path>``.
 
 Destination - frame
   ``type=rtsp``
@@ -61,9 +60,10 @@ Destination - frame
 
 Destination - metadata (Python elements)
   ``type=mqtt``
-      Replaces ``appsink name=appsink`` with ``mqttsinkpy topic=<path>``.
-      The MQTT broker is read from ``MQTT_HOST`` / ``MQTT_PORT`` env vars.
-      Frames are included in the MQTT message when ``publish_frame`` is true.
+      Replaces ``appsink name=appsink`` with ``mqttsinkpy topic=<topic>``.
+      ``topic`` is the MQTT topic . The MQTT broker is read from
+      ``MQTT_HOST`` / ``MQTT_PORT`` env vars. Frames are included in the MQTT message when
+      ``publish_frame`` is true.
   ``type=opcua``
       Replaces ``appsink name=appsink`` with ``opcuasinkpy variable=<path>``.
       OPC-UA connection details come from ``OPCUA_SERVER_*`` env vars.
@@ -270,17 +270,19 @@ def apply_destination(pipeline: str, destination: DestinationConfig | None) -> s
 
         elif dest_type == "mqtt":
             # Use Python mqttsinkpy element so frames can be included.
-            # meta.path is treated as the MQTT topic; broker comes from env vars.
-            topic = meta.path or "dlstreamer_pipeline_results"
+            # meta.topic is the MQTT topic.
+            # Broker comes from env vars.
+            topic = meta.topic or "dlstreamer_pipeline_results"
             publish_frame = "true" if meta.publish_frame else "false"
             pipeline = _replace_appsink_with_py_sink(
                 pipeline, f"mqttsinkpy topic={topic} publish-frame={publish_frame} qos=0"
             )
 
         elif dest_type == "kafka":
+            kafka_address = meta.topic
             pipeline = _inject_element_property(pipeline, _METAPUBLISH_ELEMENT, "method", "kafka")
-            if meta.path:
-                pipeline = _inject_element_property(pipeline, _METAPUBLISH_ELEMENT, "kafka-address", meta.path)
+            if kafka_address:
+                pipeline = _inject_element_property(pipeline, _METAPUBLISH_ELEMENT, "kafka-address", kafka_address)
 
         elif dest_type == "opcua":
             # OPC-UA node variable; connection from OPCUA_SERVER_* env vars.

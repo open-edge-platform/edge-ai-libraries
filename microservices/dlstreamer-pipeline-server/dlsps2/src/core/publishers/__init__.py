@@ -9,10 +9,10 @@ inside ``register_all()``.
 
 Elements registered
 -------------------
-mqttsinkpy    – Publishes GVA metadata (and optional raw frames) to MQTT.
-opcuasinkpy   – Writes GVA metadata JSON to an OPC-UA node variable.
-influxsinkpy  – Writes GVA metadata fields as InfluxDB data points.
-s3sinkpy      – Encodes frames as JPEG and uploads them to S3 / MinIO.
+mqttsinkpy    - Publishes GVA metadata (and optional raw frames) to MQTT.
+opcuasinkpy   - Writes GVA metadata JSON to an OPC-UA node variable.
+influxsinkpy  - Writes GVA metadata fields as InfluxDB data points.
+s3sinkpy      - Encodes frames as JPEG and uploads them to S3 / MinIO.
 """
 
 import importlib

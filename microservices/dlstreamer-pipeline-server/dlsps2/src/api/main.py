@@ -60,6 +60,7 @@ async def lifespan(app: FastAPI):
 
     yield
     logger.info("DL Streamer Pipeline Server (dlsps2) shutting down…")
+    pipeline_manager.shutdown()
 
 
 # ---------------------------------------------------------------------------
