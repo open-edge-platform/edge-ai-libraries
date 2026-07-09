@@ -931,14 +931,30 @@ class PipelineDensitySpec(BaseModel):
     - `variant` - Reference to an existing pipeline variant by pipeline_id and variant_id
     - `graph` - Inline pipeline graph provided directly
 
-    Used in DensityTestSpec to describe how total streams are split between
-    pipelines based on relative ratios.
+    Used in DensityTestSpec to describe how streams are assigned to each
+    pipeline. The schema supports two modes, selected automatically based
+    on whether the optional `streams` field is provided:
+
+    ## Modes
+
+    ### Classic density (default)
+    All specs omit `streams`. The benchmark searches for the maximum
+    total stream count that still meets ``fps_floor`` and splits it
+    between pipelines using ``stream_rate`` ratios (must sum to 100).
+
+    ### Mixed density
+    Exactly one of two specs sets `streams` to a fixed value. The
+    pipeline with `streams` is pinned to that count; the other pipeline
+    is the one the benchmark increments (using the same exponential +
+    bisection search as classic density). ``stream_rate`` is ignored in
+    this mode.
 
     ## Attributes
     - `pipeline` - Graph source (either a reference to existing variant or inline graph; discriminated by 'source' field: \"variant\" or \"graph\")
-    - `stream_rate` - Relative share of total streams for this pipeline expressed as percentage (all stream_rate values in the request must sum to 100)
+    - `stream_rate` - Relative share of total streams for this pipeline expressed as percentage (classic mode only; all stream_rate values must sum to 100)
+    - `streams` - Fixed input stream count for this pipeline (mixed-density mode). When set on one of exactly two specs, the other spec is incremented by the benchmark algorithm.
 
-    ### Example (Variant reference)
+    ### Example (Variant reference, classic mode)
     ```json
     {
       "pipeline": {
@@ -950,7 +966,7 @@ class PipelineDensitySpec(BaseModel):
     }
     ```
 
-    ### Example (Inline graph)
+    ### Example (Inline graph, classic mode)
     ```json
     {
       "pipeline": {
@@ -963,6 +979,18 @@ class PipelineDensitySpec(BaseModel):
       "stream_rate": 50
     }
     ```
+
+    ### Example (Mixed density - this spec is the fixed pipeline)
+    ```json
+    {
+      "pipeline": {
+        "source": "variant",
+        "pipeline_id": "pipeline-a3f5d9e1",
+        "variant_id": "variant-abc123"
+      },
+      "streams": 4
+    }
+    ```
     """
 
     pipeline: GraphSource = Field(
@@ -973,8 +1001,24 @@ class PipelineDensitySpec(BaseModel):
     stream_rate: int = Field(
         default=100,
         ge=0,
-        description="Relative share of total streams for this pipeline (percentage).",
+        description=(
+            "Relative share of total streams for this pipeline (percentage). "
+            "Used only in classic density mode (when no spec sets 'streams'). "
+            "Ignored in mixed-density mode."
+        ),
         examples=[50],
+    )
+    streams: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Fixed input stream count for this pipeline. When set on exactly "
+            "one of two specs, the request switches to mixed-density mode: "
+            "this pipeline is pinned to 'streams' and the other pipeline is "
+            "incremented by the benchmark algorithm. Leave unset for classic "
+            "density mode."
+        ),
+        examples=[4],
     )
 
 
@@ -1396,12 +1440,23 @@ class DensityTestSpec(BaseModel):
     """
     **Request body for starting a density test.**
 
+    Supports two modes, selected automatically from the request shape
+    (see ``PipelineDensitySpec`` for details):
+
+    - **Classic density** — no spec sets ``streams``; the benchmark
+      searches the total stream count and splits it across pipelines
+      using ``stream_rate`` ratios (must sum to 100).
+    - **Mixed density** — exactly two specs, exactly one with
+      ``streams`` set; that pipeline is pinned to ``streams`` and the
+      other pipeline is incremented by the same algorithm as classic
+      density.
+
     ## Attributes
     - `fps_floor` - Minimum acceptable FPS per stream
-    - `pipeline_density_specs` - List of pipelines with relative stream_rate ratios
+    - `pipeline_density_specs` - List of pipelines. Carries `stream_rate` (classic mode) or `streams` (mixed mode) per spec.
     - `execution_config` - Configuration for output generation, metadata publishing and runtime limits
 
-    ### Example
+    ### Example (classic mode)
     ```json
     {
       "fps_floor": 30,
@@ -1430,6 +1485,35 @@ class DensityTestSpec(BaseModel):
       }
     }
     ```
+
+    ### Example (mixed mode - pipeline 1 fixed at 4 streams, pipeline 2 incremented)
+    ```json
+    {
+      "fps_floor": 30,
+      "pipeline_density_specs": [
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-a3f5d9e1",
+            "variant_id": "variant-abc123"
+          },
+          "streams": 4
+        },
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-b4c6e2f8",
+            "variant_id": "variant-def456"
+          }
+        }
+      ],
+      "execution_config": {
+        "output_mode": "disabled",
+        "max_runtime": 0,
+        "metadata_mode": "disabled"
+      }
+    }
+    ```
     """
 
     fps_floor: int = Field(
@@ -1439,7 +1523,12 @@ class DensityTestSpec(BaseModel):
     )
     pipeline_density_specs: list[PipelineDensitySpec] = Field(
         ...,
-        description="List of pipelines with relative stream_rate percentages that must sum to 100.",
+        description=(
+            "List of pipelines. In classic density mode every spec carries "
+            "`stream_rate` and the values must sum to 100. In mixed-density "
+            "mode the list must contain exactly two specs and exactly one of "
+            "them must set `streams` (the fixed pipeline)."
+        ),
         examples=[
             [
                 {

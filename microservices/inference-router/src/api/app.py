@@ -3,6 +3,7 @@
 
 """FastAPI application factory."""
 
+import json
 import logging
 import time
 import traceback
@@ -27,6 +28,11 @@ from src.api.concurrency import (
 
 
 logger = logging.getLogger("gateway")
+
+
+def _sanitize_validation_errors(errors: list[object]) -> list[object]:
+    """Convert validation errors into JSON-safe data for API responses."""
+    return json.loads(json.dumps(errors, default=str))
 
 
 def create_app(
@@ -132,6 +138,7 @@ def create_app(
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         raw_body = (await request.body()).decode("utf-8", errors="replace")
+        error_details = _sanitize_validation_errors(exc.errors())
 
         msg = "❌ Request validation failed"
         print(msg)
@@ -147,10 +154,10 @@ def create_app(
         log_to_gateway_file(msg, log_dir)
         logger.debug(f"Request body: {raw_body}")
 
-        msg = f"   Errors: {exc.errors()}"
+        msg = f"   Errors: {error_details}"
         print(msg)
         log_to_gateway_file(msg, log_dir)
-        logger.error(f"Validation errors: {exc.errors()}")
+        logger.error(f"Validation errors: {error_details}")
 
         return JSONResponse(
             status_code=422,
@@ -158,7 +165,7 @@ def create_app(
                 "error": {
                     "message": "Request validation failed",
                     "type": "RequestValidationError",
-                    "detail": exc.errors(),
+                    "detail": error_details,
                     "body": None,
                 }
             },

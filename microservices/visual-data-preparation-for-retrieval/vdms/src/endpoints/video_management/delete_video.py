@@ -17,6 +17,8 @@ router = APIRouter(tags=["Video Management APIs"])
 @router.delete(
     "/videos/{bucket_name}/{video_id}",
     summary="Delete a video from Minio storage.",
+    operation_id="deleteVideo",
+    response_model=DataPrepResponse,
     response_model_exclude_none=True,
 )
 @validate_params
@@ -70,7 +72,7 @@ async def delete_video(
         if video_name:
             # Delete a specific video file
             object_name = f"{video_id}/{video_name}"
-            if not minio_client.object_exists_by_path(bucket_name, object_name):
+            if not minio_client.object_exists(bucket_name, video_id, video_name):
                 raise DataPrepException(
                     status_code=HTTPStatus.NOT_FOUND,
                     msg=f"Video '{object_name}' not found in bucket '{bucket_name}'",

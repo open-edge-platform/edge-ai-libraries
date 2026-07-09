@@ -1,9 +1,22 @@
-{{- $dpDevice := default "CPU" .Values.global.devices.vdmsDataprep.device -}}
-{{- $dpKey := .Values.global.devices.vdmsDataprep.key -}}
-{{- $dpUsesGpu := eq $dpDevice "GPU" -}}
-{{- /* Validate: key required when device is GPU */ -}}
-{{- if and $dpUsesGpu (not $dpKey) -}}
-{{- fail "global.devices.vdmsDataprep.key is required when device is GPU" -}}
+{{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.devices.vdmsDataprep.embedding.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
+{{- $detectionDevice := .Values.frameProcessing.dataprepDetectionDevice | default .Values.global.devices.vdmsDataprep.detection.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
+{{- $embeddingUsesGpu := eq $embeddingDevice "GPU" -}}
+{{- $embeddingUsesNpu := eq $embeddingDevice "NPU" -}}
+{{- $embeddingUsesAccelerator := or $embeddingUsesGpu $embeddingUsesNpu -}}
+{{- $detectionUsesGpu := eq $detectionDevice "GPU" -}}
+{{- $detectionUsesNpu := eq $detectionDevice "NPU" -}}
+{{- $detectionUsesAccelerator := or $detectionUsesGpu $detectionUsesNpu -}}
+{{- $dpUsesGpu := or $embeddingUsesGpu $detectionUsesGpu -}}
+{{- $dpUsesNpu := or $embeddingUsesNpu $detectionUsesNpu -}}
+{{- $dpUsesAccelerator := or $dpUsesGpu $dpUsesNpu -}}
+{{- $embeddingKey := .Values.global.devices.vdmsDataprep.embedding.key -}}
+{{- $detectionKey := .Values.global.devices.vdmsDataprep.detection.key -}}
+{{- /* Validate: per-component key required when its device is GPU/NPU */ -}}
+{{- if and $embeddingUsesAccelerator (not $embeddingKey) -}}
+{{- fail "global.devices.vdmsDataprep.embedding.key is required when global.devices.vdmsDataprep.embedding.device is GPU or NPU" -}}
+{{- end -}}
+{{- if and $detectionUsesAccelerator (not $detectionKey) -}}
+{{- fail "global.devices.vdmsDataprep.detection.key is required when global.devices.vdmsDataprep.detection.device is GPU or NPU" -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -35,9 +48,17 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
+      {{- if or .Values.podSecurityContext $dpUsesAccelerator }}
       securityContext:
+        {{- with .Values.podSecurityContext }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if $dpUsesAccelerator }}
+        supplementalGroups:
+          {{- range .Values.global.accelGroupIds }}
+          - {{ . }}
+          {{- end }}
+        {{- end }}
       {{- end }}
       {{- with .Values.podAffinity }}
       affinity:
@@ -56,8 +77,8 @@ spec:
                 name: {{ include "vdms-dataprep.fullname" . }}-config
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.image.repository "tag" (.Values.global.tag | default (ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion))) }}"
+          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.image.pullPolicy }}
           ports:
             - name: {{ .Values.containerPortName }}
               containerPort: {{ .Values.containerPort }}
@@ -68,12 +89,22 @@ spec:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           startupProbe:
             {{- toYaml .Values.startupProbe | nindent 12 }}
-      {{- if $dpUsesGpu }}
+      {{- if $dpUsesAccelerator }}
           resources:
             requests:
-              {{ $dpKey }}: 1
+              {{- if $embeddingUsesAccelerator }}
+              {{ $embeddingKey }}: 1
+              {{- end }}
+              {{- if and $detectionUsesAccelerator (or (not $embeddingUsesAccelerator) (ne $detectionKey $embeddingKey)) }}
+              {{ $detectionKey }}: 1
+              {{- end }}
             limits:
-              {{ $dpKey }}: 1
+              {{- if $embeddingUsesAccelerator }}
+              {{ $embeddingKey }}: 1
+              {{- end }}
+              {{- if and $detectionUsesAccelerator (or (not $embeddingUsesAccelerator) (ne $detectionKey $embeddingKey)) }}
+              {{ $detectionKey }}: 1
+              {{- end }}
       {{- else if .Values.resources }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -102,6 +133,14 @@ spec:
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: tmpvideos
+      {{- if $dpUsesGpu }}
+            - name: dri-device
+              mountPath: /dev/dri
+      {{- end }}
+      {{- if $dpUsesNpu }}
+            - name: accel-device
+              mountPath: /dev/accel
+      {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
@@ -109,6 +148,12 @@ spec:
         - name: dri-device
           hostPath:
             path: /dev/dri
+            type: Directory
+      {{- end }}
+      {{- if $dpUsesNpu }}
+        - name: accel-device
+          hostPath:
+            path: /dev/accel
             type: Directory
       {{- end }}
       {{- if .Values.modelPvc.enabled }}
@@ -130,7 +175,7 @@ spec:
         - name: volume-data
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: {{ .Values.global.sharedPvcName | default "vss-pvc" }}
+            claimName: {{ include "vdms-dataprep.fullname" . }}-data-pvc
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

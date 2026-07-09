@@ -11,7 +11,7 @@ services:
             - '${MINIO_API_HOST_PORT:-6010}:9000'
             - '${MINIO_CONSOLE_HOST_PORT:-6011}:9001'
         volumes:
-            - '${MINIO_MOUNT_PATH:-/mnt/miniodata}:/data'
+            - 'minio_data:/data'
         command: |
             server /data 
             --address ":9000" 
@@ -66,6 +66,7 @@ services:
             - EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-sdk}
             - SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
             - VDMS_DATAPREP_DEVICE=${VDMS_DATAPREP_DEVICE:-CPU}
+            - EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-CPU}
             - OV_MODELS_DIR=${OV_MODELS_DIR:-/app/ov_models}
             - EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
             - MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-}
@@ -90,6 +91,7 @@ services:
 
             # Object detection model directory
             - DETECTION_MODEL_DIR=${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
+            - DETECTION_DEVICE=${DETECTION_DEVICE:-CPU}
 
             # ROI consolidation settings
             - ROI_CONSOLIDATION_ENABLED=${ROI_CONSOLIDATION_ENABLED:-false}
@@ -112,7 +114,17 @@ services:
             - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
         devices:
-            - /dev/dri:/dev/dri # Intel GPU device access for OpenVINO GPU acceleration
+            - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri # Intel GPU device access for OpenVINO GPU acceleration
+            - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
+        ulimits:
+            nofile:
+                soft: 32768
+                hard: 65535
+        ipc: host
+        group_add:
+            - ${USER_GROUP_ID:-1000}
+            - ${VIDEO_GROUP_ID:-44}
+            - ${RENDER_GROUP_ID:-1002}
         depends_on:
             - minio-server
             # - multimodal-embedding-serving
@@ -124,17 +136,32 @@ services:
             - '${EMBEDDING_SERVER_PORT:-9777}:8000'
         ipc: host
         environment:
-            no_proxy_env: ${no_proxy_env},vdms-dataprep
+            no_proxy: ${no_proxy_env},vdms-dataprep,localhost
+            no_proxy_env: ${no_proxy_env},vdms-dataprep,localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
-            EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
+            EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-CPU}
             EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
             EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
+
+            # Video processing configuration
             DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC}
             DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION:--1}
             DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES}
             OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-LATENCY}
+
+            # Inference configuration
+            INFER_BATCH_SIZE: ${INFER_BATCH_SIZE:-64}
+            PREPROCESS_WORKERS: ${PREPROCESS_WORKERS:-8}
+
+            # Video frame extraction configuration
+            VIDEO_FRAME_BATCH_SIZE: ${VIDEO_FRAME_BATCH_SIZE:-64}
+            VIDEO_FRAME_DECODER_WORKERS: ${VIDEO_FRAME_DECODER_WORKERS:-8}
+            VIDEO_FRAME_QUEUE_SIZE: ${VIDEO_FRAME_QUEUE_SIZE:-32}
+            VIDEO_FRAME_SHM_POOL_BLOCK_SIZE: ${VIDEO_FRAME_SHM_POOL_BLOCK_SIZE:-6220800}
+            VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER: ${VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER:-2}
+            VIDEO_FRAME_LOG_LEVEL: ${VIDEO_FRAME_LOG_LEVEL:-INFO}
         group_add:
             - ${USER_GROUP_ID:-1000}
             - ${VIDEO_GROUP_ID:-44}
@@ -142,13 +169,19 @@ services:
         restart: unless-stopped
         healthcheck:
             test:
-                ['CMD-SHELL', 'curl -f http://localhost:8000/health || exit 1']
+                [
+                    'CMD',
+                    'python',
+                    '-c',
+                    "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)",
+                ]
             interval: 10s
             timeout: 10s
             retries: 40
             start_period: 5s
         devices:
-            - /dev/dri:/dev/dri
+            - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
+            - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
         networks:
             - default
         volumes:
@@ -166,4 +199,6 @@ volumes:
     ov-models:
         driver: local
     data-prep:
+        driver: local
+    minio_data:
         driver: local

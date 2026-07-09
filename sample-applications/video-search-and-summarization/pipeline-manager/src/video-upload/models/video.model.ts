@@ -29,3 +29,7 @@ export interface VideoDTO {
 export interface VideoRO {
   videoId: string;
 }
+
+export interface SearchEmbeddingsDTO {
+  tags?: string;
+}
