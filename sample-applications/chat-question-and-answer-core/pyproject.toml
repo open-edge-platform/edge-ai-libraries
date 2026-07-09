@@ -3,7 +3,7 @@ name = "chatqna-core"
 version = "0.1"
 description = "A monolithic chat-based question and answer system that leverages Intel's advanced Generative AI technologies and employs Retrieval-Augmented-Generation (RAG) techniques."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 dependencies = [
 	"docx2txt>=0.9,<0.10",
 	"faiss-cpu>=1.11.0",
