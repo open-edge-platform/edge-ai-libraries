@@ -63,7 +63,7 @@ subcommand_install () {
   fi
 
   # scan for dependencies
-  local modules=(${*//#--*/})
+  local modules=(${*##--*})
   local installers=() i=0 installer
   while [ $i -lt ${#modules[*]} ]; do
     local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
@@ -86,7 +86,7 @@ subcommand_install () {
     for installer in $(echo "${installers[*]}" | tr ' ' '\n' | sort | uniq); do
       local name=$(echo $installer | cut -f4- -d_)
       echo "==== installing $name ====" > >(logecho $name)
-      [[ "$*" = *"--dry-run"* ]] || $installer ${*/#[!--]*/} > >(logecho $name) 2> >(logecho $name) || exit
+      [[ "$*" = *"--dry-run"* ]] || $installer ${*//#[!--]*/} > >(logecho $name) 2> >(logecho $name) || exit
     done
   else
     echo "No installable component" 1>&2
@@ -118,7 +118,7 @@ subcommand_bootstrap () {
   fi
   
   # scan for dependencies
-  local modules=(${*//#--*/})
+  local modules=(${*##--*})
   local scripts=() i=0 script
   while [ $i -lt ${#modules[*]} ]; do
     local script="$mydir"/profile/${ID_LIKE}_${modules[$i]}
