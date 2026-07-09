@@ -16,7 +16,7 @@ main () {
       echo "common options:"
       echo "  --help          this help message" 
       echo
-      for cmd in $(declare -F | grep -E "subcommand_" | cut -f3 -d' '); do
+      for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
         $cmd --help
       done
       exit 0
@@ -46,10 +46,16 @@ subcommand_install () {
     echo "install options:"
     echo "  --dry-run       dry-run the installation sequence."
     echo
-    local installers=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_install_" | cut -f4- -d_))
-    if [ ${#installers[*]} -gt 0 ]; then
+    local components=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_install_" | cut -f4- -d_))
+    local profiles=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f4- -d_))
+    mapfile -t profiles < <(printf '%s\n' ${profiles[*]} | grep -Fxv -f <(printf '%s\n' ${components[*]}))
+    if [ ${#profiles[*]} -gt 0 ]; then
+      echo "  list of installable profiles:"
+      echo "    ${profiles[*]}"
+    fi
+    if [ ${#components[*]} -gt 0 ]; then
       echo "  list of installable components:"
-      echo "    ${installers[*]}"
+      echo "    ${components[*]}"
     fi
     return 0
   fi
@@ -58,13 +64,13 @@ subcommand_install () {
   local modules=(${*//#--*/})
   local installers=() i=0 installer
   while [ $i -lt ${#modules[*]} ]; do
-    local requirer=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_require_${modules[$i]}$" | cut -f3 -d' ')
-    [ -z "$requirer" ] || modules+=($($requirer))
+    local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
+    [ -z "$profiler" ] || modules+=($($profiler))
     installer=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_install_${modules[$i]}$" | cut -f3 -d' ')
     if [ -n "$installer" ]; then
       installers+=($installer)
     else
-      echo "Unknown component ${modules[$i]}"
+      echo "Unknown component or profile: ${modules[$i]}"
       exit 3
     fi
     i=$((i+1))
@@ -82,31 +88,49 @@ subcommand_install () {
     done
   else
     echo "No installer defined" 1>&2
+    exit 3
   fi
 
   # wait for background processes
   wait
 }
 
-# === module definitions ===
+subcommand_bootstrap () {
+  if [[ "$*" = "--help" ]]; then
+    echo "bootstrap options:"
+    echo "  --dry-run       dry-run the bootstrap sequence."
+    echo
+    return 0
+  fi
+  
+  # scan for dependencies
+  local mydir="$(dirname "$(readlink -f "$0")")"
+  local modules=(${*//#--*/})
+  local scripts=() i=0 script
+  while [ $i -lt ${#modules[*]} ]; do
+    local script="$mydir"/profile/${ID_LIKE}_${modules[$i]}
+    [ -r "$script" ] || script="$mydir"/module/${ID_LIKE}_${modules[$i]}
+    if [ -r "$script" ]; then
+      scripts+=("$script")
+      . "$script"
+      local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
+      [ -z "$profiler" ] || modules+=($($profiler))
+    else
+      echo "Unknown component or profile: ${modules[$i]}" 1>&2
+      exit 3
+    fi
+    i=$((i+1))
+  done
 
-debian_01_install_abc () {
-  echo "abc installed"
+  if [ ${#scripts[@]} -gt 0 ]; then
+    sed -i "$0" '/^subcommand_bootstrap [(][)]/,$/{d}' "$0"
+    for script in "${scripts[@]}"; do
+      cat "$script" >> "$0"
+    done
+  else
+    echo "No installer defined" 1>&2
+    exit 3
+  fi
 }
 
-debian_02_require_bcd () {
-  echo "abc"
-}
-
-debian_02_install_bcd () {
-  echo "bcd installed"
-}
-
-debian_03_require_def () {
-  echo "bcd"
-}
-
-debian_03_install_def () {
-  echo "def installed"
-}
 
