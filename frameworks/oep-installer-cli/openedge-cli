@@ -1,0 +1,112 @@
+#!/bin/bash
+
+# common variable: ID_LIKE
+. /etc/os-release
+trap "main $*" EXIT
+
+main () {
+  trap - EXIT
+
+  local args=() cmd=""
+  for v in $*; do
+    case $v in
+    --help)
+      local cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+      echo "Usage: <$(IFS='|';echo "${cmds[*]}")> <subcommand> component [component...]"
+      echo "common options:"
+      echo "  --help          this help message" 
+      echo
+      for cmd in $(declare -F | grep -E "subcommand_" | cut -f3 -d' '); do
+        $cmd --help
+      done
+      exit 0
+      ;;
+    --*)
+      args+=($v)
+      ;;
+    *)
+      if declare -F subcommand_$v > /dev/null; then
+        cmd=$v
+      else
+        args+=($v)
+      fi
+      ;;
+    esac
+  done
+
+  # show help if cmd is not specified
+  [ -n "$cmd" ] || main --help
+
+  # exec subcommand
+  subcommand_$cmd ${args[*]}
+}
+
+subcommand_install () {
+  if [[ "$*" = "--help" ]]; then
+    echo "install options:"
+    echo "  --dry-run       dry-run the installation sequence."
+    echo
+    local installers=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_install_" | cut -f4- -d_))
+    if [ ${#installers[*]} -gt 0 ]; then
+      echo "  list of installable components:"
+      echo "    ${installers[*]}"
+    fi
+    return 0
+  fi
+
+  # scan for dependencies
+  local modules=(${*//#--*/})
+  local installers=() i=0 installer
+  while [ $i -lt ${#modules[*]} ]; do
+    local requirer=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_require_${modules[$i]}$" | cut -f3 -d' ')
+    [ -z "$requirer" ] || modules+=($($requirer))
+    installer=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_install_${modules[$i]}$" | cut -f3 -d' ')
+    if [ -n "$installer" ]; then
+      installers+=($installer)
+    else
+      echo "Unknown component ${modules[$i]}"
+      exit 3
+    fi
+    i=$((i+1))
+  done
+
+  # install in sequence
+  if [ ${#installers[*]} -gt 0 ]; then
+    logecho () {
+      awk -v n="$1" '{print strftime("%s"),n,$0;fflush()}'
+    }
+    for installer in $(echo "${installers[*]}" | tr ' ' '\n' | sort | uniq); do
+      local name=$(echo $installer | cut -f4- -d_)
+      echo "==== installing $name ====" > >(logecho $name)
+      [[ "$*" = *"--dry-run"* ]] || $installer ${*/#[!--]*/} > >(logecho $name) 2> >(logecho $name) || exit
+    done
+  else
+    echo "No installer defined" 1>&2
+  fi
+
+  # wait for background processes
+  wait
+}
+
+# === module definitions ===
+
+debian_01_install_abc () {
+  echo "abc installed"
+}
+
+debian_02_require_bcd () {
+  echo "abc"
+}
+
+debian_02_install_bcd () {
+  echo "bcd installed"
+}
+
+debian_03_require_def () {
+  echo "bcd"
+}
+
+debian_03_install_def () {
+  echo "def installed"
+}
+
