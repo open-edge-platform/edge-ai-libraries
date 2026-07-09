@@ -188,6 +188,10 @@ curl http://localhost:8200/api/v1/health
 
 ---
 
+**Every final answer to the user must restate both the exact startup command (with the
+right `--plugins` list) and the port `8200`** — not just the request payload. Users copy
+answers piecemeal, so a payload without its startup command or port is easy to misapply.
+
 ### Step 2 — Compose the API Request
 
 Read [plugins-guide.md](./references/plugins-guide.md) for the exact request body for each plugin.
