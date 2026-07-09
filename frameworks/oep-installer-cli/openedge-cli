@@ -87,7 +87,10 @@ subcommand_install () {
     for installer in $(echo "${!installers[@]}" | tr ' ' '\n' | sort); do
       local name=$(echo $installer | cut -f4- -d_)
       echo "==== installing $name ====" > >(logecho $name)
+      local start=$SECONDS
       [[ "$*" = *"--dry-run"* ]] || $installer ${*/#[!--]*/} > >(logecho $name) 2> >(logecho $name) || exit
+      local end=$SECONDS
+      echo "==== installed $name, ellapsed $(( end - start )) seconds ====" > >(logecho $name)
     done
   else
     echo "No installable component" 1>&2
