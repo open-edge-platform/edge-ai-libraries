@@ -276,6 +276,23 @@ Before running the application, you need to set several environment variables:
 
     > **Note**: SDK mode is recommended for most deployments as it avoids inter-container HTTP overhead. Set `EMBEDDING_PROCESSING_MODE=api` if you need the embedding model served as a standalone microservice.
 
+12. **Select devices per processing component (Search and Unified UI mode)**:
+
+    Each processing component picks its device independently. All default to `CPU`; set any to `GPU` or `NPU` as needed.
+
+    ```bash
+    # Embedding in vdms-dataprep (EMBEDDING_PROCESSING_MODE=sdk)
+    export DATAPREP_EMBEDDING_DEVICE=GPU
+    # YOLOX object detection in vdms-dataprep
+    export DATAPREP_DETECTION_DEVICE=CPU
+    # Embedding in multimodal-embedding-serving (EMBEDDING_PROCESSING_MODE=api)
+    export MME_EMBEDDING_DEVICE=GPU
+    ```
+
+    There is no "baseline" device — each component is configured directly, matching the Helm chart's per-component model.
+
+    > **Mode note:** `DATAPREP_EMBEDDING_DEVICE` controls embedding execution when `EMBEDDING_PROCESSING_MODE=sdk` (in-process DataPrep embedding). `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving` when `EMBEDDING_PROCESSING_MODE=api`. `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut: in `sdk` mode it sets `DATAPREP_EMBEDDING_DEVICE=GPU`; in `api` mode it sets `MME_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
+
 **🔐 Work with Gated Models**
 
 To run a **GATED MODEL** like Llama models, you will need to pass your [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). You will need to request for an access to a specific model by going to the respective model page on Hugging Face website.
@@ -316,7 +333,7 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 
 ### Deployment Options for Video Summarization
 
-| Deployment Option | Chunk-Wise Summary<sup>(1)</sup> Configuration | Final Summary<sup>(2)</sup> Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model |
+| **Deployment Option** | **Chunk-Wise Summary<sup>(1)</sup> Configuration** | **Final Summary<sup>(2)</sup> Configuration** | **Environment Variables to Set** | **Recommended Models** | **Recommended Usage Model** |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
 | OVMS shared-model CPU | OVMS-hosted VLM on CPU | Same OVMS-hosted VLM on CPU | Default | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | Default CPU-only summarization flow. |
 | OVMS shared-model GPU | OVMS-hosted VLM on GPU | Same OVMS-hosted VLM on GPU | `VLM_TARGET_DEVICE=GPU` with `LLM_TARGET_DEVICE=GPU` | VLM: `OpenVINO/Phi-3.5-vision-instruct-int8-ov` | Single-model OVMS deployment with GPU acceleration. |
@@ -335,6 +352,29 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 > 5) **NPU Support:** Not all models support NPU execution. Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
 > 6) OVMS mode selection is based on effective VLM/LLM settings: if model source, target device, and compression format are all identical, setup uses shared mode; otherwise it uses split mode.
 > 7) For same-source split examples (same model name on different devices/formats), prefer non-`OpenVINO/` source models (for example, `Qwen/Qwen2.5-VL-3B-Instruct`). `OpenVINO/` namespace models are pre-converted and use model-intrinsic/fixed weight formats.
+
+### Deployment Options for Video Search
+
+| **Deployment Option** | **Embedding Pipeline Configuration** | **Detection Configuration** | **Environment Variables to Set** | **Recommended Models** | **Recommended Usage Model** |
+|--------|--------------------|---------------------|-----------------------|----------------|----------------|
+| SDK shared CPU | In-process embedding in `vdms-dataprep` on CPU | Detection on CPU | `EMBEDDING_PROCESSING_MODE=sdk` (default) | Search/Dual: `CLIP/clip-vit-b-32`<br>Unified: `QwenText/qwen3-embedding-0.6b` | Default CPU-only search flow. |
+| SDK shared GPU | In-process embedding in `vdms-dataprep` on GPU | Detection on GPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=GPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Run both detection and embedding execution on GPU. |
+| SDK shared NPU | In-process embedding in `vdms-dataprep` on NPU | Detection on NPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: NPU-supported multimodal model | Run both detection and embedding execution on NPU. |
+| SDK split CPU/NPU | In-process embedding in `vdms-dataprep` on NPU | Detection on CPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: NPU-supported multimodal model | Keep detection on CPU while offloading embedding to NPU. |
+| SDK split CPU/GPU | In-process embedding in `vdms-dataprep` on CPU | Detection on GPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection only while keeping embedding on CPU. |
+| SDK split CPU/NPU (Detection) | In-process embedding in `vdms-dataprep` on CPU | Detection on NPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection to NPU while keeping embedding on CPU. |
+| API embedding CPU | Embedding served by `multimodal-embedding-serving` on CPU | Detection on CPU (DataPrep) | `EMBEDDING_PROCESSING_MODE=api` + `MME_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: `CLIP/clip-vit-b-32`<br>Unified: `QwenText/qwen3-embedding-0.6b` | Separate embedding service endpoint with CPU-only execution. |
+| API embedding GPU | Embedding served by `multimodal-embedding-serving` on GPU | Detection on CPU (DataPrep) | `EMBEDDING_PROCESSING_MODE=api` + `MME_EMBEDDING_DEVICE=GPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: `CLIP/clip-vit-b-32` | Keep DataPrep on CPU and offload API embedding to GPU. |
+| API embedding NPU | Embedding served by `multimodal-embedding-serving` on NPU | Detection on CPU (DataPrep) | `EMBEDDING_PROCESSING_MODE=api` + `MME_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: NPU-supported multimodal model | Keep DataPrep on CPU and offload API embedding to NPU. |
+
+> **Note:**
+>
+> 1) These options apply to modes where search is enabled: `--search`, `--summary --search`, and `--summary-and-search`.
+> 2) Each component device defaults to `CPU` and is set independently — there is no "baseline" device.
+> 3) In `EMBEDDING_PROCESSING_MODE=sdk`, embedding execution runs in `vdms-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`.
+> 4) In `EMBEDDING_PROCESSING_MODE=api`, embedding execution runs in `multimodal-embedding-serving` and follows `MME_EMBEDDING_DEVICE`.
+> 5) **NPU Support:** Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU`.
+> 6) `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut for embedding: `sdk` mode sets `DATAPREP_EMBEDDING_DEVICE=GPU`, `api` mode sets `MME_EMBEDDING_DEVICE=GPU`. For NPU, use explicit device variables.
 
 ## Using Edge Microvisor Toolkit
 
@@ -527,6 +567,16 @@ Follow these steps to run the application:
    LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Intel/neural-chat-7b-v3-3 source setup.sh --summary-and-search
    ```
 
+> **Note:** In `EMBEDDING_PROCESSING_MODE=sdk`, embedding execution follows `DATAPREP_EMBEDDING_DEVICE` in DataPrep. In `EMBEDDING_PROCESSING_MODE=api`, embedding execution is handled by the embedding microservice and follows `MME_EMBEDDING_DEVICE`. `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut for embedding (`sdk`→DataPrep, `api`→MME).
+
+To offload only specific DataPrep components during search (for example, keep embedding on CPU and move detection to GPU):
+
+```bash
+DATAPREP_EMBEDDING_DEVICE=CPU DATAPREP_DETECTION_DEVICE=GPU source setup.sh --search
+```
+
+To verify the configuration and resolved environment variables without running the application:
+
 #### Use NPU acceleration for the final-summary LLM (split-model mode):
 
    ```bash
@@ -548,6 +598,11 @@ Follow these steps to run the application:
 
    # for Dual UI mode
    ENABLE_EMBEDDING_GPU=true source setup.sh --summary --search
+   ```
+
+   ```bash
+   # for NPU (API embedding service execution)
+   EMBEDDING_PROCESSING_MODE=api MME_EMBEDDING_DEVICE=NPU source setup.sh --search
    ```
 
 #### Verify the configuration and resolved environment variables:
@@ -572,9 +627,19 @@ Follow these steps to run the application:
    # For embedding service on GPU
    ENABLE_EMBEDDING_GPU=true source setup.sh config --search                  # for Search mode
    ENABLE_EMBEDDING_GPU=true source setup.sh config --search --summary        # for Dual UI mode
+
+   # For embedding service on NPU
+   EMBEDDING_PROCESSING_MODE=api MME_EMBEDDING_DEVICE=NPU source setup.sh config --search
+   ```
+
+   ```bash
+   # For component-specific offload in DataPrep
+   DATAPREP_EMBEDDING_DEVICE=CPU DATAPREP_DETECTION_DEVICE=GPU source setup.sh --search config
    ```
 
 > **Tip:** `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU` (default), `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution with fallback.
+
+> **Note:** Avoid setting the `ENABLE_VLM_GPU`, `ENABLE_OVMS_LLM_SUMMARY_GPU`, or `ENABLE_EMBEDDING_GPU` flags explicitly on the shell using `export`, because you need to switch these flags off as well, to return to the CPU configuration.
 
 ## Access the Application
 

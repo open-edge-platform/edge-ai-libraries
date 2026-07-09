@@ -181,11 +181,11 @@ MODEL_CONFIGS = {
         },
     },
     "Blip2": {
-        "blip2_transformers": {
+        "blip2": {
             "model_name": "blip2_feature_extractor",
             "pretrained": "pretrain",
             "image_size": 224,
-            "handler_class": "BLIP2TransformersHandler",
+            "handler_class": "BLIP2Handler",
             "image_probs": blip2_image_probs,
         },
     },
