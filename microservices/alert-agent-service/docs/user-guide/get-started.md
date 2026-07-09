@@ -46,8 +46,10 @@ Create a `.env` file (or export variables in your shell) with the required confi
 
 ```bash
 # ----- Service -----
-export PORT=9001
+export PORT=8000
 export LOG_LEVEL=INFO
+export REGISTRY="intel/"
+export TAG=2026.2.0-rc1
 
 # ----- ADK / LLM -----
 export AGENT_MODE=true

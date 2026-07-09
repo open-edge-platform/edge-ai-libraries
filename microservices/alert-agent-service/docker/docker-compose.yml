@@ -46,7 +46,7 @@ services:
       - action_network
 
   alert-agent-service:
-    image: ${REGISTRY:-}alert-agent:${TAG:-latest}
+    image: ${REGISTRY:-}alert-agent-service:${TAG:-latest}
     build:
       context: ../
       dockerfile: docker/Dockerfile
