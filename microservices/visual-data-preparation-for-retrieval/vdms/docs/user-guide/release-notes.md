@@ -1,5 +1,21 @@
 # Release Notes: Visual Data Preparation for Retrieval (VDMS)
 
+## Version 2026.2.0-rc1
+
+**June 12, 2026**
+
+**New**
+
+- Added expanded NPU device support in setup/runtime configuration for baseline and per-component execution (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, `DETECTION_DEVICE`).
+- Added richer API/OpenAPI alignment updates for video processing and management endpoints.
+
+**Improved**
+
+- Hardened NPU runtime dependency installation in Docker images (including stricter Level Zero/driver setup validation).
+- Simplified containerization flow by removing legacy dev/lint/report runtime paths and aligning setup scripts with a production-focused image flow.
+- Updated compose/setup defaults and docs to reflect current accelerator-oriented configuration behavior.
+- Fixed request-schema compatibility issue in upload processing parameters for newer FastAPI/Pydantic combinations.
+
 ## Version 2026.1.0
 
 **June 17, 2026**
@@ -11,7 +27,6 @@
 - Pipeline tracer that emits Chrome Tracing JSON for profiling decode/detect/embed/store stages; enabled via `SDK_ENABLE_TRACING=true`.
 - Structured per-stream pipeline metrics: stage durations, throughput FPS, concurrency factor, and efficiency %. Runtime stats can be saved as JSON via `SAVE_RUNTIME_PIPELINE_STATS=true`.
 - Configurable SDK pipeline via environment variables (seeded by `setup.sh` / `setup-with-embedding.sh`).
-
 
 **Improved**
 
