@@ -270,7 +270,7 @@ profiles:
                 "detectionThreshold": null,
                 "modelName": "InternVL2-1B",
                 "maxNewTokens": 70,
-                "pipelineName": "GenAI_Pipeline_on_CPU_Default_Resolution",
+                "pipelineName": "Video_Captioning_RTSP_Software",
                 "frameRate": 1,
                 "chunkSize": 1,
                 "runName": "CPU_Run"
@@ -302,7 +302,7 @@ profiles:
                 "detectionThreshold": null,
                 "modelName": "InternVL2-1B",
                 "maxNewTokens": 70,
-                "pipelineName": "GenAI_Pipeline_on_GPU_Default_Resolution",
+                "pipelineName": "Video_Captioning_RTSP_Software",
                 "frameRate": 1,
                 "chunkSize": 1,
                 "runName": "WARMUP_Run"
@@ -320,7 +320,7 @@ profiles:
                 "detectionThreshold": null,
                 "modelName": "InternVL2-1B",
                 "maxNewTokens": 70,
-                "pipelineName": "GenAI_Pipeline_on_GPU_Default_Resolution",
+                "pipelineName": "Video_Captioning_RTSP_Software",
                 "frameRate": 1,
                 "chunkSize": 1,
                 "runName": "GPU_Run"
