@@ -87,7 +87,7 @@ subcommand_install () {
     for installer in $(echo "${!installers[@]}" | tr ' ' '\n' | sort); do
       local name=$(echo $installer | cut -f4- -d_)
       echo "==== installing $name ====" > >(logecho $name)
-      [[ "$*" = *"--dry-run"* ]] || $installer ${*//#[!--]*/} > >(logecho $name) 2> >(logecho $name) || exit
+      [[ "$*" = *"--dry-run"* ]] || $installer ${*/#[!--]*/} > >(logecho $name) 2> >(logecho $name) || exit
     done
   else
     echo "No installable component" 1>&2
@@ -103,7 +103,8 @@ subcommand_bootstrap () {
 
   if [[ "$*" = "--help" ]]; then
     echo "bootstrap options:"
-    echo "  --dry-run       dry-run the bootstrap sequence."
+    echo "  --dry-run              dry-run the bootstrap sequence."
+    echo "  --default=<component>  set default installation component."
     echo
     local profiles=($(ls -1 "$mydir/profile" | grep -E "^${ID_LIKE}_" | cut -f2- -d_))
     if [ ${#profiles[*]} -gt 0 ]; then
@@ -138,7 +139,13 @@ subcommand_bootstrap () {
   done
 
   if [ ${#scripts[@]} -gt 0 ]; then
-    [[ "$*" = *"--dry-run"* ]] || sed -i '/^subcommand_bootstrap *[(][)] *[{]/,${d}' "$0"
+    if [[ "$*" = *"--dry-run"* ]]; then
+      sed -i '/^subcommand_bootstrap *[(][)] *[{]/,${d}' "$0"
+      local modules=(${*/#[!--default=]*/})
+      if [ ${#modules[*]} -gt 0 ]; then
+        sed -i "1a[ \${#@} -eq 2 ] || set -- install ${modules[*]##--default=}" "$0"
+      fi
+    fi
     for script in "${!scripts[@]}"; do
       echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
       [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$0"
