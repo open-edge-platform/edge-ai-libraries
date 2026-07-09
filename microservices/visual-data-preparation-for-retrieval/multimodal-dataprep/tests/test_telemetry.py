@@ -16,7 +16,6 @@ def test_get_telemetry_endpoint_returns_data(mocker, test_client):
 	sample_record = {
 		"request_id": "req-1",
 		"source": "/videos/minio",
-		"processing_mode": "sdk",
 		"timestamps": {
 			"requested_at": "2025-01-01T00:00:00Z",
 			"completed_at": "2025-01-01T00:00:01Z",
@@ -33,16 +32,15 @@ def test_get_telemetry_endpoint_returns_data(mocker, test_client):
 			"tags": [],
 			"video_url": None,
 			"video_rel_url": None,
-			"processing_mode": "sdk",
 		},
 		"config": {
-			"embedding_mode": "sdk",
 			"object_detection_enabled": True,
 			"detection_confidence": 0.9,
-			"sdk_parallel_workers": 4,
-			"sdk_batch_size": 32,
+			"parallel_workers": 4,
+			"batch_size": 32,
 		},
 		"counts": {
+			"stream_id": 0,
 			"frames_extracted": 20,
 			"items_after_detection": 25,
 			"embeddings_stored": 25,

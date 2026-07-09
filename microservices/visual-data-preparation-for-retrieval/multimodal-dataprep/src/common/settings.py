@@ -3,14 +3,21 @@
 
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Configuration settings for the application
     Inherits from BaseSettings class from Pydantic
     """
+
+    # All environment variables for this microservice are namespaced with the
+    # MM_DATAPREP_ prefix, e.g. field DETECTION_DEVICE is read from
+    # MM_DATAPREP_DETECTION_DEVICE. The embedding device is the exception: it is
+    # read from MM_EMBEDDING_DEVICE (see the DEVICE field's validation_alias) so
+    # it can be set independently of the MME service's own EMBEDDING_DEVICE.
+    model_config = SettingsConfigDict(env_prefix="MM_DATAPREP_")
 
     APP_NAME: str = "Multimodal-Dataprep"
     APP_DISPLAY_NAME: str = "Intel GenAI Multimodal DataPrep Microservice"
@@ -35,7 +42,6 @@ class Settings(BaseSettings):
     # Default "vdms" preserves the historical behavior of this microservice.
     VECTORDB_BACKEND: str = Field(
         default="vdms",
-        validation_alias=AliasChoices("VECTORDB_BACKEND", "VECTOR_DB_BACKEND"),
         description="Active vector database backend: 'vdms' or 'milvus'",
     )
     # Active storage backend for media/artifacts. Supported: "minio", "local".
@@ -88,110 +94,92 @@ class Settings(BaseSettings):
         "each bucket maps to a subdirectory.",
     )
 
-    MULTIMODAL_EMBEDDING_MODEL_NAME: str = ""  # Model name for both SDK and API modes - must be explicitly set
+    MULTIMODAL_EMBEDDING_MODEL_NAME: str = ""  # Model name - must be explicitly set
     MULTIMODAL_EMBEDDING_ENDPOINT: str = ""  # 0 means auto-detect from API
-    
-    # Embedding processing mode: "api" or "sdk"
-    # api: Use HTTP API calls to multimodal embedding service (current default)
-    # sdk: Use multimodal embedding service directly as SDK (new optimized approach)
-    EMBEDDING_PROCESSING_MODE: str = "sdk"
-    
-    # SDK-specific settings (only used when EMBEDDING_PROCESSING_MODE = "sdk")
-    # Note: MULTIMODAL_EMBEDDING_MODEL_NAME is used for model selection in SDK mode
-    SDK_USE_OPENVINO: bool = True  # Whether to use OpenVINO optimization in SDK mode (default: True for better performance)
+
+    # Embedding settings
+    # Note: MULTIMODAL_EMBEDDING_MODEL_NAME is used for model selection
+    USE_OPENVINO: bool = True  # Whether to use OpenVINO optimization (default: True for better performance)
     MAX_PARALLEL_WORKERS: int | None = Field(
         default=None,
-        description="Hard cap for SDK parallel worker threads; auto-calculated when unset",
+        description="Hard cap for parallel worker threads; auto-calculated when unset",
     )
     EMBEDDING_BATCH_SIZE: int = Field(
         default=32,
         ge=1,
-        description="Items per embedding batch for SDK mode",
+        description="Items per embedding batch",
     )
     DEVICE: str = Field(
         default="CPU",
-        validation_alias=AliasChoices("EMBEDDING_DEVICE", "MULTIMODAL_DATAPREP_DEVICE"),
-        description="Device for embedding processing components",
+        validation_alias="MM_EMBEDDING_DEVICE",
+        description="Device for the in-process embedding pipeline (read from MM_EMBEDDING_DEVICE)",
     )
     DETECTION_DEVICE: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("DETECTION_DEVICE"),
         description="Device for object detection; when unset, config/default value is used",
     )
-    OV_MODELS_DIR: str = "/app/ov_models"  # Directory for OpenVINO models (used by both SDK and embedding service)
+    OV_MODELS_DIR: str = "/app/ov_models"  # Directory for OpenVINO models (used by the embedding pipeline)
 
-    # SDK video pipeline settings
-    SDK_VIDEO_SHM_MAX_BLOCKS: int = Field(
+    # Video pipeline settings
+    VIDEO_SHM_MAX_BLOCKS: int = Field(
         default=512,
         ge=1,
-        description="Shared memory pool block count for SDK video frame pipeline",
-        env="SDK_VIDEO_SHM_MAX_BLOCKS",
+        description="Shared memory pool block count for the video frame pipeline",
     )
-    SDK_VIDEO_SHM_BLOCK_SIZE: int = Field(
+    VIDEO_SHM_BLOCK_SIZE: int = Field(
         default=1920 * 1080 * 3,
         ge=1,
-        description="Shared memory block size in bytes for SDK video frame pipeline",
-        env="SDK_VIDEO_SHM_BLOCK_SIZE",
+        description="Shared memory block size in bytes for the video frame pipeline",
     )
-    SDK_VIDEO_EXTRACTION_BATCH_SIZE: int = Field(
+    VIDEO_EXTRACTION_BATCH_SIZE: int = Field(
         default=256,
         ge=1,
-        description="Frame extraction batch size for SDK video decoding",
-        env="SDK_VIDEO_EXTRACTION_BATCH_SIZE",
+        description="Frame extraction batch size for video decoding",
     )
-    SDK_PIPELINE_QUEUE_MAXSIZE: int = Field(
+    PIPELINE_QUEUE_MAXSIZE: int = Field(
         default=16,
         ge=1,
-        description="Max queue size for SDK pipeline inter-stage queues",
-        env="SDK_PIPELINE_QUEUE_MAXSIZE",
+        description="Max queue size for pipeline inter-stage queues",
     )
-    SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE: int = Field(
+    PIPELINE_COMPLETION_QUEUE_MAXSIZE: int = Field(
         default=1,
         ge=1,
-        description="Max queue size for SDK pipeline completion queue",
-        env="SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE",
+        description="Max queue size for pipeline completion queue",
     )
-    SDK_DETECTION_WORKER_THREADS: int = Field(
+    DETECTION_WORKER_THREADS: int = Field(
         default=2,
         ge=1,
         description="Thread count for detection worker local pool",
-        env="SDK_DETECTION_WORKER_THREADS",
     )
-    SDK_EMBED_WORKER_THREADS: int = Field(
+    EMBED_WORKER_THREADS: int = Field(
         default=2,
         ge=1,
         description="Thread count for embed worker local pool",
-        env="SDK_EMBED_WORKER_THREADS",
     )
-    SDK_PIPELINE_QUEUE_GET_TIMEOUT_S: float = Field(
+    PIPELINE_QUEUE_GET_TIMEOUT_S: float = Field(
         default=1.0,
         gt=0,
-        description="Queue get timeout in seconds for SDK pipeline workers",
-        env="SDK_PIPELINE_QUEUE_GET_TIMEOUT_S",
+        description="Queue get timeout in seconds for pipeline workers",
     )
 
     SAVE_RUNTIME_PIPELINE_STATS: bool = Field(
         default=False,
         description="Whether to save runtime pipeline statistics",
-        env="SAVE_RUNTIME_PIPELINE_STATS",
     )
 
-    SDK_ENABLE_TRACING: bool = Field(
+    ENABLE_TRACING: bool = Field(
         default=False,
-        description="Whether to enable detailed tracing in SDK processing mode",
-        env="SDK_ENABLE_TRACING",
+        description="Whether to enable detailed tracing in the processing pipeline",
     )
 
     VIDEO_FRAME_DECODER_WORKERS: int = Field(
         default=2,
         ge=1,
         description="Thread count for video frame decoder workers",
-        env="VIDEO_FRAME_DECODER_WORKERS",
     )
     VIDEO_FRAME_LOG_LEVEL: str = Field(
         default="INFO",
         description="Logging level for video frame decoding components",
-        env="VIDEO_FRAME_LOG_LEVEL",
     )
 
     # Frame-based processing settings
@@ -210,12 +198,16 @@ class Settings(BaseSettings):
     TELEMETRY_MAX_RECORDS: int = 100
 
     # Allow environment override for bucket name (useful for different deployments)
-    # If PM_MINIO_BUCKET is set (from sample app), use that; otherwise use DEFAULT_BUCKET_NAME
+    # If MM_DATAPREP_PM_MINIO_BUCKET is set (from sample app), use that; otherwise
+    # fall back to the MM_DATAPREP_DEFAULT_BUCKET_NAME / DEFAULT_BUCKET_NAME setting.
     @property
     def effective_bucket_name(self) -> str:
         """Get the effective bucket name, checking environment variables first"""
         import os
-        return os.getenv("PM_MINIO_BUCKET", os.getenv("DEFAULT_BUCKET_NAME", self.DEFAULT_BUCKET_NAME))
+        return os.getenv(
+            "MM_DATAPREP_PM_MINIO_BUCKET",
+            os.getenv("MM_DATAPREP_DEFAULT_BUCKET_NAME", self.DEFAULT_BUCKET_NAME),
+        )
 
     @field_validator("MAX_PARALLEL_WORKERS", mode="before")
     @classmethod

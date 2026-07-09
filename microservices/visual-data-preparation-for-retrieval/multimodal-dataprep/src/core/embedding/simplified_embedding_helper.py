@@ -8,20 +8,15 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from src.common import logger, sanitize_for_log, settings
-from src.core.embedding.simple_client import SimpleEmbeddingClient
 from src.core.telemetry.recorder import record_video_telemetry
 from src.common.schema import TelemetryRecord
-from src.core.utils.metadata_utils import store_enhanced_video_metadata
 
-# Import SDK-based embedding helper for optimized processing
-from .sdk_embedding_helper import (
-    generate_rtsp_video_embedding_sdk,
-    generate_video_embedding_sdk,
-    get_sdk_client,
+# Import embedding helper for optimized processing
+from .embedding_helper import (
+    generate_rtsp_video_embedding_pipeline,
+    generate_video_embedding_pipeline,
+    get_embedding_client,
 )
-
-# Cache to store embedding client instances for different use cases
-_client_cache: dict[str, SimpleEmbeddingClient] = {}
 
 
 def _normalize_tags(tags: Optional[List[str]]) -> List[str]:
@@ -48,7 +43,6 @@ def _prepare_video_metadata_payload(
     fps: Optional[float],
     total_frames: Optional[int],
     video_duration_seconds: Optional[float],
-    processing_mode: Optional[str] = None,
 ) -> Dict[str, Any]:
     return {
         "bucket_name": bucket_name,
@@ -61,7 +55,6 @@ def _prepare_video_metadata_payload(
         "fps": fps,
         "total_frames": total_frames,
         "video_duration_seconds": video_duration_seconds,
-        "processing_mode": processing_mode,
     }
 
 
@@ -82,10 +75,9 @@ def _log_telemetry_record(record: TelemetryRecord | None) -> None:
             batch_summary = "no batch telemetry"
 
         logger.info(
-            "Telemetry captured [request_id=%s, source=%s, mode=%s, video=%s]: batches: %s",
+            "Telemetry captured [request_id=%s, source=%s, video=%s]: batches: %s",
             record.request_id or "<unknown>",
             record.source or "<unknown>",
-            record.processing_mode,
             record.video.video_id if record.video else "<unknown>",
             batch_summary,
         )
@@ -124,7 +116,7 @@ def _log_telemetry_record(record: TelemetryRecord | None) -> None:
         logger.debug("Unable to summarize telemetry record %s: %s", record.request_id, exc)
 
 
-def _record_sdk_pipeline(
+def _record_pipeline(
     *,
     context: Dict[str, Any],
     bucket_name: str,
@@ -135,70 +127,70 @@ def _record_sdk_pipeline(
     enable_object_detection: bool,
     detection_confidence: float,
     metadata_dict: Dict[str, Any],
-    sdk_result: Dict[str, Any],
+    pipeline_result: Dict[str, Any],
 ) -> None:
     try:
-        video_props = sdk_result.get("video_metadata", {})
+        video_props = pipeline_result.get("video_metadata", {})
 
         pipeline_stats = {
             "properties": {
-                "stream_id": sdk_result.get("stream_id", -1),
-                "frames_extracted": sdk_result.get("total_frames_processed", 0),
-                "items_after_detection": sdk_result.get("total_detected_crops", 0),
-                "embeddings_stored": sdk_result.get("total_stored_ids", 0),
+                "stream_id": pipeline_result.get("stream_id", -1),
+                "frames_extracted": pipeline_result.get("total_frames_processed", 0),
+                "items_after_detection": pipeline_result.get("total_detected_crops", 0),
+                "embeddings_stored": pipeline_result.get("total_stored_ids", 0),
             },
             "stage_duration": {
-                "frame_extraction_seconds": sdk_result.get("metrics", {})
+                "frame_extraction_seconds": pipeline_result.get("metrics", {})
                 .get("decode", {})
                 .get("total", 0.0),
-                "detection_seconds": sdk_result.get("metrics", {})
+                "detection_seconds": pipeline_result.get("metrics", {})
                 .get("detect", {})
                 .get("total", 0.0),
-                "embedding_seconds_total": sdk_result.get("metrics", {})
+                "embedding_seconds_total": pipeline_result.get("metrics", {})
                 .get("embed", {})
                 .get("total", 0.0),
-                "embed_inference_time": sdk_result.get("metrics", {})
+                "embed_inference_time": pipeline_result.get("metrics", {})
                 .get("embed_inference_time", {})
                 .get("total", 0.0),
-                "storage_seconds_total": sdk_result.get("metrics", {})
+                "storage_seconds_total": pipeline_result.get("metrics", {})
                 .get("store", {})
                 .get("total", 0.0),
-                "total_wall_seconds": sdk_result.get("pipeline_wall_duration_s", 0.0),
+                "total_wall_seconds": pipeline_result.get("pipeline_wall_duration_s", 0.0),
             },
-            "batches": sdk_result.get("batch_details", []),
+            "batches": pipeline_result.get("batch_details", []),
             "pipeline_metrics": {
-                "pipeline_wall_duration": sdk_result.get("pipeline_wall_duration_s", -1),
-                # "pipeline_throughput_fps": sdk_result.get("pipeline_throughput_fps", -1),
-                "pipeline_throughput_fps": sdk_result.get("pipeline_throughput_fps_with_OD", -1),
-                "pipeline_concurrency_factor": sdk_result.get("pipeline_concurrency_factor", -1),
-                "pipeline_efficiency_pct": sdk_result.get("pipeline_efficiency_pct", -1),
-                "parallel_efficiency_pct": sdk_result.get("parallel_efficiency_pct", -1),
-                "decode_pipeline_efficiency_pct": sdk_result.get(
+                "pipeline_wall_duration": pipeline_result.get("pipeline_wall_duration_s", -1),
+                # "pipeline_throughput_fps": pipeline_result.get("pipeline_throughput_fps", -1),
+                "pipeline_throughput_fps": pipeline_result.get("pipeline_throughput_fps_with_OD", -1),
+                "pipeline_concurrency_factor": pipeline_result.get("pipeline_concurrency_factor", -1),
+                "pipeline_efficiency_pct": pipeline_result.get("pipeline_efficiency_pct", -1),
+                "parallel_efficiency_pct": pipeline_result.get("parallel_efficiency_pct", -1),
+                "decode_pipeline_efficiency_pct": pipeline_result.get(
                     "decode_pipeline_efficiency_pct", -1
                 ),
-                "detect_pipeline_efficiency_pct": sdk_result.get(
+                "detect_pipeline_efficiency_pct": pipeline_result.get(
                     "detect_pipeline_efficiency_pct", -1
                 ),
-                "embed_store_pipeline_efficiency_pct": sdk_result.get(
+                "embed_store_pipeline_efficiency_pct": pipeline_result.get(
                     "embed_store_pipeline_efficiency_pct", -1
                 ),
             },
             "stage_throughput": {
-                "decode_throughput": sdk_result.get("metrics", {})
+                "decode_throughput": pipeline_result.get("metrics", {})
                 .get("decode", {})
                 .get("throughput", 0.0),
-                "embedding_infer_throughput": sdk_result.get("metrics", {})
+                "embedding_infer_throughput": pipeline_result.get("metrics", {})
                 .get("embed_inference_time", {})
                 .get("throughput", 0.0),
-                "embeddings_throughput": sdk_result.get("metrics", {})
+                "embeddings_throughput": pipeline_result.get("metrics", {})
                 .get("embed", {})
                 .get("throughput", 0.0),
-                # "pipeline_throughput": sdk_result.get("pipeline_throughput_fps", 0.0),
-                "pipeline_throughput": sdk_result.get("pipeline_throughput_fps_with_OD", 0.0),
-                "store_throughput": sdk_result.get("metrics", {})
+                # "pipeline_throughput": pipeline_result.get("pipeline_throughput_fps", 0.0),
+                "pipeline_throughput": pipeline_result.get("pipeline_throughput_fps_with_OD", 0.0),
+                "store_throughput": pipeline_result.get("metrics", {})
                 .get("store", {})
                 .get("throughput", 0.0),
-                "detect_throughput": sdk_result.get("metrics", {})
+                "detect_throughput": pipeline_result.get("metrics", {})
                 .get("detect", {})
                 .get("throughput", 0.0),
             },
@@ -222,16 +214,14 @@ def _record_sdk_pipeline(
                     else 0.0
                 ),
             ),
-            processing_mode=metadata_dict.get("processing_mode"),
         )
 
-        pipeline_config = sdk_result.get("pipeline_config", {})
+        pipeline_config = pipeline_result.get("pipeline_config", {})
         config = {
-            "embedding_mode": "sdk",
             "object_detection_enabled": enable_object_detection,
             "detection_confidence": detection_confidence,
-            "sdk_parallel_workers": pipeline_config.get("pipeline_count"),
-            "sdk_batch_size": pipeline_config.get("batch_size"),
+            "parallel_workers": pipeline_config.get("pipeline_count"),
+            "batch_size": pipeline_config.get("batch_size"),
         }
 
         context["completed_at"] = time.time()
@@ -243,145 +233,7 @@ def _record_sdk_pipeline(
         )
         _log_telemetry_record(record)
     except Exception as exc:
-        logger.warning("Unable to record SDK telemetry: %s", exc)
-
-
-def _record_api_pipeline(
-    *,
-    context: Dict[str, Any],
-    bucket_name: str,
-    video_id: str,
-    filename: str,
-    frame_interval: int,
-    tags: Optional[List[str]],
-    enable_object_detection: bool,
-    detection_confidence: float,
-    summary: Dict[str, Any],
-    extraction_time: float,
-    embedding_time: float,
-    storage_time: float,
-    total_time: float,
-    embeddings_count: int,
-) -> None:
-    try:
-        batches = [
-            {
-                "batch_index": 1,
-                "input_frames": summary.get("frames_extracted", 0),
-                "items_after_detection": summary.get("items_after_detection", 0),
-                "detection_time": summary.get("detection_seconds", 0.0),
-                "embedding_time": embedding_time,
-                "storage_time": storage_time,
-                "processing_time": extraction_time + embedding_time + storage_time,
-                "embeddings_count": embeddings_count,
-            }
-        ]
-
-        pipeline_stats = {
-            "frames_extracted": summary.get("frames_extracted", 0),
-            "items_after_detection": summary.get("items_after_detection", 0),
-            "embeddings_stored": embeddings_count,
-            "frame_extraction_seconds": summary.get("frame_extraction_seconds", extraction_time),
-            "detection_seconds": summary.get("detection_seconds", 0.0),
-            "embedding_seconds_total": embedding_time,
-            "storage_seconds_total": storage_time,
-            "total_wall_seconds": total_time,
-            "batches": batches,
-        }
-
-        video_metadata = _prepare_video_metadata_payload(
-            bucket_name=bucket_name,
-            video_id=video_id,
-            filename=filename,
-            frame_interval=frame_interval,
-            tags=tags,
-            video_url=summary.get("video_url"),
-            video_rel_url=summary.get("video_rel_url"),
-            fps=summary.get("fps"),
-            total_frames=summary.get("total_frames"),
-            video_duration_seconds=summary.get(
-                "video_duration_seconds",
-                summary.get("total_frames") / summary.get("fps") if summary.get("fps") else 0.0,
-            ),
-            processing_mode="api",
-        )
-
-        config = {
-            "embedding_mode": "api",
-            "object_detection_enabled": enable_object_detection,
-            "detection_confidence": detection_confidence,
-            "sdk_parallel_workers": None,
-            "sdk_batch_size": None,
-        }
-
-        context["completed_at"] = time.time()
-        record = record_video_telemetry(
-            context=context,
-            video_metadata=video_metadata,
-            pipeline_stats=pipeline_stats,
-            config=config,
-        )
-        _log_telemetry_record(record)
-    except Exception as exc:
-        logger.warning("Unable to record API telemetry: %s", exc)
-
-
-def _get_client_key(endpoint: str | None = None, use_case: str = "default") -> str:
-    """
-    Generate a unique key for caching embedding clients based on endpoint and use case.
-
-    Args:
-        endpoint: Multimodal embedding service endpoint URL
-        use_case: Type of processing ("video", "text", or "default")
-
-    Returns:
-        A unique string key for the embedding client cache
-    """
-    base_key = f"{settings.VDMS_VDB_HOST}:{settings.VDMS_VDB_PORT}:{settings.DB_COLLECTION}"
-
-    if endpoint:
-        # Include endpoint in cache key since different endpoints may have different configs
-        base_key += f":{endpoint}"
-
-    # Different use cases might need different client configurations
-    return f"{base_key}:{use_case}"
-
-
-def _get_cached_embedding_client(use_case: str = "default") -> SimpleEmbeddingClient:
-    """
-    Get or create a cached embedding client for the specified use case.
-
-    Args:
-        use_case: Type of processing ("video", "text", or "default")
-
-    Returns:
-        A SimpleEmbeddingClient instance
-    """
-    cache_key = _get_client_key(endpoint=settings.MULTIMODAL_EMBEDDING_ENDPOINT, use_case=use_case)
-
-    if cache_key not in _client_cache:
-        logger.info(f"Creating new embedding client for use case: {use_case}")
-
-        # Validate that model name is provided when using API mode
-        if not settings.MULTIMODAL_EMBEDDING_MODEL_NAME:
-            raise ValueError(
-                "MULTIMODAL_EMBEDDING_MODEL_NAME must be explicitly provided when using API embedding mode - no default model is allowed"
-            )
-
-        client = SimpleEmbeddingClient(
-            host=settings.VDMS_VDB_HOST,
-            port=settings.VDMS_VDB_PORT,
-            collection_name=settings.DB_COLLECTION,
-            embedding_dimensions=None,  # Auto-detect from multimodal API
-            multimodal_api_url=settings.MULTIMODAL_EMBEDDING_ENDPOINT,
-            model_name=settings.MULTIMODAL_EMBEDDING_MODEL_NAME,  # Must be explicitly set - no default
-        )
-        _client_cache[cache_key] = client
-        logger.debug(f"embedding client cached with key: {cache_key}")
-    else:
-        logger.debug(f"Using cached embedding client for: {cache_key}")
-
-    return _client_cache[cache_key]
+        logger.warning("Unable to record telemetry: %s", exc)
 
 
 async def generate_video_embedding(
@@ -397,11 +249,7 @@ async def generate_video_embedding(
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """
-    Video embedding generation with flag-based routing between API and SDK modes.
-
-    This function routes to either:
-    - API mode: Traditional HTTP API calls to multimodal embedding service
-    - SDK mode: Direct SDK calls for optimized performance
+    Generate video embeddings using the in-process embedding pipeline.
 
     Args:
         bucket_name: Bucket name where the video is stored
@@ -421,37 +269,19 @@ async def generate_video_embedding(
         telemetry_context = _ensure_telemetry_context(telemetry_context)
 
         logger.info(f"Starting video embedding for {video_id}/{filename}")
-        logger.info(f"Processing mode: {settings.EMBEDDING_PROCESSING_MODE}")
 
-        # Route based on processing mode flag
-        if settings.EMBEDDING_PROCESSING_MODE.lower() == "sdk":
-            logger.info("Using SDK mode for optimized performance")
-            return await _generate_video_embedding_sdk_mode(
-                bucket_name=bucket_name,
-                video_id=video_id,
-                filename=filename,
-                temp_video_path=temp_video_path,
-                metadata_temp_path=metadata_temp_path,
-                frame_interval=frame_interval,
-                enable_object_detection=enable_object_detection,
-                detection_confidence=detection_confidence,
-                tags=tags,
-                telemetry_context=telemetry_context,
-            )
-        else:
-            logger.info("Using API mode (traditional HTTP calls)")
-            return await _generate_video_embedding_api_mode(
-                bucket_name=bucket_name,
-                video_id=video_id,
-                filename=filename,
-                temp_video_path=temp_video_path,
-                metadata_temp_path=metadata_temp_path,
-                frame_interval=frame_interval,
-                enable_object_detection=enable_object_detection,
-                detection_confidence=detection_confidence,
-                tags=tags,
-                telemetry_context=telemetry_context,
-            )
+        return await _generate_video_embedding(
+            bucket_name=bucket_name,
+            video_id=video_id,
+            filename=filename,
+            temp_video_path=temp_video_path,
+            metadata_temp_path=metadata_temp_path,
+            frame_interval=frame_interval,
+            enable_object_detection=enable_object_detection,
+            detection_confidence=detection_confidence,
+            tags=tags,
+            telemetry_context=telemetry_context,
+        )
 
     except Exception as ex:
         logger.error(f"Error in video embedding generation: {ex}")
@@ -471,9 +301,9 @@ async def generate_video_embedding_from_content(
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """
-    Generate video embeddings directly from video content bytes (SDK mode only).
+    Generate video embeddings directly from video content bytes.
 
-    This function is optimized for SDK mode and processes video content directly
+    This function processes video content directly
     from memory without writing to disk first, providing maximum performance.
 
     Args:
@@ -494,7 +324,7 @@ async def generate_video_embedding_from_content(
         telemetry_context = _ensure_telemetry_context(telemetry_context)
 
         logger.info(
-            "Starting SDK video embedding from content for %s/%s",
+            "Starting video embedding from content for %s/%s",
             sanitize_for_log(video_id, max_length=128),
             sanitize_for_log(filename, max_length=256),
         )
@@ -503,23 +333,18 @@ async def generate_video_embedding_from_content(
             sanitize_for_log(len(video_content), max_length=32),
         )
 
-        if settings.EMBEDDING_PROCESSING_MODE.lower() != "sdk":
-            logger.warning("generate_video_embedding_from_content called but SDK mode not enabled")
-            logger.warning("This function is optimized for SDK mode only")
-
         # Create metadata for video (including video URLs for search-ms compatibility)
         video_rel_url = (
             f"/v1/dataprep/videos/download?video_id={video_id}&bucket_name={bucket_name}"
         )
         video_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}{video_rel_url}"
 
-        # Create metadata dictionary for SDK processing
+        # Create metadata dictionary for processing
         metadata_dict = {
             "bucket_name": bucket_name,
             "video_id": video_id,
             "filename": filename,
             "tags": tags or [],
-            "processing_mode": "sdk",
             "video_url": video_url,
             "video_rel_url": video_rel_url,
         }
@@ -535,8 +360,8 @@ async def generate_video_embedding_from_content(
             sanitize_for_log(video_rel_url, max_length=512),
         )
 
-        # Process video using SDK mode directly from memory
-        results = generate_video_embedding_sdk(
+        # Process video directly from memory
+        results = generate_video_embedding_pipeline(
             video_content=video_content,
             metadata_dict=metadata_dict,
             frame_interval=frame_interval,
@@ -551,7 +376,7 @@ async def generate_video_embedding_from_content(
             video_id = stream_result["video_metadata"]["_video_id"]
             filename = stream_result["video_metadata"]["_filename"]
 
-            _record_sdk_pipeline(
+            _record_pipeline(
                 context=telemetry_context,
                 bucket_name=bucket_name,
                 video_id=video_id,
@@ -561,11 +386,11 @@ async def generate_video_embedding_from_content(
                 enable_object_detection=enable_object_detection,
                 detection_confidence=detection_confidence,
                 metadata_dict=metadata_dict,
-                sdk_result=stream_result,
+                pipeline_result=stream_result,
             )
 
             logger.info(
-                f"SDK processing from content | Stream ID: {stream_id} completed. {sanitize_for_log(stream_result['total_frames_processed'], max_length=32)} frames processed",
+                f"Processing from content | Stream ID: {stream_id} completed. {sanitize_for_log(stream_result['total_frames_processed'], max_length=32)} frames processed",
             )
 
             stored_ids.extend(stream_result["stored_ids"])
@@ -573,7 +398,7 @@ async def generate_video_embedding_from_content(
         return stored_ids
 
     except Exception as ex:
-        logger.error(f"Error in SDK video embedding from content: {ex}")
+        logger.error(f"Error in video embedding from content: {ex}")
         raise
 
 
@@ -591,9 +416,9 @@ async def generate_video_embedding_from_uri(
     shutdown_event: Optional[threading.Event] = None,
 ) -> List[str]:
     """
-    Generate video embeddings directly from video URI (SDK mode only).
+    Generate video embeddings directly from video URI.
 
-    This function is optimized for SDK mode and processes video content directly
+    This function processes video content directly
     from the provided URI, allowing for maximum performance without intermediate storage.
 
     Args:
@@ -612,20 +437,19 @@ async def generate_video_embedding_from_uri(
 
     """
 
-    logger.info(f"Starting SDK video embedding from URI for {video_id}/{filename}")
+    logger.info(f"Starting video embedding from URI for {video_id}/{filename}")
     logger.info(f"Video URI: {video_uris}")
     logger.info("ID of shutdown_event in generate_video_embedding_from_uri: %s", id(shutdown_event))
 
     # Create metadata for video (including video URLs for search-ms compatibility)
 
-    generate_rtsp_video_embedding_sdk(
+    generate_rtsp_video_embedding_pipeline(
         video_uris=video_uris,
         metadata_dict={
             "bucket_name": "RTSP_BUCKET",
             "video_id": -1,
             "filename": "filename",
             "tags": tags or [],
-            "processing_mode": "sdk",
         },
         frame_interval=frame_interval,
         enable_object_detection=enable_object_detection,
@@ -634,7 +458,7 @@ async def generate_video_embedding_from_uri(
     )
 
 
-async def _generate_video_embedding_api_mode(
+async def _generate_video_embedding(
     bucket_name: str,
     video_id: str,
     filename: str,
@@ -647,111 +471,12 @@ async def _generate_video_embedding_api_mode(
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """
-    Original API-based video embedding generation (for comparison).
+    Video embedding generation from a temp file (optimized approach).
 
-    This function preserves the original HTTP API-based approach for
-    performance comparison with the new SDK approach.
-    """
-    logger.info("Processing video using API mode (HTTP calls)")
-
-    total_start = time.time()
-
-    extraction_start = time.time()
-    metadata_file_path, metadata_summary = store_enhanced_video_metadata(
-        bucket_name=bucket_name,
-        video_id=video_id,
-        video_filename=filename,
-        temp_video_path=temp_video_path,
-        metadata_temp_path=str(metadata_temp_path),
-        frame_interval=frame_interval,
-        enable_object_detection=enable_object_detection,
-        detection_confidence=detection_confidence,
-        tags=tags or [],
-    )
-    extraction_time = time.time() - extraction_start
-    logger.info(
-        "Video metadata created at %s", sanitize_for_log(metadata_file_path, max_length=512)
-    )
-
-    # Rebuild metadata path from trusted temp root instead of carrying tainted dataflow
-    trusted_metadata_file_path = pathlib.Path(metadata_temp_path) / settings.METADATA_FILENAME
-
-    client_setup_start = time.time()
-    embedding_client = _get_cached_embedding_client(use_case="video")
-    client_setup_time = time.time() - client_setup_start
-    logger.debug("Embedding client ready in %.3fs", client_setup_time)
-
-    storage_start = time.time()
-    storage_result = embedding_client.store_embeddings_from_manifest(trusted_metadata_file_path)
-    embedding_storage_time = time.time() - storage_start
-
-    ids = storage_result.get("ids", [])
-    post_detection_items = storage_result.get("post_detection_items", len(ids))
-    extracted_frames = storage_result.get("extracted_frames", post_detection_items)
-    embedding_time = storage_result.get("embedding_time", embedding_storage_time)
-    storage_time = storage_result.get("storage_time", 0.0)
-
-    total_time = time.time() - total_start
-
-    logger.info(
-        "Frame flow summary: extracted=%d -> after_detection=%d -> stored=%d",
-        extracted_frames,
-        post_detection_items,
-        len(ids),
-    )
-
-    detection_time = float(metadata_summary.get("detection_seconds", 0.0))
-    if enable_object_detection:
-        logger.debug("Object detection time accounted from metadata extraction metrics")
-
-    logger.info(
-        "Stage timing summary (s): extraction=%.3f | detection=%.3f | embedding=%.3f | storage=%.3f | total=%.3f",
-        extraction_time,
-        detection_time,
-        embedding_time,
-        storage_time,
-        total_time,
-    )
-
-    _record_api_pipeline(
-        context=telemetry_context or {},
-        bucket_name=bucket_name,
-        video_id=video_id,
-        filename=filename,
-        frame_interval=frame_interval,
-        tags=tags,
-        enable_object_detection=enable_object_detection,
-        detection_confidence=detection_confidence,
-        summary=metadata_summary,
-        extraction_time=extraction_time,
-        embedding_time=embedding_time,
-        storage_time=storage_time,
-        total_time=total_time,
-        embeddings_count=len(ids),
-    )
-
-    return ids
-
-
-async def _generate_video_embedding_sdk_mode(
-    bucket_name: str,
-    video_id: str,
-    filename: str,
-    temp_video_path: pathlib.Path,
-    metadata_temp_path: pathlib.Path,
-    frame_interval: int = 15,
-    enable_object_detection: bool = True,
-    detection_confidence: float = 0.85,
-    tags: List[str] = None,
-    telemetry_context: Optional[Dict[str, Any]] = None,
-) -> List[str]:
-    """
-    SDK-based video embedding generation (optimized approach).
-
-    This function uses the SDK approach but still reads from the temp file.
+    This function reads from the temp file.
     For maximum optimization, use generate_video_embedding_from_content().
     """
-    logger.info("Processing video using SDK mode (direct calls)")
+    logger.info("Processing video (direct calls)")
 
     # Read video content from temp file
     with open(temp_video_path, "rb") as f:
@@ -770,19 +495,18 @@ async def _generate_video_embedding_sdk_mode(
         "video_id": video_id,
         "filename": filename,
         "tags": tags or [],
-        "processing_mode": "sdk",
         "video_url": video_url,
         "video_rel_url": video_rel_url,
     }
 
     # DEBUG: Print metadata dictionary to verify video URLs are created
     logger.info(
-        "DEBUG: metadata_dict created in _generate_video_embedding_sdk_mode: %s",
+        "DEBUG: metadata_dict created in _generate_video_embedding: %s",
         sanitize_for_log(metadata_dict, max_length=1024),
     )
 
-    # Process video using SDK mode
-    results = generate_video_embedding_sdk(
+    # Process video
+    results = generate_video_embedding_pipeline(
         video_content=video_content,
         metadata_dict=metadata_dict,
         frame_interval=frame_interval,
@@ -797,7 +521,7 @@ async def _generate_video_embedding_sdk_mode(
         video_id = stream_result["video_metadata"]["_video_id"]
         filename = stream_result["video_metadata"]["_filename"]
 
-        _record_sdk_pipeline(
+        _record_pipeline(
             context=telemetry_context or {},
             bucket_name=bucket_name,
             video_id=video_id,
@@ -807,11 +531,11 @@ async def _generate_video_embedding_sdk_mode(
             enable_object_detection=enable_object_detection,
             detection_confidence=detection_confidence,
             metadata_dict=metadata_dict,
-            sdk_result=stream_result,
+            pipeline_result=stream_result,
         )
 
         logger.info(
-            f"SDK Mode processing | Stream ID: {stream_id} completed. {sanitize_for_log(stream_result['total_frames_processed'], max_length=32)} frames processed",
+            f"Processing | Stream ID: {stream_id} completed. {sanitize_for_log(stream_result['total_frames_processed'], max_length=32)} frames processed",
         )
 
         stored_ids.extend(stream_result["stored_ids"])
@@ -826,7 +550,7 @@ async def generate_text_embedding(
     qwen_threshold: int = 500,
 ) -> List[str]:
     """
-    Generate and persist text embeddings using either SDK or API mode.
+    Generate and persist text embeddings using the in-process embedding pipeline.
 
     Args:
         text: The text content to embed
@@ -840,34 +564,22 @@ async def generate_text_embedding(
     try:
         text_length = len(text)
         use_qwen_hint = use_qwen_for_long_text and text_length >= qwen_threshold
-        processing_mode = (settings.EMBEDDING_PROCESSING_MODE or "sdk").lower()
-        use_sdk_mode = processing_mode == "sdk"
         model_name = (settings.MULTIMODAL_EMBEDDING_MODEL_NAME or "").strip() or "<unspecified>"
 
         logger.info(
-            f"Processing text embedding (length: {text_length}, use_qwen_hint={use_qwen_hint}, mode: {processing_mode}, model: {model_name})"
+            f"Processing text embedding (length: {text_length}, use_qwen_hint={use_qwen_hint}, model: {model_name})"
         )
 
-        if use_sdk_mode:
-            sdk_client = get_sdk_client()
-            if not sdk_client.supports_text:
-                raise ValueError(
-                    f"Configured SDK model '{model_name}' does not support text embeddings (processing mode: '{processing_mode}'). "
-                    "Please verify your EMBEDDING_MODEL_NAME setting and ensure the selected model supports text embedding."
-                )
-
-            ids = sdk_client.store_text_embedding(text=text, metadata=text_metadata)
-            logger.info(
-                "Stored text embedding via SDK client, ID: %s",
-                ids[0] if ids else "<none>",
+        embedding_client = get_embedding_client()
+        if not embedding_client.supports_text:
+            raise ValueError(
+                f"Configured model '{model_name}' does not support text embeddings. "
+                "Please verify your EMBEDDING_MODEL_NAME setting and ensure the selected model supports text embedding."
             )
-            return ids
 
-        logger.info("Using multimodal embedding API for text")
-        embedding_client = _get_cached_embedding_client(use_case="text")
-        ids = embedding_client.store_text_embedding(text, metadata=text_metadata)
+        ids = embedding_client.store_text_embedding(text=text, metadata=text_metadata)
         logger.info(
-            "Stored text embedding via multimodal API, ID: %s",
+            "Stored text embedding, ID: %s",
             ids[0] if ids else "<none>",
         )
         return ids

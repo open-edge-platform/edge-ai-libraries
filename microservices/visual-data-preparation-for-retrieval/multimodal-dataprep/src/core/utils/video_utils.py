@@ -5,7 +5,7 @@
 Video Utilities Module
 
 This module provides video processing utilities for the VDMS microservice.
-Supports both SDK mode (direct integration) and API mode (HTTP-based) processing.
+Supports in-process embedding generation.
 
 Functions:
 - get_video_from_minio(): Download video from MinIO storage
@@ -291,7 +291,7 @@ def process_video_with_frame_extraction(
 
                             logger.debug(f"Frame {frame_idx}: {len(crops)} objects detected")
 
-                            # Always add the full frame first (matching SDK mode behavior)
+                            # Always add the full frame first
                             full_frame_info = FrameInfo(
                                 frame_number=frame_idx,
                                 timestamp=timestamp,

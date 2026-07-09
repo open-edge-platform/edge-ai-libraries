@@ -9,7 +9,8 @@ paths:
       tags:
       - Status APIs
       summary: Check service health
-      description: Health API endpoint to check whether API Server is reachable and responding.
+      description: Health API endpoint to check whether API Server is reachable and
+        responding.
       operationId: getServiceHealth
       responses:
         '200':
@@ -22,19 +23,26 @@ paths:
     post:
       tags:
       - Document Processing APIs
-      summary: Process summary text with video timestamp references for embedding generation.
-      description: "### Process summary text for a video with video timestamp references for embedding generation.\n\nThis\
-        \ endpoint takes a summary text and video timestamp references, validates that the video exists,\nand stores the text\
-        \ embedding in the VDMS vector database with the associated video metadata.\n\n#### Body Params:\n   - **bucket_name\
-        \ (str) :** The bucket name where the referenced video is stored\n   - **video_id (str) :** The video ID (directory)\
-        \ containing the referenced video\n   - **video_summary (str) :** The text summary for the video to be embedded\n\
-        \   - **video_start_time (float) :** The start timestamp in seconds for the video or video chunk\n   - **video_end_time\
-        \ (float) :** The end timestamp in seconds for the video or video chunk\n   - **tags (list(str), optional) :** A list\
-        \ of tags to be associated with the video. Useful for filtering the search.\n   \n#### Raises:\n- **400 Bad Request\
-        \ :** If required parameters are missing or invalid.\n- **404 Not Found :** If the specified video cannot be found\
-        \ in Minio.\n- **502 Bad Gateway :** When something unpleasant happens at Minio storage.\n- **500 Internal Server\
-        \ Error :** When some internal error occurs at DataPrep API server.\n\nReturns:\n- **response (json) :** A response\
-        \ JSON containing status and message."
+      summary: Process summary text with video timestamp references for embedding
+        generation.
+      description: "### Process summary text for a video with video timestamp references\
+        \ for embedding generation.\n\nThis endpoint takes a summary text and video\
+        \ timestamp references, validates that the video exists,\nand stores the text\
+        \ embedding in the VDMS vector database with the associated video metadata.\n\
+        \n#### Body Params:\n   - **bucket_name (str) :** The bucket name where the\
+        \ referenced video is stored\n   - **video_id (str) :** The video ID (directory)\
+        \ containing the referenced video\n   - **video_summary (str) :** The text\
+        \ summary for the video to be embedded\n   - **video_start_time (float) :**\
+        \ The start timestamp in seconds for the video or video chunk\n   - **video_end_time\
+        \ (float) :** The end timestamp in seconds for the video or video chunk\n\
+        \   - **tags (list(str), optional) :** A list of tags to be associated with\
+        \ the video. Useful for filtering the search.\n   \n#### Raises:\n- **400\
+        \ Bad Request :** If required parameters are missing or invalid.\n- **404\
+        \ Not Found :** If the specified video cannot be found in Minio.\n- **502\
+        \ Bad Gateway :** When something unpleasant happens at Minio storage.\n- **500\
+        \ Internal Server Error :** When some internal error occurs at DataPrep API\
+        \ server.\n\nReturns:\n- **response (json) :** A response JSON containing\
+        \ status and message."
       operationId: createVideoSummaryEmbedding
       requestBody:
         content:
@@ -61,25 +69,34 @@ paths:
       tags:
       - Video Processing APIs
       summary: Process video from Minio storage for embedding generation.
-      description: "### Processes videos stored in Minio using frame-based processing with optional object detection.\n\n\
-        Video is processed by extracting individual frames at regular intervals (every Nth frame).\nEach frame generates its\
-        \ own embedding. When object detection is enabled, detected objects\nare cropped and embedded as separate entities,\
-        \ providing enhanced semantic coverage.\n\n***For example:** Given a video of 30s at 30fps (900 frames total), with\
-        \ frame_interval = 15,\n60 frames will be extracted and embedded (every 15th frame). If object detection is enabled\n\
-        and 3 objects are detected per frame on average, this results in approximately 240 embeddings\n(60 frames + 180 object\
-        \ crops).**\n\n#### Body Params:\n- **video_request (VideoRequest) :** Contains processing parameters:\n   - **bucket_name\
-        \ (str) :** The bucket name where the video is stored (If not provided, a default bucket name will be used based on\
-        \ application config.)\n   - **video_id (str) :** The video ID (directory) containing the video (required)\n   - **video_name\
-        \ (str, optional) :** The video filename within the video_id directory (if omitted, the first MP4 video found in the\
-        \ directory will be used automatically)\n   - **frame_interval (int) :** Extract every Nth frame for processing (default:\
-        \ 15, range: 1-60)\n   - **enable_object_detection (bool) :** Enable object detection and crop extraction (default:\
-        \ True)\n   - **detection_confidence (float) :** Confidence threshold for object detection (default: 0.85, range:\
-        \ 0.1-1.0)\n   - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering\
-        \ the search.\n\n#### Raises:\n- **400 Bad Request :** If required parameters are missing or invalid.\n- **404 Not\
-        \ Found :** If the specified video cannot be found in Minio or no videos exist in the specified directory.\n- **502\
-        \ Bad Gateway :** When something unpleasant happens at Minio storage.\n- **500 Internal Server Error :** When some\
-        \ internal error occurs at DataPrep API server.\n\nReturns:\n- **response (json) :** A response JSON containing status\
-        \ and message."
+      description: "### Processes videos stored in Minio using frame-based processing\
+        \ with optional object detection.\n\nVideo is processed by extracting individual\
+        \ frames at regular intervals (every Nth frame).\nEach frame generates its\
+        \ own embedding. When object detection is enabled, detected objects\nare cropped\
+        \ and embedded as separate entities, providing enhanced semantic coverage.\n\
+        \n***For example:** Given a video of 30s at 30fps (900 frames total), with\
+        \ frame_interval = 15,\n60 frames will be extracted and embedded (every 15th\
+        \ frame). If object detection is enabled\nand 3 objects are detected per frame\
+        \ on average, this results in approximately 240 embeddings\n(60 frames + 180\
+        \ object crops).**\n\n#### Body Params:\n- **video_request (VideoRequest)\
+        \ :** Contains processing parameters:\n   - **bucket_name (str) :** The bucket\
+        \ name where the video is stored (If not provided, a default bucket name will\
+        \ be used based on application config.)\n   - **video_id (str) :** The video\
+        \ ID (directory) containing the video (required)\n   - **video_name (str,\
+        \ optional) :** The video filename within the video_id directory (if omitted,\
+        \ the first MP4 video found in the directory will be used automatically)\n\
+        \   - **frame_interval (int) :** Extract every Nth frame for processing (default:\
+        \ 15, range: 1-60)\n   - **enable_object_detection (bool) :** Enable object\
+        \ detection and crop extraction (default: True)\n   - **detection_confidence\
+        \ (float) :** Confidence threshold for object detection (default: 0.85, range:\
+        \ 0.1-1.0)\n   - **tags (list(str), optional) :** A list of tags to be associated\
+        \ with the video. Useful for filtering the search.\n\n#### Raises:\n- **400\
+        \ Bad Request :** If required parameters are missing or invalid.\n- **404\
+        \ Not Found :** If the specified video cannot be found in Minio or no videos\
+        \ exist in the specified directory.\n- **502 Bad Gateway :** When something\
+        \ unpleasant happens at Minio storage.\n- **500 Internal Server Error :**\
+        \ When some internal error occurs at DataPrep API server.\n\nReturns:\n- **response\
+        \ (json) :** A response JSON containing status and message."
       operationId: processVideoFromMinio
       requestBody:
         content:
@@ -106,58 +123,73 @@ paths:
       tags:
       - Video Processing APIs
       summary: Upload and process a video file for embedding generation.
-      description: '### Upload and process a video file for frame-based embedding generation.
+      description: '### Upload and process a video file for frame-based embedding
+        generation.
 
 
-        This endpoint accepts an MP4 video file upload, stores it in Minio, and generates embeddings
+        This endpoint accepts an MP4 video file upload, stores it in Minio, and generates
+        embeddings
 
         using frame-based processing with optional object detection.
 
 
-        Video is processed by extracting individual frames at regular intervals (every Nth frame).
+        Video is processed by extracting individual frames at regular intervals (every
+        Nth frame).
 
-        Each frame generates its own embedding. When object detection is enabled, detected objects
+        Each frame generates its own embedding. When object detection is enabled,
+        detected objects
 
-        are cropped and embedded as separate entities, providing enhanced semantic coverage.
+        are cropped and embedded as separate entities, providing enhanced semantic
+        coverage.
 
 
-        ***For example:** Given a video of 30s at 30fps (900 frames total), with frame_interval = 15,
+        ***For example:** Given a video of 30s at 30fps (900 frames total), with frame_interval
+        = 15,
 
-        60 frames will be extracted and embedded (every 15th frame). If object detection is enabled
+        60 frames will be extracted and embedded (every 15th frame). If object detection
+        is enabled
 
-        and suppose 3 objects are detected per frame on average, this results in approximately 240 embeddings
+        and suppose 3 objects are detected per frame on average, this results in approximately
+        240 embeddings
 
         (60 frames + 180 object crops).**
 
 
         #### File Upload:
 
-        - **file (UploadFile, required) :** Video file to upload (MP4 format only, max size 500MB)
+        - **file (UploadFile, required) :** Video file to upload (MP4 format only,
+        max size 500MB)
 
 
         #### Query Params:
 
-        - **bucket_name (str, optional) :** The bucket name to store the video in. If not provided, default bucket will be
-        used.
+        - **bucket_name (str, optional) :** The bucket name to store the video in.
+        If not provided, default bucket will be used.
 
-        - **frame_interval (int, optional) :** Extract every Nth frame for processing (default: 15, range: 1-60)
+        - **frame_interval (int, optional) :** Extract every Nth frame for processing
+        (default: 15, range: 1-60)
 
-        - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (default: True)
+        - **enable_object_detection (bool, optional) :** Enable object detection and
+        crop extraction (default: True)
 
-        - **detection_confidence (float, optional) :** Confidence threshold for object detection (default: 0.85, range: 0.1-1.0)
+        - **detection_confidence (float, optional) :** Confidence threshold for object
+        detection (default: 0.85, range: 0.1-1.0)
 
-        - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
+        - **tags (list(str), optional) :** A list of tags to be associated with the
+        video. Useful for filtering the search.
 
 
         #### Raises:
 
         - **400 Bad Request :** If the video file is not an MP4 or fails validation.
 
-        - **413 Request Entity Too Large :** If the uploaded file exceeds the 500MB limit.
+        - **413 Request Entity Too Large :** If the uploaded file exceeds the 500MB
+        limit.
 
         - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
 
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
+        - **500 Internal Server Error :** When some internal error occurs at DataPrep
+        API server.
 
 
         Returns:
@@ -172,9 +204,11 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: The bucket name to store the video in. If not provided, default bucket will be used.
+          description: The bucket name to store the video in. If not provided, default
+            bucket will be used.
           title: Bucket Name
-        description: The bucket name to store the video in. If not provided, default bucket will be used.
+        description: The bucket name to store the video in. If not provided, default
+          bucket will be used.
       - name: frame_interval
         in: query
         required: false
@@ -218,9 +252,11 @@ paths:
             items:
               type: string
           - type: 'null'
-          description: List of tags to be associated with the video. Useful for filtering the search.
+          description: List of tags to be associated with the video. Useful for filtering
+            the search.
           title: Tags
-        description: List of tags to be associated with the video. Useful for filtering the search.
+        description: List of tags to be associated with the video. Useful for filtering
+          the search.
       requestBody:
         required: true
         content:
@@ -248,41 +284,50 @@ paths:
       description: '### Process RTSP stream URLs for frame-based embedding generation.
 
 
-        This endpoint accepts a list of RTSP stream URLs, validates them, and generates embeddings
+        This endpoint accepts a list of RTSP stream URLs, validates them, and generates
+        embeddings
 
         using frame-based processing with optional object detection.
 
 
-        Each RTSP stream is processed by extracting individual frames at regular intervals (every Nth frame).
+        Each RTSP stream is processed by extracting individual frames at regular intervals
+        (every Nth frame).
 
-        Each frame generates its own embedding. When object detection is enabled and suppose 3 objects are detected per frame
-        on average, this results in approximately 240 embeddings
+        Each frame generates its own embedding. When object detection is enabled and
+        suppose 3 objects are detected per frame on average, this results in approximately
+        240 embeddings
 
-        (60 frames + 180 object crops) per video. The generated embeddings are stored in the vector database with associated
-        metadata and tags.
+        (60 frames + 180 object crops) per video. The generated embeddings are stored
+        in the vector database with associated metadata and tags.
 
 
         #### Query Params:
 
-        - **rtsp_urls (list(str), required) :** List of RTSP stream URLs to process. Each URL will be validated and processed
-        for embedding generation.
+        - **rtsp_urls (list(str), required) :** List of RTSP stream URLs to process.
+        Each URL will be validated and processed for embedding generation.
 
-        - **frame_interval (int, optional) :** Extract every Nth frame for processing (default: 15, range: 1-60)
+        - **frame_interval (int, optional) :** Extract every Nth frame for processing
+        (default: 15, range: 1-60)
 
-        - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (default: True)
+        - **enable_object_detection (bool, optional) :** Enable object detection and
+        crop extraction (default: True)
 
-        - **detection_confidence (float, optional) :** Confidence threshold for object detection (default: 0.85, range: 0.1-1.0)
+        - **detection_confidence (float, optional) :** Confidence threshold for object
+        detection (default: 0.85, range: 0.1-1.0)
 
-        - **tags (list(str), optional) :** A list of tags to be associated with the videos. Useful for filtering the search.
+        - **tags (list(str), optional) :** A list of tags to be associated with the
+        videos. Useful for filtering the search.
 
 
         #### Raises:
 
         - **400 Bad Request :** If any of the RTSP URLs are invalid or fail validation.
 
-        - **502 Bad Gateway :** When something unpleasant happens at Minio storage or during stream access.
+        - **502 Bad Gateway :** When something unpleasant happens at Minio storage
+        or during stream access.
 
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
+        - **500 Internal Server Error :** When some internal error occurs at DataPrep
+        API server.
 
 
         Returns:
@@ -297,9 +342,11 @@ paths:
           type: array
           items:
             type: string
-          description: List of RTSP stream URLs to process. Each URL will be validated and processed for embedding generation.
+          description: List of RTSP stream URLs to process. Each URL will be validated
+            and processed for embedding generation.
           title: Rtsp Urls
-        description: List of RTSP stream URLs to process. Each URL will be validated and processed for embedding generation.
+        description: List of RTSP stream URLs to process. Each URL will be validated
+          and processed for embedding generation.
       - name: frame_interval
         in: query
         required: false
@@ -343,9 +390,11 @@ paths:
             items:
               type: string
           - type: 'null'
-          description: List of tags to be associated with the videos. Useful for filtering the search.
+          description: List of tags to be associated with the videos. Useful for filtering
+            the search.
           title: Tags
-        description: List of tags to be associated with the videos. Useful for filtering the search.
+        description: List of tags to be associated with the videos. Useful for filtering
+          the search.
       responses:
         '200':
           description: Successful Response
@@ -399,25 +448,28 @@ paths:
       description: '### Get list of videos from Minio storage.
 
 
-        This endpoint retrieves a list of all videos stored in Minio and returns their information.
+        This endpoint retrieves a list of all videos stored in Minio and returns their
+        information.
 
 
         #### Query Params:
 
-        - **bucket_name (str, optional) :** The bucket name where videos are stored. If not provided, default bucket will
-        be used.
+        - **bucket_name (str, optional) :** The bucket name where videos are stored.
+        If not provided, default bucket will be used.
 
 
         #### Raises:
 
         - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
 
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
+        - **500 Internal Server Error :** When some internal error occurs at DataPrep
+        API server.
 
 
         Returns:
 
-        - **response (json) :** A response JSON containing list of videos with their information.'
+        - **response (json) :** A response JSON containing list of videos with their
+        information.'
       operationId: listVideos
       parameters:
       - name: bucket_name
@@ -427,9 +479,11 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: The bucket name where videos are stored. If not provided, default bucket will be used.
+          description: The bucket name where videos are stored. If not provided, default
+            bucket will be used.
           title: Bucket Name
-        description: The bucket name where videos are stored. If not provided, default bucket will be used.
+        description: The bucket name where videos are stored. If not provided, default
+          bucket will be used.
       responses:
         '200':
           description: Successful Response
@@ -456,26 +510,30 @@ paths:
 
         #### Query Params:
 
-        - **video_id (str, required) :** The video ID (directory) containing the video to download
+        - **video_id (str, required) :** The video ID (directory) containing the video
+        to download
 
-        - **bucket_name (str, optional) :** The bucket name where the video is stored. If not provided, default bucket will
-        be used.
+        - **bucket_name (str, optional) :** The bucket name where the video is stored.
+        If not provided, default bucket will be used.
 
-        - **video_name (str, optional) :** The video filename to download. If not provided, the first video in the directory
-        will be used.
+        - **video_name (str, optional) :** The video filename to download. If not
+        provided, the first video in the directory will be used.
 
-        - **download (bool, optional) :** Set to true to download the file instead of streaming it
+        - **download (bool, optional) :** Set to true to download the file instead
+        of streaming it
 
 
         #### Raises:
 
         - **400 Bad Request :** If required parameters are missing or invalid.
 
-        - **404 Not Found :** If the specified video cannot be found in Minio or no videos exist in the specified directory.
+        - **404 Not Found :** If the specified video cannot be found in Minio or no
+        videos exist in the specified directory.
 
         - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
 
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
+        - **500 Internal Server Error :** When some internal error occurs at DataPrep
+        API server.
 
 
         Returns:
@@ -498,9 +556,11 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: The bucket name where the video is stored. If not provided, default bucket will be used.
+          description: The bucket name where the video is stored. If not provided,
+            default bucket will be used.
           title: Bucket Name
-        description: The bucket name where the video is stored. If not provided, default bucket will be used.
+        description: The bucket name where the video is stored. If not provided, default
+          bucket will be used.
       - name: video_name
         in: query
         required: false
@@ -508,9 +568,11 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: The video filename to download. If not provided, the first video in the directory will be used.
+          description: The video filename to download. If not provided, the first
+            video in the directory will be used.
           title: Video Name
-        description: The video filename to download. If not provided, the first video in the directory will be used.
+        description: The video filename to download. If not provided, the first video
+          in the directory will be used.
       - name: download
         in: query
         required: false
@@ -549,24 +611,27 @@ paths:
 
         - **bucket_name (str, required) :** The bucket name where the video is stored
 
-        - **video_id (str, required) :** The video ID (directory) containing the video to delete
+        - **video_id (str, required) :** The video ID (directory) containing the video
+        to delete
 
 
         #### Query Params:
 
-        - **video_name (str, optional) :** The video filename to delete. If not provided, all videos in the directory will
-        be deleted.
+        - **video_name (str, optional) :** The video filename to delete. If not provided,
+        all videos in the directory will be deleted.
 
 
         #### Raises:
 
         - **400 Bad Request :** If required parameters are missing or invalid.
 
-        - **404 Not Found :** If the specified video cannot be found in Minio or no videos exist in the specified directory.
+        - **404 Not Found :** If the specified video cannot be found in Minio or no
+        videos exist in the specified directory.
 
         - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
 
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
+        - **500 Internal Server Error :** When some internal error occurs at DataPrep
+        API server.
 
 
         Returns:
@@ -597,9 +662,11 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: The video filename to delete. If not provided, all videos in the directory will be deleted.
+          description: The video filename to delete. If not provided, all videos in
+            the directory will be deleted.
           title: Video Name
-        description: The video filename to delete. If not provided, all videos in the directory will be deleted.
+        description: The video filename to delete. If not provided, all videos in
+          the directory will be deleted.
       responses:
         '200':
           description: Successful Response
@@ -677,14 +744,11 @@ components:
         status:
           type: string
           title: Status
-        embedding_mode:
-          type: string
-          title: Embedding Mode
-        sdk_client_status:
+        embedding_client_status:
           anyOf:
           - type: string
           - type: 'null'
-          title: Sdk Client Status
+          title: Embedding Client Status
         model_name:
           anyOf:
           - type: string
@@ -695,16 +759,16 @@ components:
           - type: string
           - type: 'null'
           title: Embedding Device
-        sdk_use_openvino:
+        use_openvino:
           anyOf:
           - type: boolean
           - type: 'null'
-          title: Sdk Use Openvino
-        sdk_client_error:
+          title: Use Openvino
+        embedding_client_error:
           anyOf:
           - type: string
           - type: 'null'
-          title: Sdk Client Error
+          title: Embedding Client Error
         detection_model:
           anyOf:
           - type: string
@@ -718,7 +782,6 @@ components:
       type: object
       required:
       - status
-      - embedding_mode
       title: HealthResponse
       description: Response model for service health checks.
     StatusEnum:
@@ -782,7 +845,7 @@ components:
       - total_seconds
       - embeddings_stored
       title: TelemetryBatchDetail
-      description: Timing details for a single batch in SDK mode.
+      description: Timing details for a single batch.
     TelemetryCounts:
       properties:
         stream_id:
@@ -811,9 +874,6 @@ components:
       description: Aggregate frame and embedding counts.
     TelemetryProcessingConfig:
       properties:
-        embedding_mode:
-          type: string
-          title: Embedding Mode
         object_detection_enabled:
           type: boolean
           title: Object Detection Enabled
@@ -822,19 +882,18 @@ components:
           - type: number
           - type: 'null'
           title: Detection Confidence
-        sdk_parallel_workers:
+        parallel_workers:
           anyOf:
           - type: integer
           - type: 'null'
-          title: Sdk Parallel Workers
-        sdk_batch_size:
+          title: Parallel Workers
+        batch_size:
           anyOf:
           - type: integer
           - type: 'null'
-          title: Sdk Batch Size
+          title: Batch Size
       type: object
       required:
-      - embedding_mode
       - object_detection_enabled
       title: TelemetryProcessingConfig
       description: Processing configuration persisted with telemetry.
@@ -846,9 +905,6 @@ components:
         source:
           type: string
           title: Source
-        processing_mode:
-          type: string
-          title: Processing Mode
         timestamps:
           $ref: '#/components/schemas/TelemetryTimestamps'
         video:
@@ -878,7 +934,6 @@ components:
       required:
       - request_id
       - source
-      - processing_mode
       - timestamps
       - video
       - config
@@ -966,11 +1021,6 @@ components:
           - type: string
           - type: 'null'
           title: Video Rel Url
-        processing_mode:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Processing Mode
       type: object
       required:
       - bucket_name
@@ -1046,7 +1096,8 @@ components:
           - type: string
           - type: 'null'
           title: Video Name
-          description: The video filename within the video_id directory (if omitted, first video found is used)
+          description: The video filename within the video_id directory (if omitted,
+            first video found is used)
         frame_interval:
           anyOf:
           - type: integer
@@ -1079,7 +1130,8 @@ components:
             type: array
           - type: 'null'
           title: Tags
-          description: List of tags to be associated with the video. Useful for filtering the search.
+          description: List of tags to be associated with the video. Useful for filtering
+            the search.
       type: object
       title: VideoRequest
       description: Request model for video processing from Minio storage
@@ -1112,7 +1164,8 @@ components:
             type: array
           - type: 'null'
           title: Tags
-          description: List of tags to be associated with the video. Useful for filtering the search.
+          description: List of tags to be associated with the video. Useful for filtering
+            the search.
       type: object
       required:
       - bucket_name
@@ -1121,4 +1174,5 @@ components:
       - video_start_time
       - video_end_time
       title: VideoSummaryRequest
-      description: Request model for text summary processing with video timestamp references
+      description: Request model for text summary processing with video timestamp
+        references

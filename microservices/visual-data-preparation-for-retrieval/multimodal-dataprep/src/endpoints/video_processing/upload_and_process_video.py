@@ -16,7 +16,7 @@ from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 
 from src.common import DataPrepException, Strings, logger, sanitize_for_log, settings
 from src.common.schema import DataPrepResponse
-from src.core.embedding import generate_video_embedding, generate_video_embedding_from_content, generate_video_embedding_from_uri
+from src.core.embedding import generate_video_embedding_from_content, generate_video_embedding_from_uri
 from src.core.utils.common_utils import get_minio_client
 from src.core.utils.config_utils import read_config
 from src.core.validation import validate_params
@@ -97,7 +97,6 @@ async def upload_and_process_video(
 
     videos_temp_dir: Optional[pathlib.Path] = None
     metadata_temp_dir: Optional[pathlib.Path] = None
-    temp_video_path: Optional[pathlib.Path] = None
 
     try:
         config = read_config(settings.CONFIG_FILEPATH, type="yaml")
@@ -160,55 +159,28 @@ async def upload_and_process_video(
             "requested_at": time.time(),
         }
 
-        # Choose processing approach based on embedding mode
-        if settings.EMBEDDING_PROCESSING_MODE.lower() == "sdk":
-            logger.info("Using SDK mode: processing video directly from memory for optimal performance")
-            
-            # SDK mode: Process video content directly from memory (most efficient)
-            ids = await generate_video_embedding_from_content(
-                video_content=content,  # Use in-memory content directly
-                bucket_name=bucket_name,
-                video_id=video_id,
-                filename=filename,
-                metadata_temp_path=metadata_temp_dir,
-                frame_interval=frame_interval,
-                enable_object_detection=enable_object_detection,
-                detection_confidence=detection_confidence,
-                tags=tags or [],
-                telemetry_context=telemetry_context,
-            )
-            logger.info(f"SDK mode: {len(ids)} embeddings created with optimized memory usage")
-        else:
-            logger.info("Using API mode: traditional file-based processing")
-            
-            # Now save the uploaded file to a temporary location for processing
-            temp_video_path = videos_temp_dir / filename
-            with open(temp_video_path, "wb") as f:
-                f.write(content)
-            logger.debug(f"Successfully saved uploaded file {filename} to {temp_video_path}")
-            
-            # API mode: Use traditional file-based processing  
-            ids = await generate_video_embedding(
-                bucket_name=bucket_name,
-                video_id=video_id,
-                filename=filename,
-                temp_video_path=temp_video_path,
-                metadata_temp_path=metadata_temp_dir,
-                frame_interval=frame_interval,
-                enable_object_detection=enable_object_detection,
-                detection_confidence=detection_confidence,
-                tags=tags or [],
-                telemetry_context=telemetry_context,
-            )
-            logger.info(f"API mode: {len(ids)} embeddings created using HTTP calls")
+        # Process video content directly from memory (most efficient)
+        logger.info("Processing video directly from memory for optimal performance")
+        ids = await generate_video_embedding_from_content(
+            video_content=content,  # Use in-memory content directly
+            bucket_name=bucket_name,
+            video_id=video_id,
+            filename=filename,
+            metadata_temp_path=metadata_temp_dir,
+            frame_interval=frame_interval,
+            enable_object_detection=enable_object_detection,
+            detection_confidence=detection_confidence,
+            tags=tags or [],
+            telemetry_context=telemetry_context,
+        )
+        logger.info(f"{len(ids)} embeddings created with optimized memory usage")
 
         logger.info(
-            "Frame-based embeddings created for video using %s mode: %s",
-            sanitize_for_log(settings.EMBEDDING_PROCESSING_MODE, max_length=64),
+            "Frame-based embeddings created for video: %s",
             sanitize_for_log(ids, max_length=512),
         )
         return DataPrepResponse(
-            message=f"{Strings.embedding_success} (Mode: {settings.EMBEDDING_PROCESSING_MODE})"
+            message=f"{Strings.embedding_success}"
         )
 
     except DataPrepException as ex:
@@ -356,10 +328,10 @@ async def process_rtsp_streams(
                     telemetry_context=telemetry_context,
                     shutdown_event=shutdown_event,
                 )
-        logger.info(f"SDK mode: {len(ids) if ids else 0} embeddings created with optimized memory usage")
+        logger.info(f"{len(ids) if ids else 0} embeddings created with optimized memory usage")
         
         return DataPrepResponse(
-            message=f"{Strings.embedding_success} for RTSP streams (Mode: {settings.EMBEDDING_PROCESSING_MODE})"
+            message=f"{Strings.embedding_success} for RTSP streams"
         )
     finally:
         # Stop the monitor task

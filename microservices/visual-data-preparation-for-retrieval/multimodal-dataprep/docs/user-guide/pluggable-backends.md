@@ -10,8 +10,8 @@ Supported backends:
 
 | Concern        | Setting             | Supported values        | Default |
 |----------------|---------------------|-------------------------|---------|
-| Vector database| `VECTORDB_BACKEND`  | `vdms`, `milvus`        | `vdms`  |
-| Object storage | `STORAGE_BACKEND`   | `minio`, `local`        | `minio` |
+| Vector database| `MM_DATAPREP_VECTORDB_BACKEND`  | `vdms`, `milvus`        | `vdms`  |
+| Object storage | `MM_DATAPREP_STORAGE_BACKEND`   | `minio`, `local`        | `minio` |
 
 The defaults (`vdms` + `minio`) reproduce the historical behavior of this service.
 
@@ -33,10 +33,10 @@ src/core/
     factory.py      # get_storage() — cached singleton by STORAGE_BACKEND
 ```
 
-- Embedding generation is fully separated from persistence. The embedding clients
-  (`SimpleEmbeddingClient`, `SDKEmbeddingClient`) compute
-  or fetch embeddings and then delegate persistence to `get_vector_store()`. They
-  no longer import any vector-database SDK directly.
+- Embedding generation is fully separated from persistence. The embedding client
+  (`EmbeddingClient`) computes
+  or fetches embeddings and then delegates persistence to `get_vector_store()`. It
+  no longer imports any vector-database SDK directly.
 - Both persistence paths route through the same `add_embeddings(...)` contract:
   - frame embeddings (`store_frame_embeddings`)
   - text/summary embeddings (`store_text_embedding` /
@@ -85,15 +85,15 @@ consuming the data maps these to its own query schema.
 
 | Variable           | Applies to | Description                                                        |
 |--------------------|------------|--------------------------------------------------------------------|
-| `VECTORDB_BACKEND` | all        | `vdms` (default) or `milvus`.                                       |
-| `DB_COLLECTION`    | all        | Collection/index name.                                             |
-| `VDB_METRIC_TYPE`  | all        | Similarity metric (`IP` default, `L2`).                            |
-| `VDB_INDEX_TYPE`   | milvus     | Index type (e.g. `FLAT`).                                          |
-| `VDMS_VDB_HOST`    | vdms       | VDMS host.                                                         |
-| `VDMS_VDB_PORT`    | vdms       | VDMS port.                                                         |
-| `MILVUS_URI`       | milvus     | Full URI (e.g. `http://host:19530`). Overrides host/port when set. |
-| `MILVUS_HOST`      | milvus     | Milvus host (used when `MILVUS_URI` is unset).                     |
-| `MILVUS_PORT`      | milvus     | Milvus port (default `19530`).                                     |
+| `MM_DATAPREP_VECTORDB_BACKEND` | all        | `vdms` (default) or `milvus`.                                       |
+| `MM_DATAPREP_DB_COLLECTION`    | all        | Collection/index name.                                             |
+| `MM_DATAPREP_VDB_METRIC_TYPE`  | all        | Similarity metric (`IP` default, `L2`).                            |
+| `MM_DATAPREP_VDB_INDEX_TYPE`   | milvus     | Index type (e.g. `FLAT`).                                          |
+| `MM_DATAPREP_VDMS_VDB_HOST`    | vdms       | VDMS host.                                                         |
+| `MM_DATAPREP_VDMS_VDB_PORT`    | vdms       | VDMS port.                                                         |
+| `MM_DATAPREP_MILVUS_URI`       | milvus     | Full URI (e.g. `http://host:19530`). Overrides host/port when set. |
+| `MM_DATAPREP_MILVUS_HOST`      | milvus     | Milvus host (used when `MM_DATAPREP_MILVUS_URI` is unset).                     |
+| `MM_DATAPREP_MILVUS_PORT`      | milvus     | Milvus port (default `19530`).                                     |
 
 > **Milvus proxy note:** disable any HTTP proxy for the Milvus host
 > (`no_proxy`/`NO_PROXY`). An HTTP proxy in front of localhost/in-cluster gRPC
@@ -106,19 +106,19 @@ consuming the data maps these to its own query schema.
 
 | Variable             | Applies to | Description                                          |
 |----------------------|------------|------------------------------------------------------|
-| `STORAGE_BACKEND`    | all        | `minio` (default) or `local`.                        |
-| `MINIO_ENDPOINT`     | minio      | MinIO endpoint (`host:port`).                        |
-| `MINIO_ACCESS_KEY`   | minio      | MinIO access key.                                    |
-| `MINIO_SECRET_KEY`   | minio      | MinIO secret key.                                    |
-| `MINIO_SECURE`       | minio      | Use HTTPS (`true`/`false`).                          |
-| `LOCAL_STORAGE_PATH` | local      | Root directory; each bucket maps to a subdirectory.  |
+| `MM_DATAPREP_STORAGE_BACKEND`    | all        | `minio` (default) or `local`.                        |
+| `MM_DATAPREP_MINIO_ENDPOINT`     | minio      | MinIO endpoint (`host:port`).                        |
+| `MM_DATAPREP_MINIO_ACCESS_KEY`   | minio      | MinIO access key.                                    |
+| `MM_DATAPREP_MINIO_SECRET_KEY`   | minio      | MinIO secret key.                                    |
+| `MM_DATAPREP_MINIO_SECURE`       | minio      | Use HTTPS (`true`/`false`).                          |
+| `MM_DATAPREP_LOCAL_STORAGE_PATH` | local      | Root directory; each bucket maps to a subdirectory.  |
 
 ## Running with the Milvus backend
 
 A ready-to-use example is provided at `docker/compose-milvus.yaml`. It starts a
 Milvus 2.6.x standalone stack (etcd + internal MinIO + Milvus), a separate MinIO
 for media storage, and the DataPrep service configured with
-`VECTORDB_BACKEND=milvus`.
+`MM_DATAPREP_VECTORDB_BACKEND=milvus`.
 
 ```bash
 docker compose -f docker/compose-milvus.yaml up
@@ -200,7 +200,7 @@ by a separate `retriever-milvus` service.
    | `video_pin_second`     | `timestamp`                   |
    | `timestamp`            | `date_time` / `upload_timestamp` |
    | `label`                | `label` (detection crops)     |
-   | `type`                 | `processing_mode` / `frame_type` |
+   | `type`                 | `frame_type`                  |
 
 3. **No vector-database delete.** This dataprep has no endpoint that deletes
    vector records (`delete_video` only removes objects from storage), whereas the

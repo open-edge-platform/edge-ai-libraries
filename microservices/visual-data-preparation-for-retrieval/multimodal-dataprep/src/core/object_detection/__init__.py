@@ -5,7 +5,7 @@
 Object Detection Module
 
 This module provides object detection functionality using YOLOX models with OpenVINO backend.
-It supports both SDK mode (direct integration) and API mode (HTTP-based) processing.
+It supports in-process embedding generation.
 
 Main Components:
 - YOLOXDetector: Main detector class for object detection

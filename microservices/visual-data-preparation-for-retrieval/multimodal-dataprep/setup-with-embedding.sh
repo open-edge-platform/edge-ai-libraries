@@ -39,75 +39,44 @@ export VDMS_VDB_HOST_PORT=6020
 # Env vars for multimodal-dataprep -----------------------------------------
 export INDEX_NAME="video-rag"
 export DEFAULT_BUCKET_NAME="vdms-bucket"
-export MULTIMODAL_DATAPREP_HOST_PORT=6007
+export MM_DATAPREP_HOST_PORT=6007
 export YOLOX_MODELS_VOLUME_NAME="dataprep-yolox-models"
 export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
 
-# Embedding processing mode settings (SDK vs API)
-# EMBEDDING_PROCESSING_MODE options:
-#   - "sdk": Use multimodal embedding service directly as SDK (optimized approach with better memory usage, default)
-#   - "api": Use HTTP API calls to multimodal embedding service (existing approach)
-export EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-"sdk"}
-# Note: EMBEDDING_MODEL_NAME is used for model selection in both SDK and API modes
-export SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
-export MULTIMODAL_DATAPREP_DEVICE=${MULTIMODAL_DATAPREP_DEVICE:-"CPU"}
+# Embedding configuration
+# Note: EMBEDDING_MODEL_NAME is used for model selection
+export MM_DATAPREP_USE_OPENVINO=${MM_DATAPREP_USE_OPENVINO:-true}
 export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
 export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-$OV_MODELS_DIR}
-export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
+export MM_OV_PERFORMANCE_MODE=${MM_OV_PERFORMANCE_MODE:-"THROUGHPUT"}
 
-# Device Configuration Helper Functions
-configure_device() {
-    local device=${1:-"CPU"}
-    
-    echo -e "${BLUE}Configuring baseline processing device: ${YELLOW}${device}${NC}"
-    echo -e "${BLUE}   MULTIMODAL_DATAPREP_DEVICE is the single source of truth unless EMBEDDING_DEVICE or DETECTION_DEVICE is explicitly set${NC}"
-    
-    if [[ "${device}" == "GPU" ]]; then
-        echo -e "${YELLOW}⚙️  Setting up GPU configuration...${NC}"
-        
-        # Check if Intel GPU is available
-        if ! lspci | grep -i "vga.*intel" > /dev/null 2>&1; then
-            echo -e "${RED}Warning: No Intel GPU detected. GPU mode may not work properly.${NC}"
-        else
-            echo -e "${GREEN}Intel GPU detected${NC}"
-        fi
-        
-        # Check if /dev/dri exists for GPU access
-        if [[ ! -d "/dev/dri" ]]; then
-            echo -e "${RED}Warning: /dev/dri not found. GPU acceleration may not be available.${NC}"
-        else
-            echo -e "${GREEN}DRI devices found for GPU acceleration${NC}"
-        fi
-        
-        # Set GPU-specific configuration
-        export MULTIMODAL_DATAPREP_DEVICE="GPU"
-        export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
-        
-        echo -e "${GREEN}GPU baseline mode configured:${NC}"
-        echo -e "   • OpenVINO: ${YELLOW}enabled${NC} (required for GPU)"
-        echo -e "   • Baseline Processing Device: ${YELLOW}GPU${NC} (used unless embedding/detection overrides are set)"
-        echo -e "   • Video decoding: ${YELLOW}GPU-accelerated${NC}"
-        
+# Device configuration ------------------------------------------------------
+# Each component's device is configured independently; there is no baseline
+# device. Defaults to CPU when a variable is not explicitly set.
+#   MM_EMBEDDING_DEVICE          -> DataPrep in-process embedding pipeline
+#   MM_DATAPREP_DETECTION_DEVICE -> DataPrep object detection
+#   EMBEDDING_DEVICE             -> Multimodal Embedding (MME) service
+export MM_EMBEDDING_DEVICE=${MM_EMBEDDING_DEVICE:-"CPU"}
+export MM_DATAPREP_DETECTION_DEVICE=${MM_DATAPREP_DETECTION_DEVICE:-"CPU"}
+export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-"CPU"}
+
+# If any component targets the GPU, verify Intel GPU availability once.
+check_gpu_availability() {
+    echo -e "${YELLOW}⚙️  GPU device requested — verifying Intel GPU availability...${NC}"
+    if ! lspci | grep -i "vga.*intel" > /dev/null 2>&1; then
+        echo -e "${RED}Warning: No Intel GPU detected. GPU mode may not work properly.${NC}"
     else
-        echo -e "${BLUE} CPU baseline mode configured${NC}"
-        export MULTIMODAL_DATAPREP_DEVICE="CPU"
+        echo -e "${GREEN}Intel GPU detected${NC}"
+    fi
+    if [[ ! -d "/dev/dri" ]]; then
+        echo -e "${RED}Warning: /dev/dri not found. GPU acceleration may not be available.${NC}"
+    else
+        echo -e "${GREEN}DRI devices found for GPU acceleration${NC}"
     fi
 }
-
-# Device mode selection
-if [[ "${MULTIMODAL_DATAPREP_DEVICE}" == "GPU" ]]; then
-    configure_device "GPU"
-else
-    configure_device "CPU"
+if [[ "${MM_EMBEDDING_DEVICE}" == "GPU" || "${MM_DATAPREP_DETECTION_DEVICE}" == "GPU" || "${EMBEDDING_DEVICE}" == "GPU" ]]; then
+    check_gpu_availability
 fi
-
-# MULTIMODAL_DATAPREP_DEVICE remains the single source of truth unless explicitly overridden below.
-# Capture whether each component device was explicitly provided (before applying the fallback)
-# so the summary can show whether the baseline device is actually used by anything.
-_embedding_device_explicit=${EMBEDDING_DEVICE:+yes}
-_detection_device_explicit=${DETECTION_DEVICE:+yes}
-export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$MULTIMODAL_DATAPREP_DEVICE}
-export DETECTION_DEVICE=${DETECTION_DEVICE:-$MULTIMODAL_DATAPREP_DEVICE}
 
 # Frame processing settings
 export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
@@ -120,26 +89,26 @@ export ROI_CONSOLIDATION_CONTEXT_SCALE=${ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
 export FRAMES_TEMP_DIR=${FRAMES_TEMP_DIR:-"/tmp/dataprep"}
 
 # Application configuration
-export MULTIMODAL_DATAPREP_LOG_LEVEL=${MULTIMODAL_DATAPREP_LOG_LEVEL:-INFO}
+export MM_DATAPREP_LOG_LEVEL=${MM_DATAPREP_LOG_LEVEL:-INFO}
 export MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-""}
 export EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
-export SDK_VIDEO_SHM_MAX_BLOCKS=${SDK_VIDEO_SHM_MAX_BLOCKS:-512}
-export SDK_VIDEO_SHM_BLOCK_SIZE=${SDK_VIDEO_SHM_BLOCK_SIZE:-$((1920 * 1080 * 3))}
-export SDK_VIDEO_EXTRACTION_BATCH_SIZE=${SDK_VIDEO_EXTRACTION_BATCH_SIZE:-256}
-export SDK_PIPELINE_QUEUE_MAXSIZE=${SDK_PIPELINE_QUEUE_MAXSIZE:-16}
-export SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE=${SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE:-1}
-export SDK_DETECTION_WORKER_THREADS=${SDK_DETECTION_WORKER_THREADS:-2}
-export SDK_EMBED_WORKER_THREADS=${SDK_EMBED_WORKER_THREADS:-2}
-export SDK_PIPELINE_QUEUE_GET_TIMEOUT_S=${SDK_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
+export MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS=${MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS:-512}
+export MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE=${MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE:-$((1920 * 1080 * 3))}
+export MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE=${MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE:-256}
+export MM_DATAPREP_PIPELINE_QUEUE_MAXSIZE=${MM_DATAPREP_PIPELINE_QUEUE_MAXSIZE:-16}
+export MM_DATAPREP_PIPELINE_COMPLETION_QUEUE_MAXSIZE=${MM_DATAPREP_PIPELINE_COMPLETION_QUEUE_MAXSIZE:-1}
+export MM_DATAPREP_DETECTION_WORKER_THREADS=${MM_DATAPREP_DETECTION_WORKER_THREADS:-2}
+export MM_DATAPREP_EMBED_WORKER_THREADS=${MM_DATAPREP_EMBED_WORKER_THREADS:-2}
+export MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S=${MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
 export SAVE_RUNTIME_PIPELINE_STATS=${SAVE_RUNTIME_PIPELINE_STATS:-false}
-export SDK_ENABLE_TRACING=${SDK_ENABLE_TRACING:-false}
+export MM_DATAPREP_ENABLE_TRACING=${MM_DATAPREP_ENABLE_TRACING:-false}
 export VIDEO_FRAME_DECODER_WORKERS=${VIDEO_FRAME_DECODER_WORKERS:-2}
 export VIDEO_FRAME_LOG_LEVEL=${VIDEO_FRAME_LOG_LEVEL:-INFO}
 
 # Env vars for multimodal-embedding-serving -------------------------
 export EMBEDDING_SERVER_PORT=9777
 export EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}  # Must be explicitly provided - no default
-export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-$SDK_USE_OPENVINO}
+export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-$MM_DATAPREP_USE_OPENVINO}
 export DEFAULT_START_OFFSET_SEC=${DEFAULT_START_OFFSET_SEC:-0}
 export DEFAULT_CLIP_DURATION=${DEFAULT_CLIP_DURATION:--1}
 export DEFAULT_NUM_FRAMES=${DEFAULT_NUM_FRAMES:-64}
@@ -185,41 +154,24 @@ fi
 echo -e "${GREEN}Environment variables set for Multimodal DataPrep and Multimodal Embedding Microservice.${NC}"
 
 echo -e "${BLUE}Current Configuration:${NC}"
-echo -e "   Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC}"
 echo -e "   Registry: ${YELLOW}${REGISTRY}${NC}"
 echo -e "   Model: ${YELLOW}${EMBEDDING_MODEL_NAME}${NC}"
 
-# The baseline device (MULTIMODAL_DATAPREP_DEVICE) is only a fallback: it is applied to a
-# component when that component's device is not explicitly set. If both embedding and
-# detection are overridden, nothing actually runs on the baseline device.
-if [[ -n "${_embedding_device_explicit}" && -n "${_detection_device_explicit}" ]]; then
-    _baseline_note="not used — embedding and detection are both explicitly set"
-else
-    _baseline_components=""
-    [[ -z "${_embedding_device_explicit}" ]] && _baseline_components="embedding"
-    [[ -z "${_detection_device_explicit}" ]] && _baseline_components="${_baseline_components:+${_baseline_components}, }detection"
-    _baseline_note="used by: ${_baseline_components}"
-fi
-[[ -n "${_embedding_device_explicit}" ]] && _embedding_src="explicit override" || _embedding_src="inherited from baseline"
-[[ -n "${_detection_device_explicit}" ]] && _detection_src="explicit override" || _detection_src="inherited from baseline"
-
-echo -e "   Baseline Device (MULTIMODAL_DATAPREP_DEVICE): ${YELLOW}${MULTIMODAL_DATAPREP_DEVICE}${NC} (${_baseline_note})"
-echo -e "   Embedding Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (${_embedding_src})"
-echo -e "   Detection Device: ${YELLOW}${DETECTION_DEVICE}${NC} (${_detection_src})"
-echo -e "   OpenVINO: ${YELLOW}${SDK_USE_OPENVINO}${NC}"
-echo -e "   OpenVINO Performance Mode: ${YELLOW}${OV_PERFORMANCE_MODE}${NC}"
-echo -e "   DataPrep Log Level: ${YELLOW}${MULTIMODAL_DATAPREP_LOG_LEVEL}${NC}"
+# Device configuration is independent per component (no baseline device).
+echo -e "   Embedding Device (MM_EMBEDDING_DEVICE): ${YELLOW}${MM_EMBEDDING_DEVICE}${NC}"
+echo -e "   Detection Device (MM_DATAPREP_DETECTION_DEVICE): ${YELLOW}${MM_DATAPREP_DETECTION_DEVICE}${NC}"
+echo -e "   MME Embedding Device (EMBEDDING_DEVICE): ${YELLOW}${EMBEDDING_DEVICE}${NC}"
+echo -e "   OpenVINO: ${YELLOW}${MM_DATAPREP_USE_OPENVINO}${NC}"
+echo -e "   OpenVINO Performance Mode: ${YELLOW}${MM_OV_PERFORMANCE_MODE}${NC}"
+echo -e "   DataPrep Log Level: ${YELLOW}${MM_DATAPREP_LOG_LEVEL}${NC}"
 
 echo -e "${BLUE}Usage Tips:${NC}"
-echo -e "   • To use SDK mode (optimized memory usage, default): ${YELLOW}export EMBEDDING_PROCESSING_MODE=sdk${NC}"
-echo -e "   • To use API mode: ${YELLOW}export EMBEDDING_PROCESSING_MODE=api${NC}"
-echo -e "   • For GPU acceleration: ${YELLOW}export MULTIMODAL_DATAPREP_DEVICE=GPU${NC} (requires Intel GPU)"
-echo -e "   • For CPU processing: ${YELLOW}export MULTIMODAL_DATAPREP_DEVICE=CPU${NC}"
-echo -e "   • To offload embedding independently: ${YELLOW}export EMBEDDING_DEVICE=GPU${NC}"
-echo -e "   • To offload detection independently: ${YELLOW}export DETECTION_DEVICE=GPU${NC}"
-echo -e "   • For OpenVINO optimization: ${YELLOW}export SDK_USE_OPENVINO=true${NC} (default)"
-echo -e "   • To set DataPrep log level: ${YELLOW}export MULTIMODAL_DATAPREP_LOG_LEVEL=DEBUG${NC}"
+echo -e "   • To offload DataPrep embedding to GPU: ${YELLOW}export MM_EMBEDDING_DEVICE=GPU${NC} (requires Intel GPU)"
+echo -e "   • To offload DataPrep detection to GPU: ${YELLOW}export MM_DATAPREP_DETECTION_DEVICE=GPU${NC}"
+echo -e "   • To offload the MME embedding service to GPU: ${YELLOW}export EMBEDDING_DEVICE=GPU${NC}"
+echo -e "   • For OpenVINO optimization: ${YELLOW}export MM_DATAPREP_USE_OPENVINO=true${NC} (default)"
+echo -e "   • To set DataPrep log level: ${YELLOW}export MM_DATAPREP_LOG_LEVEL=DEBUG${NC}"
 
 echo -e "${BLUE} Quick Device Setup:${NC}"
-echo -e "   • ${YELLOW}source ./setup-with-embedding.sh${NC} - Default SDK mode with CPU and OpenVINO"
-echo -e "   • ${YELLOW}MULTIMODAL_DATAPREP_DEVICE=GPU source ./setup-with-embedding.sh${NC} - SDK mode with GPU acceleration and validation"
+echo -e "   • ${YELLOW}source ./setup-with-embedding.sh${NC} - Default CPU with OpenVINO"
+echo -e "   • ${YELLOW}MM_EMBEDDING_DEVICE=GPU source ./setup-with-embedding.sh${NC} - GPU embedding with validation"

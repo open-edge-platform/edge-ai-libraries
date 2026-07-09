@@ -144,21 +144,18 @@ def record_video_telemetry(
 			tags=list(video_metadata.get("tags", [])),
 			video_url=video_metadata.get("video_url"),
 			video_rel_url=video_metadata.get("video_rel_url"),
-			processing_mode=video_metadata.get("processing_mode"),
 		)
 
 		processing_config = TelemetryProcessingConfig(
-			embedding_mode=config.get("embedding_mode", "unknown"),
 			object_detection_enabled=bool(config.get("object_detection_enabled", False)),
 			detection_confidence=config.get("detection_confidence"),
-			sdk_parallel_workers=config.get("sdk_parallel_workers"),
-			sdk_batch_size=config.get("sdk_batch_size"),
+			parallel_workers=config.get("parallel_workers"),
+			batch_size=config.get("batch_size"),
 		)
 
 		record = TelemetryRecord(
 			request_id=context.get("request_id", ""),
 			source=context.get("source", ""),
-			processing_mode=config.get("embedding_mode", "unknown"),
 			timestamps=timestamps,
 			video=video,
 			config=processing_config,

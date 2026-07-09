@@ -4,7 +4,7 @@
 .. swagger-plugin:: api-docs/openapi.yaml
 ```hide_directive-->
 
-Base URL: `http://localhost:8000/v1/dataprep` (default; the host port is configurable via `MULTIMODAL_DATAPREP_HOST_PORT`).
+Base URL: `http://localhost:8000/v1/dataprep` (default; the host port is configurable via `MM_DATAPREP_HOST_PORT`).
 
 All endpoints return JSON unless noted. Error responses use the `DataPrepResponse` shape: `{"status": "error", "message": "<detail>"}`.
 
@@ -12,39 +12,28 @@ All endpoints return JSON unless noted. Error responses use the `DataPrepRespons
 
 ## `GET /health`
 
-Liveness probe. Also reports the embedding mode and, when running in SDK mode, the SDK client load status.
+Liveness probe. Also reports the in-process embedding client load status.
 
 **Response:**
 
-- 200 OK (API/server mode):
+- 200 OK (embedding client preloaded):
 
   ```json
   {
       "status": "ok",
-      "embedding_mode": "api"
-  }
-  ```
-
-- 200 OK (SDK mode, client preloaded):
-
-  ```json
-  {
-      "status": "ok",
-      "embedding_mode": "sdk",
-      "sdk_client_status": "preloaded",
+      "embedding_client_status": "preloaded",
       "model_name": "CLIP/clip-vit-b-16",
-      "processing_device": "CPU",
-      "sdk_use_openvino": false
+      "embedding_device": "CPU",
+      "use_openvino": false
   }
   ```
 
-- 200 OK (SDK mode, client not yet loaded):
+- 200 OK (embedding client not yet loaded):
 
   ```json
   {
       "status": "ok",
-      "embedding_mode": "sdk",
-      "sdk_client_status": "not_loaded"
+      "embedding_client_status": "not_loaded"
   }
   ```
 
@@ -244,7 +233,7 @@ Upload an MP4 video file, store it in Minio, and generate frame-based embeddings
   ```json
   {
       "status": "success",
-      "message": "Embeddings for the video file(s) were created successfully. (Mode: api)"
+      "message": "Embeddings for the video file(s) were created successfully."
   }
   ```
 
@@ -430,7 +419,7 @@ Return the most recent video-processing telemetry records, newest first.
 
 | Parameter | Type    | Required | Default | Description                                             |
 | --------- | ------- | -------- | ------- | ------------------------------------------------------- |
-| `limit`   | integer | No       | `100`   | Maximum number of records to return (1 – `TELEMETRY_MAX_RECORDS`). |
+| `limit`   | integer | No       | `100`   | Maximum number of records to return (1 – `MM_DATAPREP_TELEMETRY_MAX_RECORDS`). |
 
 **Response:**
 
@@ -443,7 +432,6 @@ Return the most recent video-processing telemetry records, newest first.
           {
               "request_id": "a1b2c3d4-...",
               "source": "/videos/upload",
-              "processing_mode": "sdk",
               "timestamps": {
                   "requested_at": "2025-06-01T12:00:00Z",
                   "completed_at": "2025-06-01T12:00:45Z",
@@ -460,7 +448,6 @@ Return the most recent video-processing telemetry records, newest first.
                   "tags": ["outdoor"]
               },
               "config": {
-                  "embedding_mode": "sdk",
                   "object_detection_enabled": true,
                   "detection_confidence": 0.85
               },
@@ -491,9 +478,9 @@ curl "http://localhost:8000/v1/dataprep/telemetry?limit=10"
 
 When the service is running, FastAPI provides interactive docs:
 
-- **Swagger UI**: `http://<HOST_IP>:<VDMS_DATAPREP_HOST_PORT>/docs`
-- **ReDoc**: `http://<HOST_IP>:<VDMS_DATAPREP_HOST_PORT>/redoc`
-- **OpenAPI JSON**: `http://<HOST_IP>:<VDMS_DATAPREP_HOST_PORT>/openapi.json`
+- **Swagger UI**: `http://<HOST_IP>:<MM_DATAPREP_HOST_PORT>/docs`
+- **ReDoc**: `http://<HOST_IP>:<MM_DATAPREP_HOST_PORT>/redoc`
+- **OpenAPI JSON**: `http://<HOST_IP>:<MM_DATAPREP_HOST_PORT>/openapi.json`
 
 With default settings:
 

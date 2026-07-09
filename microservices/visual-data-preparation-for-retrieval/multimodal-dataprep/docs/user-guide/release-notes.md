@@ -6,7 +6,7 @@
 
 **New**
 
-- Added expanded NPU device support in setup/runtime configuration for baseline and per-component execution (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, `DETECTION_DEVICE`).
+- Added expanded NPU device support in setup/runtime configuration for per-component execution (`MM_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`).
 - Added richer API/OpenAPI alignment updates for video processing and management endpoints.
 
 **Improved**
@@ -22,15 +22,15 @@
 
 **New**
 
-- Stage-separated SDK pipeline: decode → detect → embed → store stages run concurrently via bounded queues with back-pressure control.
+- Stage-separated embedding pipeline: decode → detect → embed → store stages run concurrently via bounded queues with back-pressure control.
 - Shared memory Zero-copy frame metadata transport via POSIX shared memory pool between pipeline stages.
-- Pipeline tracer that emits Chrome Tracing JSON for profiling decode/detect/embed/store stages; enabled via `SDK_ENABLE_TRACING=true`.
-- Structured per-stream pipeline metrics: stage durations, throughput FPS, concurrency factor, and efficiency %. Runtime stats can be saved as JSON via `SAVE_RUNTIME_PIPELINE_STATS=true`.
-- Configurable SDK pipeline via environment variables (seeded by `setup.sh` / `setup-with-embedding.sh`).
+- Pipeline tracer that emits Chrome Tracing JSON for profiling decode/detect/embed/store stages; enabled via `MM_DATAPREP_ENABLE_TRACING=true`.
+- Structured per-stream pipeline metrics: stage durations, throughput FPS, concurrency factor, and efficiency %. Runtime stats can be saved as JSON via `MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS=true`.
+- Configurable embedding pipeline via environment variables (seeded by `setup.sh`).
 
 **Improved**
 
-- In the SDK mode, uploaded video bytes are processed directly from memory; no temp-file re-read after MinIO upload.
+- Uploaded video bytes are processed directly from memory; no temp-file re-read after MinIO upload.
 - Batch embedding generation supports `metrics_out=True` to return inference timing alongside results.
 - Telemetry log now emits a structured pipeline summary (frames, detections, embeddings, FPS, stage durations) on completion.
 - Container healthcheck, raised `nofile` ulimits and `ipc: host` added to Docker Compose.

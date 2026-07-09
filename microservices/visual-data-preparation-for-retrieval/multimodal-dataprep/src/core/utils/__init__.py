@@ -5,7 +5,7 @@
 Core Utilities Module
 
 This module contains utility functions organized by functionality area.
-All utilities support both SDK mode (direct integration) and API mode (HTTP-based) processing.
+All utilities support in-process embedding generation.
 
 Sub-modules:
 - video_utils: Video processing and frame extraction utilities

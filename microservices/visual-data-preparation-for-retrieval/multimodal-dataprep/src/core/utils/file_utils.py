@@ -5,7 +5,7 @@
 File Utilities Module
 
 This module provides file operation utilities for the VDMS microservice.
-Supports both SDK mode (direct integration) and API mode (HTTP-based) processing.
+Supports in-process embedding generation.
 
 Functions:
 - save_video_to_temp(): Save video data to temporary file

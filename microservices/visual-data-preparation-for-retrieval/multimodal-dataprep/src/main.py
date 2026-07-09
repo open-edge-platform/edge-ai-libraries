@@ -72,9 +72,9 @@ async def _run_startup_preloads() -> None:
     """Warm up embedding and detection models during application startup."""
 
     try:
-        from src.core.embedding.sdk_embedding_helper import (
+        from src.core.embedding.embedding_helper import (
             preload_object_detector,
-            preload_sdk_client,
+            preload_embedding_client,
         )
         from src.core.utils.config_utils import get_config
     except Exception as exc:  # pragma: no cover - defensive guard
@@ -88,14 +88,8 @@ async def _run_startup_preloads() -> None:
 
     tasks: list[tuple[str, asyncio.Future]] = []
 
-    if settings.EMBEDDING_PROCESSING_MODE.lower() == "sdk":
-        logger.info("Startup preload: warming up SDK embedding client")
-        tasks.append(("sdk", asyncio.ensure_future(asyncio.to_thread(preload_sdk_client))))
-    else:
-        logger.info(
-            "Startup preload: embedding mode '%s' does not require SDK warmup",
-            settings.EMBEDDING_PROCESSING_MODE,
-        )
+    logger.info("Startup preload: warming up embedding client")
+    tasks.append(("embedding", asyncio.ensure_future(asyncio.to_thread(preload_embedding_client))))
 
     logger.info(
         "Startup preload: warming up object detector (enabled=%s, confidence=%.2f)",

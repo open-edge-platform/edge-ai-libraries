@@ -22,7 +22,7 @@ from src.common import settings
 from src.core.vectorstores import get_vector_store
 
 
-class SDKEmbeddingClient:
+class EmbeddingClient:
     """
     Optimized embedding client using SDK-based embedding generation with vector store persistence.
 
@@ -239,7 +239,7 @@ class SDKEmbeddingClient:
             ):
                 self.vector_store.embedding_dimensions = self.embedding_dimensions
             self.vector_store.connect()
-            logger.info("Vector store backend initialized for SDKEmbeddingClient")
+            logger.info("Vector store backend initialized for EmbeddingClient")
         except Exception as ex:
             logger.error("Error initializing vector store: %s", ex)
             raise Exception(Strings.db_conn_error)

@@ -56,10 +56,10 @@ from src.common import Tracer
 from src.core.embedding.decoder import SharedMemoryPool
 from src.core.embedding.decoder import VideoFrameConfig
 from src.core.embedding.decoder import VideoFrameExtractor
-from src.core.embedding.sdk_client import SDKEmbeddingClient
+from src.core.embedding.client import EmbeddingClient
 
 # Global SDK client instance (initialized once per worker process)
-_sdk_client: Optional[SDKEmbeddingClient] = None
+_embedding_client: Optional[EmbeddingClient] = None
 
 # Global object detector instance (initialized once per worker process)
 _global_detector = None
@@ -95,16 +95,16 @@ def get_pipeline_config():
     from src.common import settings
 
     cpu_cores = multiprocessing.cpu_count()
-    enable_pipelines = os.getenv("ENABLE_PARALLEL_PIPELINE", "true").lower() == "true"
-    use_openvino = settings.SDK_USE_OPENVINO
+    enable_pipelines = os.getenv("MM_DATAPREP_ENABLE_PARALLEL_PIPELINE", "true").lower() == "true"
+    use_openvino = settings.USE_OPENVINO
 
     performance_mode = (
-        (os.getenv("OV_PERFORMANCE_MODE") or os.getenv("OPENVINO_PERFORMANCE_MODE") or "")
+        (os.getenv("MM_OV_PERFORMANCE_MODE") or os.getenv("OPENVINO_PERFORMANCE_MODE") or "")
         .strip()
         .upper()
     )
 
-    max_workers_env = os.getenv("MAX_PARALLEL_WORKERS", None)
+    max_workers_env = os.getenv("MM_DATAPREP_MAX_PARALLEL_WORKERS", None)
     if max_workers_env:
         try:
             max_workers = max(1, int(max_workers_env))
@@ -184,7 +184,7 @@ def get_pipeline_config():
     return config
 
 
-def get_sdk_client() -> SDKEmbeddingClient:
+def get_embedding_client() -> EmbeddingClient:
     """
     Get or create a singleton SDK client instance.
 
@@ -192,21 +192,21 @@ def get_sdk_client() -> SDKEmbeddingClient:
     avoiding the overhead of loading the model multiple times.
 
     Returns:
-        SDKEmbeddingClient instance
+        EmbeddingClient instance
     """
-    global _sdk_client
+    global _embedding_client
 
-    if _sdk_client is None:
+    if _embedding_client is None:
         logger.info("Initializing SDK client for embedding generation")
 
-        # Validate that MULTIMODAL_EMBEDDING_MODEL_NAME is provided when using SDK mode
+        # Validate that MULTIMODAL_EMBEDDING_MODEL_NAME is provided
         if not settings.MULTIMODAL_EMBEDDING_MODEL_NAME:
             raise ValueError(
-                "MULTIMODAL_EMBEDDING_MODEL_NAME must be explicitly provided when using SDK embedding mode - no default model is allowed"
+                "MULTIMODAL_EMBEDDING_MODEL_NAME must be explicitly provided - no default model is allowed"
             )
 
         # Ensure OpenVINO models directory exists if using OpenVINO
-        if settings.SDK_USE_OPENVINO:
+        if settings.USE_OPENVINO:
             import os
 
             os.makedirs(settings.OV_MODELS_DIR, exist_ok=True)
@@ -216,15 +216,15 @@ def get_sdk_client() -> SDKEmbeddingClient:
         else:
             logger.info("Using PyTorch native model (OpenVINO disabled)")
 
-        _sdk_client = SDKEmbeddingClient(
+        _embedding_client = EmbeddingClient(
             model_id=settings.MULTIMODAL_EMBEDDING_MODEL_NAME,
             device=settings.DEVICE,
-            use_openvino=settings.SDK_USE_OPENVINO,
+            use_openvino=settings.USE_OPENVINO,
             ov_models_dir=settings.OV_MODELS_DIR,
         )
         logger.info("SDK client initialized successfully")
 
-    return _sdk_client
+    return _embedding_client
 
 
 def get_global_detector(enable_object_detection: bool = True, detection_confidence: float = 0.85):
@@ -330,7 +330,7 @@ def preload_object_detector(
         return False
 
 
-def preload_sdk_client() -> bool:
+def preload_embedding_client() -> bool:
     """
     Preload the SDK client and perform model warmup.
 
@@ -343,7 +343,7 @@ def preload_sdk_client() -> bool:
     try:
         logger.info("Preloading SDK client and warming up model...")
         logger.info(
-            f"SDK Configuration: Model={settings.MULTIMODAL_EMBEDDING_MODEL_NAME}, Device={settings.DEVICE}, OpenVINO={settings.SDK_USE_OPENVINO}"
+            f"SDK Configuration: Model={settings.MULTIMODAL_EMBEDDING_MODEL_NAME}, Device={settings.DEVICE}, OpenVINO={settings.USE_OPENVINO}"
         )
 
         # Validate GPU setup if GPU device is requested
@@ -351,7 +351,7 @@ def preload_sdk_client() -> bool:
             logger.info("GPU device requested - validating GPU setup...")
 
             # Check if running in OpenVINO mode (recommended for GPU)
-            if not settings.SDK_USE_OPENVINO:
+            if not settings.USE_OPENVINO:
                 logger.warning(
                     "GPU device specified but OpenVINO is disabled. For best GPU performance, enable OpenVINO with GPU device."
                 )
@@ -360,19 +360,19 @@ def preload_sdk_client() -> bool:
                     "GPU device with OpenVINO enabled - optimal configuration for GPU acceleration"
                 )
         # Initialize the client (this loads the model)
-        sdk_client = get_sdk_client()
+        embedding_client = get_embedding_client()
 
-        if sdk_client.supports_image:
+        if embedding_client.supports_image:
             # Perform image warmup with a small test pattern
             import numpy as np
 
             test_image = Image.fromarray(np.random.randint(0, 255, (224, 224, 3), dtype=np.uint8))
 
-            test_embedding = sdk_client.generate_embeddings_for_images([test_image])
+            test_embedding = embedding_client.generate_embeddings_for_images([test_image])
 
             if test_embedding is not None:
                 openvino_status = (
-                    "OpenVINO optimized" if settings.SDK_USE_OPENVINO else "PyTorch native"
+                    "OpenVINO optimized" if settings.USE_OPENVINO else "PyTorch native"
                 )
                 logger.info(
                     "SDK client preloaded successfully! %s model cached and ready (%d-dim embeddings)",
@@ -383,11 +383,11 @@ def preload_sdk_client() -> bool:
             logger.warning("SDK client initialized but image warmup embedding failed")
             return False
 
-        if sdk_client.supports_text:
-            warmup_embedding = sdk_client.generate_embedding_for_text("sdk-warmup")
+        if embedding_client.supports_text:
+            warmup_embedding = embedding_client.generate_embedding_for_text("sdk-warmup")
             if warmup_embedding is not None:
                 openvino_status = (
-                    "OpenVINO optimized" if settings.SDK_USE_OPENVINO else "PyTorch native"
+                    "OpenVINO optimized" if settings.USE_OPENVINO else "PyTorch native"
                 )
                 logger.info(
                     "SDK client preloaded for text embeddings! %s model cached and ready (%d-dim embeddings)",
@@ -414,14 +414,14 @@ class SimplePipelineManager:
 
     def __init__(
         self,
-        sdk_client: SDKEmbeddingClient,
+        embedding_client: EmbeddingClient,
         enable_object_detection: bool = False,
         detection_confidence: float = 0.85,
     ):
-        self.master_sdk_client = sdk_client
+        self.master_embedding_client = embedding_client
         self.config = get_pipeline_config()
         self._thread_local = threading.local()
-        self.supports_image_embeddings = sdk_client.supports_image
+        self.supports_image_embeddings = embedding_client.supports_image
 
         # Object detection configuration
         self.enable_object_detection = enable_object_detection
@@ -435,7 +435,7 @@ class SimplePipelineManager:
         # Log device consistency across all components
         logger.info(
             f"Device consistency: Processing={settings.DEVICE}, "
-            f"Embedding={sdk_client.device}, "
+            f"Embedding={embedding_client.device}, "
             f"Detection={'N/A' if not self.enable_object_detection else self.detector.device if self.detector else 'Failed'}, "
             f"ImageEmbeddingsSupported={self.supports_image_embeddings}"
         )
@@ -474,7 +474,7 @@ class SimplePipelineManager:
 
     def _initialize_object_detector(self):
         """Initialize object detector for frame processing."""
-        logger.info("Using global object detector for SDK mode...")
+        logger.info("Using global object detector...")
 
         # Use the global detector instance instead of creating a new one
         self.detector = get_global_detector(
@@ -912,7 +912,7 @@ class SimplePipelineManager:
             if not self.supports_image_embeddings:
                 logger.info(
                     "Embedding model %s does not support image/video embeddings; skipping batch %d",
-                    self.master_sdk_client.model_id,
+                    self.master_embedding_client.model_id,
                     batch_index,
                 )
                 return {
@@ -955,7 +955,7 @@ class SimplePipelineManager:
             logger.debug(
                 f"Step 2: Starting embedding generation for {len(all_images_for_embedding)} images"
             )
-            thread_sdk_client = self.master_sdk_client
+            thread_embedding_client = self.master_embedding_client
 
             # Use parallel-safe embedding generation
             # The multimodal embedding service now uses thread-safe infer_new_request
@@ -963,7 +963,7 @@ class SimplePipelineManager:
                 f"[Batch {batch_index}/{total_batches}] Using parallel mode - no locking needed with infer_new_request"
             )
             embedding_start = time.time()
-            embeddings = thread_sdk_client.generate_embeddings_for_images(all_images_for_embedding)
+            embeddings = thread_embedding_client.generate_embeddings_for_images(all_images_for_embedding)
             embedding_time = time.time() - embedding_start
             logger.debug(
                 f"[Batch {batch_index}/{total_batches}] Step 2 completed: Generated {len(embeddings)} "
@@ -1003,7 +1003,7 @@ class SimplePipelineManager:
                 logger.debug(
                     f"[Batch {batch_index}/{total_batches}] Storing {len(valid_embeddings)} embeddings immediately"
                 )
-                stored_ids = thread_sdk_client.store_frame_embeddings(
+                stored_ids = thread_embedding_client.store_frame_embeddings(
                     valid_embeddings, valid_metadatas
                 )
                 logger.debug(
@@ -1056,8 +1056,8 @@ class SimplePipelineManager:
         logger.warning("Using sequential fallback processing")
         embeddings = []
 
-        # Get the appropriate SDK client based on mode
-        thread_sdk_client = self.master_sdk_client
+        # Get the SDK client
+        thread_embedding_client = self.master_embedding_client
 
         for frame_numpy, frame_metadata in zip(frames, metadata):
             try:
@@ -1067,7 +1067,7 @@ class SimplePipelineManager:
                 for image_pil, metadata_item in frame_results:
                     try:
                         # Use parallel-safe embedding generation
-                        embedding = thread_sdk_client.generate_embedding_for_image(image_pil)
+                        embedding = thread_embedding_client.generate_embedding_for_image(image_pil)
 
                         if embedding:
                             embeddings.append({"embedding": embedding, "metadata": metadata_item})
@@ -1084,7 +1084,7 @@ class SimplePipelineManager:
         return embeddings
 
 
-def generate_video_embedding_sdk(
+def generate_video_embedding_pipeline(
     video_content: bytes,
     metadata_dict: Dict[str, Any],
     frame_interval: int = 15,
@@ -1092,7 +1092,7 @@ def generate_video_embedding_sdk(
     detection_confidence: float = 0.85,
 ) -> Dict[str, Any]:
     """
-    Generate video embeddings using SDK approach with parallel processing.
+    Generate video embeddings with parallel processing.
 
     Args:
         video_content: Video content as bytes
@@ -1106,18 +1106,18 @@ def generate_video_embedding_sdk(
     """
     total_start_time = now_us()
     logger.info(
-        "Starting SDK video processing with frame_interval=%s",
+        "Starting video processing with frame_interval=%s",
         sanitize_for_log(frame_interval, max_length=32),
     )
     
     try:
         # Get SDK client
-        sdk_client = get_sdk_client()
+        embedding_client = get_embedding_client()
 
-        if not sdk_client.supports_image:
+        if not embedding_client.supports_image:
             logger.info(
                 "Embedding model %s reports no image/video support; skipping video embedding pipeline",
-                sdk_client.model_id,
+                embedding_client.model_id,
             )
             total_time = (now_us() - total_start_time) / 1_000_000
             return {
@@ -1139,12 +1139,11 @@ def generate_video_embedding_sdk(
                     "post_detection_items": 0,
                     "stored_embeddings": 0,
                 },
-                "processing_mode": "sdk_simple_pipeline_with_batch_storage",
             }
         # Process video using simple pipeline approach
         result = _process_video_from_memory_simple_pipeline(
             video_content=video_content,
-            sdk_client=sdk_client,
+            embedding_client=embedding_client,
             metadata_dict=metadata_dict,
             frame_interval=frame_interval,
             enable_object_detection=enable_object_detection,
@@ -1152,18 +1151,18 @@ def generate_video_embedding_sdk(
         )
 
         total_time = (now_us() - total_start_time) / 1_000_000
-        logger.info(f"SDK video processing completed in {total_time:.3f}s")
+        logger.info(f"Video processing completed in {total_time:.3f}s")
         return result
 
     except Exception as e:
         total_time = (now_us() - total_start_time) / 1_000_000
-        logger.error(f"SDK video processing failed after {total_time:.3f}s: {e}")
+        logger.error(f"Video processing failed after {total_time:.3f}s: {e}")
         raise
 
 
 def _process_video_from_memory_simple_pipeline(
     video_content: bytes,
-    sdk_client: SDKEmbeddingClient,
+    embedding_client: EmbeddingClient,
     metadata_dict: Dict[str, Any],
     frame_interval: int,
     enable_object_detection: bool,
@@ -1185,14 +1184,14 @@ def _process_video_from_memory_simple_pipeline(
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         tracer = init_tracer(
             output_file=os.path.join(tempfile.gettempdir(), f"trace_{timestamp}.json"), 
-            enabled=settings.SDK_ENABLE_TRACING
+            enabled=settings.ENABLE_TRACING
         )
         tracer.set_process_name("decode_detect_embed_store_pipeline")
 
         logger.info("Initializing shared memory pools for frames and detected crops...")
         _shm_pool = SharedMemoryPool(
-            max_blocks=settings.SDK_VIDEO_SHM_MAX_BLOCKS,
-            block_size=settings.SDK_VIDEO_SHM_BLOCK_SIZE,
+            max_blocks=settings.VIDEO_SHM_MAX_BLOCKS,
+            block_size=settings.VIDEO_SHM_BLOCK_SIZE,
         )
         _crop_pool = (
             SharedMemoryPool(max_blocks=_shm_pool.max_blocks, block_size=_shm_pool.block_size)
@@ -1201,7 +1200,7 @@ def _process_video_from_memory_simple_pipeline(
         )
 
         config = VideoFrameConfig(
-            batch_size=settings.SDK_VIDEO_EXTRACTION_BATCH_SIZE,  # Large batch for efficient extraction
+            batch_size=settings.VIDEO_EXTRACTION_BATCH_SIZE,  # Large batch for efficient extraction
             frame_interval=frame_interval,
             keyframes_only=False,
         )
@@ -1219,12 +1218,12 @@ def _process_video_from_memory_simple_pipeline(
         all_stream_metadata = extractor.get_metadata()
         logger.info(f"Extracted metadata for all streams: {all_stream_metadata}")
 
-        detection_meta_queue: queue.Queue = queue.Queue(maxsize=settings.SDK_PIPELINE_QUEUE_MAXSIZE)
-        embed_sink_queue: queue.Queue = queue.Queue(maxsize=settings.SDK_PIPELINE_QUEUE_MAXSIZE)
-        store_queue: queue.Queue = queue.Queue(maxsize=settings.SDK_PIPELINE_QUEUE_MAXSIZE)
-        result_queue: queue.Queue = queue.Queue(maxsize=settings.SDK_PIPELINE_QUEUE_MAXSIZE)
+        detection_meta_queue: queue.Queue = queue.Queue(maxsize=settings.PIPELINE_QUEUE_MAXSIZE)
+        embed_sink_queue: queue.Queue = queue.Queue(maxsize=settings.PIPELINE_QUEUE_MAXSIZE)
+        store_queue: queue.Queue = queue.Queue(maxsize=settings.PIPELINE_QUEUE_MAXSIZE)
+        result_queue: queue.Queue = queue.Queue(maxsize=settings.PIPELINE_QUEUE_MAXSIZE)
         completion_queue: queue.Queue = queue.Queue(
-            maxsize=settings.SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE
+            maxsize=settings.PIPELINE_COMPLETION_QUEUE_MAXSIZE
         )
 
         def handle_sigint(sig, frame):
@@ -1612,7 +1611,7 @@ def detection_worker(
     tracer: Tracer,
 ):
     thread_pool = ThreadPoolExecutor(
-        max_workers=settings.SDK_DETECTION_WORKER_THREADS,
+        max_workers=settings.DETECTION_WORKER_THREADS,
         thread_name_prefix="detection_worker_thread",
     )
     detector = get_global_detector(enable_object_detection, detection_confidence)
@@ -1627,7 +1626,7 @@ def detection_worker(
             if shutdown_event.is_set():
                 logger.debug("[DETECTION WORKER] Shutdown event set, exiting.")
                 break
-            batch = detection_meta_queue.get(timeout=settings.SDK_PIPELINE_QUEUE_GET_TIMEOUT_S)
+            batch = detection_meta_queue.get(timeout=settings.PIPELINE_QUEUE_GET_TIMEOUT_S)
             ts_deq = now_us()
         except queue.Empty:
             logger.warning("[DETECTION QUEUE EMPTY] WAITING...")
@@ -1726,10 +1725,10 @@ def embed_worker(
     tracer: Tracer,
 ):
     thread_pool = ThreadPoolExecutor(
-        max_workers=settings.SDK_EMBED_WORKER_THREADS,
+        max_workers=settings.EMBED_WORKER_THREADS,
         thread_name_prefix="embed_worker_thread",
     )
-    _sdk_client = get_sdk_client()
+    _embedding_client = get_embedding_client()
 
     tid = threading.get_ident()
 
@@ -1743,7 +1742,7 @@ def embed_worker(
                 break
 
             # Batch comprises of a list of full +/- detected crops metadata
-            batch = embed_sink_queue.get(timeout=settings.SDK_PIPELINE_QUEUE_GET_TIMEOUT_S)
+            batch = embed_sink_queue.get(timeout=settings.PIPELINE_QUEUE_GET_TIMEOUT_S)
             ts_deq = now_us()
         except queue.Empty:
             if shutdown_event.is_set():
@@ -1789,7 +1788,7 @@ def embed_worker(
             if tracer and tracer.should_trace():
                 tracer.flow_step(flow_id, tid=tid, ts=embedding_time)
 
-            embedding, infer_time_s = _sdk_client.generate_embeddings_for_images(
+            embedding, infer_time_s = _embedding_client.generate_embeddings_for_images(
                 batch_frame_pil, metrics_out=True
             )
 
@@ -1878,7 +1877,7 @@ def store_worker(
     shutdown_event: threading.Event,
     tracer: Tracer,
 ):
-    _sdk_client = get_sdk_client()
+    _embedding_client = get_embedding_client()
 
     tid = threading.get_ident()
 
@@ -1892,7 +1891,7 @@ def store_worker(
                 break
 
             # Batch comprises of a list of full +/- detected crops metadata
-            batch_result = store_queue.get(timeout=settings.SDK_PIPELINE_QUEUE_GET_TIMEOUT_S)
+            batch_result = store_queue.get(timeout=settings.PIPELINE_QUEUE_GET_TIMEOUT_S)
             ts_deq = now_us()
         except queue.Empty:
             if shutdown_event.is_set():
@@ -1935,7 +1934,7 @@ def store_worker(
                 tracer.flow_step(flow_id, tid=tid, ts=storage_time)
             
 
-            saved_ids = _sdk_client.store_frame_embeddings(embedding, batch_frame_meta)
+            saved_ids = _embedding_client.store_frame_embeddings(embedding, batch_frame_meta)
             batch["stored_ids"] = saved_ids
 
             storage_end_time = now_us()
@@ -2228,7 +2227,7 @@ def process_result_worker(result_queue, completion_queue, all_stream_metadata):
     completed_batches = []
     while True:
         try:
-            result = result_queue.get(timeout=settings.SDK_PIPELINE_QUEUE_GET_TIMEOUT_S)
+            result = result_queue.get(timeout=settings.PIPELINE_QUEUE_GET_TIMEOUT_S)
         except queue.Empty:
             logger.warning("[RESULT WORKER] Queue empty, waiting...")
             continue
@@ -2247,7 +2246,7 @@ def process_result_worker(result_queue, completion_queue, all_stream_metadata):
     logger.info("[RESULT WORKER] All batches processed, Result Saved!!!")
 
 
-def generate_rtsp_video_embedding_sdk(
+def generate_rtsp_video_embedding_pipeline(
     video_uris: list[str],
     metadata_dict: Dict[str, Any],
     frame_interval: int = 1,
@@ -2256,7 +2255,7 @@ def generate_rtsp_video_embedding_sdk(
     shutdown_event: Optional[threading.Event] = None,
 ) -> Dict[str, Any]:
     """
-    Generate RTSP video embeddings using SDK approach with parallel processing.
+    Generate RTSP video embeddings with parallel processing.
 
     Args:
         video_uris: List of RTSP video URIs
@@ -2270,15 +2269,15 @@ def generate_rtsp_video_embedding_sdk(
         Dictionary containing processing results and timing information
     """
     total_start_time = now_us()
-    logger.info("ID of shutdown_event in generate_rtsp_video_embedding_sdk: %s", id(shutdown_event))
+    logger.info("ID of shutdown_event in generate_rtsp_video_embedding_pipeline: %s", id(shutdown_event))
     try:
         # Get SDK client
-        sdk_client = get_sdk_client()
+        embedding_client = get_embedding_client()
 
-        if not sdk_client.supports_image:
+        if not embedding_client.supports_image:
             logger.info(
                 "Embedding model %s reports no image/video support; skipping video embedding pipeline",
-                sdk_client.model_id,
+                embedding_client.model_id,
             )
             total_time = (now_us() - total_start_time) / 1_000_000
             return {
@@ -2300,13 +2299,12 @@ def generate_rtsp_video_embedding_sdk(
                     "post_detection_items": 0,
                     "stored_embeddings": 0,
                 },
-                "processing_mode": "sdk_simple_pipeline_with_batch_storage",
             }
 
         # Process video using simple pipeline approach
         result = _process_video_from_memory_simple_pipeline(
             video_uris=video_uris,
-            sdk_client=sdk_client,
+            embedding_client=embedding_client,
             metadata_dict=metadata_dict,
             frame_interval=frame_interval,
             enable_object_detection=enable_object_detection,
@@ -2315,12 +2313,12 @@ def generate_rtsp_video_embedding_sdk(
         )
 
         total_time = (now_us() - total_start_time) / 1_000_000
-        logger.info(f"SDK video processing completed in {total_time:.3f}s")
+        logger.info(f"Video processing completed in {total_time:.3f}s")
 
         # result["total_processing_time"] = total_time
         return result
 
     except Exception as e:
         total_time = now_us() - total_start_time / 1_000_000
-        logger.error(f"SDK video processing failed after {total_time:.3f}s: {e}")
+        logger.error(f"Video processing failed after {total_time:.3f}s: {e}")
         raise

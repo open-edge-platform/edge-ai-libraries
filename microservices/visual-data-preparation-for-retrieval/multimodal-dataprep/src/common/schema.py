@@ -67,12 +67,11 @@ class HealthResponse(BaseModel):
     """Response model for service health checks."""
 
     status: str
-    embedding_mode: str
-    sdk_client_status: Optional[str] = None
+    embedding_client_status: Optional[str] = None
     model_name: Optional[str] = None
     embedding_device: Optional[str] = None
-    sdk_use_openvino: Optional[bool] = None
-    sdk_client_error: Optional[str] = None
+    use_openvino: Optional[bool] = None
+    embedding_client_error: Optional[str] = None
     detection_model: Optional[str] = None
     detection_device: Optional[str] = None
 
@@ -195,7 +194,7 @@ class TelemetryStageTiming(BaseModel):
 
 
 class TelemetryBatchDetail(BaseModel):
-    """Timing details for a single batch in SDK mode."""
+    """Timing details for a single batch."""
     stream_id: int = Field(ge=0)
     batch_index: int = Field(ge=0)
     input_frames: int = Field(ge=0)
@@ -242,17 +241,15 @@ class TelemetryVideoMetadata(BaseModel):
     tags: List[str] = Field(default_factory=list)
     video_url: Optional[str] = None
     video_rel_url: Optional[str] = None
-    processing_mode: Optional[str] = None
 
 
 class TelemetryProcessingConfig(BaseModel):
     """Processing configuration persisted with telemetry."""
 
-    embedding_mode: str
     object_detection_enabled: bool
     detection_confidence: Optional[float] = None
-    sdk_parallel_workers: Optional[int] = None
-    sdk_batch_size: Optional[int] = None
+    parallel_workers: Optional[int] = None
+    batch_size: Optional[int] = None
 
 
 class TelemetryTimestamps(BaseModel):
@@ -268,7 +265,6 @@ class TelemetryRecord(BaseModel):
 
     request_id: str
     source: str
-    processing_mode: str
     timestamps: TelemetryTimestamps
     video: TelemetryVideoMetadata
     config: TelemetryProcessingConfig

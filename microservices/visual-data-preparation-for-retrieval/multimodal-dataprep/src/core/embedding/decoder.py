@@ -47,17 +47,17 @@ def _get_video_config():
     except ImportError:
 
         class FallbackSettings:
-            VIDEO_FRAME_LOG_LEVEL = os.getenv("VIDEO_FRAME_LOG_LEVEL", "INFO")
+            VIDEO_FRAME_LOG_LEVEL = os.getenv("MM_DATAPREP_VIDEO_FRAME_LOG_LEVEL", "INFO")
             VIDEO_FRAME_DECODER_WORKERS = int(
-                os.getenv("VIDEO_FRAME_DECODER_WORKERS", "6")
+                os.getenv("MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS", "6")
             )
-            SDK_VIDEO_EXTRACTION_BATCH_SIZE = int(os.getenv("SDK_VIDEO_EXTRACTION_BATCH_SIZE", "256"))
-            SDK_PIPELINE_QUEUE_MAXSIZE = int(os.getenv("SDK_PIPELINE_QUEUE_MAXSIZE", "16"))
-            SDK_VIDEO_SHM_MAX_BLOCKS = int(os.getenv("SDK_VIDEO_SHM_MAX_BLOCKS", "512"))
-            SDK_VIDEO_SHM_BLOCK_SIZE = int(
-                os.getenv("SDK_VIDEO_SHM_BLOCK_SIZE", str(1920 * 1080 * 3))
+            VIDEO_EXTRACTION_BATCH_SIZE = int(os.getenv("MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE", "256"))
+            PIPELINE_QUEUE_MAXSIZE = int(os.getenv("MM_DATAPREP_PIPELINE_QUEUE_MAXSIZE", "16"))
+            VIDEO_SHM_MAX_BLOCKS = int(os.getenv("MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS", "512"))
+            VIDEO_SHM_BLOCK_SIZE = int(
+                os.getenv("MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE", str(1920 * 1080 * 3))
             )
-            SDK_ENABLE_TRACING = os.getenv("SDK_ENABLE_TRACING", "False").lower() in ("true", "1", "yes")
+            ENABLE_TRACING = os.getenv("MM_DATAPREP_ENABLE_TRACING", "False").lower() in ("true", "1", "yes")
 
         return FallbackSettings()
 
@@ -262,7 +262,7 @@ class VideoFrameConfig:
 
     batch_size: int = 1
     num_workers: int | None = None
-    queue_size: int = field(default_factory=lambda: _video_config.SDK_PIPELINE_QUEUE_MAXSIZE)
+    queue_size: int = field(default_factory=lambda: _video_config.PIPELINE_QUEUE_MAXSIZE)
     frame_interval: int = 1
     keyframes_only: bool = False
 
@@ -320,7 +320,7 @@ def decode_stream_and_batch_generator(
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
 
     if batch_size is None:
-        batch_size = _video_config.SDK_VIDEO_EXTRACTION_BATCH_SIZE
+        batch_size = _video_config.VIDEO_EXTRACTION_BATCH_SIZE
 
     logger.info(f"Stream {stream_id} started decoding with config: {stream_config}")
 
@@ -481,7 +481,7 @@ def decode_and_batch_generator(
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
 
     if batch_size is None:
-        batch_size = _video_config.SDK_VIDEO_EXTRACTION_BATCH_SIZE
+        batch_size = _video_config.VIDEO_EXTRACTION_BATCH_SIZE
 
     batch = []
     batch_id = 0
@@ -757,7 +757,7 @@ class VideoFrameExtractor:
             for inp in self.video_inputs
         ]
 
-        queue_size = _video_config.SDK_PIPELINE_QUEUE_MAXSIZE
+        queue_size = _video_config.PIPELINE_QUEUE_MAXSIZE
         for config in self.configs:
             queue_size += max(config.queue_size, queue_size)
         result_queue: queue.Queue = queue.Queue(maxsize=queue_size)
@@ -865,7 +865,7 @@ def extract_batched_frames(
         Batches of PIL.Image frames from all sources.
     """
     if batch_size is None:
-        batch_size = _video_config.SDK_VIDEO_EXTRACTION_BATCH_SIZE
+        batch_size = _video_config.VIDEO_EXTRACTION_BATCH_SIZE
 
     config = VideoFrameConfig(
         frame_interval=frame_interval,
@@ -875,8 +875,8 @@ def extract_batched_frames(
     if shm_pool is None:
         # Create a default shared memory pool if not provided
         shm_pool = SharedMemoryPool(
-            max_blocks=_video_config.SDK_VIDEO_SHM_MAX_BLOCKS,
-            block_size=_video_config.SDK_VIDEO_SHM_BLOCK_SIZE,
+            max_blocks=_video_config.VIDEO_SHM_MAX_BLOCKS,
+            block_size=_video_config.VIDEO_SHM_BLOCK_SIZE,
         )  # Assuming max 1080p RGB frames
 
     extractor = VideoFrameExtractor(video_inputs, config, shm_pool=shm_pool)

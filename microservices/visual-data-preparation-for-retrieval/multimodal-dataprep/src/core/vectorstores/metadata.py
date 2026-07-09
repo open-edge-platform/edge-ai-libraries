@@ -46,7 +46,6 @@ CANONICAL_FIELDS: List[str] = [
     "upload_timestamp",
     "video_url",
     "video_rel_url",
-    "processing_mode",
     # object-detection crop fields (present only when detection runs)
     "label",
     "bbox",                 # list[number]

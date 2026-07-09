@@ -5,7 +5,7 @@
 Configuration Utilities Module
 
 This module provides configuration loading, validation, and caching utilities.
-Supports both SDK mode (direct integration) and API mode (HTTP-based) processing.
+Supports in-process embedding generation.
 
 Functions:
 - read_config(): Read configuration files (YAML/JSON)

@@ -5,7 +5,7 @@
 Metadata Utilities Module
 
 This module provides metadata generation and management utilities for the VDMS microservice.
-Supports both SDK mode (direct integration) and API mode (HTTP-based) processing.
+Supports in-process embedding generation.
 
 Classes:
 - FrameInfo: Named tuple for frame information

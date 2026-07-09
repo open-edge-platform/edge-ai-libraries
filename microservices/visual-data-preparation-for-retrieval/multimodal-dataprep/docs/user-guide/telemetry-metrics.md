@@ -19,7 +19,6 @@ Sample response:
         {
             "request_id": "1dc48f8c-6ee1-4a5c-8d92-032b5bc5591d",
             "source": "/videos/upload",
-            "processing_mode": "sdk",
             "timestamps": {
                 "requested_at": "2026-04-06T08:05:51.111006Z",
                 "completed_at": "2026-04-06T08:08:00.346370Z",
@@ -35,11 +34,9 @@ Sample response:
                 "video_duration_seconds": 418.4,
                 "tags": ["intersection", "night"],
                 "video_url": "http://:8000/v1/dataprep/videos/download?video_id=dp_video_1775462750&bucket_name=vdms-bucket",
-                "video_rel_url": "/v1/dataprep/videos/download?video_id=dp_video_1775462750&bucket_name=vdms-bucket",
-                "processing_mode": "sdk"
+                "video_rel_url": "/v1/dataprep/videos/download?video_id=dp_video_1775462750&bucket_name=vdms-bucket"
             },
             "config": {
-                "embedding_mode": "sdk",
                 "object_detection_enabled": true,
                 "detection_confidence": 0.85
             },
@@ -116,11 +113,10 @@ This block mirrors the request that was processed:
 
 - `bucket_name`, `video_id`, `filename`, and `frame_interval` are copied from the active job. Numerical fields (`fps`, `total_frames`, `video_duration_seconds`) come straight from the frame extractor.
 - `video_url` and `video_rel_url` point to the download endpoint for the processed video or stitched preview.
-- `processing_mode` echoes the embedding execution path (`sdk` or `api`).
 
 ### Processing config
 
-Fields such as `embedding_mode`, `object_detection_enabled`, and `detection_confidence` are captured from the resolved runtime configuration. When SDK mode is active, `sdk_parallel_workers` and `sdk_batch_size` are also included if configured. All fields reflect the **effective** configuration (after environment variables, CLI args, and defaults are merged) so operators can correlate telemetry with tuning changes.
+Fields such as `object_detection_enabled` and `detection_confidence` are captured from the resolved runtime configuration. `parallel_workers` and `batch_size` are also included if configured. All fields reflect the **effective** configuration (after environment variables, CLI args, and defaults are merged) so operators can correlate telemetry with tuning changes.
 
 ### Aggregate counts
 
@@ -176,7 +172,7 @@ The `stage_throughput` block reports the per-stage processing rate, making it ea
 
 ### Batch breakdown
 
-When SDK mode runs with batching enabled, each entry in the `batches` array reports per-batch timing and counts. These entries make it easy to identify skewed batches (for example, ones with large detection times because of busy scenes).
+When batching is enabled, each entry in the `batches` array reports per-batch timing and counts. These entries make it easy to identify skewed batches (for example, ones with large detection times because of busy scenes).
 
 | Field | Description |
 | --- | --- |

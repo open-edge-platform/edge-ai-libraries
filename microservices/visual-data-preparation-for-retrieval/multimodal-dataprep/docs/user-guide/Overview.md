@@ -1,9 +1,6 @@
 
 # Visual Data Management System (VDMS) based Data Preparation Microservice
-VDMS DataPrep is the ingestion and embedding service that powers the Video Search and Summarization (VSS) flow. It accepts raw media, orchestrates frame-level enrichment (including object detection), and stores both the derived embeddings and the original assets in VDMS Vector DB and MinIO respectively. The service can operate in two different execution paths:
-
-- **SDK mode (`EMBEDDING_PROCESSING_MODE=sdk`)** – the default, latency-optimized path that calls the multimodal embedding models in-process, keeps video bytes in memory, and optionally enables OpenVINO™ acceleration.
-- **API mode (`EMBEDDING_PROCESSING_MODE=api`)** – a compatibility path that keeps parity with earlier deployments by invoking the multimodal embedding serving microservice over HTTP.
+VDMS DataPrep is the ingestion and embedding service that powers the Video Search and Summarization (VSS) flow. It accepts raw media, orchestrates frame-level enrichment (including object detection), generates embeddings in-process, and stores both the derived embeddings and the original assets in VDMS Vector DB and MinIO respectively.
 
 The FastAPI application is mounted under the `/v1/dataprep` root path and exposes endpoints to ingest videos, process existing MinIO content, attach human-authored summaries, and manage stored media.
 
@@ -12,17 +9,17 @@ The FastAPI application is mounted under the `/v1/dataprep` root path and expose
 The microservice focuses on video-first pipelines while still supporting downstream text enrichment:
 
 1. **Source ingestion:** Videos can be uploaded directly or referenced from MinIO buckets that the service has access to.
-2. **Frame extraction and detection:** Every Nth frame (configurable via `FRAME_INTERVAL`) is sampled. When object detection is enabled, the detector generates cropped regions of interest that are embedded separately from the full frame.
-3. **Embedding generation:** Depending on the processing mode, embeddings are generated either through the SDK pipeline (memory-first, multi-threaded, OpenVINO-aware) or through the multimodal embedding HTTP endpoint.
+2. **Frame extraction and detection:** Every Nth frame (configurable via `MM_DATAPREP_FRAME_INTERVAL`) is sampled. When object detection is enabled, the detector generates cropped regions of interest that are embedded separately from the full frame.
+3. **Embedding generation:** Embeddings are generated through the in-process pipeline, which is memory-first, multi-threaded, and OpenVINO-aware.
 4. **Metadata enrichment:** Each frame or crop is annotated with timestamps, download URLs (`/v1/dataprep/videos/download`), detection confidences, and tags.
 5. **Persistent storage:** Embeddings and metadata are stored in VDMS while the raw assets remain in MinIO for later retrieval.
 
 ## Key Benefits
 
 - **Video-aware ingest:** Frame-level sampling, optional YOLOX-based object detection, and manifest-based storage tailored for downstream aggregation in Search-MS.
-- **Flexible runtime:** Runtime toggles for SDK/API processing, OpenVINO acceleration, and per-component device offload (`MULTIMODAL_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, `DETECTION_DEVICE`) without code changes.
+- **Flexible runtime:** Runtime toggles for OpenVINO acceleration and device offload (`MM_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`) without code changes.
 - **Consistent metadata model:** Each stored record always references the canonical download URL and includes timestamps, tag lists, and bucket identifiers for frictionless recall.
-- **Operational efficiency:** Cached SDK clients, preloading at startup, parallel embedding pipelines, and MinIO-aware utilities reduce cold-start latency and I/O overhead.
+- **Operational efficiency:** Cached embedding clients, preloading at startup, parallel embedding pipelines, and MinIO-aware utilities reduce cold-start latency and I/O overhead.
 - **End-to-end observability:** Structured logging, health reporting, and schema-validated requests provide clear insight during development and production operations.
 
 ## Feature Highlights
@@ -31,7 +28,7 @@ The microservice focuses on video-first pipelines while still supporting downstr
 - **Object detection first-class support** with per-request overrides (`enable_object_detection`, `detection_confidence`) and automatic fallback when a model is unavailable.
 - **Tags and summaries** that link curated text back to the precise video segment, enabling multi-modal search.
 - **Configuration-driven behavior** through `config.yaml` and environment overrides for frame strategies, fallback transports, and detector settings.
-- **Containerized deployment** via Docker Compose with companion services for MinIO, VDMS Vector DB, and optional multimodal embedding serving.
+- **Containerized deployment** via Docker Compose with companion services for MinIO and VDMS Vector DB.
 
 ## Example Use Cases
 

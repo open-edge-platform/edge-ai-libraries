@@ -21,108 +21,106 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | ✅ | _(none)_ | Credentials used to bootstrap MinIO and authenticate API calls from DataPrep. |
-| `MINIO_ENDPOINT` | ✅ | `minio-server:9000` | Host:port string DataPrep uses to communicate with MinIO from inside the container. |
-| `DEFAULT_BUCKET_NAME` | ✅ | `vdms-bucket` (via `setup.sh`) | Destination bucket for uploaded videos and generated manifests. Override with `PM_MINIO_BUCKET` when running alongside pipeline-manager. |
-| `VDMS_VDB_HOST` / `VDMS_VDB_PORT` | ✅ | `vdms-vector-db` / `55555` | Connection information for VDMS Vector DB. |
-| `DB_COLLECTION` | ✅ | `video-rag` | VDMS collection that stores embeddings and metadata. |
-| `MULTIMODAL_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by both SDK and API execution paths (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
-| `EMBEDDING_PROCESSING_MODE` | ✅ | `sdk` | Selects optimized in-process execution (`sdk`) or HTTP-based execution (`api`). |
-| `SDK_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration in SDK mode. Set `false` to stay on PyTorch. |
-| `MULTIMODAL_DATAPREP_DEVICE` | Optional | `CPU` | Baseline processing device used as fallback for embedding and detection when per-component overrides are not set (`CPU`, `GPU`, or `NPU`). |
-| `EMBEDDING_DEVICE` | Optional | `MULTIMODAL_DATAPREP_DEVICE` | Explicit device override for embedding execution (`CPU`, `GPU`, or `NPU`). |
-| `DETECTION_DEVICE` | Optional | `MULTIMODAL_DATAPREP_DEVICE` | Explicit device override for object detection execution (`CPU`, `GPU`, or `NPU`). |
-| `EMBEDDING_BATCH_SIZE` | Optional | `32` | Number of items sent per SDK embedding batch. |
-| `MAX_PARALLEL_WORKERS` | Optional | _(auto)_ | Hard cap for SDK parallel workers when auto-scaling is too aggressive for the host. |
-| `FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
-| `ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles YOLOX-based crop extraction. |
-| `DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |
-| `ROI_CONSOLIDATION_ENABLED` | Optional | `false` | Enables ROI consolidation (merging overlapping detections). |
-| `ROI_CONSOLIDATION_IOU_THRESHOLD` | Optional | `0.2` | IoU threshold used to group overlapping boxes into a single ROI. |
-| `ROI_CONSOLIDATION_CLASS_AWARE` | Optional | `false` | Merge only boxes of the same class when `true`. |
-| `ROI_CONSOLIDATION_CONTEXT_SCALE` | Optional | `0.2` | Expands merged ROIs by this fraction of their width/height. |
-| `SDK_VIDEO_SHM_MAX_BLOCKS` | Optional | `512` | Shared memory block count for SDK video decode and embedding pipeline. |
-| `SDK_VIDEO_SHM_BLOCK_SIZE` | Optional | `6220800` | Per-block shared memory size in bytes (default sized for 1080p RGB frames). |
-| `SDK_VIDEO_EXTRACTION_BATCH_SIZE` | Optional | `256` | Decoder-side batch size used when extracting frames for SDK processing. |
-| `SDK_PIPELINE_QUEUE_MAXSIZE` | Optional | `16` | Queue capacity for inter-stage SDK pipeline buffers. |
-| `SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE` | Optional | `1` | Queue capacity for completion/result handoff stage. |
-| `SDK_DETECTION_WORKER_THREADS` | Optional | `2` | Local thread count used by object-detection worker stage. |
-| `SDK_EMBED_WORKER_THREADS` | Optional | `2` | Local thread count used by embedding worker stage. |
-| `SDK_PIPELINE_QUEUE_GET_TIMEOUT_S` | Optional | `1.0` | Timeout in seconds for pipeline queue reads before retry loops. |
-| `SAVE_RUNTIME_PIPELINE_STATS` | Optional | `false` | Persist batch/stream runtime stats JSON artifacts for debugging and profiling. |
-| `SDK_ENABLE_TRACING` | Optional | `false` | Enables trace emission for SDK decode/detect/embed/store stages. |
-| `VIDEO_FRAME_DECODER_WORKERS` | Optional | `2` | Number of decoder workers used in frame extraction utilities. |
-| `VIDEO_FRAME_LOG_LEVEL` | Optional | `INFO` | Log level for decoder internals (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
-| `OV_MODELS_DIR` | Optional | `/app/ov_models` | Persistent mount that caches OpenVINO-optimized models. |
-| `ALLOW_ORIGINS`, `ALLOW_METHODS`, `ALLOW_HEADERS` | Optional | `*` | CORS configuration applied by FastAPI. |
+| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | ✅ | _(none)_ | Credentials used to bootstrap MinIO. |
+| `MM_DATAPREP_MINIO_ENDPOINT` | ✅ | `minio-server:9000` | Host:port string DataPrep uses to communicate with MinIO from inside the container. |
+| `MM_DATAPREP_DEFAULT_BUCKET_NAME` | ✅ | `vdms-bucket` (via `setup.sh`) | Destination bucket for uploaded videos and generated manifests. Override with `MM_DATAPREP_PM_MINIO_BUCKET` when running alongside pipeline-manager. |
+| `MM_DATAPREP_VDMS_VDB_HOST` / `MM_DATAPREP_VDMS_VDB_PORT` | ✅ | `vdms-vector-db` / `55555` | Connection information for VDMS Vector DB. |
+| `MM_DATAPREP_DB_COLLECTION` | ✅ | `video-rag` | VDMS collection that stores embeddings and metadata. |
+| `MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by the in-process embedding pipeline (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
+| `MM_DATAPREP_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration for embedding generation. Set `false` to stay on PyTorch. |
+| `MM_EMBEDDING_DEVICE` | Optional | `CPU` | Device for the in-process embedding pipeline (`CPU`, `GPU`, or `NPU`). Independent of the MME service's own `EMBEDDING_DEVICE`. |
+| `MM_DATAPREP_DETECTION_DEVICE` | Optional | `CPU` | Device override for object detection execution (`CPU`, `GPU`, or `NPU`). |
+| `MM_DATAPREP_EMBEDDING_BATCH_SIZE` | Optional | `32` | Number of items sent per embedding batch. |
+| `MM_DATAPREP_MAX_PARALLEL_WORKERS` | Optional | _(auto)_ | Hard cap for parallel workers when auto-scaling is too aggressive for the host. |
+| `MM_DATAPREP_FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
+| `MM_DATAPREP_ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles YOLOX-based crop extraction. |
+| `MM_DATAPREP_DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |
+| `MM_DATAPREP_ROI_CONSOLIDATION_ENABLED` | Optional | `false` | Enables ROI consolidation (merging overlapping detections). |
+| `MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD` | Optional | `0.2` | IoU threshold used to group overlapping boxes into a single ROI. |
+| `MM_DATAPREP_ROI_CONSOLIDATION_CLASS_AWARE` | Optional | `false` | Merge only boxes of the same class when `true`. |
+| `MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE` | Optional | `0.2` | Expands merged ROIs by this fraction of their width/height. |
+| `MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS` | Optional | `512` | Shared memory block count for the video decode and embedding pipeline. |
+| `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` | Optional | `6220800` | Per-block shared memory size in bytes (default sized for 1080p RGB frames). |
+| `MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE` | Optional | `256` | Decoder-side batch size used when extracting frames for processing. |
+| `MM_DATAPREP_PIPELINE_QUEUE_MAXSIZE` | Optional | `16` | Queue capacity for inter-stage pipeline buffers. |
+| `MM_DATAPREP_PIPELINE_COMPLETION_QUEUE_MAXSIZE` | Optional | `1` | Queue capacity for completion/result handoff stage. |
+| `MM_DATAPREP_DETECTION_WORKER_THREADS` | Optional | `2` | Local thread count used by object-detection worker stage. |
+| `MM_DATAPREP_EMBED_WORKER_THREADS` | Optional | `2` | Local thread count used by embedding worker stage. |
+| `MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S` | Optional | `1.0` | Timeout in seconds for pipeline queue reads before retry loops. |
+| `MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS` | Optional | `false` | Persist batch/stream runtime stats JSON artifacts for debugging and profiling. |
+| `MM_DATAPREP_ENABLE_TRACING` | Optional | `false` | Enables trace emission for decode/detect/embed/store stages. |
+| `MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS` | Optional | `2` | Number of decoder workers used in frame extraction utilities. |
+| `MM_DATAPREP_VIDEO_FRAME_LOG_LEVEL` | Optional | `INFO` | Log level for decoder internals (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
+| `MM_DATAPREP_OV_MODELS_DIR` | Optional | `/app/ov_models` | Persistent mount that caches OpenVINO-optimized models. |
+| `MM_DATAPREP_ALLOW_ORIGINS`, `MM_DATAPREP_ALLOW_METHODS`, `MM_DATAPREP_ALLOW_HEADERS` | Optional | `*` | CORS configuration applied by FastAPI. |
 
-### Device selection (`MULTIMODAL_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, `DETECTION_DEVICE`)
+### Device selection (`MM_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`)
 
-`MULTIMODAL_DATAPREP_DEVICE` is the single source of truth for DataPrep device selection. The per-component
-variables inherit from it unless you explicitly override them. Effective precedence (highest first):
+DataPrep configures its two compute stages independently — there is no baseline
+device. Each variable defaults to `CPU` when unset:
 
-1. Explicit `EMBEDDING_DEVICE` / `DETECTION_DEVICE` (per-component override).
-2. `MULTIMODAL_DATAPREP_DEVICE` (baseline applied to both components).
-3. `CPU` (final fallback).
+- `MM_EMBEDDING_DEVICE` — device for the in-process embedding pipeline.
+- `MM_DATAPREP_DETECTION_DEVICE` — device for object detection.
 
-> **Important:** The inheritance is applied by the setup scripts (`setup.sh` /
-> `setup-with-embedding.sh`), which export `EMBEDDING_DEVICE`/`DETECTION_DEVICE` as
-> `${VAR:-$MULTIMODAL_DATAPREP_DEVICE}`. You must `source` the setup script for `MULTIMODAL_DATAPREP_DEVICE` to
-> cascade. If you run `docker compose up` directly (bypassing the script), the compose files default
-> the per-component variables to `CPU`, so setting only `MULTIMODAL_DATAPREP_DEVICE` has no effect — set
-> `EMBEDDING_DEVICE` and `DETECTION_DEVICE` explicitly in that case.
+> **Note:** When you run `setup-with-embedding.sh`, the standalone Multimodal
+> Embedding (MME) service has its own device variable, `EMBEDDING_DEVICE`, which
+> is set independently of DataPrep's `MM_EMBEDDING_DEVICE`.
+
+> **Important:** These variables are read directly by the DataPrep container. You
+> can `source` a setup script (which exports the `CPU` defaults) or set them
+> explicitly before running `docker compose up`.
 
 Examples (run before sourcing the setup script):
 
 ```bash
 # Offload detection to NPU and embedding to GPU (independent per-component devices)
-export DETECTION_DEVICE=NPU
-export EMBEDDING_DEVICE=GPU
+export MM_DATAPREP_DETECTION_DEVICE=NPU
+export MM_EMBEDDING_DEVICE=GPU
 
-# Offload everything to GPU
-export MULTIMODAL_DATAPREP_DEVICE=GPU
+# Run both stages on GPU
+export MM_EMBEDDING_DEVICE=GPU
+export MM_DATAPREP_DETECTION_DEVICE=GPU
 
-# Baseline GPU, but keep detection on CPU
-export MULTIMODAL_DATAPREP_DEVICE=GPU
-export DETECTION_DEVICE=CPU
+# Embedding on GPU, but keep detection on CPU
+export MM_EMBEDDING_DEVICE=GPU
+export MM_DATAPREP_DETECTION_DEVICE=CPU
 ```
 
 When targeting `NPU`, confirm the selected model supports NPU inference via the
 [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
 
 > **Running everything on NPU:** Setting both embedding and detection to `NPU`
-> (for example via `MULTIMODAL_DATAPREP_DEVICE=NPU`) is functionally supported — both
-> stages run on NPU through OpenVINO. However, the host has a single NPU, so the
-> embedding and detection stages contend for the same accelerator. It works, but
-> it is not optimal for throughput. For best performance, split the load across
-> accelerators (for example, keep embedding on `NPU` and detection on `GPU`/`CPU`,
-> or vice versa).
+> (via `MM_EMBEDDING_DEVICE=NPU` and `MM_DATAPREP_DETECTION_DEVICE=NPU`) is
+> functionally supported — both stages run on NPU through OpenVINO. However, the
+> host has a single NPU, so the embedding and detection stages contend for the
+> same accelerator. It works, but it is not optimal for throughput. For best
+> performance, split the load across accelerators (for example, keep embedding on
+> `NPU` and detection on `GPU`/`CPU`, or vice versa).
 
 ### Advanced tuning
 
 Additional environment variables are available for high-throughput scenarios:
 
-- `ENABLE_PARALLEL_PIPELINE` (default `true`) — disable to force single-threaded embedding.
-- `MAX_PARALLEL_WORKERS` — hard cap on SDK worker threads (auto-calculated when unset).
-- `OV_PERFORMANCE_MODE`, `OV_PERFORMANCE_HINT_NUM_REQUESTS`, `OV_NUM_STREAMS` — forward performance hints to OpenVINO when running on CPU or GPU.
-- `SDK_VIDEO_SHM_MAX_BLOCKS`, `SDK_VIDEO_SHM_BLOCK_SIZE` — tune shared-memory capacity for frame transport.
-- `SDK_VIDEO_EXTRACTION_BATCH_SIZE`, `SDK_PIPELINE_QUEUE_MAXSIZE`, `SDK_PIPELINE_QUEUE_GET_TIMEOUT_S` — tune decode and queue backpressure behavior.
-- `SDK_DETECTION_WORKER_THREADS`, `SDK_EMBED_WORKER_THREADS` — tune stage-local worker counts.
-- `SAVE_RUNTIME_PIPELINE_STATS`, `SDK_ENABLE_TRACING`, `VIDEO_FRAME_LOG_LEVEL` — enable diagnostics and control verbosity.
+- `MM_DATAPREP_ENABLE_PARALLEL_PIPELINE` (default `true`) — disable to force single-threaded embedding.
+- `MM_DATAPREP_MAX_PARALLEL_WORKERS` — hard cap on worker threads (auto-calculated when unset).
+- `MM_OV_PERFORMANCE_MODE`, `OV_PERFORMANCE_HINT_NUM_REQUESTS`, `OV_NUM_STREAMS` — forward performance hints to OpenVINO when running on CPU or GPU.
+- `MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS`, `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` — tune shared-memory capacity for frame transport.
+- `MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE`, `MM_DATAPREP_PIPELINE_QUEUE_MAXSIZE`, `MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S` — tune decode and queue backpressure behavior.
+- `MM_DATAPREP_DETECTION_WORKER_THREADS`, `MM_DATAPREP_EMBED_WORKER_THREADS` — tune stage-local worker counts.
+- `MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS`, `MM_DATAPREP_ENABLE_TRACING`, `MM_DATAPREP_VIDEO_FRAME_LOG_LEVEL` — enable diagnostics and control verbosity.
 
 Export overrides before sourcing the setup script:
 
 ```bash
-export MULTIMODAL_EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"
+export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"
 export MINIO_ROOT_USER="minioadmin"
 export MINIO_ROOT_PASSWORD="minioadmin"
-export EMBEDDING_PROCESSING_MODE="sdk"
-export EMBEDDING_DEVICE="CPU"
-export DETECTION_DEVICE="CPU"
+export MM_EMBEDDING_DEVICE="CPU"
+export MM_DATAPREP_DETECTION_DEVICE="CPU"
 source ./setup.sh --nosetup
 ```
 
-> **Tip:** When you only need long-form text embeddings—such as the combined `--all` mode in the video search and summarization sample—set `EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"` before sourcing `setup.sh`. The script forwards this value to the DataPrep container as `MULTIMODAL_EMBEDDING_MODEL_NAME`, enabling Qwen-backed text embeddings in SDK and API modes without any additional flags.
+> **Tip:** When you only need long-form text embeddings—such as the combined `--all` mode in the video search and summarization sample—set `EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"` before sourcing `setup.sh`. The script forwards this value to the DataPrep container as `MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME`, enabling Qwen-backed text embeddings without any additional flags.
 
 ## ROI consolidation (optional)
 
@@ -131,7 +129,7 @@ ROI consolidation merges overlapping detections into a single crop and optionall
 Enable it via environment variable (recommended for quick toggles):
 
 ```bash
-export ROI_CONSOLIDATION_ENABLED=true
+export MM_DATAPREP_ROI_CONSOLIDATION_ENABLED=true
 ```
 
 Or configure it in `src/config.yaml` under `object_detection.roi_consolidation`:
@@ -177,19 +175,18 @@ The user has an option to either [build the docker images](./how-to-build-from-s
    ```bash
    export MINIO_ROOT_USER="minioadmin"
    export MINIO_ROOT_PASSWORD="minioadmin"
-   export MULTIMODAL_EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+   export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
    ```
 
    For text-only scenarios replace the last line with:
 
    ```bash
-   export MULTIMODAL_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
+   export EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
    ```
 
-3. **Choose your execution mode.**
+3. **Start the stack.**
 
-   - **SDK mode (default):** No external embedding service required. Run `source ./setup.sh` to export the environment variables, then start MinIO, VDMS, and DataPrep with `docker compose -f docker/compose.yaml up -d --build`.
-   - **API mode:** Requires the multimodal embedding serving container. Set `export EMBEDDING_PROCESSING_MODE=api`, `source ./setup-with-embedding.sh`, then launch with `docker compose -f docker/compose-with-embedding.yaml up -d --build`.
+   Run `source ./setup.sh` to export the environment variables, then start MinIO, VDMS, and DataPrep with `docker compose -f docker/compose.yaml up -d --build`.
 
 4. **Confirm the stack is healthy.**
 
@@ -197,9 +194,9 @@ The user has an option to either [build the docker images](./how-to-build-from-s
    docker ps --filter "name=vdms" --format "table {{.Names}}\t{{.Status}}"
    ```
 
-5. **Open the interactive docs.** Navigate to `http://localhost:6007/docs` (adjust if you changed `MULTIMODAL_DATAPREP_HOST_PORT`) to view the OpenAPI schema.
+5. **Open the interactive docs.** Navigate to `http://localhost:6007/docs` (adjust if you changed `MM_DATAPREP_HOST_PORT`) to view the OpenAPI schema.
 
-6. **Shut everything down when finished.** Use `source ./setup.sh --down` (or `docker compose ... down` for the API stack) to stop services.
+6. **Shut everything down when finished.** Use `source ./setup.sh --down` (or `docker compose -f docker/compose.yaml down`) to stop services.
 
 ## Usage
 
@@ -211,7 +208,7 @@ The FastAPI application is mounted under `/v1/dataprep`.
 curl http://localhost:6007/v1/dataprep/health
 ```
 
-SDK mode responses include the preload status, model name, and device.
+Health responses include the embedding client preload status, model name, and device.
 
 ### Upload and process a new video
 
@@ -224,7 +221,7 @@ curl -X POST "http://localhost:6007/v1/dataprep/videos/upload" \
   -F "tags=intersection" -F "tags=night"
 ```
 
-The service streams the asset to MinIO, extracts frames (and crops), generates embeddings, and persists metadata in VDMS. The JSON response reports the processing mode that was used.
+The service streams the asset to MinIO, extracts frames (and crops), generates embeddings, and persists metadata in VDMS.
 
 ### Process an existing video in MinIO
 
@@ -284,7 +281,7 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 
 ## Validate Services
 
-1. Call `GET /v1/dataprep/health` – expect `status: ok`, the active embedding mode, and the OpenVINO flag when SDK mode is selected.
+1. Call `GET /v1/dataprep/health` – expect `status: ok`, the embedding client status, model name, device, and OpenVINO flag.
 2. Upload a small MP4 via `/videos/upload` and confirm:
    - The response payload reports `success`.
    - `GET /v1/dataprep/videos` lists the generated `video_id` and manifests.
@@ -293,10 +290,9 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 
 ## Troubleshooting
 
-- **Startup fails with “model name must be provided”:** Set `MULTIMODAL_EMBEDDING_MODEL_NAME` before launching Docker (required for both SDK and API modes).
+- **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before sourcing `setup.sh` or set `MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME` in the container environment before launching Docker.
 - **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
-- **API mode returns 502:** Verify the multimodal embedding service is healthy at `MULTIMODAL_EMBEDDING_ENDPOINT` (see `docker compose -f docker/compose-with-embedding.yaml ps`).
 - **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/videos/minio` instead.
-- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`MULTIMODAL_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, or `DETECTION_DEVICE`) to `GPU`, and keep `SDK_USE_OPENVINO=true`.
-- **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`MULTIMODAL_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, or `DETECTION_DEVICE`) to `NPU`, and keep `SDK_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
-- **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.
+- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`MM_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `GPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`.
+- **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`MM_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `NPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
+- **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `MM_DATAPREP_OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.
