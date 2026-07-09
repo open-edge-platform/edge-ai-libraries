@@ -143,7 +143,7 @@ subcommand_bootstrap () {
       sed -i '/^subcommand_bootstrap *[(][)] *[{]/,${d}' "$0"
       local modules=(${*/#[!--default=]*/})
       if [ ${#modules[*]} -gt 0 ]; then
-        sed -i "1i[ \${#@} -gt 1 ] || set -- install ${modules[*]##--default=}" "$0"
+        sed -i "1a[ \${#@} -gt 1 ] || set -- install ${modules[*]##--default=}" "$0"
       fi
     fi
     for script in "${!scripts[@]}"; do
