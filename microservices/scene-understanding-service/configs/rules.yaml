@@ -1,0 +1,191 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# SAMPLE rules for scene-understanding-service.
+#
+# This file is a generic example and the service's built-in fallback: it is
+# loaded from `configs/` next to the source when no `/app/configs` volume is
+# mounted (override the directory with the CONFIG_DIR env var). Every
+# consuming application supplies its OWN rules.yaml (with its use-case
+# specific rules and thresholds) via a read-only volume mount.
+#
+# Each rule defines a trigger, conditions, and actions.
+# Variable substitution: ${var_name:default} resolves from the "variables"
+# section below, with environment overrides (RULES_VARIABLES) taking priority.
+
+# Runtime settings consumed by the service (non-rule knobs).
+settings:
+  session_timeout_seconds: 90
+  # SceneScape frame-capture cadence (per HV-zone visit).
+  # Each cycle: emit `frame_capture_count` getimage commands evenly
+  # spread across `frame_capture_interval_seconds`, then publish one
+  # ba/requests message. e.g. count=5, interval=1.0 -> 5 frames/s and
+  # one BA request every second.
+  frame_capture_count: 15
+  frame_capture_interval_seconds: 1.0
+
+# Default variable values used by the rule engine for ${var:default}
+# placeholders in the rules below. Can be overridden at runtime via the
+# RULES_VARIABLES env var (JSON).
+variables:
+  repeat_visit_threshold: 4
+  loiter_threshold_seconds: 15
+
+# Session flags — configurable boolean flags set on PersonSession at runtime.
+# Each flag is auto-set based on its trigger type:
+#   zone_visited : set to true when a person enters any zone of the given zone_type.
+#   external     : set by an external service result (e.g. behavioral_analysis).
+# Rules can reference these flags by name in condition fields.
+# Adding a new flag here requires NO code change — it is picked up automatically.
+session_flags:
+  visited_high_value:
+    trigger: zone_visited
+    zone_type: HIGH_VALUE
+  visited_checkout:
+    trigger: zone_visited
+    zone_type: CHECKOUT
+  visited_exit:
+    trigger: zone_visited
+    zone_type: EXIT
+  concealment_suspected:
+    trigger: external
+    source: behavioral_analysis
+    field: status
+    match_value: suspicious
+
+# Service registry — named escalation services that rules can invoke.
+# Each entry maps a service name (used in rule action params) to its handler type.
+# Adding a new service here requires a matching handler registered in code at startup.
+services:
+  behavioral_analysis:
+    handler: ba_orchestrator
+
+rules:
+  - id: restricted_zone
+    name: Restricted Zone Violation
+    enabled: true
+    trigger:
+      event_type: zone_entry
+      zone_type: RESTRICTED
+    conditions: []
+    actions:
+      - type: alert
+        params:
+          alert_type: ZONE_VIOLATION
+          severity: CRITICAL
+          details:
+            zone_type: $ctx.zone_type
+
+  - id: repeated_visits
+    name: Repeated High-Value Zone Visits
+    enabled: true
+    trigger:
+      event_type: zone_entry
+      zone_type: HIGH_VALUE
+    conditions:
+      - field: zone_visit_counts[region_id]
+        op: gte
+        value: ${repeat_visit_threshold:4}
+    actions:
+      - type: alert
+        params:
+          alert_type: REPEATED_VISIT
+          severity: WARNING
+          fire_once_per: session
+          threshold: ${repeat_visit_threshold:4}
+          details:
+            visit_count: $ctx.visit_count
+            threshold: $param.threshold
+
+  - id: behavioral_analysis
+    name: Trigger Behavioral Analysis on High-Value Entry
+    enabled: true
+    trigger:
+      event_type: zone_entry
+      zone_type: HIGH_VALUE
+    conditions: []
+    actions:
+      - type: escalate
+        params:
+          service: behavioral_analysis
+
+  - id: concealment_detected
+    name: Concealment Detected by Behavioral Analysis
+    enabled: true
+    trigger:
+      event_type: ba_result
+      zone_type: HIGH_VALUE
+    conditions:
+      - field: ba_status
+        op: eq
+        value: suspicious
+    actions:
+      - type: alert
+        params:
+          alert_type: CONCEALMENT
+          severity: WARNING
+          details:
+            confidence: $ctx.ba_confidence
+            message: $ctx.ba_message
+            frames_analyzed: $ctx.ba_frames_analyzed
+
+  - id: checkout_visited
+    name: Checkout Zone Visited
+    description: Person entered a CHECKOUT zone.
+    enabled: false
+    trigger:
+      event_type: zone_entry
+      zone_type: CHECKOUT
+    conditions: []
+    actions:
+      - type: alert
+        params:
+          alert_type: CHECKOUT_VISITED
+          severity: INFO
+
+  - id: checkout_bypass
+    name: Checkout Bypass Detection
+    enabled: true
+    trigger:
+      event_type: zone_entry
+      zone_type: EXIT
+    conditions:
+      - field: visited_high_value
+        op: eq
+        value: true
+      - field: visited_checkout
+        op: eq
+        value: false
+    actions:
+      - type: alert
+        params:
+          alert_type: CHECKOUT_BYPASS
+          severity: WARNING
+          severity_if: concealment_suspected
+          severity_when_true: CRITICAL
+          details:
+            visited_high_value: $ctx.visited_high_value
+            visited_checkout: $ctx.visited_checkout
+            concealment_suspected: $ctx.concealment_suspected
+
+  - id: loitering
+    name: Loitering in High-Value Zone
+    description: Person remains in a HIGH_VALUE zone longer than the threshold.
+    enabled: true
+    trigger:
+      event_type: zone_loiter
+      zone_type: HIGH_VALUE
+    conditions:
+      - field: dwell_seconds
+        op: gt
+        value: ${loiter_threshold_seconds:40}
+    actions:
+      - type: alert
+        params:
+          alert_type: LOITERING
+          severity: WARNING
+          fire_once_per: session
+          threshold: ${loiter_threshold_seconds:40}
+          details:
+            dwell_seconds: $ctx.dwell_seconds
+            threshold: $param.threshold
