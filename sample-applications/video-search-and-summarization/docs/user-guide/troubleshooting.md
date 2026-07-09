@@ -238,6 +238,38 @@ Alternatively, switch to a model with a larger context window.
    source setup.sh --summary
    ```
 
+## Embedding Fails on NPU/GPU in Kubernetes (Device Permission)
+
+**Problem**: On a Helm deployment, video embedding fails when `multimodal-embedding-ms` or `vdms-dataprep` is configured for `NPU` (or `GPU`), even though the device plugin granted the resource and `/dev/accel` (or `/dev/dri`) is mounted in the pod. The UI may show a generic embedding failure.
+
+**Cause**: The container runs as a non-root user. The accelerator device node (`/dev/accel` for NPU, `/dev/dri` for GPU) is owned by a host group (gid). Without that gid in the pod's `supplementalGroups`, the user cannot open the device, so OpenVINO enumerates only `['CPU']` and NPU/GPU plugin initialization fails — sometimes with a misleading "cannot load library …compiler_loader.so" message even though the library exists.
+
+**Symptoms**:
+
+- `multimodal-embedding-ms` / `vdms-dataprep` logs show `DEVICES: ['CPU']` (NPU/GPU missing) and an NPU/GPU plugin/compiler load failure.
+- The pod has the device mounted and the resource granted, yet inference stays on CPU or errors out.
+
+**Solution**:
+
+1. Find the gid that owns the device node on the scheduled worker node:
+
+   ```bash
+   ls -ln /dev/accel   # NPU
+   ls -ln /dev/dri     # GPU
+   ```
+
+2. Set `global.accelGroupIds` in `user_values_override.yaml` to match (it is injected into the pod `supplementalGroups` when a service uses GPU/NPU):
+
+   ```yaml
+   global:
+     accelGroupIds:
+       - 992   # replace with the gid owning /dev/accel or /dev/dri on your node
+   ```
+
+3. Re-deploy (or `helm upgrade`) and confirm the pod now lists `['CPU','NPU']` (or `GPU`) and loads the model on the accelerator.
+
+> **Note:** Nodes are heterogeneous, so the gid can differ per node. The chart cannot auto-detect it (templates render client-side), which is why `global.accelGroupIds` is an explicit override. On first GPU/NPU start the model is compiled and cached to `ovCacheDir` (`/app/ov_models/ov_cache`); allow the DataPrep `startupProbe` budget to complete this one-time compile.
+
 ## OVMS KV Cache Exhaustion
 
 **Problem**: LLM or VLM inference requests are slow, produce incomplete responses, or fail under concurrent usage.

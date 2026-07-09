@@ -27,7 +27,7 @@ export DEFAULT_CLIP_DURATION=-1  # -1 means take the video till end
 export DEFAULT_NUM_FRAMES=64
 
 # OpenVINO configuration
-export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-false}
+export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-true}
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-CPU}
 export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-LATENCY}
 
@@ -49,6 +49,11 @@ if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
     export OV_PERFORMANCE_MODE=THROUGHPUT
     export INFER_BATCH_SIZE=${INFER_BATCH_SIZE:-64}
     export VIDEO_FRAME_BATCH_SIZE=${VIDEO_FRAME_BATCH_SIZE:-256}
+fi
+
+# If EMBEDDING_DEVICE is NPU, set EMBEDDING_USE_OV to true
+if [ "$EMBEDDING_DEVICE" = "NPU" ]; then
+    export EMBEDDING_USE_OV=true
 fi
 
 export EMBEDDING_SERVER_PORT=9777
@@ -82,7 +87,7 @@ case "$EMBEDDING_MODEL_NAME" in
     "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b"|"MobileCLIP/mobileclip_blt")
         echo "Using MobileCLIP model: $EMBEDDING_MODEL_NAME"
         ;;
-    "Blip2/blip2_transformers")
+    "Blip2/blip2")
         echo "Using BLIP2 model: $EMBEDDING_MODEL_NAME"
         ;;
     *)
@@ -96,6 +101,20 @@ VIDEO_GROUP_ID=$(getent group video | awk -F: '{print $3}')
 RENDER_GROUP_ID=$(getent group render | awk -F: '{print $3}')
 export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)
+
+# Set DRI_MOUNT_PATH based on whether /dev/dri exists and is not empty
+if [ -d /dev/dri ] && [ "$(ls -A /dev/dri)" ]; then
+    export DRI_MOUNT_PATH="/dev/dri"
+else
+    export DRI_MOUNT_PATH="/dev/null"
+fi
+
+# Set ACCEL_MOUNT_PATH based on whether /dev/accel/accel0 exists
+if [ -e /dev/accel/accel0 ]; then
+    export ACCEL_MOUNT_PATH="/dev/accel/accel0"
+else
+    export ACCEL_MOUNT_PATH="/dev/null"
+fi
 
 docker volume create data-prep
 docker volume create ov-models
@@ -113,3 +132,5 @@ echo "EMBEDDING_MODEL_NAME set to: ${EMBEDDING_MODEL_NAME}"
 echo "EMBEDDING_DEVICE set to: ${EMBEDDING_DEVICE}"
 echo "EMBEDDING_USE_OV set to: ${EMBEDDING_USE_OV}"
 echo "OV_PERFORMANCE_MODE set to: ${OV_PERFORMANCE_MODE}"
+echo "DRI_MOUNT_PATH set to: ${DRI_MOUNT_PATH}"
+echo "ACCEL_MOUNT_PATH set to: ${ACCEL_MOUNT_PATH}"

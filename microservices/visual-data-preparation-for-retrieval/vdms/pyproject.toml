@@ -4,62 +4,59 @@ version = "2.0.0"
 description = "A microservice based on VDMS VectorDB for data preparation for text, video and images sources"
 authors = []
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.14"
-fastapi = "^0.121.3"
-uvicorn = "^0.38.0"
-gunicorn = "^23.0.0"
-pydantic = "^2.11.7"
-pydantic-settings = "^2.10.1"
-python-multipart = "^0.0.27"
-setuptools = "^82.0.1"
-transformers = "^4.52.4"
-huggingface-hub = "^0.32.3"
-langchain = "^1.2.12"
-langchain-core = "^1.2.18"
-langchain-vdms = "^0.2.0"
-langsmith = "^0.8.0"
-opencv-python-headless = "^4.11.0.86"
-pillow = "^12.1.1"
-tzlocal = "^5.2"
-decord = "^0.6.0"
-einops = "^0.8.0"
-minio = "^7.1.15"
-requests = "^2.31.0"
+python = ">=3.11,<3.14"
+fastapi = ">=0.136.3,<1.0.0"
+uvicorn = ">=0.48.0,<1.0.0"
+gunicorn = "^26.0.0"
+pydantic = "^2.13.4"
+pydantic-settings = "^2.14.1"
+python-multipart = ">=0.0.30,<1.0.0"
+setuptools = "^81.0.0"
+transformers = "^4.57.6"
+huggingface-hub = ">=0.36.2,<1.0.0"
+langchain = "^1.3.2"
+langchain-core = "^1.4.0"
+langchain-vdms = ">=0.2.0,<1.0.0"
+langsmith = ">=0.8.8,<1.0.0"
+opencv-python-headless = "^4.13.0.92"
+pillow = "^12.2.0"
+tzlocal = "^5.3.1"
+decord = ">=0.6.0,<1.0.0"
+einops = ">=0.8.2,<1.0.0"
+minio = "^7.2.20"
+requests = "^2.34.2"
 httpcore = "^1.0.9"
-urllib3 = "^2.6.3"
-fonttools = "^4.61.1"
-filelock = "^3.20.3"
-orjson = "^3.11.7"
-av = "^17.0.0"
+urllib3 = "^2.7.0"
+fonttools = "^4.63.0"
+filelock = "^3.29.0"
+orjson = "^3.11.9"
+av = "^18.0.0"
+numpy = { version = ">=2.4.4", source = "pytorch-cpu" }
+torch = { version = "==2.12.0+cpu", source = "pytorch-cpu" }
+torchvision = { version = "==0.27.0+cpu", source = "pytorch-cpu" }
 
 # Multimodal Embedding Service from local sibling microservice
 multimodal-embedding-serving = { path = "../../multimodal-embedding-serving" }
-
-[tool.poetry.group.dev]
-optional = true
-
-[tool.poetry.group.cpu]
-optional = true
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.3.3"
-pytest-mock = "^3.14.0"
-coverage = "^7.6.4"
-pytest-asyncio = "^0.24.0"
-black = "^26.3.1"
-isort = "^5.13.2"
-
-[tool.poetry.group.cpu.dependencies]
-numpy = { version = ">=2.1.0", source = "pytorch-cpu" }
-torch = { version = "==2.8.0", source = "pytorch-cpu" }
-torchvision = { version = "==0.23.0", source = "pytorch-cpu" }
 
 [[tool.poetry.source]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 priority = "explicit"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.3"
+pytest-mock = "^3.15.1"
+coverage = "^7.14.1"
+pytest-asyncio = "^1.4.0"
+black = "^26.5.1"
+isort = "^8.0.1"
+
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "module"
@@ -69,7 +66,7 @@ line-length = 100
 exclude = "(/(.git | .venv | venv | .pytest_cache)/)"
 
 [tool.isort]
-py_version = 310
+py_version = 311
 profile = "black"
 line_length = 100
 indent = "    "
