@@ -176,7 +176,7 @@ subcommand_bootstrap () {
   # construct final installer
   if [ ${#scripts[@]} -gt 0 ]; then
     if [[ "$*" != *"--dry-run"* ]]; then
-      sed -i '/^subcommand_bootstrap *[(][)] *[{]/,${d}' "$0"
+      sed -i '/^#### COLLECTION OF MODULES ####/,${d}' "$0"
       local modules=(${*/#[!--default=]*/})
       if [ ${#modules[*]} -gt 0 ]; then
         sed -i "1a[ \${#@} -gt 1 ] || set -- install ${modules[*]##--default=}" "$0"
@@ -191,4 +191,6 @@ subcommand_bootstrap () {
     exit 3
   fi
 }
+
+#### COLLECTION OF MODULES ####
 
