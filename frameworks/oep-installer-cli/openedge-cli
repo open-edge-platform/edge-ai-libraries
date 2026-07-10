@@ -42,23 +42,28 @@ main () {
   subcommand_$cmd ${args[*]}
 }
 
-subcommand_install () {
-  if [[ "$*" = "--help" ]]; then
-    local components=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_install_" | cut -f4- -d_))
+act_helpper () {
+  local act_name="$1"
+  local sort_options="$2"
+
+  if [[ "$*" = *"--help"* ]]; then
+    local components=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${act_name}_" | cut -f4- -d_))
     if [ ${#components[*]} -gt 0 ]; then
-      echo "install options:"
-      echo "  --dry-run       dry-run the installation sequence."
-      echo "  --reset-<name>  force reinstallation of the component if exit."
+      echo "${act_name} options:"
+      echo "  --dry-run       dry-run the ${act_name} sequence."
+      if [ "${act_name}" = "install" ]; then
+        echo "  --reset-<name>  force reinstallation of the component if exit."
+      fi
       echo
     fi
     local profiles=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f4- -d_))
     mapfile -t profiles < <(printf '%s\n' ${profiles[*]} | grep -Fxv -f <(printf '%s\n' ${components[*]}))
     if [ ${#profiles[*]} -gt 0 ]; then
-      echo "  list of installable profiles:"
+      echo "  list of profiles:"
       echo "    ${profiles[*]}"
     fi
     if [ ${#components[*]} -gt 0 ]; then
-      echo "  list of installable components:"
+      echo "  list of components:"
       echo "    ${components[*]}"
     fi
     echo
@@ -67,14 +72,14 @@ subcommand_install () {
 
   # scan for dependencies
   local modules=(${*##--*})
-  local -A installers=()
-  local i=0 installer
+  local -A handles=()
+  local i=2 handler
   while [ $i -lt ${#modules[*]} ]; do
     local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
     [ -z "$profiler" ] || modules+=($($profiler))
-    installer=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_install_${modules[$i]}$" | cut -f3 -d' ')
-    if [ -n "$installer" ]; then
-      installers[$installer]=1
+    handler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_${names[0]}_${modules[$i]}$" | cut -f3 -d' ')
+    if [ -n "$handler" ]; then
+      handles[$handler]=1
     elif [ -z "$profiler" ]; then
       echo "Unknown component or profile: ${modules[$i]}"
       exit 3
@@ -82,30 +87,45 @@ subcommand_install () {
     i=$((i+1))
   done
 
-  # install in sequence
-  if [ ${#installers[@]} -gt 0 ]; then
+  # act in sequence
+  if [ ${#handles[@]} -gt 0 ]; then
     logecho () {
       awk -v n="$1" '{print strftime("%s"),n,$0;fflush()}'
     }
-
     local start_t=$SECONDS
-    for installer in $(echo "${!installers[@]}" | tr ' ' '\n' | sort); do
-      local name=$(echo $installer | cut -f4- -d_)
-      echo "==== installing $name ====" > >(logecho $name)
+    for handler in $(echo "${!handles[@]}" | tr ' ' '\n' | sort $sort_options); do
+      local name=$(echo $handler | cut -f4- -d_)
+      echo "==== ${act_name} $name ====" > >(logecho $name)
       local start_c=$SECONDS
-      [[ "$*" = *"--dry-run"* ]] || ($installer ${*/#[!--]*/}) > >(logecho $name) 2> >(logecho $name)
+      [[ "$*" = *"--dry-run"* ]] || ($handler ${*/#[!--]*/}) > >(logecho $name) 2> >(logecho $name)
       local end_c=$SECONDS
-      echo "==== installed $name, ellapsed $(( end_c - start_c )) seconds ====" > >(logecho $name)
+      echo "==== ${act_name} $name completed: $(( end_c - start_c )) seconds ====" > >(logecho $name)
     done
     # wait for background processes
     wait
 
     local end_t=$SECONDS
-    echo "installation duration: $(( end_t - start_t )) seconds"
+    echo "total duration: $(( end_t - start_t )) seconds"
   else
-    echo "No installable component" 1>&2
+    echo "Component not found" 1>&2
     exit 3
   fi
+}
+
+subcommand_install () {
+  act_helpper install "" "$@"
+}
+
+subcommand_remove () {
+  act_helpper remove "-r" "$@"
+}
+
+subcommand_start () {
+  act_helpper start "" "$@"
+}
+
+subcommand_stop () {
+  act_helpper stop "-r" "$@"
 }
 
 subcommand_bootstrap () {
