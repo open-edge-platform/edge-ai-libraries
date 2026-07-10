@@ -50,7 +50,8 @@ sample-applications/video-search-and-summarization/
 │   ├── compose.ui.yaml
 │   ├── compose.summary.yaml
 │   ├── compose.search.yaml
-│   ├── compose.vllm.yaml
+│   ├── compose.vllm.yaml          # vLLM CPU backend
+│   ├── compose.vllm.xpu.yaml      # vLLM Intel Arc Pro B-series GPU/XPU backend (experimental)
 │   ├── compose.gpu_ovms.yaml
 │   └── compose.telemetry.yaml
 ├── docs/
@@ -293,6 +294,49 @@ Before running the application, you need to set several environment variables:
 
     > **Mode note:** `DATAPREP_EMBEDDING_DEVICE` controls embedding execution when `EMBEDDING_PROCESSING_MODE=sdk` (in-process DataPrep embedding). `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving` when `EMBEDDING_PROCESSING_MODE=api`. `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut: in `sdk` mode it sets `DATAPREP_EMBEDDING_DEVICE=GPU`; in `api` mode it sets `MME_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
 
+13. **🧪 EXPERIMENTAL: Configure vLLM Intel Arc Pro B-series GPU/XPU Backend**:
+
+    > **⚠️ Experimental Feature:** Intel Arc Pro B-series GPU (XPU) support with vLLM is in early development stages and may have stability issues. Not recommended for production use.
+
+    Enable GPU-accelerated vLLM inference on Intel Arc Pro B-series GPUs (XPUs):
+
+    ```bash
+    # Enable vLLM with Intel Arc Pro B-series GPU/XPU support (default: false)
+    export ENABLE_VLLM_GPU=true
+
+    # Set the VLM model for vLLM GPU inference
+    export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"
+    ```
+
+    **Additional vLLM GPU/XPU configuration options:**
+
+    | Variable | Description | Default |
+    |----------|-------------|---------|
+    | `VLLM_XPU_IMAGE` | Docker image for vLLM XPU service | `intel/vllm:0.14.1-xpu` |
+    | `VLLM_DTYPE` | Model precision | `bfloat16` |
+    | `VLLM_GPU_MEM` | GPU memory utilization (0-1) | `0.8` |
+    | `VLLM_MAX_MODEL_LEN` | Maximum sequence length | `32000` |
+    | `VLLM_MAX_NUM_SEQS` | Maximum concurrent sequences | `256` |
+    | `VLLM_BLOCK_SIZE` | KV cache block size | `128` |
+    | `VLLM_MAX_NUM_BATCHED_TOKENS` | Maximum batched tokens | `2048` |
+    | `VLLM_TENSOR_PARALLEL_SIZE` | Tensor parallel size | `1` |
+    | `VLLM_HOST_PORT` | Host port for vLLM service | `8200` |
+
+    **System Requirements:**
+    - Intel Arc Pro B-series GPU (e.g., Intel Arc Pro B60, B65, B70)
+    - Intel GPU drivers installed on host
+    - User in `video` and `render` groups
+    - Minimum 8GB GPU memory
+
+    **Behavior when enabled:**
+    - Automatically sets `VLLM_HOST=vllm-xpu-service`
+    - Disables OVMS backend completely
+    - Uses the same VLM model for captioning and summarization
+    - Reduces concurrency to prevent GPU memory issues
+    - Launches `vllm-xpu-service` with GPU device access
+
+    > **Note:** See the [Run the Application](#run-the-application) section below for complete usage examples with `ENABLE_VLLM_GPU=true`.
+
 **🔐 Work with Gated Models**
 
 To run a **GATED MODEL** like Llama models, you will need to pass your [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). You will need to request for an access to a specific model by going to the respective model page on Hugging Face website.
@@ -342,16 +386,18 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 | OVMS split-model CPU/GPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on GPU | `VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct` + `LLM_TARGET_DEVICE=GPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Qwen/Qwen2.5-VL-3B-Instruct` (or dedicated `OVMS_LLM_MODEL_NAME`) | Use GPU for final summary while keeping captioning on CPU; also supports same-source split by device/weight. |
 | OVMS split-model CPU/NPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on NPU | `LLM_TARGET_DEVICE=NPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>` for a dedicated LLM) | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `OpenVINO/Qwen3-8B-int4-cw-ov` | Use NPU for the final-summary LLM while keeping captioning on CPU. |
 | vLLM-only CPU | vLLM-hosted VLM on CPU | Same vLLM-hosted VLM on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | All-vLLM mode for CPU-only deployments. |
+| 🧪 vLLM-only GPU/XPU (**EXPERIMENTAL**) | vLLM-hosted VLM on Intel Arc Pro B-series GPU | Same vLLM-hosted VLM on Intel Arc Pro B-series GPU | `ENABLE_VLLM_GPU=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | **EXPERIMENTAL**: All-vLLM mode with Intel Arc Pro B-series GPU/XPU acceleration. Early-stage feature. |
 
 > **Note:**
 >
 > 1) Chunk-Wise Summary is a method of summarization where it breaks videos into chunks and then summarizes each chunk.
 > 2) Final Summary is a method of summarization where it summarizes the whole video.
-> 3) Mixed OVMS+vLLM deployments are not supported in the compose setup. Choose either OVMS-only or vLLM-only for summarization.
+> 3) Mixed OVMS+vLLM deployments are not supported in the compose setup. Choose either OVMS-only, vLLM-CPU-only, or vLLM-GPU-only for summarization.
 > 4) `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution.
 > 5) **NPU Support:** Not all models support NPU execution. Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
 > 6) OVMS mode selection is based on effective VLM/LLM settings: if model source, target device, and compression format are all identical, setup uses shared mode; otherwise it uses split mode.
 > 7) For same-source split examples (same model name on different devices/formats), prefer non-`OpenVINO/` source models (for example, `Qwen/Qwen2.5-VL-3B-Instruct`). `OpenVINO/` namespace models are pre-converted and use model-intrinsic/fixed weight formats.
+> 8) **🧪 EXPERIMENTAL - Intel Arc Pro B-series GPU Support:** vLLM on Intel Arc Pro B-series GPUs/XPUs (`ENABLE_VLLM_GPU=true`) is **experimental** and in early development stages. This feature provides GPU-accelerated inference for both VLM captioning and LLM summarization but may have stability issues and requires specific Intel Arc Pro B-series GPU hardware (e.g., B60, B65, B70). When enabled, it automatically disables OVMS and uses vLLM exclusively. Not recommended for production use.
 
 ### Deployment Options for Video Search
 
@@ -493,7 +539,7 @@ Follow these steps to run the application:
       OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3" source setup.sh --summary-and-search
       ```
 
-   - **Use vLLM as the only inference backend:**
+   - **Use vLLM as the only inference backend (CPU):**
 
       ```bash
       ENABLE_VLLM=true source setup.sh --summary                 # for Summary mode
@@ -504,6 +550,54 @@ Follow these steps to run the application:
     > **Note:**
     > - The vLLM configuration has been tested on Intel® Xeon® 6 processors.
     > - Review [docker/compose.vllm.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
+
+   - **🧪 EXPERIMENTAL: Use vLLM with Intel Arc Pro B-series GPU/XPU acceleration:**
+
+      > **⚠️ Experimental Feature - Intel Arc Pro B-series GPU Support:**
+      > Intel Arc Pro B-series GPU/XPU support with vLLM is currently **experimental** and in early stages. This implementation provides foundational infrastructure for Intel Arc Pro B-series enablement and may require further tuning and optimization. Performance characteristics on Intel Arc Pro B-series hardware are still being evaluated.
+
+      **System Requirements:**
+      - Intel Arc Pro B-series GPU hardware (e.g., B60, B65, B70)
+      - Intel GPU drivers properly installed on the host system
+      - User must be a member of the `video` and `render` groups
+      - Access to `/dev/dri` devices
+      - Minimum 8GB GPU memory recommended
+
+      **Verify GPU access before enabling:**
+
+      ```bash
+      # Check if /dev/dri devices exist
+      ls -la /dev/dri/
+
+      # Verify user group memberships
+      groups | grep -E "video|render"
+      ```
+
+      **Usage:**
+
+      ```bash
+      ENABLE_VLLM_GPU=true source setup.sh --summary                 # for Summary mode
+      ENABLE_VLLM_GPU=true source setup.sh --summary --search        # for Dual UI mode
+      ENABLE_VLLM_GPU=true source setup.sh --summary-and-search      # for Unified UI mode
+      ```
+
+      **Optional: Tune vLLM GPU parameters:**
+
+      ```bash
+      export VLLM_GPU_MEM=0.8                         # GPU memory utilization (default: 0.8)
+      export VLLM_MAX_MODEL_LEN=32000                 # Maximum sequence length (default: 32000)
+      export VLLM_MAX_NUM_SEQS=256                    # Maximum concurrent sequences (default: 256)
+      export VLLM_DTYPE=bfloat16                      # Model precision (default: bfloat16)
+      
+      ENABLE_VLLM_GPU=true source setup.sh --summary
+      ```
+
+    > **Note:**
+    > - When `ENABLE_VLLM_GPU=true`, the application automatically sets `VLLM_HOST=vllm-xpu-service` and disables OVMS completely
+    > - The same VLM model is used for both chunk captioning and final summarization (split-model mode is not supported)
+    > - Default concurrency is reduced to `PM_VLM_CONCURRENT=1` and `PM_LLM_CONCURRENT=1` to prevent GPU memory pressure
+    > - Review [docker/compose.vllm.xpu.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/docker/compose.vllm.xpu.yaml) to understand the vLLM XPU configuration. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) for parameter details.
+    > - For troubleshooting, check container logs: `docker logs vllm-xpu-service`
 
 4. (Optional) Verify the resolved environment variables and setup configurations:
 
