@@ -112,24 +112,25 @@ subcommand_install () {
     logecho () {
       awk -v n="$1" '{print strftime("%s"),n,$0;fflush()}'
     }
+
     local start_t=$SECONDS
     for installer in $(echo "${!installers[@]}" | tr ' ' '\n' | sort); do
       local name=$(echo $installer | cut -f4- -d_)
       echo "==== installing $name ====" > >(logecho $name)
-      local start=$SECONDS
+      local start_c=$SECONDS
       [[ "$*" = *"--dry-run"* ]] || ($installer ${*/#[!--]*/}) > >(logecho $name) 2> >(logecho $name)
-      local end=$SECONDS
-      echo "==== installed $name, ellapsed $(( end - start )) seconds ====" > >(logecho $name)
+      local end_c=$SECONDS
+      echo "==== installed $name, ellapsed $(( end_c - start_c )) seconds ====" > >(logecho $name)
     done
+    # wait for background processes
+    wait
+
     local end_t=$SECONDS
     echo "installation duration: $(( end_t - start_t )) seconds"
   else
     echo "No installable component" 1>&2
     exit 3
   fi
-
-  # wait for background processes
-  wait
 }
 
 subcommand_bootstrap () {
@@ -172,6 +173,7 @@ subcommand_bootstrap () {
     i=$((i+1))
   done
 
+  # construct final installer
   if [ ${#scripts[@]} -gt 0 ]; then
     if [[ "$*" != *"--dry-run"* ]]; then
       sed -i '/^subcommand_bootstrap *[(][)] *[{]/,${d}' "$0"
