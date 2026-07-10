@@ -8,11 +8,6 @@ ensure_sudo () {
   fi
 }
 
-# return a random uuid string
-ensure_uuid () {
-  cat /proc/sys/kernel/random/uuid
-}
-
 # create/destroy a tmpdir with trap to delete the folder on ERR
 ensure_tmpdir () {
   case "$1" in
