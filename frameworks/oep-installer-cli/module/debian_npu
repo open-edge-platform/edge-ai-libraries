@@ -5,7 +5,7 @@ debian_50_install_npu () {
     return 3
   fi
 
-  if ! dpkg-query -L intel-fw-npu intel-level-zero-npu || [[ "$*" = *"--reset-npu"* ]]; then
+  if [ ! -c /dev/accel/accel0 ] && [[ "$*" = *"--reset-npu"* ]]; then
     echo "Removing legacy NPU drivers and firmware..."
     with_sudo dpkg --purge --force-remove-reinstreq intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym
 
@@ -27,7 +27,7 @@ debian_50_install_npu () {
     with_tmpdir destroy $tmpdir
 
     echo "Setting up udev rules for NPU..."
-    echo 'SUBSYSTEM=="accel", KERNEL=="accel*", GROUP="render", MODE="0660"' | with_sudo tee -a /etc/udev/rules.d/10-intel-vpu.rules
+    echo 'SUBSYSTEM=="accel", KERNEL=="accel*", GROUP="render", MODE="0660"' | with_sudo tee /etc/udev/rules.d/10-intel-vpu.rules
     with_sudo -S udevadm control --reload-rules
     with_sudo -S udevadm trigger --subsystem-match=accel
   fi
