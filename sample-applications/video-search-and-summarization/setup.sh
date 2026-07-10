@@ -191,7 +191,6 @@ export ENABLE_VLLM=${ENABLE_VLLM:-false}
 export VLLM_HOST=vllm-cpu-service
 export VLLM_HOST_PORT=${VLLM_HOST_PORT:-8200}
 export VLLM_ENDPOINT=http://${VLLM_HOST}:8000/v1
-export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
@@ -224,7 +223,14 @@ fi
 export PM_MINIO_BUCKET=video-summary
 
 # env for ovms-service
-export LLM_TARGET_DEVICE=${LLM_TARGET_DEVICE:-CPU}
+# Track whether LLM_TARGET_DEVICE was explicitly provided.
+LLM_TARGET_DEVICE_DEFAULTED=false
+if [[ -z "${LLM_TARGET_DEVICE+x}" ]]; then
+    export LLM_TARGET_DEVICE=CPU
+    LLM_TARGET_DEVICE_DEFAULTED=true
+else
+    export LLM_TARGET_DEVICE=${LLM_TARGET_DEVICE}
+fi
 export LLM_MODEL_NAME=${LLM_MODEL_NAME:-${OVMS_LLM_MODEL_NAME}}
 # Keep user override from environment if provided; device-based default is set later.
 export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-}
@@ -333,84 +339,41 @@ if [ "$ENABLE_EMBEDDING_GPU" = true ]; then
 fi
 
 
-# Device Configuration Helper Functions
+# Configure the processing device (video decoding, object detection, embedding)
+# for vdms-dataprep. Only CPU and GPU* are supported; GPU forces OpenVINO.
 configure_device() {
-    local device=${1:-"CPU"}
-
-    echo -e "${BLUE}Configuring device for all processing components: ${YELLOW}${device}${NC}"
-    echo -e "${BLUE}  This affects: embedding model, and object detection${NC}"
+    local device=${1:-CPU}
+    [[ "${device}" == GPU* ]] || device="CPU"
 
     if [[ "${device}" == GPU* ]]; then
-        echo -e "${YELLOW}⚙️  Setting up GPU configuration...${NC}"
-        
-        # Check if Intel GPU is available
         if ! lspci | grep -i "vga.*intel" > /dev/null 2>&1; then
             echo -e "${RED}Warning: No Intel GPU detected. GPU mode may not work properly.${NC}" >&2
-        else
-            echo -e "${GREEN}Intel GPU detected${NC}"
         fi
-        
-        # Check if /dev/dri exists for GPU access
         if [[ ! -d "/dev/dri" ]]; then
             echo -e "${RED}Warning: /dev/dri not found. GPU acceleration may not be available.${NC}" >&2
-        else
-            echo -e "${GREEN}DRI devices found for GPU acceleration${NC}"
         fi
-        
-        # Set GPU-specific configuration
-        export VDMS_DATAPREP_DEVICE="${device}"
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
-        
-        echo -e "${GREEN}GPU mode configured for all components:${NC}"
-        echo -e "  • OpenVINO: ${YELLOW}enabled${NC} (required for GPU)"
-        echo -e "  • Processing Device: ${YELLOW}GPU${NC} (decord, embedding, detection)"
-        echo -e "  • Video decoding: ${YELLOW}GPU-accelerated${NC}"
-        
-    else
-        echo -e "${BLUE}CPU mode configured for all components${NC}"
-        export VDMS_DATAPREP_DEVICE="${device}"
     fi
+    export VDMS_DATAPREP_DEVICE="${device}"
+    echo -e "[vdms-dataprep] ${BLUE}Processing device: ${YELLOW}${device}${NC} (video decoding, object detection, embedding)"
 }
 
-# Device mode selection
-if [[ "${VDMS_DATAPREP_DEVICE}" == GPU* ]]; then
-    configure_device "${VDMS_DATAPREP_DEVICE}"
-else
-    configure_device "CPU"
-fi
+configure_device "${VDMS_DATAPREP_DEVICE}"
 
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
 
 export MULTIMODAL_EMBEDDING_HOST=multimodal-embedding-serving
 export MULTIMODAL_EMBEDDING_ENDPOINT=http://$MULTIMODAL_EMBEDDING_HOST:8000/embeddings
 
-processing_scope="vdms-dataprep video decoding, YOLOX detection, and embedding execution"
-if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
-    processing_scope+=", plus the multimodal-embedding-serving container"
-fi
-
-if [ $1 != "--summary" ]; then
+if [ "$1" != "--summary" ]; then
     if [ "$1" = "--unified" ]; then
         embedding_model_display="${TEXT_EMBEDDING_MODEL:-"(not provided)"}"
     else
         embedding_model_display="${MULTIMODAL_EMBEDDING_MODEL:-"(not provided)"}"
     fi
-
-    embedding_endpoint_display=${MULTIMODAL_EMBEDDING_ENDPOINT:-"(not configured)"}
-
-    if [[ "${EMBEDDING_PROCESSING_MODE}" == "sdk" ]]; then
-        embedding_mode_details="SDK mode keeps embeddings in-process within vdms-dataprep; no external HTTP calls are made."
-    else
-        embedding_mode_details="API mode routes embeddings to multimodal-embedding-serving at ${embedding_endpoint_display}."
-    fi
-
-    echo -e "[vdms-dataprep] ${BLUE}Runtime Summary:${NC}"
-    echo -e "  • [vdms-dataprep] Processing Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${processing_scope})."
-    if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
-        echo -e "  • [multimodal-embedding-serving] Embedding Service Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (HTTP mode container)."
-    fi
-    echo -e "  • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC} — ${embedding_mode_details}"
-    echo -e "  • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
+    # sdk mode runs embeddings in-process within vdms-dataprep; api mode routes
+    # them over HTTP to the multimodal-embedding-serving container.
+    echo -e "[vdms-dataprep] ${BLUE}Embedding: mode ${YELLOW}${EMBEDDING_PROCESSING_MODE}${BLUE}, model ${YELLOW}${embedding_model_display}${BLUE}, device ${YELLOW}${EMBEDDING_DEVICE}${NC}"
 fi
 
 # Frame-to-Video Aggregation Settings for search-ms
@@ -442,75 +405,51 @@ export CONFIG_SOCKET_APPEND=${CONFIG_SOCKET_APPEND} # Set this to CONFIG_ON in y
 export ENABLE_VSS_COLLECTOR=${ENABLE_VSS_COLLECTOR:-false}
 
 # Object detection model (ultralytics hub id; converted to OpenVINO IR by the
-# model-download microservice).
-export OD_MODEL_NAME=${OD_MODEL_NAME:-yolov8l}
+# model-download microservice). Required for all modes except --search;
+# validated below with the other required environment variables.
+export OD_MODEL_NAME=${OD_MODEL_NAME}
 # Default object detection model; used as fallback for unsupported selections.
 OD_MODEL_DEFAULT="yolov8l"
-# yolov8l-worldv2 (open-vocabulary YOLO-World) is not supported by the
-# object-detection pipeline. Warn and fall back to the default model.
-if [ "$OD_MODEL_NAME" = "yolov8l-worldv2" ]; then
-    echo -e "[video-ingestion] ${YELLOW}Warning: object detection model '${RED}${OD_MODEL_NAME}${YELLOW}' is not supported. Falling back to the default model '${GREEN}${OD_MODEL_DEFAULT}${YELLOW}'.${NC}" >&2
-    export OD_MODEL_NAME="$OD_MODEL_DEFAULT"
+if [ "$1" != "--search" ]; then
+    # yolov8l-worldv2 (open-vocabulary YOLO-World) is not supported by the
+    # object-detection pipeline. Warn and fall back to the default model.
+    if [ "$OD_MODEL_NAME" = "yolov8l-worldv2" ]; then
+        echo -e "[video-ingestion] ${YELLOW}Warning: object detection model '${RED}${OD_MODEL_NAME}${YELLOW}' is not supported. Falling back to the default model '${GREEN}${OD_MODEL_DEFAULT}${YELLOW}'.${NC}" >&2
+        export OD_MODEL_NAME="$OD_MODEL_DEFAULT"
+    fi
+    export OD_MODEL_DOWNLOAD_PATH="object-detection"
+    # Host IR dir: <root>/<download_path>/ultralytics/public/<model>(/FP32/<model>.xml)
+    export OD_MODEL_OUTPUT_DIR=${OV_MODELS_ROOT}/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}
+    # IR path inside the video-ingestion container (consumed by pipeline-manager).
+    export EVAM_DETECTION_MODEL=${EVAM_DETECTION_MODEL:-${OD_MODEL_NAME}}
+    export EVAM_DETECTION_MODEL_PATH=${EVAM_DETECTION_MODEL_PATH:-/home/pipeline-server/models/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}/FP32/${OD_MODEL_NAME}.xml}
+    echo -e "[video-ingestion] ${GREEN}Object detection model: ${YELLOW}${OD_MODEL_NAME}${GREEN} (output: ${YELLOW}${OD_MODEL_OUTPUT_DIR}${GREEN})${NC}"
 fi
-export OD_MODEL_DOWNLOAD_PATH="object-detection"
-# Host IR dir: <root>/<download_path>/ultralytics/public/<model>(/FP32/<model>.xml)
-export OD_MODEL_OUTPUT_DIR=${OV_MODELS_ROOT}/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}
-# IR path inside the video-ingestion container (consumed by pipeline-manager).
-export EVAM_DETECTION_MODEL=${EVAM_DETECTION_MODEL:-${OD_MODEL_NAME}}
-export EVAM_DETECTION_MODEL_PATH=${EVAM_DETECTION_MODEL_PATH:-/home/pipeline-server/models/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}/FP32/${OD_MODEL_NAME}.xml}
-echo -e "[video-ingestion] ${GREEN}Using object detection model: ${YELLOW}$OD_MODEL_NAME ${NC}"
-echo -e "[video-ingestion] ${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL_OUTPUT_DIR ${NC}"
 
+
+# Fail with a consistent error when a required environment variable is unset.
+# Usage: require_env VAR ["extra hint line"]
+require_env() {
+    [ -n "${!1}" ] && return 0
+    echo -e "${RED}ERROR: $1 is not set in your shell environment.${NC}" >&2
+    [ -n "$2" ] && echo -e "${YELLOW}$2${NC}" >&2
+    return 1
+}
 
 # Verify if required environment variables are set in current shell, only when container down or clean is not requested.
 if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] && [ "$2" != "config" ]; then
-    if [ -z "$MINIO_ROOT_USER" ]; then
-        echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in your shell environment.${NC}" >&2
-        return 1
-    fi
-    if [ -z "$MINIO_ROOT_PASSWORD" ]; then
-        echo -e "${RED}ERROR: MINIO_ROOT_PASSWORD is not set in your shell environment.${NC}" >&2
-        return 1
-    fi
-    if [ -z "$POSTGRES_USER" ]; then
-        echo -e "${RED}ERROR: POSTGRES_USER is not set in your shell environment.${NC}" >&2
-        return 1
-    fi
-    if [ -z "$POSTGRES_PASSWORD" ]; then
-        echo -e "${RED}ERROR: POSTGRES_PASSWORD is not set in your shell environment.${NC}" >&2
-        return 1
-    fi
-    if [ -z "$RABBITMQ_USER" ]; then
-        echo -e "${RED}ERROR: RABBITMQ_USER is not set in your shell environment.${NC}" >&2
-        return 1
-    fi
-    if [ -z "$RABBITMQ_PASSWORD" ]; then
-        echo -e "${RED}ERROR: RABBITMQ_PASSWORD is not set in your shell environment.${NC}" >&2
-        return 1
-    fi
+    for required_var in MINIO_ROOT_USER MINIO_ROOT_PASSWORD POSTGRES_USER POSTGRES_PASSWORD RABBITMQ_USER RABBITMQ_PASSWORD; do
+        require_env "$required_var" || return 1
+    done
     if [ "$1" != "--search" ]; then
-        if [ -z "$VLM_MODEL_NAME" ]; then
-            echo -e "${RED}ERROR: VLM_MODEL_NAME is not set in your shell environment.${NC}" >&2
-            echo -e "${YELLOW}This is required for all modes except --search.${NC}" >&2
-            return 1
-        fi
-        if [ -z "$ENABLED_WHISPER_MODELS" ]; then
-            echo -e "${RED}ERROR: ENABLED_WHISPER_MODELS is not set in your shell environment.${NC}" >&2
-            echo -e "${YELLOW}This is required for all modes except --search.${NC}" >&2
-            return 1
-        fi
-        if [ -z "$OD_MODEL_NAME" ]; then
-            echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}" >&2
-            echo -e "${YELLOW}This is required for all modes except --search.${NC}" >&2
-            return 1
-        fi
+        for required_var in VLM_MODEL_NAME ENABLED_WHISPER_MODELS OD_MODEL_NAME; do
+            require_env "$required_var" "This is required for all modes except --search." || return 1
+        done
     fi
-    if { [ "$1" = "--search" ] || [ "$1" = "--dual" ]; } && [ -z "$MULTIMODAL_EMBEDDING_MODEL" ]; then
-        echo -e "${RED}ERROR: MULTIMODAL_EMBEDDING_MODEL is not set in your shell environment.${NC}" >&2
-        echo -e "${YELLOW}This is required for both SDK and API embedding modes for Video Search.${NC}" >&2
-        return 1
+    if [ "$1" = "--search" ] || [ "$1" = "--dual" ]; then
+        require_env MULTIMODAL_EMBEDDING_MODEL "This is required for both SDK and API embedding modes for Video Search." || return 1
     fi
-    
+
     # Validate embedding processing mode
     if [[ "$EMBEDDING_PROCESSING_MODE" != "api" && "$EMBEDDING_PROCESSING_MODE" != "sdk" ]]; then
         echo -e "${RED}Invalid EMBEDDING_PROCESSING_MODE: $EMBEDDING_PROCESSING_MODE${NC}" >&2
@@ -519,10 +458,8 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
     fi
 
     # Enforce dedicated text-embedding selection only for unified mode.
-    if [ "$1" = "--unified" ] && [ -z "$TEXT_EMBEDDING_MODEL" ]; then
-        echo -e "${RED}ERROR: TEXT_EMBEDDING_MODEL is not set in your shell environment.${NC}" >&2
-        echo -e "${YELLOW}This is required for --unified/--all mode.${NC}" >&2
-        return 1
+    if [ "$1" = "--unified" ]; then
+        require_env TEXT_EMBEDDING_MODEL "This is required for --unified/--all mode." || return 1
     fi
 
     # Validate OVMS_CACHE_SIZE_GB if user has set it
@@ -531,23 +468,12 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
         echo -e "${YELLOW}This value sets the OVMS KV cache size in GB (e.g., 4, 8, 10).${NC}" >&2
         return 1
     fi
-    
 fi
 
 # if only base environment variables are to be set without deploying application, exit here
 if [ "$1" = "--setenv" ]; then
     echo -e  "${BLUE}Done setting up all environment variables. ${NC}"
     return 0
-fi
-
-# Add rendering device group ID for GPU support when needed
-# Check if render device exist
-if ls /dev/dri/render* >/dev/null 2>&1; then
-    echo -e  "${GREEN}RENDER device exist. Getting the GID...${NC}"
-    export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render* | head -n 1)
-else
-    echo -e  "${YELLOW}RENDER device does not exist. Setting RENDER_DEVICE_GID to 0 ${NC}"
-    export RENDER_DEVICE_GID=0
 fi
 
 # Set DRI_MOUNT_PATH based on whether /dev/dri exists and is not empty
@@ -690,25 +616,6 @@ convert_object_detection_models() {
 #          servables, so this function does not handle NPU.
 #
 # Users can override all of this by exporting OVMS_CACHE_SIZE_GB.
-
-# Get a minimal fallback cache size when OpenVINO cannot query the GPU.
-get_fallback_ovms_cache_size() {
-    local total_ram_gb="$1"
-    local cache_gb
-    
-    # Cache size: ~25% of system RAM (shared memory), clamped to [2, 6]
-    cache_gb=$((total_ram_gb * 25 / 100))
-    cache_gb=$(( cache_gb < 2 ? 2 : cache_gb > 6 ? 6 : cache_gb ))
-    echo "$cache_gb"
-}
-
-warn_ovms_cache_fallback () {
-    local target_device="$1"
-    local cache_gb="$2"
-    echo -e "[ovms-service] ${YELLOW}Warning: Could not determine VRAM size for device '${target_device}' via OpenVINO; using conservative iGPU cache size ${cache_gb} GB.${NC}" >&2
-    echo -e "[ovms-service] ${YELLOW}GPU inference runs inside the OVMS container. Set OVMS_CACHE_SIZE_GB to override this value.${NC}" >&2
-}
-
 get_ovms_cache_size() {
     local target_device="$1"
     # Allow user override via OVMS_CACHE_SIZE_GB environment variable (validated at startup)
@@ -797,35 +704,6 @@ get_ovms_storage_model_name() {
     fi
 }
 
-ovms_config_has_model() {
-    local config_path="$1"
-    local model_name="$2"
-
-    python3 - "$config_path" "$model_name" <<'PY'
-import json
-import sys
-
-config_path, model_name = sys.argv[1:3]
-
-try:
-    with open(config_path, encoding="utf-8") as config_file:
-        config = json.load(config_file)
-except Exception:
-    raise SystemExit(1)
-
-def contains_model(node):
-    if isinstance(node, dict):
-        if node.get("name") == model_name:
-            return True
-        return any(contains_model(value) for value in node.values())
-    if isinstance(node, list):
-        return any(contains_model(item) for item in node)
-    return False
-
-raise SystemExit(0 if contains_model(config) else 1)
-PY
-}
-
 # Function to reset OVMS config.json to only include specified models
 # This ensures stale models from previous runs are removed
 reset_ovms_config() {
@@ -905,7 +783,6 @@ export_model_for_ovms() {
 
     # Generate storage-aware model name that includes device and format
     storage_model_name=$(get_ovms_storage_model_name "$source_model" "$target_device" "$weight_format")
-    echo -e "[ovms-service] ${BLUE}Storage model name: ${YELLOW}${storage_model_name}${NC}"
 
     cache_size=$(get_ovms_cache_size "$target_device") || return 1
     echo -e "[ovms-service] ${BLUE}Cache size: ${YELLOW}${cache_size} GB${NC} for device ${YELLOW}${target_device}${NC}"
@@ -973,12 +850,10 @@ ensure_ovms_model() {
     storage_model_name=$(get_ovms_storage_model_name "$model_name" "$target_device" "$weight_format")
     model_path=$(ovms_ms_model_dir "$model_name" "$target_device" "$weight_format")
 
-    echo -e "[ovms-service] ${BLUE}Checking for model: ${YELLOW}${storage_model_name}${NC}"
-
     # Check if model folder already exists with this device/format configuration
     if [ -d "$model_path" ] && [ -f "${model_path}/graph.pbtxt" ]; then
         echo -e "[ovms-service] ${GREEN}Model ${YELLOW}${storage_model_name}${GREEN} already exists. Skipping export.${NC}"
-        
+
         # Compute the desired cache size and update graph.pbtxt if it differs
         local desired_cache_size existing_cache_size
         desired_cache_size=$(get_ovms_cache_size "$target_device") || return 1
@@ -991,18 +866,10 @@ ensure_ovms_model() {
                 return 1
             }
             echo -e "[ovms-service] ${BLUE}Updated cache size: ${YELLOW}${existing_cache_size} → ${desired_cache_size} GB${NC} in graph.pbtxt"
-        else
-            echo -e "[ovms-service] ${BLUE}Cache size: ${YELLOW}${desired_cache_size} GB${NC}"
         fi
-        
-        # Ensure it's registered in config.json
-        if [ -f "${ovms_model_config}" ] && ovms_config_has_model "${ovms_model_config}" "${storage_model_name}"; then
-            echo -e "[ovms-service] ${GREEN}Model is registered in OVMS config.${NC}"
-        else
-            echo -e "[ovms-service] ${YELLOW}Adding model to OVMS config...${NC}"
-            # The model exists but config.json doesn't reference it - add it
-            add_model_to_ovms_config "${ovms_model_config}" "${storage_model_name}" "${model_path}"
-        fi
+
+        # Ensure it's registered in config.json (add_model_to_ovms_config is idempotent)
+        add_model_to_ovms_config "${ovms_model_config}" "${storage_model_name}" "${model_path}"
     else
         echo -e "[ovms-service] ${YELLOW}Model ${RED}${storage_model_name}${YELLOW} not found. Exporting...${NC}"
         
@@ -1117,13 +984,13 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
     # Validate expected OpenVINO artifact; directory-only checks can miss partial/incomplete model state.
     od_model_xml="${OD_MODEL_OUTPUT_DIR}/FP32/${OD_MODEL_NAME}.xml"
     od_model_bin="${OD_MODEL_OUTPUT_DIR}/FP32/${OD_MODEL_NAME}.bin"
-    if [ "$2" != "config" ]; then
+    if [ "$1" != "--search" ] && [ "$2" != "config" ]; then
         if [ ! -f "${od_model_xml}" ] || [ ! -f "${od_model_bin}" ]; then
-            echo -e  "[vdms-dataprep] ${YELLOW}Object detection model file not found at ${od_model_xml} or ${od_model_bin}. Running model conversion...${NC}"
+            echo -e  "[video-ingestion] ${YELLOW}Object detection model file not found at ${od_model_xml} or ${od_model_bin}. Running model conversion...${NC}"
             mkdir -p "${OD_MODEL_OUTPUT_DIR}"
             convert_object_detection_models
         else
-            echo -e  "[vdms-dataprep] ${YELLOW}Object detection model file found at ${od_model_xml}. Skipping model setup...${NC}"
+            echo -e  "[video-ingestion] ${YELLOW}Object detection model file found at ${od_model_xml}. Skipping model setup...${NC}"
         fi
     fi
 
@@ -1162,13 +1029,29 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
 
             # VLM_TARGET_DEVICE and LLM_TARGET_DEVICE support: CPU, GPU, NPU, HETERO:...
             # (defaults already set at top of script)
-            
+            if [ -z "$configured_ovms_llm_model" ]; then
+                if [ "$LLM_TARGET_DEVICE_DEFAULTED" = true ]; then
+                    export LLM_TARGET_DEVICE="$VLM_TARGET_DEVICE"
+                fi
+                if [ -z "$LLM_COMPRESSION_WEIGHT_FORMAT" ] && [ -n "$VLM_COMPRESSION_WEIGHT_FORMAT" ]; then
+                    export LLM_COMPRESSION_WEIGHT_FORMAT="$VLM_COMPRESSION_WEIGHT_FORMAT"
+                fi
+            fi
+
             # Determine weight format: user override takes precedence, otherwise auto-detect based on device
             export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-$(get_ovms_weight_format "$VLM_TARGET_DEVICE")}
             export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-$(get_ovms_weight_format "$LLM_TARGET_DEVICE")}
 
-            echo -e "[ovms-service] ${BLUE}VLM Target Device: ${YELLOW}${VLM_TARGET_DEVICE}${NC} (weight format: ${VLM_COMPRESSION_WEIGHT_FORMAT})"
-            echo -e "[ovms-service] ${BLUE}LLM Target Device: ${YELLOW}${LLM_TARGET_DEVICE}${NC} (weight format: ${LLM_COMPRESSION_WEIGHT_FORMAT})"
+            if [ "${VLM_TARGET_DEVICE^^}" = "NPU" ] && [ "$VLM_COMPRESSION_WEIGHT_FORMAT" != "int4" ]; then
+                echo -e "[ovms-service] ${YELLOW}NPU supports only int4; overriding VLM weight format ${VLM_COMPRESSION_WEIGHT_FORMAT} → int4.${NC}"
+                export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+            fi
+            if [ "${LLM_TARGET_DEVICE^^}" = "NPU" ] && [ "$LLM_COMPRESSION_WEIGHT_FORMAT" != "int4" ]; then
+                echo -e "[ovms-service] ${YELLOW}NPU supports only int4; overriding LLM weight format ${LLM_COMPRESSION_WEIGHT_FORMAT} → int4.${NC}"
+                export LLM_COMPRESSION_WEIGHT_FORMAT=int4
+            fi
+
+            echo -e "[ovms-service] ${BLUE}Target devices — VLM: ${YELLOW}${VLM_TARGET_DEVICE}${BLUE} (${VLM_COMPRESSION_WEIGHT_FORMAT}), LLM: ${YELLOW}${LLM_TARGET_DEVICE}${BLUE} (${LLM_COMPRESSION_WEIGHT_FORMAT})${NC}"
 
             # Adjust concurrency and frame count for non-CPU devices
             if [[ "$VLM_TARGET_DEVICE" != "CPU" ]]; then
@@ -1211,8 +1094,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
                 export LLM_STORAGE_MODEL_NAME="$VLM_STORAGE_MODEL_NAME"
             fi
             
-            echo -e "[ovms-service] ${GREEN}VLM Model: ${YELLOW}${VLM_STORAGE_MODEL_NAME}${NC}"
-            echo -e "[ovms-service] ${GREEN}LLM Model: ${YELLOW}${LLM_STORAGE_MODEL_NAME}${NC}"
+            echo -e "[ovms-service] ${GREEN}Storage models — VLM: ${YELLOW}${VLM_STORAGE_MODEL_NAME}${GREEN}, LLM: ${YELLOW}${LLM_STORAGE_MODEL_NAME}${NC}"
 
             if [ "$2" != "config" ]; then
                 # Reset OVMS config to only include storage model names needed for this run
