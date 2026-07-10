@@ -1,8 +1,8 @@
 
 # perform sudo in automation or in tty
 ensure_sudo () {
-  if [[ -n "${SUDO_PASSWORD}" ]]; then
-    echo "${SUDO_PASSWORD}" | sudo -S "$@"
+  if [ -n "$SUDO_PASSWORD" ]; then
+    echo "$SUDO_PASSWORD" | sudo -S "$@"
   else
     sudo "$@"
   fi
@@ -12,7 +12,7 @@ ensure_sudo () {
 ensure_tmpdir () {
   case "$1" in
   create)
-    printf -v $2 '%s' $(mktemp -d /tmp/openedge-cli-${3:-}.XXXXXX)
+    printf -v $2 "%s" $(mktemp -d /tmp/openedge-cli-${3:-}.XXXXXX)
     trap "ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
     ;;
   destroy)
