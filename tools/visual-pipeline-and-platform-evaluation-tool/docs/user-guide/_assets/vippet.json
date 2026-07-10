@@ -3749,6 +3749,14 @@
             "type": "integer",
             "title": "Test Case Id"
           },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "streams": {
+            "type": "integer",
+            "title": "Streams"
+          },
           "workload_run_id": {
             "type": "integer",
             "title": "Workload Run Id"
@@ -3838,19 +3846,16 @@
             "type": "string",
             "title": "Job Id"
           },
-          "passed": {
-            "type": "boolean",
-            "title": "Passed"
-          },
-          "failed": {
-            "type": "boolean",
-            "title": "Failed"
+          "status": {
+            "$ref": "#/components/schemas/BenchmarkTestCaseRunStatus"
           }
         },
         "type": "object",
         "required": [
           "id",
           "test_case_id",
+          "variant_id",
+          "streams",
           "workload_run_id",
           "start_time",
           "execution_time",
@@ -3861,11 +3866,21 @@
           "power_usage",
           "metrics",
           "job_id",
-          "passed",
-          "failed"
+          "status"
         ],
         "title": "BenchmarkTestCaseRun",
         "description": "Historical run record for one benchmark test case."
+      },
+      "BenchmarkTestCaseRunStatus": {
+        "type": "string",
+        "enum": [
+          "created",
+          "running",
+          "passed",
+          "failed"
+        ],
+        "title": "BenchmarkTestCaseRunStatus",
+        "description": "Status of a benchmark test-case run."
       },
       "BenchmarkWorkload": {
         "properties": {
@@ -3913,6 +3928,9 @@
             "type": "integer",
             "title": "Suite Run Id"
           },
+          "status": {
+            "$ref": "#/components/schemas/BenchmarkTestCaseRunStatus"
+          },
           "test_case_runs": {
             "items": {
               "$ref": "#/components/schemas/BenchmarkTestCaseRun"
@@ -3942,6 +3960,7 @@
           "id",
           "workload_id",
           "suite_run_id",
+          "status",
           "test_case_runs",
           "total_test_cases",
           "passed_test_cases",
