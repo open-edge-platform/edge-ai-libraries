@@ -45,6 +45,8 @@ main () {
 act_helpper () {
   local act_name="$1"
   local sort_options="$2"
+  shift
+  shift
 
   if [[ "$*" = *"--help"* ]]; then
     local components=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${act_name}_" | cut -f4- -d_))
@@ -61,19 +63,20 @@ act_helpper () {
     if [ ${#profiles[*]} -gt 0 ]; then
       echo "  list of profiles:"
       echo "    ${profiles[*]}"
+      echo
     fi
     if [ ${#components[*]} -gt 0 ]; then
       echo "  list of components:"
       echo "    ${components[*]}"
+      echo
     fi
-    echo
     return 0
   fi
 
   # scan for dependencies
   local modules=(${*##--*})
   local -A handles=()
-  local i=2 handler
+  local i=0 handler
   while [ $i -lt ${#modules[*]} ]; do
     local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
     [ -z "$profiler" ] || modules+=($($profiler))
@@ -89,23 +92,24 @@ act_helpper () {
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
-    logecho () {
-      awk -v n="$1" '{print strftime("%s"),n,$0;fflush()}'
-    }
-    local start_t=$SECONDS
-    for handler in $(echo "${!handles[@]}" | tr ' ' '\n' | sort $sort_options); do
-      local name=$(echo $handler | cut -f4- -d_)
-      echo "==== ${act_name} $name ====" > >(logecho $name)
-      local start_c=$SECONDS
-      [[ "$*" = *"--dry-run"* ]] || ($handler ${*/#[!--]*/}) > >(logecho $name) 2> >(logecho $name)
-      local end_c=$SECONDS
-      echo "==== ${act_name} $name completed: $(( end_c - start_c )) seconds ====" > >(logecho $name)
-    done
-    # wait for background processes
-    wait
-
-    local end_t=$SECONDS
-    echo "total duration: $(( end_t - start_t )) seconds"
+    (
+      logecho () {
+        awk -v n="$1" '{print strftime("%s"),n,$0;fflush()}'
+      }
+      start_t=$SECONDS
+      for handler in $(echo "${!handles[@]}" | tr ' ' '\n' | sort $sort_options); do
+        name=$(echo $handler | cut -f4- -d_)
+        echo "==== ${act_name} $name ====" > >(logecho $name)
+        start_c=$SECONDS
+        [[ "$*" = *"--dry-run"* ]] || ($handler ${*/#[!--]*/}) > >(logecho $name) 2> >(logecho $name)
+        end_c=$SECONDS
+        echo "==== ${act_name} $name completed: $(( end_c - start_c )) seconds ====" > >(logecho $name)
+      done
+      # wait for background processes
+      wait
+      end_t=$SECONDS
+      echo "total duration: $(( end_t - start_t )) seconds"
+    )
   else
     echo "Component not found" 1>&2
     exit 3
