@@ -18,3 +18,14 @@ debian_90_install_sample_si () {
   popd
 }
 
+debian_90_start_sample_si () {
+  :
+}
+
+debian_90_stop_sample_si () {
+  :
+}
+
+debian_90_remove_sample_si () {
+  :
+}

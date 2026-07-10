@@ -42,8 +42,25 @@ main () {
   subcommand_$cmd ${args[*]}
 }
 
+act_find_deps () {
+  local act_name=$1 i=1
+  local modules=(${*##--*}) handlers=()
+  while [ $i -lt ${#modules[*]} ]; do
+    local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
+    [ -z "$profiler" ] || modules+=($($profiler))
+    local handler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_${act_name}_${modules[$i]}$" | cut -f3 -d' ')
+    if [ -n "$handler" ]; then
+      handlers[$handler]=1
+    elif [ -z "$profiler" ]; then
+      echo "Unknown component or profile: ${modules[$i]}" 1>&2
+    fi
+    i=$((i+1))
+  done
+  echo ${!handlers[@]}
+}
+
 act_helpper () {
-  local act_name="$1"
+  local act_name=$1
   local sort_options="$2"
   shift
   shift
@@ -58,37 +75,20 @@ act_helpper () {
       fi
       echo
     fi
-    local profiles=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f4- -d_))
+    local profiles=()
+    for profiler in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f4- -d_); do
+      local handles=($(act_find_deps $act_name $profiler 2> /dev/null))
+      [ ${#handles[@]} -eq 0 ] || profiles+=($profiler)
+    done
     mapfile -t profiles < <(printf '%s\n' ${profiles[*]} | grep -Fxv -f <(printf '%s\n' ${components[*]}))
-    if [ ${#profiles[*]} -gt 0 ]; then
-      echo "  list of profiles:"
-      echo "    ${profiles[*]}"
-      echo
-    fi
-    if [ ${#components[*]} -gt 0 ]; then
-      echo "  list of components:"
-      echo "    ${components[*]}"
-      echo
-    fi
+    [ ${#profiles[*]} -eq 0 ] || echo "  list of profiles: ${profiles[*]}"
+    [ ${#components[*]} -eq 0 ] || echo "  list of components: ${components[*]}"
+    [ "${#profiles[*]}${#components[*]}" = "00" ] || echo
     return 0
   fi
 
   # scan for dependencies
-  local modules=(${*##--*})
-  local -A handles=()
-  local i=0 handler
-  while [ $i -lt ${#modules[*]} ]; do
-    local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
-    [ -z "$profiler" ] || modules+=($($profiler))
-    handler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_${names[0]}_${modules[$i]}$" | cut -f3 -d' ')
-    if [ -n "$handler" ]; then
-      handles[$handler]=1
-    elif [ -z "$profiler" ]; then
-      echo "Unknown component or profile: ${modules[$i]}"
-      exit 3
-    fi
-    i=$((i+1))
-  done
+  local handles=($(act_find_deps $act_name "$@"))
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
@@ -97,7 +97,7 @@ act_helpper () {
         awk -v n="$1" '{print strftime("%s"),n,$0;fflush()}'
       }
       start_t=$SECONDS
-      for handler in $(echo "${!handles[@]}" | tr ' ' '\n' | sort $sort_options); do
+      for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
         name=$(echo $handler | cut -f4- -d_)
         echo "==== ${act_name} $name ====" > >(logecho $name)
         start_c=$SECONDS
@@ -141,16 +141,10 @@ subcommand_bootstrap () {
     echo "  --default=<component>  set default installation component."
     echo
     local profiles=($(ls -1 "$mydir/profile" | grep -E "^${ID_LIKE}_" | cut -f2- -d_))
-    if [ ${#profiles[*]} -gt 0 ]; then
-      echo "  list of bootstrap profiles:"
-      echo "    ${profiles[*]}"
-    fi
+    [ ${#profiles[*]} -eq 0 ] || echo "  list of bootstrap profiles: ${profiles[*]}"
     local modules=($(ls -1 "$mydir/module" | grep -E "^${ID_LIKE}_" | cut -f2- -d_))
-    if [ ${#modules[*]} -gt 0 ]; then
-      echo "  list of bootstrap components:"
-      echo "    ${modules[*]}"
-    fi
-    echo
+    [ ${#modules[*]} -eq 0 ] || echo "  list of bootstrap components: ${modules[*]}"
+    [ "${#profiles[*]}${#modules[*]}" = "00" ] || echo
     return 0
   fi
   
