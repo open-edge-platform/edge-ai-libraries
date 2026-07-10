@@ -44,19 +44,18 @@ main () {
 
 act_find_deps () {
   local act_name=$1 i=1
-  local modules=(${*##--*}) handlers=()
+  local modules=(${*##--*})
+  local -A handlers=()
   while [ $i -lt ${#modules[*]} ]; do
     local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
     [ -z "$profiler" ] || modules+=($($profiler))
     local handler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_${act_name}_${modules[$i]}$" | cut -f3 -d' ')
     if [ -n "$handler" ]; then
       handlers[$handler]=1
-    elif [ -z "$profiler" ]; then
-      echo "Unknown component or profile: ${modules[$i]}" 1>&2
     fi
     i=$((i+1))
   done
-  echo ${!handlers[@]}
+  echo "${!handlers[*]}"
 }
 
 act_helpper () {
@@ -77,7 +76,7 @@ act_helpper () {
     fi
     local profiles=()
     for profiler in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f4- -d_); do
-      local handles=($(act_find_deps $act_name $profiler 2> /dev/null))
+      local handles=($(act_find_deps $act_name $profiler))
       [ ${#handles[@]} -eq 0 ] || profiles+=($profiler)
     done
     mapfile -t profiles < <(printf '%s\n' ${profiles[*]} | grep -Fxv -f <(printf '%s\n' ${components[*]}))
