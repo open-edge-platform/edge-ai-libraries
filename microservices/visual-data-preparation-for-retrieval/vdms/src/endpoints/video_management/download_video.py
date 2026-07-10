@@ -17,6 +17,14 @@ router = APIRouter(tags=["Video Management APIs"])
 @router.get(
     "/videos/download",
     summary="Download a video from Minio storage.",
+    operation_id="downloadVideo",
+    response_class=StreamingResponse,
+    responses={
+        HTTPStatus.OK: {
+            "description": "Video stream response",
+            "content": {"video/mp4": {"schema": {"type": "string", "format": "binary"}}},
+        }
+    },
     response_model_exclude_none=True,
 )
 @validate_params

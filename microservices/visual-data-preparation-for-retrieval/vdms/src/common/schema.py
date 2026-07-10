@@ -63,6 +63,20 @@ class DataPrepErrorResponse(DataPrepResponse):
     status: StatusEnum = StatusEnum.error
 
 
+class HealthResponse(BaseModel):
+    """Response model for service health checks."""
+
+    status: str
+    embedding_mode: str
+    sdk_client_status: Optional[str] = None
+    model_name: Optional[str] = None
+    embedding_device: Optional[str] = None
+    sdk_use_openvino: Optional[bool] = None
+    sdk_client_error: Optional[str] = None
+    detection_model: Optional[str] = None
+    detection_device: Optional[str] = None
+
+
 class VideoRequest(BaseModel):
     """Request model for video processing from Minio storage"""
 
@@ -84,12 +98,14 @@ class VideoRequest(BaseModel):
             ge=1,
             le=60,
             description="Extract every Nth frame for processing (default: 15)",
+            json_schema_extra={"example": 15},
         ),
     ] = None
     enable_object_detection: Annotated[
         Optional[bool],
         Field(
-            description="Enable object detection and crop extraction (default: True)"
+            description="Enable object detection and crop extraction (default: True)",
+            json_schema_extra={"example": True},
         ),
     ] = None
     detection_confidence: Annotated[
@@ -98,6 +114,7 @@ class VideoRequest(BaseModel):
             ge=0.1,
             le=1.0,
             description="Confidence threshold for object detection (default: 0.85)",
+            json_schema_extra={"example": 0.85},
         ),
     ] = None
     tags: Annotated[
@@ -107,19 +124,6 @@ class VideoRequest(BaseModel):
             description="List of tags to be associated with the video. Useful for filtering the search.",
         ),
     ]
-    object_detection: Optional[ObjectDetectionConfig] = Field(
-        default=None,
-        description="Object detection configuration for enhanced frame extraction"
-    )
-
-
-class EnhancedVideoRequest(VideoRequest):
-    """Enhanced request model for video processing with object detection support"""
-
-    object_detection: ObjectDetectionConfig = Field(
-        default_factory=ObjectDetectionConfig,
-        description="Object detection configuration for enhanced frame extraction"
-    )
 
 
 class VideoInfo(BaseModel):

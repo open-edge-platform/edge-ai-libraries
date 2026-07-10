@@ -1,5 +1,19 @@
 # Release Notes
 
+## Upcoming updates (post 2026.1.0)
+
+**Improved:**
+
+- **Search orchestration alignment for accelerator usage:** Updated setup and compose behavior for Video Search so NPU device selections are preserved and propagated consistently for DataPrep and multimodal embedding services.
+- **Simplified per-component device model (Compose):** Retired the redundant `VDMS_DATAPREP_DEVICE` baseline knob. Device selection is now purely per-component — `DATAPREP_EMBEDDING_DEVICE`, `DATAPREP_DETECTION_DEVICE`, and `MME_EMBEDDING_DEVICE` (each defaults to `CPU`) — matching the Helm chart model. `ENABLE_EMBEDDING_GPU` is now a mode-aware embedding shortcut (`sdk`→DataPrep embedding GPU, `api`→MME embedding GPU).
+- **Helm accelerator support for search stack:** Updated VSS Helm subcharts for `multimodal-embedding-ms` and `vdms-dataprep` to support NPU as an accelerator path (device-key validation, resource requests/limits, and `/dev/accel` mounts).
+- **Helm accelerator device permissions:** Added `global.accelGroupIds` so the host gids owning `/dev/dri` (GPU) and `/dev/accel` (NPU) are injected into the pod `supplementalGroups`, letting the non-root container open the accelerator device (mirrors the Compose `group_add` render/video groups). Fixes NPU/GPU device initialization falling back to CPU-only.
+- **Helm OpenVINO model cache:** Added a persistent OpenVINO cache (`ovCacheDir`, default `/app/ov_models/ov_cache`) for `multimodal-embedding-ms` and `vdms-dataprep`, plus a longer DataPrep `startupProbe` budget, so GPU/NPU model compilation completes once and is reused across pod restarts instead of recompiling (avoids startup crash loops).
+- **Helm single-source image override:** `global.registry`, `global.tag`, and `global.pullPolicy` now apply across all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, vdms-dataprep, multimodal-embedding-serving) from one place, with independent per-service PVCs for model/cache data.
+- **Clearer embedding error reporting:** The video embedding flow now surfaces the real upstream DataPrep error instead of a misleading "Request timed out" message; only genuine timeouts (`408`/`504`/connection aborts) are reported as timeouts.
+- **Search deployment documentation refresh:** Added a dedicated **Deployment Options for Video Search** matrix (SDK/API with CPU/GPU/NPU combinations), including explicit `DATAPREP_EMBEDDING_DEVICE`, `MME_EMBEDDING_DEVICE`, and `DATAPREP_DETECTION_DEVICE` examples for accelerator-specific routing.
+- **Helm user-guide clarifications:** Updated Helm guidance to include NPU device/key combinations and matching-device recommendations for shared PVC scheduling.
+
 ## Current Release
 
 **Version**: 2026.1.0

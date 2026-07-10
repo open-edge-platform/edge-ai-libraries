@@ -10,7 +10,7 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
+  # sharedPvcName is the chart-level shared PVC used outside this subchart (collector signals).
   sharedPvcName: ""
 
   # Common release tags to be used for several dependencies
@@ -19,6 +19,12 @@ global:
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: ""
   embeddingModelName: ""
+
+  # Host group ids owning the accelerator device nodes (/dev/dri, /dev/accel).
+  # Added to the pod supplementalGroups when this service uses a GPU or NPU so the
+  # non-root container user can open the device. Override to match the target node.
+  accelGroupIds:
+    - 992
 
   proxy:
     # setup proxy settings
@@ -79,6 +85,10 @@ modelPvc:
     - ReadWriteOnce
   size: "10Gi"
 
+# OpenVINO compiled-model cache directory. Persisted on the ov_models volume so
+# GPU/NPU graph compilation runs once and is reused on subsequent starts.
+ovCacheDir: "/app/ov_models/ov_cache"
+
 livenessProbe:
   httpGet:
     path: /health
@@ -93,13 +103,16 @@ readinessProbe:
   initialDelaySeconds: 10
   periodSeconds: 10
   failureThreshold: 12
+# Startup budget is generous: first-time GPU/NPU model compilation can take several
+# minutes. The probe stops as soon as /health responds, so warm (cached) starts are
+# unaffected. failureThreshold * periodSeconds = max startup time before restart.
 startupProbe:
   httpGet:
     path: /health
     port: dataprep-port
   initialDelaySeconds: 10
   periodSeconds: 10
-  failureThreshold: 12
+  failureThreshold: 120
 
 nodeSelector: {}
 tolerations: []
@@ -132,12 +145,14 @@ embedding:
   processingMode: "sdk"
   sdkUseOpenVino: true
   device: "CPU"
+  embeddingDevice: ""
   ovModelsDir: "/app/ov_models"
   ovPerformanceMode: "THROUGHPUT"
 frameProcessing:
   frameInterval: 15
   enableObjectDetection: true
   detectionConfidence: 0.85
+  dataprepDetectionDevice: ""
   detectionModelDir: "/app/models/yolox"
   framesTempDir: "/tmp/dataprep"
 sdkPipeline:

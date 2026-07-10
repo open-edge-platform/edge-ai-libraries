@@ -29,12 +29,33 @@ export class VideoService {
     private $tags: TagsService,
   ) {}
 
+  private normalizeTags(tags: string[] = []): string[] {
+    return Array.from(
+      new Set(
+        tags
+          .map((tag) => tag.trim())
+          .filter((tag) => tag.length > 0),
+      ),
+    );
+  }
+
+  private getStorageObjectFileName(video: Video): string {
+    // Prefer persisted object path so downstream lookup uses the real object-store filename.
+    const objectPath = video.url || '';
+    const objectFileName = objectPath.split('/').pop()?.trim();
+    if (objectFileName) {
+      return objectFileName;
+    }
+
+    return video.dataStore?.fileName || '';
+  }
+
   isStreamable(videoPath: string) {
     return this.$validator.isStreamable(videoPath);
   }
 
-  async createSearchEmbeddings(videoId: string) {
-    const video = await this.getVideo(videoId);
+  async createSearchEmbeddings(videoId: string, tagsToMerge: string[] = []) {
+    let video = await this.getVideo(videoId);
 
     if (!video) {
       throw new NotFoundException('Video not found');
@@ -45,11 +66,30 @@ export class VideoService {
         'Video not available in object store',
       );
     }
+    const dataStore = video.dataStore;
 
+    const normalizedTagsToMerge = this.normalizeTags(tagsToMerge);
+    if (normalizedTagsToMerge.length > 0) {
+      const currentTags = this.normalizeTags(video.tags || []);
+      const mergedTags = Array.from(new Set([...currentTags, ...normalizedTagsToMerge]));
+
+      if (mergedTags.length !== currentTags.length) {
+        const updatedVideo = await this.$videoDb.update(videoId, { tags: mergedTags });
+        if (!updatedVideo) {
+          throw new UnprocessableEntityException('Failed to update video tags');
+        }
+        video = updatedVideo;
+        this.videoMap.set(videoId, updatedVideo);
+      }
+
+      await this.$tags.addTags(normalizedTagsToMerge);
+    }
+
+    const storageFileName = this.getStorageObjectFileName(video);
     const videoData: DataPrepMinioDTO = {
-      bucket_name: video.dataStore.bucket,
-      video_id: video.dataStore?.objectName,
-      video_name: video.dataStore?.fileName,
+      bucket_name: dataStore.bucket,
+      video_id: dataStore.objectName,
+      video_name: storageFileName,
       tags: video.tags || [],
     };
 
