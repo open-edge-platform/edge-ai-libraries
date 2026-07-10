@@ -28,7 +28,7 @@ debian_50_install_npu () {
 
     echo "Downloading NPU drivers and firmware..."
     local NPU_DRIVER_URL=https://github.com/intel/linux-npu-driver/releases/download/v1.33.0/linux-npu-driver-v1.33.0.20260529-26625960453-ubuntu2404.tar.gz
-    curl -fsSL $NPU_DRIVER_URL | tar -xfz - -C $tmpdir
+    curl -sL $NPU_DRIVER_URL | tar xfz - -C $tmpdir
 
     echo "Installing NPU drivers and firmwares"
     with_sudo dpkg -i $tmpdir/*.deb
