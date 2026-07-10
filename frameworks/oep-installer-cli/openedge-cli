@@ -87,6 +87,7 @@ subcommand_install () {
       echo "  list of installable components:"
       echo "    ${components[*]}"
     fi
+    echo
     return 0
   fi
 
@@ -151,6 +152,7 @@ subcommand_bootstrap () {
       echo "  list of bootstrap components:"
       echo "    ${modules[*]}"
     fi
+    echo
     return 0
   fi
   
