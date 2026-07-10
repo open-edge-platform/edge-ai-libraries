@@ -1,10 +1,14 @@
 
+debian_10_profile_curl () {
+  echo "common"
+}
+
 debian_10_install_curl () {
   if dpkg-query -L curl > /dev/null 2>&1; then
     echo "Curl is already installed. Skipping..."
   else
-    with_sudo apt update
-    with_sudo apt install -y curl ca-certificates
+    ensure_apt update
+    ensure_apt install -y curl ca-certificates
   fi
 }
 

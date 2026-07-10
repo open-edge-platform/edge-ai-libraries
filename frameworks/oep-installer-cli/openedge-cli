@@ -6,7 +6,7 @@ trap "main $*" EXIT
 set -e
 
 # common functions
-with_sudo () {
+ensure_sudo () {
   if [[ -n "${SUDO_PASSWORD}" ]]; then
     echo "${SUDO_PASSWORD}" | sudo -S "$@"
   else
@@ -14,15 +14,15 @@ with_sudo () {
   fi
 }
 
-with_uuid () {
+ensure_uuid () {
   cat /proc/sys/kernel/random/uuid
 }
 
-with_tmpdir () {
+ensure_tmpdir () {
   case "$1" in
   create)
     printf -v $2 '%s' $(mktemp -d /tmp/openedge-cli-${3:-}.XXXXXX)
-    trap "with_sudo rm -rf ${!2}" ERR SIGINT EXIT
+    trap "ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
     ;;
   destroy)
     trap - ERR SIGINT EXIT
