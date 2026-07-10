@@ -6,13 +6,7 @@ metadata:
   author: Intel Corporation
   version: 2026.2.0
   tags: "release-notes changelog"
-argument-hint: '<product-name> <base-branch-or-tag> <release-branch-or-tag> <version> <month year> <folder-path>'
 ---
-
- <!--
- SPDX-FileCopyrightText: (C) 2026 Intel Corporation
- SPDX-License-Identifier: Apache-2.0
- -->
 
 # Generate Release Notes
 

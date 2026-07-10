@@ -17,10 +17,6 @@ metadata:
   tags: "changelog release-notes"
 ---
 
- <!--
- SPDX-FileCopyrightText: (C) 2026 Intel Corporation
- SPDX-License-Identifier: Apache-2.0
- -->
 
 # Changelog Generator
 
@@ -185,6 +181,8 @@ Before categorizing commits, read the existing `CHANGELOG.md` (if present):
 4. Also collect PR numbers referenced in commit messages (pattern `(#\d+)` or `#\d+`).
 
 ### Step 5 – Format the entry
+
+> **Format reference:** See [`references/changelog-format.md`](references/changelog-format.md) for the exact CHANGELOG structure and style template used by this repository.
 
 Format the new version block using the **detected CHANGELOG style** from Step 3:
 
