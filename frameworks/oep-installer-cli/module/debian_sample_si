@@ -5,7 +5,7 @@ debian_90_profile_sample_si () {
 
 debian_90_install_sample_si () {
   local workspace="$(readlink -f ~)/openedge-samples/smart-intersection"
-  [ ! -e "$workspace" ] || [[ "$*" = *"--reset-smart_intersection"* ]] || return 0
+  [ ! -e "$workspace" ] || [[ "$*" = *"--reset-sample_si"* ]] || return 0
 
   # clone the repository
   local VERSION=release-2026.1.0

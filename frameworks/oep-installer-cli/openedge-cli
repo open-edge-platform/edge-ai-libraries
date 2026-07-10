@@ -93,7 +93,7 @@ act_helpper () {
   if [ ${#handles[@]} -gt 0 ]; then
     (
       logecho () {
-        awk -v n="$1" '{print strftime("%s"),n,$0;fflush()}'
+        awk -v n=$1 '{print strftime("%s"),n,$0;fflush()}'
       }
       start_t=$SECONDS
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
