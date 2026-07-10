@@ -3,6 +3,34 @@
 # common variable: ID_LIKE
 . /etc/os-release
 trap "main $*" EXIT
+set -e
+
+# common functions
+with_sudo () {
+  if [[ -n "${SUDO_PASSWORD}" ]]; then
+    echo "${SUDO_PASSWORD}" | sudo -S "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+with_uuid () {
+  cat /proc/sys/kernel/random/uuid
+}
+
+with_tmpdir () {
+  case "$1" in
+  create)
+    local tmpdir=$(mktemp -d /tmp/openedge-cli-${3:-}.XXXXXX)
+    printf -v $2 '%s' $tmpdir
+    trap "with_sudo rm -rf $tmpdir" ERR SIGINT EXIT
+    ;;
+  destroy)
+    rm -rf "$2"
+    trap - ERR SIGINT EXIT
+    ;;
+  esac
+}
 
 main () {
   trap - EXIT
@@ -47,6 +75,7 @@ subcommand_install () {
     if [ ${#components[*]} -gt 0 ]; then
       echo "install options:"
       echo "  --dry-run       dry-run the installation sequence."
+      echo "  --reset-<name>  force reinstallation of the component if exit."
       echo
     fi
     local profiles=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f4- -d_))
@@ -88,7 +117,7 @@ subcommand_install () {
       local name=$(echo $installer | cut -f4- -d_)
       echo "==== installing $name ====" > >(logecho $name)
       local start=$SECONDS
-      [[ "$*" = *"--dry-run"* ]] || $installer ${*/#[!--]*/} > >(logecho $name) 2> >(logecho $name) || exit
+      [[ "$*" = *"--dry-run"* ]] || ($installer ${*/#[!--]*/}) > >(logecho $name) 2> >(logecho $name)
       local end=$SECONDS
       echo "==== installed $name, ellapsed $(( end - start )) seconds ====" > >(logecho $name)
     done
