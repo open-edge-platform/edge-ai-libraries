@@ -3683,9 +3683,13 @@
             "type": "integer",
             "title": "Total Test Cases"
           },
-          "completed_test_cases": {
+          "passed_test_cases": {
             "type": "integer",
-            "title": "Completed Test Cases"
+            "title": "Passed Test Cases"
+          },
+          "failed_test_cases": {
+            "type": "integer",
+            "title": "Failed Test Cases"
           },
           "pass_rate": {
             "type": "number",
@@ -3704,7 +3708,8 @@
           "job_id",
           "workload_runs",
           "total_test_cases",
-          "completed_test_cases",
+          "passed_test_cases",
+          "failed_test_cases",
           "pass_rate"
         ],
         "title": "BenchmarkSuiteRun",
@@ -3833,9 +3838,13 @@
             "type": "string",
             "title": "Job Id"
           },
-          "completed": {
+          "passed": {
             "type": "boolean",
-            "title": "Completed"
+            "title": "Passed"
+          },
+          "failed": {
+            "type": "boolean",
+            "title": "Failed"
           }
         },
         "type": "object",
@@ -3852,7 +3861,8 @@
           "power_usage",
           "metrics",
           "job_id",
-          "completed"
+          "passed",
+          "failed"
         ],
         "title": "BenchmarkTestCaseRun",
         "description": "Historical run record for one benchmark test case."
@@ -3914,9 +3924,13 @@
             "type": "integer",
             "title": "Total Test Cases"
           },
-          "completed_test_cases": {
+          "passed_test_cases": {
             "type": "integer",
-            "title": "Completed Test Cases"
+            "title": "Passed Test Cases"
+          },
+          "failed_test_cases": {
+            "type": "integer",
+            "title": "Failed Test Cases"
           },
           "pass_rate": {
             "type": "number",
@@ -3930,7 +3944,8 @@
           "suite_run_id",
           "test_case_runs",
           "total_test_cases",
-          "completed_test_cases",
+          "passed_test_cases",
+          "failed_test_cases",
           "pass_rate"
         ],
         "title": "BenchmarkWorkloadRun",
