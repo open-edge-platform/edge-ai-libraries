@@ -5,8 +5,10 @@ debian_90_profile_smart_intersection () {
 
 debian_90_install_smart_intersection () {
   local workspace="/tmp/openedge-sample/smart-intersection"
-  [[ ! -e $workspace && "$*" && "$*" != *"--reset-smart-intersection"* ]] || return 0
+  [ ! -e $workspace ] || [[ "$*" = *"--reset-smart_intersection"* ]] || return 0
 
-  ensure_git_clone $workspace $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+  local VERSION=release-2026.1.0
+  local REPOSITORY=https://github.com/open-edge-platform/edge-ai-suites.git
+  ensure_git_clone $workspace $VERSION $REPOSITORY metro-ai-suite/metro-vision-ai-app-recipe
 }
 
