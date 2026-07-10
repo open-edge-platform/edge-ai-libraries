@@ -154,6 +154,69 @@
         }
       }
     },
+    "/benchmarks/{suite_slug}/run": {
+      "post": {
+        "tags": [
+          "benchmarks"
+        ],
+        "summary": "Start a benchmark suite run",
+        "description": "Start asynchronous benchmark execution for one suite slug.",
+        "operationId": "run_benchmark_suite",
+        "parameters": [
+          {
+            "name": "suite_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Suite Slug"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Benchmark suite job created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchmarkJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid benchmark suite request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error while starting benchmark suite",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/convert/to-graph": {
       "post": {
         "tags": [
@@ -865,6 +928,209 @@
           },
           "409": {
             "description": "Density test job not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/tests/benchmark/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "List all benchmark suite jobs",
+        "description": "List statuses of all benchmark-suite orchestration jobs.",
+        "operationId": "get_benchmark_statuses",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BenchmarkJobStatus"
+                  },
+                  "type": "array",
+                  "title": "Response Get Benchmark Statuses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/tests/benchmark/{job_id}/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get benchmark suite job status",
+        "description": "Get detailed status of a single benchmark-suite orchestration job.",
+        "operationId": "get_benchmark_job_status",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchmarkJobStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/tests/benchmark/{job_id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get benchmark suite job summary",
+        "description": "Get a short summary of a benchmark-suite orchestration job.",
+        "operationId": "get_benchmark_job_summary",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchmarkJobSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Stop a running benchmark suite job",
+        "description": "Stop a running benchmark-suite orchestration job.",
+        "operationId": "stop_benchmark_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Job not running",
             "content": {
               "application/json": {
                 "schema": {
@@ -3105,6 +3371,128 @@
         ],
         "title": "AppStatus",
         "description": "**Application status enum for tracking initialization progress.**\n\n## Values\n- `STARTING` - Application is starting, no initialization yet\n- `INITIALIZING` - Application is initializing resources (e.g., loading videos)\n- `READY` - Application is fully initialized and ready to serve requests\n- `SHUTDOWN` - Application is shutting down\n\n### Example\n```json\n\"ready\"\n```"
+      },
+      "BenchmarkJobResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "description": "Identifier of the created benchmark job.",
+            "examples": [
+              "benchmark-job-123"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "BenchmarkJobResponse",
+        "description": "Simple envelope with a new benchmark job identifier."
+      },
+      "BenchmarkJobStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "suite_slug": {
+            "type": "string",
+            "title": "Suite Slug"
+          },
+          "suite_run_id": {
+            "type": "integer",
+            "title": "Suite Run Id"
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time"
+          },
+          "elapsed_time": {
+            "type": "integer",
+            "title": "Elapsed Time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TestJobState"
+          },
+          "details": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Details"
+          },
+          "total_test_cases": {
+            "type": "integer",
+            "title": "Total Test Cases"
+          },
+          "completed_test_cases": {
+            "type": "integer",
+            "title": "Completed Test Cases"
+          },
+          "current_test_case_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Test Case Run Id"
+          },
+          "current_performance_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Performance Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "suite_slug",
+          "suite_run_id",
+          "start_time",
+          "elapsed_time",
+          "state",
+          "details",
+          "total_test_cases",
+          "completed_test_cases",
+          "current_test_case_run_id",
+          "current_performance_job_id"
+        ],
+        "title": "BenchmarkJobStatus",
+        "description": "Status of a benchmark-suite orchestration job."
+      },
+      "BenchmarkJobSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "suite_slug": {
+            "type": "string",
+            "title": "Suite Slug"
+          },
+          "suite_run_id": {
+            "type": "integer",
+            "title": "Suite Run Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "suite_slug",
+          "suite_run_id"
+        ],
+        "title": "BenchmarkJobSummary",
+        "description": "Short summary for a benchmark-suite orchestration job."
       },
       "BenchmarkSuite": {
         "properties": {
