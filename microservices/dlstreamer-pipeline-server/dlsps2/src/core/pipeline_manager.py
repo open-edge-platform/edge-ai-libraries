@@ -297,11 +297,22 @@ class PipelineManager:
             return True, None
 
         # Surface the most relevant diagnostic line from the validator's stderr.
+        # gst_validator.py always logs its own generic
+        # "Pipeline validation FAILED (reason: ...)" summary as the LAST
+        # ERROR-level line; the actual root-cause GStreamer error (e.g. a
+        # missing model file or element) is logged earlier. Prefer the
+        # first specific ERROR line so callers see the real cause instead
+        # of the generic summary.
         reason = None
-        for line in reversed(result.stderr.splitlines()):
-            if "ERROR" in line:
+        for line in result.stderr.splitlines():
+            if "ERROR" in line and "Pipeline validation FAILED" not in line:
                 reason = line.strip()
                 break
+        if reason is None:
+            for line in reversed(result.stderr.splitlines()):
+                if "ERROR" in line:
+                    reason = line.strip()
+                    break
         return False, reason or f"validator exited with code {result.returncode}"
 
     # ------------------------------------------------------------------
