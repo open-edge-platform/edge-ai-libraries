@@ -183,6 +183,9 @@ subcommand_bootstrap () {
       if [ ${#modules[*]} -gt 0 ]; then
         sed -i "1a[ \${#@} -gt 1 ] || set -- install ${modules[*]##--default=}" "$0"
       fi
+      if [ -r "$mydir"/common/${ID_LIKE} ]; then
+        cat "$mydir"/common/${ID_LIKE} >> "$0"
+      fi
     fi
     for script in "${!scripts[@]}"; do
       echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="

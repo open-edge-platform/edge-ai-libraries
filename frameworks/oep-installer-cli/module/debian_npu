@@ -1,6 +1,6 @@
 
 debian_50_profile_npu () {
-  echo "curl common"
+  echo "curl"
 }
 
 debian_50_install_npu () {

@@ -1,8 +1,4 @@
 
-debian_10_profile_git () {
-  echo "common"
-}
-
 debian_10_install_git () {
   if dpkg-query -L git > /dev/null 2>&1; then
     echo "Git is already installed. Skipping..."
