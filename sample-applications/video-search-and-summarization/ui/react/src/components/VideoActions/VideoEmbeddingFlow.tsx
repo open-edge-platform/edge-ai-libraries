@@ -597,10 +597,11 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
         const status = error.response?.status;
         const timeoutHit =
           error.code === 'ECONNABORTED' ||
+          status === 408 ||
           status === 504 ||
           /timeout/i.test(responseMessage || error.message || '');
 
-        if (timeoutHit || responseMessage === 'Internal server error') {
+        if (timeoutHit) {
           throw new Error(t('timeoutError'));
         }
 
@@ -680,10 +681,11 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
         const status = error.response?.status;
         const timeoutHit =
           error.code === 'ECONNABORTED' ||
+          status === 408 ||
           status === 504 ||
           /timeout/i.test(responseMessage || error.message || '');
 
-        if (timeoutHit || responseMessage === 'Internal server error') {
+        if (timeoutHit) {
           errorMessage = t('timeoutError');
         } else if (responseMessage) {
           errorMessage = responseMessage;
@@ -691,11 +693,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
           errorMessage = error.message;
         }
       } else if (error instanceof Error) {
-        if (/Embedding creation failed: Internal server error/i.test(error.message)) {
-          errorMessage = t('timeoutError');
-        } else {
         errorMessage = error.message;
-        }
       }
 
       setUploadErrorMessage(errorMessage);

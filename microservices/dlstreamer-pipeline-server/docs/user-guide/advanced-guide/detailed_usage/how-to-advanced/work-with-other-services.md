@@ -1,4 +1,5 @@
 # Working with other services
+
 DL Streamer Pipeline Server can work with following microservices for visualization and model management.
 
 ## Model Registry (MRaaS)
@@ -28,7 +29,7 @@ In the current release of DL Streamer Pipeline Server, the following two workflo
    docker pull intel/model-registry:1.0.3
    ```
 
-2. Follow the instructions in the [Model Registry's Get Started Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-registry/get-started.html) to run the microservice.
+2. Follow the instructions in the [Model Download's Get Started Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started.html) to run the microservice.
 3. Send a POST request to store a model.
     - Use the following `curl` command to send a POST request with FormData fields corresponding to the model's properties.
 

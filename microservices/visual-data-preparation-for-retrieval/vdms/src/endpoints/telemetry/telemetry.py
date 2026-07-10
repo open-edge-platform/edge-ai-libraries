@@ -38,10 +38,19 @@ def _normalize_record(record: Dict[str, Any]) -> Dict[str, Any]:
 
 @telemetry_router.get(
 	"/telemetry",
+	summary="Get recent telemetry records",
+	operation_id="listTelemetryRecords",
 	response_model=TelemetryResponse,
 	response_model_exclude_none=True,
 )
-def read_telemetry(limit: int = Query(100, ge=1, le=settings.TELEMETRY_MAX_RECORDS)) -> TelemetryResponse:
+def read_telemetry(
+	limit: int = Query(
+		100,
+		ge=1,
+		le=settings.TELEMETRY_MAX_RECORDS,
+		description="Maximum number of latest telemetry records to return.",
+	)
+) -> TelemetryResponse:
 	"""Return the most recent telemetry entries (newest first)."""
 
 	entries = telemetry_store.read_latest(limit)

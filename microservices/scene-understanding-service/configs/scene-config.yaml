@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# SAMPLE configuration for scene-understanding-service.
+#
+# This file is a generic example and the service's built-in fallback: it is
+# loaded from `configs/` next to the source when no `/app/configs` volume is
+# mounted (override the directory with the CONFIG_DIR env var). Every
+# consuming application supplies its OWN scene-config.yaml (with its real
+# scenes, cameras, zones, and broker) via a read-only volume mount, so the
+# placeholder values below are only meant to be replaced.
+#
+# It defines how the service connects to SceneScape (MQTT + REST API) and
+# which scenes/cameras/zones it monitors. It is intentionally decoupled
+# from how SceneScape itself is provisioned.
+
+# SceneScape REST API — used for zone auto-discovery at startup.
+scenescape_api:
+  base_url: https://web.scenescape.intel.com
+  auth_path: /api/v1/auth
+  scenes_path: /api/v1/scenes
+  regions_path: /api/v1/regions
+  verify_ssl: false
+
+# Scenes the service monitors. Each scene lists its cameras and a
+# zone-name -> zone-type mapping (HIGH_VALUE, CHECKOUT, EXIT, RESTRICTED).
+# Zone names must match the region names defined in the SceneScape scene.
+scenes:
+  - scene_name: example-scene
+    cameras:
+      - example-camera1
+    zones:
+      zone1: HIGH_VALUE
+      zone2: CHECKOUT
+
+# MQTT broker connection and SceneScape topic patterns.
+mqtt:
+  host: broker.scenescape.intel.com
+  port: 1883
+  use_tls: false
+  cert_required: false
+  verify_hostname: false
+  ca_cert_path: secrets/certs/scenescape-ca.pem
+  scene_data_topic_pattern: scenescape/data/scene/+/+
+  region_event_topic_pattern: scenescape/event/region/+/+/+
+  image_topic_pattern: scenescape/image/camera/+
+  cmd_topic_pattern: scenescape/cmd/camera/{camera_name}
+  alert_topic_prefix: alerts
+
+# ---------------------------------------------------------------------------
+# Optional blocks — uncomment only when the consuming application uses them.
+# ---------------------------------------------------------------------------
+
+# S3-compatible frame storage. Required ONLY when behavioral analysis is
+# enabled (frames are captured as evidence). Omit to run without capture.
+# seaweedfs:
+#   endpoint: seaweedfs:8333
+#   access_key: ""
+#   secret_key: ""
+
+# Downstream alert-service routing. If omitted, ALERT_SERVICE_URL env (or
+# the default below) is used. Set enabled: false to generate alerts without
+# POSTing them anywhere.
+# alert_service:
+#   base_url: http://alert-service:8000
+#   timeout_seconds: 10
+#   enabled: true

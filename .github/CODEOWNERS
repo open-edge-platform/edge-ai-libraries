@@ -91,9 +91,9 @@ README.md           @xwu2intel
 /microservices/multimodal-embedding-serving/docs/      @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
 /microservices/multimodal-embedding-serving/README.md  @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/time-series-analytics/                  @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe
-/microservices/time-series-analytics/docs/             @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe  @open-edge-platform/open-edge-platform-docs-write
-/microservices/time-series-analytics/README.md         @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe  @open-edge-platform/open-edge-platform-docs-write
+/microservices/time-series-analytics/                  @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe @tanvidhola-ux
+/microservices/time-series-analytics/docs/             @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe @tanvidhola-ux @open-edge-platform/open-edge-platform-docs-write
+/microservices/time-series-analytics/README.md         @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe @tanvidhola-ux @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/vector-retriever/                                @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/vector-retriever/docs/                           @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write

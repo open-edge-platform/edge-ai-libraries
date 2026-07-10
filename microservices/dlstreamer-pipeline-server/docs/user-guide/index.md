@@ -64,7 +64,7 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
 
 - **DL Streamer Pipeline Server Model Update**
 
-  Supports integration with the Model Registry service - [Model Registry](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-registry/index.html) for model download, deployment and management.
+  Supports integration with the [Model Download service](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/index.html) for model download, deployment and management.
 
 - **Open Telemetry**
 
