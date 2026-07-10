@@ -101,7 +101,7 @@ subcommand_install () {
     installer=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_install_${modules[$i]}$" | cut -f3 -d' ')
     if [ -n "$installer" ]; then
       installers[$installer]=1
-    else
+    elif [ -z "$profiler" ]; then
       echo "Unknown component or profile: ${modules[$i]}"
       exit 3
     fi
