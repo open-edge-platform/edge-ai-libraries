@@ -31,6 +31,7 @@ ensure_git_clone () {
   local version="$2"
   local repository="$3"
 
+  mkdir -p "$(dirname "$workspace")"
   if [ ${#@} -gt 4 ]; then
     # sparse checkout
     mkdir -p "$workspace"

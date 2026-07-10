@@ -1,0 +1,12 @@
+
+debian_90_profile_smart_intersection () {
+  echo "git curl gawk"
+}
+
+debian_90_install_smart_intersection () {
+  local workspace="/tmp/openedge-sample/smart-intersection"
+  [[ ! -e $workspace && "$*" && "$*" != *"--reset-smart-intersection"* ]] || return 0
+
+  ensure_git_clone $workspace $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+}
+
