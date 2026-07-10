@@ -21,9 +21,8 @@ with_uuid () {
 with_tmpdir () {
   case "$1" in
   create)
-    local tmpdir=$(mktemp -d /tmp/openedge-cli-${3:-}.XXXXXX)
-    printf -v $2 '%s' $tmpdir
-    trap "with_sudo rm -rf $tmpdir" ERR SIGINT EXIT
+    printf -v $2 '%s' $(mktemp -d /tmp/openedge-cli-${3:-}.XXXXXX)
+    trap "with_sudo rm -rf ${!2}" ERR SIGINT EXIT
     ;;
   destroy)
     rm -rf "$2"
