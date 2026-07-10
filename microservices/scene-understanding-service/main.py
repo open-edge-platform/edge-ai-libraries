@@ -11,7 +11,7 @@ Wires together the four core responsibilities:
 
 External services (called conditionally):
   - BehavioralAnalysis Service (pose analysis + VLM confirmation)
-  - Rule Service (advanced rule evaluation)
+ 
 """
 
 import asyncio
@@ -143,10 +143,10 @@ async def lifespan(app: FastAPI):
     app.state.alert_service_client = alert_svc_client
 
     # 4b. BA MQTT queue (publisher + result consumer)
-    ba_publisher = BAQueuePublisher(mqtt_svc)
+    ba_publisher = BAQueuePublisher(mqtt_svc, config.get_ba_request_topic())
     app.state.ba_publisher = ba_publisher
 
-    ba_result_consumer = BAQueueConsumer(mqtt_svc)
+    ba_result_consumer = BAQueueConsumer(mqtt_svc, config.get_ba_result_topic())
     app.state.ba_result_consumer = ba_result_consumer
 
     # 5. Session manager (receives MQTT connection state to pause expiry on disconnect)

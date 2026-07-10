@@ -24,6 +24,15 @@ services:
     environment:
       # Identity included in alert payloads.
       STORE_ID: ${STORE_ID:-store_001}
+      # MQTT broker. Overrides mqtt.host / mqtt.port in scene-config.yaml.
+      # Must point at the same broker as the behavioral-analysis worker.
+      MQTT_HOST: ${MQTT_HOST:-broker.scenescape.intel.com}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      # BA integration contract: MQTT topics shared with the behavioral-analysis
+      # worker. Must match on both services. Overrides the mqtt block in
+      # scene-config.yaml when set.
+      BA_REQUEST_TOPIC: ${BA_REQUEST_TOPIC:-ba/requests}
+      BA_RESULT_TOPIC: ${BA_RESULT_TOPIC:-ba/results}
       # SceneScape REST API credentials for zone auto-discovery.
       SCENESCAPE_API_USER: ${SCENESCAPE_API_USER:-}
       SCENESCAPE_API_PASSWORD: ${SCENESCAPE_API_PASSWORD:-}
