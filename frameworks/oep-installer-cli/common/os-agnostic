@@ -1,0 +1,51 @@
+
+# perform sudo in automation or in tty
+ensure_sudo () {
+  if [ -n "$SUDO_PASSWORD" ]; then
+    echo "$SUDO_PASSWORD" | sudo -S "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+# create/destroy a tmpdir with trap to delete the folder on ERR
+ensure_tmpdir () {
+  # $1: op
+  # $2: varname in create or tmpdir in destroy
+  # $3: prefix in create
+  case "$1" in
+  create)
+    printf -v $2 "%s" $(mktemp -d /tmp/openedge-cli-${3:-}.XXXXXX)
+    trap "ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
+    ;;
+  destroy)
+    trap - ERR SIGINT EXIT
+    rm -rf "$2"
+    ;;
+  esac
+}
+
+# sparse or full git clone
+ensure_git_clone () {
+  local workspace="$1"
+  local version="$2"
+  local repository="$3"
+
+  if [ ${#@} -gt 4 ]; then
+    # sparse checkout
+    mkdir -p "$workspace"
+    pushd "$workspace"
+    git clone --filter=blob:none --no-checkout "$repository"
+    git sparse-checkout init --cone
+    git sparse-checkout set "${@:4}"
+    git checkout $version
+    popd
+  else
+    # full checkout
+    git clone -b $version --depth 1 "$repository" "$workspace"
+    pushd "$workspace"
+    [ ! -e .gitmodule ] || git submodule update --init --recurse
+    popd
+  fi
+}
+

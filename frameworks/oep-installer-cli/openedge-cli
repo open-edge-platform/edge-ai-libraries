@@ -157,6 +157,7 @@ subcommand_bootstrap () {
       if [ ${#modules[*]} -gt 0 ]; then
         sed -i "1a[ \${#@} -gt 1 ] || set -- install ${modules[*]##--default=}" "$0"
       fi
+      cat "$mydir"/common/os-agnostic >> "$0"
       if [ -r "$mydir"/common/${ID_LIKE} ]; then
         cat "$mydir"/common/${ID_LIKE} >> "$0"
       fi
