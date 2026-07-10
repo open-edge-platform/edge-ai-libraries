@@ -29,7 +29,7 @@ export VLM_MODEL_NAME="microsoft/Phi-3.5-vision-instruct"
 
 **Default**: `CPU`
 
-**Supported Values**: `CPU`, `GPU`, `GPU.0`, `GPU.1`, etc.
+**Supported Values**: `CPU`, `GPU`, `GPU.0`, `GPU.1`, etc., `NPU`
 
 **Examples**:
 
@@ -43,15 +43,19 @@ export VLM_DEVICE=GPU
 # Use specific GPU device (if multiple GPUs available)
 export VLM_DEVICE=GPU.0
 export VLM_DEVICE=GPU.1
+
+# Use NPU for inference (if available)
+export VLM_DEVICE=NPU
 ```
 
 **Device Selection Guidelines**:
 
 - **CPU**: Best for development, testing, and when GPU is not available
 - **GPU**: Recommended for production workloads when GPU acceleration is available
+- **NPU**: Use for efficient low-power inference on systems with an Intel NPU. Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page
 - **Multi-GPU**: When multiple GPUs are available, specify which one to use
 
-**Note**: When using GPU, the setup script automatically adjusts compression format to `int4` and sets workers to 1 for optimal GPU performance.
+**Note**: When using GPU or NPU, the setup script automatically adjusts compression format to `int4` and sets workers to 1.
 
 ### OpenVINO Configuration
 
@@ -102,10 +106,93 @@ export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY", "CACHE_DIR": "/tmp/ov_cache"}'
 
 ```bash
 export VLM_COMPRESSION_WEIGHT_FORMAT=int8  # Default for CPU
-export VLM_COMPRESSION_WEIGHT_FORMAT=int4  # Automatically set for GPU
+export VLM_COMPRESSION_WEIGHT_FORMAT=int4  # Automatically set for GPU and NPU
 ```
 
-**Note**: The setup script automatically sets this to `int4` when `VLM_DEVICE=GPU` for optimal GPU performance.
+**Note**: The setup script automatically sets this to `int4` when `VLM_DEVICE=GPU` or `VLM_DEVICE=NPU`. For NPU `int4`/`nf4` exports, this microservice uses `VLM_NPU_EXPORT_PROFILE`:
+
+- `safe` (default): OVMS-like export settings (`--task image-text-to-text --sym --ratio 1.0 --group-size -1`)
+- `data_aware`: contextual calibration export settings (`--task image-text-to-text --group-size -1 --ratio 0.8 --dataset contextual --sensitivity-metric mean_activation_magnitude --num-samples 16`)
+
+When `VLM_DEVICE=NPU` and model name contains `Qwen2.5-VL`, `setup.sh` enforces `VLM_NPU_EXPORT_PROFILE=data_aware`.
+
+#### VLM_NPU_EXPORT_PROFILE
+
+**Description**: Selects the NPU export profile used for VLM `int4`/`nf4` conversion.
+
+**Default**: `safe`
+
+**Supported Values**: `safe`, `data_aware`
+
+**Examples**:
+
+```bash
+# OVMS-like stable profile (default)
+export VLM_NPU_EXPORT_PROFILE=safe
+
+# Contextual data-aware profile
+export VLM_NPU_EXPORT_PROFILE=data_aware
+```
+
+#### VLM_NPU_VLM_NUM_SAMPLES
+
+**Description**: Number of contextual calibration samples used for NPU data-aware INT4/NF4 VLM export.
+
+**Applies when**: `VLM_NPU_EXPORT_PROFILE=data_aware`
+
+**Default**: `16`
+
+**Examples**:
+
+```bash
+# Faster export
+export VLM_NPU_VLM_NUM_SAMPLES=8
+
+# Higher-quality calibration
+export VLM_NPU_VLM_NUM_SAMPLES=32
+```
+
+#### VLM_NPU_VLM_GROUP_SIZE
+
+**Description**: Group size used for NPU data-aware INT4/NF4 VLM export.
+
+**Applies when**: `VLM_NPU_EXPORT_PROFILE=data_aware`
+
+**Default**: `-1`
+
+**Examples**:
+
+```bash
+export VLM_NPU_VLM_GROUP_SIZE=-1
+```
+
+#### VLM_NPU_VLM_RATIO
+
+**Description**: Ratio between 4-bit and backup precision during NPU data-aware INT4/NF4 VLM export.
+
+**Applies when**: `VLM_NPU_EXPORT_PROFILE=data_aware`
+
+**Default**: `0.8`
+
+**Examples**:
+
+```bash
+export VLM_NPU_VLM_RATIO=0.8
+```
+
+#### VLM_NPU_VLM_SENSITIVITY_METRIC
+
+**Description**: Sensitivity metric used during NPU data-aware INT4/NF4 VLM export.
+
+**Applies when**: `VLM_NPU_EXPORT_PROFILE=data_aware`
+
+**Default**: `mean_activation_magnitude`
+
+**Examples**:
+
+```bash
+export VLM_NPU_VLM_SENSITIVITY_METRIC=mean_activation_magnitude
+```
 
 #### VLM_MAX_COMPLETION_TOKENS
 
@@ -388,6 +475,30 @@ source setup.sh
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 export VLM_DEVICE=GPU.0
 export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT", "CACHE_DIR": "/tmp/ov_cache"}'
+source setup.sh
+```
+
+### NPU Acceleration
+
+```bash
+# NPU configuration
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+export VLM_DEVICE=NPU
+export VLM_NPU_EXPORT_PROFILE=safe
+source setup.sh
+```
+
+```bash
+# Optional: data-aware NPU export profile
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+export VLM_DEVICE=NPU
+export VLM_NPU_EXPORT_PROFILE=data_aware
+export VLM_NPU_VLM_NUM_SAMPLES=16
+export VLM_NPU_VLM_GROUP_SIZE=-1
+export VLM_NPU_VLM_RATIO=0.8
+export VLM_NPU_VLM_SENSITIVITY_METRIC=mean_activation_magnitude
 source setup.sh
 ```
 

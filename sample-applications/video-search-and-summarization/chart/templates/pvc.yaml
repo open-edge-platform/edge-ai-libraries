@@ -1,5 +1,5 @@
-# Common PVC that can be shared across sub-charts
-{{- if and (.Values.global.usePvc) (.Values.vdmsdataprep.enabled) }}
+# Shared collector-signals PVC used by pipeline-manager and vss-collector.
+{{- if and (.Values.global.usePvc) (.Values.vsscollector.enabled) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

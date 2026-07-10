@@ -487,6 +487,31 @@ curl "http://localhost:8000/v1/dataprep/telemetry?limit=10"
 
 ---
 
+## Interactive API Documentation
+
+When the service is running, FastAPI provides interactive docs:
+
+- **Swagger UI**: `http://<HOST_IP>:<VDMS_DATAPREP_HOST_PORT>/docs`
+- **ReDoc**: `http://<HOST_IP>:<VDMS_DATAPREP_HOST_PORT>/redoc`
+- **OpenAPI JSON**: `http://<HOST_IP>:<VDMS_DATAPREP_HOST_PORT>/openapi.json`
+
+With default settings:
+
+```bash
+http://<HOST_IP>:6007/docs
+http://<HOST_IP>:6007/redoc
+http://<HOST_IP>:6007/openapi.json
+```
+
+## Using the OpenAPI Spec with Bruno
+
+For collection generation and API testing, import the checked-in spec:
+
+- File: `docs/user-guide/api-docs/openapi.yaml`
+- Bruno: **Collections → Import OpenAPI** and select this YAML file
+
+This file is generated from the FastAPI app and is the recommended source for reproducible Bruno collections.
+
 ## Supporting Resources
 
 - [Get Started](./get-started.md)

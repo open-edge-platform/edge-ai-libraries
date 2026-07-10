@@ -29,9 +29,18 @@ spec:
         # REST API. The script lives in the vss-model-download-helper ConfigMap
         # (chart/templates/model-download-helper.yaml) to keep this template clean.
         - name: model-converter
-          image: "{{ .Values.global.modelDownload.image.repository }}:{{ .Values.global.modelDownload.image.tag }}"
-          imagePullPolicy: {{ .Values.global.modelDownload.image.pullPolicy }}
-          command: ["/bin/sh", "/scripts/download-od-model.sh"]
+          image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.videoingestion.image.repository "tag" (.Values.global.tag | default .Values.videoingestion.image.tag)) }}"
+          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.videoingestion.image.pullPolicy }}
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              # Check if model directory exists but is incomplete
+              if [ -d "${OD_MODEL_OUTPUT_DIR}" ] && ( [ ! -d "${OD_MODEL_OUTPUT_DIR}/FP32" ] || [ ! -d "${OD_MODEL_OUTPUT_DIR}/FP16" ] ); then
+                echo "Model directory exists but appears incomplete. Removing it to trigger fresh conversion."
+                rm -rf "${OD_MODEL_OUTPUT_DIR}"
+              fi
+              # Run the original conversion script
+              /scripts/download-od-model.sh
           env:
             - name: MODEL_NAME
               value: {{ required "Value for odModelName is required!" .Values.odModelName | quote }}
@@ -55,8 +64,8 @@ spec:
             privileged: true
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.videoingestion.image.repository }}:{{ .Values.videoingestion.image.tag }}"
-          imagePullPolicy: {{ .Values.videoingestion.image.pullPolicy }}
+          image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.videoingestion.image.repository "tag" (.Values.global.tag | default .Values.videoingestion.image.tag)) }}"
+          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.videoingestion.image.pullPolicy }}
           {{- with .Values.videoingestion.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
