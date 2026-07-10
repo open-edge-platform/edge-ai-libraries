@@ -217,6 +217,73 @@
         }
       }
     },
+    "/benchmarks/{suite_slug}/runs": {
+      "get": {
+        "tags": [
+          "benchmarks"
+        ],
+        "summary": "List historical runs of a benchmark suite",
+        "description": "Return historical suite runs with nested workload and test-case runs.",
+        "operationId": "get_benchmark_suite_runs",
+        "parameters": [
+          {
+            "name": "suite_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Suite Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of suite runs with nested workload and test case runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BenchmarkSuiteRun"
+                  },
+                  "title": "Response 200 Get Benchmark Suite Runs"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Benchmark suite not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/convert/to-graph": {
       "post": {
         "tags": [
@@ -3543,6 +3610,94 @@
         "title": "BenchmarkSuite",
         "description": "Benchmark suite with nested workloads and test cases."
       },
+      "BenchmarkSuiteRun": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "suite_id": {
+            "type": "integer",
+            "title": "Suite Id"
+          },
+          "score_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Total"
+          },
+          "score_performance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Performance"
+          },
+          "score_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Efficiency"
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "workload_runs": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkWorkloadRun"
+            },
+            "type": "array",
+            "title": "Workload Runs"
+          },
+          "total_test_cases": {
+            "type": "integer",
+            "title": "Total Test Cases"
+          },
+          "completed_test_cases": {
+            "type": "integer",
+            "title": "Completed Test Cases"
+          },
+          "pass_rate": {
+            "type": "number",
+            "title": "Pass Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "suite_id",
+          "score_total",
+          "score_performance",
+          "score_efficiency",
+          "start_time",
+          "job_id",
+          "workload_runs",
+          "total_test_cases",
+          "completed_test_cases",
+          "pass_rate"
+        ],
+        "title": "BenchmarkSuiteRun",
+        "description": "Historical run record for one benchmark suite execution."
+      },
       "BenchmarkTestCase": {
         "properties": {
           "id": {
@@ -3566,6 +3721,129 @@
         ],
         "title": "BenchmarkTestCase",
         "description": "Concrete stream-count test case belonging to a workload."
+      },
+      "BenchmarkTestCaseRun": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "test_case_id": {
+            "type": "integer",
+            "title": "Test Case Id"
+          },
+          "workload_run_id": {
+            "type": "integer",
+            "title": "Workload Run Id"
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time"
+          },
+          "execution_time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Time"
+          },
+          "total_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Fps"
+          },
+          "cpu_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpu Usage"
+          },
+          "gpu_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu Usage"
+          },
+          "memory_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Usage"
+          },
+          "power_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Power Usage"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metrics"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "completed": {
+            "type": "boolean",
+            "title": "Completed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "test_case_id",
+          "workload_run_id",
+          "start_time",
+          "execution_time",
+          "total_fps",
+          "cpu_usage",
+          "gpu_usage",
+          "memory_usage",
+          "power_usage",
+          "metrics",
+          "job_id",
+          "completed"
+        ],
+        "title": "BenchmarkTestCaseRun",
+        "description": "Historical run record for one benchmark test case."
       },
       "BenchmarkWorkload": {
         "properties": {
@@ -3598,6 +3876,53 @@
         ],
         "title": "BenchmarkWorkload",
         "description": "Pipeline workload definition belonging to a benchmark suite."
+      },
+      "BenchmarkWorkloadRun": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "workload_id": {
+            "type": "integer",
+            "title": "Workload Id"
+          },
+          "suite_run_id": {
+            "type": "integer",
+            "title": "Suite Run Id"
+          },
+          "test_case_runs": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkTestCaseRun"
+            },
+            "type": "array",
+            "title": "Test Case Runs"
+          },
+          "total_test_cases": {
+            "type": "integer",
+            "title": "Total Test Cases"
+          },
+          "completed_test_cases": {
+            "type": "integer",
+            "title": "Completed Test Cases"
+          },
+          "pass_rate": {
+            "type": "number",
+            "title": "Pass Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workload_id",
+          "suite_run_id",
+          "test_case_runs",
+          "total_test_cases",
+          "completed_test_cases",
+          "pass_rate"
+        ],
+        "title": "BenchmarkWorkloadRun",
+        "description": "Historical run record for one workload within a suite run."
       },
       "Body_upload_image_archive": {
         "properties": {
