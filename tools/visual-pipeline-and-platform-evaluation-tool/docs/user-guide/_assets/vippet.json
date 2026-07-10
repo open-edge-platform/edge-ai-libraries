@@ -3657,6 +3657,17 @@
             "type": "integer",
             "title": "Start Time"
           },
+          "execution_time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Time"
+          },
           "job_id": {
             "type": "string",
             "title": "Job Id"
@@ -3689,6 +3700,7 @@
           "score_performance",
           "score_efficiency",
           "start_time",
+          "execution_time",
           "job_id",
           "workload_runs",
           "total_test_cases",
