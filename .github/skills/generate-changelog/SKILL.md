@@ -12,8 +12,6 @@ description: >
   matching the repository's established style. Works with ANY folder structure or repository.
 license: Apache-2.0
 metadata:
-  author: Intel Corporation
-  version: 2026.2.0
   tags: "changelog release-notes"
 ---
 
