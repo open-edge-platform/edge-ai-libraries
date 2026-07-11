@@ -3620,6 +3620,9 @@
             "type": "integer",
             "title": "Suite Id"
           },
+          "status": {
+            "$ref": "#/components/schemas/BenchmarkTestCaseRunStatus"
+          },
           "score_total": {
             "anyOf": [
               {
@@ -3700,6 +3703,7 @@
         "required": [
           "id",
           "suite_id",
+          "status",
           "score_total",
           "score_performance",
           "score_efficiency",
