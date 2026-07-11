@@ -4082,6 +4082,10 @@
             "type": "integer",
             "title": "Workload Id"
           },
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id"
+          },
           "suite_run_id": {
             "type": "integer",
             "title": "Suite Run Id"
@@ -4172,6 +4176,7 @@
         "required": [
           "id",
           "workload_id",
+          "pipeline_id",
           "suite_run_id",
           "status",
           "score_total",
