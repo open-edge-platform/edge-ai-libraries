@@ -8,28 +8,30 @@ services:
       ovms-service:
         condition: service_healthy
         required: false  # ignored when vllm profile is active (e.g. ENABLE_VLLM=true)
+      # env for video-ingestion-service
       video-ingestion:
         condition: service_healthy
       rabbitmq-service:
         condition: service_healthy
+      # env for audio-analyzer service
       audio-analyzer:
         condition: service_healthy
     environment:
-      EVAM_HOST: ${EVAM_HOST}
-      EVAM_DEVICE: ${EVAM_DEVICE}
+      EVAM_HOST: video-ingestion
+      EVAM_DEVICE: ${EVAM_DEVICE:-CPU}
       EVAM_PIPELINE_PORT: 8080
       EVAM_PUBLISH_PORT: 1883
       EVAM_DETECTION_MODEL: ${EVAM_DETECTION_MODEL}
       EVAM_DETECTION_MODEL_PATH: ${EVAM_DETECTION_MODEL_PATH}
-      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_HOST: rabbitmq-service
       RABBITMQ_AMQP_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       LLM_SUMMARIZATION_KEY: ""
-      LLM_SUMMARIZATION_API: ${LLM_SUMMARIZATION_API}
+      LLM_SUMMARIZATION_API: http://ovms-service/v3
       LLM_SUMMARIZATION_DEVICE: ${LLM_TARGET_DEVICE}
       VLM_CAPTIONING_KEY: ""
-      VLM_CAPTIONING_API: ${VLM_ENDPOINT}
+      VLM_CAPTIONING_API: http://ovms-service/v3
       VLM_CAPTIONING_DEVICE: ${VLM_TARGET_DEVICE}
       LLM_CONCURRENT: ${PM_LLM_CONCURRENT}
       VLM_CONCURRENT: ${PM_VLM_CONCURRENT}
@@ -39,9 +41,9 @@ services:
       # Storage model names include device and format for OVMS API calls
       LLM_MODEL_NAME: ${LLM_STORAGE_MODEL_NAME:-${LLM_MODEL_NAME}}
       VLM_MODEL_NAME: ${VLM_STORAGE_MODEL_NAME:-${VLM_MODEL_NAME}}
-      USE_VLLM: ${USE_VLLM}
+      USE_VLLM: CONFIG_OFF
       MULTI_FRAME_COUNT: ${PM_MULTI_FRAME_COUNT}
-      AUDIO_HOST: ${AUDIO_ENDPOINT}
+      AUDIO_HOST: http://audio-analyzer:8000
       AUDIO_DEVICE: CPU
       SEARCH_ENDPOINT: ""
       SEARCH_DATAPREP_ENDPOINT: ""
@@ -55,7 +57,7 @@ services:
     profiles:
       - ovms
     environment:
-      - no_proxy=${no_proxy},${MINIO_HOST},localhost
+      - no_proxy=${no_proxy},minio-service,localhost
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
     ulimits:
@@ -63,8 +65,8 @@ services:
         soft: 16384
         hard: 65536
     ports:
-      - "${OVMS_HTTP_HOST_PORT}:80"
-      - "${OVMS_GRPC_HOST_PORT}:81"
+      - "${OVMS_HTTP_HOST_PORT:-8300}:80"
+      - "${OVMS_GRPC_HOST_PORT:-9300}:81"
     volumes:
       - "../ov_models:/workspace:ro"
     devices:
@@ -78,7 +80,7 @@ services:
       timeout: 10s
       retries: 3
     command:
-      ["--port", "81", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/ovms/config.json", "--metrics_enable", "--allowed_media_domains", "${OVMS_ALLOWED_MEDIA_DOMAINS}"]
+      ["--port", "81", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/ovms/config.json", "--metrics_enable", "--allowed_media_domains", "${OVMS_ALLOWED_MEDIA_DOMAINS:-minio-service,localhost}"]
     networks:
       - vs_network
 
@@ -90,7 +92,7 @@ services:
     privileged: false
     tty: true
     ports:
-      - "${EVAM_PIPELINE_HOST_PORT}:8080"
+      - "${EVAM_PIPELINE_HOST_PORT:-8090}:8080"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/pipelines", "-o", "/dev/null"]
       interval: 60s
@@ -98,19 +100,19 @@ services:
       retries: 3
       start_period: 15s
     environment:
-      no_proxy: ${no_proxy},${MINIO_HOST},${RABBITMQ_HOST},localhost
+      no_proxy: ${no_proxy},minio-service,rabbitmq-service,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_HOST: rabbitmq-service
       RABBITMQ_PORT: 1883
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
-      MINIO_SERVER: ${MINIO_HOST}:80
+      MINIO_SERVER: minio-service:80
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       RUN_MODE: EVA
       # Default Detection and Classification Device
-      DETECTION_DEVICE: ${EVAM_DEVICE}
+      DETECTION_DEVICE: ${EVAM_DEVICE:-CPU}
       ADD_UTCTIME_TO_METADATA: true
       LSFEATURE_NAME: "EVAM"
       HTTPS: false # Make it "true" to enable SSL/TLS secure mode, mount the generated certificates
@@ -149,19 +151,19 @@ services:
     image: intel/audio-analyzer:1.3.3
     hostname: audio-analyzer
     ports:
-      - "${AUDIO_HOST_PORT}:8000"
+      - "${AUDIO_HOST_PORT:-8999}:8000"
     volumes:
       - audio_analyzer_data:/data
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     environment:
       - http_proxy
       - https_proxy
-      - no_proxy=$no_proxy,${MINIO_HOST},localhost
+      - no_proxy=$no_proxy,minio-service,localhost
       - DEBUG=false
-      - ENABLED_WHISPER_MODELS=${AUDIO_ENABLED_MODELS} # Comma-separated list of models to enable
-      - MAX_FILE_SIZE=${AUDIO_MAX_FILE} # 300MB
+      - ENABLED_WHISPER_MODELS=${ENABLED_WHISPER_MODELS} # Comma-separated list of models to enable
+      - MAX_FILE_SIZE=314572800 # 300MB
       - USE_FP16=${USE_FP16:-true} # Use FP16 on GPUs
-      - MINIO_ENDPOINT=${MINIO_HOST}:80
+      - MINIO_ENDPOINT=minio-service:80
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - STORAGE_BACKEND=${STORAGE_BACKEND:-minio} # can be minio or local
@@ -187,9 +189,9 @@ services:
   rabbitmq-service:
     image: rabbitmq:3-management-alpine
     ports:
-      - "${RABBITMQ_AMQP_HOST_PORT}:5672" # AMQP port
-      - "${RABBITMQ_MANAGEMENT_UI_HOST_PORT}:15672" # Management UI
-      - "${RABBITMQ_MQTT_HOST_PORT}:1883" # MQTT (TCP) port
+      - "${RABBITMQ_AMQP_HOST_PORT:-5672}:5672" # AMQP port
+      - "${RABBITMQ_MANAGEMENT_UI_HOST_PORT:-15672}:15672" # Management UI
+      - "${RABBITMQ_MQTT_HOST_PORT:-1883}:1883" # MQTT (TCP) port
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
       interval: 30s

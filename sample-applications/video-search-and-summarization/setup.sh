@@ -94,6 +94,18 @@ show_concise_help() {
     echo -e  "${MAGENTA}Use ${YELLOW}--help${NC}${MAGENTA} for detailed usage information and options.${NC}"
 }
 
+enforce_npu_int4_weight_format() {
+    local model_type="$1"
+    local target_device="$2"
+    local weight_format_variable="$3"
+    local weight_format="${!weight_format_variable}"
+
+    if [[ "${target_device^^}" == "NPU" && "$weight_format" != "int4" ]]; then
+        echo -e "[ovms-service] ${YELLOW}NPU supports only int4; overriding ${model_type} weight format ${weight_format} → int4.${NC}"
+        export "${weight_format_variable}=int4"
+    fi
+}
+
 show_full_help() {
     echo -e  "-----------------------------------------------------------------"
     echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[ --summary [--search] [config] | --search [--summary] [config] | --search-and-summary [config] |"
@@ -187,23 +199,13 @@ export VLM_MODEL_NAME=${VLM_MODEL_NAME}
 # Keep user override from environment if provided; device-based default is set later.
 export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-}
 export VLM_TARGET_DEVICE=${VLM_TARGET_DEVICE:-CPU}
-export USE_VLLM=${USE_VLLM:-CONFIG_OFF}
 export ENABLE_VLLM=${ENABLE_VLLM:-false}
 export ENABLE_VLLM_GPU=${ENABLE_VLLM_GPU:-false}
-if [ "$ENABLE_VLLM_GPU" = true ]; then
-    export VLLM_HOST=vllm-xpu-service
-else
-    export VLLM_HOST=vllm-cpu-service
-fi
-export VLLM_HOST_PORT=${VLLM_HOST_PORT:-8200}
-export VLLM_ENDPOINT=http://${VLLM_HOST}:8000/v1
 export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 
 # env for pipeline-manager
-export PM_HOST_PORT=3001
-export PM_HOST=pipeline-manager
 export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=${PM_SUMMARIZATION_MAX_COMPLETION_TOKENS:-4000}
 PM_CAPTIONING_MAX_COMPLETION_TOKENS_DEFAULTED=false
 if [[ -z "${PM_CAPTIONING_MAX_COMPLETION_TOKENS+x}" ]]; then
@@ -226,7 +228,6 @@ if [[ -z "${PM_MULTI_FRAME_COUNT+x}" ]]; then
     export PM_MULTI_FRAME_COUNT=12
     PM_MULTI_FRAME_COUNT_DEFAULTED=true
 fi
-export PM_MINIO_BUCKET=video-summary
 
 # env for ovms-service
 # Track whether LLM_TARGET_DEVICE was explicitly provided.
@@ -237,62 +238,21 @@ if [[ -z "${LLM_TARGET_DEVICE+x}" ]]; then
 else
     export LLM_TARGET_DEVICE=${LLM_TARGET_DEVICE}
 fi
-export LLM_MODEL_NAME=${LLM_MODEL_NAME:-${OVMS_LLM_MODEL_NAME}}
-# Keep user override from environment if provided; device-based default is set later.
+# LLM_MODEL_NAME is derived for the active deployment. OVMS_LLM_MODEL_NAME is
+# the explicit opt-in for a separate final-summary model.
 export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-}
-export OVMS_HTTP_HOST_PORT=8300
-export OVMS_GRPC_HOST_PORT=9300
-export OVMS_HOST=ovms-service
-
-# env for video-ingestion-service
-export EVAM_HOST=video-ingestion
-export EVAM_PIPELINE_HOST_PORT=8090
-export EVAM_DEVICE=CPU
 
 # env for rabbitmq
-export RABBITMQ_AMQP_HOST_PORT=5672
-export RABBITMQ_MANAGEMENT_UI_HOST_PORT=15672
-export RABBITMQ_MQTT_HOST_PORT=1883
 export RABBITMQ_USER=${RABBITMQ_USER}  # Set this in your shell before running the script
 export RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD} # Set this in your shell before running the script
-export RABBITMQ_HOST=rabbitmq-service
 
 # env for postgres
-export POSTGRES_HOST_PORT=5432
 export POSTGRES_USER=${POSTGRES_USER}  # Set this in your shell before running the script
 export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}  # Set this in your shell before running the script
-export POSTGRES_DB=video_summary_db
-export POSTGRES_HOST=postgres-service
-
-# env for audio-analyzer service
-export AUDIO_HOST_PORT=8999
-export AUDIO_ENABLED_MODELS=${ENABLED_WHISPER_MODELS}
-export AUDIO_MAX_FILE=314572800 # 300MB
-export AUDIO_HOST=audio-analyzer
-export AUDIO_ENDPOINT=http://$AUDIO_HOST:8000
 
 # env for minio-service
-export MINIO_API_HOST_PORT=4001
-export MINIO_CONSOLE_HOST_PORT=4002
-export MINIO_HOST=minio-service
 export MINIO_ROOT_USER=${MINIO_ROOT_USER} # Set this in your shell before running the script
 export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} # Set this in your shell before running the script
-export OVMS_ALLOWED_MEDIA_DOMAINS=${OVMS_ALLOWED_MEDIA_DOMAINS:-${MINIO_HOST},localhost}
-
-# env for vdms-vector-db
-export VDMS_VDB_HOST_PORT=55555
-export VDMS_VDB_HOST=vdms-vector-db
-
-# env for vdms-dataprep-ms
-export VDMS_DATAPREP_HOST_PORT=6016
-export VDMS_DATAPREP_HOST=vdms-dataprep
-export VDMS_DATAPREP_ENDPOINT=http://$VDMS_DATAPREP_HOST:8000
-export VDMS_PIPELINE_MANAGER_UPLOAD=http://pipeline-manager:3000
-export DEFAULT_BUCKET_NAME="vdms-bucket"
-
-# YOLOX model volume configuration for object detection
-export YOLOX_MODELS_VOLUME_NAME="vdms-yolox-models"
-export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
 
 # Embedding processing mode settings (SDK vs API)
 # EMBEDDING_PROCESSING_MODE options:
@@ -300,33 +260,6 @@ export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
 #   - "api": Use HTTP API calls to multimodal embedding service (existing approach)
 export EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-"sdk"}
 
-# Frame processing settings
-export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
-export ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
-export DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.85}
-# ROI consolidation parameters for grouping overlapping detections
-# ROI_CONSOLIDATION_IOU_THRESHOLD: IoU threshold used to cluster ROIs (higher = stricter merging)
-# ROI_CONSOLIDATION_CLASS_AWARE: only merge ROIs with matching class labels when true
-# ROI_CONSOLIDATION_CONTEXT_SCALE: expands merged ROI by a fraction of its size
-export ROI_CONSOLIDATION_ENABLED=${ROI_CONSOLIDATION_ENABLED:-false}
-export ROI_CONSOLIDATION_IOU_THRESHOLD=${ROI_CONSOLIDATION_IOU_THRESHOLD:-0.2}
-export ROI_CONSOLIDATION_CLASS_AWARE=${ROI_CONSOLIDATION_CLASS_AWARE:-false}
-export ROI_CONSOLIDATION_CONTEXT_SCALE=${ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
-export FRAMES_TEMP_DIR=${FRAMES_TEMP_DIR:-"/tmp/dataprep"}
-
-# Application configuration
-export VDMS_DATAPREP_LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
-export MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-""}
-export EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
-export ALLOW_ORIGINS=${ALLOW_ORIGINS:-*}
-export ALLOW_METHODS=${ALLOW_METHODS:-*}
-export ALLOW_HEADERS=${ALLOW_HEADERS:-*}
-
-# env for multimodal-embedding-serving (unified embedding service)
-export EMBEDDING_SERVER_PORT=9777
-export DEFAULT_START_OFFSET_SEC=0
-export DEFAULT_CLIP_DURATION=${DEFAULT_CLIP_DURATION:--1}
-export DEFAULT_NUM_FRAMES=64
 export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-$SDK_USE_OPENVINO}
 # Per-component device selection (CPU default | GPU | NPU). Each component is
 # independent — parity with the Helm charts. No "baseline" device.
@@ -336,13 +269,6 @@ export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-$SDK_USE_OPENVINO}
 export DATAPREP_EMBEDDING_DEVICE=${DATAPREP_EMBEDDING_DEVICE:-"CPU"}
 export DATAPREP_DETECTION_DEVICE=${DATAPREP_DETECTION_DEVICE:-"CPU"}
 export MME_EMBEDDING_DEVICE=${MME_EMBEDDING_DEVICE:-"CPU"}
-export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
-export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-$OV_MODELS_DIR}
-# NOTE: The default OpenVINO performance mode has been changed from "LATENCY" to "THROUGHPUT".
-# This impacts inference characteristics: "THROUGHPUT" optimizes for overall throughput, while "LATENCY" optimizes for response time.
-# Please review user documentation or migration notes for details on this change.
-export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
-echo -e "[multimodal-embedding-serving] ${GREEN}OpenVINO performance mode: ${YELLOW}$OV_PERFORMANCE_MODE${NC}"
 
 # Device Configuration
 export SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
@@ -403,9 +329,6 @@ if [[ "${MME_EMBEDDING_DEVICE}" == GPU* ]] || [[ "${MME_EMBEDDING_DEVICE}" == NP
     export EMBEDDING_USE_OV=true
 fi
 
-export MULTIMODAL_EMBEDDING_HOST=multimodal-embedding-serving
-export MULTIMODAL_EMBEDDING_ENDPOINT=http://$MULTIMODAL_EMBEDDING_HOST:8000/embeddings
-
 if [ $1 != "--summary" ]; then
     if [ "$1" = "--unified" ]; then
         embedding_model_display="${TEXT_EMBEDDING_MODEL:-"(not provided)"}"
@@ -417,30 +340,8 @@ if [ $1 != "--summary" ]; then
     echo -e "[vdms-dataprep] ${BLUE}Embedding: mode ${YELLOW}${EMBEDDING_PROCESSING_MODE}${BLUE}, model ${YELLOW}${embedding_model_display}${BLUE}, device ${YELLOW}${EMBEDDING_DEVICE}${NC}"
 fi
 
-# Frame-to-Video Aggregation Settings for search-ms
-export AGGREGATION_ENABLED=${AGGREGATION_ENABLED:-true}
-export AGGREGATION_SEGMENT_DURATION=${AGGREGATION_SEGMENT_DURATION:-8}
-export AGGREGATION_MIN_GAP=${AGGREGATION_MIN_GAP:-0}
-export AGGREGATION_MAX_RESULTS=${AGGREGATION_MAX_RESULTS:-20}
-export AGGREGATION_INITIAL_K=${AGGREGATION_INITIAL_K:-1000}
-export AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS=${AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS:-0}
-
 # env for video-search
-export VS_HOST_PORT=7890
 export VS_WATCHER_DIR=${VS_WATCHER_DIR:-$PWD/data}
-export VS_DELETE_PROCESSED_FILES=${VS_DELETE_PROCESSED_FILES:-false}
-export VS_INITIAL_DUMP=${VS_INITIAL_DUMP:-false}
-export VS_WATCH_DIRECTORY_RECURSIVE=${VS_WATCH_DIRECTORY_RECURSIVE:-false}
-export VS_DEBOUNCE_TIME=${VS_DEBOUNCE_TIME:-10}
-export VS_HOST=video-search
-export VS_ENDPOINT=http://$VS_HOST:8000
-
-# If nginx not being used, set this in your shell with pipeline manager's complete url with host and port. 
-export UI_PM_ENDPOINT=${UI_PM_ENDPOINT:-/manager}
-# if nginx not being used, set this in your shell with minio's complete url with host and port.
-export UI_ASSETS_ENDPOINT=${UI_ASSETS_ENDPOINT:-/datastore}
-
-export CONFIG_SOCKET_APPEND=${CONFIG_SOCKET_APPEND} # Set this to CONFIG_ON in your shell, if nginx not being used
 
 # Telemetry collector toggle for search (disabled by default)
 export ENABLE_VSS_COLLECTOR=${ENABLE_VSS_COLLECTOR:-false}
@@ -461,9 +362,10 @@ if [ "$1" != "--search" ]; then
     export OD_MODEL_DOWNLOAD_PATH="object-detection"
     # Host IR dir: <root>/<download_path>/ultralytics/public/<model>(/FP32/<model>.xml)
     export OD_MODEL_OUTPUT_DIR=${OV_MODELS_ROOT}/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}
-    # IR path inside the video-ingestion container (consumed by pipeline-manager).
-    export EVAM_DETECTION_MODEL=${EVAM_DETECTION_MODEL:-${OD_MODEL_NAME}}
-    export EVAM_DETECTION_MODEL_PATH=${EVAM_DETECTION_MODEL_PATH:-/home/pipeline-server/models/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}/FP32/${OD_MODEL_NAME}.xml}
+    # These are derived for the active deployment from the selected OD model.
+    # Recompute them so sourced runs cannot retain a stale model path.
+    export EVAM_DETECTION_MODEL="${OD_MODEL_NAME}"
+    export EVAM_DETECTION_MODEL_PATH="/home/pipeline-server/models/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}/FP32/${OD_MODEL_NAME}.xml"
     echo -e "[video-ingestion] ${GREEN}Object detection model: ${YELLOW}${OD_MODEL_NAME}${GREEN} (output: ${YELLOW}${OD_MODEL_OUTPUT_DIR}${GREEN})${NC}"
 fi
 
@@ -685,6 +587,13 @@ get_ovms_cache_size() {
                     vram_bytes="$v"
                 fi
             done
+
+            # xe reports dedicated VRAM through the cgroup device-memory
+            # controller on systems where mem_info_vram_total is unavailable.
+            if [[ "$vram_bytes" -eq 0 && -r /sys/fs/cgroup/dmem.capacity ]]; then
+                vram_bytes=$(awk '$1 ~ /\/vram/ && $2 > max { max = $2 } END { print max + 0 }' \
+                    /sys/fs/cgroup/dmem.capacity)
+            fi
 
             if [[ "$vram_bytes" -gt 0 ]] 2>/dev/null; then
                 # dGPU: ~33% of dedicated VRAM, clamped to [2, 16]
@@ -1035,7 +944,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
         fi
     fi
 
-    configured_ovms_llm_model=${OVMS_LLM_MODEL_NAME:-${LLM_MODEL_NAME}}
+    configured_ovms_llm_model=${OVMS_LLM_MODEL_NAME:-}
     BACKEND_PROFILE="ovms"
 
     if [ "$1" != "--search" ]; then
@@ -1043,10 +952,6 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             echo -e "[vllm-xpu-service] ${BLUE}Using vLLM on XPU/GPU for both chunk captioning and final summary${NC}"
             echo -e "[vllm-xpu-service] ${YELLOW}Disabling OVMS because ENABLE_VLLM_GPU=true${NC}"
             BACKEND_PROFILE="vllm-xpu"
-            export USE_VLLM=CONFIG_ON
-            export LLM_SUMMARIZATION_API=${VLLM_ENDPOINT}
-            export VLM_ENDPOINT=${VLLM_ENDPOINT}
-            export VLM_HOST=${VLLM_HOST}
             if [ -n "$configured_ovms_llm_model" ] && [ "$configured_ovms_llm_model" != "$VLM_MODEL_NAME" ]; then
                 echo -e "[pipeline-manager] ${YELLOW}Ignoring separate OVMS LLM model in vLLM-only mode; summarization will use VLM_MODEL_NAME=${VLM_MODEL_NAME}${NC}"
             fi
@@ -1064,10 +969,6 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
         elif [ "$ENABLE_VLLM" = true ]; then
             echo -e "[vllm-cpu-service] ${BLUE}Using vLLM for both chunk captioning and final summary${NC}"
             BACKEND_PROFILE="vllm"
-            export USE_VLLM=CONFIG_ON
-            export LLM_SUMMARIZATION_API=${VLLM_ENDPOINT}
-            export VLM_ENDPOINT=${VLLM_ENDPOINT}
-            export VLM_HOST=${VLLM_HOST}
             if [ -n "$configured_ovms_llm_model" ] && [ "$configured_ovms_llm_model" != "$VLM_MODEL_NAME" ]; then
                 echo -e "[pipeline-manager] ${YELLOW}Ignoring separate OVMS LLM model in vLLM-only mode; summarization will use VLM_MODEL_NAME=${VLM_MODEL_NAME}${NC}"
             fi
@@ -1084,11 +985,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.vllm.yaml"
         else
             echo -e "[ovms-service] ${BLUE}Using OVMS for both chunk captioning and final summary${NC}"
-            export USE_VLLM=CONFIG_OFF
             export LLM_MODEL_NAME=${configured_ovms_llm_model:-${VLM_MODEL_NAME}}
-            export LLM_SUMMARIZATION_API=http://$OVMS_HOST/v3
-            export VLM_ENDPOINT=http://$OVMS_HOST/v3
-            export VLM_HOST=${OVMS_HOST}
 
             # VLM_TARGET_DEVICE and LLM_TARGET_DEVICE support: CPU, GPU, NPU, HETERO:...
             # (defaults already set at top of script)
@@ -1105,14 +1002,8 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-$(get_ovms_weight_format "$VLM_TARGET_DEVICE")}
             export LLM_COMPRESSION_WEIGHT_FORMAT=${LLM_COMPRESSION_WEIGHT_FORMAT:-$(get_ovms_weight_format "$LLM_TARGET_DEVICE")}
 
-            if [ "${VLM_TARGET_DEVICE^^}" = "NPU" ] && [ "$VLM_COMPRESSION_WEIGHT_FORMAT" != "int4" ]; then
-                echo -e "[ovms-service] ${YELLOW}NPU supports only int4; overriding VLM weight format ${VLM_COMPRESSION_WEIGHT_FORMAT} → int4.${NC}"
-                export VLM_COMPRESSION_WEIGHT_FORMAT=int4
-            fi
-            if [ "${LLM_TARGET_DEVICE^^}" = "NPU" ] && [ "$LLM_COMPRESSION_WEIGHT_FORMAT" != "int4" ]; then
-                echo -e "[ovms-service] ${YELLOW}NPU supports only int4; overriding LLM weight format ${LLM_COMPRESSION_WEIGHT_FORMAT} → int4.${NC}"
-                export LLM_COMPRESSION_WEIGHT_FORMAT=int4
-            fi
+            enforce_npu_int4_weight_format "VLM" "$VLM_TARGET_DEVICE" "VLM_COMPRESSION_WEIGHT_FORMAT"
+            enforce_npu_int4_weight_format "LLM" "$LLM_TARGET_DEVICE" "LLM_COMPRESSION_WEIGHT_FORMAT"
 
             echo -e "[ovms-service] ${BLUE}Target devices — VLM: ${YELLOW}${VLM_TARGET_DEVICE}${BLUE} (${VLM_COMPRESSION_WEIGHT_FORMAT}), LLM: ${YELLOW}${LLM_TARGET_DEVICE}${BLUE} (${LLM_COMPRESSION_WEIGHT_FORMAT})${NC}"
 
