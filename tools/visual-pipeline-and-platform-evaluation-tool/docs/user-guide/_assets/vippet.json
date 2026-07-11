@@ -3731,7 +3731,8 @@
           "created",
           "running",
           "passed",
-          "failed"
+          "failed",
+          "cancelled"
         ],
         "title": "BenchmarkTestCaseRunStatus",
         "description": "Status of a benchmark test-case run."
