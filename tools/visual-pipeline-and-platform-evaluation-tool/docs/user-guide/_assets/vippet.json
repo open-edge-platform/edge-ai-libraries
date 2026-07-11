@@ -3674,6 +3674,14 @@
           "job_id": {
             "type": "string",
             "title": "Job Id"
+          },
+          "total_test_cases": {
+            "type": "integer",
+            "title": "Total Test Cases"
+          },
+          "passed_test_cases": {
+            "type": "integer",
+            "title": "Passed Test Cases"
           }
         },
         "type": "object",
@@ -3686,7 +3694,9 @@
           "score_efficiency",
           "start_time",
           "execution_time",
-          "job_id"
+          "job_id",
+          "total_test_cases",
+          "passed_test_cases"
         ],
         "title": "BenchmarkSuiteRun",
         "description": "Historical run record for one benchmark suite execution."
