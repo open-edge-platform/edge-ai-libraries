@@ -3944,6 +3944,17 @@
             ],
             "title": "Total Fps"
           },
+          "per_stream_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Stream Fps"
+          },
           "cpu_usage": {
             "anyOf": [
               {
@@ -4017,6 +4028,7 @@
           "start_time",
           "execution_time",
           "total_fps",
+          "per_stream_fps",
           "cpu_usage",
           "gpu_usage",
           "memory_usage",
