@@ -3919,7 +3919,14 @@
             "title": "Workload Run Id"
           },
           "start_time": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Start Time"
           },
           "execution_time": {
