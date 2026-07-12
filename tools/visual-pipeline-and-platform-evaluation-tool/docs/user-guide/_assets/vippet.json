@@ -392,6 +392,87 @@
         }
       }
     },
+    "/benchmarks/{suite_slug}/run/{run_id}/test/{test_run_id}": {
+      "get": {
+        "tags": [
+          "benchmarks"
+        ],
+        "summary": "Get one benchmark test-case run by id with resolved benchmark references",
+        "description": "Return one test-case run by id with resolved test-case and suite metadata.",
+        "operationId": "get_benchmark_test_run_by_id",
+        "parameters": [
+          {
+            "name": "suite_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Suite Slug"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "test_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Test Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detailed test-case run with test case and suite metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchmarkTestCaseRunDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Benchmark suite, run, or test run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/convert/to-graph": {
       "post": {
         "tags": [
@@ -3718,6 +3799,35 @@
         "title": "BenchmarkSuite",
         "description": "Benchmark suite with nested workloads and test cases."
       },
+      "BenchmarkSuiteRef": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "description"
+        ],
+        "title": "BenchmarkSuiteRef",
+        "description": "Compact benchmark suite reference for nested responses."
+      },
       "BenchmarkSuiteRun": {
         "properties": {
           "id": {
@@ -4112,6 +4222,180 @@
         ],
         "title": "BenchmarkTestCaseRun",
         "description": "Historical run record for one benchmark test case."
+      },
+      "BenchmarkTestCaseRunDetails": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "test_case_id": {
+            "type": "integer",
+            "title": "Test Case Id"
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "streams": {
+            "type": "integer",
+            "title": "Streams"
+          },
+          "workload_run_id": {
+            "type": "integer",
+            "title": "Workload Run Id"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "execution_time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Time"
+          },
+          "total_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Fps"
+          },
+          "per_stream_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Stream Fps"
+          },
+          "cpu_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpu Usage"
+          },
+          "gpu_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu Usage"
+          },
+          "memory_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Usage"
+          },
+          "power_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Power Usage"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metrics"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BenchmarkTestCaseRunStatus"
+          },
+          "suite_run_id": {
+            "type": "integer",
+            "title": "Suite Run Id"
+          },
+          "workload_id": {
+            "type": "integer",
+            "title": "Workload Id"
+          },
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id"
+          },
+          "test_case": {
+            "$ref": "#/components/schemas/BenchmarkTestCase"
+          },
+          "suite": {
+            "$ref": "#/components/schemas/BenchmarkSuiteRef"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "test_case_id",
+          "variant_id",
+          "streams",
+          "workload_run_id",
+          "start_time",
+          "execution_time",
+          "total_fps",
+          "per_stream_fps",
+          "cpu_usage",
+          "gpu_usage",
+          "memory_usage",
+          "power_usage",
+          "metrics",
+          "job_id",
+          "status",
+          "suite_run_id",
+          "workload_id",
+          "pipeline_id",
+          "test_case",
+          "suite"
+        ],
+        "title": "BenchmarkTestCaseRunDetails",
+        "description": "Detailed benchmark test-case run with resolved foreign-key metadata."
       },
       "BenchmarkTestCaseRunStatus": {
         "type": "string",
