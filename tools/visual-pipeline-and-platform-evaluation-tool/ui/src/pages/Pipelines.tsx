@@ -365,7 +365,6 @@ export const Pipelines = () => {
             max_runtime: maxRuntimeSeconds,
             metadata_mode: hasMetadata && metadataEnabled ? "file" : "disabled",
             enable_latency_metrics: latencyMetricsEnabled,
-            test_run: true,
           },
         },
       });

@@ -46,6 +46,7 @@
 
   /* Variant badge tokens */
   --color-variant-badge-bg: var(--variant-badge-bg);
+  --color-variant-badge-success: var(--variant-badge-success);
 
   /* Shared opacity-safe semantic tokens */
   --color-surface-overlay: var(--surface-overlay);
@@ -95,20 +96,32 @@
   --color-demo-primary-button: var(--demo-primary-button);
   --color-demo-primary-button-hover: var(--demo-primary-button-hover);
   --color-demo-primary-button-shadow: var(--demo-primary-button-shadow);
-  --color-demo-primary-button-shadow-hover: var(--demo-primary-button-shadow-hover);
-  --color-demo-primary-button-overlay-from: var(--demo-primary-button-overlay-from);
+  --color-demo-primary-button-shadow-hover: var(
+    --demo-primary-button-shadow-hover
+  );
+  --color-demo-primary-button-overlay-from: var(
+    --demo-primary-button-overlay-from
+  );
   --color-demo-primary-button-overlay-to: var(--demo-primary-button-overlay-to);
   --color-demo-surface-from: var(--demo-surface-from);
   --color-demo-surface-via: var(--demo-surface-via);
   --color-demo-surface-to: var(--demo-surface-to);
   --color-demo-selection-card-border: var(--demo-selection-card-border);
-  --color-demo-selection-card-border-hover: var(--demo-selection-card-border-hover);
-  --color-demo-selection-card-border-active: var(--demo-selection-card-border-active);
+  --color-demo-selection-card-border-hover: var(
+    --demo-selection-card-border-hover
+  );
+  --color-demo-selection-card-border-active: var(
+    --demo-selection-card-border-active
+  );
   --color-demo-selection-card-title: var(--demo-selection-card-title);
-  --color-demo-selection-card-description: var(--demo-selection-card-description);
+  --color-demo-selection-card-description: var(
+    --demo-selection-card-description
+  );
   --color-demo-selection-count: var(--demo-selection-count);
   --color-demo-carousel-button-surface: var(--demo-carousel-button-surface);
-  --color-demo-carousel-button-surface-hover: var(--demo-carousel-button-surface-hover);
+  --color-demo-carousel-button-surface-hover: var(
+    --demo-carousel-button-surface-hover
+  );
   --color-demo-carousel-button-border: var(--demo-carousel-button-border);
   --color-demo-carousel-button-icon: var(--demo-carousel-button-icon);
   --color-demo-carousel-dot: var(--demo-carousel-dot);
@@ -203,75 +216,240 @@
   --summary-unit: var(--classic-blue);
 
   --variant-badge-bg: var(--carbon-tint-2);
+  --variant-badge-success: var(--support-success);
 
-  --surface-overlay: color-mix(in oklch, var(--carbon-shade-2) 50%, transparent);
-  --surface-overlay-strong: color-mix(in oklch, var(--carbon-shade-2) 60%, transparent);
-  --surface-overlay-border: color-mix(in oklch, var(--carbon-shade-1) 50%, transparent);
+  --surface-overlay: color-mix(
+    in oklch,
+    var(--carbon-shade-2) 50%,
+    transparent
+  );
+  --surface-overlay-strong: color-mix(
+    in oklch,
+    var(--carbon-shade-2) 60%,
+    transparent
+  );
+  --surface-overlay-border: color-mix(
+    in oklch,
+    var(--carbon-shade-1) 50%,
+    transparent
+  );
 
-  --pipeline-summary-border: color-mix(in oklch, var(--demo-blue-300) 60%, transparent);
-  --pipeline-summary-glow-from: color-mix(in oklch, var(--demo-blue-500) 10%, transparent);
-  --pipeline-summary-glow-via: color-mix(in oklch, var(--demo-blue-400) 5%, transparent);
-  --pipeline-summary-glow-to: color-mix(in oklch, var(--demo-cyan-400) 10%, transparent);
-  --pipeline-summary-title: color-mix(in oklch, var(--demo-blue-300) 90%, transparent);
-  --pipeline-summary-variant: color-mix(in oklch, var(--demo-blue-300) 90%, transparent);
+  --pipeline-summary-border: color-mix(
+    in oklch,
+    var(--demo-blue-300) 60%,
+    transparent
+  );
+  --pipeline-summary-glow-from: color-mix(
+    in oklch,
+    var(--demo-blue-500) 10%,
+    transparent
+  );
+  --pipeline-summary-glow-via: color-mix(
+    in oklch,
+    var(--demo-blue-400) 5%,
+    transparent
+  );
+  --pipeline-summary-glow-to: color-mix(
+    in oklch,
+    var(--demo-cyan-400) 10%,
+    transparent
+  );
+  --pipeline-summary-title: color-mix(
+    in oklch,
+    var(--demo-blue-300) 90%,
+    transparent
+  );
+  --pipeline-summary-variant: color-mix(
+    in oklch,
+    var(--demo-blue-300) 90%,
+    transparent
+  );
 
   --status-color: transparent;
   --status-bg: color-mix(in oklch, var(--status-color) 12%, var(--background));
-  --status-border: color-mix(in oklch, var(--status-color) 32%, var(--background));
+  --status-border: color-mix(
+    in oklch,
+    var(--status-color) 32%,
+    var(--background)
+  );
   --status-fg: color-mix(in oklch, var(--status-color) 72%, var(--foreground));
   --status-info-accent: var(--brand-accent);
   --status-neutral-bg: color-mix(in oklch, var(--muted) 65%, var(--background));
-  --status-neutral-fg: color-mix(in oklch, var(--foreground) 75%, var(--background));
+  --status-neutral-fg: color-mix(
+    in oklch,
+    var(--foreground) 75%,
+    var(--background)
+  );
   --status-link: var(--brand-accent);
   --status-link-hover: var(--brand-accent-hover);
 
-  --node-body-text: color-mix(in oklch, var(--foreground) 82%, var(--background));
-  --node-separator: color-mix(in oklch, var(--foreground) 35%, var(--background));
+  --node-body-text: color-mix(
+    in oklch,
+    var(--foreground) 82%,
+    var(--background)
+  );
+  --node-separator: color-mix(
+    in oklch,
+    var(--foreground) 35%,
+    var(--background)
+  );
 
-  --demo-header-divider: color-mix(in oklch, var(--demo-slate-300) 20%, transparent);
+  --demo-header-divider: color-mix(
+    in oklch,
+    var(--demo-slate-300) 20%,
+    transparent
+  );
   --demo-header-title: var(--brand-accent);
-  --demo-exit-surface: color-mix(in oklch, var(--demo-slate-800) 50%, transparent);
-  --demo-exit-border: color-mix(in oklch, var(--demo-slate-400) 40%, transparent);
-  --demo-exit-hover-surface: color-mix(in oklch, var(--demo-blue-600) 10%, transparent);
-  --demo-exit-hover-border: color-mix(in oklch, var(--demo-blue-500) 50%, transparent);
+  --demo-exit-surface: color-mix(
+    in oklch,
+    var(--demo-slate-800) 50%,
+    transparent
+  );
+  --demo-exit-border: color-mix(
+    in oklch,
+    var(--demo-slate-400) 40%,
+    transparent
+  );
+  --demo-exit-hover-surface: color-mix(
+    in oklch,
+    var(--demo-blue-600) 10%,
+    transparent
+  );
+  --demo-exit-hover-border: color-mix(
+    in oklch,
+    var(--demo-blue-500) 50%,
+    transparent
+  );
   --demo-exit-fg: var(--brand-accent);
-  --demo-panel-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
+  --demo-panel-border: color-mix(
+    in oklch,
+    var(--demo-slate-400) 30%,
+    transparent
+  );
   --demo-panel-title: var(--demo-slate-300);
   --demo-panel-label: var(--demo-slate-400);
-  --demo-panel-input-border: color-mix(in oklch, var(--demo-slate-400) 40%, transparent);
+  --demo-panel-input-border: color-mix(
+    in oklch,
+    var(--demo-slate-400) 40%,
+    transparent
+  );
   --demo-panel-input-focus-border: var(--demo-blue-500);
-  --demo-panel-input-focus-ring: color-mix(in oklch, var(--demo-blue-500) 30%, transparent);
+  --demo-panel-input-focus-ring: color-mix(
+    in oklch,
+    var(--demo-blue-500) 30%,
+    transparent
+  );
   --demo-panel-input-text: var(--demo-slate-300);
-  --demo-panel-menu-surface: color-mix(in oklch, var(--demo-slate-900) 95%, transparent);
-  --demo-panel-menu-border: color-mix(in oklch, var(--demo-slate-400) 40%, transparent);
-  --demo-checkbox-border: color-mix(in oklch, var(--demo-slate-400) 60%, transparent);
+  --demo-panel-menu-surface: color-mix(
+    in oklch,
+    var(--demo-slate-900) 95%,
+    transparent
+  );
+  --demo-panel-menu-border: color-mix(
+    in oklch,
+    var(--demo-slate-400) 40%,
+    transparent
+  );
+  --demo-checkbox-border: color-mix(
+    in oklch,
+    var(--demo-slate-400) 60%,
+    transparent
+  );
   --demo-checkbox-active: var(--brand-accent);
   --demo-primary-button: var(--brand-accent);
   --demo-primary-button-hover: var(--brand-accent-hover);
-  --demo-primary-button-shadow: color-mix(in oklch, var(--demo-blue-500) 50%, transparent);
-  --demo-primary-button-shadow-hover: color-mix(in oklch, var(--demo-blue-500) 60%, transparent);
-  --demo-primary-button-overlay-from: color-mix(in oklch, var(--demo-blue-400) 10%, transparent);
-  --demo-primary-button-overlay-to: color-mix(in oklch, var(--demo-blue-300) 10%, transparent);
-  --demo-surface-from: color-mix(in oklch, var(--demo-slate-900) 90%, transparent);
-  --demo-surface-via: color-mix(in oklch, var(--demo-slate-800) 70%, transparent);
-  --demo-surface-to: color-mix(in oklch, var(--demo-slate-900) 90%, transparent);
-  --demo-selection-card-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
-  --demo-selection-card-border-hover: color-mix(in oklch, var(--demo-blue-500) 50%, transparent);
+  --demo-primary-button-shadow: color-mix(
+    in oklch,
+    var(--demo-blue-500) 50%,
+    transparent
+  );
+  --demo-primary-button-shadow-hover: color-mix(
+    in oklch,
+    var(--demo-blue-500) 60%,
+    transparent
+  );
+  --demo-primary-button-overlay-from: color-mix(
+    in oklch,
+    var(--demo-blue-400) 10%,
+    transparent
+  );
+  --demo-primary-button-overlay-to: color-mix(
+    in oklch,
+    var(--demo-blue-300) 10%,
+    transparent
+  );
+  --demo-surface-from: color-mix(
+    in oklch,
+    var(--demo-slate-900) 90%,
+    transparent
+  );
+  --demo-surface-via: color-mix(
+    in oklch,
+    var(--demo-slate-800) 70%,
+    transparent
+  );
+  --demo-surface-to: color-mix(
+    in oklch,
+    var(--demo-slate-900) 90%,
+    transparent
+  );
+  --demo-selection-card-border: color-mix(
+    in oklch,
+    var(--demo-slate-400) 30%,
+    transparent
+  );
+  --demo-selection-card-border-hover: color-mix(
+    in oklch,
+    var(--demo-blue-500) 50%,
+    transparent
+  );
   --demo-selection-card-border-active: var(--brand-accent);
   --demo-selection-card-title: var(--demo-slate-300);
   --demo-selection-card-description: var(--demo-slate-400);
-  --demo-selection-count: color-mix(in oklch, var(--demo-blue-300) 90%, transparent);
-  --demo-carousel-button-surface: color-mix(in oklch, var(--demo-slate-800) 90%, transparent);
-  --demo-carousel-button-surface-hover: color-mix(in oklch, var(--demo-slate-700) 90%, transparent);
-  --demo-carousel-button-border: color-mix(in oklch, var(--demo-slate-600) 50%, transparent);
+  --demo-selection-count: color-mix(
+    in oklch,
+    var(--demo-blue-300) 90%,
+    transparent
+  );
+  --demo-carousel-button-surface: color-mix(
+    in oklch,
+    var(--demo-slate-800) 90%,
+    transparent
+  );
+  --demo-carousel-button-surface-hover: color-mix(
+    in oklch,
+    var(--demo-slate-700) 90%,
+    transparent
+  );
+  --demo-carousel-button-border: color-mix(
+    in oklch,
+    var(--demo-slate-600) 50%,
+    transparent
+  );
   --demo-carousel-button-icon: var(--demo-slate-300);
   --demo-carousel-dot: var(--demo-slate-600);
   --demo-carousel-dot-hover: var(--demo-slate-500);
   --demo-carousel-dot-active: var(--brand-accent);
-  --demo-preview-panel-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
-  --demo-preview-panel-surface: color-mix(in oklch, var(--demo-slate-950) 30%, transparent);
-  --demo-preview-card-border: color-mix(in oklch, var(--demo-slate-400) 30%, transparent);
-  --demo-preview-card-surface: color-mix(in oklch, var(--demo-slate-950) 40%, transparent);
+  --demo-preview-panel-border: color-mix(
+    in oklch,
+    var(--demo-slate-400) 30%,
+    transparent
+  );
+  --demo-preview-panel-surface: color-mix(
+    in oklch,
+    var(--demo-slate-950) 30%,
+    transparent
+  );
+  --demo-preview-card-border: color-mix(
+    in oklch,
+    var(--demo-slate-400) 30%,
+    transparent
+  );
+  --demo-preview-card-surface: color-mix(
+    in oklch,
+    var(--demo-slate-950) 40%,
+    transparent
+  );
   --demo-preview-card-title: var(--demo-slate-300);
   --demo-preview-empty: var(--demo-slate-400);
 }
@@ -314,4 +492,5 @@
   --summary-unit: var(--energy-blue-tint-2);
 
   --variant-badge-bg: var(--spark-dark-gray-50);
+  --variant-badge-success: var(--electric-moss);
 }
