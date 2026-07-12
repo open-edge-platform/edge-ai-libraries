@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Fragment } from "react";
 import {
   Table,
   TableBody,
@@ -33,12 +34,12 @@ export const BenchmarkSuiteResultDetailsSkeleton = ({
           <Skeleton className="h-9 w-80" />
         </div>
         <div className="ml-14">
-          <p className="text-muted-foreground inline-flex items-center gap-2">
+          <div className="text-muted-foreground inline-flex items-center gap-2">
             <span>Status:</span>
             <Badge variant="outline">
               <Skeleton className="h-3 w-8" />
             </Badge>
-          </p>
+          </div>
         </div>
       </div>
 
@@ -63,8 +64,8 @@ export const BenchmarkSuiteResultDetailsSkeleton = ({
         </TableHeader>
         <TableBody>
           {Array.from({ length: 2 }).map((_, idx) => (
-            <>
-              <TableRow key={`run-details-parent-skeleton-${idx}`}>
+            <Fragment key={`run-details-skeleton-${idx}`}>
+              <TableRow>
                 <TableCell>
                   <Skeleton className="h-7 w-7" />
                 </TableCell>
@@ -96,7 +97,7 @@ export const BenchmarkSuiteResultDetailsSkeleton = ({
                   <Skeleton className="h-7 w-7" />
                 </TableCell>
               </TableRow>
-              <TableRow key={`run-details-expanded-skeleton-${idx}`}>
+              <TableRow>
                 <TableCell colSpan={10} className="bg-muted/25 px-12">
                   <Table>
                     <TableHeader>
@@ -166,7 +167,7 @@ export const BenchmarkSuiteResultDetailsSkeleton = ({
                   </Table>
                 </TableCell>
               </TableRow>
-            </>
+            </Fragment>
           ))}
         </TableBody>
       </Table>

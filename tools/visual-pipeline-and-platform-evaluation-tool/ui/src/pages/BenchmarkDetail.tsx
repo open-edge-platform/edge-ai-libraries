@@ -83,6 +83,7 @@ export const BenchmarkDetail = () => {
       <BenchmarkSuiteResultsTable
         source={source}
         suiteSlug={benchmark.slug}
+        suiteName={benchmark.name}
         suiteRuns={suiteRuns}
       />
     </div>

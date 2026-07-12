@@ -3,15 +3,15 @@ import {
   useGetBenchmarkSuiteBySlugQuery,
   useGetBenchmarkSuiteRunByIdQuery,
 } from "@/api/api.generated.ts";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, FileUp } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelinesMap } from "@/store/reducers/pipelines";
 import { useEffect, useState } from "react";
 import { BenchmarkSuiteResultDetailsTable } from "@/features/benchmarks/BenchmarkSuiteResultDetailsTable";
 import { BenchmarkSuiteResultDetailsSkeleton } from "@/features/benchmarks/BenchmarkSuiteResultDetailsSkeleton";
 import { RunBenchmarkButton } from "@/features/benchmarks/RunBenchmarkButton";
+import { BenchmarkExportButton } from "@/features/benchmarks/BenchmarkExportButton.tsx";
 import { renderBenchmarkStatus } from "@/features/benchmarks/utils";
 import { formatTimestamp } from "@/lib/timeUtils";
 
@@ -87,44 +87,52 @@ export const BenchmarkRunDetail = () => {
 
   return (
     <div className="container pl-16 mx-auto py-10">
-      <div className="mb-6">
-        <div className="mb-2 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Link
-              to={`/benchmarks/${id}${backHref}`}
-              className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent/50 transition-colors"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <h1 className="text-3xl font-bold">
-              {isActiveRun
-                ? `Running ${benchmark.name} (#${runDetails.id})`
-                : `${benchmark.name} Results | ${formatTimestamp(runDetails.start_time)} (#${runDetails.id})`}
-            </h1>
+      <div id="benchmark-results-export">
+        <div className="mb-6">
+          <div className="mb-2 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Link
+                to={`/benchmarks/${id}${backHref}`}
+                className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent/50 transition-colors"
+                data-export-ignore
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Link>
+              <h1 className="text-3xl font-bold">
+                {isActiveRun
+                  ? `Running ${benchmark.name} (#${runDetails.id})`
+                  : `${benchmark.name} Results | ${formatTimestamp(runDetails.start_time)} (#${runDetails.id})`}
+              </h1>
+            </div>
+            {runDetails.status === "passed" && (
+              <BenchmarkExportButton
+                benchmark={benchmark}
+                runDetails={runDetails}
+              />
+            )}
           </div>
-          {runDetails.status === "passed" && (
-            <Button type="button" className="gap-2">
-              <FileUp className="h-4 w-4" />
-              Export Results
-            </Button>
+          <div className="text-muted-foreground ml-14 flex items-center gap-2">
+            <span>Status:</span>
+            {renderBenchmarkStatus(runDetails.status)}
+          </div>
+        </div>
+
+        <div className="mt-6 mb-4 flex items-center justify-between gap-4">
+          <h1 className="font-medium text-xl">Workloads</h1>
+          {isActiveRun && (
+            <div data-export-ignore>
+              <RunBenchmarkButton suiteSlug={benchmark.slug} />
+            </div>
           )}
         </div>
-        <p className="text-muted-foreground ml-14">
-          Status: {renderBenchmarkStatus(runDetails.status)}
-        </p>
+        <BenchmarkSuiteResultDetailsTable
+          benchmark={benchmark}
+          runDetails={runDetails}
+          pipelinesMap={pipelinesMap}
+          suiteSlug={id ?? ""}
+          source={source}
+        />
       </div>
-
-      <div className="mt-6 mb-4 flex items-center justify-between gap-4">
-        <h1 className="font-medium text-xl">Workloads</h1>
-        {isActiveRun && <RunBenchmarkButton suiteSlug={benchmark.slug} />}
-      </div>
-      <BenchmarkSuiteResultDetailsTable
-        benchmark={benchmark}
-        runDetails={runDetails}
-        pipelinesMap={pipelinesMap}
-        suiteSlug={id ?? ""}
-        source={source}
-      />
     </div>
   );
 };

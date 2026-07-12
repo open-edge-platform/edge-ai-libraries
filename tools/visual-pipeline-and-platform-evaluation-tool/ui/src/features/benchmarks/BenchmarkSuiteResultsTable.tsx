@@ -25,21 +25,29 @@ import {
 type BenchmarkSuiteResultsTableProps = {
   source?: string | null;
   suiteSlug: string;
+  suiteName?: string;
   suiteRuns: BenchmarkSuiteRun[];
+  showNameColumn?: boolean;
 };
 
 export const BenchmarkSuiteResultsTable = ({
   source,
   suiteSlug,
+  suiteName,
   suiteRuns,
+  showNameColumn = false,
 }: BenchmarkSuiteResultsTableProps) => {
   const sourceSuffix = source ? `?source=${encodeURIComponent(source)}` : "";
+  const emptyStateColSpan = showNameColumn ? 10 : 9;
 
   return (
     <Table className="border rounded-lg">
       <TableHeader className="bg-muted">
         <TableRow>
           <TableHead className="w-max"></TableHead>
+          {showNameColumn ? (
+            <TableHead className="w-max">Name</TableHead>
+          ) : null}
           <TableHead className="w-max">Date</TableHead>
           <TableHead className="w-max">Duration</TableHead>
           <TableHead className="w-max">Overall score</TableHead>
@@ -62,7 +70,12 @@ export const BenchmarkSuiteResultsTable = ({
 
               return (
                 <TableRow key={run.id}>
-                  <TableCell className="font-mono text-center text-xs">#{run.id}</TableCell>
+                  <TableCell className="font-mono text-center text-xs">
+                    #{run.id}
+                  </TableCell>
+                  {showNameColumn ? (
+                    <TableCell>{suiteName ?? "-"}</TableCell>
+                  ) : null}
                   <TableCell>{formatTimestamp(run.start_time)}</TableCell>
                   <TableCell>
                     {formatElapsedTimeMillis(run.execution_time ?? 0)}
@@ -123,7 +136,7 @@ export const BenchmarkSuiteResultsTable = ({
         ) : (
           <TableRow>
             <TableCell
-              colSpan={9}
+              colSpan={emptyStateColSpan}
               className="text-center text-muted-foreground py-6"
             >
               No benchmark results yet.
