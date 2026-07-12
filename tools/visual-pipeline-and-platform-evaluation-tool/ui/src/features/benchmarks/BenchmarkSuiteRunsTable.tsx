@@ -24,16 +24,12 @@ import {
 
 type BenchmarkSuiteResultsTableProps = {
   source?: string | null;
-  suiteSlug: string;
-  suiteName?: string;
   suiteRuns: BenchmarkSuiteRun[];
   showNameColumn?: boolean;
 };
 
-export const BenchmarkSuiteResultsTable = ({
+export const BenchmarkSuiteRunsTable = ({
   source,
-  suiteSlug,
-  suiteName,
   suiteRuns,
   showNameColumn = false,
 }: BenchmarkSuiteResultsTableProps) => {
@@ -74,7 +70,7 @@ export const BenchmarkSuiteResultsTable = ({
                     #{run.id}
                   </TableCell>
                   {showNameColumn ? (
-                    <TableCell>{suiteName ?? "-"}</TableCell>
+                    <TableCell>{run.suite_name ?? "-"}</TableCell>
                   ) : null}
                   <TableCell>{formatTimestamp(run.start_time)}</TableCell>
                   <TableCell>
@@ -122,7 +118,7 @@ export const BenchmarkSuiteResultsTable = ({
                       <DropdownMenuContent align="start">
                         <DropdownMenuItem asChild>
                           <Link
-                            to={`/benchmarks/${suiteSlug}/run/${run.id}${sourceSuffix}`}
+                            to={`/benchmarks/${run.suite_slug}/run/${run.id}${sourceSuffix}`}
                           >
                             View details
                           </Link>

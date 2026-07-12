@@ -72,7 +72,7 @@ type BenchmarkSuiteResultDetailsTableProps = {
   source?: string | null;
 };
 
-export const BenchmarkSuiteResultDetailsTable = ({
+export const BenchmarkSuiteRunDetailsTable = ({
   benchmark,
   runDetails,
   pipelinesMap,
