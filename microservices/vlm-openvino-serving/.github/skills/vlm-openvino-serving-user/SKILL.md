@@ -8,9 +8,6 @@ description: >
   images, or video, stream responses, and read telemetry. Use when the user
   wants to run or call the VLM service from their app. Not for modifying the
   service's source — that is vlm-openvino-serving-dev.
-argument-hint: >
-  Describe what you want to deploy or ask the model (e.g. "start Qwen2.5-VL-3B
-  and describe this image", or "give me a streaming chat-completions curl")
 ---
 
 # VLM OpenVINO Serving — User

@@ -4,48 +4,53 @@
   "skill_name": "vdms-dataprep-user",
   "evals": [
     {
-      "id": "bringup-and-health",
+      "id": 1,
+      "name": "bringup-and-health",
       "prompt": "Get Intel's VDMS dataprep stack (dataprep API, vector DB, object storage) running locally from prebuilt images and prove it's healthy.",
       "expected_output": "Brings up all three services (vdms-dataprep + VDMS + MinIO) from prebuilt images with MINIO_ROOT_USER/MINIO_ROOT_PASSWORD and MULTIMODAL_EMBEDDING_MODEL_NAME exported, then polls GET http://localhost:6007/v1/dataprep/health until it returns ok.",
-      "assertions": [
+      "expectations": [
         "Starts all three services (dataprep, VDMS, MinIO) from prebuilt images without building from source",
         "Exports MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, and MULTIMODAL_EMBEDDING_MODEL_NAME before launch",
         "Verifies readiness via GET /v1/dataprep/health on port 6007"
       ]
     },
     {
-      "id": "upload-video",
+      "id": 2,
+      "name": "upload-video",
       "prompt": "The vdms dataprep service is healthy on localhost:6007. Ingest my file /data/forklift.mp4 sampling every 10th frame.",
       "expected_output": "A multipart POST to http://localhost:6007/v1/dataprep/videos/upload with the file form field and frame_interval=10.",
-      "assertions": [
+      "expectations": [
         "Uploads via multipart POST to /v1/dataprep/videos/upload with a file form field",
         "Sets frame_interval=10 as a form/query parameter, not a JSON body",
         "Uses the /v1/dataprep prefix on port 6007"
       ]
     },
     {
-      "id": "attach-summary",
+      "id": 3,
+      "name": "attach-summary",
       "prompt": "Video 'forklift' is already ingested in the dataprep stack. Attach the summary 'forklift narrowly misses pedestrian' covering seconds 33 to 41.",
       "expected_output": "A POST to /v1/dataprep/summary with a JSON body containing bucket_name, video_id, video_summary, video_start_time: 33, and video_end_time: 41.",
-      "assertions": [
+      "expectations": [
         "Posts to /v1/dataprep/summary with a JSON body (not multipart)",
         "Includes video_summary, video_start_time: 33, and video_end_time: 41 referencing the ingested video's bucket/video_id"
       ]
     },
     {
-      "id": "oversize-upload-routing",
+      "id": 4,
+      "name": "oversize-upload-routing",
       "prompt": "My 2 GB MP4 gets rejected with HTTP 413 when I POST it to the dataprep upload endpoint. How do I ingest it?",
       "expected_output": "Explains the 500 MB upload limit and routes to the supported path: stage the file in MinIO directly, then trigger ingestion with POST /v1/dataprep/videos/minio referencing the bucket and video_id.",
-      "assertions": [
+      "expectations": [
         "Attributes the 413 to the 500 MB limit on /videos/upload",
         "Recommends staging the file in MinIO and ingesting via POST /v1/dataprep/videos/minio"
       ]
     },
     {
-      "id": "negative-search-routing",
+      "id": 5,
+      "name": "negative-search-routing",
       "prompt": "Using the vdms dataprep API, search my ingested videos for clips where a red truck appears.",
       "expected_output": "Clarifies that dataprep only ingests (video to embeddings to VDMS) and has no search endpoint; querying is done by a separate search component reading the same VDMS collection.",
-      "assertions": [
+      "expectations": [
         "Does not fabricate a search or query endpoint on the dataprep API",
         "States that dataprep is ingestion-only and search is handled by a separate component"
       ]

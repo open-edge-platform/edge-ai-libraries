@@ -6,9 +6,6 @@ description: >
   architecture, add a new model family, and build the image from source. Use
   when modifying, testing, or debugging this service's code. Not for merely
   deploying or calling the API — that is multimodal-embedding-serving-user.
-argument-hint: >
-  Describe what you want to build, test, or debug (e.g. "add a new embedding
-  model family handler", or "why does MobileCLIP fail to import in Poetry?")
 ---
 
 # Multimodal Embedding Serving — Dev

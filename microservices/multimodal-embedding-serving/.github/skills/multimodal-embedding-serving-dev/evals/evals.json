@@ -4,29 +4,32 @@
   "skill_name": "multimodal-embedding-serving-dev",
   "evals": [
     {
-      "id": "add-model-family",
+      "id": 1,
+      "name": "add-model-family",
       "prompt": "I want to add a new 'JinaCLIP' model family to the multimodal-embedding-serving microservice in my edge-ai-libraries checkout. Which files do I need to touch?",
       "expected_output": "The registry-pattern checklist: a new handler in src/models/handlers/ subclassing BaseEmbeddingModel (copy clip_handler.py), registration in src/models/registry.py, and model entries in MODEL_CONFIGS in src/models/config.py.",
-      "assertions": [
+      "expectations": [
         "Names src/models/handlers/ as the location for a new handler subclassing BaseEmbeddingModel",
         "Mentions registering the handler in src/models/registry.py",
         "Mentions adding model entries to MODEL_CONFIGS in src/models/config.py"
       ]
     },
     {
-      "id": "run-existing-tests",
+      "id": 2,
+      "name": "run-existing-tests",
       "prompt": "Run the automated tests for the multimodal-embedding-serving microservice in this checkout and summarize the coverage situation honestly.",
       "expected_output": "Runs tests/test_path_security.py (unittest or pytest), reports results, and states that this path-security suite is the only automated coverage — handlers and routes are untested.",
-      "assertions": [
+      "expectations": [
         "Runs tests/test_path_security.py via python -m unittest or pytest",
         "States that path security is the only area with automated test coverage"
       ]
     },
     {
-      "id": "negative-consume-routing",
+      "id": 3,
+      "name": "negative-consume-routing",
       "prompt": "My Node.js app needs to call the multimodal embedding service over HTTP. Get me set up.",
       "expected_output": "Recognizes this as consumption, not development: deploys/verifies the service and provides the REST request shapes for a Node client, without modifying the service source.",
-      "assertions": [
+      "expectations": [
         "Does not modify the microservice source code for this request",
         "Provides the POST /embeddings request shape usable over REST (not the Python SDK)"
       ]

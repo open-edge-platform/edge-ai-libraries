@@ -4,29 +4,32 @@
   "skill_name": "vdms-dataprep-dev",
   "evals": [
     {
-      "id": "run-tests-with-coverage",
+      "id": 1,
+      "name": "run-tests-with-coverage",
       "prompt": "I'm in a checkout of edge-ai-libraries at microservices/visual-data-preparation-for-retrieval/vdms. Run the test suite the way this project intends and summarize the results.",
       "expected_output": "Runs the suite via source ./setup.sh test (or the equivalent coverage+pytest command), reports pass/fail and coverage against the 80% gate, without starting any containers.",
-      "assertions": [
+      "expectations": [
         "Runs tests through setup.sh test or the equivalent poetry coverage+pytest command",
         "Reports coverage relative to the 80% fail-under gate",
         "Does not start MinIO/VDMS containers to run the unit tests"
       ]
     },
     {
-      "id": "build-context-edge",
+      "id": 2,
+      "name": "build-context-edge",
       "prompt": "Running docker build -f docker/Dockerfile . from the vdms directory fails with COPY errors about multimodal-embedding-serving not being found. What's the actual problem?",
       "expected_output": "The build context is wrong: the image needs the sibling multimodal-embedding-serving path dependency, so the context must be the microservices/ directory. Use ./build.sh, never docker build from the vdms directory.",
-      "assertions": [
+      "expectations": [
         "Identifies the build context (not the Dockerfile) as the problem",
         "Prescribes ./build.sh (or setup.sh --build) as the sanctioned build entry point"
       ]
     },
     {
-      "id": "negative-ingest-routing",
+      "id": 3,
+      "name": "negative-ingest-routing",
       "prompt": "Spin up the vdms dataprep stack and load these 5 warehouse videos into it.",
       "expected_output": "Recognizes this as deployment + ingestion (user-skill territory): brings the stack up via setup.sh or prebuilt images and ingests through the REST API, without modifying source or running the test suite.",
-      "assertions": [
+      "expectations": [
         "Does not modify service source code or run the pytest suite for this request",
         "Ingests the videos through the documented REST endpoints and verifies via /health or /videos"
       ]

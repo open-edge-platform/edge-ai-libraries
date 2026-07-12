@@ -7,9 +7,6 @@ description: >
   debug via logs and telemetry. Use when modifying, testing, or debugging this
   service's code. Not for merely deploying or calling the API — that is
   vlm-openvino-serving-user.
-argument-hint: >
-  Describe what you want to build, test, or debug (e.g. "add a dispatch branch
-  for a new VLM family", or "run the pytest suite without downloading a model")
 ---
 
 # VLM OpenVINO Serving — Dev

@@ -9,9 +9,6 @@ description: >
   at http://localhost:6007/v1/dataprep. Ingestion only: it does not answer
   search queries. Not for modifying the service's source — that is
   vdms-dataprep-dev.
-argument-hint: >
-  Describe what you want to deploy or ingest (e.g. "bring up the stack and
-  ingest this mp4", or "add a text summary embedding for a video time range")
 ---
 
 # VDMS DataPrep — User

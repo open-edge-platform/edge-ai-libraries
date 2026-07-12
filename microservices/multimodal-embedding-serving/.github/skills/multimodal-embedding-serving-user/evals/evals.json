@@ -4,49 +4,54 @@
   "skill_name": "multimodal-embedding-serving-user",
   "evals": [
     {
-      "id": "bringup-and-health",
+      "id": 1,
+      "name": "bringup-and-health",
       "prompt": "Get Intel's multimodal embedding service running locally with the CLIP/clip-vit-b-32 model and verify it is healthy.",
       "expected_output": "Sets EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32, uses the prebuilt intel image (REGISTRY_URL=intel) with docker compose up -d, and verifies with GET http://localhost:9777/health.",
-      "assertions": [
+      "expectations": [
         "Sets EMBEDDING_MODEL_NAME to CLIP/clip-vit-b-32 before starting the service",
         "Starts the service from the prebuilt intel image via docker compose (no source build)",
         "Verifies readiness with GET /health on port 9777"
       ]
     },
     {
-      "id": "text-embedding-request",
+      "id": 2,
+      "name": "text-embedding-request",
       "prompt": "The embedding service is running on localhost:9777 with CLIP/clip-vit-b-32. Show me the exact request to embed the text 'a forklift in a warehouse'.",
       "expected_output": "A POST /embeddings with JSON body {input: {type: 'text', text: '...'}, model: 'CLIP/clip-vit-b-32'}, returning an embedding vector.",
-      "assertions": [
+      "expectations": [
         "Sends POST /embeddings with input shaped as {type: 'text', text: ...}",
         "Includes a model field matching the loaded model (CLIP/clip-vit-b-32)"
       ]
     },
     {
-      "id": "video-url-embedding-request",
+      "id": 3,
+      "name": "video-url-embedding-request",
       "prompt": "The embedding service is running on localhost:9777 with CLIP/clip-vit-b-32. Give me the request to embed the video at https://example.com/cam.mp4 sampling 16 frames, and tell me what the response looks like.",
       "expected_output": "A POST /embeddings with input type video_url (video_url as a plain string) and segment_config {num_frames: 16}; the response contains one vector per sampled frame, not a single flat vector.",
-      "assertions": [
+      "expectations": [
         "Uses input type video_url with video_url as a plain string field",
         "Sets num_frames to 16 inside segment_config",
         "States the response holds a list of per-frame vectors, not one flat vector"
       ]
     },
     {
-      "id": "model-capabilities-check",
+      "id": 4,
+      "name": "model-capabilities-check",
       "prompt": "Image requests to my embedding service return HTTP 400, but text requests work. It's running QwenText/qwen3-embedding-0.6b. What's wrong?",
       "expected_output": "Nothing is broken: QwenText models are text-only, so image inputs are rejected by design. Points to GET /model/capabilities to check supported modalities and suggests a multimodal model (e.g. CLIP or SigLIP) if images are needed.",
-      "assertions": [
+      "expectations": [
         "Explains QwenText models are text-only and the 400 is expected, not a service fault",
         "References GET /model/capabilities to check supported modalities",
         "Suggests a multimodal model family (e.g. CLIP or SigLIP) for image embedding"
       ]
     },
     {
-      "id": "negative-summarization-routing",
+      "id": 5,
+      "name": "negative-summarization-routing",
       "prompt": "Use the multimodal embedding service to give me a text summary of this warehouse video.",
       "expected_output": "Declines: the service returns embedding vectors, not text descriptions. Points to a vision-language model (e.g. vlm-openvino-serving) for summarization.",
-      "assertions": [
+      "expectations": [
         "Does not claim the embedding service can produce a text summary",
         "Explains embeddings are vectors for similarity/retrieval, not descriptions",
         "Points to a VLM or summarization pipeline as the right tool"

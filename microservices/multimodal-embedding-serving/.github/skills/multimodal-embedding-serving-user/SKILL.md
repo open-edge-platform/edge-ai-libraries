@@ -9,10 +9,6 @@ description: >
   QwenText), or integrate in-process via the Python SDK wheel. Use when an app
   needs embeddings for similarity search or retrieval. Not for modifying the
   service's source — that is multimodal-embedding-serving-dev.
-argument-hint: >
-  Describe what you want to deploy or embed (e.g. "bring up a CLIP model and
-  embed this image URL", or "sample 16 frames from this mp4 and return
-  per-frame vectors")
 ---
 
 # Multimodal Embedding Serving — User

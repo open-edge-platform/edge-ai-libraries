@@ -4,10 +4,11 @@
   "skill_name": "vlm-openvino-serving-user",
   "evals": [
     {
-      "id": "bringup-and-health",
+      "id": 1,
+      "name": "bringup-and-health",
       "prompt": "I need a local vision-language model with an OpenAI-compatible API for my prototype. Set up Intel's VLM OpenVINO serving microservice with Qwen2.5-VL-3B on CPU and make sure it's actually ready to take requests. I don't have the edge-ai-libraries repo checked out.",
       "expected_output": "The service is brought up from the prebuilt intel/vlm-openvino-serving image without a full repo clone or source build — e.g. fetching setup.sh + docker/compose.yaml from GitHub raw, exporting REGISTRY_URL=intel, and running docker compose up -d --no-build (or an equivalent docker run) — and readiness is verified by polling GET /health on port 9764 until 200, not just by starting the container.",
-      "assertions": [
+      "expectations": [
         "Uses the prebuilt intel/vlm-openvino-serving image (e.g. REGISTRY_URL=intel with docker compose --no-build, or docker run) without building the image from source or requiring a full repo clone",
         "Sets VLM_MODEL_NAME to Qwen/Qwen2.5-VL-3B-Instruct via environment variable",
         "Persists model caches via the ov-models volume (through setup.sh/compose or explicit volume mounts)",
@@ -15,10 +16,11 @@
       ]
     },
     {
-      "id": "image-caption-curl",
+      "id": 2,
+      "name": "image-caption-curl",
       "prompt": "The VLM serving container is already running on localhost:9764 with Qwen/Qwen2.5-VL-3B-Instruct. Give me a curl command that sends this image https://example.com/loading-dock.jpg and asks for a one-sentence caption, then show the same call in Python.",
       "expected_output": "A correct POST /v1/chat/completions curl with a content list containing a text block and an image_url block, model matching the loaded model name, plus an equivalent Python snippet using the openai client with base_url http://localhost:9764/v1.",
-      "assertions": [
+      "expectations": [
         "The curl targets POST /v1/chat/completions on localhost:9764 with Content-Type application/json",
         "The messages content is a list with a {type: text} block and a {type: image_url, image_url: {url: ...}} block (not a bare string with the URL pasted in)",
         "The model field is exactly Qwen/Qwen2.5-VL-3B-Instruct",
@@ -26,10 +28,11 @@
       ]
     },
     {
-      "id": "gpu-oom-diagnosis",
+      "id": 3,
+      "name": "gpu-oom-diagnosis",
       "prompt": "Our VLM serving instance runs on an Intel Arc GPU. Under load, responses fail with 'error code: -5' and then the service seems to restart itself. What is going on and what should we change?",
       "expected_output": "Diagnosis: 'error code: -5' is a GPU out-of-memory error from the OpenVINO runtime; the service intentionally restarts itself (os.execv) to recover. Mitigations: int4 weight compression, a single worker (both enforced on GPU by setup.sh), a smaller model, and/or reducing concurrent load; the self-restart explains the perceived restart.",
-      "assertions": [
+      "expectations": [
         "Identifies error code -5 as GPU out-of-memory",
         "Explains the self-restart is intentional recovery behavior of the service, not a crash loop to be 'fixed' by restart policies",
         "Recommends at least two concrete mitigations among: int4 weights, single worker, smaller model, fewer concurrent requests",
@@ -37,10 +40,11 @@
       ]
     },
     {
-      "id": "negative-embeddings-routing",
+      "id": 4,
+      "name": "negative-embeddings-routing",
       "prompt": "I need to generate text embeddings for a few thousand product descriptions so I can do similarity search. Can you set that up with an Intel microservice?",
       "expected_output": "Recognizes that the VLM chat-completions service is the wrong tool: it does not expose an embeddings endpoint. Points to a dedicated embedding service (e.g. Intel's multimodal-embedding-serving) instead, and does not deploy the VLM stack.",
-      "assertions": [
+      "expectations": [
         "Does not deploy or configure vlm-openvino-serving for this request",
         "States that the VLM service has no embeddings endpoint (it serves chat completions)",
         "Suggests a dedicated embedding service such as multimodal-embedding-serving for similarity-search embeddings"

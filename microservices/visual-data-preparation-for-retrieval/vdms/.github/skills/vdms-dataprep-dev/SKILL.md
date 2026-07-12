@@ -7,9 +7,6 @@ description: >
   reload, and navigate the SDK/API embedding pipeline. Use when modifying,
   testing, or debugging this service's code. Not for merely deploying the stack
   or ingesting videos — that is vdms-dataprep-user.
-argument-hint: >
-  Describe what you want to build, test, or debug (e.g. "build the image the
-  sanctioned way", or "add a new endpoint to the ingestion API")
 ---
 
 # VDMS DataPrep — Dev
