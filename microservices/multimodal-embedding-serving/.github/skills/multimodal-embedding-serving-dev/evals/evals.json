@@ -4,45 +4,31 @@
   "skill_name": "multimodal-embedding-serving-dev",
   "evals": [
     {
-      "id": "add-model-family-navigation",
-      "prompt": "I want to add support for a new 'JinaCLIP' embedding model family to the multimodal-embedding-serving microservice in my edge-ai-libraries checkout. Walk me through exactly which files I need to touch and in what order.",
-      "expected_output": "The registry-pattern checklist: new handler in src/models/handlers/ subclassing BaseEmbeddingModel (clip_handler.py as template), registration in MODEL_HANDLER_REGISTRY in src/models/registry.py, entries in MODEL_CONFIGS in src/models/config.py, dependency placement (pyproject vs Dockerfile), setup.sh known-model case + supported-models.md doc update, and a smoke test via /models + /embeddings.",
+      "id": "add-model-family",
+      "prompt": "I want to add a new 'JinaCLIP' model family to the multimodal-embedding-serving microservice in my edge-ai-libraries checkout. Which files do I need to touch?",
+      "expected_output": "The registry-pattern checklist: a new handler in src/models/handlers/ subclassing BaseEmbeddingModel (copy clip_handler.py), registration in src/models/registry.py, and model entries in MODEL_CONFIGS in src/models/config.py.",
       "assertions": [
         "Names src/models/handlers/ as the location for a new handler subclassing BaseEmbeddingModel",
-        "Mentions registering the handler in src/models/registry.py (MODEL_HANDLER_REGISTRY or register_model_handler)",
-        "Mentions adding the model entries to MODEL_CONFIGS in src/models/config.py",
-        "Recommends clip_handler.py (or another existing handler) as the pattern to copy",
-        "Includes updating user-facing model docs or setup.sh model validation as part of the change"
+        "Mentions registering the handler in src/models/registry.py",
+        "Mentions adding model entries to MODEL_CONFIGS in src/models/config.py"
       ]
     },
     {
       "id": "run-existing-tests",
-      "prompt": "Run whatever automated tests exist for the multimodal-embedding-serving microservice in this checkout and summarize the coverage situation honestly.",
-      "expected_output": "Runs tests/test_path_security.py via unittest (or pytest), reports results, and states plainly that this path-security suite is the only automated coverage — handlers/wrapper/routes are untested, with smoke-testing via examples/ as the practical alternative.",
+      "prompt": "Run the automated tests for the multimodal-embedding-serving microservice in this checkout and summarize the coverage situation honestly.",
+      "expected_output": "Runs tests/test_path_security.py (unittest or pytest), reports results, and states that this path-security suite is the only automated coverage — handlers and routes are untested.",
       "assertions": [
-        "Runs tests/test_path_security.py via python -m unittest or pytest within the poetry environment",
-        "States that path security is the only area with automated tests (no handler/wrapper/route coverage)",
-        "Mentions examples/sdk_examples.py or examples/server_examples.py as the smoke-test path for broader verification"
-      ]
-    },
-    {
-      "id": "mobileclip-import-edge",
-      "prompt": "In my local poetry environment for multimodal-embedding-serving, creating a MobileCLIP handler dies with ModuleNotFoundError: No module named 'mobileclip'. But the same model works fine when I run the Docker image. Why?",
-      "expected_output": "Diagnosis: mobileclip (and salesforce-lavis for Blip2) are pip-installed only in docker/Dockerfile, not declared in pyproject.toml, so poetry install never brings them in. Options: develop those families against the container, or manually pip-install the git dependency into the env.",
-      "assertions": [
-        "Identifies that mobileclip is installed only in the Docker image (docker/Dockerfile), not via pyproject.toml/poetry",
-        "Notes salesforce-lavis/Blip2 has the same container-only dependency situation",
-        "Recommends developing/testing MobileCLIP against the container or manually installing the dependency, not adding random PyPI packages blindly"
+        "Runs tests/test_path_security.py via python -m unittest or pytest",
+        "States that path security is the only area with automated test coverage"
       ]
     },
     {
       "id": "negative-consume-routing",
-      "prompt": "My Node.js order-search app needs to call the multimodal embedding service over HTTP. Get me set up.",
-      "expected_output": "Recognizes this is consumption, not development: deploys/verifies the service (compose or prebuilt image), provides the REST endpoint shapes for a Node client, and does not modify the service source or run its test suite.",
+      "prompt": "My Node.js app needs to call the multimodal embedding service over HTTP. Get me set up.",
+      "expected_output": "Recognizes this as consumption, not development: deploys/verifies the service and provides the REST request shapes for a Node client, without modifying the service source.",
       "assertions": [
         "Does not modify the microservice source code for this request",
-        "Provides or verifies a running service plus the POST /embeddings request shape usable from Node.js (REST, not the Python SDK)",
-        "Checks or mentions the /health endpoint before use"
+        "Provides the POST /embeddings request shape usable over REST (not the Python SDK)"
       ]
     }
   ]

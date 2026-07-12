@@ -4,56 +4,50 @@
   "skill_name": "vdms-dataprep-user",
   "evals": [
     {
-      "id": "standalone-bringup",
-      "prompt": "I'm building a video retrieval demo and need Intel's VDMS-based data preparation stack running locally. I don't have the edge-ai-libraries repo. Get the whole thing up (vector DB, object storage, the dataprep API) and prove it's healthy.",
-      "expected_output": "A 3-container bring-up (vdms-dataprep + intellabs/vdms + MinIO) from prebuilt images — e.g. fetching setup.sh + docker/compose.yaml from GitHub raw, then source ./setup.sh --nosetup and docker compose up -d --no-build with REGISTRY_URL=intel — with MinIO credentials exported in-shell (not hardcoded in committed files), and readiness proven by polling GET /v1/dataprep/health on port 6007.",
+      "id": "bringup-and-health",
+      "prompt": "Get Intel's VDMS dataprep stack (dataprep API, vector DB, object storage) running locally from prebuilt images and prove it's healthy.",
+      "expected_output": "Brings up all three services (vdms-dataprep + VDMS + MinIO) from prebuilt images with MINIO_ROOT_USER/MINIO_ROOT_PASSWORD and MULTIMODAL_EMBEDDING_MODEL_NAME exported, then polls GET http://localhost:6007/v1/dataprep/health until it returns ok.",
       "assertions": [
-        "Starts all three services (dataprep, VDMS vector DB, MinIO) from prebuilt images without cloning the repo or building from source",
-        "Exports MINIO_ROOT_USER and MINIO_ROOT_PASSWORD as environment variables rather than writing credentials into committed files",
-        "Polls http://localhost:6007/v1/dataprep/health (the /v1/dataprep prefix present) until it returns ok",
-        "Mentions the first start is slow due to image pulls and embedding/YOLOX model downloads"
+        "Starts all three services (dataprep, VDMS, MinIO) from prebuilt images without building from source",
+        "Exports MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, and MULTIMODAL_EMBEDDING_MODEL_NAME before launch",
+        "Verifies readiness via GET /v1/dataprep/health on port 6007"
       ]
     },
     {
-      "id": "upload-and-summary-flow",
-      "prompt": "The vdms dataprep service is healthy on localhost:6007. Ingest my file /data/forklift.mp4 sampling every 10th frame, then attach the summary 'forklift narrowly misses pedestrian near bay 4' covering seconds 33 to 41 of that video.",
-      "expected_output": "Two correct API calls: a multipart POST to /v1/dataprep/videos/upload with frame_interval=10, then a POST /v1/dataprep/summary whose JSON body references the same bucket/video_id with video_start_time 33 and video_end_time 41.",
+      "id": "upload-video",
+      "prompt": "The vdms dataprep service is healthy on localhost:6007. Ingest my file /data/forklift.mp4 sampling every 10th frame.",
+      "expected_output": "A multipart POST to http://localhost:6007/v1/dataprep/videos/upload with the file form field and frame_interval=10.",
       "assertions": [
-        "Uploads via multipart POST to /v1/dataprep/videos/upload with a file form field and frame_interval=10 as a query parameter (not JSON body)",
-        "Posts the summary to /v1/dataprep/summary with JSON fields video_summary, video_start_time: 33, video_end_time: 41",
-        "The summary call references the same video_id (and bucket) that the upload produced",
-        "Both calls use the /v1/dataprep prefix on port 6007"
+        "Uploads via multipart POST to /v1/dataprep/videos/upload with a file form field",
+        "Sets frame_interval=10 as a form/query parameter, not a JSON body",
+        "Uses the /v1/dataprep prefix on port 6007"
       ]
     },
     {
-      "id": "dimension-mismatch-edge",
-      "prompt": "We had the dataprep stack running with CLIP/clip-vit-b-32 and ingested 200 videos. Yesterday someone switched EMBEDDING_MODEL_NAME to SigLIP/siglip2-vit-b-16 and now every ingestion fails with 'Dimensions mismatch'. What happened and how do we recover?",
-      "expected_output": "Diagnosis: the VDMS collection was created with 512-dim CLIP vectors; SigLIP produces different-dimension vectors, so inserts fail. Recovery options: switch back to the original model, or use a new collection/INDEX_NAME (or wipe the VDMS data — destructive, requires explicit confirmation) and re-ingest all videos with the new model.",
+      "id": "attach-summary",
+      "prompt": "Video 'forklift' is already ingested in the dataprep stack. Attach the summary 'forklift narrowly misses pedestrian' covering seconds 33 to 41.",
+      "expected_output": "A POST to /v1/dataprep/summary with a JSON body containing bucket_name, video_id, video_summary, video_start_time: 33, and video_end_time: 41.",
       "assertions": [
-        "Explains the collection is bound to the embedding dimension of the model it was created with",
-        "Offers switching back to the original model as the non-destructive option",
-        "Offers a new collection name (INDEX_NAME/DB_COLLECTION) or a wipe plus full re-ingestion for adopting the new model",
-        "Flags wiping existing vectors as destructive and requiring user confirmation, not something to just execute"
+        "Posts to /v1/dataprep/summary with a JSON body (not multipart)",
+        "Includes video_summary, video_start_time: 33, and video_end_time: 41 referencing the ingested video's bucket/video_id"
       ]
     },
     {
       "id": "oversize-upload-routing",
-      "prompt": "My 2 GB warehouse-camera MP4 gets rejected with HTTP 413 when I POST it to the dataprep upload endpoint. Is there a way to ingest it anyway?",
-      "expected_output": "Explains the 500 MB multipart upload limit, and routes to the supported path: stage the file in MinIO directly (console on 6011 or S3 API on 6010), then trigger ingestion with POST /v1/dataprep/videos/minio referencing the bucket/video_id.",
+      "prompt": "My 2 GB MP4 gets rejected with HTTP 413 when I POST it to the dataprep upload endpoint. How do I ingest it?",
+      "expected_output": "Explains the 500 MB upload limit and routes to the supported path: stage the file in MinIO directly, then trigger ingestion with POST /v1/dataprep/videos/minio referencing the bucket and video_id.",
       "assertions": [
         "Attributes the 413 to the 500 MB limit on /videos/upload",
-        "Recommends staging the file in MinIO (console/S3 API) instead of working around the limit",
-        "Uses POST /v1/dataprep/videos/minio with a JSON body to ingest the staged file"
+        "Recommends staging the file in MinIO and ingesting via POST /v1/dataprep/videos/minio"
       ]
     },
     {
       "id": "negative-search-routing",
-      "prompt": "Using the vdms dataprep API, search my ingested videos for clips where a red truck appears at the loading dock.",
-      "expected_output": "Clarifies that DataPrep only ingests (video to embeddings to VDMS) and exposes no search/query endpoint; querying the stored embeddings is done by a separate search component (e.g. a video search microservice/app reading the same VDMS). Does not invent a dataprep search endpoint.",
+      "prompt": "Using the vdms dataprep API, search my ingested videos for clips where a red truck appears.",
+      "expected_output": "Clarifies that dataprep only ingests (video to embeddings to VDMS) and has no search endpoint; querying is done by a separate search component reading the same VDMS collection.",
       "assertions": [
         "Does not fabricate a search or query endpoint on the dataprep API",
-        "States that dataprep is ingestion-only and search is a separate component that reads the same VDMS collection",
-        "Optionally points to listing endpoints (/videos) as the only browse capability dataprep itself offers"
+        "States that dataprep is ingestion-only and search is handled by a separate component"
       ]
     }
   ]
