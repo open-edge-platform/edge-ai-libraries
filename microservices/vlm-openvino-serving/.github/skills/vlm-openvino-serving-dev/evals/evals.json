@@ -1,0 +1,48 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "skill_name": "vlm-openvino-serving-dev",
+  "evals": [
+    {
+      "id": "run-test-suite",
+      "prompt": "I'm in a checkout of edge-ai-libraries at microservices/vlm-openvino-serving. Run the service's test suite with coverage and tell me if anything fails.",
+      "expected_output": "Installs with poetry (test group), runs pytest from the tests/ directory (where pytest.ini lives) plus the documented coverage commands, and reports pass/fail counts. No model downloads are triggered.",
+      "assertions": [
+        "Uses poetry install --with test (or equivalent poetry-managed env) before running tests",
+        "Runs pytest from the tests/ directory or with explicit awareness that pytest.ini lives in tests/",
+        "Runs coverage via coverage run --source=src -m pytest (or poetry run coverage equivalents)",
+        "Does not set a real VLM_MODEL_NAME or trigger any model download to run unit tests"
+      ]
+    },
+    {
+      "id": "locate-endpoint-code",
+      "prompt": "Where in the vlm-openvino-serving codebase would I add a new GET endpoint that reports the loaded model's compression format, and what existing code should I follow as a pattern?",
+      "expected_output": "Points to src/app.py as the single-file location of all routes, suggests following an existing simple GET route (e.g. /v1/models or /device) as the pattern, and notes model state lives in module globals set by initialize_model().",
+      "assertions": [
+        "Names src/app.py as the file where routes are added",
+        "References at least one existing GET route (such as /v1/models, /device, or /health) as the pattern to copy",
+        "Mentions that model state (pipe/model_config/model_ready) lives in module-level globals initialized by initialize_model()"
+      ]
+    },
+    {
+      "id": "pytest-hang-diagnosis",
+      "prompt": "When I run pytest against vlm-openvino-serving, collection seems to hang and my network monitor shows downloads from huggingface.co. The tests themselves are supposedly all mocked. What's wrong?",
+      "expected_output": "Diagnosis: src/app.py calls initialize_model() at module import time, so importing it without the module-level mock stack (env vars + convert_model + VLMPipeline + is_model_ready + initialize_model patched before the import) triggers a real model download. Fix: mock before import, as tests/test_app.py does.",
+      "assertions": [
+        "Identifies the import-time initialize_model() call in src/app.py as the root cause",
+        "Explains mocks must be applied before importing src.app (module-level patching), not inside individual tests",
+        "References the existing pattern in tests/test_app.py rather than inventing a new conftest mechanism as the primary fix"
+      ]
+    },
+    {
+      "id": "negative-deploy-routing",
+      "prompt": "Stand up the VLM serving container so my teammate's app can start sending it chat completion requests this afternoon.",
+      "expected_output": "Recognizes this is a deployment/consumption task, not development: uses the user-skill bring-up flow (setup.sh + compose or prebuilt image) and does not modify source, run tests, or rebuild from source unnecessarily.",
+      "assertions": [
+        "Does not edit service source code or run the pytest suite for this request",
+        "Brings the service up via setup.sh + docker compose or the prebuilt intel/vlm-openvino-serving image",
+        "Verifies the service is reachable (health endpoint) so the teammate's app can use it"
+      ]
+    }
+  ]
+}

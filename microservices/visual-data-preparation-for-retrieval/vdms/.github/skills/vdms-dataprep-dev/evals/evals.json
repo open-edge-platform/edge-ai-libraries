@@ -1,0 +1,47 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "skill_name": "vdms-dataprep-dev",
+  "evals": [
+    {
+      "id": "run-tests-with-coverage",
+      "prompt": "I'm in a checkout of edge-ai-libraries at microservices/visual-data-preparation-for-retrieval/vdms. Run the test suite the way this project intends, including its coverage requirement, and summarize the results.",
+      "expected_output": "Runs the suite via source ./setup.sh test (or scripts/tester.sh / the equivalent coverage+pytest command), reports pass/fail and the coverage percentage against the 80% gate, without starting MinIO/VDMS containers.",
+      "assertions": [
+        "Runs tests through setup.sh test, scripts/tester.sh, or the equivalent poetry coverage run -m pytest command",
+        "Reports coverage relative to the 80% fail-under gate",
+        "Does not start MinIO/VDMS/embedding containers to run unit tests (the suite is mocked/offline)"
+      ]
+    },
+    {
+      "id": "build-context-edge",
+      "prompt": "cd microservices/visual-data-preparation-for-retrieval/vdms && docker build -f docker/Dockerfile . fails with COPY errors about multimodal-embedding-serving not being found. The Dockerfile looks correct to me. What's the actual problem?",
+      "expected_output": "Diagnosis: the build context is wrong — the image needs both this service and the sibling multimodal-embedding-serving path dependency, so the context must be the microservices/ directory (three levels up). Fix: use ./build.sh (or setup.sh --build), never docker build from the vdms directory.",
+      "assertions": [
+        "Identifies the build context (not the Dockerfile) as the problem — it must be the microservices/ directory because of the multimodal-embedding-serving path dependency",
+        "Prescribes ./build.sh or source ./setup.sh --build as the sanctioned build entry point",
+        "Does not suggest editing the Dockerfile COPY paths as the fix"
+      ]
+    },
+    {
+      "id": "locate-pipeline-code",
+      "prompt": "In the vdms dataprep codebase, where would I add a per-frame blur-detection step that runs after frame extraction but before embedding, in the default processing mode?",
+      "expected_output": "Points to the SDK-mode pipeline in src/core/embedding/sdk_embedding_helper.py (default EMBEDDING_PROCESSING_MODE=sdk) as the integration point between the decoder (src/core/embedding/decoder.py) and the embed/store stages, possibly noting the detection worker stage as the analogous pattern to follow.",
+      "assertions": [
+        "Names src/core/embedding/sdk_embedding_helper.py as the SDK-mode pipeline where the step belongs",
+        "Correctly orders the stages: after frame extraction (decoder.py) and before embedding/storage",
+        "Mentions that sdk is the default processing mode (vs the api mode client in simple_client.py)"
+      ]
+    },
+    {
+      "id": "negative-ingest-routing",
+      "prompt": "Spin up the vdms dataprep stack and load these 5 warehouse videos into it so the search team can start querying tomorrow.",
+      "expected_output": "Recognizes this as deployment + ingestion (user-skill territory): brings the stack up via setup.sh or prebuilt images, ingests through the REST API (/videos/upload or /videos/minio), and does not modify source, run the dev overlay, or run the test suite.",
+      "assertions": [
+        "Does not modify service source code or run the pytest suite for this request",
+        "Brings up the stack via setup.sh or the prebuilt-image compose (not the --dev live-reload overlay)",
+        "Ingests the videos through the documented REST endpoints and verifies via /health or /videos"
+      ]
+    }
+  ]
+}

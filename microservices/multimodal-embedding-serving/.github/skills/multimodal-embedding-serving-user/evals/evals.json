@@ -1,0 +1,59 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "skill_name": "multimodal-embedding-serving-user",
+  "evals": [
+    {
+      "id": "standalone-bringup-and-text-embed",
+      "prompt": "My retrieval prototype needs an embedding endpoint. I don't have any Intel repos cloned. Get Intel's multimodal embedding service running locally with a small CLIP model and show me it works by embedding the sentence 'forklift moving pallets in a warehouse'.",
+      "expected_output": "Bring-up from the prebuilt intel/multimodal-embedding-serving image without a full repo clone or source build — e.g. fetching setup.sh + docker/compose.yaml from GitHub raw, exporting REGISTRY_URL=intel, and running docker compose up -d --no-build (or an equivalent docker run) — with EMBEDDING_MODEL_NAME set to a CLIP model, health polled on port 9777, then a POST /embeddings with input {type: text, text: ...} returning a vector.",
+      "assertions": [
+        "Uses the prebuilt intel/multimodal-embedding-serving image (e.g. REGISTRY_URL=intel with docker compose --no-build, or docker run) without building the image from source or requiring a full repo clone",
+        "Sets EMBEDDING_MODEL_NAME to a valid CLIP model id in Family/name format (e.g. CLIP/clip-vit-b-32)",
+        "Waits for GET /health on port 9777 before embedding",
+        "Sends POST /embeddings with a correctly shaped input union {type: 'text', text: ...} and a model field matching the loaded model"
+      ]
+    },
+    {
+      "id": "video-url-16-frames",
+      "prompt": "The embedding service is already up on localhost:9777 with CLIP/clip-vit-b-32. Give me the exact request to embed this video https://example.com/dock-cam.mp4 sampling exactly 16 frames, and tell me what shape the response will have.",
+      "expected_output": "A POST /embeddings request with input type video_url, video_url as a plain string, and segment_config {num_frames: 16, ...}; explains the response is a list of 16 per-frame vectors under the 'embedding' key (not one flat vector).",
+      "assertions": [
+        "Uses input type video_url with video_url as a plain string field (not a nested {url: ...} object)",
+        "Includes segment_config with num_frames set to 16",
+        "States the response contains a list of per-frame vectors (one per sampled frame), not a single flat vector"
+      ]
+    },
+    {
+      "id": "qwen-image-capability-edge",
+      "prompt": "We deployed the embedding service with QwenText/qwen3-embedding-0.6b because we liked its text quality. Now our image ingestion calls fail with HTTP 400. Is the service broken?",
+      "expected_output": "Not broken: QwenText models are text-only, so image/video inputs are rejected with 400 by design. Recommends checking GET /model/capabilities, and either switching to a multimodal model (CLIP/SigLIP/...) for images — noting existing text vectors would need re-ingestion since dimensions and space change — or running text-only.",
+      "assertions": [
+        "Explains QwenText models are text-only and the 400 is expected behavior, not a service fault",
+        "References GET /model/capabilities as the way to verify supported modalities",
+        "Recommends a multimodal model family (CLIP, SigLIP, CN-CLIP, MobileCLIP, or Blip2) for image embedding",
+        "Mentions that switching models changes the embedding space/dimension so an existing vector index must be rebuilt or re-ingested"
+      ]
+    },
+    {
+      "id": "sdk-integration-question",
+      "prompt": "Our Python batch pipeline embeds about 2 million product images a night. Calling an HTTP endpoint per image feels wasteful. Is there a way to use Intel's multimodal embedding code in-process?",
+      "expected_output": "Yes: the service doubles as a Python SDK — build the wheel with poetry build from the microservice directory and use get_model_handler(...) + EmbeddingModel for in-process embedding; notes the wheel is not on PyPI (needs the repo) and MobileCLIP/Blip2 extras are Docker-only.",
+      "assertions": [
+        "Recommends the SDK/wheel path (multimodal_embedding_serving package) rather than optimizing HTTP calls",
+        "Shows or describes the get_model_handler + EmbeddingModel usage pattern",
+        "Notes the wheel is built from the repo with poetry build (not installed from PyPI)"
+      ]
+    },
+    {
+      "id": "negative-summarization-routing",
+      "prompt": "Can you use the multimodal embedding service to give me a text summary of what happens in this warehouse video?",
+      "expected_output": "Declines to misuse embeddings as a summarizer: the service returns vectors, not text descriptions. Points to a VLM (e.g. vlm-openvino-serving chat completions with video input) or a video summarization application instead.",
+      "assertions": [
+        "Does not claim the embedding service can produce a text summary",
+        "Explains embeddings are numeric vectors for similarity/retrieval, not descriptions",
+        "Points to a vision-language model or summarization pipeline (e.g. vlm-openvino-serving) as the right tool"
+      ]
+    }
+  ]
+}
