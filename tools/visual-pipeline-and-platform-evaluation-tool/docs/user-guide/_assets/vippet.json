@@ -217,6 +217,42 @@
         }
       }
     },
+    "/benchmarks/runs": {
+      "get": {
+        "tags": [
+          "benchmarks"
+        ],
+        "summary": "List all benchmark runs across all suites",
+        "description": "Return all benchmark runs across all suites.",
+        "operationId": "get_all_benchmark_runs",
+        "responses": {
+          "200": {
+            "description": "List of all suite runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BenchmarkSuiteRun"
+                  },
+                  "type": "array",
+                  "title": "Response 200 Get All Benchmark Runs"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/benchmarks/{suite_slug}/runs": {
       "get": {
         "tags": [
