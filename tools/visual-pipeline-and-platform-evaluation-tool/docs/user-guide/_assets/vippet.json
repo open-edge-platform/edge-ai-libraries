@@ -3846,6 +3846,18 @@
             "type": "integer",
             "title": "Passed Test Cases"
           },
+          "suite_slug": {
+            "type": "string",
+            "title": "Suite Slug"
+          },
+          "suite_name": {
+            "type": "string",
+            "title": "Suite Name"
+          },
+          "suite_description": {
+            "type": "string",
+            "title": "Suite Description"
+          },
           "workload_runs": {
             "items": {
               "$ref": "#/components/schemas/BenchmarkWorkloadRun"
@@ -3867,6 +3879,9 @@
           "job_id",
           "total_test_cases",
           "passed_test_cases",
+          "suite_slug",
+          "suite_name",
+          "suite_description",
           "workload_runs"
         ],
         "title": "BenchmarkSuiteRunDetails",
