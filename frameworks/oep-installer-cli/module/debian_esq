@@ -12,8 +12,8 @@ debian_70_install_esq () {
   if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ "$*" != *"--reset-esq"* ]]; then
     echo "Esq is already installed. Skipping..."
   else
-    curl -sL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f
-    curl -sL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f
+    curl -sL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true
+    curl -sL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true
     uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main
 
     configure_esq
@@ -43,7 +43,7 @@ debian_70_start_esq () {
   configure_esq
   pushd "$workspace" > /dev/null
   esq clean --all
-  esq run -f ${options[@]}
+  esq run -v -f ${options[@]}
   esq summary
   esq report
   popd > /dev/null
