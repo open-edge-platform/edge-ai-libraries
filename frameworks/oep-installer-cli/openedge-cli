@@ -131,6 +131,8 @@ subcommand_stop () {
   act_helpper stop "-r" "$@"
 }
 
+#### COLLECTION OF MODULES ####
+
 subcommand_bootstrap () {
   local mydir="$(dirname "$(readlink -f "$0")")"
 
@@ -192,6 +194,4 @@ subcommand_bootstrap () {
     exit 3
   fi
 }
-
-#### COLLECTION OF MODULES ####
 
