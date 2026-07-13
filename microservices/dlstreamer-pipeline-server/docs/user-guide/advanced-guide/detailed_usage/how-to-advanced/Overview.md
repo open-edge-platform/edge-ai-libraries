@@ -32,7 +32,7 @@ To learn about cross stream batching feature, refer this [doc](./cross-stream-ba
 To enable Open Telemetry and capture various runtime statistics, refer this [doc](./enable-open-telemetry.md)
 
 ## Working with other services
-To learn how DL Streamer Pipeline Server interacts with other microservices, refer this [doc](./work-with-other-services.md)
+To learn how DL Streamer Pipeline Server interacts with other microservices, refer to this [document](./work-with-other-services.md)
 
 <!--hide_directive
 ```{toctree}
