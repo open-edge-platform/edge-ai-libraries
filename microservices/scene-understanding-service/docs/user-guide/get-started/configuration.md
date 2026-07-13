@@ -51,6 +51,9 @@ mqtt:
   host: broker.scenescape.intel.com
   port: 1883
   use_tls: false
+  # Topics shared with the behavioral-analysis worker (see env overrides below).
+  ba_request_topic: ba/requests
+  ba_result_topic: ba/results
 ```
 
 ### `rules.yaml`
@@ -79,9 +82,67 @@ These are the only environment variables the service reads directly:
 | `SCENESCAPE_API_PASSWORD`| _(empty)_            | SceneScape REST password.                                |
 | `ENABLE_UI`              | `true`               | Enable the Gradio UI integration endpoints.              |
 | `ALERT_SERVICE_URL`      | from `alert_service` | Overrides the downstream alert-service endpoint.         |
+| `MQTT_HOST`              | `mqtt.host`          | MQTT broker host. Overrides `mqtt.host` in `scene-config.yaml`. |
+| `MQTT_PORT`              | `mqtt.port`          | MQTT broker port. Overrides `mqtt.port` in `scene-config.yaml`. |
+| `BA_REQUEST_TOPIC`       | `ba/requests`        | MQTT topic the service **publishes** BA frame-arrival requests to. Overrides `mqtt.ba_request_topic`. |
+| `BA_RESULT_TOPIC`        | `ba/results`         | MQTT topic the service **subscribes** to for BA verdicts. Overrides `mqtt.ba_result_topic`. |
 
-> MQTT host/port and the SceneScape API URL are configured in
-> `scene-config.yaml`, **not** through environment variables.
+> The SceneScape API URL is configured in `scene-config.yaml`. MQTT broker
+> host/port can be set either in `scene-config.yaml` (`mqtt.host` / `mqtt.port`)
+> or overridden with the `MQTT_HOST` / `MQTT_PORT` environment variables.
+
+> **BA topics are an integration contract.** The `BA_REQUEST_TOPIC` /
+> `BA_RESULT_TOPIC` values **must be identical** on both this service and the
+> behavioral-analysis worker that shares the same MQTT broker. Precedence is
+> `env var` → `mqtt.ba_request_topic` / `mqtt.ba_result_topic` in
+> `scene-config.yaml` → built-in default (`ba/requests` / `ba/results`). Define
+> the value once (e.g. in a shared `.env`) and inject it into both services so
+> they cannot drift.
+
+Override at runtime by exporting the variables before starting the stack (they
+flow through `docker compose` via `${BA_REQUEST_TOPIC:-ba/requests}`):
+
+```bash
+export BA_REQUEST_TOPIC=store_001/ba/requests
+export BA_RESULT_TOPIC=store_001/ba/results
+docker compose up -d
+```
+
+Or set them once in the deployment `.env` so both services pick up the same
+values:
+
+```dotenv
+BA_REQUEST_TOPIC=store_001/ba/requests
+BA_RESULT_TOPIC=store_001/ba/results
+```
+
+### Full `export` example
+
+All variables the service reads, with their defaults. Export any you want to
+override before `docker compose up` — unset ones fall back to `scene-config.yaml`
+or the built-in defaults:
+
+```bash
+# Config / identity
+export CONFIG_DIR=/app/configs
+export STORE_ID=store_001
+
+# SceneScape REST API (zone auto-discovery)
+export SCENESCAPE_API_USER=admin
+export SCENESCAPE_API_PASSWORD=changeme
+
+# MQTT broker (overrides mqtt.host / mqtt.port in scene-config.yaml)
+export MQTT_HOST=broker.scenescape.intel.com
+export MQTT_PORT=1883
+
+# BA integration contract (must match the behavioral-analysis worker)
+export BA_REQUEST_TOPIC=ba/requests
+export BA_RESULT_TOPIC=ba/results
+
+# Downstream alert-service
+export ALERT_SERVICE_URL=http://alert-service:8000
+
+```
 
 ## TLS for MQTT
 

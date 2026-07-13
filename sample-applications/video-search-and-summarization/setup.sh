@@ -52,10 +52,11 @@ stop_containers() {
         -f docker/compose.base.yaml \
         -f docker/compose.summary.yaml \
         -f docker/compose.vllm.yaml \
+        -f docker/compose.vllm.xpu.yaml \
         -f docker/compose.search.yaml \
         -f docker/compose.ui.yaml \
         -f docker/compose.telemetry.yaml \
-        --profile ovms --profile vlm-ov --profile vllm \
+        --profile ovms --profile vlm-ov --profile vllm --profile vllm-xpu \
         --profile dual_ui --profile singleton_unified_ui \
         --profile singleton_summary_ui \
         --profile singleton_search_ui \
@@ -190,7 +191,12 @@ export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-}
 export VLM_TARGET_DEVICE=${VLM_TARGET_DEVICE:-CPU}
 export USE_VLLM=${USE_VLLM:-CONFIG_OFF}
 export ENABLE_VLLM=${ENABLE_VLLM:-false}
-export VLLM_HOST=vllm-cpu-service
+export ENABLE_VLLM_GPU=${ENABLE_VLLM_GPU:-false}
+if [ "$ENABLE_VLLM_GPU" = true ]; then
+    export VLLM_HOST=vllm-xpu-service
+else
+    export VLLM_HOST=vllm-cpu-service
+fi
 export VLLM_HOST_PORT=${VLLM_HOST_PORT:-8200}
 export VLLM_ENDPOINT=http://${VLLM_HOST}:8000/v1
 export USER_ID=$(id -u)
@@ -1165,7 +1171,29 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
     BACKEND_PROFILE="ovms"
 
     if [ "$1" != "--search" ]; then
-        if [ "$ENABLE_VLLM" = true ]; then
+        if [ "$ENABLE_VLLM_GPU" = true ]; then
+            echo -e "[vllm-xpu-service] ${BLUE}Using vLLM on XPU/GPU for both chunk captioning and final summary${NC}"
+            echo -e "[vllm-xpu-service] ${YELLOW}Disabling OVMS because ENABLE_VLLM_GPU=true${NC}"
+            BACKEND_PROFILE="vllm-xpu"
+            export USE_VLLM=CONFIG_ON
+            export LLM_SUMMARIZATION_API=${VLLM_ENDPOINT}
+            export VLM_ENDPOINT=${VLLM_ENDPOINT}
+            export VLM_HOST=${VLLM_HOST}
+            if [ -n "$configured_ovms_llm_model" ] && [ "$configured_ovms_llm_model" != "$VLM_MODEL_NAME" ]; then
+                echo -e "[pipeline-manager] ${YELLOW}Ignoring separate OVMS LLM model in vLLM-only mode; summarization will use VLM_MODEL_NAME=${VLM_MODEL_NAME}${NC}"
+            fi
+            export LLM_MODEL_NAME=${VLM_MODEL_NAME}
+            if [ "$PM_VLM_CONCURRENT_DEFAULTED" = true ]; then
+                export PM_VLM_CONCURRENT=1
+            fi
+            if [ "$PM_LLM_CONCURRENT_DEFAULTED" = true ]; then
+                export PM_LLM_CONCURRENT=1
+            fi
+            if [ "$PM_CAPTIONING_MAX_COMPLETION_TOKENS_DEFAULTED" = true ]; then
+                export PM_CAPTIONING_MAX_COMPLETION_TOKENS=256
+            fi
+            APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.vllm.xpu.yaml"
+        elif [ "$ENABLE_VLLM" = true ]; then
             echo -e "[vllm-cpu-service] ${BLUE}Using vLLM for both chunk captioning and final summary${NC}"
             BACKEND_PROFILE="vllm"
             export USE_VLLM=CONFIG_ON
