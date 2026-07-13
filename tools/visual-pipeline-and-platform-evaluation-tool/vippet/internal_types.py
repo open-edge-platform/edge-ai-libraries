@@ -527,8 +527,6 @@ class InternalExecutionConfig:
         output_mode: Mode for pipeline output generation.
         max_runtime: Maximum runtime in seconds (0 = run until EOS).
         metadata_mode: Mode for metadata publishing via gvametapublish elements.
-        test_run: When True, run in test mode without persisting test data
-            to the database. Defaults to False.
         enable_latency_metrics: When True, the GStreamer subprocess runs with
             the DLStreamer `latency_tracer` active in pipeline-only mode with
             a 1000 ms interval. Defaults to False (tracer disabled).
@@ -537,7 +535,6 @@ class InternalExecutionConfig:
     output_mode: InternalOutputMode
     max_runtime: float
     metadata_mode: InternalMetadataMode
-    test_run: bool = False
     enable_latency_metrics: bool = False
 
 
@@ -722,6 +719,57 @@ class InternalDensityJobSummary:
 
     id: str
     request: Dict[str, Any]
+
+
+@dataclass
+class InternalBenchmarkJobStatus:
+    """
+    Internal state of a benchmark-suite orchestration job.
+
+    A benchmark job executes all test cases from one benchmark suite
+    sequentially by invoking performance tests one-by-one.
+
+    Attributes:
+        id: Benchmark job identifier.
+        suite_slug: Benchmark suite slug.
+        suite_run_id: Primary key of BenchmarkSuiteRun row created for this job.
+        state: Current benchmark job state.
+        start_time: Job start time in milliseconds since epoch.
+        end_time: Job end time in milliseconds since epoch (None if running).
+        details: Human-readable details about current benchmark state.
+        total_test_cases: Number of planned test cases.
+        completed_test_cases: Number of finished test cases.
+        current_test_case_run_id: Active BenchmarkTestCaseRun row id, if any.
+        current_performance_job_id: Active underlying performance job id, if any.
+    """
+
+    id: str
+    suite_slug: str
+    suite_run_id: int
+    state: InternalTestJobState
+    start_time: int
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    total_test_cases: int = 0
+    completed_test_cases: int = 0
+    current_test_case_run_id: int | None = None
+    current_performance_job_id: str | None = None
+
+
+@dataclass
+class InternalBenchmarkJobSummary:
+    """
+    Internal short summary of a benchmark orchestration job.
+
+    Attributes:
+        id: Benchmark job identifier.
+        suite_slug: Benchmark suite slug.
+        suite_run_id: Primary key of BenchmarkSuiteRun row.
+    """
+
+    id: str
+    suite_slug: str
+    suite_run_id: int
 
 
 @dataclass

@@ -69,7 +69,6 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
       - `output_mode`: disabled (default), file, or live_stream
       - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
       - `metadata_mode`: disabled (default) or file
-      - `test_run`: false (default) saves data to DB, true skips DB persistence
 
     ## Response Codes
 
@@ -243,7 +242,6 @@ def run_density_test(body: schemas.DensityTestSpec):
       - `output_mode`: disabled (default) or file (live_stream not supported)
       - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
       - `metadata_mode`: must be disabled (metadata output not supported)
-      - `test_run`: false (default) saves data to DB, true skips DB persistence
 
     ## Response Codes
 
@@ -539,7 +537,6 @@ def _convert_execution_config(
         output_mode=_convert_output_mode(config.output_mode),
         max_runtime=config.max_runtime,
         metadata_mode=_convert_metadata_mode(config.metadata_mode),
-        test_run=config.test_run,
         enable_latency_metrics=config.enable_latency_metrics,
     )
 

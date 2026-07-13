@@ -68,6 +68,16 @@ class TestJobState(str, Enum):
     FAILED = "FAILED"
 
 
+class BenchmarkTestCaseRunStatus(str, Enum):
+    """Status of a benchmark test-case run."""
+
+    CREATED = "created"
+    RUNNING = "running"
+    PASSED = "passed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class OptimizationJobState(str, Enum):
     """
     **Generic state of an optimization job.**
@@ -1306,7 +1316,7 @@ class ExecutionConfig(BaseModel):
     **Configuration for pipeline execution behavior.**
 
     This configuration controls output generation, runtime limits,
-    metadata publishing, and test-run mode for test pipelines.
+    and metadata publishing for test pipelines.
 
     ## Attributes
     - `output_mode` - Mode for pipeline output generation:
@@ -1320,9 +1330,6 @@ class ExecutionConfig(BaseModel):
     - `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:
       - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)
       - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints
-    - `test_run` - Controls test-run persistence behavior:
-      - `false` - Run with normal database persistence (default)
-      - `true` - Run without saving test data to the database
 
     ### Example (disabled output, no runtime limit)
     ```json
@@ -1357,15 +1364,6 @@ class ExecutionConfig(BaseModel):
     }
     ```
 
-    ### Example (test-run enabled)
-    ```json
-    {
-      "output_mode": "disabled",
-      "max_runtime": 0,
-      "metadata_mode": "disabled",
-      "test_run": true
-    }
-    ```
     """
 
     output_mode: OutputMode = Field(
@@ -1380,10 +1378,6 @@ class ExecutionConfig(BaseModel):
     metadata_mode: MetadataMode = Field(
         default=MetadataMode.DISABLED,
         description="Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints.",
-    )
-    test_run: bool = Field(
-        default=False,
-        description="Controls test-run persistence behavior. false (default): use normal database persistence. true: do not save test data to the database.",
     )
     enable_latency_metrics: bool = Field(
         default=False,
@@ -1600,51 +1594,153 @@ class TestJobResponse(BaseModel):
     )
 
 
-class BenchmarkType(str, Enum):
-    """Type of benchmark definition stored in the database."""
 
-    PERFORMANCE = "performance"
-    DENSITY = "density"
+class BenchmarkJobResponse(BaseModel):
+    """Simple envelope with a new benchmark job identifier."""
 
-
-class BenchmarkPerformanceSetup(BaseModel):
-    """Pipeline setup entry for a performance benchmark."""
-
-    pipeline_id: str
-    variant_id: str
-    streams: int
+    job_id: str = Field(
+        ...,
+        description="Identifier of the created benchmark job.",
+        examples=["benchmark-job-123"],
+    )
 
 
-class BenchmarkDensitySetup(BaseModel):
-    """Pipeline setup entry for a density benchmark."""
+class BenchmarkJobStatus(BaseModel):
+    """Status of a benchmark-suite orchestration job."""
 
-    pipeline_id: str
-    variant_id: str
-    participation_rate: float
+    id: str
+    suite_slug: str
+    suite_run_id: int
+    start_time: int
+    elapsed_time: int
+    state: TestJobState
+    details: list[str]
+    total_test_cases: int
+    completed_test_cases: int
+    current_test_case_run_id: int | None
+    current_performance_job_id: str | None
 
 
-class BenchmarkBase(BaseModel):
-    """Common benchmark fields shared by all benchmark types."""
+class BenchmarkJobSummary(BaseModel):
+    """Short summary for a benchmark-suite orchestration job."""
+
+    id: str
+    suite_slug: str
+    suite_run_id: int
+
+
+class BenchmarkTestCase(BaseModel):
+  """Concrete stream-count test case belonging to a workload."""
+
+  id: int
+  variant_id: str
+  streams: int
+
+
+class BenchmarkWorkload(BaseModel):
+  """Pipeline workload definition belonging to a benchmark suite."""
+
+  id: int
+  pipeline_id: str
+  variants: str
+  test_cases: list[BenchmarkTestCase]
+
+
+class BenchmarkSuite(BaseModel):
+  """Benchmark suite with nested workloads and test cases."""
+
+  id: int
+  slug: str
+  name: str
+  description: str
+  created_at: datetime
+  last_run_at: datetime
+  workloads: list[BenchmarkWorkload]
+
+
+class BenchmarkTestCaseRun(BaseModel):
+    """Historical run record for one benchmark test case."""
 
     id: int
-    name: str
+    test_case_id: int
+    variant_id: str
+    streams: int
+    workload_run_id: int
+    start_time: int | None
+    execution_time: int | None
+    total_fps: float | None
+    per_stream_fps: float | None
+    cpu_usage: float | None
+    gpu_usage: float | None
+    memory_usage: float | None
+    power_usage: float | None
+    metrics: str | None
+    job_id: str
+    status: BenchmarkTestCaseRunStatus
 
 
-class BenchmarkWithPerformanceSetup(BenchmarkBase):
-    """Performance benchmark with setup rows from benchmark_performance_setups."""
+class BenchmarkWorkloadRun(BaseModel):
+    """Historical run record for one workload within a suite run."""
 
-    type: Literal["performance"]
-    setups: list[BenchmarkPerformanceSetup]
+    id: int
+    workload_id: int
+    pipeline_id: str
+    suite_run_id: int
+    status: BenchmarkTestCaseRunStatus
+    score_total: float | None
+    score_performance: float | None
+    score_efficiency: float | None
+    start_time: int | None
+    execution_time: int | None
+    test_case_runs: list[BenchmarkTestCaseRun]
+    total_test_cases: int
+    passed_test_cases: int
+    failed_test_cases: int
+    pass_rate: float
 
 
-class BenchmarkWithDensitySetup(BenchmarkBase):
-    """Density benchmark with setup rows from benchmark_density_setups."""
+class BenchmarkSuiteRun(BaseModel):
+    """Historical run record for one benchmark suite execution."""
 
-    type: Literal["density"]
-    setups: list[BenchmarkDensitySetup]
+    id: int
+    suite_id: int
+    suite_slug: str
+    suite_name: str
+    suite_description: str
+    status: BenchmarkTestCaseRunStatus
+    score_total: float | None
+    score_performance: float | None
+    score_efficiency: float | None
+    start_time: int
+    execution_time: int | None
+    job_id: str
+    total_test_cases: int
+    passed_test_cases: int
 
 
-BenchmarkWithSetup = BenchmarkWithPerformanceSetup | BenchmarkWithDensitySetup
+class BenchmarkSuiteRunDetails(BenchmarkSuiteRun):
+    """Detailed benchmark suite run with nested workload and test-case runs."""
+
+    workload_runs: list[BenchmarkWorkloadRun]
+
+
+class BenchmarkSuiteRef(BaseModel):
+  """Compact benchmark suite reference for nested responses."""
+
+  id: int
+  slug: str
+  name: str
+  description: str
+
+
+class BenchmarkTestCaseRunDetails(BenchmarkTestCaseRun):
+  """Detailed benchmark test-case run with resolved foreign-key metadata."""
+
+  suite_run_id: int
+  workload_id: int
+  pipeline_id: str
+  test_case: BenchmarkTestCase
+  suite: BenchmarkSuiteRef
 
 
 class LatencyMetrics(BaseModel):

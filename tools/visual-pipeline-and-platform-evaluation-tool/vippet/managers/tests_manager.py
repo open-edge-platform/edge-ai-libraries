@@ -1,9 +1,11 @@
-import asyncio
+import json
 import logging
+import os
 import threading
 import time
 import uuid
-from typing import TypeVar
+from typing import Any, TypeVar
+import httpx
 from graph import Graph
 
 from internal_types import (
@@ -28,14 +30,122 @@ from managers.pipeline_manager import PipelineManager
 from managers.metadata_manager import MetadataManager
 from videos import collect_video_outputs_from_dirs
 from utils import slugify_text
-from database import async_session_maker
-from orm_models import (
-    BenchmarkResultPerformance,
-    BenchmarkRun,
-    BenchmarkRunPerformanceSetup,
-)
 
 logger = logging.getLogger("tests_manager")
+
+METRICS_MANAGER_URL: str = os.environ.get(
+    "METRICS_MANAGER_URL", "http://metrics-manager:9090"
+).rstrip("/")
+METRICS_STREAM_PATH = "/metrics/stream"
+METRICS_STREAM_MAX_EVENTS: int = int(
+    os.environ.get("TESTS_METRICS_STREAM_MAX_EVENTS", "10000")
+)
+
+
+class _MetricsSSECollector:
+    """Background SSE collector for `/metrics/stream` payloads."""
+
+    def __init__(
+        self,
+        stream_url: str,
+        logger_instance: logging.Logger,
+        max_events: int = METRICS_STREAM_MAX_EVENTS,
+    ) -> None:
+        self._stream_url = stream_url
+        self._logger = logger_instance
+        self._max_events = max_events
+        self._events: list[str] = []
+        self._events_lock = threading.Lock()
+        self._resources_lock = threading.Lock()
+        self._stop_event = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._client: httpx.Client | None = None
+        self._response: httpx.Response | None = None
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+
+        with self._resources_lock:
+            if self._response is not None:
+                self._response.close()
+            if self._client is not None:
+                self._client.close()
+
+        self._thread.join(timeout=1.0)
+
+    def snapshot(self) -> list[str]:
+        with self._events_lock:
+            return list(self._events)
+
+    def _record_event(self, data_lines: list[str]) -> None:
+        if not data_lines:
+            return
+        payload = "\n".join(data_lines)
+        self._logger.info("Metrics SSE event received: %s", payload)
+        with self._events_lock:
+            self._events.append(payload)
+            if len(self._events) > self._max_events:
+                del self._events[0 : len(self._events) - self._max_events]
+
+    def _run(self) -> None:
+        timeout = httpx.Timeout(connect=5.0, read=None, write=5.0, pool=5.0)
+        headers = {
+            "Accept": "text/event-stream",
+            "Cache-Control": "no-cache",
+        }
+
+        try:
+            with httpx.Client(timeout=timeout, headers=headers) as client:
+                with self._resources_lock:
+                    self._client = client
+
+                with client.stream("GET", self._stream_url) as response:
+                    response.raise_for_status()
+
+                    with self._resources_lock:
+                        self._response = response
+
+                    data_lines: list[str] = []
+                    for line in response.iter_lines():
+                        if self._stop_event.is_set():
+                            break
+
+                        if line is None:
+                            continue
+
+                        if line == "":
+                            self._record_event(data_lines)
+                            data_lines = []
+                            continue
+
+                        if line.startswith(":"):
+                            continue
+
+                        field, separator, value = line.partition(":")
+                        if not separator:
+                            continue
+
+                        if value.startswith(" "):
+                            value = value[1:]
+
+                        if field == "data":
+                            data_lines.append(value)
+
+                    self._record_event(data_lines)
+
+        except Exception as exc:
+            self._logger.warning(
+                "Metrics SSE collector stopped for '%s': %s",
+                self._stream_url,
+                exc,
+            )
+        finally:
+            with self._resources_lock:
+                self._response = None
+                self._client = None
 
 
 def _map_latency_tracer_samples(
@@ -113,11 +223,64 @@ class TestsManager:
         ] = {}
         # Currently running PipelineRunner or Benchmark jobs keyed by job id
         self.runners: dict[str, PipelineRunner | Benchmark] = {}
+        # Active metrics SSE collectors keyed by job id.
+        self._metrics_collectors: dict[str, _MetricsSSECollector] = {}
+        # Final metrics payload (JSON text) keyed by job id.
+        self._metrics_json_text: dict[str, str] = {}
         # Shared lock protecting access to ``jobs`` and ``runners``
         self._jobs_lock = threading.Lock()
         self.logger = logging.getLogger("TestsManager")
         # Pipeline manager instance
         self.pipeline_manager = PipelineManager()
+
+    def _start_metrics_stream_collection(self, job_id: str) -> None:
+        if not METRICS_MANAGER_URL:
+            return
+
+        stream_url = f"{METRICS_MANAGER_URL}{METRICS_STREAM_PATH}"
+        collector = _MetricsSSECollector(
+            stream_url=stream_url,
+            logger_instance=self.logger,
+        )
+        collector.start()
+
+        with self._jobs_lock:
+            self._metrics_collectors[job_id] = collector
+
+    def _stop_metrics_stream_collection(self, job_id: str) -> None:
+        with self._jobs_lock:
+            collector = self._metrics_collectors.pop(job_id, None)
+
+        if collector is None:
+            return
+
+        collector.stop()
+        events = collector.snapshot()
+        metrics_json_text = self._serialize_metrics_events(events)
+
+        with self._jobs_lock:
+            self._metrics_json_text[job_id] = metrics_json_text
+
+    @staticmethod
+    def _serialize_metrics_events(events: list[str]) -> str:
+        parsed_events: list[dict[str, Any] | str] = []
+        for payload in events:
+            try:
+                parsed_events.append(json.loads(payload))
+            except Exception:
+                parsed_events.append(payload)
+        return json.dumps(parsed_events)
+
+    def _get_metrics_json_text_for_job(self, job_id: str) -> str | None:
+        with self._jobs_lock:
+            metrics_json_text = self._metrics_json_text.get(job_id)
+            collector = self._metrics_collectors.get(job_id)
+
+        if metrics_json_text is not None:
+            return metrics_json_text
+        if collector is None:
+            return None
+        return self._serialize_metrics_events(collector.snapshot())
 
     @staticmethod
     def _generate_job_id() -> str:
@@ -129,6 +292,8 @@ class TestsManager:
     def test_performance(
         self,
         internal_spec: InternalPerformanceTestSpec,
+        collect_metrics: bool = False,
+        job_id: str | None = None,
     ) -> str:
         """
         Start a performance test job in the background and return its job id.
@@ -144,7 +309,8 @@ class TestsManager:
         Returns:
             Job ID of the created performance job.
         """
-        job_id = self._generate_job_id()
+        if job_id is None:
+            job_id = self._generate_job_id()
 
         # Create job record with original request dict from internal spec
         job = InternalPerformanceJobStatus(
@@ -158,9 +324,16 @@ class TestsManager:
             self.jobs[job_id] = job
 
         # Start execution in background thread
+        if collect_metrics:
+            thread_args = (job_id, internal_spec, True)
+        else:
+            # Keep the historical call signature for unit tests and
+            # existing mocks when metrics collection is disabled.
+            thread_args = (job_id, internal_spec)
+
         thread = threading.Thread(
             target=self._execute_performance_test,
-            args=(job_id, internal_spec),
+            args=thread_args,
             daemon=True,
         )
         thread.start()
@@ -168,6 +341,58 @@ class TestsManager:
         self.logger.info(f"Performance test started for job {job_id}")
 
         return job_id
+
+    def test_performance_sync(
+        self,
+        internal_spec: InternalPerformanceTestSpec,
+        collect_metrics: bool = False,
+        job_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Execute a performance test synchronously and return final result payload.
+
+        This method is intended for orchestration flows that need to run
+        multiple performance tests sequentially and consume each finished
+        test result (for example: total_fps, metrics, job_id) before
+        starting the next one.
+
+        Cancellation is still supported: the running job is registered in
+        ``self.jobs`` / ``self.runners`` and can be cancelled by calling
+        :meth:`stop_job` from another thread or API request while this call
+        is blocked.
+
+        Args:
+            internal_spec: Validated and converted internal test specification.
+
+        Returns:
+            dict: Final execution payload with keys:
+                - job_id
+                - state
+                - total_fps
+                - metrics
+                - details
+                - cancelled
+        """
+        if job_id is None:
+            job_id = self._generate_job_id()
+
+        job = InternalPerformanceJobStatus(
+            id=job_id,
+            request=internal_spec.original_request,
+            state=InternalTestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+        )
+
+        with self._jobs_lock:
+            self.jobs[job_id] = job
+
+        self.logger.info(f"Performance test started synchronously for job {job_id}")
+
+        return self._execute_performance_test(
+            job_id,
+            internal_spec,
+            collect_metrics,
+        )
 
     def test_density(
         self,
@@ -350,7 +575,8 @@ class TestsManager:
         self,
         job_id: str,
         internal_spec: InternalPerformanceTestSpec,
-    ):
+        collect_metrics: bool = False,
+    ) -> dict[str, Any]:
         """
         Execute the performance test in a background thread.
 
@@ -378,6 +604,9 @@ class TestsManager:
             job_id: Job identifier.
             internal_spec: Internal test specification with resolved pipeline information.
         """
+        if collect_metrics:
+            self._start_metrics_stream_collection(job_id)
+
         try:
             # Validate execution_config (performance tests support all output modes)
             self._validate_execution_config(
@@ -399,7 +628,7 @@ class TestsManager:
                     job_id,
                     "At least one stream must be specified to run the pipeline.",
                 )
-                return
+                return self._build_performance_execution_result(job_id)
 
             # Build pipeline command from specs.
             # `pipeline_cmd` carries the pipeline string plus all
@@ -537,17 +766,6 @@ class TestsManager:
                             job.latency_tracer_metrics = _map_latency_tracer_samples(
                                 result.latency_tracer_metrics
                             )
-
-                            # Save benchmark results to database
-                            if not internal_spec.execution_config.test_run:
-                                self._save_perf_test_results_async(
-                                    job_id,
-                                    1,
-                                    internal_spec.pipeline_performance_specs,
-                                    result.total_fps,
-                                    job.start_time,
-                                    max(0, (job.end_time or job.start_time) - job.start_time),
-                                )
                     else:
                         # Normal completion (exit_code is always 0 here because
                         # non-zero exit without cancellation raises RuntimeError
@@ -576,22 +794,13 @@ class TestsManager:
                             result.latency_tracer_metrics
                         )
 
-                        # Save benchmark results to database
-                        if not internal_spec.execution_config.test_run:
-                            self._save_perf_test_results_async(
-                                job_id,
-                                1,
-                                internal_spec.pipeline_performance_specs,
-                                result.total_fps,
-                                job.start_time,
-                                max(0, (job.end_time or job.start_time) - job.start_time),
-                            )
-
                 # Clean up runner after completion regardless of outcome
                 self.runners.pop(job_id, None)
 
             # Stop tailing metadata files now that the pipeline has finished
             MetadataManager().stop_tailing(job_id)
+
+            return self._build_performance_execution_result(job_id)
 
         except Exception as e:
             # Clean up runner on error
@@ -599,6 +808,34 @@ class TestsManager:
                 self.runners.pop(job_id, None)
             MetadataManager().stop_tailing(job_id)
             self._update_job_failed(job_id, str(e))
+            return self._build_performance_execution_result(job_id)
+        finally:
+            if collect_metrics:
+                self._stop_metrics_stream_collection(job_id)
+
+    def _build_performance_execution_result(self, job_id: str) -> dict[str, Any]:
+        """Build final performance execution payload for orchestration callers."""
+        with self._jobs_lock:
+            job = self.jobs.get(job_id)
+
+        if job is None or not isinstance(job, InternalPerformanceJobStatus):
+            return {
+                "job_id": job_id,
+                "state": InternalTestJobState.FAILED,
+                "total_fps": None,
+                "metrics": None,
+                "details": [f"Job {job_id} not found after execution."],
+                "cancelled": False,
+            }
+
+        return {
+            "job_id": job.id,
+            "state": job.state,
+            "total_fps": job.total_fps,
+            "metrics": self._get_metrics_json_text_for_job(job_id),
+            "details": list(job.details),
+            "cancelled": any("cancel" in detail.lower() for detail in job.details),
+        }
 
     def _execute_density_test(
         self,
@@ -795,131 +1032,6 @@ class TestsManager:
             self.logger.debug(f"Test job summary for {job_id}: {job_summary}")
 
             return job_summary
-
-    async def _save_performance_test_to_database(
-        self,
-        job_id: str,
-        benchmark_id: int,
-        pipeline_performance_specs: list[InternalPipelinePerformanceSpec],
-        total_fps: float | None,
-        start_time: int,
-        execution_time: int,
-    ) -> None:
-        """
-        Save performance test results to BenchmarkRun,
-        BenchmarkRunPerformanceSetup, and BenchmarkResultPerformance tables.
-
-        For variant-based pipeline specs (with pipeline_id format "/pipelines/{pid}/variants/{vid}"),
-        extract and save both pipeline_id and variant_id. For inline graphs/descriptions,
-        variant_id will be None (and should be handled by the caller if needed).
-
-        Args:
-            job_id: Job identifier to link to the benchmark run
-            benchmark_id: Benchmark ID (hardcoded to 1 for now)
-            pipeline_performance_specs: List of pipeline specs with streams information
-            total_fps: Aggregated FPS value for the completed performance run.
-            start_time: Job start timestamp in milliseconds since epoch.
-            execution_time: Final job runtime in milliseconds.
-        """
-        try:
-            if not async_session_maker:
-                self.logger.warning(
-                    f"Database not initialized, skipping benchmark result persistence for job {job_id}"
-                )
-                return
-
-            async with async_session_maker() as session:
-                # Create BenchmarkRun record
-                benchmark_run = BenchmarkRun(
-                    benchmark_id=benchmark_id,
-                    job_id=job_id,
-                    start_time=start_time,
-                    execution_time=execution_time,
-                )
-                session.add(benchmark_run)
-                await session.flush()  # Get the auto-generated ID
-
-                # Create BenchmarkRunPerformanceSetup records for each pipeline
-                for spec in pipeline_performance_specs:
-                    # Parse pipeline_id to extract variant_id
-                    # Format: "/pipelines/{pid}/variants/{vid}" for variant-based specs
-                    pid = None
-                    vid = None
-
-                    if "/variants/" in spec.pipeline_id:
-                        parts = spec.pipeline_id.split("/variants/")
-                        if len(parts) == 2:
-                            pid = parts[0].lstrip("/pipelines/").strip("/")
-                            vid = parts[1].strip("/")
-
-                    if pid and vid:
-                        setup = BenchmarkRunPerformanceSetup(
-                            benchmark_run_id=benchmark_run.id,
-                            pipeline_id=pid,
-                            variant_id=vid,
-                            streams=spec.streams,
-                        )
-                        session.add(setup)
-                    else:
-                        self.logger.warning(
-                            f"Skipping benchmark setup for pipeline_id {spec.pipeline_id} "
-                            f"(not a variant-based spec)"
-                        )
-
-                # Create BenchmarkResultPerformance for aggregated run metrics.
-                if total_fps is not None:
-                    benchmark_result = BenchmarkResultPerformance(
-                        benchmark_id=benchmark_id,
-                        benchmark_run_id=benchmark_run.id,
-                        total_fps=total_fps,
-                    )
-                    session.add(benchmark_result)
-                else:
-                    self.logger.warning(
-                        "Skipping BenchmarkResultPerformance for job %s because total_fps is None",
-                        job_id,
-                    )
-
-                await session.commit()
-                self.logger.info(
-                    f"Saved performance test results to database for job {job_id}, "
-                    f"benchmark_run_id={benchmark_run.id}"
-                )
-        except Exception as e:
-            self.logger.error(
-                f"Failed to save performance test results to database for job {job_id}: {e}",
-                exc_info=True,
-            )
-
-    def _save_perf_test_results_async(
-        self,
-        job_id: str,
-        benchmark_id: int,
-        pipeline_performance_specs: list[InternalPipelinePerformanceSpec],
-        total_fps: float | None,
-        start_time: int,
-        execution_time: int,
-    ) -> None:
-        """
-        Wrapper to run async database save in a background thread context.
-        Creates a new event loop for the async operation.
-        """
-        try:
-            asyncio.run(
-                self._save_performance_test_to_database(
-                    job_id,
-                    benchmark_id,
-                    pipeline_performance_specs,
-                    total_fps,
-                    start_time,
-                    execution_time,
-                )
-            )
-        except Exception as e:
-            self.logger.error(
-                f"Error running async database save for job {job_id}: {e}",
-                exc_info=True,
-            )
 
     def stop_job(self, job_id: str) -> tuple[bool, str]:
         """
