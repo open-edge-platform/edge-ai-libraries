@@ -43,9 +43,7 @@ debian_70_start_esq () {
   configure_esq
   pushd "$workspace" > /dev/null
   esq clean --all
-  esq run -v -f ${options[@]}
-  esq summary
-  esq report
+  esq run -v -f ${options[@]} && esq summary && esq report
   popd > /dev/null
 }
 
