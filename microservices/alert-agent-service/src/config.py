@@ -27,7 +27,7 @@ def _float(key: str, default: float) -> float:
 
 
 class Settings:
-    PORT: int = _int("PORT", 9001)
+    PORT: int = int(os.getenv("PORT", 8000))
     APP_NAME: str = os.getenv("APP_NAME", "Alert Agent Service")
     DEBUG: bool = _bool("DEBUG", False)
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

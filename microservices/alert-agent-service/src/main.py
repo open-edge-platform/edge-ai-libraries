@@ -12,7 +12,6 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-import psutil
 from fastapi import APIRouter, Body, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -157,6 +156,28 @@ app.add_middleware(
 # API router with configurable prefix (default: /api/v1)
 router = APIRouter()
 
+ALERTS_INGEST_REQUEST_EXAMPLE = {
+    "alert_type": "fire_detection",
+    "source_id": "cam-01",
+    "alert_name": "Fire Detection",
+    "answer": "YES",
+    "reason": "Visible flames near the loading bay door",
+    "timestamp": "2026-06-19T08:30:00Z",
+    "metadata": {
+        "confidence": 0.95,
+        "camera_id": "cam-01",
+        "site": "warehouse-a",
+    },
+    "payload": {
+        "severity": "critical",
+        "evidence": [
+            "Flame-colored region detected",
+            "Rapid brightness increase",
+        ],
+    },
+    "tools": ["log_alert", "trigger_webhook"],
+}
+
 
 def _require_agent() -> AlertActionAgent:
     if agent is None:
@@ -180,21 +201,40 @@ async def health():
     }
 
 
-@router.get("/metrics", tags=["Observability"])
-async def metrics():
-    """Basic system metrics."""
-    return {
-        "gpu_percent": psutil.gpu_percent(interval=None),
-        "memory_percent": psutil.virtual_memory().percent,
-        "uptime_seconds": round(time.monotonic() - _startup_time, 1),
-    }
-
-
 # ============================================================================
 # Flexible alert ingestion (alert-service compatible)
 # ============================================================================
 
-@router.post("/alerts", tags=["Alerts"])
+@router.post(
+    "/alerts",
+    tags=["Alerts"],
+    summary="Ingest alert payload",
+    description=(
+        "Accept a flexible JSON alert payload, matching the alert-service API. "
+        "Unknown fields are preserved and normalized before the request is "
+        "dispatched through the standard action pipeline."
+    ),
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "description": (
+                            "Flexible alert-service compatible payload. "
+                            "Common fields include alert_type, source_id, "
+                            "alert_name, answer, reason, metadata, payload, "
+                            "timestamp, and tools."
+                        ),
+                    },
+                    "example": ALERTS_INGEST_REQUEST_EXAMPLE,
+                }
+            },
+        }
+    },
+)
 async def ingest_alert(request: Request) -> dict:
     """Accept a flexible JSON alert payload, matching alert-service API.
 

@@ -37,7 +37,7 @@ git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-li
 ### 2. Navigate to the Service Directory
 
 ```bash
-cd edge-ai-libraries/microservices/alert-services/alert-agent-service
+cd edge-ai-libraries/microservices/alert-agent-service
 ```
 
 ### 3. Configure Environment Variables

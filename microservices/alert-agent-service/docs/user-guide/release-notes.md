@@ -18,7 +18,7 @@
 - Server-Sent Events (SSE) stream (`GET /api/v1/events`) and WebSocket stream (`GET /api/v1/ws`) for real-time alert event fanout.
 - Hot-reload endpoints for tools (`POST /api/v1/tools/reload`) and MCP servers (`POST /api/v1/mcp/reload`) without service restart.
 - Subscription management endpoint (`GET /api/v1/subscriptions`) to inspect loaded routing rules.
-- Liveness probe (`GET /api/v1/health`) and basic system metrics (`GET /api/v1/metrics`).
+- Liveness probe (`GET /api/v1/health`).
 - Docker Compose deployment with OVMS LLM sidecar container.
 - Helm chart support for Kubernetes deployment.
 

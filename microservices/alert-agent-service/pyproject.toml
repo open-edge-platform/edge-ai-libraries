@@ -23,9 +23,6 @@ dependencies = [
     "aiohttp>=3.13.4",
     "paho-mqtt>=2.0.0",
 
-    # System metrics
-    "psutil>=5.9.0",
-
     # YAML config
     "pyyaml>=6.0",
 
