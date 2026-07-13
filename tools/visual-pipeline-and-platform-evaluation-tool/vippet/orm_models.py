@@ -1,154 +1,128 @@
-"""
-SQLAlchemy ORM models for ViPPET database schema.
+"""SQLAlchemy ORM models for the benchmark database schema."""
 
-Define table structure here by creating classes that inherit from Base.
-All models imported by this module are loaded during startup before
-Base.metadata.create_all() is executed.
+from datetime import datetime
 
-Example:
-    from sqlalchemy import String
-    from sqlalchemy.orm import Mapped, mapped_column
-
-    from database import Base
-
-    class JobRecord(Base):
-        __tablename__ = "job_records"
-
-        id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-        job_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
-"""
-
-import enum
-
-from sqlalchemy import BigInteger, Enum, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
 
 
-class BenchmarkType(enum.Enum):
-    performance = "performance"
-    density = "density"
+class BenchmarkSuite(Base):
+    """Top-level benchmark suite definition."""
 
-
-class Benchmark(Base):
-    """Benchmark execution record."""
-
-    __tablename__ = "benchmarks"
+    __tablename__ = "benchmark_suites"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    slug: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    type: Mapped[BenchmarkType] = mapped_column(Enum(BenchmarkType), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class BenchmarkPerformanceSetup(Base):
-    """Performance test configuration linked to a Benchmark."""
+class BenchmarkWorkload(Base):
+    """Pipeline workload definition within a benchmark suite."""
 
-    __tablename__ = "benchmark_performance_setups"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    benchmark_id: Mapped[int] = mapped_column(
-        ForeignKey("benchmarks.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    pipeline_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    variant_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    streams: Mapped[int] = mapped_column(Integer, nullable=False)
-
-
-class BenchmarkDensitySetup(Base):
-    """Density test configuration linked to a Benchmark."""
-
-    __tablename__ = "benchmark_density_setups"
+    __tablename__ = "benchmark_workloads"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    benchmark_id: Mapped[int] = mapped_column(
-        ForeignKey("benchmarks.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    pipeline_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    variant_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    participation_rate: Mapped[float] = mapped_column(nullable=False)
-
-
-class BenchmarkRun(Base):
-    """A single execution run of a Benchmark."""
-
-    __tablename__ = "benchmark_runs"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    benchmark_id: Mapped[int] = mapped_column(
-        ForeignKey("benchmarks.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    job_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
-    start_time: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    execution_time: Mapped[int] = mapped_column(BigInteger, nullable=False)
-
-
-class BenchmarkRunPerformanceSetup(Base):
-    """Performance pipeline configuration for a specific BenchmarkRun."""
-
-    __tablename__ = "benchmark_run_performance_setups"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    benchmark_run_id: Mapped[int] = mapped_column(
-        ForeignKey("benchmark_runs.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    pipeline_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    variant_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    streams: Mapped[int] = mapped_column(Integer, nullable=False)
-
-
-class BenchmarkRunDensitySetup(Base):
-    """Density pipeline configuration for a specific BenchmarkRun."""
-
-    __tablename__ = "benchmark_run_density_setups"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    benchmark_run_id: Mapped[int] = mapped_column(
-        ForeignKey("benchmark_runs.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    pipeline_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    variant_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    participation_rate: Mapped[float] = mapped_column(nullable=False)
-
-
-class BenchmarkResultPerformance(Base):
-    """Aggregated performance result for a BenchmarkRun."""
-
-    __tablename__ = "benchmark_result_performances"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    benchmark_id: Mapped[int] = mapped_column(
-        ForeignKey("benchmarks.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    benchmark_run_id: Mapped[int] = mapped_column(
-        ForeignKey("benchmark_runs.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    total_fps: Mapped[float] = mapped_column(nullable=False)
-
-class BenchmarkResultDensity(Base):
-    """Aggregated density result for a BenchmarkRun."""
-
-    __tablename__ = "benchmark_result_densities"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    benchmark_id: Mapped[int] = mapped_column(
-        ForeignKey("benchmarks.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    benchmark_run_id: Mapped[int] = mapped_column(
-        ForeignKey("benchmark_runs.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    per_stream_fps: Mapped[float] = mapped_column(nullable=False)
-    stream_distribution_id: Mapped[int] = mapped_column(
-        ForeignKey("benchmark_result_density_stream_distributions.id", ondelete="SET NULL"),
-        nullable=True,
+    suite_id: Mapped[int] = mapped_column(
+        ForeignKey("benchmark_suites.id", ondelete="CASCADE"),
+        nullable=False,
         index=True,
     )
+    pipeline_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    variants: Mapped[str] = mapped_column(String(255), nullable=False)
 
-class BenchmarkResultDensityStreamDistribution(Base):
-    """Stream distribution across pipelines for a density result."""
 
-    __tablename__ = "benchmark_result_density_stream_distributions"
+class BenchmarkTestCase(Base):
+    """Concrete test case for a workload."""
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    pipeline_id: Mapped[str] = mapped_column(String(255), primary_key=True)
-    streams: Mapped[int] = mapped_column(Integer, primary_key=True)
+    __tablename__ = "benchmark_test_cases"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    workload_id: Mapped[int] = mapped_column(
+        ForeignKey("benchmark_workloads.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    variant_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    streams: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class BenchmarkSuiteRun(Base):
+    """Execution record for an entire benchmark suite."""
+
+    __tablename__ = "benchmark_suite_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    suite_id: Mapped[int] = mapped_column(
+        ForeignKey("benchmark_suites.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    score_total: Mapped[float | None] = mapped_column(Float, nullable=True)
+    score_performance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    score_efficiency: Mapped[float | None] = mapped_column(Float, nullable=True)
+    start_time: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    execution_time: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    job_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
+    total_test_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    passed_test_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class BenchmarkWorkloadRun(Base):
+    """Execution record for one workload within a suite run."""
+
+    __tablename__ = "benchmark_workload_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    workload_id: Mapped[int] = mapped_column(
+        ForeignKey("benchmark_workloads.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    suite_run_id: Mapped[int] = mapped_column(
+        ForeignKey("benchmark_suite_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    score_total: Mapped[float | None] = mapped_column(Float, nullable=True)
+    score_performance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    score_efficiency: Mapped[float | None] = mapped_column(Float, nullable=True)
+    start_time: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    execution_time: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="created")
+    total_test_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    passed_test_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class BenchmarkTestCaseRun(Base):
+    """Execution record for one test case run."""
+
+    __tablename__ = "benchmark_test_case_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    test_case_id: Mapped[int] = mapped_column(
+        ForeignKey("benchmark_test_cases.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    workload_run_id: Mapped[int] = mapped_column(
+        ForeignKey("benchmark_workload_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    start_time: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    execution_time: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    total_fps: Mapped[float | None] = mapped_column(Float, nullable=True)
+    per_stream_fps: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cpu_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    gpu_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    memory_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    power_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    metrics: Mapped[str | None] = mapped_column(Text, nullable=True)
+    job_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="created")
