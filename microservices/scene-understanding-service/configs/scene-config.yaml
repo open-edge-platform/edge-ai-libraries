@@ -46,6 +46,9 @@ mqtt:
   image_topic_pattern: scenescape/image/camera/+
   cmd_topic_pattern: scenescape/cmd/camera/{camera_name}
   alert_topic_prefix: alerts
+  # Behavioral-analysis request/result topics (shared with the BA worker).
+  ba_request_topic: ba/requests
+  ba_result_topic: ba/results
 
 # ---------------------------------------------------------------------------
 # Optional blocks — uncomment only when the consuming application uses them.

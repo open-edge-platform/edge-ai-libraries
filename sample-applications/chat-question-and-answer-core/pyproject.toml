@@ -3,7 +3,7 @@ name = "chatqna-core"
 version = "0.1"
 description = "A monolithic chat-based question and answer system that leverages Intel's advanced Generative AI technologies and employs Retrieval-Augmented-Generation (RAG) techniques."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 dependencies = [
 	"docx2txt>=0.9,<0.10",
 	"faiss-cpu>=1.11.0",
@@ -29,8 +29,9 @@ openvino = [
 ollama = [
 	"langchain-ollama==1.0.1",
 ]
-dev = [
+test = [
 	"pytest>=9.0.3,<10.0.0",
+	"pytest-cov>=6.0.0,<7.0.0",
 	"pytest-mock>=3.15.0,<4.0.0",
 	"coverage>=7.13.0,<8.0.0",
 	"pytest-asyncio>=1.3.0,<2.0.0",
@@ -49,8 +50,22 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "module"
 
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
 [build-system]
-requires = ["hatchling>=1.24.0"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
