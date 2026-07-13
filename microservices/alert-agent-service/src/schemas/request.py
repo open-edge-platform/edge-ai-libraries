@@ -220,7 +220,13 @@ class HealthResponse(BaseModel):
 
 
 class ToolInvokeRequest(BaseModel):
-    parameters: Dict[str, Any] = Field(default_factory=dict)
+    parameters: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Keyword arguments passed directly to the selected tool. "
+            "Required keys depend on the tool_name path parameter."
+        ),
+    )
 
 
 class ToolInvokeResponse(BaseModel):

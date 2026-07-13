@@ -4,7 +4,7 @@
   "servers": [
     {
       "name": "prometheus",
-      "enabled": false,
+      "enabled": true,
       "transport": "http",
       "url": "<mcp_server_url>/mcp",
       "description": "Prometheus MCP Server — query metrics, get alerts, analyse system performance",

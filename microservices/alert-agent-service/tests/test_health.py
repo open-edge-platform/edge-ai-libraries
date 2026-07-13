@@ -43,3 +43,16 @@ def test_alerts_openapi_includes_request_payload_example():
     assert request_body["schema"]["additionalProperties"] is True
     assert request_body["example"]["alert_type"] == "fire_detection"
     assert request_body["example"]["source_id"] == "cam-01"
+
+
+def test_tool_invoke_openapi_includes_request_examples():
+    schema = app.openapi()
+    operation = schema["paths"][f"{settings.API_V1_PREFIX}/tools/{{tool_name}}/invoke"]["post"]
+    request_body = operation["requestBody"]["content"]["application/json"]
+    examples = request_body["examples"]
+
+    assert operation["summary"] == "Invoke built-in tool"
+    assert request_body["schema"]["$ref"] == "#/components/schemas/ToolInvokeRequest"
+    assert examples["log_alert"]["value"]["parameters"]["source_id"] == "cam-01"
+    assert examples["log_alert"]["value"]["parameters"]["alert_name"] == "Fire Detection"
+    assert examples["publish_mqtt"]["value"]["parameters"]["answer"] == "YES"

@@ -178,6 +178,66 @@ ALERTS_INGEST_REQUEST_EXAMPLE = {
     "tools": ["log_alert", "trigger_webhook"],
 }
 
+TOOL_INVOKE_REQUEST_EXAMPLES = {
+    "log_alert": {
+        "summary": "Invoke log_alert",
+        "description": "Minimal payload for the built-in log_alert tool.",
+        "value": {
+            "parameters": {
+                "source_id": "cam-01",
+                "alert_name": "Fire Detection",
+                "answer": "YES",
+                "reason": "Visible flames near the loading bay door",
+            }
+        },
+    },
+    "trigger_webhook": {
+        "summary": "Invoke trigger_webhook",
+        "description": "Send an arbitrary JSON payload to the configured webhook.",
+        "value": {
+            "parameters": {
+                "payload": {
+                    "source_id": "cam-01",
+                    "alert_name": "Fire Detection",
+                    "answer": "YES",
+                    "reason": "Visible flames near the loading bay door",
+                }
+            }
+        },
+    },
+    "capture_snapshot": {
+        "summary": "Invoke capture_snapshot",
+        "description": "Persist image bytes provided as a base64-encoded string.",
+        "value": {
+            "parameters": {
+                "source_id": "cam-01",
+                "alert_name": "Fire Detection",
+                "image_bytes": "base64-encoded-image-bytes",
+                "mime_type": "image/jpeg",
+            }
+        },
+    },
+    "publish_mqtt": {
+        "summary": "Invoke publish_mqtt",
+        "description": "Publish an alert envelope to the configured MQTT broker.",
+        "value": {
+            "parameters": {
+                "source_id": "cam-01",
+                "alert_name": "Fire Detection",
+                "answer": "YES",
+                "reason": "Visible flames near the loading bay door",
+                "metadata": {"confidence": 0.95},
+            }
+        },
+    },
+}
+
+MCP_TOOL_INVOKE_REQUEST_EXAMPLE = {
+    "parameters": {
+        "query": "latest alert summary",
+    }
+}
+
 
 def _require_agent() -> AlertActionAgent:
     if agent is None:
@@ -652,7 +712,26 @@ async def list_tools():
     return JSONResponse(content={"tools": tools, "count": len(tools)})
 
 
-@router.post("/tools/{tool_name}/invoke", tags=["Tools"])
+@router.post(
+    "/tools/{tool_name}/invoke",
+    tags=["Tools"],
+    response_model=ToolInvokeResponse,
+    summary="Invoke built-in tool",
+    description=(
+        "Manually invoke a registered built-in tool for testing or debugging. "
+        "Pass the tool arguments inside the `parameters` object. Required keys "
+        "depend on the selected `tool_name`."
+    ),
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": TOOL_INVOKE_REQUEST_EXAMPLES,
+                }
+            }
+        }
+    },
+)
 async def invoke_tool(
     tool_name: str,
     request: ToolInvokeRequest = Body(default=None),
@@ -755,7 +834,26 @@ async def mcp_reload():
         raise HTTPException(status_code=500, detail=f"MCP reload failed: {exc}")
 
 
-@router.post("/mcp/tools/{tool_name}/invoke", tags=["MCP"])
+@router.post(
+    "/mcp/tools/{tool_name}/invoke",
+    tags=["MCP"],
+    response_model=ToolInvokeResponse,
+    summary="Invoke MCP tool",
+    description=(
+        "Manually invoke a discovered MCP tool for testing or debugging. "
+        "Pass the tool arguments inside the `parameters` object; the exact "
+        "shape depends on the MCP tool's advertised input schema."
+    ),
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "example": MCP_TOOL_INVOKE_REQUEST_EXAMPLE,
+                }
+            }
+        }
+    },
+)
 async def invoke_mcp_tool(
     tool_name: str,
     request: ToolInvokeRequest = Body(default=None),
