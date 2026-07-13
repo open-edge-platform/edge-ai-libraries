@@ -19,14 +19,14 @@ metadata:
 
 Before starting, ask the user for these values if not already provided:
 
-| Input | Example |
-|-------|---------|
-| **product name** | `Time Series Analytics` |
-| **Base branch** | `main`, `release-2026.0` |
-| **Release branch** | `release-2026.1.0` |
-| **Version number** | `2026.1` |
-| **Release month and year** | `June 2026` |
-| **Folder path in repo** | `microservices/time-series-analytics` |
+| Input | Example | Notes |
+|-------|---------|-------|
+| **product name** | `Time Series Analytics` | Required |
+| **Base branch** | `main`, `release-2026.0` | Required |
+| **Release branch** | `release-2026.1.0` | Required |
+| **Version number** | `2026.1` | Optional — auto-derived from the release branch name if not provided (see Step 3) |
+| **Release month and year** | `June 2026` | Required |
+| **Folder path in repo** | `microservices/time-series-analytics` | Required |
 
 > If the user has not specified the product name, ask them:
 > "What is the product name to include in the release notes? (e.g., Time Series Analytics)"
@@ -79,6 +79,14 @@ Follow the [release notes format template](./assets/release-notes-template.md) e
 
 - File heading: `# Release Notes: <product_name>` — use the product name supplied by the user (e.g., `# Release Notes: Time Series Analytics`).
 - Version heading: `## Version <X.Y>` — always `##`, never `#` or `###`
+
+  **Versioning strategy:** The version number follows the `YYYY.MINOR` scheme where `YYYY` is the calendar year and `MINOR` is the sequential release number within that year (starting at `0`). Derive it from the release branch name by stripping the `release-` prefix and any trailing patch segment (`.0`):
+  - `release-2026.0` → `2026.0`
+  - `release-2026.1.0` → `2026.1`
+  - `release-2026.2.0` → `2026.2`
+
+  MINOR increments sequentially within a calendar year (e.g., `2026.0`, `2026.1`, `2026.2`, …). If the user has not specified the version number, derive it from the release branch using this rule and confirm with the user before writing.
+
 - Date line immediately below: `**<Month Year>**` (bold, on its own line, NOT embedded in the heading)
 - One-sentence introductory paragraph that names the **2–4 most significant highlights** in bold inline, ending with `and various fixes and documentation improvements.` (or similar closing clause)
 - Each category as a **bold paragraph heading** — write exactly `**New**`, `**Improved**`, `**Fixed**` — these are NOT markdown `##` or `###` headers, just bold text on its own line

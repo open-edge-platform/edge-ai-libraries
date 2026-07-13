@@ -4,7 +4,7 @@ description: >
   Generates or updates CHANGELOG.md by analyzing git commit history between two branches,
   tags, or revisions in ANY git repository or folder. Use this skill whenever the user
   asks to create, update, generate changelog, draft release notes from git history, or
-  compare branches/tags (e.g., "generate changelog comparing release-2026.0 and release-2026.1",
+  compare branches/tags (e.g., "generate changelog comparing release-2026.0.0 and release-2026.1.0",
   "update CHANGELOG.md for the time-series-analytics folder", "what changed between v1.0.0
   and main", "create release notes for this project"). The skill auto-detects folder paths,
   infers version numbers from branch/tag names, detects existing CHANGELOG format, and
@@ -29,8 +29,8 @@ Collect from the user (or infer from context):
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | `folder_path` | Path to the repository root or to a folder inside the repository; a subfolder automatically scopes commit extraction to that path | `/path/to/repo`, `microservices/time-series-analytics`, `./my-project` |
-| `base_ref` | Starting branch, tag, or commit | `release-2026.0`, `v1.0.0`, `main`, commit SHA |
-| `target_ref` | Ending branch, tag, or commit | `release-2026.1`, `v2.0.0`, `develop` |
+| `base_ref` | Starting branch, tag, or commit | `release-2026.0.0`, `v1.0.0`, `main`, commit SHA |
+| `target_ref` | Ending branch, tag, or commit | `release-2026.1.0`, `v2.0.0`, `develop` |
 | `version_label` | Version string for CHANGELOG entry | `2026.1.0`, `v1.2.0` |
 | `release_date` | Release month and year (optional) | `June 2026`, `January 2024` |
 | `changelog_path` | Output path for CHANGELOG.md | `<folder_path>/CHANGELOG.md` (default) |
@@ -70,7 +70,7 @@ If `folder_path` is not fully specified:
 If `version_label` is not provided, attempt to infer from `target_ref`:
 
 1. **From branch name:** Extract version from naming patterns:
-   - `release-2026.1` → `2026.1`
+   - `release-2026.1.0` → `2026.1`
    - `release-2026.1.0` → `2026.1.0`
    - `v1.2.0` → `1.2.0`
    - `v2.0.0-rc1` → `2.0.0-rc1`
