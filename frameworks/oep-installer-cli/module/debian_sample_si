@@ -1,12 +1,12 @@
 
-debian_90_profile_sample_si () {
-  echo "git curl gawk"
-}
-
 configure_sample_si () {
   workspace="$(readlink -f ~)/openedge-catalog/sample-smart-intersection"
   version=release-2026.1.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+debian_90_profile_sample_si () {
+  echo "git curl gawk"
 }
 
 debian_90_install_sample_si () {
