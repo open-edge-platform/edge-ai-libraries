@@ -87,8 +87,6 @@ for proxy_var in http_proxy https_proxy no_proxy HTTP_PROXY HTTPS_PROXY NO_PROXY
 done
 
 # Enable BuildKit if available for efficient multi-stage builds.
-# Falls back to legacy builder if buildx is not installed - the Dockerfile stage
-# ordering ensures prod builds correctly with either builder.
 if docker buildx version &>/dev/null; then
   export DOCKER_BUILDKIT=1
 fi

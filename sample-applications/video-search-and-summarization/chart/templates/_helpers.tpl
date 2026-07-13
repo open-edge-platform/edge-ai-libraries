@@ -95,16 +95,29 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 
 {{/*
-Validate device pairing for multimodal embedding service and VDMS DataPrep when both are enabled.
+No-op placeholder for chart-level validations.
 */}}
 {{- define "video-summarization.validateGpuPairing" -}}
-{{- $mmeEnabled := (default false .Values.multimodalembeddingms.enabled) -}}
-{{- $dataprepEnabled := (default false .Values.vdmsdataprep.enabled) -}}
-{{- if and $mmeEnabled $dataprepEnabled -}}
-	{{- $mmeDevice := default "CPU" .Values.global.devices.multimodalEmbedding.device -}}
-	{{- $dataprepDevice := default "CPU" .Values.global.devices.vdmsDataprep.device -}}
-	{{- if ne $mmeDevice $dataprepDevice -}}
-		{{- fail "global.devices.multimodalEmbedding.device and global.devices.vdmsDataprep.device must be equal when both subcharts are enabled" -}}
-	{{- end -}}
+{{- end -}}
+
+{{/*
+Compose an image reference with an optional single-source global registry/tag override.
+
+Args (dict):
+  registry   - global.registry; when set, the image is pulled from this registry and only the
+               bare image name (base of repository) is kept (e.g. "intel/pipeline-manager" -> "pipeline-manager").
+  repository - the chart's default repository (may include a registry/namespace prefix).
+  tag        - the already-resolved tag to use.
+
+When registry is empty the repository is used verbatim, preserving existing behavior.
+*/}}
+{{- define "vss.image" -}}
+{{- $registry := .registry | default "" -}}
+{{- $repository := .repository -}}
+{{- $tag := .tag -}}
+{{- if $registry -}}
+{{- printf "%s/%s:%s" (trimSuffix "/" $registry) (base $repository) $tag -}}
+{{- else -}}
+{{- printf "%s:%s" $repository $tag -}}
 {{- end -}}
 {{- end -}}

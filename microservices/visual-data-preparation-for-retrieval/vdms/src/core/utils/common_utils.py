@@ -122,10 +122,10 @@ def create_detector_instance(config: Optional[dict] = None, enable_object_detect
                 sanitize_for_log(detection_confidence, max_length=64),
             )
         
-        # Use the same device as processing components for consistency across all components
-        sdk_device = settings.DEVICE
-        detection_config['device'] = sdk_device
-        logger.info(f"Using processing device for object detection: {sdk_device}")
+        logger.info(
+            "Using configured object detection device: %s",
+            detection_config.get('device', 'CPU'),
+        )
         
         logger.info(
             "Object detection configuration: enabled=%s, device=%s, confidence_threshold=%s",

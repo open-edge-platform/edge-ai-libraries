@@ -62,19 +62,13 @@ Following options are provided to build the microservice.
 
 5. Spin up the services. Please go through different ways to spin up the services.
 
-   ```bash
-   # Run the development environment in daemon mode
-   source ./setup.sh --dev
+```bash
+# Run all services in daemon mode
+source ./setup.sh
 
-   # Run the development environment in non-daemon mode
-   source ./setup.sh --dev --nd
-
-   # Run the production environment in daemon mode
-   source ./setup.sh
-
-   # Run the production environment in non-daemon mode
-   source ./setup.sh --nd
-   ```
+# Run all services in non-daemon mode (logs on STDOUT)
+source ./setup.sh --nd
+```
 
 6. Tear down all the services.
 

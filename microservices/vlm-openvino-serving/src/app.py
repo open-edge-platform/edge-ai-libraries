@@ -14,11 +14,11 @@ from multiprocessing import Manager
 from pathlib import Path
 from queue import Queue
 from threading import Thread
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 from datetime import datetime, timezone
 
 import openvino_genai as ov_genai
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Path as APIPath, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi_utils.tasks import repeat_every
@@ -38,7 +38,11 @@ from src.utils.data_models import (
     MessageContentText,
     MessageContentVideo,
     MessageContentVideoUrl,
+    DeviceListResponse,
+    ErrorResponse,
+    HealthResponse,
     ModelsResponse,
+    QueueStatusResponse,
     TelemetryListResponse,
     TelemetryMetrics,
     TelemetryRequestMetadata,
@@ -252,7 +256,12 @@ async def lifespan(app: FastAPI):
     log_task.cancel()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title=settings.APP_DISPLAY_NAME,
+    description=settings.APP_DESC,
+    version="1.3.2",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -339,8 +348,14 @@ class RequestQueueMiddleware(BaseHTTPMiddleware):
 app.add_middleware(RequestQueueMiddleware)
 
 
-@app.get("/v1/queue-status")
-async def queue_status():
+@app.get(
+    "/v1/queue-status",
+    tags=["Service"],
+    summary="Get request queue status",
+    operation_id="getQueueStatus",
+    response_model=QueueStatusResponse,
+)
+async def queue_status() -> QueueStatusResponse:
     """
     Get the current status of the request queue.
 
@@ -353,13 +368,7 @@ async def queue_status():
     logger.info(
         f"Queue status - Active requests: {active}, Queued requests: {queued} (Process: {os.getpid()})"
     )
-    return JSONResponse(
-        status_code=200,
-        content={
-            "active_requests": active,
-            "queued_requests": queued,
-        },
-    )
+    return QueueStatusResponse(active_requests=active, queued_requests=queued)
 
 
 
@@ -467,12 +476,21 @@ def initialize_model():
     global model_ready
     global pipe, processor, model_dir, model_config
     model_name = settings.VLM_MODEL_NAME
-    model_dir = Path(model_name.split("/")[-1])
-    model_dir = Path("ov-model") / model_dir
-    model_dir.mkdir(parents=True, exist_ok=True)
+    device_dir = settings.VLM_DEVICE.lower()
     weight = settings.VLM_COMPRESSION_WEIGHT_FORMAT.lower()
-    model_dir = model_dir / weight
-    logger.info(f"Model_name: {model_name} \b Compression_Weight_Format: {weight}")
+    model_dir = Path("ov-model") / model_name.split("/")[-1] / device_dir
+
+    # OpenVINO namespace models are pre-converted; skip the weight subfolder.
+    if not model_name.startswith("OpenVINO/"):
+        model_dir = model_dir / weight
+    model_dir.parent.mkdir(parents=True, exist_ok=True)
+    logger.info(
+        "Model_name: %s | Compilation_Device: %s | Compression_Weight_Format: %s | Model_Dir: %s",
+        model_name,
+        settings.VLM_DEVICE.upper(),
+        weight,
+        model_dir,
+    )
 
     try:
         if not model_dir.exists():
@@ -489,7 +507,10 @@ def initialize_model():
     try:
         model_config = load_model_config(model_name.split("/")[-1].lower())
         ov_config = settings.get_ov_config_dict()
+        vlm_ov_config = settings.get_vlm_pipeline_ov_config()
+        logger.info(f"Using device: {settings.VLM_DEVICE.upper()}")
         logger.debug(f"Using OpenVINO configuration: {ov_config}")
+        logger.debug(f"Using VLMPipeline configuration: {vlm_ov_config}")
         if ModelNames.SMOLVLM in model_name.lower():
             pipe = OVModelForVisualCausalLM.from_pretrained(
                 model_dir,
@@ -505,7 +526,7 @@ def initialize_model():
             pipe = ov_genai.VLMPipeline(
                 model_dir,
                 device=settings.VLM_DEVICE.upper(),
-                **ov_config,
+                **vlm_ov_config,
             )
 
             if ModelNames.PHI in model_name.lower():
@@ -530,8 +551,12 @@ def initialize_model():
         raise RuntimeError(f"Error initializing the model: {e}")
 
 
-# Initialize the model to create global objects of processor, model, model_ready
-initialize_model()
+# Initialize the model to create global objects of processor, model, model_ready.
+# This can be skipped for schema-generation workflows that only need route metadata.
+if os.getenv("VLM_SKIP_MODEL_INIT", "").lower() in {"1", "true", "yes"}:
+    logger.info("Skipping model initialization because VLM_SKIP_MODEL_INIT is enabled.")
+else:
+    initialize_model()
 
 
 def create_streaming_response(
@@ -624,7 +649,47 @@ def create_streaming_response(
     )
 
 
-@app.post("/v1/chat/completions")
+@app.post(
+    "/v1/chat/completions",
+    tags=["Chat Completions"],
+    summary="Generate multimodal chat completion",
+    operation_id="createChatCompletion",
+    response_model=ChatCompletionResponse,
+    response_model_exclude_none=True,
+    responses={
+        200: {
+            "description": (
+                "Chat completion response. Returns JSON when stream=false "
+                "and server-sent events when stream=true."
+            ),
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/ChatCompletionResponse"}
+                },
+                "text/event-stream": {
+                    "schema": {
+                        "type": "string",
+                        "example": (
+                            'data: {"id":"chatcmpl-123","object":"chat.completion.chunk"}\\n\\n'
+                        ),
+                    }
+                },
+            },
+        },
+        400: {
+            "description": "Invalid request payload.",
+            "model": ErrorResponse,
+        },
+        404: {
+            "description": "Requested model does not match configured model.",
+            "model": ErrorResponse,
+        },
+        500: {
+            "description": "Internal server error during completion generation.",
+            "model": ErrorResponse,
+        },
+    },
+)
 async def chat_completions(request: ChatRequest):
     """
     Handle chat completion requests.
@@ -1449,7 +1514,13 @@ async def chat_completions(request: ChatRequest):
             cleanup_pipeline_state()
 
 
-@app.get("/v1/telemetry", response_model=TelemetryListResponse)
+@app.get(
+    "/v1/telemetry",
+    tags=["Telemetry"],
+    summary="List recent telemetry records",
+    operation_id="listTelemetry",
+    response_model=TelemetryListResponse,
+)
 async def list_telemetry(
     limit: Optional[int] = Query(
         default=None,
@@ -1473,7 +1544,13 @@ async def list_telemetry(
     return TelemetryListResponse(count=len(records), items=records)
 
 
-@app.get("/v1/models", response_model=ModelsResponse)
+@app.get(
+    "/v1/models",
+    tags=["Models"],
+    summary="List configured model",
+    operation_id="listModels",
+    response_model=ModelsResponse,
+)
 async def get_models():
     """
     Retrieve the list of available models.
@@ -1483,7 +1560,13 @@ async def get_models():
     """
     try:
         logger.info("Fetching available models.")
-        models = [{"id": settings.VLM_MODEL_NAME, "object": "model"}]
+        models = [
+            {
+                "id": settings.VLM_MODEL_NAME,
+                "object": "model",
+                "device": settings.VLM_DEVICE,
+            }
+        ]
         logger.info(f"Available models: {models}")
         return ModelsResponse(object="list", data=models)
     except Exception as e:
@@ -1492,8 +1575,14 @@ async def get_models():
         raise RuntimeError(f"{ErrorMessages.GET_MODELS_ERROR}: {e}")
 
 
-@app.get("/device", tags=["Device API"], summary="Get available device list")
-async def get_device():
+@app.get(
+    "/device",
+    tags=["Device"],
+    summary="List available OpenVINO devices",
+    operation_id="listDevices",
+    response_model=DeviceListResponse,
+)
+async def get_device() -> DeviceListResponse:
     """
     Retrieve a list of available devices.
 
@@ -1507,7 +1596,7 @@ async def get_device():
         logger.info("Fetching available devices.")
         devices = get_devices()
         logger.info(f"Available devices: {devices}")
-        return {"devices": devices}
+        return DeviceListResponse(devices=devices)
 
     except Exception as e:
         logger.info("Exception encountered while fetching devices.")
@@ -1518,8 +1607,22 @@ async def get_device():
         raise HTTPException(status_code=500, detail="Internal server error.")
 
 
-@app.get("/device/{device}", tags=["Device API"], summary="Get device property")
-async def get_device_info(device: str):
+@app.get(
+    "/device/{device}",
+    tags=["Device"],
+    summary="Get OpenVINO device properties",
+    operation_id="getDeviceProperties",
+    response_model=Dict[str, Any],
+    responses={
+        404: {
+            "description": "Device not found.",
+            "model": ErrorResponse,
+        }
+    },
+)
+async def get_device_info(
+    device: str = APIPath(description="OpenVINO device name, for example CPU, GPU, or NPU.")
+):
     """
     Retrieve information about a specific device.
 
@@ -1568,8 +1671,15 @@ async def get_device_info(device: str):
         raise HTTPException(status_code=500, detail="Internal server error.")
 
 
-@app.get("/health")
-async def health_check():
+@app.get(
+    "/health",
+    tags=["Service"],
+    summary="Check service health",
+    operation_id="getHealthStatus",
+    response_model=HealthResponse,
+    responses={503: {"description": "Model is not ready yet."}},
+)
+async def health_check() -> HealthResponse:
     """
     Perform a health check for the application.
 
@@ -1578,7 +1688,7 @@ async def health_check():
     """
     if model_ready:
         logger.debug("Model is ready. Returning healthy status.")
-        return JSONResponse(status_code=200, content={"status": "healthy"})
+        return HealthResponse(status="healthy")
     else:
         logger.debug("Model is not ready. Returning unhealthy status.")
         return JSONResponse(status_code=503, content={"status": "model not ready"})
