@@ -35,6 +35,10 @@ EOF
     fi
     ensure_sudo systemctl daemon-reload
     ensure_sudo systemctl restart docker
+
+    echo "Add $USER to the docker group"
+    ensure_sudo usermod -aG docker $USER
+    newgrp docker
   fi
 }
 
