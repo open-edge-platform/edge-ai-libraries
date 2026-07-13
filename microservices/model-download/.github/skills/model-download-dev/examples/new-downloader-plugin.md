@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Example: New Downloader Plugin
 
 ## Scenario
@@ -157,4 +160,3 @@ You are done when all of these are true:
 - a request with `"hub": "myhub"` is accepted
 - a download job reaches `completed`
 - the result contains a correct host-visible `download_path`
-

@@ -138,7 +138,7 @@ Extract the following from the user's prompt. If anything is missing, ask before
 | Required | What to look for | Default if absent |
 |----------|-----------------|-------------------|
 | **Model name** | Exact model identifier (e.g. `meta-llama/Llama-3.2-1B`) | Must ask |
-| **Hub** | One of: `huggingface`, `ollama`, `ultralytics`, `geti`, `pipeline-zoo-models`, `hls` | Must ask |
+| **Hub** | One of: `huggingface`, `openvino`, `ollama`, `ultralytics`, `geti`, `pipeline-zoo-models`, `hls` | Must ask |
 | **Conversion needed?** | User says "OVMS", "OpenVINO format", "convert", "is_ovms" | `false` |
 | **Device** | CPU / GPU / NPU | `CPU` |
 | **Precision** | int4 / int8 / fp16 / fp32 | `int8` for LLMs; `fp16` for others |
@@ -263,7 +263,7 @@ After confirming success, tell the user:
 **Important accuracy note for OpenVINO conversions:** Use `hub: "openvino"` with `is_ovms: true`
 for model conversion.
 
-**Quick alternative:** For one-shot, ephemeral container use (CI/CD, scripted workflows), show the `get_model.sh` one-liner from [scripts/get_model.sh](../../../microservices/model-download/scripts/get_model.sh):
+**Quick alternative:** For one-shot, ephemeral container use (CI/CD, scripted workflows), use the `get_model.sh` one-liner 
 ```bash
 curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/model-download/scripts/get_model.sh
 source ./get_model.sh --model-name <model> --hub <hub> --plugins <plugins>

@@ -88,8 +88,8 @@ On success, the converted model is typically stored under:
 
 The job result includes a host-visible `conversion_path` you can mount into OVMS.
 
-> Even though the OpenVINO plugin performs the conversion, the request should currently be sent as
-> a HuggingFace model with `is_ovms: true`.
+> For the current conversion flow, send the request with `hub: "openvino"` and
+> `is_ovms: true`.
 
 ---
 
