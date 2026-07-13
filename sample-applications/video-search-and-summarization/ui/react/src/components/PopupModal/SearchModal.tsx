@@ -57,20 +57,24 @@ const processImageFile = (file: File): Promise<string> =>
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
-      const scale = Math.min(
-        1,
-        IMAGE_SEARCH_MAX_DIMENSION / Math.max(img.width, img.height),
-      );
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(img.width * scale));
-      canvas.height = Math.max(1, Math.round(img.height * scale));
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
+      try {
+        const scale = Math.min(
+          1,
+          IMAGE_SEARCH_MAX_DIMENSION / Math.max(img.width, img.height),
+        );
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject('searchImageDecodeError');
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
+      } catch {
         reject('searchImageDecodeError');
-        return;
       }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.9));
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);

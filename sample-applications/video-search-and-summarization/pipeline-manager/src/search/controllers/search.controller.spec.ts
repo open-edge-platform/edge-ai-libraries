@@ -123,6 +123,20 @@ describe('SearchController', () => {
       expect(searchStateService.newQuery).not.toHaveBeenCalled();
     });
 
+    it('should reject a search with both text and image input', async () => {
+      await expect(
+        controller.addQuery({
+          query: 'person walking',
+          image: 'data:image/jpeg;base64,abc',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Provide either a text query or an image, not both.',
+        ),
+      );
+      expect(searchStateService.newQuery).not.toHaveBeenCalled();
+    });
+
     it('should add a new query without tags', async () => {
       const reqBody = {
         query: 'new test query'

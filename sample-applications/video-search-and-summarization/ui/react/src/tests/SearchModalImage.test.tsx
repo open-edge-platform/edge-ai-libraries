@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -23,6 +23,7 @@ vi.mock('../config', () => ({
 
 import { SearchModal, SearchModalProps } from '../components/PopupModal/SearchModal';
 import { SearchReducers } from '../redux/search/searchSlice.ts';
+import { MAX_IMAGE_SIZE_MB } from '../utils/constant';
 import i18n from '../utils/i18n';
 
 const mockDispatch = vi.fn();
@@ -128,12 +129,22 @@ describe('SearchModal image search', () => {
   it('rejects an oversized image with a validation error', async () => {
     const { container } = renderComponent();
     fireEvent.change(getFileInput(container), {
-      target: { files: [makeFile('big.png', 'image/png', 11 * 1024 * 1024)] },
+      target: {
+        files: [
+          makeFile(
+            'big.png',
+            'image/png',
+            (MAX_IMAGE_SIZE_MB + 1) * 1024 * 1024,
+          ),
+        ],
+      },
     });
 
     await waitFor(() => {
       expect(
-        screen.getByText('Image is too large. Maximum size is 10 MB.'),
+        screen.getByText(
+          `Image is too large. Maximum size is ${MAX_IMAGE_SIZE_MB} MB.`,
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -141,7 +152,7 @@ describe('SearchModal image search', () => {
   it('swaps the text area for a preview when a valid image is chosen', async () => {
     const { container } = renderComponent();
     fireEvent.change(getFileInput(container), {
-      target: { files: [makeFile('frame.png', 'image/png')] },
+      target: { files: [makeFile('frame.webp', 'image/webp')] },
     });
 
     // Preview appears...
@@ -150,6 +161,24 @@ describe('SearchModal image search', () => {
     });
     // ...and the text area is removed to reclaim the space.
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('reports an error when canvas encoding fails', async () => {
+    HTMLCanvasElement.prototype.toDataURL = vi.fn(() => {
+      throw new Error('Canvas encoding failed');
+    });
+    const { container } = renderComponent();
+
+    fireEvent.change(getFileInput(container), {
+      target: { files: [makeFile('frame.png', 'image/png')] },
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Could not read the image. Please try a different file.'),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
   });
 
   it('dispatches a search when submitting with an image', async () => {

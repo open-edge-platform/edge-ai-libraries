@@ -31,26 +31,23 @@ export class SearchController {
     private $feature: FeaturesService,
   ) {}
 
-  /**
-   * Reject an image-based search unless the deployment supports it (frame-embedding
-   * modes only). Returns true when the request carries an image.
-   */
-  private assertImageSearchAllowed(image?: unknown): boolean {
-    const hasImage = typeof image === 'string' && image.trim().length > 0;
+  private assertValidSearchInput(reqBody: SearchQueryDTO): boolean {
+    const hasImage =
+      typeof reqBody.image === 'string' && reqBody.image.trim().length > 0;
+    const hasText =
+      typeof reqBody.query === 'string' && reqBody.query.trim().length > 0;
+    if (hasImage && hasText) {
+      throw new BadRequestException(
+        'Provide either a text query or an image, not both.',
+      );
+    }
+    if (!hasImage && !hasText) {
+      throw new BadRequestException('Search query cannot be empty.');
+    }
     if (hasImage && !this.$feature.isImageSearchEnabled()) {
       throw new BadRequestException(
         'Image search is not supported in this deployment mode.',
       );
-    }
-    return hasImage;
-  }
-
-  private assertValidSearchInput(reqBody: SearchQueryDTO): boolean {
-    const hasImage = this.assertImageSearchAllowed(reqBody.image);
-    const hasText =
-      typeof reqBody.query === 'string' && reqBody.query.trim().length > 0;
-    if (!hasImage && !hasText) {
-      throw new BadRequestException('Search query cannot be empty.');
     }
     return hasImage;
   }

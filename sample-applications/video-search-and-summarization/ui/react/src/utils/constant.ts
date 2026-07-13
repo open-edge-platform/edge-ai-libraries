@@ -12,11 +12,13 @@ export const MAX_FILE_SIZE: number = 10;
 export const acceptedImageFormats: string[] = [
   'image/jpeg',
   'image/png',
+  'image/webp',
 ];
 export const plainAcceptedImageFormats: string[] = [
   '.jpg',
   '.jpeg',
   '.png',
+  '.webp',
 ];
 export const MAX_IMAGE_SIZE_MB: number = 2;
 // Longest edge (px) the query image is downscaled to before base64 encoding,
