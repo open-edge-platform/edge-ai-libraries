@@ -31,7 +31,7 @@ ensure_git_clone () {
   local version="$2"
   local repository="$3"
 
-  rm -rf "$workspace" || ensure_sudo rm -rf "$workspace"
+  ensure_rmdir "$workspace"
   mkdir -p "$(dirname "$workspace")"
   if [ ${#@} -ge 4 ]; then
     # sparse checkout
@@ -54,5 +54,10 @@ ensure_git_clone () {
 # return the current machine IP address
 ensure_ip () {
   ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
+}
+
+# completely remove dir
+ensure_rmdir () {
+  rm -rf "$1" 2> /dev/null || ensure_sudo rm -rf "$1"
 }
 

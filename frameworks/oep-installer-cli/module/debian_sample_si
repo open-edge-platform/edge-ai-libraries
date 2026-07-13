@@ -4,7 +4,7 @@ debian_90_profile_sample_si () {
 }
 
 configure_sample_si () {
-  workspace="$(readlink -f ~)/openedge-samples/smart-intersection"
+  workspace="$(readlink -f ~)/openedge-catalog/sample-smart-intersection"
   version=release-2026.1.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
 }

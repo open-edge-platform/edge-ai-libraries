@@ -1,0 +1,40 @@
+
+debian_20_install_git () {
+  if docker version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
+    echo "Docker is already installed. Skipping..."
+  else
+    echo "Set docker proxy"
+    ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
+    cat | ensure_sudo tee /etc/systemd/system/docker.service.d/proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=$http_proxy"
+Environment="HTTPS_PROXY=$https_proxy"
+Environment="NO_PROXY=$no_proxy"
+EOF
+
+    echo "Remove legacy installation"
+    ensure_apt remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc
+
+    ensure_sudo install -m 0755 -d /etc/apt/keyrings
+    ensure_sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | ensure_sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    ensure_apt update -y
+    ensure_apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    ensure_sudo systemctl daemon-reload
+
+    DAEMON_JSON="/etc/docker/daemon.json"
+    if [ ! -f "$DAEMON_JSON" ]; then
+      ensure_sudo mkdir -p /etc/docker
+      cat | ensure_sudo tee $DAEMON_JSON <<EOF
+{
+   "exec-opts": [
+        "native.cgroupdriver=systemd"
+    ]
+}
+EOF
+    fi
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl restart docker
+  fi
+}
+

@@ -4,7 +4,7 @@ debian_10_install_curl () {
     echo "Curl is already installed. Skipping..."
   else
     ensure_apt update
-    ensure_apt install -y curl ca-certificates
+    ensure_apt install --no-install-recommends -y curl ca-certificates
   fi
 }
 

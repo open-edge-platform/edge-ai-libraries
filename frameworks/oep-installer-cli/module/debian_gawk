@@ -4,7 +4,7 @@ debian_10_install_gawk () {
     echo "Gawk is already installed. Skipping..."
   else
     ensure_apt update
-    ensure_apt install -y gawk
+    ensure_apt install --no-install-recommends -y gawk
   fi
 }
 

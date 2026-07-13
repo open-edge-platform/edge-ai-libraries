@@ -44,7 +44,7 @@ main () {
 
 act_find_deps () {
   local act_name=$1 i=1
-  local modules=(${*##--*})
+  local modules=(${*##-*})
   local -A handlers=()
   while [ $i -lt ${#modules[*]} ]; do
     local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
@@ -100,7 +100,7 @@ act_helpper () {
         name=$(echo $handler | cut -f4- -d_)
         echo "==== ${act_name} $name ====" > >(logecho $name)
         start_c=$SECONDS
-        [[ "$*" = *"--dry-run"* ]] || ($handler ${*/#[!--]*/}) > >(logecho $name) 2> >(logecho $name)
+        [[ "$*" = *"--dry-run"* ]] || ($handler ${*/#[!-]*/}) > >(logecho $name) 2> >(logecho $name)
         end_c=$SECONDS
         echo "==== ${act_name} $name completed: $(( end_c - start_c )) seconds ====" > >(logecho $name)
       done
@@ -148,7 +148,7 @@ subcommand_bootstrap () {
   fi
   
   # scan for dependencies
-  local modules=(${*##--*})
+  local modules=(${*##-*})
   local -A scripts=()
   local i=0 script
   while [ $i -lt ${#modules[*]} ]; do
@@ -170,9 +170,13 @@ subcommand_bootstrap () {
   if [ ${#scripts[@]} -gt 0 ]; then
     if [[ "$*" != *"--dry-run"* ]]; then
       sed -i '/^#### COLLECTION OF MODULES ####/q' "$0"
-      local modules=(${*/#[!--default=]*/})
+      local modules=()
+      for m in $*; do
+        [[ "$m" = "--default="* ]] || continue
+        modules+=(${m#--default=})
+      done
       if [ ${#modules[*]} -gt 0 ]; then
-        sed -i "1a[ \${#@} -gt 1 ] || set -- install ${modules[*]##--default=}" "$0"
+        sed -i "1a[ \${#@} -gt 1 ] || set -- install ${modules[*]}" "$0"
       fi
       cat "$mydir"/common/os-agnostic >> "$0"
       if [ -r "$mydir"/common/${ID_LIKE} ]; then
