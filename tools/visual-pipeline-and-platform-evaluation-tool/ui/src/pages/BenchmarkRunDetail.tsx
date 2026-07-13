@@ -1,15 +1,15 @@
-import { Link, useParams, useSearchParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import {
   useGetBenchmarkSuiteBySlugQuery,
   useGetBenchmarkSuiteRunByIdQuery,
 } from "@/api/api.generated.ts";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft } from "lucide-react";
+import { BackButton } from "@/components/shared/BackButton";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelinesMap } from "@/store/reducers/pipelines";
 import { useEffect, useState } from "react";
-import { BenchmarkSuiteResultDetailsTable } from "@/features/benchmarks/BenchmarkSuiteResultDetailsTable";
-import { BenchmarkSuiteResultDetailsSkeleton } from "@/features/benchmarks/BenchmarkSuiteResultDetailsSkeleton";
+import { BenchmarkSuiteRunDetailsTable } from "@/features/benchmarks/BenchmarkSuiteRunDetailsTable.tsx";
+import { BenchmarkSuiteRunDetailsSkeleton } from "@/features/benchmarks/BenchmarkSuiteRunDetailsSkeleton.tsx";
 import { RunBenchmarkButton } from "@/features/benchmarks/RunBenchmarkButton";
 import { BenchmarkExportButton } from "@/features/benchmarks/BenchmarkExportButton.tsx";
 import { renderBenchmarkStatus } from "@/features/benchmarks/utils";
@@ -50,16 +50,14 @@ export const BenchmarkRunDetail = () => {
     setShouldPollRun(!TERMINAL_RUN_STATUSES.has(runDetails.status));
   }, [runDetails]);
 
-  const backHref = `${source ? `?source=${source}` : ""}`;
+  const backLinkTo =
+    source === "benchmark-results"
+      ? "/benchmarks"
+      : `/benchmarks/${id ?? ""}${source ? `?source=${source}` : ""}`;
   const isLoadingPipelines = pipelinesMap.size === 0;
 
   if (isLoadingBenchmark || isLoadingRun || isLoadingPipelines) {
-    return (
-      <BenchmarkSuiteResultDetailsSkeleton
-        suiteSlug={id ?? ""}
-        backHref={backHref}
-      />
-    );
+    return <BenchmarkSuiteRunDetailsSkeleton backLinkTo={backLinkTo} />;
   }
 
   if (
@@ -91,13 +89,7 @@ export const BenchmarkRunDetail = () => {
         <div className="mb-6">
           <div className="mb-2 flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <Link
-                to={`/benchmarks/${id}${backHref}`}
-                className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent/50 transition-colors"
-                data-export-ignore
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
+              <BackButton to={backLinkTo} data-export-ignore />
               <h1 className="text-3xl font-bold">
                 {isActiveRun
                   ? `Running ${benchmark.name} (#${runDetails.id})`
@@ -125,7 +117,7 @@ export const BenchmarkRunDetail = () => {
             </div>
           )}
         </div>
-        <BenchmarkSuiteResultDetailsTable
+        <BenchmarkSuiteRunDetailsTable
           benchmark={benchmark}
           runDetails={runDetails}
           pipelinesMap={pipelinesMap}

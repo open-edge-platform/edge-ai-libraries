@@ -33,6 +33,13 @@ const injectedRtkApi = api
           providesTags: ["benchmarks"],
         },
       ),
+      getAllBenchmarkRuns: build.query<
+        GetAllBenchmarkRunsApiResponse,
+        GetAllBenchmarkRunsApiArg
+      >({
+        query: () => ({ url: `/benchmarks/runs` }),
+        providesTags: ["benchmarks"],
+      }),
       getBenchmarkSuiteBySlug: build.query<
         GetBenchmarkSuiteBySlugApiResponse,
         GetBenchmarkSuiteBySlugApiArg
@@ -65,6 +72,15 @@ const injectedRtkApi = api
       >({
         query: (queryArg) => ({
           url: `/benchmarks/${queryArg.suiteSlug}/run/${queryArg.runId}`,
+        }),
+        providesTags: ["benchmarks"],
+      }),
+      getBenchmarkTestRunById: build.query<
+        GetBenchmarkTestRunByIdApiResponse,
+        GetBenchmarkTestRunByIdApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/run/${queryArg.runId}/test/${queryArg.testRunId}`,
         }),
         providesTags: ["benchmarks"],
       }),
@@ -549,6 +565,9 @@ export type GetStatusApiArg = void;
 export type GetBenchmarksApiResponse =
   /** status 200 List of benchmark suites with workloads and test cases */ BenchmarkSuite[];
 export type GetBenchmarksApiArg = void;
+export type GetAllBenchmarkRunsApiResponse =
+  /** status 200 List of all suite runs */ BenchmarkSuiteRun[];
+export type GetAllBenchmarkRunsApiArg = void;
 export type GetBenchmarkSuiteBySlugApiResponse =
   /** status 200 Benchmark suite with workloads and test cases */ BenchmarkSuite;
 export type GetBenchmarkSuiteBySlugApiArg = {
@@ -569,6 +588,13 @@ export type GetBenchmarkSuiteRunByIdApiResponse =
 export type GetBenchmarkSuiteRunByIdApiArg = {
   suiteSlug: string;
   runId: number;
+};
+export type GetBenchmarkTestRunByIdApiResponse =
+  /** status 200 Detailed test-case run with test case and suite metadata */ BenchmarkTestCaseRunDetails;
+export type GetBenchmarkTestRunByIdApiArg = {
+  suiteSlug: string;
+  runId: number;
+  testRunId: number;
 };
 export type ToGraphApiResponse =
   /** status 200 Conversion successful */ PipelineGraphResponse;
@@ -876,6 +902,28 @@ export type MessageResponse = {
   /** Human-readable error or status message. */
   message: string;
 };
+export type BenchmarkTestCaseRunStatus =
+  | "created"
+  | "running"
+  | "passed"
+  | "failed"
+  | "cancelled";
+export type BenchmarkSuiteRun = {
+  id: number;
+  suite_id: number;
+  suite_slug: string;
+  suite_name: string;
+  suite_description: string;
+  status: BenchmarkTestCaseRunStatus;
+  score_total: number | null;
+  score_performance: number | null;
+  score_efficiency: number | null;
+  start_time: number;
+  execution_time: number | null;
+  job_id: string;
+  total_test_cases: number;
+  passed_test_cases: number;
+};
 export type ValidationError = {
   loc: (string | number)[];
   msg: string;
@@ -889,25 +937,6 @@ export type HttpValidationError = {
 export type BenchmarkJobResponse = {
   /** Identifier of the created benchmark job. */
   job_id: string;
-};
-export type BenchmarkTestCaseRunStatus =
-  | "created"
-  | "running"
-  | "passed"
-  | "failed"
-  | "cancelled";
-export type BenchmarkSuiteRun = {
-  id: number;
-  suite_id: number;
-  status: BenchmarkTestCaseRunStatus;
-  score_total: number | null;
-  score_performance: number | null;
-  score_efficiency: number | null;
-  start_time: number;
-  execution_time: number | null;
-  job_id: string;
-  total_test_cases: number;
-  passed_test_cases: number;
 };
 export type BenchmarkTestCaseRun = {
   id: number;
@@ -947,6 +976,9 @@ export type BenchmarkWorkloadRun = {
 export type BenchmarkSuiteRunDetails = {
   id: number;
   suite_id: number;
+  suite_slug: string;
+  suite_name: string;
+  suite_description: string;
   status: BenchmarkTestCaseRunStatus;
   score_total: number | null;
   score_performance: number | null;
@@ -957,6 +989,35 @@ export type BenchmarkSuiteRunDetails = {
   total_test_cases: number;
   passed_test_cases: number;
   workload_runs: BenchmarkWorkloadRun[];
+};
+export type BenchmarkSuiteRef = {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+};
+export type BenchmarkTestCaseRunDetails = {
+  id: number;
+  test_case_id: number;
+  variant_id: string;
+  streams: number;
+  workload_run_id: number;
+  start_time: number | null;
+  execution_time: number | null;
+  total_fps: number | null;
+  per_stream_fps: number | null;
+  cpu_usage: number | null;
+  gpu_usage: number | null;
+  memory_usage: number | null;
+  power_usage: number | null;
+  metrics: string | null;
+  job_id: string;
+  status: BenchmarkTestCaseRunStatus;
+  suite_run_id: number;
+  workload_id: number;
+  pipeline_id: string;
+  test_case: BenchmarkTestCase;
+  suite: BenchmarkSuiteRef;
 };
 export type Node = {
   id: string;
@@ -1529,6 +1590,8 @@ export const {
   useLazyGetStatusQuery,
   useGetBenchmarksQuery,
   useLazyGetBenchmarksQuery,
+  useGetAllBenchmarkRunsQuery,
+  useLazyGetAllBenchmarkRunsQuery,
   useGetBenchmarkSuiteBySlugQuery,
   useLazyGetBenchmarkSuiteBySlugQuery,
   useRunBenchmarkSuiteMutation,
@@ -1536,6 +1599,8 @@ export const {
   useLazyGetBenchmarkSuiteRunsQuery,
   useGetBenchmarkSuiteRunByIdQuery,
   useLazyGetBenchmarkSuiteRunByIdQuery,
+  useGetBenchmarkTestRunByIdQuery,
+  useLazyGetBenchmarkTestRunByIdQuery,
   useToGraphMutation,
   useToDescriptionMutation,
   useGetDevicesQuery,
