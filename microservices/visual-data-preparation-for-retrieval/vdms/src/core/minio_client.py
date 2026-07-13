@@ -371,6 +371,72 @@ class MinioClient:
             logger.error(f"Error checking if object exists: {ex}")
             return False
 
+    def bucket_exists(self, bucket_name: str) -> bool:
+        """Check if the specified bucket exists.
+
+        Args:
+            bucket_name (str): The name of the bucket to check
+
+        Returns:
+            bool: True if the bucket exists, False otherwise
+        """
+        try:
+            return self.client.bucket_exists(bucket_name)
+        except S3Error as ex:
+            logger.error(
+                "Error checking if bucket %s exists: %s",
+                sanitize_for_log(bucket_name, max_length=128),
+                sanitize_for_log(ex, max_length=256),
+            )
+            raise Exception(f"Error checking if bucket {bucket_name} exists: {ex}")
+
+    def list_objects_in_directory(self, bucket_name: str, video_id: str) -> list:
+        """List all objects within a directory (video_id) in the bucket.
+
+        Args:
+            bucket_name (str): The bucket to search in
+            video_id (str): The directory (video_id) to list objects from
+
+        Returns:
+            list: List of Minio object instances found under the directory. Each object
+                  exposes an ``object_name`` attribute.
+
+        Raises:
+            Exception: If listing objects fails
+        """
+        try:
+            prefix = f"{video_id}/" if not video_id.endswith("/") else video_id
+            return list(self.client.list_objects(bucket_name, prefix=prefix, recursive=True))
+        except S3Error as ex:
+            logger.error(
+                "Error listing objects in directory %s of bucket %s: %s",
+                sanitize_for_log(video_id, max_length=128),
+                sanitize_for_log(bucket_name, max_length=128),
+                sanitize_for_log(ex, max_length=256),
+            )
+            raise Exception(f"Error listing objects in directory {video_id}: {ex}")
+
+    def delete_object(self, bucket_name: str, object_name: str) -> None:
+        """Delete an object from the bucket.
+
+        Args:
+            bucket_name (str): The bucket containing the object
+            object_name (str): The full object name (path) to delete
+
+        Raises:
+            Exception: If removing the object fails
+        """
+        try:
+            self.client.remove_object(bucket_name, object_name)
+        except S3Error as ex:
+            logger.error(
+                "Error deleting object %s from bucket %s: %s",
+                sanitize_for_log(object_name, max_length=256),
+                sanitize_for_log(bucket_name, max_length=128),
+                sanitize_for_log(ex, max_length=256),
+            )
+            raise Exception(f"Error deleting object {object_name}: {ex}")
+
     def get_object_metadata(self, bucket_name: str, object_name: str) -> dict:
         """Get metadata information for an object, including creation timestamp.
 

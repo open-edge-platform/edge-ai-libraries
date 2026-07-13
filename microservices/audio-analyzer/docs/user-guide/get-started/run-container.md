@@ -3,18 +3,20 @@
 Use this path to run the service in a container using the prebuilt image
 published on Docker Hub. The API is exposed on port `8010`.
 
-To rebuild the image from source instead of pulling, see
-[build-from-source.md](build-from-source.md).
+To rebuild the image from source instead of pulling, see the
+[Build From Source](./build-from-source.md) guide.
 
 ## Before You Start
 
-- Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see [configuration.md](configuration.md).
+- Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see the [Configuration Guide](./configuration.md).
 - The Compose setup bind-mounts `config.yaml` and stores model, chunk, storage, and Hugging Face cache data in named Docker volumes (`audio_analyzer_models`, `audio_analyzer_chunks`, `audio_analyzer_storage`, `audio_analyzer_cache`). Nothing is written into the source tree.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
 - The container runs as UID/GID `1000:1000` (baked into the image). The named volumes are initialized with that ownership, so no host UID/GID configuration is required.
 - The image reference is `${REGISTRY}/audio-analyzer:${RELEASE_TAG}`, both read from `.env`. Defaults are `REGISTRY=intel` and the committed `RELEASE_TAG` pins the current release.
 
-## Pull And Start
+## Run the Container
+
+### Pull And Start
 
 From the `audio-analyzer/` directory:
 
@@ -27,7 +29,7 @@ docker compose up -d
 Docker Hub. `docker compose up -d` starts the container without
 rebuilding.
 
-## Check Status
+### Check Status
 
 ```bash
 docker compose ps

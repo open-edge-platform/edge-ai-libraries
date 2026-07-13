@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.APP_NAME,
-    version="0.1.0",
+    version=settings.TAG,
     description="Config-driven async Alert Service with deduplication and pluggable delivery",
     debug=settings.DEBUG,
     lifespan=lifespan,

@@ -114,7 +114,7 @@ print(len(embedding))
 import asyncio
 
 async def process_image_url():
-    image_url = "https://example.com/image.jpg"
+    image_url = "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image/coco_bike.jpg"
     embedding = await embedding_model.get_image_embedding_from_url(image_url)
     print(f"Image embedding shape: {len(embedding)}")
 
@@ -148,7 +148,7 @@ print(f"Image embedding shape: {len(embedding)}")
 
 ```python
 async def process_video_url():
-    video_url = "https://example.com/video.mp4"
+    video_url = "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/refs/heads/master/car-detection.mp4"
 
     # Basic video processing
     frame_embeddings = await embedding_model.get_video_embedding_from_url(video_url)
@@ -223,7 +223,7 @@ mobile_handler = get_model_handler("MobileCLIP/mobileclip_b")
 mobile_model = EmbeddingModel(mobile_handler)
 
 # BLIP-2 for advanced multimodal understanding
-blip2_handler = get_model_handler("Blip2/blip2_transformers")
+blip2_handler = get_model_handler("Blip2/blip2")
 blip2_model = EmbeddingModel(blip2_handler)
 ```
 
@@ -266,7 +266,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 # Get embeddings
 text_embedding = embedding_model.embed_query("A red sports car")
 image_embedding = await embedding_model.get_image_embedding_from_url(
-    "https://example.com/red_car.jpg"
+    "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image/coco_bike.jpg"
 )
 
 # Calculate similarity
@@ -334,9 +334,9 @@ print(f"Multilingual embeddings: {len(embeddings)} texts processed")
 ```python
 async def batch_process_images():
     image_urls = [
-        "https://example.com/image1.jpg",
-        "https://example.com/image2.jpg",
-        "https://example.com/image3.jpg"
+        "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image/coco_bike.jpg",
+        "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image/coco_bike.jpg",
+        "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image/coco_bike.jpg"
     ]
 
     # Process images concurrently

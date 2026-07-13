@@ -29,8 +29,8 @@ spec:
               echo "VDMS VectorDB service is ready!"
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.videosearch.image.repository }}:{{ .Values.videosearch.image.tag }}"
-          imagePullPolicy: "{{ .Values.videosearch.image.pullPolicy }}"
+          image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.videosearch.image.repository "tag" (.Values.global.tag | default .Values.videosearch.image.tag)) }}"
+          imagePullPolicy: "{{ .Values.global.pullPolicy | default .Values.videosearch.image.pullPolicy }}"
           ports:
             - containerPort: {{ .Values.videosearch.containerPort }}
               name: {{ .Values.videosearch.containerPortName }}

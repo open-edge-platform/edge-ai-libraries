@@ -43,7 +43,7 @@ Docker volumes (`audio_analyzer_{models,chunks,storage,cache}`)
 initialized with that ownership, so this rarely fails on a fresh
 install. If you do see:
 
-```
+```text
 PermissionError: [Errno 13] Permission denied: '/app/audio_analyzer/storage/...'
 ```
 

@@ -31,7 +31,10 @@ def create_simple_graph() -> Graph:
 
 
 def create_internal_density_spec(
-    pipeline_id: str, pipeline_name: str, stream_rate: int = 100
+    pipeline_id: str,
+    pipeline_name: str,
+    stream_rate: int = 100,
+    streams: int | None = None,
 ) -> InternalPipelineDensitySpec:
     """Helper to create InternalPipelineDensitySpec for testing."""
     return InternalPipelineDensitySpec(
@@ -39,6 +42,7 @@ def create_internal_density_spec(
         pipeline_name=pipeline_name,
         pipeline_graph=create_simple_graph(),
         stream_rate=stream_rate,
+        streams=streams,
     )
 
 
@@ -701,6 +705,281 @@ class TestBenchmarkLatencyTracerMetrics(unittest.TestCase):
             )
 
         self.assertIsNone(result.latency_tracer_metrics)
+
+
+class TestBenchmarkMixedDensity(unittest.TestCase):
+    """
+    Tests for the mixed-density mode added to the density flow.
+
+    Mixed-density mode is selected automatically by the Benchmark when
+    any spec has ``streams`` set. Exactly one of the two specs must be
+    fixed (``streams`` set, pinned across every iteration), and the
+    other one is incremented by the same exponential + bisection search
+    used for classic density.
+    """
+
+    def setUp(self):
+        self.fps_floor = 30
+        self.job_id = "test-job-mixed"
+        self.benchmark = Benchmark()
+
+    def test_is_mixed_mode_true_when_any_spec_has_streams(self):
+        """Detection helper: at least one spec with `streams` → mixed mode."""
+        specs = [
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p1/variants/cpu",
+                pipeline_name="p1",
+                streams=4,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p2/variants/gpu",
+                pipeline_name="p2",
+            ),
+        ]
+        self.assertTrue(Benchmark._is_mixed_mode(specs))
+
+    def test_is_mixed_mode_false_when_no_spec_has_streams(self):
+        """Detection helper: no spec with `streams` → classic mode."""
+        specs = [
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p1/variants/cpu",
+                pipeline_name="p1",
+                stream_rate=50,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p2/variants/gpu",
+                pipeline_name="p2",
+                stream_rate=50,
+            ),
+        ]
+        self.assertFalse(Benchmark._is_mixed_mode(specs))
+
+    def test_calculate_streams_per_pipeline_mixed_mode_pins_fixed(self):
+        """
+        In mixed mode the fixed spec keeps its ``streams`` regardless of
+        ``search_value`` and the incremented spec receives ``search_value``.
+        """
+        specs = [
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p1/variants/cpu",
+                pipeline_name="p1",
+                streams=5,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p2/variants/gpu",
+                pipeline_name="p2",
+            ),
+        ]
+
+        # Fixed pipeline stays at 5, second one grows with search_value.
+        self.assertEqual(
+            self.benchmark._calculate_streams_per_pipeline(specs, 1), [5, 1]
+        )
+        self.assertEqual(
+            self.benchmark._calculate_streams_per_pipeline(specs, 3), [5, 3]
+        )
+        self.assertEqual(
+            self.benchmark._calculate_streams_per_pipeline(specs, 8), [5, 8]
+        )
+
+    def test_calculate_streams_per_pipeline_mixed_mode_fixed_second(self):
+        """
+        Order independence: the fixed spec can be the second one.
+        """
+        specs = [
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p1/variants/cpu",
+                pipeline_name="p1",
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p2/variants/gpu",
+                pipeline_name="p2",
+                streams=7,
+            ),
+        ]
+        self.assertEqual(
+            self.benchmark._calculate_streams_per_pipeline(specs, 2), [2, 7]
+        )
+
+    def test_calculate_streams_per_pipeline_mixed_mode_ignores_stream_rate(self):
+        """
+        In mixed mode the ``stream_rate`` field must be ignored: even
+        ratios that would be illegal in classic mode (don't sum to 100)
+        must not raise.
+        """
+        specs = [
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p1/variants/cpu",
+                pipeline_name="p1",
+                stream_rate=10,
+                streams=4,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p2/variants/gpu",
+                pipeline_name="p2",
+                stream_rate=10,
+            ),
+        ]
+        # Would raise in classic mode (sum != 100), must NOT raise here.
+        self.assertEqual(
+            self.benchmark._calculate_streams_per_pipeline(specs, 2), [4, 2]
+        )
+
+    @patch("benchmark.PipelineManager")
+    def test_run_mixed_mode_pins_fixed_pipeline_and_finds_best(
+        self, mock_pipeline_manager_cls
+    ):
+        """
+        End-to-end mixed-density run:
+
+        * Fixed pipeline pinned to ``streams=5`` on every iteration.
+        * Search variable drives the second pipeline through the same
+          exponential + bisection algorithm as classic density.
+        * Best configuration (highest n_streams that still meets
+          ``fps_floor``) must be returned.
+
+        Iteration plan (per_stream_fps chosen so the search terminates
+        with the second pipeline at 3 streams):
+
+        | iter | sv | streams_per_pipeline | n_streams | per_stream_fps | branch       |
+        |------|----|----------------------|-----------|----------------|--------------|
+        |  1   |  1 | [5, 1]               |     6     |       40       | exp pass     |
+        |  2   |  2 | [5, 2]               |     7     |       35       | exp pass     |
+        |  3   |  4 | [5, 4]               |     9     |       20       | exp fail→bin |
+        |  4   |  3 | [5, 3]               |     8     |       31       | bin pass     |
+        |  5   |  4 | [5, 4]               |     9     |       20       | bin fail→end |
+
+        Best = iteration 4 → n_streams=8, [5, 3], per_stream_fps=31.
+        """
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = PipelineCommand(
+            command="",
+            video_output_paths={},
+            live_stream_urls={},
+            metadata_file_paths={},
+            streams_per_pipeline={},
+        )
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
+
+        specs = [
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p-fixed/variants/cpu",
+                pipeline_name="fixed",
+                streams=5,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p-grow/variants/gpu",
+                pipeline_name="grow",
+            ),
+        ]
+
+        # (n_streams, per_stream_fps) for each iteration.
+        plan = [(6, 40), (7, 35), (9, 20), (8, 31), (9, 20)]
+
+        with patch.object(self.benchmark.runner, "run") as mock_runner:
+            mock_runner.side_effect = [
+                PipelineResult(
+                    total_fps=fps * n,
+                    per_stream_fps=fps,
+                    num_streams=n,
+                    exit_code=0,
+                )
+                for n, fps in plan
+            ]
+
+            result = self.benchmark.run(
+                specs,
+                fps_floor=self.fps_floor,
+                execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
+            )
+
+        self.assertEqual(result.n_streams, 8)
+        self.assertEqual(result.per_stream_fps, 31.0)
+        self.assertEqual(len(result.streams_per_pipeline), 2)
+        # Fixed pipeline stayed at 5 streams every iteration.
+        self.assertEqual(result.streams_per_pipeline[0].streams, 5)
+        self.assertEqual(
+            result.streams_per_pipeline[0].id, "/pipelines/p-fixed/variants/cpu"
+        )
+        # Incremented pipeline ended at 3 in the best configuration.
+        self.assertEqual(result.streams_per_pipeline[1].streams, 3)
+        self.assertEqual(
+            result.streams_per_pipeline[1].id, "/pipelines/p-grow/variants/gpu"
+        )
+
+    @patch("benchmark.PipelineManager")
+    def test_run_mixed_mode_each_iteration_pins_fixed_pipeline(
+        self, mock_pipeline_manager_cls
+    ):
+        """
+        The fixed pipeline must be assigned exactly ``streams`` on EVERY
+        iteration, not only in the final result. We inspect the specs
+        passed to ``build_pipeline_command`` on every call.
+        """
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = PipelineCommand(
+            command="",
+            video_output_paths={},
+            live_stream_urls={},
+            metadata_file_paths={},
+            streams_per_pipeline={},
+        )
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
+
+        specs = [
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p-fixed/variants/cpu",
+                pipeline_name="fixed",
+                streams=2,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/p-grow/variants/gpu",
+                pipeline_name="grow",
+            ),
+        ]
+
+        # Trigger 3 iterations: pass, pass, fail-and-stop.
+        plan = [(3, 40), (4, 35), (5, 10), (4, 35), (5, 10)]
+
+        with patch.object(self.benchmark.runner, "run") as mock_runner:
+            mock_runner.side_effect = [
+                PipelineResult(
+                    total_fps=fps * n,
+                    per_stream_fps=fps,
+                    num_streams=n,
+                    exit_code=0,
+                )
+                for n, fps in plan
+            ]
+
+            self.benchmark.run(
+                specs,
+                fps_floor=self.fps_floor,
+                execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
+            )
+
+        # build_pipeline_command receives the per-iteration run specs as
+        # positional arg 0. The fixed pipeline (index 0) must always
+        # have streams=2; the grow pipeline must vary.
+        all_calls = mock_manager_instance.build_pipeline_command.call_args_list
+        self.assertGreaterEqual(len(all_calls), 3)
+
+        grow_streams_seen: list[int] = []
+        for call in all_calls:
+            run_specs = call[0][0]
+            self.assertEqual(len(run_specs), 2)
+            self.assertEqual(
+                run_specs[0].streams,
+                2,
+                "Fixed pipeline must keep streams=2 on every iteration",
+            )
+            grow_streams_seen.append(run_specs[1].streams)
+
+        # The incremented pipeline must actually change (otherwise the
+        # search is broken).
+        self.assertGreater(len(set(grow_streams_seen)), 1)
 
 
 if __name__ == "__main__":

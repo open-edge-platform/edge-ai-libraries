@@ -8,6 +8,6 @@ coverage
 .coverage
 .coverage-report/
 *.lock
-!poetry.lock
+!uv.lock
 .vscode
 nginx_config/*.conf

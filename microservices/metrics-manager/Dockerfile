@@ -53,8 +53,17 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN cargo install --locked qmassa@2.1.0
-RUN cargo install --locked qmmd@0.2.0
+# Install qmassa and qmmd directly from their upstream GitHub repository by
+# tag instead of from crates.io. qmassa and qmmd live in the same Cargo
+# workspace (https://github.com/ulissesf/qmassa) but are tagged independently
+# (`qmassa-vX.Y.Z`, `qmmd-vX.Y.Z`), so each binary is installed with its own
+# per-binary tag. `--bin` limits each install to the matching binary so the
+# other workspace member is not rebuilt unnecessarily.
+# The --locked flag is kept, so the build stays fully reproducible. This
+# avoids build failures if a pinned crates.io version is ever yanked from
+# the registry by the upstream maintainer.
+RUN cargo install --locked --git https://github.com/ulissesf/qmassa --tag qmmd-v0.2.0 qmmd
+RUN cargo install --locked --git https://github.com/ulissesf/qmassa --tag qmassa-v2.1.0 qmassa
 
 # -----------------------------------------------------------------------------
 # Stage 2: Build Telegraf from source with patched dependencies
@@ -211,9 +220,14 @@ COPY --from=telegraf-builder /usr/bin/telegraf /usr/bin/telegraf
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Install capabilities-required system tools.
+# - dmidecode: memory technology discovery (DDR4/DDR5/etc.)
+# - pciutils: lspci-based PCI/GPU branding discovery
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
-RUN pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
+RUN apt-get update && \
+    apt-get install --yes --no-install-recommends dmidecode pciutils && \
+    pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
     (dpkg -s perl-base >/dev/null 2>&1 && dpkg --purge --force-remove-essential perl-base || true) && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
