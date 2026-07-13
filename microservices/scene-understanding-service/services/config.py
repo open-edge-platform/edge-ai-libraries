@@ -166,6 +166,16 @@ class ConfigService:
     def get_mqtt_config(self) -> dict:
         return self._app_cfg.get("mqtt", {})
 
+    def get_mqtt_host(self) -> str:
+        return os.environ.get(
+            "MQTT_HOST", self.get_mqtt_config().get("host", "localhost")
+        )
+
+    def get_mqtt_port(self) -> int:
+        return int(
+            os.environ.get("MQTT_PORT", self.get_mqtt_config().get("port", 1883))
+        )
+
     def get_scene_name(self) -> Optional[str]:
         """Return first configured scene name (backward compat). Use get_scene_names() for multi-scene."""
         if self._scene_configs:
@@ -243,6 +253,18 @@ class ConfigService:
 
     def get_alert_topic_prefix(self) -> str:
         return self.get_mqtt_config().get("alert_topic_prefix", "lp/alerts")
+
+    def get_ba_request_topic(self) -> str:
+        return os.environ.get(
+            "BA_REQUEST_TOPIC",
+            self.get_mqtt_config().get("ba_request_topic", "ba/requests"),
+        )
+
+    def get_ba_result_topic(self) -> str:
+        return os.environ.get(
+            "BA_RESULT_TOPIC",
+            self.get_mqtt_config().get("ba_result_topic", "ba/results"),
+        )
 
     # ---- seaweedfs ----
     def get_seaweedfs_config(self) -> dict:
