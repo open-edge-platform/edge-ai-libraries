@@ -109,25 +109,38 @@ class ChatRequest(BaseModel):
     """
 
     messages: List[Message] = Field(...)
-    model: str = Field(..., json_schema_extra={"example": "llama-2-13b"})
-    repetition_penalty: Optional[float] = Field(
-        None, json_schema_extra={"example": 1.15}
+    model: str = Field(
+        ...,
+        description="Model identifier. Must match the configured VLM_MODEL_NAME on the running service.",
     )
-    presence_penalty: Optional[float] = Field(None, json_schema_extra={"example": 1.15})
+    repetition_penalty: Optional[float] = Field(
+        None, description="Optional repetition penalty override."
+    )
+    presence_penalty: Optional[float] = Field(
+        None, description="Optional presence penalty override."
+    )
     frequency_penalty: Optional[float] = Field(
-        None, json_schema_extra={"example": 1.15}
+        None, description="Optional frequency penalty override."
     )
     max_completion_tokens: Optional[int] = Field(
-        settings.VLM_MAX_COMPLETION_TOKENS, json_schema_extra={"example": 1000}
+        settings.VLM_MAX_COMPLETION_TOKENS,
+        description=(
+            "Optional max completion token override. Defaults to VLM_MAX_COMPLETION_TOKENS "
+            "when configured; otherwise model/runtime defaults apply."
+        ),
     )
-    temperature: Optional[float] = Field(None, json_schema_extra={"example": 0.3})
-    top_p: Optional[float] = Field(None, json_schema_extra={"example": 0.5})
-    stream: Optional[bool] = Field(False, json_schema_extra={"example": True})
-    top_k: Optional[int] = Field(None, json_schema_extra={"example": 40})
-    do_sample: Optional[bool] = Field(None, json_schema_extra={"example": True})
+    temperature: Optional[float] = Field(
+        None, description="Optional temperature override."
+    )
+    top_p: Optional[float] = Field(None, description="Optional top-p override.")
+    stream: Optional[bool] = Field(
+        False, description="When true, returns server-sent events."
+    )
+    top_k: Optional[int] = Field(None, description="Optional top-k override.")
+    do_sample: Optional[bool] = Field(None, description="Optional sampling override.")
     seed: Optional[int] = Field(
         None,
-        json_schema_extra={"example": 42, "description": "Seed for reproducibility"},
+        description="Optional seed override. Defaults to setup/runtime VLM_SEED (or SEED) value.",
     )
 
 
@@ -304,14 +317,12 @@ class ModelData(BaseModel):
     Attributes:
         id (str): The ID of the model.
         object (str): The type of the object.
-        created (Optional[int]): The creation timestamp.
-        owned_by (Optional[str]): The owner of the model.
+        device (str): The runtime device used by the loaded model.
     """
 
     id: str
     object: str = "model"
-    created: Optional[int] = None
-    owned_by: Optional[str] = None
+    device: str
 
 
 class ModelsResponse(BaseModel):
@@ -325,3 +336,28 @@ class ModelsResponse(BaseModel):
 
     object: str = "list"
     data: List[ModelData]
+
+
+class QueueStatusResponse(BaseModel):
+    """Response payload for request queue status endpoint."""
+
+    active_requests: int
+    queued_requests: int
+
+
+class DeviceListResponse(BaseModel):
+    """Response payload listing available OpenVINO devices."""
+
+    devices: List[str]
+
+
+class HealthResponse(BaseModel):
+    """Response payload for service health endpoint."""
+
+    status: str
+
+
+class ErrorResponse(BaseModel):
+    """Generic error payload used by API endpoints."""
+
+    error: str

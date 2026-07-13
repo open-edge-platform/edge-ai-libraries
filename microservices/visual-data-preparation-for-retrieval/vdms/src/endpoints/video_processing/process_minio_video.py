@@ -78,7 +78,9 @@ def _validate_and_get_video_name(
 @router.post(
     "/videos/minio",
     summary="Process video from Minio storage for embedding generation.",
+    operation_id="processVideoFromMinio",
     status_code=HTTPStatus.CREATED,
+    response_model=DataPrepResponse,
     response_model_exclude_none=True,
 )
 async def process_minio_video(

@@ -22,7 +22,7 @@ The application follows a factory pattern for model instantiation and provides
 comprehensive error handling and logging.
 """
 
-from typing import List, Union, Optional
+from typing import Any, Dict, List, Union, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
@@ -255,7 +255,7 @@ class EmbeddingRequest(BaseModel):
     Attributes:
         model: Name of the model to use for embedding generation
         input: Input data (text, image, or video in various formats)
-        encoding_format: Format for the returned embeddings
+        encoding_format: Optional output format for embeddings (defaults to "float")
     """
     model: str
     input: Union[
@@ -268,10 +268,46 @@ class EmbeddingRequest(BaseModel):
         VideoFileInput,
         FramesBatchInput,
     ]
-    encoding_format: str
+    encoding_format: str = Field(
+        default="float",
+        description='Optional output format for returned embeddings. Defaults to "float".',
+    )
 
 
-@app.get("/health")
+class HealthResponse(BaseModel):
+    status: str
+
+
+class ModelsResponse(BaseModel):
+    current_model: str
+    available_models: Dict[str, List[str]]
+    total_models: int
+
+
+class CurrentModelResponse(BaseModel):
+    model: str
+    device: str
+    use_openvino: bool
+
+
+class ModelCapabilitiesResponse(BaseModel):
+    model: str
+    modalities: List[str]
+    supports_text: bool
+    supports_image: bool
+    supports_video: bool
+
+
+class EmbeddingResponse(BaseModel):
+    embedding: Any
+
+
+@app.get(
+    "/health",
+    tags=["Service"],
+    summary="Health check",
+    response_model=HealthResponse,
+)
 async def health_check() -> dict:
     """
     Health check endpoint.
@@ -289,7 +325,12 @@ async def health_check() -> dict:
         raise HTTPException(status_code=500, detail="Model is not healthy")
 
 
-@app.get("/models")
+@app.get(
+    "/models",
+    tags=["Models"],
+    summary="List available models",
+    response_model=ModelsResponse,
+)
 async def list_models() -> dict:
     """
     List all available models.
@@ -311,7 +352,12 @@ async def list_models() -> dict:
         raise HTTPException(status_code=500, detail=f"Error listing models: {e}")
 
 
-@app.get("/model/current")
+@app.get(
+    "/model/current",
+    tags=["Models"],
+    summary="Get current model",
+    response_model=CurrentModelResponse,
+)
 async def get_current_model() -> dict:
     """
     Get the currently loaded model name and basic configuration.
@@ -326,7 +372,12 @@ async def get_current_model() -> dict:
     }
 
 
-@app.get("/model/capabilities")
+@app.get(
+    "/model/capabilities",
+    tags=["Models"],
+    summary="Get current model capabilities",
+    response_model=ModelCapabilitiesResponse,
+)
 async def get_model_capabilities() -> dict:
     """Expose supported modalities for the loaded model."""
     if embedding_model is None:
@@ -340,7 +391,12 @@ async def get_model_capabilities() -> dict:
     }
 
 
-@app.post("/embeddings")
+@app.post(
+    "/embeddings",
+    tags=["Embeddings"],
+    summary="Create embedding",
+    response_model=EmbeddingResponse,
+)
 async def create_embedding(request: EmbeddingRequest) -> dict:
     """
     Creates an embedding based on the input data.
