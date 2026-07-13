@@ -73,8 +73,8 @@ COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 ENV UV_PROJECT_ENVIRONMENT="$VENV_PATH"
 
-# Install dev and ollama groups on top of runtime/openvino deps.
-RUN uv sync --group openvino --group dev --group ollama --no-install-project
+# Install test/openvino/ollama groups on top of runtime/openvino deps.
+RUN uv sync --group openvino --group test --group ollama --no-install-project
 
 # Source code will be mounted here
 WORKDIR /app

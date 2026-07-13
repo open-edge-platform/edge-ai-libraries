@@ -21,6 +21,7 @@
 
 **New:**
 
+- **🧪 EXPERIMENTAL - vLLM Intel Arc Pro B-series GPU Support:** Added initial experimental support for running vLLM on Intel Arc Pro B-series GPUs (XPUs) via new `ENABLE_VLLM_GPU` environment variable and `docker/compose.vllm.xpu.yaml` Docker Compose overlay. This feature enables GPU-accelerated VLM captioning and LLM summarization on Intel Arc Pro B-series hardware (e.g., B60, B65, B70). **Note:** This is an experimental feature in early stages and may require additional tuning and optimization. Performance characteristics are still being evaluated. Not recommended for production use.
 - Addeda a new Dual UI mode with a new `--summary --search` CLI argument for `setup.sh` that allows running both the summary and the search applications simultaneously at **/summary** and **/search** URI endpoints respectively.
 - Added Dual UI support for Helm chart installations by allowing a values override file to be provided for summary and search modes simultaneously.
 
