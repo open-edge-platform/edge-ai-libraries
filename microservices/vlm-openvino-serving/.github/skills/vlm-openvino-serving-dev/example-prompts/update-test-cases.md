@@ -2,7 +2,7 @@ Update the mocked pytest suite to cover a newly onboarded VLM family without tri
 
 - Add tests for the new model's dispatch branch and its model_config.yaml entry (pixel limits, video capability).
 - Mock initialize_model — importing src/app.py loads the model at import time, so unmocked collection would download a multi-GB model.
-- Keep the tests offline and CPU-only, matching the existing ~50-test suite. Add the SPDX header to any new test file.
+- Keep the tests offline and CPU-only, matching the existing four-module suite. Add the SPDX header to any new test file.
 
 Validate the change using:
 - Run from where pytest.ini lives: cd tests && poetry run pytest

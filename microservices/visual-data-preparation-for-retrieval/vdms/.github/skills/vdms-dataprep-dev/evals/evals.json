@@ -6,12 +6,12 @@
     {
       "id": 1,
       "name": "run-tests-with-coverage",
-      "prompt": "I'm in a checkout of edge-ai-libraries at microservices/visual-data-preparation-for-retrieval/vdms. Run the test suite the way this project intends and summarize the results.",
-      "expected_output": "Runs the suite via source ./setup.sh test (or the equivalent coverage+pytest command), reports pass/fail and coverage against the 80% gate, without starting any containers.",
+      "prompt": "I'm in a checkout of edge-ai-libraries at microservices/visual-data-preparation-for-retrieval/vdms. Give me the exact project-supported commands to install test dependencies, run the unit suite with coverage, and report the result.",
+      "expected_output": "Provides poetry install --with dev, the Poetry-managed coverage+pytest command over tests, and coverage report -m. It does not invent a coverage threshold, use the nonexistent setup.sh test command, or start service containers.",
       "expectations": [
-        "Runs tests through setup.sh test or the equivalent poetry coverage+pytest command",
-        "Reports coverage relative to the 80% fail-under gate",
-        "Does not start MinIO/VDMS containers to run the unit tests"
+        "Provides poetry install --with dev followed by the Poetry-managed coverage+pytest command over tests",
+        "Reports coverage with coverage report -m without inventing a fail-under threshold absent from project configuration",
+        "Does not use a nonexistent setup.sh test command or require MinIO/VDMS containers for unit tests"
       ]
     },
     {
@@ -26,12 +26,13 @@
     },
     {
       "id": 3,
-      "name": "negative-ingest-routing",
-      "prompt": "Spin up the vdms dataprep stack and load these 5 warehouse videos into it.",
-      "expected_output": "Recognizes this as deployment + ingestion (user-skill territory): brings the stack up via setup.sh or prebuilt images and ingests through the REST API, without modifying source or running the test suite.",
+      "name": "collection-name-wiring",
+      "prompt": "I exported VS_INDEX_NAME=my-new-index before sourcing setup.sh, but the VDMS dataprep container still gets DB_COLLECTION=video-rag. Why is my override ignored, and how can I make a one-off override work without changing source?",
+      "expected_output": "Explains that setup.sh unconditionally sets INDEX_NAME=video-rag and compose maps DB_COLLECTION from INDEX_NAME; VS_INDEX_NAME is unused. For a one-off override, source setup.sh --nosetup, then export INDEX_NAME=my-new-index after sourcing and invoke docker compose.",
       "expectations": [
-        "Does not modify service source code or run the pytest suite for this request",
-        "Ingests the videos through the documented REST endpoints and verifies via /health or /videos"
+        "Identifies setup.sh's unconditional INDEX_NAME=video-rag assignment and compose's DB_COLLECTION=${INDEX_NAME} mapping",
+        "States that VS_INDEX_NAME is unused in the current wiring",
+        "Provides a one-off override sequence that sets INDEX_NAME after source setup.sh --nosetup and before docker compose"
       ]
     }
   ]

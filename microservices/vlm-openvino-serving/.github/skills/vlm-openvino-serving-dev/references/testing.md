@@ -9,17 +9,19 @@ SPDX-License-Identifier: Apache-2.0
 
 ```bash
 poetry install --with test
-cd tests && poetry run pytest                    # config: tests/pytest.ini
-poetry run pytest test_app.py -k streaming -x    # subset
-poetry run coverage run --source=src -m pytest && poetry run coverage report
+poetry run pytest -c tests/pytest.ini tests
+poetry run pytest -c tests/pytest.ini tests/test_app.py -k streaming -x
+poetry run coverage run --source=src -m pytest -c tests/pytest.ini tests
+poetry run coverage report
 ```
 
-`tests/pytest.ini` sets `testpaths = .` — run pytest **from `tests/`** (or
-pass explicit paths) so config and filterwarnings apply.
+`tests/pytest.ini` sets `testpaths = .`; pass it explicitly when running from
+the service root so config and filterwarnings apply without making subsequent
+coverage paths depend on the shell's current directory.
 `pyproject.toml` sets `asyncio_default_fixture_loop_scope = module` for
 `pytest-asyncio`.
 
-## The import-time trap (why unmocked tests hang or download models)
+## Model-loading traps (why tests hang or download models)
 
 `src/app.py` executes `initialize_model()` **at module import**. Any test file
 importing `src.app` must first patch the environment and the loaders —
@@ -38,11 +40,26 @@ Symptoms of getting this wrong: pytest "hangs" during collection, network
 downloads from huggingface.co, or `RuntimeError: Error initializing the
 model`. Fix: mock **before** import, never after.
 
+The stock `test_app.py` import captures mocked loader symbols in `src.app`, so
+the existing suite should not download models. If downloads begin after adding
+a test, first check whether the new module imports `src.app` before that mock
+stack. Isolate collection with `poetry run pytest -c tests/pytest.ini
+--collect-only -vv tests`. Patch loaders before the first import, or set the
+project-supported `VLM_SKIP_MODEL_INIT=1` for collection-only diagnosis.
+
+For a newly added module, target it directly so collection order cannot be
+masked by `test_app.py` importing `src.app` safely first:
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 VLM_SKIP_MODEL_INIT=1 \
+  poetry run pytest -c tests/pytest.ini --collect-only -vv tests/test_compression.py
+```
+
 ## What the suite covers (`tests/`)
 
 | File | Coverage |
 |---|---|
-| `test_app.py` | ~50 tests: health/device/models routes, per-model chat flows (qwen / phi / smolvlm / default), streaming, queue status, GPU-OOM restart path |
+| `test_app.py` | health/device/models routes, per-model chat flows (qwen / phi / smolvlm / default), streaming, queue status, GPU-OOM restart path |
 | `test_utils.py` | conversion, image/video loading, device helpers |
 | `test_common.py` | Settings parsing, error strings |
 | `test_data_models.py` | request/response schema validation |

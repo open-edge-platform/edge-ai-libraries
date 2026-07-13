@@ -54,24 +54,28 @@ collection against real settings. Details:
 ## Environment setup
 
 ```bash
-poetry install --with test    # Python ^3.11,<3.14
+poetry install --with test    # Python >=3.11,<3.14
 ```
 
 ## Test / verify loop
 
 ```bash
-cd tests && poetry run pytest            # pytest.ini lives in tests/
-poetry run coverage run --source=src -m pytest && poetry run coverage report
+poetry run pytest -c tests/pytest.ini tests
+poetry run coverage run --source=src -m pytest -c tests/pytest.ini tests
+poetry run coverage report
 ```
 
-~50 tests, all model interactions mocked (no downloads, CPU-only, fast).
+The suite spans four test modules. Keep model-loading dependencies patched
+before importing `src.app`; do not add an eager import in a new test module.
 
 ## Source map (summary)
 
 - `src/app.py` (~1600 lines) — **everything routes through here**: FastAPI
   routes, model lifecycle, per-model prompt branches (Qwen / Phi / SmolVLM /
   default, dispatched by substring on the model name), streaming, GPU-OOM
-  self-restart.
+  self-restart. Runtime configuration such as compression format comes from
+  the module-level `settings` object; model state such as `pipe`,
+  `model_config`, and `model_ready` is initialized separately.
 - `src/utils/` — `common.py` (pydantic Settings, error strings), `utils.py`
   (model conversion, image/video loading), `data_models.py` (request/response
   schemas), `telemetry*.py`.
@@ -107,7 +111,7 @@ in the `ov-models` volume.
 | Gotcha | Consequence |
 |---|---|
 | Model dispatch is substring-based (`qwen2`, `phi-3.5-vision`, `smolvlm` in `src/utils/common.py`) | new model families need a dispatch branch + `model_config.yaml` entry |
-| `VLM_DEVICE=GPU` forces int4 + 1 worker in `setup.sh` | keep that invariant when touching setup/compose |
+| Exact `VLM_DEVICE=GPU` forces int4 + 1 worker in `setup.sh` | qualified names such as `GPU.0` currently bypass that exact string check; verify effective settings |
 | GPU OOM (`error code: -5`) triggers `os.execv` self-restart in `app.py` | don't "fix" restarts away; it's deliberate recovery |
 | SmolVLM uses optimum-intel, not openvino_genai | no PerfMetrics → no telemetry for it; guard telemetry code paths |
 | Every new file needs the SPDX header | CI/license scans fail otherwise |

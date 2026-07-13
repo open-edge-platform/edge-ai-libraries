@@ -52,7 +52,7 @@ OpenVINO Model Server. A prebuilt image is published as
 | `src/utils/` | Settings, data models, telemetry, model conversion helpers. |
 | `src/config/model_config.yaml` | Per-model pixel limits + video-capable model list. |
 | `scripts/compress_model.sh` | `optimum-cli` export/compression at container start. |
-| `tests/` | Pytest suite (~50 tests, model init mocked). |
+| `tests/` | Four-module Pytest suite with model initialization mocked before import. |
 | `docs/user-guide/` | get-started, environment-variables, api-reference (OpenAPI). |
 
 ## Tech Stack
@@ -72,8 +72,8 @@ optimum-intel, Docker Compose for deploy.
 
 ## Gotchas
 
-- `VLM_DEVICE=GPU` forces `VLM_COMPRESSION_WEIGHT_FORMAT=int4` and `WORKERS=1`
-  (in `setup.sh`).
+- Exact `VLM_DEVICE=GPU` forces `VLM_COMPRESSION_WEIGHT_FORMAT=int4` and
+  `WORKERS=1`; qualified values such as `GPU.0` bypass that exact check.
 - GPU OOM surfaces as `error code: -5`; the server self-restarts via
   `os.execv`.
 - `video`/`video_url` content is only truly supported on Qwen models; SmolVLM

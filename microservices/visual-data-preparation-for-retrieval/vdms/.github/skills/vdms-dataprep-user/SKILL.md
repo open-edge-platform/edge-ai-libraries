@@ -77,36 +77,48 @@ Load these existing docs only when needed:
 
 ## 2. Bring-up (identical in both contexts)
 
-Credentials are never committed — export strong values in-shell and **reuse
-the same pair across restarts** (the MinIO data volume remembers the first
-ones). `setup.sh` must be **sourced**; `--nosetup` exports env without
+Credentials are never committed — export strong values in-shell and retain
+them securely if clients must keep using the same credentials across
+restarts. `setup.sh` must be **sourced**; `--nosetup` exports env without
 touching containers, `REGISTRY_URL=intel` selects the prebuilt image, and
 `--no-build` prevents a source build (building is the `-dev` skill's job).
 Run in the background — image pulls plus embedding/YOLOX model downloads take
 a while:
 
 ```bash
-bash -c 'export MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD="$(openssl rand -hex 16)" \
+bash -c 'export MINIO_ROOT_USER="<existing-or-new-user>" MINIO_ROOT_PASSWORD="<existing-or-new-strong-password>" \
   EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32" REGISTRY_URL=intel TAG=latest \
-  VS_INDEX_NAME="video-rag" \
   && source ./setup.sh --nosetup \
   && docker compose -f docker/compose.yaml up -d --no-build'
 ```
 
-(`VS_INDEX_NAME` pins the VDMS collection name — without it the compose file
-falls back to the code default `video-rag-test`.) Then wait for readiness:
+`setup.sh` fixes `INDEX_NAME=video-rag`, which compose passes as
+`DB_COLLECTION`; `VS_INDEX_NAME` is unused. Then wait for API readiness:
 
 ```bash
-until curl -sf http://localhost:6007/v1/dataprep/health; do sleep 10; done
+until curl -sf http://localhost:6007/v1/dataprep/health \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if d.get("embedding_mode") != "sdk" or d.get("sdk_client_status") == "preloaded" else 1)'
+do
+  sleep 10
+done
 ```
 
-Health shows `embedding_mode` (`sdk` default) and, in SDK mode, the loaded
-model/device. Teardown later with
+Health shows `embedding_mode` (`sdk` default) and, in SDK mode, require
+`sdk_client_status=preloaded`. This endpoint does not probe MinIO or VDMS, so
+also check the Compose services and MinIO separately:
+
+```bash
+docker compose -f docker/compose.yaml ps
+curl -sf http://localhost:6010/minio/health/live
+timeout 2 bash -c '</dev/tcp/localhost/6020'
+```
+
+Teardown later with
 `docker compose -f docker/compose.yaml down`.
 
 ## 3. Ingest a video
 
-Upload an MP4 (≤500 MB) — it is stored in MinIO and embedded in one step:
+Upload an MP4 — it is stored in MinIO and embedded in one step:
 
 ```bash
 curl -s -X POST 'http://localhost:6007/v1/dataprep/videos/upload?frame_interval=15' \
@@ -120,6 +132,22 @@ silently skipped).
 Other flows — ingest from MinIO (`POST /videos/minio`), text summaries
 (`POST /summary`), RTSP, detection tuning:
 `docs/user-guide/api-reference.md`.
+
+The upload response contains only status/message. Obtain the generated
+`dp_video_<timestamp>` identifier from `GET /videos`, then attach a summary
+using that exact bucket and `video_id`:
+
+```bash
+curl -s -X POST 'http://localhost:6007/v1/dataprep/summary' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "bucket_name": "vdms-bucket",
+    "video_id": "dp_video_1730000000",
+    "video_summary": "forklift narrowly misses pedestrian",
+    "video_start_time": 33,
+    "video_end_time": 41
+  }'
+```
 
 ## 4. Manage & observe
 
@@ -140,8 +168,8 @@ with the user first**. MinIO console: `http://localhost:6011`.
 | Health never responds on 6007 | still pulling/downloading models → `docker compose -f docker/compose.yaml logs -f vdms-dataprep` |
 | `setup.sh` errors about MINIO_ROOT_USER/PASSWORD | export them before sourcing |
 | Startup error "model name must be provided" | `EMBEDDING_MODEL_NAME` unset → export and redeploy |
-| Ingestion fails with "Dimensions mismatch" | collection was built with a different embedding model → new `VS_INDEX_NAME` or wipe (destructive — confirm) and re-ingest |
-| 413 on upload | file >500 MB → put it in MinIO (console :6011) and use `POST /videos/minio` |
+| Ingestion fails with "Dimensions mismatch" | collection was built with a different embedding model → override `INDEX_NAME` after `source setup.sh --nosetup`, or wipe (destructive — confirm), then re-ingest |
+| 413 on upload | the source endpoint has no implemented size check despite its docs; identify the rejecting proxy/server from headers and logs. For large files, avoid buffering through this endpoint: stage in MinIO and use `POST /videos/minio` |
 | Detected objects missing from results | YOLOX download failed on first run (no network) → restart with network access |
-| MinIO auth errors after re-deploy | creds differ from the ones the MinIO volume was created with → reuse originals |
-| MinIO bind-mount errors at start | default `MINIO_MOUNT_PATH=/mnt/miniodata` not writable → export a writable path first |
+| MinIO auth errors after re-deploy | inspect the effective container `MINIO_ROOT_*` environment and ensure clients use the same current credentials |
+| MinIO bind-mount errors at start | `setup.sh` overwrites `MINIO_MOUNT_PATH=/mnt/miniodata`; after `source setup.sh --nosetup`, export a writable path, then invoke Compose manually |

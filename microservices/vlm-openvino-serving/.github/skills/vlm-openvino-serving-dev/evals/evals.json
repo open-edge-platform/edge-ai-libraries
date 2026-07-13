@@ -6,46 +6,37 @@
     {
       "id": 1,
       "name": "run-test-suite",
-      "prompt": "I'm in a checkout of edge-ai-libraries at microservices/vlm-openvino-serving. Run the service's test suite with coverage and tell me if anything fails.",
-      "expected_output": "Installs with poetry (test group), runs pytest from the tests/ directory (where pytest.ini lives) plus the documented coverage commands, and reports pass/fail counts. No model downloads are triggered.",
+      "prompt": "I'm in a checkout of edge-ai-libraries at microservices/vlm-openvino-serving. Give me the exact project-supported commands to install test dependencies, run the service test suite, and collect coverage without triggering a model download.",
+      "expected_output": "Provides Poetry test-group installation and pytest/coverage commands that explicitly load tests/pytest.ini and target tests while measuring src. It warns that src.app initializes a model at import time and relies on the repository's pre-import mock pattern rather than setting a real model name.",
       "expectations": [
-        "Uses poetry install --with test (or equivalent poetry-managed env) before running tests",
-        "Runs pytest from the tests/ directory or with explicit awareness that pytest.ini lives in tests/",
-        "Runs coverage via coverage run --source=src -m pytest (or poetry run coverage equivalents)",
-        "Does not set a real VLM_MODEL_NAME or trigger any model download to run unit tests"
+        "Provides poetry install --with test (or an equivalent Poetry-managed test environment)",
+        "Runs pytest with tests/pytest.ini explicitly selected or from the tests directory",
+        "Provides a coverage command that measures src while running the tests",
+        "Warns against importing src.app with a real model configuration and does not recommend downloading a model for unit tests"
       ]
     },
     {
       "id": 2,
       "name": "locate-endpoint-code",
-      "prompt": "Where in the vlm-openvino-serving codebase would I add a new GET endpoint that reports the loaded model's compression format, and what existing code should I follow as a pattern?",
-      "expected_output": "Points to src/app.py as the single-file location of all routes, suggests following an existing simple GET route (e.g. /v1/models or /device) as the pattern, and notes model state lives in module globals set by initialize_model().",
+      "prompt": "Where in vlm-openvino-serving should I add a GET endpoint that reports the configured VLM compression weight format, and what existing code should I follow?",
+      "expected_output": "Points to src/app.py for the route, follows /v1/models as the simple GET pattern, reads settings.VLM_COMPRESSION_WEIGHT_FORMAT, extends a response model in src/utils/data_models.py if returning structured data, and adds a route test. Clarifies this is configured intent, not proof of a preconverted artifact's actual compression.",
       "expectations": [
         "Names src/app.py as the file where routes are added",
-        "References at least one existing GET route (such as /v1/models, /device, or /health) as the pattern to copy",
-        "Mentions that model state (pipe/model_config/model_ready) lives in module-level globals initialized by initialize_model()"
+        "References /v1/models or another existing simple GET route as the pattern to copy",
+        "Reads the compression format from settings.VLM_COMPRESSION_WEIGHT_FORMAT rather than pipe/model_config/model_ready",
+        "Mentions the relevant response model in src/utils/data_models.py and adding a route test",
+        "Clarifies that the configured value is not proof of a preconverted artifact's actual compression"
       ]
     },
     {
       "id": 3,
       "name": "pytest-hang-diagnosis",
-      "prompt": "When I run pytest against vlm-openvino-serving, collection seems to hang and my network monitor shows downloads from huggingface.co. The tests themselves are supposedly all mocked. What's wrong?",
-      "expected_output": "Diagnosis: src/app.py calls initialize_model() at module import time, so importing it without the module-level mock stack (env vars + convert_model + VLMPipeline + is_model_ready + initialize_model patched before the import) triggers a real model download. Fix: mock before import, as tests/test_app.py does.",
+      "prompt": "Suppose I add tests/test_compression.py with `from src.app import app` at top level. The stock tests were offline, but collecting only that new module with `poetry run pytest tests/test_compression.py --collect-only` downloads from huggingface.co. Diagnose it and give me a safe targeted collection command.",
+      "expected_output": "Explains that src.app calls initialize_model at import and the targeted new module imports it before the established pre-import mock stack. Reuses the tests/test_app.py pattern or sets VLM_SKIP_MODEL_INIT=1 before import, then gives a targeted pytest --collect-only -vv command with offline Hugging Face variables.",
       "expectations": [
-        "Identifies the import-time initialize_model() call in src/app.py as the root cause",
-        "Explains mocks must be applied before importing src.app (module-level patching), not inside individual tests",
-        "References the existing pattern in tests/test_app.py rather than inventing a new conftest mechanism as the primary fix"
-      ]
-    },
-    {
-      "id": 4,
-      "name": "negative-deploy-routing",
-      "prompt": "Stand up the VLM serving container so my teammate's app can start sending it chat completion requests this afternoon.",
-      "expected_output": "Recognizes this is a deployment/consumption task, not development: uses the user-skill bring-up flow (setup.sh + compose or prebuilt image) and does not modify source, run tests, or rebuild from source unnecessarily.",
-      "expectations": [
-        "Does not edit service source code or run the pytest suite for this request",
-        "Brings the service up via setup.sh + docker compose or the prebuilt intel/vlm-openvino-serving image",
-        "Verifies the service is reachable (health endpoint) so the teammate's app can use it"
+        "Identifies the new test's eager src.app import and app.py's import-time initialize_model call as the collection-time download path",
+        "Reuses the pre-import loader mock pattern from tests/test_app.py or sets VLM_SKIP_MODEL_INIT=1 before importing src.app",
+        "Provides a targeted tests/test_compression.py pytest --collect-only -vv command with offline Hugging Face/Transformers environment settings"
       ]
     }
   ]

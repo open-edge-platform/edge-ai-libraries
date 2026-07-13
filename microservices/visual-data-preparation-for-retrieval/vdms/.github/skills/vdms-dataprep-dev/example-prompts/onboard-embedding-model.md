@@ -1,11 +1,12 @@
 Onboard a different multimodal embedding model into the ingestion pipeline and confirm videos embed cleanly with it.
 
 - Wire the new model through EMBEDDING_MODEL_NAME (SDK mode uses the ../../multimodal-embedding-serving path dependency; its EmbeddingModel API is the contract).
-- Use a fresh VS_INDEX_NAME collection to avoid a "Dimensions mismatch" against vectors built with the previous model.
+- Use a fresh collection to avoid a "Dimensions mismatch" against vectors built with the previous model.
 - Verify the health endpoint reports the new model/device in SDK mode. Add the SPDX header to any new file.
 
 Validate the change using:
-- Start with EMBEDDING_MODEL_NAME=<new-model> and VS_INDEX_NAME=<fresh-name>.
+- After `source setup.sh --nosetup`, set `EMBEDDING_MODEL_NAME=<new-model>` and
+  override `INDEX_NAME=<fresh-name>` before invoking Docker Compose.
 - Ingest one MP4 via POST /videos/upload on http://localhost:6007/v1/dataprep.
 - Check GET /health for the loaded model.
 

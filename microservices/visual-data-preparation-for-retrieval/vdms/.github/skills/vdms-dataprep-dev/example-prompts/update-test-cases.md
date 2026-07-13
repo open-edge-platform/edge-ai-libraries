@@ -1,13 +1,14 @@
-Update the pytest suite after changing the ingestion pipeline so the change is covered and the 80% coverage gate still passes.
+Update the pytest suite after changing the ingestion pipeline so the change is covered.
 
 - Add or extend tests under tests/ using the existing conftest.py fixtures (mocked MinIO, TestClient) so they run offline.
 - Cover the changed endpoint or pipeline path. Add the SPDX header to any new test file.
 
-Validate the change using the sanctioned entrypoint:
-- source ./setup.sh test            (full suite + coverage gate)
-- source ./setup.sh test tests/test_db.py   (single file while iterating)
-- source ./setup.sh lint            (black + isort; add -a to apply)
+Validate the change with the Poetry-managed tools:
+- `poetry run coverage run --rcfile ./pyproject.toml -m pytest tests`
+- `poetry run coverage report -m`
+- `poetry run coverage run --rcfile ./pyproject.toml -m pytest tests/test_db.py`
+- `poetry run black --check src tests && poetry run isort --check-only src tests`
 
 Expected results:
-- New/updated tests pass offline; total coverage stays at or above 80% so the gate does not fail.
+- New/updated tests pass offline and the measured coverage is reported honestly.
 - Lint is clean.

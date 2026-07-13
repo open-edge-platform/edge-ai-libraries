@@ -6,18 +6,19 @@
     {
       "id": 1,
       "name": "bringup-and-health",
-      "prompt": "Get Intel's VDMS dataprep stack (dataprep API, vector DB, object storage) running locally from prebuilt images and prove it's healthy.",
-      "expected_output": "Brings up all three services (vdms-dataprep + VDMS + MinIO) from prebuilt images with MINIO_ROOT_USER/MINIO_ROOT_PASSWORD and MULTIMODAL_EMBEDDING_MODEL_NAME exported, then polls GET http://localhost:6007/v1/dataprep/health until it returns ok.",
+      "prompt": "Give me an exact runbook to start Intel's VDMS dataprep stack (dataprep API, vector DB, object storage) from prebuilt images and verify each dependency. Do not actually launch containers in this environment.",
+      "expected_output": "Provides a prebuilt-image runbook with required MinIO/model variables, setup.sh --nosetup plus docker compose --no-build, API readiness with sdk_client_status=preloaded in SDK mode, a MinIO liveness probe, and a separate VDMS service/TCP check.",
       "expectations": [
-        "Starts all three services (dataprep, VDMS, MinIO) from prebuilt images without building from source",
-        "Exports MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, and MULTIMODAL_EMBEDDING_MODEL_NAME before launch",
-        "Verifies readiness via GET /v1/dataprep/health on port 6007"
+        "Uses setup.sh --nosetup plus docker compose --no-build (or equivalent) with prebuilt dataprep, VDMS, and MinIO images",
+        "Exports MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, and EMBEDDING_MODEL_NAME without embedding real credentials",
+        "Checks GET /v1/dataprep/health on port 6007 and requires sdk_client_status=preloaded in SDK mode",
+        "Separately checks MinIO liveness and VDMS service/TCP reachability rather than treating dataprep /health as proof of both"
       ]
     },
     {
       "id": 2,
       "name": "upload-video",
-      "prompt": "The vdms dataprep service is healthy on localhost:6007. Ingest my file /data/forklift.mp4 sampling every 10th frame.",
+      "prompt": "The vdms dataprep service is healthy on localhost:6007. Give me the exact request to ingest /data/forklift.mp4 while sampling every 10th frame; do not claim the file was uploaded from this environment.",
       "expected_output": "A multipart POST to http://localhost:6007/v1/dataprep/videos/upload with the file form field and frame_interval=10.",
       "expectations": [
         "Uploads via multipart POST to /v1/dataprep/videos/upload with a file form field",
@@ -28,8 +29,8 @@
     {
       "id": 3,
       "name": "attach-summary",
-      "prompt": "Video 'forklift' is already ingested in the dataprep stack. Attach the summary 'forklift narrowly misses pedestrian' covering seconds 33 to 41.",
-      "expected_output": "A POST to /v1/dataprep/summary with a JSON body containing bucket_name, video_id, video_summary, video_start_time: 33, and video_end_time: 41.",
+      "prompt": "In bucket vdms-bucket, video_id dp_video_1730000000 is already ingested. Give me the exact request to attach the summary 'forklift narrowly misses pedestrian' covering seconds 33 to 41; do not call the live API.",
+      "expected_output": "A POST to /v1/dataprep/summary with a JSON body containing bucket_name=vdms-bucket, video_id=dp_video_1730000000, video_summary, video_start_time: 33, and video_end_time: 41.",
       "expectations": [
         "Posts to /v1/dataprep/summary with a JSON body (not multipart)",
         "Includes video_summary, video_start_time: 33, and video_end_time: 41 referencing the ingested video's bucket/video_id"
@@ -38,21 +39,21 @@
     {
       "id": 4,
       "name": "oversize-upload-routing",
-      "prompt": "My 2 GB MP4 gets rejected with HTTP 413 when I POST it to the dataprep upload endpoint. How do I ingest it?",
-      "expected_output": "Explains the 500 MB upload limit and routes to the supported path: stage the file in MinIO directly, then trigger ingestion with POST /v1/dataprep/videos/minio referencing the bucket and video_id.",
+      "prompt": "My 2 GB MP4 gets HTTP 413 when sent toward the dataprep upload endpoint. Diagnose what to check and give me the supported large-file ingestion workaround.",
+      "expected_output": "Does not claim the source endpoint enforces a 500 MB limit because it currently reads the full body without a size check. Identifies the rejecting proxy/server using headers and logs, then recommends staging the file in MinIO and POST /v1/dataprep/videos/minio.",
       "expectations": [
-        "Attributes the 413 to the 500 MB limit on /videos/upload",
+        "Does not attribute the 413 to a source-enforced 500 MB limit and recommends checking proxy/server headers and logs",
         "Recommends staging the file in MinIO and ingesting via POST /v1/dataprep/videos/minio"
       ]
     },
     {
       "id": 5,
-      "name": "negative-search-routing",
-      "prompt": "Using the vdms dataprep API, search my ingested videos for clips where a red truck appears.",
-      "expected_output": "Clarifies that dataprep only ingests (video to embeddings to VDMS) and has no search endpoint; querying is done by a separate search component reading the same VDMS collection.",
+      "name": "single-file-delete-safety",
+      "prompt": "In bucket vdms-bucket, video directory dp_video_1730000000 contains forklift.mp4 plus metadata. Give me the exact request that deletes only forklift.mp4 and preserves the rest of the directory.",
+      "expected_output": "Uses DELETE /v1/dataprep/videos/vdms-bucket/dp_video_1730000000?video_name=forklift.mp4 and warns that omitting video_name deletes the entire video directory.",
       "expectations": [
-        "Does not fabricate a search or query endpoint on the dataprep API",
-        "States that dataprep is ingestion-only and search is handled by a separate component"
+        "Uses DELETE /v1/dataprep/videos/vdms-bucket/dp_video_1730000000 with video_name=forklift.mp4",
+        "Warns that omitting video_name deletes the whole video directory and does not recommend that broader deletion"
       ]
     }
   ]

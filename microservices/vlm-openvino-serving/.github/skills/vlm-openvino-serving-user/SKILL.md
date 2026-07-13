@@ -87,11 +87,13 @@ Load these existing docs only when needed:
    skill's job). Run in the background — the first start downloads and
    converts the model, which can take many minutes:
    ```bash
-   bash -c 'export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct" REGISTRY_URL=intel TAG=latest \
+   bash -c 'export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct" VLM_DEVICE=CPU REGISTRY_URL=intel TAG=latest \
      && source setup.sh && docker compose -f docker/compose.yaml up -d --no-build'
    ```
-   For Intel GPU: also `export VLM_DEVICE=GPU` (setup.sh then forces int4
-   weights and 1 worker). Everything else:
+   For Intel GPU: also `export VLM_DEVICE=GPU` (that exact value makes
+   setup.sh force int4 weights and 1 worker). Qualified values such as `GPU.0`
+   currently bypass the exact check, so verify the effective compression and
+   worker environment. Everything else:
    `docs/user-guide/environment-variables.md`.
 3. Wait for health before any request:
    ```bash
@@ -108,7 +110,7 @@ curl -s http://localhost:9764/v1/chat/completions -H 'Content-Type: application/
   "model": "Qwen/Qwen2.5-VL-3B-Instruct",
   "messages": [{"role": "user", "content": [
     {"type": "text", "text": "Describe this image in one sentence."},
-    {"type": "image_url", "image_url": {"url": "https://example.com/dock.jpg"}}
+    {"type": "image_url", "image_url": {"url": "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image/coco_bike.jpg"}}
   ]}],
   "max_completion_tokens": 100
 }'
@@ -144,7 +146,7 @@ curl -s http://localhost:9764/v1/chat/completions -H 'Content-Type: application/
 | `curl` exit 7 / no response on 9764 | not started or still pulling → `docker ps`, `docker logs -f vlm-openvino-serving` |
 | `/health` returns 503 | model still downloading/converting → keep waiting, watch logs |
 | 404 on chat completions | `model` mismatch → `GET /v1/models` and use that exact id |
-| `error code: -5` on GPU | GPU OOM; the service **intentionally restarts itself** (`os.execv`) to recover — not a crash loop → smaller model, int4 weights, fewer concurrent requests |
+| `error code: -5` on GPU | GPU OOM; the service **intentionally restarts itself** (`os.execv`) to recover — not a crash loop → verify effective int4/worker settings, then use a smaller model or fewer concurrent requests |
 | First request very slow | model compile on first inference → expected once per start |
 | Port 9764 busy | `export VLM_SERVICE_PORT=<other>` before bring-up |
 | Gated model download fails | `export HUGGINGFACE_TOKEN=...` — see `docs/user-guide/environment-variables.md` |

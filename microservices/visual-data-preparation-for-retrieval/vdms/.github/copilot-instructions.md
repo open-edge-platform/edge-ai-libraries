@@ -42,10 +42,9 @@ container; `docker/compose-with-embedding.yaml` + `setup-with-embedding.sh`).
   them) and `EMBEDDING_MODEL_NAME` (e.g. `CLIP/clip-vit-b-32`) exported first.
 - Bare `source ./setup.sh` **builds from source** via `./build.sh`, then
   `docker compose -f docker/compose.yaml up -d --no-build`.
-- Subcommands: `--nd` (foreground), `--dev [--nd]` (dev overlay, live
-  reload), `--down`, `--conf`/`--conf-dev` (print resolved compose),
-  `--build`/`--build-dev`/`--build-lint`/`--build-test`/`--build-report`,
-  `lint [-a]`, `test [file]`.
+- Subcommands: `--nd` (foreground), `--down`, `--conf` (print resolved
+  compose), and `--build [tag]`. Tests and lint run directly through Poetry;
+  `setup.sh` has no test/lint or dev-overlay subcommands in this checkout.
 - **Never `docker build` from this directory** — the build context is
   `microservices/` (three levels up) because of the
   `../../multimodal-embedding-serving` path dependency. Always use
@@ -56,7 +55,7 @@ container; `docker/compose-with-embedding.yaml` + `setup-with-embedding.sh`).
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/health` | Service + embedding-backend status |
-| POST | `/videos/upload` | Multipart MP4 upload (≤500 MB) → store + embed |
+| POST | `/videos/upload` | Multipart MP4 upload → store + embed (currently buffers the full body) |
 | POST | `/videos/minio` | Embed a video already in MinIO (JSON body) |
 | POST | `/summary` | Embed a text summary with video time range |
 | POST | `/videos/rtsp` | Ingest RTSP streams (experimental; not in api-reference.md) |
@@ -71,13 +70,13 @@ container; `docker/compose-with-embedding.yaml` + `setup-with-embedding.sh`).
 |---|---|
 | `setup.sh` / `setup-with-embedding.sh` | Env + lifecycle entrypoints (source them). |
 | `build.sh` | The only sanctioned image build (context = `microservices/`). |
-| `docker/` | `compose.yaml` (sdk), `compose-with-embedding.yaml` (api), `compose-dev.yaml` (overlay), `Dockerfile`. |
+| `docker/` | `compose.yaml` (sdk), `compose-with-embedding.yaml` (api), `Dockerfile`. |
 | `src/main.py` | FastAPI app (`root_path=/v1/dataprep`); lifespan preloads SDK client + YOLOX, flushes the VDMS index on shutdown. |
 | `src/endpoints/` | One router package per API area. |
 | `src/core/embedding/` | The pipeline: `sdk_embedding_helper.py` (SDK mode), `simple_client.py` (api mode), `sdk_client.py` (VDMS writes via langchain-vdms), `decoder.py` (frame extraction). |
 | `src/core/object_detection/` | YOLOX detector + utils. |
 | `src/core/minio_client.py`, `src/common/settings.py` | Object storage client; pydantic Settings. |
-| `scripts/` | `tester.sh` (coverage ≥80%), `linter.sh` (black/isort), `entrypoint.sh`. |
+| `scripts/` | Container entrypoint and runtime helpers. |
 | `tests/` | 12 pytest files + `conftest.py` (mocked MinIO, TestClient). |
 
 ## Conventions
@@ -97,14 +96,13 @@ container; `docker/compose-with-embedding.yaml` + `setup-with-embedding.sh`).
   (new collection name or wipe), so confirm first.
 - **YOLOX downloads on first run** — without network, object detection is
   **silently disabled**.
-- `docker/compose.yaml` reads `DB_COLLECTION` from `VS_INDEX_NAME`, but
-  `setup.sh` exports `INDEX_NAME` — unless `VS_INDEX_NAME` is set, the
-  collection falls back to the code default `video-rag-test`
-  (`src/common/settings.py`).
+- `setup.sh` exports `INDEX_NAME=video-rag`; compose maps it to
+  `DB_COLLECTION`.
 - Volumes `vdms-yolox-models`, `ov-models`, `data-prep` hold model/scratch
   state; MinIO persists to `MINIO_MOUNT_PATH` (default `/mnt/miniodata`).
-- Uploads >500 MB are rejected (413) — stage big files in MinIO and use
-  `POST /videos/minio`.
+- A 413 may come from an upstream proxy/server; the source upload endpoint has
+  no implemented size check and buffers the full body. Stage large files in
+  MinIO and use `POST /videos/minio`.
 - Only MP4 is supported for embedding creation.
 
 ## Skills

@@ -27,15 +27,14 @@
     {
       "name": "vdms-dataprep-dev",
       "path": ".github/skills/vdms-dataprep-dev/SKILL.md",
-      "description": "Develop the VDMS DataPrep microservice itself: build images the sanctioned way (./build.sh, context three levels up), run the pytest suite with the 80% coverage gate, lint, use the dev compose overlay with live reload, and navigate the SDK/API embedding pipeline code. Not for merely deploying or ingesting videos (use vdms-dataprep-user).",
+      "description": "Develop the VDMS DataPrep microservice itself: build images the sanctioned way (./build.sh, context three levels up), run the pytest suite with coverage, lint, and navigate the SDK/API embedding pipeline code. Not for merely deploying or ingesting videos (use vdms-dataprep-user).",
       "triggers": [
         "run the dataprep tests",
         "dataprep coverage",
         "lint dataprep",
         "build vdms-dataprep from source",
         "docker build fails on embedding path dependency",
-        "modify the ingestion pipeline",
-        "dev mode with live reload"
+        "modify the ingestion pipeline"
       ],
       "requires": [
         "repo clone",

@@ -57,13 +57,12 @@ Mode selection: `EMBEDDING_PROCESSING_MODE` (`sdk` default / `api`) in
 
 ## Build & packaging
 
-- `docker/Dockerfile` — multi-stage (`prod`, `final-dev`, `lint`, `report`);
+- `docker/Dockerfile` — multi-stage (`python-base`, `builder-base`, `prod`);
   context must be `microservices/` so
   `visual-data-preparation-for-retrieval/vdms/…` and
   `multimodal-embedding-serving/…` both resolve.
 - `build.sh` — the sanctioned build; forwards proxies, `--push` to publish.
 - `pyproject.toml` — Poetry, path dep
   `multimodal-embedding-serving = { path = "../../multimodal-embedding-serving" }`,
-  groups `dev` (pytest/black/isort) and `cpu` (torch-cpu).
-- `docker/compose-dev.yaml` — dev overlay: mounts `..:/app`, uvicorn
-  `--reload`, `DB_COLLECTION=video-rag-dev`.
+  group `dev` (pytest/coverage/black/isort); CPU torch wheels are base
+  dependencies from the `pytorch-cpu` source.

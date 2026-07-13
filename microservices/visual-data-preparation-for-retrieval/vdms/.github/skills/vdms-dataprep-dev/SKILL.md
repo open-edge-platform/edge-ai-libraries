@@ -3,10 +3,10 @@ name: vdms-dataprep-dev
 description: >
   Develop the VDMS DataPrep microservice itself — build images the sanctioned
   way (./build.sh with its microservices/-level context), run the pytest suite
-  with the 80% coverage gate, lint, use the dev compose overlay with live
-  reload, and navigate the SDK/API embedding pipeline. Use when modifying,
-  testing, or debugging this service's code. Not for merely deploying the stack
-  or ingesting videos — that is vdms-dataprep-user.
+  with coverage, lint, and navigate the SDK/API embedding
+  pipeline. Use when modifying, testing, or debugging this service's code. Not
+  for merely deploying the stack or ingesting videos — that is
+  vdms-dataprep-user.
 ---
 
 # VDMS DataPrep — Dev
@@ -23,10 +23,9 @@ commands from the microservice root.
 ## When to Use
 
 - Build the image the sanctioned way (`./build.sh`, `microservices/` context)
-- Run the pytest suite with the 80% coverage gate, or lint
-- Use the dev compose overlay with live reload
+- Run the pytest suite with coverage, or lint
 - Navigate/modify the SDK-or-API embedding pipeline and endpoints
-- Debug the path dependency, `VS_INDEX_NAME` wiring, or MinIO endpoints
+- Debug the path dependency, fixed collection wiring, or MinIO endpoints
 
 ## Example Prompts
 
@@ -35,7 +34,7 @@ Sample Problem-solving scenarios this skill handles end-to-end:
 | Example | Problem it solves |
 |---|---|
 | [onboard-embedding-model.md](./example-prompts/onboard-embedding-model.md) | Onboard a new embedding model into the ingestion pipeline |
-| [update-test-cases.md](./example-prompts/update-test-cases.md) | Update test cases and keep the 80% coverage gate green |
+| [update-test-cases.md](./example-prompts/update-test-cases.md) | Update test cases and inspect coverage |
 
 ## Reference Lookup
 
@@ -54,7 +53,7 @@ fails on the path dependency.
 ## Environment setup
 
 ```bash
-poetry install --with dev,cpu     # Python >=3.10,<3.14; cpu group pins torch-cpu
+poetry install --with dev         # Python >=3.11,<3.14; CPU wheels are base dependencies
 ```
 
 `setup.sh` is **sourced** and (except for `--down`/`--build*`) requires
@@ -64,26 +63,27 @@ poetry install --with dev,cpu     # Python >=3.10,<3.14; cpu group pins torch-cp
 ## Test / lint loop
 
 ```bash
-source ./setup.sh test                       # full suite + coverage gate (fails under 80%)
-source ./setup.sh test tests/test_db.py      # single file
-source ./setup.sh lint                       # black + isort check (add -a to apply)
+poetry run coverage run --rcfile ./pyproject.toml -m pytest tests
+poetry run coverage report -m
+poetry run coverage run --rcfile ./pyproject.toml -m pytest tests/test_db.py
+poetry run black --check src tests && poetry run isort --check-only src tests
 ```
 
-The suite (12 files, `conftest.py` with a `TestClient` and mocked MinIO) runs
-offline. Details and Docker-gated variants (`--build-test`, `--build-lint`,
-`--build-report`):
+The suite (13 files, `conftest.py` with a `TestClient` and mocked MinIO) runs
+offline. `setup.sh` currently has no test/lint subcommands, so use the direct
+Poetry commands above. Details:
 [`references/testing-and-build.md`](./references/testing-and-build.md).
 
-## Dev loop with live reload
+## Build-and-run loop
 
 ```bash
 bash -c 'export MINIO_ROOT_USER=... MINIO_ROOT_PASSWORD=... EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32" \
-  && source ./setup.sh --dev'     # compose.yaml + compose-dev.yaml: mounts source, uvicorn --reload
+  && source ./setup.sh'           # builds with ./build.sh, then starts detached compose
 ```
 
-Uses collection `video-rag-dev`; `--dev --nd` for foreground. Prod-style run:
-bare `source ./setup.sh` (builds via `./build.sh`, then detached compose).
-Teardown: `source ./setup.sh --down`.
+This checkout has no dev compose overlay or live-reload subcommand. Rebuild
+after source changes; use `source ./setup.sh --nd` for foreground logs and
+`source ./setup.sh --down` for teardown.
 
 ## Architecture in one paragraph
 
@@ -102,8 +102,8 @@ and `src/core/minio_client.py`. Full map:
 | Gotcha | Consequence |
 |---|---|
 | Path dependency on `../../multimodal-embedding-serving` | its `EmbeddingModel` API is your contract; coordinate changes across both services |
-| `docker/compose.yaml` reads `DB_COLLECTION` from `VS_INDEX_NAME` but `setup.sh` exports `INDEX_NAME` | without `VS_INDEX_NAME`, prod compose silently uses the code default `video-rag-test` (`src/common/settings.py`) |
-| Repo compose sets `MINIO_ENDPOINT` from the **host** port (`${MINIO_HOST}:${MINIO_API_HOST_PORT:-4001}`) | container-internal MinIO listens on 9000 — `compose-with-embedding.yaml` hardcodes `:9000`; keep endpoint wiring consistent when touching compose |
+| `setup.sh` unconditionally exports `INDEX_NAME=video-rag` and compose maps it to `DB_COLLECTION` | `VS_INDEX_NAME` has no effect; change the source or override `INDEX_NAME` after sourcing `--nosetup` before Compose |
+| Compose sets `MINIO_ENDPOINT=${MINIO_HOST}:9000` | use the container port for service-to-service traffic; host access uses port 6010 |
 | YOLOX weights download at first startup into the `vdms-yolox-models` volume | offline first run silently disables detection — don't chase it as a code bug |
 | Reusing a VDMS collection after changing embedding model | `Dimensions mismatch` at insert; use a fresh collection in tests |
 | Every new file needs the SPDX header | CI/license scans fail otherwise |

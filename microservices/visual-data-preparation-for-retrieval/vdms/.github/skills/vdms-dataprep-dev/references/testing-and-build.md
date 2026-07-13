@@ -8,14 +8,21 @@ SPDX-License-Identifier: Apache-2.0
 ## Tests
 
 ```bash
-source ./setup.sh test                        # scripts/tester.sh → coverage gate
-source ./setup.sh test tests/test_db.py       # one file
-# equivalent direct form:
-FASTAPI_ENV=development poetry run coverage run --rcfile ./pyproject.toml -m pytest tests/test_db.py
-poetry run coverage report -m                 # COVERAGE_REQ default 80 (export to override)
+poetry install --with dev
+poetry run coverage run --rcfile ./pyproject.toml -m pytest tests
+poetry run coverage report -m
+# one file:
+poetry run coverage run --rcfile ./pyproject.toml -m pytest tests/test_db.py
 ```
 
-- 12 test files (~850 lines): endpoint tests (`test_get_videos.py`,
+If `poetry install --with dev` fails building a native dependency with
+`Python.h: No such file or directory`, install the development headers for the
+active Python version (plus a C/C++ build toolchain) and rerun the install.
+Do not treat pytest results from the partially installed environment as a
+valid suite run; missing optional imports such as `mobileclip` are then a
+dependency-setup failure, not a test failure.
+
+- 13 test files: endpoint tests (`test_get_videos.py`,
   `test_download_video.py`, `test_delete_video.py`), pipeline/metadata
   (`test_prep_data.py`, `test_metadata.py`, `test_db.py`,
   `test_telemetry.py`), security (`test_validation_security.py`,
@@ -26,14 +33,17 @@ poetry run coverage report -m                 # COVERAGE_REQ default 80 (export 
   (`MagicMock(spec=MinioClient)`), temp `video_file`/`invalid_video_file`.
 - Suite is offline: MinIO/VDMS/embedding calls are mocked. Keep new tests
   that way — spin up no containers in unit tests.
-- Coverage sources are `src` and `tests` (`pyproject.toml`); the gate fails
-  under **80%** — new code needs tests to keep the bar.
+- Coverage sources are `src` and `tests` (`pyproject.toml`). The checkout does
+  not currently define a `fail_under` threshold; report the measured value
+  without inventing a gate.
 
 ## Lint
 
 ```bash
-source ./setup.sh lint        # black (line length 100) + isort (black profile), check-only
-source ./setup.sh lint -a     # apply fixes
+poetry run black --check src tests
+poetry run isort --check-only src tests
+# apply fixes:
+poetry run black src tests && poetry run isort src tests
 ```
 
 ## Builds (all go through the `microservices/` context)
@@ -42,10 +52,7 @@ source ./setup.sh lint -a     # apply fixes
 |---|---|
 | `./build.sh` | Build `${REGISTRY}vdms-dataprep:${TAG:-latest}` (target `prod`); `--push` publishes |
 | `source ./setup.sh --build` | Same target via setup.sh |
-| `source ./setup.sh --build-lint` | Image build that runs lint stage (fails on violations) |
-| `source ./setup.sh --build-test` | Image build running pytest + coverage gate (`COVERAGE_REQ` build-arg) |
-| `source ./setup.sh --build-report` | Coverage HTML server image (`scripts/reporter.sh`, port 8899) |
-| `source ./setup.sh --conf` / `--conf-dev` | Print resolved compose config without starting |
+| `source ./setup.sh --conf` | Print resolved compose config without starting |
 
 Why not `docker build .` from here: the Dockerfile copies both
 `visual-data-preparation-for-retrieval/vdms/` **and**
@@ -55,9 +62,9 @@ with context `../../..` for you.
 
 ## Debugging a running dev stack
 
-- `source ./setup.sh --dev` then `docker compose -f docker/compose.yaml -f
-  docker/compose-dev.yaml logs -f vdms-dataprep` — uvicorn `--reload` picks up
-  source edits from the bind mount.
+- `source ./setup.sh` builds the changed source and starts the stack; this
+  checkout has no live-reload compose overlay.
+- `docker compose -f docker/compose.yaml logs -f vdms-dataprep` follows logs.
 - `curl -s localhost:6007/v1/dataprep/health` — SDK mode reports
   `sdk_client_status`, model, device.
 - `curl -s 'localhost:6007/v1/dataprep/telemetry?limit=5'` — stage timings
