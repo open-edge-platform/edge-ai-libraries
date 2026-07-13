@@ -12,7 +12,7 @@ services:
         FTP_PROXY: ${FTP_PROXY:-}
         no_proxy: ${no_proxy:-}
         NO_PROXY: ${NO_PROXY:-}
-    image: ${REGISTRY:-intel}/audio-analyzer:${RELEASE_TAG:-latest}
+    image: ${REGISTRY:-intel}/audio-analyzer:2026.2.0-rc1
     container_name: audio-analyzer
     # Hardcoded to match the image's baked-in app user and the
     # ownership of the named volumes. Do not change.
