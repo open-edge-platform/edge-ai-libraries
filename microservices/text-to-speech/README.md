@@ -25,12 +25,12 @@ configure, and deploy the microservice.
     runtime prerequisites.
   - [Run in Docker](./docs/user-guide/get-started/run-container.md): Step-by-step guide to running
     the microservice in a container.
-  - [Run on the Host](./docs/user-guide/how-to-guides/run-standalone.md): Step-by-step guide to
+  - [Run on the Host](./docs/user-guide/get-started/run-standalone.md): Step-by-step guide to
     running the microservice directly on the host.
 
 - Deployment
 
-  - [Build From Source](./docs/user-guide/how-to-guides/build-from-source.md): Instructions for
+  - [Build From Source](./docs/user-guide/get-started/build-from-source.md): Instructions for
     building the microservice from source.
   - [Configuration](./docs/user-guide/get-started/configuration.md): Instructions for changing the
     microservice configuration.
