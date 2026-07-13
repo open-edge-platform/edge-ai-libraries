@@ -306,6 +306,42 @@ architectures.
   edge AI application deployment across heterogeneous device platforms.
 
 
+## AI Agent Skills
+
+This repository ships a set of *agent skills** that automate
+common development tasks — changelog generation, release notes authoring, and
+security review — directly from your editor.
+
+| Skill | Slash command | What it does |
+|-------|--------------|--------------|
+| `generate-changelog` | `/generate-changelog` | Generates or updates `CHANGELOG.md` from git history between two branches or tags |
+| `generate-release-notes` | `/generate-release-notes` | Produces formatted release notes for a component folder by comparing two branches or tags |
+| `security-review` | `/security-review` | On-demand security review for code, Dockerfiles, Helm charts, and CI/CD workflows |
+
+### Quick start
+
+**Auto-trigger** — describe what you want in Copilot/Claude Code/Codex chat in agent mode and the agent picks
+the right skill:
+
+```
+Generate a changelog for microservices/time-series-analytics comparing release-2026.0.0 and release-2026.1.0
+```
+
+**Explicit slash command** — invoke a skill directly with optional inline
+arguments:
+
+```
+/generate-changelog microservices/time-series-analytics release-2026.0.0 release-2026.1.0
+```
+
+**Parameterized prompts** — for guided, form-based input use the companion
+prompt files (coding agent(github copio) pops up an input box for each parameter):
+
+```
+/run-changelog
+/run-release-notes
+```
+
 ## Contribute
 
 To learn how to contribute to the project, see
