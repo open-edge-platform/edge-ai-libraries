@@ -112,6 +112,17 @@ describe('SearchController', () => {
   });
 
   describe('addQuery', () => {
+    it.each([
+      ['missing', {}],
+      ['empty', { query: '' }],
+      ['whitespace-only', { query: '   ' }],
+    ])('should reject a %s search query', async (_description, reqBody) => {
+      await expect(controller.addQuery(reqBody)).rejects.toThrow(
+        new BadRequestException('Search query cannot be empty.'),
+      );
+      expect(searchStateService.newQuery).not.toHaveBeenCalled();
+    });
+
     it('should add a new query without tags', async () => {
       const reqBody = {
         query: 'new test query'
@@ -167,6 +178,17 @@ describe('SearchController', () => {
   });
 
   describe('searchQuery', () => {
+    it.each([
+      ['missing', {}],
+      ['empty', { query: '' }],
+      ['whitespace-only', { query: '   ' }],
+    ])('should reject a %s search query', async (_description, reqBody) => {
+      await expect(controller.searchQuery(reqBody)).rejects.toThrow(
+        new BadRequestException('Search query cannot be empty.'),
+      );
+      expect(searchShimService.search).not.toHaveBeenCalled();
+    });
+
     it('should perform a direct search query', async () => {
       const reqBody = { query: 'direct search query' };
       

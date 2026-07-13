@@ -25,7 +25,7 @@ export class TimeFilterSelection {
 export class SearchQueryDTO {
   @ApiPropertyOptional({
     description:
-      'Text search query. Provide either `query` or `image` (not both).',
+      'Non-blank text search query. Provide either `query` or `image` (not both).',
     example: 'person walking',
   })
   query?: string;

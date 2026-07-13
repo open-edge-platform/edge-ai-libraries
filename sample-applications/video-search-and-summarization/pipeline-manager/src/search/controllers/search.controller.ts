@@ -11,7 +11,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBody, ApiParam, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBody, ApiParam, ApiOkResponse, ApiCreatedResponse, ApiBadRequestResponse } from '@nestjs/swagger';
 import { SearchQueryDTO, SearchShimQuery, RefetchBodyDTO, WatchBodyDTO } from '../model/search.model';
 import { SearchStateService } from '../services/search-state.service';
 import { SearchDbService } from '../services/search-db.service';
@@ -35,12 +35,22 @@ export class SearchController {
    * Reject an image-based search unless the deployment supports it (frame-embedding
    * modes only). Returns true when the request carries an image.
    */
-  private assertImageSearchAllowed(image?: string): boolean {
-    const hasImage = !!(image && image.trim());
+  private assertImageSearchAllowed(image?: unknown): boolean {
+    const hasImage = typeof image === 'string' && image.trim().length > 0;
     if (hasImage && !this.$feature.isImageSearchEnabled()) {
       throw new BadRequestException(
         'Image search is not supported in this deployment mode.',
       );
+    }
+    return hasImage;
+  }
+
+  private assertValidSearchInput(reqBody: SearchQueryDTO): boolean {
+    const hasImage = this.assertImageSearchAllowed(reqBody.image);
+    const hasText =
+      typeof reqBody.query === 'string' && reqBody.query.trim().length > 0;
+    if (!hasImage && !hasText) {
+      throw new BadRequestException('Search query cannot be empty.');
     }
     return hasImage;
   }
@@ -71,13 +81,9 @@ export class SearchController {
   @ApiOperation({ summary: 'Add a new search query' })
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search query created' })
+  @ApiBadRequestResponse({ description: 'Search query is empty or invalid' })
   async addQuery(@Body() reqBody: SearchQueryDTO) {
-    const hasImage = this.assertImageSearchAllowed(reqBody.image);
-    if (!hasImage && !(reqBody.query && reqBody.query.trim())) {
-      throw new BadRequestException(
-        'Provide either a text query or an image to search.',
-      );
-    }
+    const hasImage = this.assertValidSearchInput(reqBody);
 
     try {
       let tags: string[] = [];
@@ -119,13 +125,9 @@ export class SearchController {
   @ApiOperation({ summary: 'Execute a one-off search query' })
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search results' })
+  @ApiBadRequestResponse({ description: 'Search query is empty or invalid' })
   async searchQuery(@Body() reqBody: SearchQueryDTO) {
-    const hasImage = this.assertImageSearchAllowed(reqBody.image);
-    if (!hasImage && !(reqBody.query && reqBody.query.trim())) {
-      throw new BadRequestException(
-        'Provide either a text query or an image to search.',
-      );
-    }
+    const hasImage = this.assertValidSearchInput(reqBody);
 
     const normalized = this.$search.buildTimeFilterRange(reqBody.timeFilter);
     const tags = reqBody.tags
