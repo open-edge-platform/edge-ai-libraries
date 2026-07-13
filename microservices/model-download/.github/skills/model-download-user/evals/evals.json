@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I need meta-llama/Llama-3.2-1B from HuggingFace for a local experiment. I already accepted the license on Hugging Face. Show me the exact startup command and curl request, and please call out any token requirement because I always get that wrong.",
-      "expected_output": "A gated HuggingFace download walkthrough that uses the current service startup flow, the correct API fields, and the correct port.",
+      "prompt": "I need meta-llama/Llama-3.2-1B from HuggingFace for a local experiment. I already accepted the license on Hugging Face. Please show me how to download it with this service and save it in a local directory.",
+      "expected_output": "A gated HuggingFace download walkthrough focused on helping the user obtain the model locally with the right prerequisites and a reliable way to monitor progress.",
       "files": [],
       "expectations": [
         "Uses source scripts/run_service.sh up --plugins huggingface.",
@@ -16,8 +16,8 @@
     },
     {
       "id": 2,
-      "prompt": "I want sentence-transformers/all-MiniLM-L6-v2 from HuggingFace and I want it pinned to the main revision so my CI job is reproducible. What request body should I use, and do I need a token for this one?",
-      "expected_output": "A public HuggingFace example that shows revision pinning and correctly explains that public models do not require a token.",
+      "prompt": "I want sentence-transformers/all-MiniLM-L6-v2 from HuggingFace for a reproducible CI workflow. Please show me how to fetch the main revision so I can keep the download consistent across runs.",
+      "expected_output": "A public HuggingFace example that helps the user get a reproducible download and correctly explains the access requirements for a public model.",
       "files": [],
       "expectations": [
         "Uses hub=huggingface and the exact model name.",
@@ -29,21 +29,21 @@
     },
     {
       "id": 3,
-      "prompt": "Download meta-llama/Llama-3.2-1B and convert it into an OVMS-ready OpenVINO model for CPU with INT4 weights and a 4 GB KV cache. I need the exact request payload and the right plugins enabled.",
-      "expected_output": "A correct OpenVINO conversion workflow for an LLM, using the service's current plugin and config conventions.",
+      "prompt": "I need the meta-llama/Llama-3.2-1B model converted to OpenVINO format for a local experiment. Please show me the steps to obtain the OpenVINO version and store it in a local directory.",
+      "expected_output": "A correct OpenVINO conversion workflow for an LLM that helps the user obtain a local OVMS-ready model in the requested format and destination.",
       "files": [],
       "expectations": [
         "Uses source scripts/run_service.sh up --plugins huggingface,openvino.",
         "Uses hub=openvino, type=llm, and is_ovms=true in the request body.",
-        "Includes config.precision=int4, config.device=CPU, and config.cache_size=4.",
+        "Uses valid OpenVINO conversion settings for an LLM rather than a plain HuggingFace download request.",
         "Uses port 8200.",
         "Explains where the converted OpenVINO artifacts will be written."
       ]
     },
     {
       "id": 4,
-      "prompt": "Pull llama3.2:3b using the model-download service, not the raw ollama CLI. I always forget whether the tag belongs in name or revision, so please be explicit.",
-      "expected_output": "An Ollama walkthrough that uses the current API shape and clearly separates the base name from the tag.",
+      "prompt": "I want to get llama3.2:3b through the model-download service for local use instead of downloading it directly with the Ollama CLI. Please show me the right way to request that model so I end up with the expected variant.",
+      "expected_output": "An Ollama walkthrough that helps the user retrieve the intended model variant through the service and clearly distinguishes the family name from the tag.",
       "files": [],
       "expectations": [
         "Uses source scripts/run_service.sh up --plugins ollama.",
@@ -55,8 +55,8 @@
     },
     {
       "id": 5,
-      "prompt": "I need yolov8n with INT8 quantization for an edge demo. Give me the exact API payload and tell me what the quantize field is supposed to contain.",
-      "expected_output": "A supported Ultralytics request that uses a currently documented model name and explains how INT8 quantization is requested.",
+      "prompt": "I need yolov8n prepared with INT8 quantization for an edge demo. Please show me how to request that version so I can save the optimized model locally.",
+      "expected_output": "A supported Ultralytics workflow that helps the user obtain a locally saved INT8-quantized model using a currently documented model name.",
       "files": [],
       "expectations": [
         "Uses source scripts/run_service.sh up --plugins ultralytics.",
@@ -68,8 +68,8 @@
     },
     {
       "id": 6,
-      "prompt": "I want the HLS 3D pose model for a healthcare analytics prototype. Show me the startup command, request body, and any model type field I need to set.",
-      "expected_output": "A focused HLS workflow that uses the correct plugin name, request shape, and supported healthcare model type.",
+      "prompt": "I want the HLS 3D pose model for a healthcare analytics prototype. Please show me how to download the right healthcare model with this service and save it locally.",
+      "expected_output": "A focused HLS workflow that helps the user obtain the correct healthcare model locally with the right model selection.",
       "files": [],
       "expectations": [
         "Uses source scripts/run_service.sh up --plugins hls.",
@@ -81,8 +81,8 @@
     },
     {
       "id": 7,
-      "prompt": "I have a trained model in Intel Geti and want to fetch it with this service. List the environment variables I need before startup and show me the request shape.",
-      "expected_output": "A Geti example that covers startup requirements, required environment variables, and the hub-specific request body.",
+      "prompt": "I have a trained model in Intel Geti and want to fetch it with this service for local use. Please show me what I need in place so I can download the model into a local directory.",
+      "expected_output": "A Geti example that helps the user prepare the required access details and download the model through the service into local storage.",
       "files": [],
       "expectations": [
         "Uses source scripts/run_service.sh up --plugins geti.",
@@ -94,8 +94,8 @@
     },
     {
       "id": 8,
-      "prompt": "I’m brand new to this repo. How do I get the model-download service running locally, verify it is healthy, and know which plugin flag to use for HuggingFace versus Ollama versus OpenVINO?",
-      "expected_output": "A first-time setup walkthrough that matches the current startup script and gives practical plugin guidance.",
+      "prompt": "I’m brand new to this repo. Please show me how to get the model-download service running for local experimentation, confirm that it is working, and understand which model sources it can help me with.",
+      "expected_output": "A first-time setup walkthrough that helps the user start the service locally, verify it is healthy, and choose the right capability for common model sources.",
       "files": [],
       "expectations": [
         "Includes git clone and cd into microservices/model-download.",
