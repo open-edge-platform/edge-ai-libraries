@@ -58,6 +58,9 @@ README.md           @xwu2intel
 # ============================================================================
 # microservices
 # ============================================================================
+
+# /microservices/alert-service/                        owners needed
+
 /microservices/audio-analyzer/                         @bhardwaj-nakul @bharagha @krish918 @avinash-palleti
 /microservices/audio-analyzer/docs/                    @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
 /microservices/audio-analyzer/README.md                @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
@@ -66,21 +69,19 @@ README.md           @xwu2intel
 /microservices/dlstreamer-pipeline-server/docs/        @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
 /microservices/dlstreamer-pipeline-server/README.md    @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/metrics-manager/                        @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli
-/microservices/metrics-manager/docs/                   @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli  @open-edge-platform/open-edge-platform-docs-write
-/microservices/metrics-manager/README.md               @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli  @open-edge-platform/open-edge-platform-docs-write
+/microservices/document-ingestion/pgvector/            @bharagha @krish918 @madhuri-rai07 @yogeshmpandey
+/microservices/document-ingestion/pgvector/docs/       @bharagha @krish918 @madhuri-rai07 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
+/microservices//document-ingestion/pgvector/README.md  @bharagha @krish918 @madhuri-rai07 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
+
+# /microservices/inferencee-router/                    owners needed
+
+/microservices/metrics-manager/                        @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli
+/microservices/metrics-manager/docs/                   @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli  @open-edge-platform/open-edge-platform-docs-write
+/microservices/metrics-manager/README.md               @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli  @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/model-download/                         @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj
 /microservices/model-download/docs/                    @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
 /microservices/model-download/README.md                @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
-
-/microservices/model-download/                         @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj
-/microservices/model-download/docs/                    @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
-/microservices/model-download/README.md                @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
-
-/microservices/model-registry/                         @bharagha @madhuri-rai07 @14pankaj
-/microservices/model-registry/docs/                    @bharagha @madhuri-rai07 @14pankaj  @open-edge-platform/open-edge-platform-docs-write
-/microservices/model-registry/README.md                @bharagha @madhuri-rai07 @14pankaj  @open-edge-platform/open-edge-platform-docs-write
 
 # the main folder lacks codeowners, needs resolution
 # /microservices/multilevel-video-understanding/
@@ -90,6 +91,14 @@ README.md           @xwu2intel
 /microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
 /microservices/multimodal-embedding-serving/docs/      @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
 /microservices/multimodal-embedding-serving/README.md  @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
+
+# lack codeowners, need resolution
+# /microservices/scene-understanding-service/          owners needed
+# /microservices/semantic-search-agent/                owners needed
+
+/microservices/text-to-speech/                         @avinash-palleti @sachinkaushik @unarayan
+/microservices/text-to-speech/docs/                    @avinash-palleti @sachinkaushik @unarayan  @open-edge-platform/open-edge-platform-docs-write
+/microservices/text-to-speech/README.md                @avinash-palleti @sachinkaushik @unarayan  @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/time-series-analytics/                  @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe @tanvidhola-ux
 /microservices/time-series-analytics/docs/             @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe @tanvidhola-ux @open-edge-platform/open-edge-platform-docs-write
@@ -118,9 +127,10 @@ README.md           @xwu2intel
 /sample-applications/chat-question-and-answer-core/           @bharagha @hteeyeoh @madhuri-rai07
 /sample-applications/chat-question-and-answer-core/docs/      @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
 /sample-applications/chat-question-and-answer-core/README.md  @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
-
-# the main folder lacks codeowners, needs resolution
-# /sample-applications/document-summarization
+        
+/sample-applications/document-summarization /                 @bharagha @hteeyeoh @madhuri-rai07
+/sample-applications/document-summarization /docs/            @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/document-summarization /README.md        @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
 
 /sample-applications/plcopen-benchmark/                       @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
 /sample-applications/plcopen-benchmark/README.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel  @open-edge-platform/open-edge-platform-docs-write
@@ -139,9 +149,9 @@ README.md           @xwu2intel
 # the main folder lacks codeowners, needs resolution
 # /tools/npu-monitor-tool/
 
-/tools/visual-pipeline-and-platform-evaluation-tool/           @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka
-/tools/visual-pipeline-and-platform-evaluation-tool/docs/      @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @open-edge-platform/open-edge-platform-docs-write
-/tools/visual-pipeline-and-platform-evaluation-tool/README.md  @p-zak @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/           @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka
+/tools/visual-pipeline-and-platform-evaluation-tool/docs/      @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/README.md  @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @open-edge-platform/open-edge-platform-docs-write
 
 /tools/genai-applications-sizing/                              @bharagha @rudra-intel @madhuri-rai07 @hteeyeoh
 
