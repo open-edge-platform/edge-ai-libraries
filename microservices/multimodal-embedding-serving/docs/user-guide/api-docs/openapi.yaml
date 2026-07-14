@@ -1,21 +1,18 @@
 openapi: 3.1.0
 info:
-  title: MultiModal Embedding serving
-  description: >-
-    The MultiModal Embedding serving is designed to generate embeddings for text,
-    image URLs, base64 encoded images, video URLs, and base64 encoded videos. It
-    leverages the CLIP (Contrastive Language-Image Pretraining) model to create
-    these embeddings.
+  title: Multimodal Embedding Serving
+  description: The Multimodal Embedding Serving is designed to generate embeddings
+    for text, image URLs, base64 encoded images, video URLs, and base64 encoded videos.
+    It supports multiple models including CLIP, MobileCLIP, SigLIP, and BLIP-2.
   version: 0.1.0
 paths:
   /health:
     get:
-      summary: Health Check
-      description: |-
-        Health check endpoint.
-
-        Returns:
-            dict: Dictionary containing the health status.
+      tags:
+      - Service
+      summary: Health check
+      description: "Health check endpoint.\n\nReturns:\n    dict: Dictionary containing\
+        \ the health status."
       operationId: health_check_health_get
       responses:
         '200':
@@ -23,23 +20,60 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties: true
-                type: object
-                title: Response Health Check Health Get
+                $ref: '#/components/schemas/HealthResponse'
+  /models:
+    get:
+      tags:
+      - Models
+      summary: List available models
+      description: "List all available models.\n\nReturns:\n    dict: Dictionary containing\
+        \ available models and their configurations."
+      operationId: list_models_models_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelsResponse'
+  /model/current:
+    get:
+      tags:
+      - Models
+      summary: Get current model
+      description: "Get the currently loaded model name and basic configuration.\n\
+        \nReturns:\n    dict: Dictionary containing current model name and configuration."
+      operationId: get_current_model_model_current_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentModelResponse'
+  /model/capabilities:
+    get:
+      tags:
+      - Models
+      summary: Get current model capabilities
+      description: Expose supported modalities for the loaded model.
+      operationId: get_model_capabilities_model_capabilities_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelCapabilitiesResponse'
   /embeddings:
     post:
-      summary: Create Embedding
-      description: |-
-        Creates an embedding based on the input data.
-
-        Args:
-            request (EmbeddingRequest): Request object containing model and input data.
-
-        Returns:
-            dict: Dictionary containing the embedding.
-
-        Raises:
-            HTTPException: If there is an error during the embedding process.
+      tags:
+      - Embeddings
+      summary: Create embedding
+      description: "Creates an embedding based on the input data.\n\nArgs:\n    request\
+        \ (EmbeddingRequest): Request object containing model and input data.\n\n\
+        Returns:\n    dict: Dictionary containing the embedding.\n\nRaises:\n    HTTPException:\
+        \ If there is an error during the embedding process."
       operationId: create_embedding_embeddings_post
       requestBody:
         content:
@@ -53,9 +87,7 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties: true
-                type: object
-                title: Response Create Embedding Embeddings Post
+                $ref: '#/components/schemas/EmbeddingResponse'
         '422':
           description: Validation Error
           content:
@@ -64,6 +96,23 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
+    CurrentModelResponse:
+      properties:
+        model:
+          type: string
+          title: Model
+        device:
+          type: string
+          title: Device
+        use_openvino:
+          type: boolean
+          title: Use Openvino
+      type: object
+      required:
+      - model
+      - device
+      - use_openvino
+      title: CurrentModelResponse
     EmbeddingRequest:
       properties:
         model:
@@ -71,23 +120,51 @@ components:
           title: Model
         input:
           anyOf:
-            - $ref: '#/components/schemas/TextInput'
-            - $ref: '#/components/schemas/ImageUrlInput'
-            - $ref: '#/components/schemas/ImageBase64Input'
-            - $ref: '#/components/schemas/VideoFramesInput'
-            - $ref: '#/components/schemas/VideoUrlInput'
-            - $ref: '#/components/schemas/VideoBase64Input'
-            - $ref: '#/components/schemas/VideoFileInput'
+          - $ref: '#/components/schemas/TextInput'
+          - $ref: '#/components/schemas/ImageUrlInput'
+          - $ref: '#/components/schemas/ImageBase64Input'
+          - $ref: '#/components/schemas/VideoFramesInput'
+          - $ref: '#/components/schemas/VideoUrlInput'
+          - $ref: '#/components/schemas/VideoBase64Input'
+          - $ref: '#/components/schemas/VideoFileInput'
+          - $ref: '#/components/schemas/FramesBatchInput'
           title: Input
         encoding_format:
           type: string
           title: Encoding Format
+          description: Optional output format for returned embeddings. Defaults to
+            "float".
+          default: float
       type: object
       required:
-        - model
-        - input
-        - encoding_format
+      - model
+      - input
       title: EmbeddingRequest
+      description: "Main request model for embedding generation.\n\nAttributes:\n\
+        \    model: Name of the model to use for embedding generation\n    input:\
+        \ Input data (text, image, or video in various formats)\n    encoding_format:\
+        \ Optional output format for embeddings (defaults to \"float\")"
+    EmbeddingResponse:
+      properties:
+        embedding:
+          title: Embedding
+      type: object
+      required:
+      - embedding
+      title: EmbeddingResponse
+    FramesBatchInput:
+      properties:
+        type:
+          type: string
+          title: Type
+        frames_manifest_path:
+          type: string
+          title: Frames Manifest Path
+      type: object
+      required:
+      - type
+      - frames_manifest_path
+      title: FramesBatchInput
     HTTPValidationError:
       properties:
         detail:
@@ -97,6 +174,15 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    HealthResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - status
+      title: HealthResponse
     ImageBase64Input:
       properties:
         type:
@@ -107,9 +193,12 @@ components:
           title: Image Base64
       type: object
       required:
-        - type
-        - image_base64
+      - type
+      - image_base64
       title: ImageBase64Input
+      description: "Input model for base64 encoded images.\n\nAttributes:\n    type:\
+        \ Input type identifier (should be \"image_base64\")\n    image_base64: Base64\
+        \ encoded image string"
     ImageUrlInput:
       properties:
         type:
@@ -120,9 +209,60 @@ components:
           title: Image Url
       type: object
       required:
-        - type
-        - image_url
+      - type
+      - image_url
       title: ImageUrlInput
+      description: "Input model for image URLs.\n\nAttributes:\n    type: Input type\
+        \ identifier (should be \"image_url\")\n    image_url: URL of the image to\
+        \ download and embed"
+    ModelCapabilitiesResponse:
+      properties:
+        model:
+          type: string
+          title: Model
+        modalities:
+          items:
+            type: string
+          type: array
+          title: Modalities
+        supports_text:
+          type: boolean
+          title: Supports Text
+        supports_image:
+          type: boolean
+          title: Supports Image
+        supports_video:
+          type: boolean
+          title: Supports Video
+      type: object
+      required:
+      - model
+      - modalities
+      - supports_text
+      - supports_image
+      - supports_video
+      title: ModelCapabilitiesResponse
+    ModelsResponse:
+      properties:
+        current_model:
+          type: string
+          title: Current Model
+        available_models:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          type: object
+          title: Available Models
+        total_models:
+          type: integer
+          title: Total Models
+      type: object
+      required:
+      - current_model
+      - available_models
+      - total_models
+      title: ModelsResponse
     TextInput:
       properties:
         type:
@@ -130,23 +270,26 @@ components:
           title: Type
         text:
           anyOf:
-            - type: string
-            - items:
-                type: string
-              type: array
+          - type: string
+          - items:
+              type: string
+            type: array
           title: Text
       type: object
       required:
-        - type
-        - text
+      - type
+      - text
       title: TextInput
+      description: "Input model for text data.\n\nAttributes:\n    type: Input type\
+        \ identifier (should be \"text\")\n    text: Single text string or list of\
+        \ text strings to embed"
     ValidationError:
       properties:
         loc:
           items:
             anyOf:
-              - type: string
-              - type: integer
+            - type: string
+            - type: integer
           type: array
           title: Location
         msg:
@@ -155,11 +298,16 @@ components:
         type:
           type: string
           title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
       type: object
       required:
-        - loc
-        - msg
-        - type
+      - loc
+      - msg
+      - type
       title: ValidationError
     VideoBase64Input:
       properties:
@@ -175,10 +323,14 @@ components:
           title: Segment Config
       type: object
       required:
-        - type
-        - video_base64
-        - segment_config
+      - type
+      - video_base64
+      - segment_config
       title: VideoBase64Input
+      description: "Input model for base64 encoded videos.\n\nAttributes:\n    type:\
+        \ Input type identifier (should be \"video_base64\")\n    video_base64: Base64\
+        \ encoded video string\n    segment_config: Configuration for video frame\
+        \ extraction"
     VideoFileInput:
       properties:
         type:
@@ -193,10 +345,13 @@ components:
           title: Segment Config
       type: object
       required:
-        - type
-        - video_path
-        - segment_config
+      - type
+      - video_path
+      - segment_config
       title: VideoFileInput
+      description: "Input model for local video files.\n\nAttributes:\n    type: Input\
+        \ type identifier (should be \"video_file\")\n    video_path: Path to the\
+        \ local video file\n    segment_config: Configuration for video frame extraction"
     VideoFramesInput:
       properties:
         type:
@@ -205,15 +360,18 @@ components:
         video_frames:
           items:
             anyOf:
-              - $ref: '#/components/schemas/ImageUrlInput'
-              - $ref: '#/components/schemas/ImageBase64Input'
+            - $ref: '#/components/schemas/ImageUrlInput'
+            - $ref: '#/components/schemas/ImageBase64Input'
           type: array
           title: Video Frames
       type: object
       required:
-        - type
-        - video_frames
+      - type
+      - video_frames
       title: VideoFramesInput
+      description: "Input model for video represented as individual frames.\n\nAttributes:\n\
+        \    type: Input type identifier (should be \"video_frames\")\n    video_frames:\
+        \ List of image frames as URLs or base64 data"
     VideoUrlInput:
       properties:
         type:
@@ -228,7 +386,11 @@ components:
           title: Segment Config
       type: object
       required:
-        - type
-        - video_url
-        - segment_config
+      - type
+      - video_url
+      - segment_config
       title: VideoUrlInput
+      description: "Input model for video URLs with segmentation configuration.\n\n\
+        Attributes:\n    type: Input type identifier (should be \"video_url\")\n \
+        \   video_url: URL of the video to download and process\n    segment_config:\
+        \ Configuration for video frame extraction"

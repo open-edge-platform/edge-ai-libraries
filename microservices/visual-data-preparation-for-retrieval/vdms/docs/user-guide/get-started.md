@@ -29,7 +29,9 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MULTIMODAL_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by both SDK and API execution paths (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
 | `EMBEDDING_PROCESSING_MODE` | ✅ | `sdk` | Selects optimized in-process execution (`sdk`) or HTTP-based execution (`api`). |
 | `SDK_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration in SDK mode. Set `false` to stay on PyTorch. |
-| `VDMS_DATAPREP_DEVICE` | Optional | `CPU` | Processing device for embeddings, and object detection (`CPU` or `GPU`). |
+| `VDMS_DATAPREP_DEVICE` | Optional | `CPU` | Baseline processing device used as fallback for embedding and detection when per-component overrides are not set (`CPU`, `GPU`, or `NPU`). |
+| `EMBEDDING_DEVICE` | Optional | `VDMS_DATAPREP_DEVICE` | Explicit device override for embedding execution (`CPU`, `GPU`, or `NPU`). |
+| `DETECTION_DEVICE` | Optional | `VDMS_DATAPREP_DEVICE` | Explicit device override for object detection execution (`CPU`, `GPU`, or `NPU`). |
 | `EMBEDDING_BATCH_SIZE` | Optional | `32` | Number of items sent per SDK embedding batch. |
 | `MAX_PARALLEL_WORKERS` | Optional | _(auto)_ | Hard cap for SDK parallel workers when auto-scaling is too aggressive for the host. |
 | `FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
@@ -54,6 +56,48 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `OV_MODELS_DIR` | Optional | `/app/ov_models` | Persistent mount that caches OpenVINO-optimized models. |
 | `ALLOW_ORIGINS`, `ALLOW_METHODS`, `ALLOW_HEADERS` | Optional | `*` | CORS configuration applied by FastAPI. |
 
+### Device selection (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, `DETECTION_DEVICE`)
+
+`VDMS_DATAPREP_DEVICE` is the single source of truth for DataPrep device selection. The per-component
+variables inherit from it unless you explicitly override them. Effective precedence (highest first):
+
+1. Explicit `EMBEDDING_DEVICE` / `DETECTION_DEVICE` (per-component override).
+2. `VDMS_DATAPREP_DEVICE` (baseline applied to both components).
+3. `CPU` (final fallback).
+
+> **Important:** The inheritance is applied by the setup scripts (`setup.sh` /
+> `setup-with-embedding.sh`), which export `EMBEDDING_DEVICE`/`DETECTION_DEVICE` as
+> `${VAR:-$VDMS_DATAPREP_DEVICE}`. You must `source` the setup script for `VDMS_DATAPREP_DEVICE` to
+> cascade. If you run `docker compose up` directly (bypassing the script), the compose files default
+> the per-component variables to `CPU`, so setting only `VDMS_DATAPREP_DEVICE` has no effect — set
+> `EMBEDDING_DEVICE` and `DETECTION_DEVICE` explicitly in that case.
+
+Examples (run before sourcing the setup script):
+
+```bash
+# Offload detection to NPU and embedding to GPU (independent per-component devices)
+export DETECTION_DEVICE=NPU
+export EMBEDDING_DEVICE=GPU
+
+# Offload everything to GPU
+export VDMS_DATAPREP_DEVICE=GPU
+
+# Baseline GPU, but keep detection on CPU
+export VDMS_DATAPREP_DEVICE=GPU
+export DETECTION_DEVICE=CPU
+```
+
+When targeting `NPU`, confirm the selected model supports NPU inference via the
+[OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
+
+> **Running everything on NPU:** Setting both embedding and detection to `NPU`
+> (for example via `VDMS_DATAPREP_DEVICE=NPU`) is functionally supported — both
+> stages run on NPU through OpenVINO. However, the host has a single NPU, so the
+> embedding and detection stages contend for the same accelerator. It works, but
+> it is not optimal for throughput. For best performance, split the load across
+> accelerators (for example, keep embedding on `NPU` and detection on `GPU`/`CPU`,
+> or vice versa).
+
 ### Advanced tuning
 
 Additional environment variables are available for high-throughput scenarios:
@@ -73,6 +117,8 @@ export MULTIMODAL_EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"
 export MINIO_ROOT_USER="minioadmin"
 export MINIO_ROOT_PASSWORD="minioadmin"
 export EMBEDDING_PROCESSING_MODE="sdk"
+export EMBEDDING_DEVICE="CPU"
+export DETECTION_DEVICE="CPU"
 source ./setup.sh --nosetup
 ```
 
@@ -251,4 +297,6 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 - **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
 - **API mode returns 502:** Verify the multimodal embedding service is healthy at `MULTIMODAL_EMBEDDING_ENDPOINT` (see `docker compose -f docker/compose-with-embedding.yaml ps`).
 - **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/videos/minio` instead.
-- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, `VDMS_DATAPREP_DEVICE=GPU`, and `SDK_USE_OPENVINO=true`.
+- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, or `DETECTION_DEVICE`) to `GPU`, and keep `SDK_USE_OPENVINO=true`.
+- **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, or `DETECTION_DEVICE`) to `NPU`, and keep `SDK_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
+- **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.

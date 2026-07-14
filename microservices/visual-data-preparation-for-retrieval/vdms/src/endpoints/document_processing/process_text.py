@@ -67,7 +67,9 @@ def verify_params_and_get_video_name(
 @router.post(
     "/summary",
     summary="Process summary text with video timestamp references for embedding generation.",
+    operation_id="createVideoSummaryEmbedding",
     status_code=HTTPStatus.CREATED,
+    response_model=DataPrepResponse,
     response_model_exclude_none=True,
 )
 async def process_video_summary(

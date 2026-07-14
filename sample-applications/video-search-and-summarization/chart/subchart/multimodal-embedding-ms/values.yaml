@@ -8,12 +8,18 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
+  # sharedPvcName is the chart-level shared PVC used outside this subchart (collector signals).
   sharedPvcName: ""
 
   # Common release tags to be used for several dependencies
   commonTag: ""
   embeddingModelName: ""
+
+  # Host group ids owning the accelerator device nodes (/dev/dri, /dev/accel).
+  # Added to the pod supplementalGroups when this service uses a GPU or NPU so the
+  # non-root container user can open the device. Override to match the target node.
+  accelGroupIds:
+    - 992
 
   proxy:
     # setup proxy settings
@@ -97,21 +103,16 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
-# Deploy this on the node where vdms-dataprep runs
-podAffinity:
-  requiredDuringSchedulingIgnoredDuringExecution:
-    - labelSelector:
-        matchExpressions:
-          - key: app.kubernetes.io/name
-            operator: In
-            values:
-              - vdmsdataprep
-      topologyKey: "kubernetes.io/hostname"
+# Optional pod affinity rules for this microservice.
+podAffinity: {}
 
 # Environment variables
 embeddingDevice: "CPU"
 embeddingUseOV: true
 embeddingOVModelsDir: "/app/ov_models"
+# OpenVINO compiled-model cache directory. Persisted on the ov_models volume so
+# GPU/NPU graph compilation runs once and is reused on subsequent starts.
+ovCacheDir: "/app/ov_models/ov_cache"
 defaultStartOffsetSec: 0
 defaultClipDuration: -1
 defaultNumFrames: 64

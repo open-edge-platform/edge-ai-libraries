@@ -1,4 +1,9 @@
-# Security Review Skill (On-Demand)
+---
+name: security-review
+description: "On-demand security review for code, containers, and Kubernetes configuration. Use when changes involve authentication/authorization logic, input parsing, file handling, secrets, logging, dependency upgrades, Dockerfiles, Docker Compose, Helm charts, CI/CD workflows, or privilege elevation. Covers secure code review (input validation, injection, dynamic execution, dependency hygiene), AI-generated code guardrails, container artifact hardening (Dockerfile, Compose), and Helm/Kubernetes security defaults. Produces classified findings (Fix in artifact vs. Deployment-time responsibility) with severity and confidence levels. Do NOT use for: runtime, host, cluster, or organizational security controls; general code quality or style reviews unrelated to security; enforcing network policies, node hardening, or cloud IAM configuration."
+---
+
+# Security Review
 
 ## Purpose
 

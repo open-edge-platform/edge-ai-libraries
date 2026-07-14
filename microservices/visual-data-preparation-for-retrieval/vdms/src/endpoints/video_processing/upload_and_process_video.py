@@ -27,7 +27,9 @@ router = APIRouter(tags=["Video Processing APIs"])
 @router.post(
     "/videos/upload",
     summary="Upload and process a video file for embedding generation.",
+    operation_id="uploadAndProcessVideo",
     status_code=HTTPStatus.CREATED,
+    response_model=DataPrepResponse,
     response_model_exclude_none=True,
 )
 @validate_params
@@ -54,7 +56,6 @@ async def upload_and_process_video(
     tags: Annotated[
         Optional[List[str]],
         Query(
-            default_factory=list,
             description="List of tags to be associated with the video. Useful for filtering the search.",
         ),
     ] = None,
@@ -238,7 +239,9 @@ async def upload_and_process_video(
 @router.post(
     "/videos/rtsp",
     summary="Provide list of RTSP Stream URLs to process and generate embeddings.",
+    operation_id="processRtspStreams",
     status_code=HTTPStatus.OK,
+    response_model=DataPrepResponse,
     response_model_exclude_none=True,
 )
 @validate_params
@@ -265,7 +268,6 @@ async def process_rtsp_streams(
     tags: Annotated[
         Optional[List[str]],
         Query(
-            default_factory=list,
             description="List of tags to be associated with the videos. Useful for filtering the search.",
         ),
     ] = None,
