@@ -1142,7 +1142,7 @@ def generate_video_embedding_pipeline(
             }
         # Process video using simple pipeline approach
         result = _process_video_from_memory_simple_pipeline(
-            video_content=video_content,
+            video_source=video_content,
             embedding_client=embedding_client,
             metadata_dict=metadata_dict,
             frame_interval=frame_interval,
@@ -1161,7 +1161,7 @@ def generate_video_embedding_pipeline(
 
 
 def _process_video_from_memory_simple_pipeline(
-    video_content: bytes,
+    video_source: bytes | str | list[str],
     embedding_client: EmbeddingClient,
     metadata_dict: Dict[str, Any],
     frame_interval: int,
@@ -1170,10 +1170,12 @@ def _process_video_from_memory_simple_pipeline(
     shutdown_event: Optional[threading.Event] = None,
 ) -> Dict[str, Any]:
     """
-    Process video from memory using simple parallel pipeline approach.
+    Process a video source using the simple parallel pipeline approach.
 
-    This is the main implementation that extracts frames from video in memory,
-    generates embeddings in parallel, and stores them in bulk.
+    Extracts frames from the given source, generates embeddings in parallel, and
+    stores them in bulk. ``video_source`` may be in-memory bytes (uploaded file),
+    a file path, an RTSP URL, or a list of any of these; ``VideoFrameExtractor``
+    auto-detects the source type for each input.
     """
     method_start_time = now_us()
 
@@ -1205,11 +1207,11 @@ def _process_video_from_memory_simple_pipeline(
             keyframes_only=False,
         )
 
-        # Create video input from bytes and extract frames
-        logger.info("Initializing video frame extractor with in-memory video content...")
+        # Create video input from the source and extract frames
+        logger.info("Initializing video frame extractor with video source...")
 
         extractor = VideoFrameExtractor(
-            video_content,
+            video_source,
             config,
             shm_pool=_shm_pool,
             shutdown_event=shutdown_event,
@@ -2303,7 +2305,7 @@ def generate_rtsp_video_embedding_pipeline(
 
         # Process video using simple pipeline approach
         result = _process_video_from_memory_simple_pipeline(
-            video_uris=video_uris,
+            video_source=video_uris,
             embedding_client=embedding_client,
             metadata_dict=metadata_dict,
             frame_interval=frame_interval,

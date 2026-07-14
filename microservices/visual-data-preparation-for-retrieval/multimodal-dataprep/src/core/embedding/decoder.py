@@ -460,7 +460,7 @@ def decode_stream_and_batch_generator(
             yield (
                 DONE,
                 stream_id,
-                (start_time, end_time, (end_time - start_time) / 1_000_000),
+                (start_time, now_us(), (now_us() - start_time) / 1_000_000),
             )
 
         finally:

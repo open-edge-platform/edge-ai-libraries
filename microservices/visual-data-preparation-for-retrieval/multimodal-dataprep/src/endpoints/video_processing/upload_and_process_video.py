@@ -333,6 +333,14 @@ async def process_rtsp_streams(
         return DataPrepResponse(
             message=f"{Strings.embedding_success} for RTSP streams"
         )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("RTSP stream processing failed")
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process RTSP streams: {e}",
+        )
     finally:
         # Stop the monitor task
         shutdown_event.set()

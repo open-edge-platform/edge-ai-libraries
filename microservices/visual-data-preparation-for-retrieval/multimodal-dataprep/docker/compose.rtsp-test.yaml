@@ -1,0 +1,47 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Helper stack to exercise POST /v1/dataprep/videos/rtsp.
+# Publishes a looping local video as an RTSP stream on the same network as the
+# multimodal-dataprep stack (docker_default) so the dataprep container can reach
+# rtsp://rtsp-server:8554/test.
+#
+# Usage:
+#   docker compose -f docker/compose.yaml up -d
+#   RTSP_TEST_VIDEO=/home/intel/workbench/video/original.mp4 \
+#     docker compose -f docker/compose.rtsp-test.yaml up -d
+
+services:
+  rtsp-server:
+    image: bluenviron/mediamtx:1.18.2
+    container_name: rtsp-server
+    restart: unless-stopped
+    networks:
+      - default
+    environment:
+      no_proxy: ${no_proxy:-},rtsp-server,localhost
+      NO_PROXY: ${no_proxy:-},rtsp-server,localhost
+    ports:
+      - "${RTSP_HOST_PORT:-8554}:8554"
+
+  rtsp-publisher:
+    image: jrottenberg/ffmpeg:6.1-alpine
+    container_name: rtsp-publisher
+    restart: "no"
+    networks:
+      - default
+    environment:
+      no_proxy: ${no_proxy:-},rtsp-server,localhost
+      NO_PROXY: ${no_proxy:-},rtsp-server,localhost
+    depends_on:
+      - rtsp-server
+    volumes:
+      - ${RTSP_TEST_VIDEO:-/home/intel/workbench/video/original.mp4}:/videos/test.mp4:ro
+    command: >
+      -re -stream_loop ${RTSP_STREAM_LOOP:--1} -i /videos/test.mp4
+      -c copy -f rtsp rtsp://rtsp-server:8554/test
+
+networks:
+  default:
+    name: docker_default
+    external: true

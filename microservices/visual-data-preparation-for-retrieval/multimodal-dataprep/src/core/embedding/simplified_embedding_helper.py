@@ -443,7 +443,7 @@ async def generate_video_embedding_from_uri(
 
     # Create metadata for video (including video URLs for search-ms compatibility)
 
-    generate_rtsp_video_embedding_pipeline(
+    result = generate_rtsp_video_embedding_pipeline(
         video_uris=video_uris,
         metadata_dict={
             "bucket_name": "RTSP_BUCKET",
@@ -456,6 +456,8 @@ async def generate_video_embedding_from_uri(
         detection_confidence=detection_confidence,
         shutdown_event=shutdown_event,
     )
+
+    return (result or {}).get("stored_ids", [])
 
 
 async def _generate_video_embedding(
