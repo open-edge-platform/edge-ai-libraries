@@ -1,15 +1,18 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 VIPPET REST API Client
 
 Provides interface to interact with VIPPET REST API endpoints.
 """
 
+import os
 import time
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Any
 
-import requests
-
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +25,14 @@ class VIPPETClient:
         Initialize VIPPET client.
 
         Args:
-            base_url: VIPPET API base URL (e.g., http://localhost:7860/api/v1)
+            base_url: VIPPET API base URL (e.g., http://localhost/api/v1)
             timeout: Default timeout for API requests in seconds
         """
-        self.base_url = base_url.rstrip("/")
+        self.base_url = os.environ.get("VIPPET_BASE_URL", base_url).rstrip("/")
         self.timeout = timeout
-        self.session = requests.Session()
-        self.session.headers.update(
-            {"Accept": "application/json", "Content-Type": "application/json"}
+        self.session = httpx.Client(
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            timeout=timeout,
         )
 
         logger.info(f"Initialized VIPPET client: {self.base_url}")
@@ -42,7 +45,7 @@ class VIPPETClient:
             True if healthy, False otherwise
         """
         try:
-            response = self.session.get(f"{self.base_url}/health", timeout=10)
+            response = self.session.get(f"{self.base_url}/health", timeout=10.0)
             response.raise_for_status()
             logger.info("✓ VIPPET API health check passed")
             return True
@@ -72,7 +75,7 @@ class VIPPETClient:
         logger.error(f"VIPPET API not ready after {max_wait}s")
         return False
 
-    def get_devices(self) -> List[Dict[str, Any]]:
+    def get_devices(self) -> list[dict[str, Any]]:
         """
         Fetch available hardware devices.
 
@@ -80,10 +83,10 @@ class VIPPETClient:
             List of device dictionaries with keys: device_id, device_family, device_name, device_type
 
         Raises:
-            requests.RequestException: If API call fails
+            httpx.HTTPStatusError: If API call fails
         """
         logger.info("Fetching available devices...")
-        response = self.session.get(f"{self.base_url}/devices", timeout=30)
+        response = self.session.get(f"{self.base_url}/devices", timeout=30.0)
         response.raise_for_status()
         devices = response.json()
 
@@ -95,7 +98,7 @@ class VIPPETClient:
 
         return devices
 
-    def get_pipelines(self) -> List[Dict[str, Any]]:
+    def get_pipelines(self) -> list[dict[str, Any]]:
         """
         Fetch all available pipelines with their variants.
 
@@ -103,10 +106,10 @@ class VIPPETClient:
             List of pipeline dictionaries with keys: id, name, description, variants
 
         Raises:
-            requests.RequestException: If API call fails
+            httpx.HTTPStatusError: If API call fails
         """
         logger.info("Fetching available pipelines...")
-        response = self.session.get(f"{self.base_url}/pipelines", timeout=30)
+        response = self.session.get(f"{self.base_url}/pipelines", timeout=30.0)
         response.raise_for_status()
         pipelines = response.json()
 
@@ -117,7 +120,7 @@ class VIPPETClient:
 
         return pipelines
 
-    def get_models(self) -> List[Dict[str, Any]]:
+    def get_models(self) -> list[dict[str, Any]]:
         """
         Fetch all available models and their installation status.
 
@@ -125,10 +128,10 @@ class VIPPETClient:
             List of model dictionaries with keys: display_name, install_status, used_by_pipelines
 
         Raises:
-            requests.RequestException: If API call fails
+            httpx.HTTPStatusError: If API call fails
         """
         logger.info("Fetching model information...")
-        response = self.session.get(f"{self.base_url}/models", timeout=30)
+        response = self.session.get(f"{self.base_url}/models", timeout=30.0)
         response.raise_for_status()
         models = response.json()
 
@@ -145,7 +148,7 @@ class VIPPETClient:
         variant_id: str,
         streams: int,
         output_mode: str = "disabled",
-        max_runtime: Optional[int] = None,
+        max_runtime: int | None = None,
     ) -> str:
         """
         Submit a performance test job.
@@ -161,7 +164,7 @@ class VIPPETClient:
             Job ID string
 
         Raises:
-            requests.RequestException: If API call fails
+            httpx.HTTPStatusError: If API call fails
         """
         payload = {
             "pipeline_performance_specs": [
@@ -185,7 +188,7 @@ class VIPPETClient:
         )
 
         response = self.session.post(
-            f"{self.base_url}/tests/performance", json=payload, timeout=30
+            f"{self.base_url}/tests/performance", json=payload, timeout=30.0
         )
         response.raise_for_status()
         result = response.json()
@@ -194,7 +197,7 @@ class VIPPETClient:
         logger.info(f"Job submitted: {job_id}")
         return job_id
 
-    def get_job_status(self, job_id: str) -> Dict[str, Any]:
+    def get_job_status(self, job_id: str) -> dict[str, Any]:
         """
         Get performance test job status.
 
@@ -205,17 +208,17 @@ class VIPPETClient:
             Job status dictionary with keys: job_id, state, total_fps, per_stream_fps, etc.
 
         Raises:
-            requests.RequestException: If API call fails
+            httpx.HTTPStatusError: If API call fails
         """
         response = self.session.get(
-            f"{self.base_url}/jobs/tests/performance/{job_id}/status", timeout=30
+            f"{self.base_url}/jobs/tests/performance/{job_id}/status", timeout=30.0
         )
         response.raise_for_status()
         return response.json()
 
     def poll_job_completion(
         self, job_id: str, timeout: int = 600, poll_interval: int = 2
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Poll job status until completion or timeout.
 

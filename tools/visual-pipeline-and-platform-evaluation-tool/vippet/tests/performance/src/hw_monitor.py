@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Hardware Metrics Monitor
 
@@ -8,14 +11,14 @@ Source: VIPPET metrics-manager JSON API (CPU, GPU, NPU, memory, temperature, pow
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import requests
+import httpx
 
 logger = logging.getLogger(__name__)
 
 
-def _fetch_metrics_manager(url: str) -> Dict[str, float]:
+def _fetch_metrics_manager(url: str) -> dict[str, float]:
     """
     Fetch latest metrics from VIPPET metrics-manager JSON API.
     Returns flat dict of metric_key -> value.
@@ -23,11 +26,11 @@ def _fetch_metrics_manager(url: str) -> Dict[str, float]:
     Only gpu_id=0 is collected for GPU metrics with multiple IDs.
     """
     try:
-        resp = requests.get(url, timeout=5)
+        resp = httpx.get(url, timeout=5)
         resp.raise_for_status()
         data = resp.json()
         metrics = data.get("metrics", data)
-        result: Dict[str, float] = {}
+        result: dict[str, float] = {}
         for key, entry in metrics.items():
             if isinstance(entry, dict):
                 val = entry.get("fields", {}).get("value")
@@ -73,8 +76,8 @@ class HardwareMonitor:
         self._metrics_url = metrics_url
         self._interval = sample_interval
         self._stop = threading.Event()
-        self._thread: Optional[threading.Thread] = None
-        self._samples: List[Dict[str, float]] = []
+        self._thread: threading.Thread | None = None
+        self._samples: list[dict[str, float]] = []
 
     # ------------------------------------------------------------------
     # Public API
@@ -89,7 +92,7 @@ class HardwareMonitor:
         self._thread.start()
         logger.debug("HardwareMonitor started (interval=%.1fs)", self._interval)
 
-    def stop(self) -> Dict[str, Any]:
+    def stop(self) -> dict[str, Any]:
         self._stop.set()
         if self._thread:
             self._thread.join(timeout=max(self._interval * 2, 10))
@@ -111,8 +114,8 @@ class HardwareMonitor:
                 logger.debug("hw sample error: %s", e)
             self._stop.wait(self._interval)
 
-    def _collect(self) -> Dict[str, float]:
-        sample: Dict[str, float] = {}
+    def _collect(self) -> dict[str, float]:
+        sample: dict[str, float] = {}
 
         mm = _fetch_metrics_manager(self._metrics_url)
 
@@ -172,7 +175,7 @@ class HardwareMonitor:
     # Aggregation
     # ------------------------------------------------------------------
 
-    def _aggregate(self) -> Dict[str, Any]:
+    def _aggregate(self) -> dict[str, Any]:
         if not self._samples:
             return {"sample_count": 0}
 
@@ -180,7 +183,7 @@ class HardwareMonitor:
         for s in self._samples:
             keys.update(s.keys())
 
-        agg: Dict[str, Any] = {"sample_count": len(self._samples)}
+        agg: dict[str, Any] = {"sample_count": len(self._samples)}
 
         for key in sorted(keys):
             values = [s[key] for s in self._samples if key in s]

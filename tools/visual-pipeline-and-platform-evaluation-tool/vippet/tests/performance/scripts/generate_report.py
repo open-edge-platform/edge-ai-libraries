@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Generate an HTML benchmark report with bar charts from a VIPPET benchmark JSON result.
 
@@ -10,9 +12,12 @@ Usage:
 
 import sys
 import json
+import logging
 import argparse
 from pathlib import Path
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 
 VARIANT_COLORS = {
@@ -918,6 +923,8 @@ td.hi {{ color: var(--text); font-weight: 500; }}
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
     parser = argparse.ArgumentParser(
         description="Generate HTML benchmark report from VIPPET JSON results"
     )
@@ -934,7 +941,7 @@ def main():
     paths = [Path(p) for p in args.json_files]
     for p in paths:
         if not p.exists():
-            print(f"Error: file not found: {p}", file=sys.stderr)
+            logger.error("File not found: %s", p)
             sys.exit(1)
 
     runs = load_results(paths)
@@ -946,7 +953,7 @@ def main():
         out = paths[0].with_suffix(".html")
 
     out.write_text(html)
-    print(f"Report saved: {out}")
+    logger.info("Report saved: %s", out)
 
 
 if __name__ == "__main__":

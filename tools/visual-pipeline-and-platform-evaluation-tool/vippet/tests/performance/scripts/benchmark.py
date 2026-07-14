@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 VIPPET Benchmark Suite - Main Entry Point
 

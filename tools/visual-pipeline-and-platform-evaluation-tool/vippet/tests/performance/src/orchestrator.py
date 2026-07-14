@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Benchmark Orchestrator
 
@@ -8,7 +11,7 @@ import time
 import logging
 import platform
 import subprocess
-from typing import Dict, List, Any, Optional
+from typing import Any
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 
@@ -29,11 +32,11 @@ class TestCase:
     variant_name: str
     streams: int
     status: str = "pending"  # pending, running, success, failed, skipped
-    job_id: Optional[str] = None
-    result: Optional[Dict[str, Any]] = None
-    hw_metrics: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-    duration_seconds: Optional[float] = None
+    job_id: str | None = None
+    result: dict[str, Any] | None = None
+    hw_metrics: dict[str, Any] | None = None
+    error: str | None = None
+    duration_seconds: float | None = None
     attempt: int = 0
 
 
@@ -44,13 +47,13 @@ class BenchmarkResult:
     benchmark_id: str
     timestamp: str
     duration_seconds: float
-    config: Dict[str, Any]
-    hardware: Dict[str, List[str]]
-    test_cases: List[TestCase] = field(default_factory=list)
-    summary: Dict[str, int] = field(default_factory=dict)
-    system_info: Dict[str, Any] = field(default_factory=dict)
+    config: dict[str, Any]
+    hardware: dict[str, list[str]]
+    test_cases: list[TestCase] = field(default_factory=list)
+    summary: dict[str, int] = field(default_factory=dict)
+    system_info: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "benchmark_id": self.benchmark_id,
@@ -67,7 +70,7 @@ class BenchmarkResult:
 class BenchmarkOrchestrator:
     """Orchestrates automated benchmark execution."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize orchestrator with configuration.
 
@@ -95,7 +98,7 @@ class BenchmarkOrchestrator:
 
         logger.info("Benchmark orchestrator initialized")
 
-    def discover_hardware(self) -> Dict[str, List[str]]:
+    def discover_hardware(self) -> dict[str, list[str]]:
         """
         Discover available hardware devices.
 
@@ -123,7 +126,7 @@ class BenchmarkOrchestrator:
 
         return hardware
 
-    def check_model_installation(self) -> Dict[str, List[str]]:
+    def check_model_installation(self) -> dict[str, list[str]]:
         """
         Check which pipelines have models configured in their pipeline graph.
         A pipeline is considered missing models when any gvadetect/gvaclassify/
@@ -167,8 +170,8 @@ class BenchmarkOrchestrator:
         return missing_models_by_pipeline
 
     def generate_test_matrix(
-        self, hardware: Dict[str, List[str]], missing_models: Dict[str, List[str]]
-    ) -> List[TestCase]:
+        self, hardware: dict[str, list[str]], missing_models: dict[str, list[str]]
+    ) -> list[TestCase]:
         """
         Generate test matrix based on available hardware and configuration.
 
@@ -474,7 +477,7 @@ class BenchmarkOrchestrator:
         """Clean up resources."""
         self.client.close()
 
-    def _collect_system_info(self) -> Dict[str, Any]:
+    def _collect_system_info(self) -> dict[str, Any]:
         """Collect system details for the report."""
 
         def _cmd(args):
@@ -518,10 +521,10 @@ class BenchmarkOrchestrator:
         # VIPPET version
         vippet_version = ""
         try:
-            import requests
+            import httpx
 
-            resp = requests.get(f"{self.client.base_url}/version", timeout=5)
-            if resp.ok:
+            resp = httpx.get(f"{self.client.base_url}/version", timeout=5.0)
+            if resp.is_success:
                 data = resp.json()
                 vippet_version = data.get("version", str(data))
         except Exception:

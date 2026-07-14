@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Result Reporters
 
@@ -8,7 +11,7 @@ import json
 import csv
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -18,7 +21,7 @@ class JSONReporter:
     """Export results as JSON."""
 
     @staticmethod
-    def save(result: Dict[str, Any], output_path: Path):
+    def save(result: dict[str, Any], output_path: Path):
         """
         Save results as JSON file.
 
@@ -38,7 +41,7 @@ class CSVReporter:
     """Export results as CSV."""
 
     @staticmethod
-    def save(result: Dict[str, Any], output_path: Path):
+    def save(result: dict[str, Any], output_path: Path):
         """
         Save results as CSV file.
 
@@ -154,7 +157,7 @@ class MarkdownReporter:
     """Export results as Markdown summary."""
 
     @staticmethod
-    def save(result: Dict[str, Any], output_path: Path):
+    def save(result: dict[str, Any], output_path: Path):
         """
         Save results as Markdown file.
 
@@ -285,7 +288,7 @@ class ResultExporter:
 
         logger.info(f"Result exporter initialized: {output_dir}")
 
-    def export(self, result: Dict[str, Any]):
+    def export(self, result: dict[str, Any]):
         """
         Export results in all configured formats.
 

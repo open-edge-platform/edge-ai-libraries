@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
 # VIPPET Benchmark Suite — single entry point.
 # Assumes VIPPET is already running (make vippet-up from the handheld-multi-modal dir).
 #
@@ -33,19 +36,19 @@ fi
 
 # ── check Python deps ─────────────────────────────────────────────────────────
 info "Checking Python dependencies..."
-if ! python3 -c "import requests, yaml" 2>/dev/null; then
+if ! python3 -c "import httpx, yaml" 2>/dev/null; then
     warn "Installing missing dependencies..."
     pip3 install -q -r "$SUITE_DIR/requirements.txt"
 fi
 
 # ── check VIPPET is reachable ─────────────────────────────────────────────────
-VIPPET_URL="${VIPPET_URL:-http://localhost:7860/api/v1}"
-info "Checking VIPPET at $VIPPET_URL ..."
+VIPPET_BASE_URL="${VIPPET_BASE_URL:-http://localhost:7860/api/v1}"
+info "Checking VIPPET at $VIPPET_BASE_URL ..."
 TRIES=0
-until curl -sf "$VIPPET_URL/health" | grep -q '"healthy":true'; do
+until curl -sf "$VIPPET_BASE_URL/health" | grep -q '"healthy":true'; do
     TRIES=$((TRIES+1))
     if [[ $TRIES -ge 12 ]]; then
-        error "VIPPET is not reachable at $VIPPET_URL after 60s."
+        error "VIPPET is not reachable at $VIPPET_BASE_URL after 60s."
         error "Start it first:"
         error "  cd /path/to/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool"
         error "  . .env && docker compose -f compose.yml -f compose.npu.yml up -d"
@@ -59,7 +62,7 @@ success "VIPPET is up."
 # ── check VIPPET has finished initialising ────────────────────────────────────
 info "Waiting for VIPPET to finish initialising..."
 TRIES=0
-until curl -sf "$VIPPET_URL/devices" | grep -q "device_family"; do
+until curl -sf "$VIPPET_BASE_URL/devices" | grep -q "device_family"; do
     TRIES=$((TRIES+1))
     if [[ $TRIES -ge 24 ]]; then
         error "VIPPET still initialising after 2 min — check docker logs vippet"
@@ -76,7 +79,7 @@ info "Starting benchmark..."
 cd "$SUITE_DIR"
 python3 scripts/benchmark.py \
     --config config/default.yaml \
-    --vippet-url "$VIPPET_URL" \
+    --vippet-url "$VIPPET_BASE_URL" \
     "$@"
 
 # ── open report ───────────────────────────────────────────────────────────────
