@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -215,8 +215,14 @@ class PipelineInstance:
         if self.pipeline is None:
             raise RuntimeError('Failed to initialize Pipeline Server pipeline')
 
-        self.log.info('Starting Pipeline Server pipeline {} {} {}'.format(
-            src, dest,model_params))
+        self.log.info(
+            'Starting Pipeline Server pipeline name=%s version=%s source_type=%s destination_type=%s has_parameters=%s',
+            self.name,
+            self.version,
+            src.get('type') if isinstance(src, dict) else type(src).__name__,
+            dest.get('type') if isinstance(dest, dict) else type(dest).__name__,
+            bool(model_params),
+        )
         self.instance_id = self.pipeline.start(request=copy.deepcopy(self.request),
                                                source=src,
                                                destination=dest,
