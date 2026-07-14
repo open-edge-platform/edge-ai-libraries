@@ -1,0 +1,76 @@
+# VIPPET Benchmark Suite - Default Configuration
+
+vippet:
+  # VIPPET API base URL
+  base_url: "http://localhost:7860/api/v1"
+
+  # Connection timeout in seconds
+  timeout: 600
+
+  # Job status polling interval in seconds
+  poll_interval: 2
+
+  # Maximum time to wait for job completion (seconds)
+  max_job_duration: 600
+
+benchmark:
+  # Pipeline selection
+  # Use "*" for all pipelines, or list specific pipeline IDs:
+  # pipelines: ["license-plate-recognition", "object-detection"]
+  pipelines: "*"
+
+  # Device variants to test
+  # Automatically filtered by available hardware
+  variants:
+    - cpu
+    - gpu
+    - npu
+
+  # Stream counts for scalability testing
+  stream_counts:
+    - 1
+    - 3
+
+  # Execution parameters
+  execution:
+    # Maximum retries for failed jobs
+    max_retries: 2
+
+    # Delay between retries (seconds)
+    retry_delay_seconds: 5
+
+    # Output mode: disabled, file, live_stream
+    # Note: density tests don't support live_stream
+    output_mode: "disabled"
+
+  # Filters
+  filters:
+    # Skip these pipelines even if discovered
+    skip_pipelines: []
+
+    # Skip these variants
+    skip_variants: []
+
+    # Only test pipelines with all required models installed
+    require_models: true
+
+# Hardware metrics collection
+metrics:
+  # VIPPET metrics-manager JSON API (CPU, NPU, memory, temperature)
+  metrics_url: "http://localhost:9090/api/v1/metrics/latest"
+
+  # Sampling interval in seconds while a job runs
+  sample_interval_seconds: 2.0
+
+# Results configuration
+results:
+  # Output directory for benchmark results
+  output_dir: "./results"
+
+  # Export formats
+  formats:
+    - json
+    - csv
+
+  # Create symlink to latest results
+  create_latest_link: true
