@@ -24,26 +24,16 @@ debian_70_install_esq () {
 }
 
 debian_70_start_esq () {
-  local options=()
-  for v in "$@"; do
-    case "$v" in
-    --all|-a|--qualification-only|-qo)
-      options+=($v)
-      ;;
-    --profile=*|-p=*|--suite=*|-s=*|--sub-suite=*|-ss=*|--test=*|-t=*)
-      options+=(${v/=/ })
-      ;;
-    esac
-  done
-  if [ ${#options[@]} -eq 0 ]; then
-    options=(-qo)
-  fi
-
   configure_uv
   configure_esq
   pushd "$workspace" > /dev/null
   esq clean --all
-  esq run -v -f ${options[@]} && esq summary && esq report
+
+  local cmdline_str="$*"
+  local options=(${cmdline_str# -- })
+  [ ${#options[@]} -gt 0 ] || options=(-qo)
+
+  esq run ${options[@]} -v -f && esq summary && esq report
   popd > /dev/null
 }
 
