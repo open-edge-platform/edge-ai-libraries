@@ -48,12 +48,14 @@ return either raw WAV audio or a JSON payload with metadata.
 - [Configuration](./get-started/configuration.md) - how to select models, devices,
 and precision.
 - [How It Works](./how-it-works.md) - learn about the internal request flow.
+- [How-to Guides](./how-to-guides.md) - alternative deployment options and advanced setup.
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
 ./get-started.md
+./how-to-guides.md
 ./how-it-works.md
 ./api-reference.md
 ./troubleshooting.md
