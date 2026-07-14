@@ -11,43 +11,117 @@ import pytest
 
 from src.core.vectorstores import (
     BaseVectorStore,
-    adapt_for_milvus,
-    adapt_for_vdms,
     get_vector_store,
+    project_to_canonical,
     reset_vector_store,
 )
-from src.core.vectorstores.metadata import CANONICAL_FIELDS
+from src.core.vectorstores.metadata import (
+    CANONICAL_FIELDS,
+    flatten_to_scalars,
+)
 
 
-# --------------------------- metadata adapters -----------------------------
-def test_adapt_for_vdms_flattens_lists_and_dicts():
+# --------------------------- metadata primitives ---------------------------
+def test_project_to_canonical_drops_non_canonical_keys():
+    md = {"video_id": "v1", "shm": "seg1", "frame_id": "f1", "not_a_field": 1}
+    out = project_to_canonical(md)
+    assert out == {"video_id": "v1"}
+
+
+def test_flatten_to_scalars_flattens_lists_and_dicts_drops_none():
     md = {
         "video_id": "v1",
         "tags": ["car", "road"],
-        "bbox": [1, 2, 3, 4],
+        "crop_bbox": [1, 2, 3, 4],
         "fps": 30.0,
-        "none_field": None,
-        "nested": {"a": 1},
+        "created_at": None,
+        "date_time": {"a": 1},
     }
-    out = adapt_for_vdms(md)
+    out = flatten_to_scalars(md)
     assert out["tags"] == "car,road"
-    assert out["bbox"] == "1,2,3,4"
+    assert out["crop_bbox"] == "1,2,3,4"
     assert out["fps"] == 30.0
-    assert "none_field" not in out
-    assert out["nested"] == '{"a": 1}'
+    assert "created_at" not in out
+    assert out["date_time"] == '{"a": 1}'
 
 
-def test_adapt_for_milvus_preserves_lists_drops_none():
-    md = {"video_id": "v1", "tags": ["car"], "bbox": [1, 2], "none_field": None}
-    out = adapt_for_milvus(md)
+# --------------------------- backend clean_metadata ------------------------
+def test_vdms_clean_metadata_projects_and_flattens():
+    from src.core.vectorstores.vdms_store import VDMSVectorStore
+
+    store = VDMSVectorStore(host="h", port="1", collection_name="c")
+    md = {
+        "video_id": "v1",
+        "tags": ["car", "road"],
+        "crop_bbox": [1, 2, 3, 4],
+        "created_at": None,
+    }
+    out = store.clean_metadata(md)
+    assert out["tags"] == "car,road"
+    assert out["crop_bbox"] == "1,2,3,4"
+    assert "created_at" not in out
+
+
+def test_milvus_clean_metadata_preserves_lists_drops_none():
+    from src.core.vectorstores.milvus_store import MilvusVectorStore
+
+    store = MilvusVectorStore(uri="http://localhost:19530", collection_name="c")
+    md = {"video_id": "v1", "tags": ["car"], "crop_bbox": [1, 2], "created_at": None}
+    out = store.clean_metadata(md)
     assert out["tags"] == ["car"]
-    assert out["bbox"] == [1, 2]
-    assert "none_field" not in out
+    assert out["crop_bbox"] == [1, 2]
+    assert "created_at" not in out
 
 
 def test_canonical_fields_present():
-    for required in ("video_id", "timestamp", "tags", "bbox", "fps"):
+    for required in (
+        "video_id",
+        "timestamp",
+        "tags",
+        "crop_bbox",
+        "detected_label",
+        "frame_number",
+        "fps",
+        "video_url",
+        "bucket_name",
+    ):
         assert required in CANONICAL_FIELDS
+
+
+def _make_store(backend):
+    if backend == "vdms":
+        from src.core.vectorstores.vdms_store import VDMSVectorStore
+
+        return VDMSVectorStore(host="h", port="1", collection_name="c")
+    from src.core.vectorstores.milvus_store import MilvusVectorStore
+
+    return MilvusVectorStore(uri="http://localhost:19530", collection_name="c")
+
+
+@pytest.mark.parametrize("backend", ["vdms", "milvus"])
+def test_clean_metadata_drops_transient_keys(backend):
+    store = _make_store(backend)
+    md = {
+        # canonical, retriever-critical fields that MUST survive
+        "video_id": "v1",
+        "frame_number": 7,
+        "detected_label": "car",
+        "tags": ["a"],
+        "video_url": "http://vdms-dataprep:8000/x",
+        # transient pipeline plumbing that must be stripped before storage
+        "shm": "seg1",
+        "shape": [3, 224, 224],
+        "dtype": "float32",
+        "frame_id": "f1",
+        "stream_id": "s1",
+        "batch_id": 2,
+        "enqueue_ts": 123.0,
+    }
+    out = store.clean_metadata(md)
+    for keep in ("video_id", "frame_number", "detected_label", "tags", "video_url"):
+        assert keep in out
+    for drop in ("shm", "shape", "dtype", "frame_id", "stream_id", "batch_id", "enqueue_ts"):
+        assert drop not in out
 
 
 # --------------------------- factory selection -----------------------------

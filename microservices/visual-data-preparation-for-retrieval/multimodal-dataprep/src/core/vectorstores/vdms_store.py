@@ -11,14 +11,17 @@ and the descriptor-set index update previously embedded in the app lifespan).
 from __future__ import annotations
 
 import uuid
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from langchain_core.embeddings import Embeddings
-from langchain_vdms.vectorstores import VDMS, VDMS_Client, VDMS_Utils
 
 from src.common import Strings, logger, settings
 from src.core.vectorstores.base import BaseVectorStore
-from src.core.vectorstores.metadata import adapt_for_vdms
+from src.core.vectorstores.factory import register_backend
+from src.core.vectorstores.metadata import flatten_to_scalars, project_to_canonical
+
+if TYPE_CHECKING:
+    from langchain_vdms.vectorstores import VDMS, VDMS_Client
 
 _DEFAULT_DIMENSIONS = 512
 _BATCH_SIZE = 200
@@ -37,6 +40,7 @@ class _DummyEmbedding(Embeddings):
         raise NotImplementedError("Use add_from() / add_embeddings() instead")
 
 
+@register_backend("vdms")
 class VDMSVectorStore(BaseVectorStore):
     """Vector store backed by VDMS via ``langchain_vdms``."""
 
@@ -59,6 +63,8 @@ class VDMSVectorStore(BaseVectorStore):
         if self.video_db is not None:
             return
         try:
+            from langchain_vdms.vectorstores import VDMS, VDMS_Client
+
             logger.info("Connecting to VDMS DB server at %s:%s...", self.host, self.port)
             self.client = VDMS_Client(host=self.host, port=int(self.port))
             self.video_db = VDMS(
@@ -80,7 +86,8 @@ class VDMSVectorStore(BaseVectorStore):
             raise Exception(Strings.db_conn_error)
 
     def clean_metadata(self, metadata: dict) -> dict:
-        return adapt_for_vdms(metadata)
+        """Project onto the canonical contract, then flatten to VDMS scalars."""
+        return flatten_to_scalars(project_to_canonical(metadata))
 
     def add_embeddings(
         self,
@@ -158,6 +165,8 @@ class VDMSVectorStore(BaseVectorStore):
             logger.debug("VDMS client not initialized; skipping index update.")
             return
         try:
+            from langchain_vdms.vectorstores import VDMS_Utils
+
             vdms_utils = VDMS_Utils(self.client)
             query = vdms_utils.add_descriptor_set(
                 "FindDescriptorSet",
@@ -176,6 +185,8 @@ class VDMSVectorStore(BaseVectorStore):
     def health(self) -> dict:
         status = {"backend": "vdms", "collection": self.collection_name}
         try:
+            from langchain_vdms.vectorstores import VDMS_Client
+
             if self.client is None:
                 VDMS_Client(host=self.host, port=int(self.port))
             status["status"] = "ok"

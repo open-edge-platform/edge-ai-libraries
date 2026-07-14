@@ -32,7 +32,8 @@ from langchain_core.embeddings import Embeddings
 
 from src.common import Strings, logger, settings
 from src.core.vectorstores.base import BaseVectorStore
-from src.core.vectorstores.metadata import adapt_for_milvus
+from src.core.vectorstores.factory import register_backend
+from src.core.vectorstores.metadata import project_to_canonical
 
 _BATCH_SIZE = 200
 
@@ -48,6 +49,7 @@ class _DummyEmbedding(Embeddings):
         raise NotImplementedError("Use add_embeddings() with precomputed vectors")
 
 
+@register_backend("milvus")
 class MilvusVectorStore(BaseVectorStore):
     """Vector store backed by Milvus via ``langchain_milvus``."""
 
@@ -124,7 +126,16 @@ class MilvusVectorStore(BaseVectorStore):
             raise Exception(Strings.db_conn_error)
 
     def clean_metadata(self, metadata: dict) -> dict:
-        return adapt_for_milvus(metadata)
+        """Project onto the canonical contract, then drop ``None`` values.
+
+        Lists and nested values are preserved as-is because Milvus dynamic
+        fields are enabled.
+        """
+        return {
+            key: value
+            for key, value in project_to_canonical(metadata).items()
+            if value is not None
+        }
 
     def add_embeddings(
         self,

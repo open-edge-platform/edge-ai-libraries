@@ -12,7 +12,6 @@ Classes:
 
 Functions:
 - create_frames_manifest(): Create JSON manifest for extracted frames
-- create_enhanced_frame_metadata(): Create enhanced metadata for a single frame
 - store_enhanced_video_metadata(): Store enhanced video metadata with frame processing
 - extract_enhanced_video_metadata(): Generate enhanced metadata for video processing
 
@@ -186,62 +185,6 @@ def create_frames_manifest(frame_info_list: List[FrameInfo], temp_dir: str, vide
     except Exception as e:
         logger.error(f"Error creating frames manifest: {e}")
         raise Exception(f"Failed to create frames manifest: {e}")
-
-
-def create_enhanced_frame_metadata(
-    video_metadata: dict,
-    frame_info: FrameInfo,
-    frame_interval: int,
-    enable_object_detection: bool
-) -> dict:
-    """
-    Create enhanced metadata for a single frame that preserves all video context
-    while adding frame-specific information.
-    
-    Args:
-        video_metadata: Original video metadata dictionary
-        frame_info: Frame-specific information
-        frame_interval: Frame extraction interval used
-        enable_object_detection: Whether object detection was enabled
-        
-    Returns:
-        Enhanced metadata dictionary for the frame
-    """
-    # Start with all original video metadata
-    enhanced_metadata = video_metadata.copy()
-    
-    # Add frame-specific metadata
-    enhanced_metadata.update({
-        "frame_number": frame_info.frame_number,
-        "timestamp": frame_info.timestamp,
-        "frame_interval": frame_interval,
-        "embedding_type": "frame",
-        "is_detected_crop": frame_info.frame_type == "detected_crop",
-        "enable_object_detection": enable_object_detection,
-        "processing_timestamp": datetime.datetime.now().isoformat()
-    })
-    
-    # Add detection-specific metadata if applicable
-    if frame_info.frame_type == "detected_crop":
-        enhanced_metadata.update({
-            "crop_index": frame_info.crop_index,
-            "detection_confidence": frame_info.detection_confidence,
-            "crop_bbox": list(frame_info.crop_bbox) if frame_info.crop_bbox else None,
-            "detected_label": frame_info.detected_label,
-            "merged_boxes_count": frame_info.merged_boxes_count,
-            "context_expansion_applied": frame_info.context_expansion_applied,
-        })
-    else:
-        enhanced_metadata.update({
-            "crop_index": None,
-            "detection_confidence": None,
-            "crop_bbox": None,
-            "detected_label": None,
-            "merged_boxes_count": None,
-            "context_expansion_applied": None,
-        })
-    
-    return enhanced_metadata
 
 
 def store_enhanced_video_metadata(
