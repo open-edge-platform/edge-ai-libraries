@@ -8,7 +8,6 @@ Source: VIPPET metrics-manager JSON API (CPU, GPU, NPU, memory, temperature, pow
 
 import logging
 import threading
-import time
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -66,8 +65,11 @@ class HardwareMonitor:
         hw_stats = monitor.stop()   # returns aggregated dict
     """
 
-    def __init__(self, metrics_url: str = "http://localhost:9090/api/v1/metrics/latest",
-                 sample_interval: float = 2.0):
+    def __init__(
+        self,
+        metrics_url: str = "http://localhost:9090/api/v1/metrics/latest",
+        sample_interval: float = 2.0,
+    ):
         self._metrics_url = metrics_url
         self._interval = sample_interval
         self._stop = threading.Event()
@@ -81,7 +83,9 @@ class HardwareMonitor:
     def start(self) -> None:
         self._stop.clear()
         self._samples.clear()
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="hw-monitor")
+        self._thread = threading.Thread(
+            target=self._loop, daemon=True, name="hw-monitor"
+        )
         self._thread.start()
         logger.debug("HardwareMonitor started (interval=%.1fs)", self._interval)
 
@@ -127,10 +131,12 @@ class HardwareMonitor:
             sample["cpu_temperature"] = temp
 
         # ── GPU (Xe) — per-engine utilization ──
-        for engine, label in [("rcs", "gpu_render_util_pct"),
-                              ("vcs", "gpu_video_util_pct"),
-                              ("vecs", "gpu_enhance_util_pct"),
-                              ("ccs", "gpu_compute_util_pct")]:
+        for engine, label in [
+            ("rcs", "gpu_render_util_pct"),
+            ("vcs", "gpu_video_util_pct"),
+            ("vecs", "gpu_enhance_util_pct"),
+            ("ccs", "gpu_compute_util_pct"),
+        ]:
             val = mm.get(f"gpu_engine_usage_usage__{engine}")
             if val is not None:
                 sample[label] = round(val, 2)
@@ -149,9 +155,14 @@ class HardwareMonitor:
             sample["pkg_power_w"] = round(val, 3)
 
         # ── NPU ──
-        for key in ("npu_utilization", "npu_frequency",
-                     "npu_power", "npu_temperature", "npu_memory_mb",
-                     "npu_bandwidth"):
+        for key in (
+            "npu_utilization",
+            "npu_frequency",
+            "npu_power",
+            "npu_temperature",
+            "npu_memory_mb",
+            "npu_bandwidth",
+        ):
             if key in mm:
                 sample[key] = mm[key]
 
@@ -180,10 +191,19 @@ class HardwareMonitor:
             agg[f"{key}_max"] = round(max(values), 2)
 
         # Convenience: combined GPU util (average of render + video engines)
-        render_vals = [s.get("gpu_render_util_pct") for s in self._samples if "gpu_render_util_pct" in s]
-        video_vals = [s.get("gpu_video_util_pct") for s in self._samples if "gpu_video_util_pct" in s]
+        render_vals = [
+            s.get("gpu_render_util_pct")
+            for s in self._samples
+            if "gpu_render_util_pct" in s
+        ]
+        video_vals = [
+            s.get("gpu_video_util_pct")
+            for s in self._samples
+            if "gpu_video_util_pct" in s
+        ]
         if render_vals or video_vals:
-            all_vals = render_vals + video_vals
-            agg["gpu_util_combined_avg"] = round(sum(all_vals) / len(all_vals), 2)
+            all_vals = [v for v in render_vals + video_vals if v is not None]
+            if all_vals:
+                agg["gpu_util_combined_avg"] = round(sum(all_vals) / len(all_vals), 2)
 
         return agg

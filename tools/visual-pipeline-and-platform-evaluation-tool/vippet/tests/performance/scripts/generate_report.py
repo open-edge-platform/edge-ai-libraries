@@ -16,21 +16,24 @@ from collections import defaultdict
 
 
 VARIANT_COLORS = {
-    "cpu": {"bg": "rgba(5, 80, 174, 0.75)",  "border": "rgba(5, 80, 174, 1)"},
-    "gpu": {"bg": "rgba(26, 127, 55, 0.75)",  "border": "rgba(26, 127, 55, 1)"},
-    "npu": {"bg": "rgba(130, 80, 223, 0.75)",  "border": "rgba(130, 80, 223, 1)"},
+    "cpu": {"bg": "rgba(5, 80, 174, 0.75)", "border": "rgba(5, 80, 174, 1)"},
+    "gpu": {"bg": "rgba(26, 127, 55, 0.75)", "border": "rgba(26, 127, 55, 1)"},
+    "npu": {"bg": "rgba(130, 80, 223, 0.75)", "border": "rgba(130, 80, 223, 1)"},
 }
 DEFAULT_COLOR = {"bg": "rgba(120, 120, 130, 0.8)", "border": "rgba(120, 120, 130, 1)"}
 
 KPI_COLORS = {
-    "GPU Render %": {"bg": "rgba(26, 127, 55, 0.7)",  "border": "rgba(26, 127, 55, 1)"},
-    "GPU Video %":  {"bg": "rgba(5, 80, 174, 0.7)",  "border": "rgba(5, 80, 174, 1)"},
-    "NPU %":        {"bg": "rgba(130, 80, 223, 0.7)",  "border": "rgba(130, 80, 223, 1)"},
-    "CPU %":        {"bg": "rgba(249, 115, 22, 0.7)",  "border": "rgba(249, 115, 22, 1)"},
-    "Memory %":     {"bg": "rgba(176, 136, 0, 0.7)", "border": "rgba(176, 136, 0, 1)"},
-    "GPU Power (W)":  {"bg": "rgba(26, 127, 55, 0.7)",  "border": "rgba(26, 127, 55, 1)"},
-    "Pkg Power (W)":  {"bg": "rgba(5, 80, 174, 0.7)",   "border": "rgba(5, 80, 174, 1)"},
-    "NPU Power (W)":  {"bg": "rgba(130, 80, 223, 0.7)", "border": "rgba(130, 80, 223, 1)"},
+    "GPU Render %": {"bg": "rgba(26, 127, 55, 0.7)", "border": "rgba(26, 127, 55, 1)"},
+    "GPU Video %": {"bg": "rgba(5, 80, 174, 0.7)", "border": "rgba(5, 80, 174, 1)"},
+    "NPU %": {"bg": "rgba(130, 80, 223, 0.7)", "border": "rgba(130, 80, 223, 1)"},
+    "CPU %": {"bg": "rgba(249, 115, 22, 0.7)", "border": "rgba(249, 115, 22, 1)"},
+    "Memory %": {"bg": "rgba(176, 136, 0, 0.7)", "border": "rgba(176, 136, 0, 1)"},
+    "GPU Power (W)": {"bg": "rgba(26, 127, 55, 0.7)", "border": "rgba(26, 127, 55, 1)"},
+    "Pkg Power (W)": {"bg": "rgba(5, 80, 174, 0.7)", "border": "rgba(5, 80, 174, 1)"},
+    "NPU Power (W)": {
+        "bg": "rgba(130, 80, 223, 0.7)",
+        "border": "rgba(130, 80, 223, 1)",
+    },
 }
 
 
@@ -87,16 +90,21 @@ def build_fps_charts(test_cases):
             vdata = variants.get(vid, {})
             fps_values = [vdata.get(s) for s in all_streams]
             c = variant_color(vid)
-            datasets.append({
-                "label": vname,
-                "variant_id": vid,
-                "data": fps_values,
-                "backgroundColor": c["bg"],
-                "borderColor": c["border"],
-                "borderWidth": 1.5,
-                "borderRadius": 4,
-            })
-        charts[pipeline] = {"streams_x": [str(s) for s in all_streams], "datasets": datasets}
+            datasets.append(
+                {
+                    "label": vname,
+                    "variant_id": vid,
+                    "data": fps_values,
+                    "backgroundColor": c["bg"],
+                    "borderColor": c["border"],
+                    "borderWidth": 1.5,
+                    "borderRadius": 4,
+                }
+            )
+        charts[pipeline] = {
+            "streams_x": [str(s) for s in all_streams],
+            "datasets": datasets,
+        }
 
     return charts
 
@@ -111,10 +119,10 @@ def build_kpi_chart(test_cases, pipeline_name):
     # Only % utilization metrics — same unit, comparable on one Y axis
     kpi_keys = [
         ("gpu_render_util_pct_avg", "GPU Render %"),
-        ("gpu_video_util_pct_avg",  "GPU Video %"),
-        ("npu_utilization_avg",     "NPU %"),
-        ("cpu_util_pct_avg",        "CPU %"),
-        ("mem_used_percent_avg",    "Memory %"),
+        ("gpu_video_util_pct_avg", "GPU Video %"),
+        ("npu_utilization_avg", "NPU %"),
+        ("cpu_util_pct_avg", "CPU %"),
+        ("mem_used_percent_avg", "Memory %"),
     ]
 
     # Collect per variant (pick streams=1 or first available)
@@ -144,14 +152,16 @@ def build_kpi_chart(test_cases, pipeline_name):
         if all(v is None or v == 0 for v in values):
             continue
         c = KPI_COLORS.get(label, DEFAULT_COLOR)
-        datasets.append({
-            "label": label,
-            "data": values,
-            "backgroundColor": c["bg"],
-            "borderColor": c["border"],
-            "borderWidth": 1.5,
-            "borderRadius": 4,
-        })
+        datasets.append(
+            {
+                "label": label,
+                "data": values,
+                "backgroundColor": c["bg"],
+                "borderColor": c["border"],
+                "borderWidth": 1.5,
+                "borderRadius": 4,
+            }
+        )
 
     if not datasets:
         return None
@@ -165,9 +175,9 @@ def build_power_chart(test_cases, pipeline_name):
     X axis: variants. Datasets: GPU Power, Package Power, NPU Power.
     """
     power_keys = [
-        ("gpu_power_w_avg",  "GPU Power (W)"),
-        ("pkg_power_w_avg",  "Pkg Power (W)"),
-        ("npu_power_avg",    "NPU Power (W)"),
+        ("gpu_power_w_avg", "GPU Power (W)"),
+        ("pkg_power_w_avg", "Pkg Power (W)"),
+        ("npu_power_avg", "NPU Power (W)"),
     ]
 
     variant_data = {}
@@ -196,14 +206,16 @@ def build_power_chart(test_cases, pipeline_name):
         if all(v is None or v == 0 for v in values):
             continue
         c = KPI_COLORS.get(label, DEFAULT_COLOR)
-        datasets.append({
-            "label": label,
-            "data": values,
-            "backgroundColor": c["bg"],
-            "borderColor": c["border"],
-            "borderWidth": 1.5,
-            "borderRadius": 4,
-        })
+        datasets.append(
+            {
+                "label": label,
+                "data": values,
+                "backgroundColor": c["bg"],
+                "borderColor": c["border"],
+                "borderWidth": 1.5,
+                "borderRadius": 4,
+            }
+        )
 
     if not datasets:
         return None
@@ -215,24 +227,30 @@ def build_summary_rows(test_cases):
     rows = []
     for tc in test_cases:
         hw = tc.get("hw_metrics") or {}
-        rows.append({
-            "pipeline": tc["pipeline_name"],
-            "variant": tc["variant_name"],
-            "streams": tc["streams"],
-            "status": tc["status"],
-            "total_fps": safe(tc.get("result", {}).get("total_fps"), 2) if tc["status"] == "success" else None,
-            "per_stream_fps": safe(tc.get("result", {}).get("per_stream_fps"), 2) if tc["status"] == "success" else None,
-            "duration_s": safe(tc.get("duration_seconds"), 1),
-            "gpu_util": safe(hw.get("gpu_util_combined_avg"), 1),
-            "gpu_freq": safe(hw.get("gpu_freq_mhz_avg"), 0),
-            "gpu_power": safe(hw.get("gpu_power_w_avg"), 2),
-            "pkg_power": safe(hw.get("pkg_power_w_avg"), 2),
-            "npu_util": safe(hw.get("npu_utilization_avg"), 1),
-            "npu_power": safe(hw.get("npu_power_avg"), 2),
-            "cpu_util": safe(hw.get("cpu_util_pct_avg"), 1),
-            "cpu_temp": safe(hw.get("cpu_temperature_avg"), 1),
-            "error": tc.get("error"),
-        })
+        rows.append(
+            {
+                "pipeline": tc["pipeline_name"],
+                "variant": tc["variant_name"],
+                "streams": tc["streams"],
+                "status": tc["status"],
+                "total_fps": safe(tc.get("result", {}).get("total_fps"), 2)
+                if tc["status"] == "success"
+                else None,
+                "per_stream_fps": safe(tc.get("result", {}).get("per_stream_fps"), 2)
+                if tc["status"] == "success"
+                else None,
+                "duration_s": safe(tc.get("duration_seconds"), 1),
+                "gpu_util": safe(hw.get("gpu_util_combined_avg"), 1),
+                "gpu_freq": safe(hw.get("gpu_freq_mhz_avg"), 0),
+                "gpu_power": safe(hw.get("gpu_power_w_avg"), 2),
+                "pkg_power": safe(hw.get("pkg_power_w_avg"), 2),
+                "npu_util": safe(hw.get("npu_utilization_avg"), 1),
+                "npu_power": safe(hw.get("npu_power_avg"), 2),
+                "cpu_util": safe(hw.get("cpu_util_pct_avg"), 1),
+                "cpu_temp": safe(hw.get("cpu_temperature_avg"), 1),
+                "error": tc.get("error"),
+            }
+        )
     return rows
 
 
@@ -270,7 +288,6 @@ def _build_sysinfo_cards(system_info):
 
 def generate_html(runs):
     # Merge all test cases; annotate with run id if multiple runs
-    multi = len(runs) > 1
     all_cases = []
     for run in runs:
         for tc in run["test_cases"]:
@@ -287,20 +304,22 @@ def generate_html(runs):
     vippet_version = ""
     for run in runs:
         hw = run.get("hardware", {})
-        hw_str = ", ".join(
-            f"{k}: {', '.join(v)}" for k, v in hw.items()
+        hw_str = ", ".join(f"{k}: {', '.join(v)}" for k, v in hw.items())
+        run_meta.append(
+            {
+                "id": run["benchmark_id"],
+                "timestamp": run["timestamp"][:19].replace("T", " "),
+                "duration": f"{run['duration_seconds']:.1f}s",
+                "hardware": hw_str,
+                "summary": run["summary"],
+            }
         )
-        run_meta.append({
-            "id": run["benchmark_id"],
-            "timestamp": run["timestamp"][:19].replace("T", " "),
-            "duration": f"{run['duration_seconds']:.1f}s",
-            "hardware": hw_str,
-            "summary": run["summary"],
-        })
         if not system_info:
             system_info = run.get("system_info", {})
         if not vippet_version:
-            vippet_version = (run.get("system_info", {}).get("software", {}).get("VIPPET", ""))
+            vippet_version = (
+                run.get("system_info", {}).get("software", {}).get("VIPPET", "")
+            )
 
     # Build pipeline section HTML + chart data
     pipeline_sections_html = []
@@ -332,24 +351,25 @@ def generate_html(runs):
         for r in cases_for_pipeline:
             vid = r["variant"].lower()
             status_badge = (
-                '<span class="badge pass">Pass</span>' if r["status"] == "success"
+                '<span class="badge pass">Pass</span>'
+                if r["status"] == "success"
                 else '<span class="badge fail">Fail</span>'
             )
             row = f"""<tr>
-                <td><span class="chip {vid}">{r['variant']}</span></td>
-                <td class="r">{r['streams']}</td>
+                <td><span class="chip {vid}">{r["variant"]}</span></td>
+                <td class="r">{r["streams"]}</td>
                 <td>{status_badge}</td>
-                <td class="r hi">{fmt(r['total_fps'])}</td>
-                <td class="r">{fmt(r['per_stream_fps'])}</td>
-                <td class="r">{fmt(r['duration_s'], 's')}</td>
-                <td class="r">{fmt(r['gpu_util'], '%')}</td>
-                <td class="r">{fmt(r['gpu_freq'], ' MHz')}</td>
-                <td class="r">{fmt(r['gpu_power'], ' W')}</td>
-                <td class="r">{fmt(r['pkg_power'], ' W')}</td>
-                <td class="r">{fmt(r['npu_util'], '%')}</td>
-                <td class="r">{fmt(r['npu_power'], ' W')}</td>
-                <td class="r">{fmt(r['cpu_util'], '%')}</td>
-                <td class="r">{fmt(r['cpu_temp'], '°C')}</td>
+                <td class="r hi">{fmt(r["total_fps"])}</td>
+                <td class="r">{fmt(r["per_stream_fps"])}</td>
+                <td class="r">{fmt(r["duration_s"], "s")}</td>
+                <td class="r">{fmt(r["gpu_util"], "%")}</td>
+                <td class="r">{fmt(r["gpu_freq"], " MHz")}</td>
+                <td class="r">{fmt(r["gpu_power"], " W")}</td>
+                <td class="r">{fmt(r["pkg_power"], " W")}</td>
+                <td class="r">{fmt(r["npu_util"], "%")}</td>
+                <td class="r">{fmt(r["npu_power"], " W")}</td>
+                <td class="r">{fmt(r["cpu_util"], "%")}</td>
+                <td class="r">{fmt(r["cpu_temp"], "°C")}</td>
             </tr>"""
             table_rows_html.append(row)
 
@@ -364,16 +384,24 @@ def generate_html(runs):
               <div class="chart-title">Throughput — Total FPS</div>
               <canvas id="{fps_chart_id}"></canvas>
             </div>
-            {"" if kpi is None else f'''
+            {
+            ""
+            if kpi is None
+            else f'''
             <div class="chart-card">
               <div class="chart-title">Device Utilization % (1 stream)</div>
               <canvas id="{kpi_chart_id}"></canvas>
-            </div>'''}
-            {"" if pwr is None else f'''
+            </div>'''
+        }
+            {
+            ""
+            if pwr is None
+            else f'''
             <div class="chart-card">
               <div class="chart-title">Power Consumption — Watts (1 stream)</div>
               <canvas id="{pwr_chart_id}"></canvas>
-            </div>'''}
+            </div>'''
+        }
           </div>
           <div class="table-wrap">
             <table>
@@ -386,7 +414,7 @@ def generate_html(runs):
                 <th style="text-align:right">NPU Util</th><th style="text-align:right">NPU Power</th>
                 <th style="text-align:right">CPU Util</th><th style="text-align:right">CPU Temp</th>
               </tr></thead>
-              <tbody>{''.join(table_rows_html)}</tbody>
+              <tbody>{"".join(table_rows_html)}</tbody>
             </table>
           </div>
         </div>"""
@@ -402,16 +430,11 @@ def generate_html(runs):
     for m in run_meta:
         meta_cards_html += f"""
         <div class="meta-card">
-            <div class="meta-label">Run ID</div><div class="meta-val">{m['id']}</div>
-            <div class="meta-label">Timestamp</div><div class="meta-val">{m['timestamp']}</div>
-            <div class="meta-label">Duration</div><div class="meta-val">{m['duration']}</div>
-            <div class="meta-label">Hardware</div><div class="meta-val">{m['hardware']}</div>
+            <div class="meta-label">Run ID</div><div class="meta-val">{m["id"]}</div>
+            <div class="meta-label">Timestamp</div><div class="meta-val">{m["timestamp"]}</div>
+            <div class="meta-label">Duration</div><div class="meta-val">{m["duration"]}</div>
+            <div class="meta-label">Hardware</div><div class="meta-val">{m["hardware"]}</div>
         </div>"""
-
-    nav_links = " ".join(
-        f'<a href="#{p.lower().replace(" ", "-")}">{p}</a>'
-        for p in pipelines
-    )
 
     chart_init_js = []
     for cid, cdata in chart_data_js.items():
@@ -420,7 +443,9 @@ def generate_html(runs):
         is_kpi = cid.startswith("kpi_")
         is_pwr = cid.startswith("pwr_")
         is_variant_chart = is_kpi or is_pwr
-        x_labels = json.dumps(cdata["labels"] if is_variant_chart else cdata["streams_x"])
+        x_labels = json.dumps(
+            cdata["labels"] if is_variant_chart else cdata["streams_x"]
+        )
         datasets_json = json.dumps(cdata["datasets"])
         x_title = "Variant" if is_variant_chart else "Streams"
         if is_kpi:
@@ -470,10 +495,14 @@ def generate_html(runs):
   }});""")
 
     timestamp = run_meta[0]["timestamp"] if run_meta else ""
-    pass_rate = f"{round(100*passed/total)}%" if total else "—"
+    pass_rate = f"{round(100 * passed / total)}%" if total else "—"
 
     processor_name = system_info.get("system", {}).get("Processor", "")
-    summary_title = f"Performance Summary \u2014 {processor_name}" if processor_name else "Performance Summary"
+    summary_title = (
+        f"Performance Summary \u2014 {processor_name}"
+        if processor_name
+        else "Performance Summary"
+    )
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -825,7 +854,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
     <div class="sidebar-section">Overview</div>
     <a href="#overview">Summary</a>
     <div class="sidebar-section" style="margin-top:12px">Pipelines</div>
-    {''.join(f'<a href="#{p.lower().replace(" ", "-")}">{p}</a>' for p in pipelines)}
+    {"".join(f'<a href="#{p.lower().replace(" ", "-")}">{p}</a>' for p in pipelines)}
   </nav>
 
   <main class="main">
@@ -843,7 +872,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
           <span class="kval">{passed}</span>
           <span class="klbl">Passed</span>
         </div>
-        <div class="kpi-card {'c-fail' if failed else ''}">
+        <div class="kpi-card {"c-fail" if failed else ""}">
           <span class="kval">{failed}</span>
           <span class="klbl">Failed</span>
         </div>
@@ -866,21 +895,21 @@ td.hi {{ color: var(--text); font-weight: 500; }}
         <div class="run-info">
           <h3>Benchmark</h3>
           <dl>
-            {''.join(f'<div class="si-row"><dt>Run ID</dt><dd>{m["id"]}</dd></div><div class="si-row"><dt>Timestamp</dt><dd>{m["timestamp"]}</dd></div><div class="si-row"><dt>Duration</dt><dd>{m["duration"]}</dd></div>' for m in run_meta)}
-            {f'<div class="si-row"><dt>VIPPET</dt><dd>{vippet_version}</dd></div>' if vippet_version else ''}
+            {"".join(f'<div class="si-row"><dt>Run ID</dt><dd>{m["id"]}</dd></div><div class="si-row"><dt>Timestamp</dt><dd>{m["timestamp"]}</dd></div><div class="si-row"><dt>Duration</dt><dd>{m["duration"]}</dd></div>' for m in run_meta)}
+            {f'<div class="si-row"><dt>VIPPET</dt><dd>{vippet_version}</dd></div>' if vippet_version else ""}
           </dl>
         </div>
       </div>
 
     </div>
 
-    {''.join(pipeline_sections_html)}
+    {"".join(pipeline_sections_html)}
 
   </main>
 </div>
 
 <script>
-{''.join(chart_init_js)}
+{"".join(chart_init_js)}
 </script>
 </body>
 </html>"""
@@ -889,9 +918,17 @@ td.hi {{ color: var(--text); font-weight: 500; }}
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate HTML benchmark report from VIPPET JSON results")
-    parser.add_argument("json_files", nargs="+", help="One or more benchmark JSON result files")
-    parser.add_argument("-o", "--output", help="Output HTML file path (default: alongside first input as .html)")
+    parser = argparse.ArgumentParser(
+        description="Generate HTML benchmark report from VIPPET JSON results"
+    )
+    parser.add_argument(
+        "json_files", nargs="+", help="One or more benchmark JSON result files"
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="Output HTML file path (default: alongside first input as .html)",
+    )
     args = parser.parse_args()
 
     paths = [Path(p) for p in args.json_files]

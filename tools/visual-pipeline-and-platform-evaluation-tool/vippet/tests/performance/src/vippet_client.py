@@ -25,13 +25,12 @@ class VIPPETClient:
             base_url: VIPPET API base URL (e.g., http://localhost:7860/api/v1)
             timeout: Default timeout for API requests in seconds
         """
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.session = requests.Session()
-        self.session.headers.update({
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        })
+        self.session.headers.update(
+            {"Accept": "application/json", "Content-Type": "application/json"}
+        )
 
         logger.info(f"Initialized VIPPET client: {self.base_url}")
 
@@ -43,10 +42,7 @@ class VIPPETClient:
             True if healthy, False otherwise
         """
         try:
-            response = self.session.get(
-                f"{self.base_url}/health",
-                timeout=10
-            )
+            response = self.session.get(f"{self.base_url}/health", timeout=10)
             response.raise_for_status()
             logger.info("✓ VIPPET API health check passed")
             return True
@@ -87,16 +83,15 @@ class VIPPETClient:
             requests.RequestException: If API call fails
         """
         logger.info("Fetching available devices...")
-        response = self.session.get(
-            f"{self.base_url}/devices",
-            timeout=30
-        )
+        response = self.session.get(f"{self.base_url}/devices", timeout=30)
         response.raise_for_status()
         devices = response.json()
 
         logger.info(f"Found {len(devices)} device(s)")
         for device in devices:
-            logger.debug(f"  - {device.get('device_family')}: {device.get('device_name')}")
+            logger.debug(
+                f"  - {device.get('device_family')}: {device.get('device_name')}"
+            )
 
         return devices
 
@@ -111,16 +106,13 @@ class VIPPETClient:
             requests.RequestException: If API call fails
         """
         logger.info("Fetching available pipelines...")
-        response = self.session.get(
-            f"{self.base_url}/pipelines",
-            timeout=30
-        )
+        response = self.session.get(f"{self.base_url}/pipelines", timeout=30)
         response.raise_for_status()
         pipelines = response.json()
 
         logger.info(f"Found {len(pipelines)} pipeline(s)")
         for pipeline in pipelines:
-            variant_count = len(pipeline.get('variants', []))
+            variant_count = len(pipeline.get("variants", []))
             logger.debug(f"  - {pipeline.get('name')}: {variant_count} variant(s)")
 
         return pipelines
@@ -136,14 +128,13 @@ class VIPPETClient:
             requests.RequestException: If API call fails
         """
         logger.info("Fetching model information...")
-        response = self.session.get(
-            f"{self.base_url}/models",
-            timeout=30
-        )
+        response = self.session.get(f"{self.base_url}/models", timeout=30)
         response.raise_for_status()
         models = response.json()
 
-        installed_count = sum(1 for m in models if m.get('install_status', '').lower() == 'installed')
+        installed_count = sum(
+            1 for m in models if m.get("install_status", "").lower() == "installed"
+        )
         logger.info(f"Found {len(models)} model(s), {installed_count} installed")
 
         return models
@@ -154,7 +145,7 @@ class VIPPETClient:
         variant_id: str,
         streams: int,
         output_mode: str = "disabled",
-        max_runtime: Optional[int] = None
+        max_runtime: Optional[int] = None,
     ) -> str:
         """
         Submit a performance test job.
@@ -173,32 +164,32 @@ class VIPPETClient:
             requests.RequestException: If API call fails
         """
         payload = {
-            "pipeline_performance_specs": [{
-                "pipeline": {
-                    "source": "variant",
-                    "pipeline_id": pipeline_id,
-                    "variant_id": variant_id
-                },
-                "streams": streams
-            }],
-            "execution_config": {
-                "output_mode": output_mode
-            }
+            "pipeline_performance_specs": [
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": pipeline_id,
+                        "variant_id": variant_id,
+                    },
+                    "streams": streams,
+                }
+            ],
+            "execution_config": {"output_mode": output_mode},
         }
 
         if max_runtime:
             payload["execution_config"]["max_runtime"] = max_runtime
 
-        logger.debug(f"Submitting performance test: {pipeline_id}/{variant_id} ({streams} streams)")
+        logger.debug(
+            f"Submitting performance test: {pipeline_id}/{variant_id} ({streams} streams)"
+        )
 
         response = self.session.post(
-            f"{self.base_url}/tests/performance",
-            json=payload,
-            timeout=30
+            f"{self.base_url}/tests/performance", json=payload, timeout=30
         )
         response.raise_for_status()
         result = response.json()
-        job_id = result.get('job_id')
+        job_id = result.get("job_id")
 
         logger.info(f"Job submitted: {job_id}")
         return job_id
@@ -217,17 +208,13 @@ class VIPPETClient:
             requests.RequestException: If API call fails
         """
         response = self.session.get(
-            f"{self.base_url}/jobs/tests/performance/{job_id}/status",
-            timeout=30
+            f"{self.base_url}/jobs/tests/performance/{job_id}/status", timeout=30
         )
         response.raise_for_status()
         return response.json()
 
     def poll_job_completion(
-        self,
-        job_id: str,
-        timeout: int = 600,
-        poll_interval: int = 2
+        self, job_id: str, timeout: int = 600, poll_interval: int = 2
     ) -> Dict[str, Any]:
         """
         Poll job status until completion or timeout.
@@ -244,33 +231,36 @@ class VIPPETClient:
             TimeoutError: If job doesn't complete within timeout
             RuntimeError: If job fails
         """
-        logger.info(f"Polling job {job_id} (timeout: {timeout}s, interval: {poll_interval}s)")
+        logger.info(
+            f"Polling job {job_id} (timeout: {timeout}s, interval: {poll_interval}s)"
+        )
         start_time = time.time()
         last_state = None
 
         while time.time() - start_time < timeout:
             status = self.get_job_status(job_id)
-            state = status.get('state')
+            state = status.get("state")
 
             # Log state changes
             if state != last_state:
                 logger.info(f"  Job state: {state}")
                 last_state = state
 
-            if state == 'COMPLETED':
-                logger.info(f"✓ Job completed successfully")
+            if state == "COMPLETED":
+                logger.info("✓ Job completed successfully")
                 return status
 
-            elif state == 'FAILED':
-                details = status.get('details', [])
+            elif state == "FAILED":
+                details = status.get("details", [])
                 error_msg = (
-                    details[0] if details
-                    else status.get('error_message', 'Unknown error')
+                    details[0]
+                    if details
+                    else status.get("error_message", "Unknown error")
                 )
                 logger.error(f"✗ Job failed: {error_msg}")
                 raise RuntimeError(f"Job {job_id} failed: {error_msg}")
 
-            elif state in ['PENDING', 'RUNNING']:
+            elif state in ["PENDING", "RUNNING"]:
                 # Still processing, continue polling
                 time.sleep(poll_interval)
 
@@ -281,7 +271,9 @@ class VIPPETClient:
 
         # Timeout reached
         elapsed = time.time() - start_time
-        raise TimeoutError(f"Job {job_id} did not complete within {timeout}s (elapsed: {elapsed:.1f}s)")
+        raise TimeoutError(
+            f"Job {job_id} did not complete within {timeout}s (elapsed: {elapsed:.1f}s)"
+        )
 
     def close(self):
         """Close the HTTP session."""

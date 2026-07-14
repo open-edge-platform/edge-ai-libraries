@@ -20,11 +20,12 @@ Collects hardware KPIs per job and produces JSON, CSV, and HTML bar-chart report
 ./run.sh --report-only results/latest/*.json  # regenerate HTML from existing result
 ```
 
-`run.sh` checks dependencies, waits for VIPPET to be ready, runs the benchmark, and generates an HTML report alongside the JSON/CSV.
+`run.sh` checks dependencies, waits for VIPPET to be ready, runs the benchmark, and generates an HTML
+report alongside the JSON/CSV.
 
 ## Layout
 
-```
+```text
 run.sh                  # entry point
 requirements.txt
 config/
@@ -56,7 +57,7 @@ Sampled per job by a background thread via VIPPET metrics-manager — not system
 
 ## Results
 
-```
+```text
 results/
 ├── bench_YYYYMMDD_HHMMSS/
 │   ├── *.json    full results

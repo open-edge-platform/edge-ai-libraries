@@ -6,18 +6,16 @@ Automated benchmarking of VIPPET pipelines across CPU/GPU/NPU devices.
 """
 
 import sys
-import os
 import argparse
 import logging
 from pathlib import Path
-from datetime import datetime
 
 # Add src directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import yaml
-from orchestrator import BenchmarkOrchestrator
-from reporters import ResultExporter
+from orchestrator import BenchmarkOrchestrator  # type: ignore[import-not-found]
+from reporters import ResultExporter  # type: ignore[import-not-found]
 
 
 def setup_logging(verbose: bool = False, quiet: bool = False):
@@ -37,11 +35,7 @@ def setup_logging(verbose: bool = False, quiet: bool = False):
 
     # Configure root logger
     logging.basicConfig(
-        level=level,
-        format='%(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
+        level=level, format="%(message)s", handlers=[logging.StreamHandler(sys.stdout)]
     )
 
 
@@ -77,36 +71,36 @@ def merge_cli_args(config: dict, args: argparse.Namespace) -> dict:
     """
     # Override VIPPET URL
     if args.vippet_url:
-        config['vippet']['base_url'] = args.vippet_url
+        config["vippet"]["base_url"] = args.vippet_url
 
     # Override output directory
     if args.output:
-        config['results']['output_dir'] = args.output
+        config["results"]["output_dir"] = args.output
 
     # Override pipelines filter
     if args.pipelines:
-        if args.pipelines == '*':
-            config['benchmark']['pipelines'] = '*'
+        if args.pipelines == "*":
+            config["benchmark"]["pipelines"] = "*"
         else:
-            config['benchmark']['pipelines'] = args.pipelines.split(',')
+            config["benchmark"]["pipelines"] = args.pipelines.split(",")
 
     # Override variants filter
     if args.variants:
-        config['benchmark']['variants'] = args.variants.split(',')
+        config["benchmark"]["variants"] = args.variants.split(",")
 
     # Override stream counts
     if args.streams:
-        config['benchmark']['stream_counts'] = [int(s) for s in args.streams.split(',')]
+        config["benchmark"]["stream_counts"] = [int(s) for s in args.streams.split(",")]
 
     # Quick mode
     if args.quick:
-        config['benchmark']['stream_counts'] = [1, 3]
-        config['benchmark']['variants'] = ['cpu', 'gpu']
+        config["benchmark"]["stream_counts"] = [1, 3]
+        config["benchmark"]["variants"] = ["cpu", "gpu"]
 
     # Full mode
     if args.full:
-        config['benchmark']['stream_counts'] = [1, 3, 5, 10]
-        config['benchmark']['variants'] = ['cpu', 'gpu', 'npu', 'gpu_npu']
+        config["benchmark"]["stream_counts"] = [1, 3, 5, 10]
+        config["benchmark"]["variants"] = ["cpu", "gpu", "npu", "gpu_npu"]
 
     return config
 
@@ -119,7 +113,7 @@ def create_symlink_latest(output_dir: Path, benchmark_dir: Path):
         output_dir: Parent output directory
         benchmark_dir: Current benchmark results directory
     """
-    latest_link = output_dir / 'latest'
+    latest_link = output_dir / "latest"
 
     # Remove existing symlink if present
     if latest_link.is_symlink() or latest_link.exists():
@@ -133,7 +127,7 @@ def create_symlink_latest(output_dir: Path, benchmark_dir: Path):
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description='VIPPET Benchmark Suite - Automated pipeline benchmarking',
+        description="VIPPET Benchmark Suite - Automated pipeline benchmarking",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -154,74 +148,62 @@ Examples:
 
   # Dry run (show test matrix without running)
   %(prog)s --dry-run
-        """
+        """,
     )
 
     parser.add_argument(
-        '--config',
+        "--config",
         type=Path,
-        default=Path(__file__).parent.parent / 'config' / 'default.yaml',
-        help='Configuration file (default: config/default.yaml)'
+        default=Path(__file__).parent.parent / "config" / "default.yaml",
+        help="Configuration file (default: config/default.yaml)",
     )
 
     parser.add_argument(
-        '--vippet-url',
+        "--vippet-url", type=str, help="VIPPET API base URL (overrides config)"
+    )
+
+    parser.add_argument(
+        "--output", type=Path, help="Output directory for results (overrides config)"
+    )
+
+    parser.add_argument(
+        "--pipelines",
         type=str,
-        help='VIPPET API base URL (overrides config)'
+        help='Pipeline filter: "*" for all, or comma-separated list (overrides config)',
     )
 
     parser.add_argument(
-        '--output',
-        type=Path,
-        help='Output directory for results (overrides config)'
-    )
-
-    parser.add_argument(
-        '--pipelines',
+        "--variants",
         type=str,
-        help='Pipeline filter: "*" for all, or comma-separated list (overrides config)'
+        help='Variant filter: comma-separated list (e.g., "cpu,gpu,npu") (overrides config)',
     )
 
     parser.add_argument(
-        '--variants',
+        "--streams",
         type=str,
-        help='Variant filter: comma-separated list (e.g., "cpu,gpu,npu") (overrides config)'
+        help='Stream counts: comma-separated list (e.g., "1,3,5") (overrides config)',
     )
 
     parser.add_argument(
-        '--streams',
-        type=str,
-        help='Stream counts: comma-separated list (e.g., "1,3,5") (overrides config)'
+        "--quick", action="store_true", help="Quick mode: fewer streams, CPU+GPU only"
     )
 
     parser.add_argument(
-        '--quick',
-        action='store_true',
-        help='Quick mode: fewer streams, CPU+GPU only'
+        "--full", action="store_true", help="Full mode: all streams, all variants"
     )
 
     parser.add_argument(
-        '--full',
-        action='store_true',
-        help='Full mode: all streams, all variants'
+        "--dry-run",
+        action="store_true",
+        help="Show test matrix without running benchmarks",
     )
 
     parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Show test matrix without running benchmarks'
+        "--verbose", "-v", action="store_true", help="Verbose output (DEBUG level)"
     )
 
     parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Verbose output (DEBUG level)'
-    )
-
-    parser.add_argument(
-        '--quiet', '-q',
-        action='store_true',
-        help='Quiet output (errors only)'
+        "--quiet", "-q", action="store_true", help="Quiet output (errors only)"
     )
 
     args = parser.parse_args()
@@ -263,7 +245,7 @@ Examples:
         orchestrator.close()
 
         # Determine output directory
-        output_dir = Path(config['results']['output_dir'])
+        output_dir = Path(config["results"]["output_dir"])
         benchmark_id = result.benchmark_id
 
         # Create timestamped subdirectory
@@ -271,7 +253,7 @@ Examples:
         benchmark_dir.mkdir(parents=True, exist_ok=True)
 
         # Export results
-        formats = config['results']['formats']
+        formats = config["results"]["formats"]
         exporter = ResultExporter(benchmark_dir, formats)
         exporter.export(result.to_dict())
 
@@ -279,9 +261,13 @@ Examples:
         json_path = benchmark_dir / f"{benchmark_id}.json"
         html_path = benchmark_dir / f"{benchmark_id}.html"
         try:
-            import importlib.util, sys as _sys
-            report_script = Path(__file__).parent / 'generate_report.py'
-            spec = importlib.util.spec_from_file_location('generate_report', report_script)
+            import importlib.util
+
+            report_script = Path(__file__).parent / "generate_report.py"
+            spec = importlib.util.spec_from_file_location(
+                "generate_report", report_script
+            )
+            assert spec is not None and spec.loader is not None
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
             runs = mod.load_results([json_path])
@@ -291,18 +277,18 @@ Examples:
             logging.warning(f"  ⚠ HTML report skipped: {e}")
 
         # Create 'latest' symlink
-        if config['results'].get('create_latest_link', True):
+        if config["results"].get("create_latest_link", True):
             create_symlink_latest(output_dir, benchmark_dir)
 
         # Final summary
         logging.info(f"\n{'=' * 70}")
-        logging.info(f"BENCHMARK COMPLETE ✓")
+        logging.info("BENCHMARK COMPLETE ✓")
         logging.info(f"{'=' * 70}")
         logging.info(f"\nResults directory: {benchmark_dir}")
         logging.info(f"HTML report:       {html_path}")
 
         # Exit with error if any tests failed
-        if result.summary['failed'] > 0:
+        if result.summary["failed"] > 0:
             logging.warning(f"\n⚠️  {result.summary['failed']} test(s) failed")
             return 1
 
@@ -316,9 +302,10 @@ Examples:
         logging.error(f"\n❌ ERROR: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TestCase:
     """Represents a single benchmark test case."""
+
     pipeline_id: str
     pipeline_name: str
     variant_id: str
@@ -39,6 +40,7 @@ class TestCase:
 @dataclass
 class BenchmarkResult:
     """Complete benchmark run results."""
+
     benchmark_id: str
     timestamp: str
     duration_seconds: float
@@ -51,14 +53,14 @@ class BenchmarkResult:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
-            'benchmark_id': self.benchmark_id,
-            'timestamp': self.timestamp,
-            'duration_seconds': self.duration_seconds,
-            'config': self.config,
-            'hardware': self.hardware,
-            'test_cases': [asdict(tc) for tc in self.test_cases],
-            'summary': self.summary,
-            'system_info': self.system_info
+            "benchmark_id": self.benchmark_id,
+            "timestamp": self.timestamp,
+            "duration_seconds": self.duration_seconds,
+            "config": self.config,
+            "hardware": self.hardware,
+            "test_cases": [asdict(tc) for tc in self.test_cases],
+            "summary": self.summary,
+            "system_info": self.system_info,
         }
 
 
@@ -74,21 +76,21 @@ class BenchmarkOrchestrator:
         """
         self.config = config
         self.client = VIPPETClient(
-            base_url=config['vippet']['base_url'],
-            timeout=config['vippet']['timeout']
+            base_url=config["vippet"]["base_url"], timeout=config["vippet"]["timeout"]
         )
 
         # Extract configuration parameters
-        self.poll_interval = config['vippet']['poll_interval']
-        self.max_job_duration = config['vippet']['max_job_duration']
-        self.max_retries = config['benchmark']['execution']['max_retries']
-        self.retry_delay = config['benchmark']['execution']['retry_delay_seconds']
-        self.output_mode = config['benchmark']['execution']['output_mode']
-        self.require_models = config['benchmark']['filters']['require_models']
+        self.poll_interval = config["vippet"]["poll_interval"]
+        self.max_job_duration = config["vippet"]["max_job_duration"]
+        self.max_retries = config["benchmark"]["execution"]["max_retries"]
+        self.retry_delay = config["benchmark"]["execution"]["retry_delay_seconds"]
+        self.output_mode = config["benchmark"]["execution"]["output_mode"]
+        self.require_models = config["benchmark"]["filters"]["require_models"]
 
-        metrics_url = config.get('metrics', {}).get(
-            'metrics_url', 'http://localhost:9090/api/v1/metrics/latest')
-        sample_interval = config.get('metrics', {}).get('sample_interval_seconds', 2.0)
+        metrics_url = config.get("metrics", {}).get(
+            "metrics_url", "http://localhost:9090/api/v1/metrics/latest"
+        )
+        sample_interval = config.get("metrics", {}).get("sample_interval_seconds", 2.0)
         self.hw_monitor = HardwareMonitor(metrics_url, sample_interval)
 
         logger.info("Benchmark orchestrator initialized")
@@ -108,14 +110,14 @@ class BenchmarkOrchestrator:
 
         hardware = {}
         for device in devices:
-            family = device.get('device_family', '').upper()
-            name = device.get('device_name', 'Unknown')
+            family = device.get("device_family", "").upper()
+            name = device.get("device_name", "Unknown")
 
             if family not in hardware:
                 hardware[family] = []
             hardware[family].append(name)
 
-        logger.info(f"\nAvailable devices:")
+        logger.info("\nAvailable devices:")
         for family, names in sorted(hardware.items()):
             logger.info(f"  ✓ {family}: {', '.join(names)}")
 
@@ -137,34 +139,35 @@ class BenchmarkOrchestrator:
 
         pipelines = self.client.get_pipelines()
         missing_models_by_pipeline = {}
-        INFERENCE_NODES = {'gvadetect', 'gvaclassify', 'gvainference'}
+        INFERENCE_NODES = {"gvadetect", "gvaclassify", "gvainference"}
 
         for pipeline in pipelines:
-            pipeline_id = pipeline.get('id', '')
-            for variant in pipeline.get('variants', []):
-                nodes = variant.get('pipeline_graph', {}).get('nodes', [])
+            pipeline_id = pipeline.get("id", "")
+            for variant in pipeline.get("variants", []):
+                nodes = variant.get("pipeline_graph", {}).get("nodes", [])
                 missing = [
-                    n['type'] for n in nodes
-                    if n.get('type') in INFERENCE_NODES
-                    and not n.get('data', {}).get('model', '').strip()
+                    n["type"]
+                    for n in nodes
+                    if n.get("type") in INFERENCE_NODES
+                    and not n.get("data", {}).get("model", "").strip()
                 ]
                 if missing:
                     missing_models_by_pipeline[pipeline_id] = missing
                     break  # one variant is enough to flag the pipeline
 
         if missing_models_by_pipeline:
-            logger.warning(f"\nPipelines skipped (models not configured in VIPPET UI):")
+            logger.warning("\nPipelines skipped (models not configured in VIPPET UI):")
             for pipeline_id, nodes in missing_models_by_pipeline.items():
-                logger.warning(f"  - {pipeline_id}: {', '.join(set(nodes))} node(s) have no model set")
+                logger.warning(
+                    f"  - {pipeline_id}: {', '.join(set(nodes))} node(s) have no model set"
+                )
         else:
             logger.info("  ✓ All pipeline models are configured")
 
         return missing_models_by_pipeline
 
     def generate_test_matrix(
-        self,
-        hardware: Dict[str, List[str]],
-        missing_models: Dict[str, List[str]]
+        self, hardware: Dict[str, List[str]], missing_models: Dict[str, List[str]]
     ) -> List[TestCase]:
         """
         Generate test matrix based on available hardware and configuration.
@@ -184,21 +187,28 @@ class BenchmarkOrchestrator:
         available_families = set(hardware.keys())
 
         # Get pipeline filter
-        pipeline_filter = self.config['benchmark']['pipelines']
+        pipeline_filter = self.config["benchmark"]["pipelines"]
         if pipeline_filter != "*":
             pipeline_filter = set(pipeline_filter)
 
         # Get variant and stream configuration
-        requested_variants = set(v.upper() for v in self.config['benchmark']['variants'])
-        stream_counts = self.config['benchmark']['stream_counts']
-        skip_pipelines = set(self.config['benchmark']['filters'].get('skip_pipelines', []))
-        skip_variants = set(v.upper() for v in self.config['benchmark']['filters'].get('skip_variants', []))
+        requested_variants = set(
+            v.upper() for v in self.config["benchmark"]["variants"]
+        )
+        stream_counts = self.config["benchmark"]["stream_counts"]
+        skip_pipelines = set(
+            self.config["benchmark"]["filters"].get("skip_pipelines", [])
+        )
+        skip_variants = set(
+            v.upper()
+            for v in self.config["benchmark"]["filters"].get("skip_variants", [])
+        )
 
         test_cases = []
 
         for pipeline in pipelines:
-            pipeline_id = pipeline.get('id', '')
-            pipeline_name = pipeline.get('name', '')
+            pipeline_id = pipeline.get("id", "")
+            pipeline_name = pipeline.get("name", "")
 
             if not pipeline_id or not pipeline_name:
                 continue
@@ -217,20 +227,22 @@ class BenchmarkOrchestrator:
                 logger.warning(f"Skipping pipeline (missing models): {pipeline_name}")
                 continue
 
-            for variant in pipeline.get('variants', []):
-                variant_id = variant.get('id', '')
-                variant_name = variant.get('name', '').upper()
+            for variant in pipeline.get("variants", []):
+                variant_id = variant.get("id", "")
+                variant_name = variant.get("name", "").upper()
 
                 if not variant_id or not variant_name:
                     continue
 
                 # Check if variant matches requested device types
                 # Variant names can be composite like "GPU_NPU"
-                variant_families = set(variant_name.split('_'))
+                variant_families = set(variant_name.split("_"))
 
                 # Check if all required families are available
                 if not variant_families <= available_families:
-                    logger.debug(f"Skipping {pipeline_name}/{variant_name} (hardware not available)")
+                    logger.debug(
+                        f"Skipping {pipeline_name}/{variant_name} (hardware not available)"
+                    )
                     continue
 
                 # Check if variant is in requested list
@@ -250,11 +262,11 @@ class BenchmarkOrchestrator:
                         pipeline_name=pipeline_name,
                         variant_id=variant_id,
                         variant_name=variant_name,
-                        streams=streams
+                        streams=streams,
                     )
                     test_cases.append(test_case)
 
-        logger.info(f"\nGenerated test matrix:")
+        logger.info("\nGenerated test matrix:")
         logger.info(f"  Total test cases: {len(test_cases)}")
 
         # Group by pipeline and variant
@@ -278,15 +290,19 @@ class BenchmarkOrchestrator:
         Returns:
             Updated TestCase with results
         """
-        for attempt in range(1, self.max_retries + 2):  # +2 because: initial + max_retries
+        for attempt in range(
+            1, self.max_retries + 2
+        ):  # +2 because: initial + max_retries
             test_case.attempt = attempt
 
             try:
                 logger.info(f"\n{'─' * 70}")
-                logger.info(f"TEST: {test_case.pipeline_name} | "
-                           f"{test_case.variant_name} | "
-                           f"{test_case.streams} stream(s) | "
-                           f"Attempt {attempt}/{self.max_retries + 1}")
+                logger.info(
+                    f"TEST: {test_case.pipeline_name} | "
+                    f"{test_case.variant_name} | "
+                    f"{test_case.streams} stream(s) | "
+                    f"Attempt {attempt}/{self.max_retries + 1}"
+                )
                 logger.info(f"{'─' * 70}")
 
                 test_case.status = "running"
@@ -297,7 +313,7 @@ class BenchmarkOrchestrator:
                     pipeline_id=test_case.pipeline_id,
                     variant_id=test_case.variant_id,
                     streams=test_case.streams,
-                    output_mode=self.output_mode
+                    output_mode=self.output_mode,
                 )
                 test_case.job_id = job_id
 
@@ -308,7 +324,7 @@ class BenchmarkOrchestrator:
                     result = self.client.poll_job_completion(
                         job_id=job_id,
                         timeout=self.max_job_duration,
-                        poll_interval=self.poll_interval
+                        poll_interval=self.poll_interval,
                     )
                 finally:
                     hw_stats = self.hw_monitor.stop()
@@ -319,19 +335,31 @@ class BenchmarkOrchestrator:
                 test_case.status = "success"
 
                 # Log key metrics
-                total_fps = result.get('total_fps', 0)
-                per_stream_fps = result.get('per_stream_fps', 0)
-                logger.info(f"\n✓ SUCCESS")
+                total_fps = result.get("total_fps", 0)
+                per_stream_fps = result.get("per_stream_fps", 0)
+                logger.info("\n✓ SUCCESS")
                 logger.info(f"  Total FPS: {total_fps:.2f}")
                 logger.info(f"  Per-stream FPS: {per_stream_fps:.2f}")
                 logger.info(f"  Duration: {test_case.duration_seconds:.1f}s")
                 if hw_stats.get("sample_count", 0) > 0:
-                    logger.info(f"  CPU util: {hw_stats.get('cpu_util_pct_avg', 'N/A')}%")
-                    logger.info(f"  NPU util: {hw_stats.get('npu_utilization_avg', 'N/A')}%")
-                    logger.info(f"  GPU render util: {hw_stats.get('gpu_render_util_pct_avg', 'N/A')}%")
-                    logger.info(f"  GPU freq: {hw_stats.get('gpu_freq_mhz_avg', 'N/A')} MHz")
-                    logger.info(f"  GPU power: {hw_stats.get('gpu_power_w_avg', 'N/A')} W")
-                    logger.info(f"  Pkg power: {hw_stats.get('pkg_power_w_avg', 'N/A')} W")
+                    logger.info(
+                        f"  CPU util: {hw_stats.get('cpu_util_pct_avg', 'N/A')}%"
+                    )
+                    logger.info(
+                        f"  NPU util: {hw_stats.get('npu_utilization_avg', 'N/A')}%"
+                    )
+                    logger.info(
+                        f"  GPU render util: {hw_stats.get('gpu_render_util_pct_avg', 'N/A')}%"
+                    )
+                    logger.info(
+                        f"  GPU freq: {hw_stats.get('gpu_freq_mhz_avg', 'N/A')} MHz"
+                    )
+                    logger.info(
+                        f"  GPU power: {hw_stats.get('gpu_power_w_avg', 'N/A')} W"
+                    )
+                    logger.info(
+                        f"  Pkg power: {hw_stats.get('pkg_power_w_avg', 'N/A')} W"
+                    )
 
                 return test_case
 
@@ -340,11 +368,13 @@ class BenchmarkOrchestrator:
                 logger.error(f"\n✗ FAILED: {e}")
 
                 if attempt <= self.max_retries:
-                    logger.info(f"  Retrying in {self.retry_delay}s... ({attempt}/{self.max_retries})")
+                    logger.info(
+                        f"  Retrying in {self.retry_delay}s... ({attempt}/{self.max_retries})"
+                    )
                     time.sleep(self.retry_delay)
                 else:
                     test_case.status = "failed"
-                    logger.error(f"  Max retries exhausted. Marking as failed.")
+                    logger.error("  Max retries exhausted. Marking as failed.")
                     return test_case
 
             except Exception as e:
@@ -403,15 +433,15 @@ class BenchmarkOrchestrator:
 
         for i, test_case in enumerate(test_cases, 1):
             logger.info(f"\n[{i}/{len(test_cases)}]")
-            test_cases[i-1] = self.execute_test_case(test_case)
+            test_cases[i - 1] = self.execute_test_case(test_case)
 
         # Calculate summary
         duration = time.time() - start_time
         summary = {
-            'total': len(test_cases),
-            'success': sum(1 for tc in test_cases if tc.status == 'success'),
-            'failed': sum(1 for tc in test_cases if tc.status == 'failed'),
-            'skipped': sum(1 for tc in test_cases if tc.status == 'skipped')
+            "total": len(test_cases),
+            "success": sum(1 for tc in test_cases if tc.status == "success"),
+            "failed": sum(1 for tc in test_cases if tc.status == "failed"),
+            "skipped": sum(1 for tc in test_cases if tc.status == "skipped"),
         }
 
         # Create result
@@ -423,7 +453,7 @@ class BenchmarkOrchestrator:
             hardware=hardware,
             test_cases=test_cases,
             summary=summary,
-            system_info=system_info
+            system_info=system_info,
         )
 
         # Print final summary
@@ -431,8 +461,8 @@ class BenchmarkOrchestrator:
         logger.info("BENCHMARK COMPLETE")
         logger.info("=" * 70)
         logger.info(f"\nBenchmark ID: {benchmark_id}")
-        logger.info(f"Duration: {duration:.1f}s ({duration/60:.1f}m)")
-        logger.info(f"\nResults:")
+        logger.info(f"Duration: {duration:.1f}s ({duration / 60:.1f}m)")
+        logger.info("\nResults:")
         logger.info(f"  ✓ Success: {summary['success']}")
         logger.info(f"  ✗ Failed:  {summary['failed']}")
         logger.info(f"  ⊘ Skipped: {summary['skipped']}")
@@ -446,9 +476,12 @@ class BenchmarkOrchestrator:
 
     def _collect_system_info(self) -> Dict[str, Any]:
         """Collect system details for the report."""
+
         def _cmd(args):
             try:
-                return subprocess.check_output(args, text=True, stderr=subprocess.DEVNULL).strip()
+                return subprocess.check_output(
+                    args, text=True, stderr=subprocess.DEVNULL
+                ).strip()
             except Exception:
                 return ""
 
@@ -486,6 +519,7 @@ class BenchmarkOrchestrator:
         vippet_version = ""
         try:
             import requests
+
             resp = requests.get(f"{self.client.base_url}/version", timeout=5)
             if resp.ok:
                 data = resp.json()
