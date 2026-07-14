@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 # VIPPET Benchmark Suite — single entry point.
