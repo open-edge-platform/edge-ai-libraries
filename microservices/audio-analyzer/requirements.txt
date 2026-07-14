@@ -22,7 +22,8 @@ nncf==3.1.0
 psutil==7.1.3
 ultralytics==8.3.201
 speechbrain==1.0.3
-pyannote.audio==3.3.2
+pyannote.audio==4.0.4
+huggingface-hub==0.34.4
 hf_xet==1.4.3
 librosa==0.11.0
 soundfile==0.13.1
