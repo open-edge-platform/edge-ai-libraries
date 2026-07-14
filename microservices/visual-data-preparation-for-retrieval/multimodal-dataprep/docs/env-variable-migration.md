@@ -118,10 +118,9 @@ All variables below are read as `MM_DATAPREP_<NAME>`.
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `MM_DATAPREP_MULTIMODAL_EMBEDDING_ENDPOINT` | `http://multimodal-embedding-serving:8000/embeddings` | Embedding service endpoint. |
 | `MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME` | `""` | Embedding model name. |
 | `MM_DATAPREP_EMBEDDING_BATCH_SIZE` | `32` | Embedding batch size. |
-| `MM_OV_PERFORMANCE_MODE` | `THROUGHPUT` | OpenVINO performance hint for the DataPrep embedding pipeline (falls back to `OPENVINO_PERFORMANCE_MODE`; distinct from the MME service's `OV_PERFORMANCE_MODE`). |
+| `MM_OV_PERFORMANCE_MODE` | `THROUGHPUT` | OpenVINO performance hint for the DataPrep embedding pipeline (falls back to `OPENVINO_PERFORMANCE_MODE`). |
 | `MM_DATAPREP_MAX_PARALLEL_WORKERS` | *(auto)* | Optional hard cap for parallel pipeline workers. |
 
 ### Frame extraction / object detection
@@ -183,13 +182,13 @@ the final `MM_DATAPREP_*` names in section 1, and drop `EMBEDDING_PROCESSING_MOD
 ## 3. Compose-side operator variables (not read by the app directly)
 
 `docker/compose*.yaml` still accept several **operator/wrapper** variables that
-are substituted into the container env or shared with sibling services (MinIO,
-the embedding service). These are set by `setup.sh` / `setup-with-embedding.sh`
-and are intentionally left unprefixed because they are shared or host-scoped,
+are substituted into the container env or shared with sibling services (MinIO).
+These are set by `setup.sh` and are intentionally left unprefixed because they
+are shared or host-scoped,
 e.g.: `MINIO_HOST`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `INDEX_NAME`,
 `VS_INDEX_NAME`, `DEFAULT_BUCKET_NAME`, `EMBEDDING_MODEL_NAME`,
-`MULTIMODAL_EMBEDDING_ENDPOINT`, `MULTIMODAL_EMBEDDING_HOST`, `OV_MODELS_DIR`,
-`FRAME_INTERVAL`, `EMBEDDING_DEVICE` (the MME service's own device),
+`OV_MODELS_DIR`,
+`FRAME_INTERVAL`,
 `VIDEO_FRAME_DECODER_WORKERS`,
 `VIDEO_FRAME_LOG_LEVEL`, `YOLOX_MODELS_MOUNT_PATH`, `VDMS_VDB_HOST`,
 `VDMS_VDB_HOST_PORT`, `HOST_IP`, `REGISTRY`, `TAG`, `PROJECT_NAME`.

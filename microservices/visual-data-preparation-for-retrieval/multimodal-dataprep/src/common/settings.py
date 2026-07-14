@@ -95,7 +95,6 @@ class Settings(BaseSettings):
     )
 
     MULTIMODAL_EMBEDDING_MODEL_NAME: str = ""  # Model name - must be explicitly set
-    MULTIMODAL_EMBEDDING_ENDPOINT: str = ""  # 0 means auto-detect from API
 
     # Embedding settings
     # Note: MULTIMODAL_EMBEDDING_MODEL_NAME is used for model selection

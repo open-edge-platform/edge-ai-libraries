@@ -57,14 +57,8 @@ export MM_DATAPREP_ENABLE_TRACING=${MM_DATAPREP_ENABLE_TRACING:-false}
 export VIDEO_FRAME_DECODER_WORKERS=${VIDEO_FRAME_DECODER_WORKERS:-2}
 export VIDEO_FRAME_LOG_LEVEL=${VIDEO_FRAME_LOG_LEVEL:-INFO}
 
-# Embedding microservice configuration -------------------------------
-export EMBEDDING_SERVER_PORT=${EMBEDDING_SERVER_PORT:-9777}
+# Embedding model selection (in-process SDK) ------------------------
 export EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}
-export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-$MM_DATAPREP_USE_OPENVINO}
-export DEFAULT_START_OFFSET_SEC=${DEFAULT_START_OFFSET_SEC:-0}
-export DEFAULT_CLIP_DURATION=${DEFAULT_CLIP_DURATION:--1}
-export DEFAULT_NUM_FRAMES=${DEFAULT_NUM_FRAMES:-64}
-export MULTIMODAL_EMBEDDING_ENDPOINT=${MULTIMODAL_EMBEDDING_ENDPOINT:-"http://multimodal-embedding-serving:8000/embeddings"}
 
 # System user / group identifiers -----------------------------------
 export USER_ID=$(id -u)
@@ -175,7 +169,6 @@ add_no_proxy_host() {
 # Updating no_proxy to add required service names. Containers need to bypass proxy while connecting to these services.
 add_no_proxy_host "${VDMS_VDB_HOST}"
 add_no_proxy_host "${MINIO_HOST}"
-add_no_proxy_host "multimodal-embedding-serving"
 export no_proxy_env=${no_proxy}
 
 # Set environment variables on shell without spinning up any container

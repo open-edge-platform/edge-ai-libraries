@@ -37,7 +37,7 @@ services:
             target: prod
         image: ${REGISTRY}multimodal-dataprep:${TAG:-latest}
         environment:
-            - no_proxy=${no_proxy},${VDMS_VDB_HOST},${MULTIMODAL_EMBEDDING_HOST},${MINIO_HOST},localhost
+            - no_proxy=${no_proxy},${VDMS_VDB_HOST},${MINIO_HOST},localhost
             - http_proxy=${http_proxy}
             - https_proxy=${https_proxy}
             # Basic app settings
@@ -57,8 +57,7 @@ services:
             # Database settings
             - MM_DATAPREP_DB_COLLECTION=${INDEX_NAME}
 
-            # Embedding service settings
-            - MM_DATAPREP_MULTIMODAL_EMBEDDING_ENDPOINT=${MULTIMODAL_EMBEDDING_ENDPOINT}
+            # Embedding model selection (in-process SDK)
             - MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME:-}
             - MM_OV_PERFORMANCE_MODE=${MM_OV_PERFORMANCE_MODE:-THROUGHPUT}
 

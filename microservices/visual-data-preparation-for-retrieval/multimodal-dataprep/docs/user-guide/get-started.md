@@ -4,7 +4,7 @@ The **VDMS DataPrep microservice** builds and stores frame-level and text embedd
 
 ## Configuration and Setup
 
-VDMS DataPrep ships with Docker Compose manifests (`docker/compose*.yaml`) that provision MinIO, VDMS Vector DB, and the DataPrep container. Always `source` the accompanying setup scripts so the exported environment variables remain in your shell.
+VDMS DataPrep ships with Docker Compose manifests (`docker/compose*.yaml`) that provision MinIO, VDMS Vector DB, and the DataPrep container. Always `source` the accompanying `setup.sh` script so the exported environment variables remain in your shell.
 
 ## Prerequisites
 
@@ -28,7 +28,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_DB_COLLECTION` | ✅ | `video-rag` | VDMS collection that stores embeddings and metadata. |
 | `MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by the in-process embedding pipeline (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
 | `MM_DATAPREP_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration for embedding generation. Set `false` to stay on PyTorch. |
-| `MM_EMBEDDING_DEVICE` | Optional | `CPU` | Device for the in-process embedding pipeline (`CPU`, `GPU`, or `NPU`). Independent of the MME service's own `EMBEDDING_DEVICE`. |
+| `MM_EMBEDDING_DEVICE` | Optional | `CPU` | Device for the in-process embedding pipeline (`CPU`, `GPU`, or `NPU`). |
 | `MM_DATAPREP_DETECTION_DEVICE` | Optional | `CPU` | Device override for object detection execution (`CPU`, `GPU`, or `NPU`). |
 | `MM_DATAPREP_EMBEDDING_BATCH_SIZE` | Optional | `32` | Number of items sent per embedding batch. |
 | `MM_DATAPREP_MAX_PARALLEL_WORKERS` | Optional | _(auto)_ | Hard cap for parallel workers when auto-scaling is too aggressive for the host. |
@@ -61,10 +61,6 @@ device. Each variable defaults to `CPU` when unset:
 
 - `MM_EMBEDDING_DEVICE` — device for the in-process embedding pipeline.
 - `MM_DATAPREP_DETECTION_DEVICE` — device for object detection.
-
-> **Note:** When you run `setup-with-embedding.sh`, the standalone Multimodal
-> Embedding (MME) service has its own device variable, `EMBEDDING_DEVICE`, which
-> is set independently of DataPrep's `MM_EMBEDDING_DEVICE`.
 
 > **Important:** These variables are read directly by the DataPrep container. You
 > can `source` a setup script (which exports the `CPU` defaults) or set them

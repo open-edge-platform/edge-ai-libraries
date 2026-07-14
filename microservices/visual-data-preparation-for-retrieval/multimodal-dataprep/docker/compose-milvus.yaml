@@ -104,7 +104,7 @@ services:
         image: ${REGISTRY}multimodal-dataprep:${TAG:-latest}
         environment:
             # Disable proxy for the dataprep -> Milvus gRPC path.
-            no_proxy: ${no_proxy},milvus-standalone,${MULTIMODAL_EMBEDDING_HOST},${MINIO_HOST},localhost,127.0.0.1
+            no_proxy: ${no_proxy},milvus-standalone,${MINIO_HOST},localhost,127.0.0.1
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             MM_DATAPREP_APP_HOST: multimodal-dataprep
@@ -123,7 +123,6 @@ services:
             MM_DATAPREP_DEFAULT_BUCKET_NAME: ${DEFAULT_BUCKET_NAME}
             MM_DATAPREP_DB_COLLECTION: ${VS_INDEX_NAME}
             # ---- Embedding ----
-            MM_DATAPREP_MULTIMODAL_EMBEDDING_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT}
             MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
             MM_DATAPREP_USE_OPENVINO: ${MM_DATAPREP_USE_OPENVINO:-true}
             MM_EMBEDDING_DEVICE: ${MM_EMBEDDING_DEVICE:-CPU}
