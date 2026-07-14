@@ -17,6 +17,7 @@ debian_70_install_esq () {
     uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main
 
     configure_esq
+    configure_docker_client_proxies
     mkdir -p "$workspace"
     echo "esq installed at $(which esq)"
     echo "esq workspace created at $workspace"
@@ -29,7 +30,7 @@ debian_70_start_esq () {
   pushd "$workspace" > /dev/null
   esq clean --all
 
-  local cmdline_str="$*"
+  local cmdline_str=" $* "
   local options=(${cmdline_str# -- })
   [ ${#options[@]} -gt 0 ] || options=(-qo)
 
