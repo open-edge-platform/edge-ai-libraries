@@ -20,7 +20,7 @@ async def check_health() -> HealthResponse:
     # Basic health status
     health_status = {
         "status": "ok",
-        "embedding_device": settings.DEVICE,
+        "embedding_device": settings.EMBEDDING_DEVICE,
     }
 
     # Report the active vector store backend health (backend-agnostic).
@@ -58,8 +58,8 @@ async def check_health() -> HealthResponse:
 
         if _embedding_client is not None:
             health_status["embedding_client_status"] = "preloaded"
-            health_status["model_name"] = settings.MULTIMODAL_EMBEDDING_MODEL_NAME
-            health_status["embedding_device"] = settings.DEVICE
+            health_status["model_name"] = settings.EMBEDDING_MODEL_NAME
+            health_status["embedding_device"] = settings.EMBEDDING_DEVICE
             health_status["use_openvino"] = settings.USE_OPENVINO
         else:
             health_status["embedding_client_status"] = "not_loaded"

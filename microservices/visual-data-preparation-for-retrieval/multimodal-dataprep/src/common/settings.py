@@ -14,9 +14,8 @@ class Settings(BaseSettings):
 
     # All environment variables for this microservice are namespaced with the
     # MM_DATAPREP_ prefix, e.g. field DETECTION_DEVICE is read from
-    # MM_DATAPREP_DETECTION_DEVICE. The embedding device is the exception: it is
-    # read from MM_EMBEDDING_DEVICE (see the DEVICE field's validation_alias) so
-    # it can be set independently of the MME service's own EMBEDDING_DEVICE.
+    # MM_DATAPREP_DETECTION_DEVICE and EMBEDDING_DEVICE from
+    # MM_DATAPREP_EMBEDDING_DEVICE.
     model_config = SettingsConfigDict(env_prefix="MM_DATAPREP_")
 
     APP_NAME: str = "Multimodal-Dataprep"
@@ -94,10 +93,10 @@ class Settings(BaseSettings):
         "each bucket maps to a subdirectory.",
     )
 
-    MULTIMODAL_EMBEDDING_MODEL_NAME: str = ""  # Model name - must be explicitly set
+    EMBEDDING_MODEL_NAME: str = ""  # Model name - must be explicitly set
 
     # Embedding settings
-    # Note: MULTIMODAL_EMBEDDING_MODEL_NAME is used for model selection
+    # Note: EMBEDDING_MODEL_NAME is used for model selection
     USE_OPENVINO: bool = True  # Whether to use OpenVINO optimization (default: True for better performance)
     MAX_PARALLEL_WORKERS: int | None = Field(
         default=None,
@@ -108,10 +107,13 @@ class Settings(BaseSettings):
         ge=1,
         description="Items per embedding batch",
     )
-    DEVICE: str = Field(
+    EMBEDDING_DEVICE: str = Field(
         default="CPU",
-        validation_alias="MM_EMBEDDING_DEVICE",
-        description="Device for the in-process embedding pipeline (read from MM_EMBEDDING_DEVICE)",
+        description="Device for the in-process embedding pipeline (read from MM_DATAPREP_EMBEDDING_DEVICE)",
+    )
+    OV_PERFORMANCE_MODE: str = Field(
+        default="THROUGHPUT",
+        description="OpenVINO performance hint for the in-process embedding pipeline",
     )
     DETECTION_DEVICE: str | None = Field(
         default=None,

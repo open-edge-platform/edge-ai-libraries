@@ -26,9 +26,9 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_DEFAULT_BUCKET_NAME` | ✅ | `vdms-bucket` (via `setup.sh`) | Destination bucket for uploaded videos and generated manifests. Override with `MM_DATAPREP_PM_MINIO_BUCKET` when running alongside pipeline-manager. |
 | `MM_DATAPREP_VDMS_VDB_HOST` / `MM_DATAPREP_VDMS_VDB_PORT` | ✅ | `vdms-vector-db` / `55555` | Connection information for VDMS Vector DB. |
 | `MM_DATAPREP_DB_COLLECTION` | ✅ | `video-rag` | VDMS collection that stores embeddings and metadata. |
-| `MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by the in-process embedding pipeline (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
+| `MM_DATAPREP_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by the in-process embedding pipeline (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
 | `MM_DATAPREP_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration for embedding generation. Set `false` to stay on PyTorch. |
-| `MM_EMBEDDING_DEVICE` | Optional | `CPU` | Device for the in-process embedding pipeline (`CPU`, `GPU`, or `NPU`). |
+| `MM_DATAPREP_EMBEDDING_DEVICE` | Optional | `CPU` | Device for the in-process embedding pipeline (`CPU`, `GPU`, or `NPU`). |
 | `MM_DATAPREP_DETECTION_DEVICE` | Optional | `CPU` | Device override for object detection execution (`CPU`, `GPU`, or `NPU`). |
 | `MM_DATAPREP_EMBEDDING_BATCH_SIZE` | Optional | `32` | Number of items sent per embedding batch. |
 | `MM_DATAPREP_MAX_PARALLEL_WORKERS` | Optional | _(auto)_ | Hard cap for parallel workers when auto-scaling is too aggressive for the host. |
@@ -54,12 +54,12 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_OV_MODELS_DIR` | Optional | `/app/ov_models` | Persistent mount that caches OpenVINO-optimized models. |
 | `MM_DATAPREP_ALLOW_ORIGINS`, `MM_DATAPREP_ALLOW_METHODS`, `MM_DATAPREP_ALLOW_HEADERS` | Optional | `*` | CORS configuration applied by FastAPI. |
 
-### Device selection (`MM_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`)
+### Device selection (`MM_DATAPREP_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`)
 
 DataPrep configures its two compute stages independently — there is no baseline
 device. Each variable defaults to `CPU` when unset:
 
-- `MM_EMBEDDING_DEVICE` — device for the in-process embedding pipeline.
+- `MM_DATAPREP_EMBEDDING_DEVICE` — device for the in-process embedding pipeline.
 - `MM_DATAPREP_DETECTION_DEVICE` — device for object detection.
 
 > **Important:** These variables are read directly by the DataPrep container. You
@@ -71,14 +71,14 @@ Examples (run before sourcing the setup script):
 ```bash
 # Offload detection to NPU and embedding to GPU (independent per-component devices)
 export MM_DATAPREP_DETECTION_DEVICE=NPU
-export MM_EMBEDDING_DEVICE=GPU
+export MM_DATAPREP_EMBEDDING_DEVICE=GPU
 
 # Run both stages on GPU
-export MM_EMBEDDING_DEVICE=GPU
+export MM_DATAPREP_EMBEDDING_DEVICE=GPU
 export MM_DATAPREP_DETECTION_DEVICE=GPU
 
 # Embedding on GPU, but keep detection on CPU
-export MM_EMBEDDING_DEVICE=GPU
+export MM_DATAPREP_EMBEDDING_DEVICE=GPU
 export MM_DATAPREP_DETECTION_DEVICE=CPU
 ```
 
@@ -86,7 +86,7 @@ When targeting `NPU`, confirm the selected model supports NPU inference via the
 [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
 
 > **Running everything on NPU:** Setting both embedding and detection to `NPU`
-> (via `MM_EMBEDDING_DEVICE=NPU` and `MM_DATAPREP_DETECTION_DEVICE=NPU`) is
+> (via `MM_DATAPREP_EMBEDDING_DEVICE=NPU` and `MM_DATAPREP_DETECTION_DEVICE=NPU`) is
 > functionally supported — both stages run on NPU through OpenVINO. However, the
 > host has a single NPU, so the embedding and detection stages contend for the
 > same accelerator. It works, but it is not optimal for throughput. For best
@@ -99,7 +99,7 @@ Additional environment variables are available for high-throughput scenarios:
 
 - `MM_DATAPREP_ENABLE_PARALLEL_PIPELINE` (default `true`) — disable to force single-threaded embedding.
 - `MM_DATAPREP_MAX_PARALLEL_WORKERS` — hard cap on worker threads (auto-calculated when unset).
-- `MM_OV_PERFORMANCE_MODE`, `OV_PERFORMANCE_HINT_NUM_REQUESTS`, `OV_NUM_STREAMS` — forward performance hints to OpenVINO when running on CPU or GPU.
+- `MM_DATAPREP_OV_PERFORMANCE_MODE`, `OV_PERFORMANCE_HINT_NUM_REQUESTS`, `OV_NUM_STREAMS` — forward performance hints to OpenVINO when running on CPU or GPU.
 - `MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS`, `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` — tune shared-memory capacity for frame transport.
 - `MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE`, `MM_DATAPREP_PIPELINE_QUEUE_MAXSIZE`, `MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S` — tune decode and queue backpressure behavior.
 - `MM_DATAPREP_DETECTION_WORKER_THREADS`, `MM_DATAPREP_EMBED_WORKER_THREADS` — tune stage-local worker counts.
@@ -111,12 +111,12 @@ Export overrides before sourcing the setup script:
 export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"
 export MINIO_ROOT_USER="minioadmin"
 export MINIO_ROOT_PASSWORD="minioadmin"
-export MM_EMBEDDING_DEVICE="CPU"
+export MM_DATAPREP_EMBEDDING_DEVICE="CPU"
 export MM_DATAPREP_DETECTION_DEVICE="CPU"
 source ./setup.sh --nosetup
 ```
 
-> **Tip:** When you only need long-form text embeddings—such as the combined `--all` mode in the video search and summarization sample—set `EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"` before sourcing `setup.sh`. The script forwards this value to the DataPrep container as `MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME`, enabling Qwen-backed text embeddings without any additional flags.
+> **Tip:** When you only need long-form text embeddings—such as the combined `--all` mode in the video search and summarization sample—set `EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"` before sourcing `setup.sh`. The script forwards this value to the DataPrep container as `MM_DATAPREP_EMBEDDING_MODEL_NAME`, enabling Qwen-backed text embeddings without any additional flags.
 
 ## ROI consolidation (optional)
 
@@ -286,9 +286,9 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 
 ## Troubleshooting
 
-- **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before sourcing `setup.sh` or set `MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME` in the container environment before launching Docker.
+- **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before sourcing `setup.sh` or set `MM_DATAPREP_EMBEDDING_MODEL_NAME` in the container environment before launching Docker.
 - **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
 - **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/videos/minio` instead.
-- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`MM_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `GPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`.
-- **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`MM_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `NPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
+- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `GPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`.
+- **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `NPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
 - **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `MM_DATAPREP_OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.

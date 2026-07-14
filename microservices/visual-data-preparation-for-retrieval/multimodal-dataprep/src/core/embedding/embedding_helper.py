@@ -98,11 +98,7 @@ def get_pipeline_config():
     enable_pipelines = os.getenv("MM_DATAPREP_ENABLE_PARALLEL_PIPELINE", "true").lower() == "true"
     use_openvino = settings.USE_OPENVINO
 
-    performance_mode = (
-        (os.getenv("MM_OV_PERFORMANCE_MODE") or os.getenv("OPENVINO_PERFORMANCE_MODE") or "")
-        .strip()
-        .upper()
-    )
+    performance_mode = settings.OV_PERFORMANCE_MODE.strip().upper()
 
     max_workers_env = os.getenv("MM_DATAPREP_MAX_PARALLEL_WORKERS", None)
     if max_workers_env:
@@ -199,10 +195,10 @@ def get_embedding_client() -> EmbeddingClient:
     if _embedding_client is None:
         logger.info("Initializing SDK client for embedding generation")
 
-        # Validate that MULTIMODAL_EMBEDDING_MODEL_NAME is provided
-        if not settings.MULTIMODAL_EMBEDDING_MODEL_NAME:
+        # Validate that EMBEDDING_MODEL_NAME is provided
+        if not settings.EMBEDDING_MODEL_NAME:
             raise ValueError(
-                "MULTIMODAL_EMBEDDING_MODEL_NAME must be explicitly provided - no default model is allowed"
+                "MM_DATAPREP_EMBEDDING_MODEL_NAME must be explicitly provided - no default model is allowed"
             )
 
         # Ensure OpenVINO models directory exists if using OpenVINO
@@ -217,8 +213,8 @@ def get_embedding_client() -> EmbeddingClient:
             logger.info("Using PyTorch native model (OpenVINO disabled)")
 
         _embedding_client = EmbeddingClient(
-            model_id=settings.MULTIMODAL_EMBEDDING_MODEL_NAME,
-            device=settings.DEVICE,
+            model_id=settings.EMBEDDING_MODEL_NAME,
+            device=settings.EMBEDDING_DEVICE,
             use_openvino=settings.USE_OPENVINO,
             ov_models_dir=settings.OV_MODELS_DIR,
         )
@@ -297,7 +293,7 @@ def preload_object_detector(
 
         logger.info("Preloading object detection model...")
         logger.info(
-            f"Object Detection Configuration: enabled={enable_object_detection}, confidence={detection_confidence}, device={settings.DEVICE}"
+            f"Object Detection Configuration: enabled={enable_object_detection}, confidence={detection_confidence}, device={settings.EMBEDDING_DEVICE}"
         )
 
         # Initialize the global detector (this loads the model)
@@ -343,11 +339,11 @@ def preload_embedding_client() -> bool:
     try:
         logger.info("Preloading SDK client and warming up model...")
         logger.info(
-            f"SDK Configuration: Model={settings.MULTIMODAL_EMBEDDING_MODEL_NAME}, Device={settings.DEVICE}, OpenVINO={settings.USE_OPENVINO}"
+            f"SDK Configuration: Model={settings.EMBEDDING_MODEL_NAME}, Device={settings.EMBEDDING_DEVICE}, OpenVINO={settings.USE_OPENVINO}"
         )
 
         # Validate GPU setup if GPU device is requested
-        if settings.DEVICE.upper() == "GPU":
+        if settings.EMBEDDING_DEVICE.upper() == "GPU":
             logger.info("GPU device requested - validating GPU setup...")
 
             # Check if running in OpenVINO mode (recommended for GPU)
@@ -400,7 +396,7 @@ def preload_embedding_client() -> bool:
 
         logger.error(
             "SDK client model %s does not report support for text or image embeddings; warmup skipped",
-            settings.MULTIMODAL_EMBEDDING_MODEL_NAME,
+            settings.EMBEDDING_MODEL_NAME,
         )
         return False
 
@@ -434,7 +430,7 @@ class SimplePipelineManager:
 
         # Log device consistency across all components
         logger.info(
-            f"Device consistency: Processing={settings.DEVICE}, "
+            f"Device consistency: Processing={settings.EMBEDDING_DEVICE}, "
             f"Embedding={embedding_client.device}, "
             f"Detection={'N/A' if not self.enable_object_detection else self.detector.device if self.detector else 'Failed'}, "
             f"ImageEmbeddingsSupported={self.supports_image_embeddings}"

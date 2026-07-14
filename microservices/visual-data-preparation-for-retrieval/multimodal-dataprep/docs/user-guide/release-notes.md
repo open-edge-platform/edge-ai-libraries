@@ -6,7 +6,7 @@
 
 **New**
 
-- Added expanded NPU device support in setup/runtime configuration for per-component execution (`MM_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`).
+- Added expanded NPU device support in setup/runtime configuration for per-component execution (`MM_DATAPREP_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`).
 - Added richer API/OpenAPI alignment updates for video processing and management endpoints.
 
 **Improved**

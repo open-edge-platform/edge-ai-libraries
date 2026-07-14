@@ -23,10 +23,9 @@ Every environment variable the microservice **consumes** is now prefixed with
 setting attribute name is unchanged (`settings.DETECTION_DEVICE`), only the
 environment variable name gains the prefix (`MM_DATAPREP_DETECTION_DEVICE`).
 
-> **One exception:** the embedding-pipeline device (`settings.DEVICE`) is read
-> from **`MM_EMBEDDING_DEVICE`** (via a `validation_alias`), *not*
-> `MM_DATAPREP_DEVICE`. This lets it be set independently of the standalone MME
-> service's own `EMBEDDING_DEVICE`.
+> **Naming note:** the embedding-pipeline device (`settings.EMBEDDING_DEVICE`)
+> is read from **`MM_DATAPREP_EMBEDDING_DEVICE`**, independent of the standalone
+> MME service's own `EMBEDDING_DEVICE`.
 
 Two rename hops happened over the life of this refactor:
 
@@ -40,20 +39,19 @@ Downstream apps should target the **final** `MM_DATAPREP_*` names (section 1/2).
 
 Standard / third-party-owned variables the service reads as-is:
 `no_proxy`, `NO_PROXY`, `http_proxy`, `https_proxy`, and the OpenVINO-runtime
-knobs `OPENVINO_PERFORMANCE_MODE`, `OV_NUM_STREAMS`,
-`OV_PERFORMANCE_HINT_NUM_REQUESTS`, `PERFORMANCE_HINT_NUM_REQUESTS`.
+knobs `OV_NUM_STREAMS`, `OV_PERFORMANCE_HINT_NUM_REQUESTS`,
+`PERFORMANCE_HINT_NUM_REQUESTS`.
 
-> The DataPrep-owned performance-mode knob is prefixed: **`MM_OV_PERFORMANCE_MODE`**
-> (default `THROUGHPUT`). It maps to the OpenVINO performance hint, falling back to
-> the third-party `OPENVINO_PERFORMANCE_MODE` when unset. The standalone MME
-> service keeps its own unprefixed `OV_PERFORMANCE_MODE`.
+> The DataPrep-owned performance-mode knob is prefixed: **`MM_DATAPREP_OV_PERFORMANCE_MODE`**
+> (default `THROUGHPUT`). It maps to the OpenVINO performance hint. The standalone
+> MME service keeps its own unprefixed `OV_PERFORMANCE_MODE`.
 
 ### Removed entirely
 
 `EMBEDDING_PROCESSING_MODE` — the "api" embedding path was deleted; the service
 now always runs the in-process embedding pipeline. `MM_DATAPREP_DEVICE` was also
 removed: there is no longer a baseline device. The embedding-pipeline device is
-now set via `MM_EMBEDDING_DEVICE` and object detection via
+now set via `MM_DATAPREP_EMBEDDING_DEVICE` and object detection via
 `MM_DATAPREP_DETECTION_DEVICE`, each independently (both default to `CPU`). The
 container env line `EMBEDDING_DEVICE` was removed from the dataprep service; it
 now belongs solely to the standalone MME service.
@@ -71,7 +69,7 @@ All variables below are read as `MM_DATAPREP_<NAME>`.
 | `MM_DATAPREP_APP_HOST` | `0.0.0.0` | Host used to build video-download URLs in metadata (compose sets it to the service name). |
 | `MM_DATAPREP_APP_PORT` | `8000` | Container listen port. |
 | `MM_DATAPREP_LOG_LEVEL` | `INFO` | Application log level. |
-| `MM_EMBEDDING_DEVICE` | `CPU` | Inference device (`CPU`/`GPU`/`NPU`) for the in-process embedding pipeline (maps to `settings.DEVICE` via `validation_alias`; independent of the MME service's `EMBEDDING_DEVICE`). |
+| `MM_DATAPREP_EMBEDDING_DEVICE` | `CPU` | Inference device (`CPU`/`GPU`/`NPU`) for the in-process embedding pipeline (maps to `settings.EMBEDDING_DEVICE`; independent of the MME service's `EMBEDDING_DEVICE`). |
 | `MM_DATAPREP_USE_OPENVINO` | `true` | Use OpenVINO for the in-process embedding pipeline. |
 | `MM_DATAPREP_OV_MODELS_DIR` | `/app/ov_models` | OpenVINO model cache directory. |
 | `MM_DATAPREP_ALLOW_ORIGINS` | `*` | CORS allowed origins. |
@@ -118,9 +116,9 @@ All variables below are read as `MM_DATAPREP_<NAME>`.
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME` | `""` | Embedding model name. |
+| `MM_DATAPREP_EMBEDDING_MODEL_NAME` | `""` | Embedding model name (multimodal e.g. `CLIP/clip-vit-b-32`, or text-only e.g. `QwenText/qwen3-embedding-0.6b`). |
 | `MM_DATAPREP_EMBEDDING_BATCH_SIZE` | `32` | Embedding batch size. |
-| `MM_OV_PERFORMANCE_MODE` | `THROUGHPUT` | OpenVINO performance hint for the DataPrep embedding pipeline (falls back to `OPENVINO_PERFORMANCE_MODE`). |
+| `MM_DATAPREP_OV_PERFORMANCE_MODE` | `THROUGHPUT` | OpenVINO performance hint for the DataPrep embedding pipeline. |
 | `MM_DATAPREP_MAX_PARALLEL_WORKERS` | *(auto)* | Optional hard cap for parallel pipeline workers. |
 
 ### Frame extraction / object detection
@@ -169,7 +167,7 @@ All variables below are read as `MM_DATAPREP_<NAME>`.
 
 | Original (vdms-dataprep) | Intermediate | Final |
 |---|---|---|
-| `VDMS_DATAPREP_DEVICE` | `MULTIMODAL_DATAPREP_DEVICE` | `MM_EMBEDDING_DEVICE` (embedding-pipeline device; the baseline `MM_DATAPREP_DEVICE` was later dropped) |
+| `VDMS_DATAPREP_DEVICE` | `MULTIMODAL_DATAPREP_DEVICE` | `MM_DATAPREP_EMBEDDING_DEVICE` (embedding-pipeline device; the baseline `MM_DATAPREP_DEVICE` was later dropped) |
 | `VDMS_DATAPREP_LOG_LEVEL` | `MULTIMODAL_DATAPREP_LOG_LEVEL` | `MM_DATAPREP_LOG_LEVEL` |
 | `VDMS_DATAPREP_HOST_PORT` | `MULTIMODAL_DATAPREP_HOST_PORT` | `MM_DATAPREP_HOST_PORT` (compose host-port var) |
 
@@ -187,17 +185,15 @@ These are set by `setup.sh` and are intentionally left unprefixed because they
 are shared or host-scoped,
 e.g.: `MINIO_HOST`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `INDEX_NAME`,
 `VS_INDEX_NAME`, `DEFAULT_BUCKET_NAME`, `EMBEDDING_MODEL_NAME`,
-`OV_MODELS_DIR`,
-`FRAME_INTERVAL`,
-`VIDEO_FRAME_DECODER_WORKERS`,
-`VIDEO_FRAME_LOG_LEVEL`, `YOLOX_MODELS_MOUNT_PATH`, `VDMS_VDB_HOST`,
+`OV_MODELS_DIR`, `YOLOX_MODELS_MOUNT_PATH`, `VDMS_VDB_HOST`,
 `VDMS_VDB_HOST_PORT`, `HOST_IP`, `REGISTRY`, `TAG`, `PROJECT_NAME`.
 
 The dataprep-branded wrapper vars WERE renamed to their `MM_DATAPREP_` form in
-the setup scripts: `MM_DATAPREP_HOST_PORT`, `MM_EMBEDDING_DEVICE`,
-`MM_DATAPREP_DETECTION_DEVICE`, `MM_OV_PERFORMANCE_MODE`,
+the setup scripts: `MM_DATAPREP_HOST_PORT`, `MM_DATAPREP_EMBEDDING_DEVICE`,
+`MM_DATAPREP_DETECTION_DEVICE`, `MM_DATAPREP_OV_PERFORMANCE_MODE`,
 `MM_DATAPREP_LOG_LEVEL`, `MM_DATAPREP_USE_OPENVINO`, and the former `SDK_*`
-tuning knobs.
+tuning knobs. The setup scripts now export every app-consumed knob under its
+final `MM_DATAPREP_*` name directly (no unprefixed→prefixed compose mapping).
 
 ---
 
@@ -229,3 +225,4 @@ compose host-port wrapper `VDMS_VDB_HOST_PORT` stays unprefixed.
 | 2026-07-09 | Applied single `MM_DATAPREP_` prefix to ALL app-consumed env vars (pydantic `env_prefix`); stripped `SDK_` prefix from pipeline-tuning vars; **removed `EMBEDDING_PROCESSING_MODE` and the API embedding mode** (SDK/in-process pipeline is now the only path); removed the redundant container `EMBEDDING_DEVICE` line. Kept `no_proxy`/OpenVINO-runtime vars unprefixed. | integration |
 | 2026-07-09 | **Removed the baseline `MM_DATAPREP_DEVICE`.** Device selection is now per-component and independent: embedding uses **`MM_EMBEDDING_DEVICE`** (maps to `settings.DEVICE` via `validation_alias`), detection uses **`MM_DATAPREP_DETECTION_DEVICE`**; both default to `CPU` with no cascade. The standalone MME service's `EMBEDDING_DEVICE` is now fully independent of DataPrep. Updated all 3 compose files + both setup scripts. | integration |
 | 2026-07-09 | Renamed the DataPrep OpenVINO performance-mode knob `OV_PERFORMANCE_MODE` → **`MM_OV_PERFORMANCE_MODE`** (default `THROUGHPUT`; still falls back to the third-party `OPENVINO_PERFORMANCE_MODE`). The standalone MME service keeps its own unprefixed `OV_PERFORMANCE_MODE`. Updated all 3 compose files + both setup scripts. | integration |
+| 2026-07-14 | **Normalized naming to a single `MM_DATAPREP_` prefix.** Renamed the two remaining short-prefix vars `MM_EMBEDDING_DEVICE` → **`MM_DATAPREP_EMBEDDING_DEVICE`** (dropped the pydantic `validation_alias`; `settings.DEVICE` → `settings.EMBEDDING_DEVICE`) and `MM_OV_PERFORMANCE_MODE` → **`MM_DATAPREP_OV_PERFORMANCE_MODE`** (now a first-class `settings.OV_PERFORMANCE_MODE` field; the `OPENVINO_PERFORMANCE_MODE` fallback was removed). Renamed `MM_DATAPREP_MULTIMODAL_EMBEDDING_MODEL_NAME` → **`MM_DATAPREP_EMBEDDING_MODEL_NAME`** (`settings.MULTIMODAL_EMBEDDING_MODEL_NAME` → `settings.EMBEDDING_MODEL_NAME`) since the loaded SDK model can be text-only (e.g. `QwenText/qwen3-embedding-0.6b`) and is not necessarily multimodal; also removed the dead `use_qwen_for_long_text`/`qwen_threshold` hint from `generate_text_embedding`. Collapsed the redundant unprefixed→prefixed compose mappings so `setup.sh` exports every app-consumed knob under its final `MM_DATAPREP_*` name directly. | integration |

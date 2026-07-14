@@ -548,8 +548,6 @@ async def _generate_video_embedding(
 async def generate_text_embedding(
     text: str,
     text_metadata: dict = {},
-    use_qwen_for_long_text: bool = True,
-    qwen_threshold: int = 500,
 ) -> List[str]:
     """
     Generate and persist text embeddings using the in-process embedding pipeline.
@@ -557,26 +555,23 @@ async def generate_text_embedding(
     Args:
         text: The text content to embed
         text_metadata: Metadata associated with the text
-        use_qwen_for_long_text: Whether to use Qwen for long texts
-        qwen_threshold: Character threshold to switch to Qwen (default: 500)
 
     Returns:
         List of IDs of the created embeddings
     """
     try:
         text_length = len(text)
-        use_qwen_hint = use_qwen_for_long_text and text_length >= qwen_threshold
-        model_name = (settings.MULTIMODAL_EMBEDDING_MODEL_NAME or "").strip() or "<unspecified>"
+        model_name = (settings.EMBEDDING_MODEL_NAME or "").strip() or "<unspecified>"
 
         logger.info(
-            f"Processing text embedding (length: {text_length}, use_qwen_hint={use_qwen_hint}, model: {model_name})"
+            f"Processing text embedding (length: {text_length}, model: {model_name})"
         )
 
         embedding_client = get_embedding_client()
         if not embedding_client.supports_text:
             raise ValueError(
                 f"Configured model '{model_name}' does not support text embeddings. "
-                "Please verify your EMBEDDING_MODEL_NAME setting and ensure the selected model supports text embedding."
+                "Please verify your MM_DATAPREP_EMBEDDING_MODEL_NAME setting and ensure the selected model supports text embedding."
             )
 
         ids = embedding_client.store_text_embedding(text=text, metadata=text_metadata)
