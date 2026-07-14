@@ -2,7 +2,7 @@ services:
   audio-analyzer:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
       args:
         http_proxy: ${http_proxy:-}
         https_proxy: ${https_proxy:-}
