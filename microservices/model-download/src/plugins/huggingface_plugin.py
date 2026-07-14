@@ -1,8 +1,9 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from huggingface_hub import snapshot_download
-from src.core.interfaces import ModelDownloadPlugin, DownloadTask
+from huggingface_hub import HfApi, snapshot_download
+from huggingface_hub.utils import HfHubHTTPError
+from src.core.interfaces import ListingAuthError, ModelDownloadPlugin, DownloadTask
 from src.utils.logging import logger
 import os
 
@@ -17,6 +18,76 @@ class HuggingFacePlugin(ModelDownloadPlugin):
     @property
     def plugin_type(self) -> str:
         return "downloader"
+
+    @property
+    def supports_listing(self) -> bool:
+        return True
+
+    @property
+    def listing_filter_fields(self) -> list[str]:
+        return ["author", "owner", "organization", "search", "filter", "tags"]
+
+    def list_models(self, filters=None, limit=50, offset=0, **kwargs) -> dict:
+        """List models for an owner/organization on the HuggingFace Hub."""
+        filters = filters or {}
+        token = os.getenv("HF_TOKEN")
+
+        author = filters.get("author") or filters.get("owner") or filters.get("organization")
+        search = str(filters.get("search")) if filters.get("search") is not None else None
+        model_filter = filters.get("filter")
+        tags = filters.get("tags")
+        if tags and not model_filter:
+            model_filter = tags
+
+        api = HfApi(token=token)
+        # Fetch one extra item so the API can tell whether another page exists.
+        fetch_limit = offset + limit + 1
+
+        try:
+            results = api.list_models(
+                author=author,
+                search=search,
+                filter=model_filter,
+                sort="downloads",
+                direction=-1,
+                limit=fetch_limit,
+                expand=["downloads", "likes", "lastModified", "pipeline_tag", "tags", "safetensors"],
+            )
+            models = list(results)
+        except HfHubHTTPError as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status in (401, 403):
+                raise ListingAuthError("HuggingFace credentials are missing or invalid.") from exc
+            raise
+
+        page_end = offset + limit + 1
+        page = models[offset:page_end]
+        items = [self._to_item(model) for model in page if getattr(model, "id", None)]
+        return {"items": items, "total": None}
+
+    @staticmethod
+    def _to_item(model) -> dict:
+        model_id = model.id
+        owner = model_id.split("/")[0] if "/" in model_id else None
+        last_modified = getattr(model, "last_modified", None)
+
+        safetensors = getattr(model, "safetensors", None)
+        params = getattr(safetensors, "parameters", None) if safetensors else None
+        precisions = sorted(params.keys()) if params else []
+
+        return {
+            "name": model_id,
+            "owner": owner,
+            "precisions": precisions,
+            "tags": list(getattr(model, "tags", []) or []),
+            "model_type": getattr(model, "pipeline_tag", None),
+            "last_modified": last_modified.isoformat() if hasattr(last_modified, "isoformat") else last_modified,
+            "metadata": {
+                "downloads": getattr(model, "downloads", None),
+                "likes": getattr(model, "likes", None),
+                "library_name": getattr(model, "library_name", None),
+            },
+        }
 
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         return hub.lower() == "huggingface"

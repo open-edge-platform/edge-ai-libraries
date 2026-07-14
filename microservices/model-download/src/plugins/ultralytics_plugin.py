@@ -24,6 +24,33 @@ class UltralyticsDownloader(ModelDownloadPlugin):
     @property
     def plugin_type(self) -> str:
         return "downloader"
+
+    @property
+    def supports_listing(self) -> bool:
+        return True
+
+    @property
+    def listing_filter_fields(self) -> List[str]:
+        return ["search"]
+
+    def list_models(self, filters=None, limit=50, offset=0, **kwargs) -> dict:
+        """List the statically supported Ultralytics model names."""
+        models = [m for m in self.get_supported_models() if m not in ("all", "yolo_all")]
+
+        search_term = str((filters or {}).get("search", "")).lower()
+        if search_term:
+            models = [m for m in models if search_term in m.lower()]
+
+        total = len(models)
+        page = models[offset: offset + limit]
+        items = [
+            {
+                "name": name,
+                "owner": "ultralytics",
+            }
+            for name in page
+        ]
+        return {"items": items, "total": total}
     
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         """Check if this plugin can handle the given model"""

@@ -7,6 +7,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
 ## Features
 
 - Downloads models from Hugging Face, Ollama, Geti software, Ultralytics, and Pipeline Zoo Models hubs
+- Lists available models from supported hubs before download
 - Converts Hugging Face models to OpenVINO model server format
 - Supports multiple model precisions (INT4, INT8, FP16, and FP32)
 - Supports various device targets (CPU, GPU, and NPU)
@@ -98,7 +99,7 @@ down                   Stop the services
 | `--build`                | Builds the Docker image before running                                                                                                        |
 | `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions                      |
 | `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                                                                         |
-| `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,pipeline-zoo-models, or geti`) or `all` to enable all available plugins |
+| `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,pipeline-zoo-models,remote-url,omz,geti,hls`) or `all` to enable all available plugins |
 | `--ovms-release-tag <tag>` | Set OVMS release tag (e.g., `v2025.4.1`) (default: `v2025.4.1`)                                                                             |
 | `--help`                 | Shows this help message                                                                                                                       |
 
@@ -128,6 +129,54 @@ down                   Stop the services
 - Access the application dashboard and verify that it is functioning as expected.
 
 ## Sample usage with CURL Command
+
+**List models available on a hub:**
+
+Use `POST /api/v1/hubs/{hub}/models` to discover model names before calling `POST /api/v1/models/download`. Listing is currently supported for `huggingface`, `ultralytics`, `pipeline-zoo-models`, and `geti`. Hubs that do not expose a catalog return `501`.
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/hubs/huggingface/models" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": {
+      "owner": "microsoft",
+      "search": "phi"
+    },
+    "limit": 10,
+    "offset": 0
+  }'
+```
+
+For Ultralytics or Pipeline Zoo Models, use the `search` filter:
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/hubs/ultralytics/models" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": {
+      "search": "yolov8"
+    },
+    "limit": 10,
+    "offset": 0
+  }'
+```
+
+For Geti™ software, listing discovers the latest model of every model group across the projects in the configured workspace. Each item's `model_type` is the Geti task type (for example, `DETECTION` or `CLASSIFICATION`) resolved from the model group's task, and `metadata` includes `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_id`, and `optimized_model_ids`. Requires `GETI_HOST`, `GETI_TOKEN`, and `GETI_WORKSPACE_ID` to be set.
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/hubs/geti/models" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": {
+      "project_name": "detection",
+      "precision": "FP16"
+    },
+    "limit": 10,
+    "offset": 0
+  }'
+```
+
+Call `GET /api/v1/plugins` to see which plugins support listing and which `listing_filter_fields` each plugin accepts. Hugging Face supports `author`, `owner`, `organization`, `search`, `filter`, and `tags`. Ultralytics and Pipeline Zoo Models support `search`. Geti™ supports `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_name`, `export_type`, `precision`, and `model_format`.
 
 **Download a Hugging Face model:**
 
