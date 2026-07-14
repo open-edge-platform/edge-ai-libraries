@@ -227,12 +227,11 @@ class ASRComponent(PipelineComponent):
                             speaker = per_segment_labels[idx].get("speaker")
                             # In the enrollment model SPEAKER_00 is always the enrolled primary
                             is_primary = (speaker == "SPEAKER_00")
-                            logger.info(
-                                "[DIARIZATION] segment [%.2fs-%.2fs] per-segment-> speaker=%s is_primary=%s | text=%r",
+                            logger.debug(
+                                "[DIARIZATION] segment [%.2fs-%.2fs] per-segment-> speaker=%s is_primary=%s",
                                 sent["start"], sent["end"],
                                 speaker if speaker else "UNKNOWN",
                                 is_primary,
-                                text[:80],
                             )
                         else:
                             # Assign the speaker turn with the greatest time overlap
