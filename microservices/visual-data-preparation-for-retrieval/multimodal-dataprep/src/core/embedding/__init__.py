@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from .simplified_embedding_helper import (
+from .embedding_orchestrator import (
     generate_video_embedding,
     generate_video_embedding_from_content,
     generate_text_embedding,

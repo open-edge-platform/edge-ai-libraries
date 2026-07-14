@@ -1,6 +1,16 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Embedding orchestration layer.
+
+Thin, async, endpoint-facing facade that prepares metadata and telemetry,
+then delegates the heavy video-embedding work to the synchronous pipeline
+engine in ``embedding_helper``. The API endpoints call the ``async``
+functions exposed here (via ``src.core.embedding``); they should not call the
+pipeline engine directly.
+"""
+
 import pathlib
 import threading
 import time
@@ -20,10 +30,16 @@ from .embedding_helper import (
 
 
 def _normalize_tags(tags: Optional[List[str]]) -> List[str]:
+    """Coerce an optional tag list into a list of strings, mapping ``None`` to ``[]``."""
     return [str(tag) for tag in tags or []]
 
 
 def _ensure_telemetry_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return a telemetry context with ``request_id``, ``source`` and ``requested_at`` defaults filled in.
+
+    A shallow copy of ``context`` (or a new dict) is returned so the caller's
+    input is never mutated; only missing keys are populated.
+    """
     normalized = dict(context or {})
     normalized.setdefault("request_id", str(uuid.uuid4()))
     normalized.setdefault("source", "unknown")
@@ -44,6 +60,13 @@ def _prepare_video_metadata_payload(
     total_frames: Optional[int],
     video_duration_seconds: Optional[float],
 ) -> Dict[str, Any]:
+    """Assemble the normalized video-metadata payload passed to the telemetry recorder.
+
+    Bundles identifying fields (bucket/video/filename), processing settings
+    (frame interval, tags) and probed video properties (URLs, fps, frame count,
+    duration) into a single flat dict, normalizing ``tags`` via
+    :func:`_normalize_tags`.
+    """
     return {
         "bucket_name": bucket_name,
         "video_id": video_id,
@@ -129,6 +152,14 @@ def _record_pipeline(
     metadata_dict: Dict[str, Any],
     pipeline_result: Dict[str, Any],
 ) -> None:
+    """Transform a raw pipeline result into telemetry and record + log it.
+
+    Extracts per-stage durations, throughput and pipeline efficiency metrics
+    from ``pipeline_result``, builds the video-metadata payload, persists the
+    record via :func:`record_video_telemetry`, and emits a structured summary
+    log. Failures are swallowed with a warning so telemetry never breaks the
+    embedding request.
+    """
     try:
         video_props = pipeline_result.get("video_metadata", {})
 
@@ -351,7 +382,7 @@ async def generate_video_embedding_from_content(
 
         # DEBUG: Print metadata dictionary to verify video URLs are created
         logger.info(
-            "DEBUG: metadata_dict created in simplified_embedding_helper: %s",
+            "DEBUG: metadata_dict created in embedding_orchestrator: %s",
             sanitize_for_log(metadata_dict, max_length=1024),
         )
         logger.info(
