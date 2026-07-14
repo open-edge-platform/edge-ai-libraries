@@ -46,14 +46,14 @@ src/
 
 Sampled per job by a background thread via VIPPET metrics-manager — not system-wide averages.
 
-| Metric | Source |
-|--------|--------|
+| Metric                                          | Source                                       |
+|-------------------------------------------------|----------------------------------------------|
 | GPU engine utilisation (render, video, compute) | `metrics-manager` (`gpu_engine_usage_usage`) |
-| GPU frequency | `metrics-manager` (`gpu_frequency`) |
-| GPU power, package power | `metrics-manager` (`gpu_power`) |
-| NPU utilisation, frequency, power, temperature | `metrics-manager` Prometheus |
-| CPU utilisation, frequency, system memory | `metrics-manager` Prometheus |
-| CPU temperature | `metrics-manager` (`temp_temp`) |
+| GPU frequency                                   | `metrics-manager` (`gpu_frequency`)          |
+| GPU power, package power                        | `metrics-manager` (`gpu_power`)              |
+| NPU utilisation, frequency, power, temperature  | `metrics-manager` Prometheus                 |
+| CPU utilisation, frequency, system memory       | `metrics-manager` Prometheus                 |
+| CPU temperature                                 | `metrics-manager` (`temp_temp`)              |
 
 ## Results
 
