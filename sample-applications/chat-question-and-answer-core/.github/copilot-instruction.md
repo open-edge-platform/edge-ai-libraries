@@ -101,6 +101,14 @@ Shared skill files for this sample live under `.github/skills/`.
 
 - Start with `chatqna-build` for image build, build-validation, and packaging
 	workflows.
+- Use `chatqna-docker-deploy` for Docker Compose runtime deployment,
+	verification, and teardown workflows.
+- Use `chatqna-helm-deploy` for Kubernetes Helm deployment, values override,
+	verification, and uninstall workflows.
+- Use `chatqna-run-unit-tests` to run backend and UI unit tests after code
+	changes, unless the user explicitly asks to skip tests.
+- Use `chatqna-api-smoke-test` to validate REST APIs with runtime-aware
+	endpoint checks and HTTP-status evidence.
 - If skill files and a skill catalog are present, use them as the first routing
 	layer for task-specific workflows.
 - If `.github/skills/` has only partial coverage, combine available skills with
@@ -109,6 +117,10 @@ Shared skill files for this sample live under `.github/skills/`.
 | User intent | Skill |
 |---|---|
 | Build images, run build validation, prepare packaging | `chatqna-build` |
+| Deploy with Docker Compose, verify health, stop/reset services | `chatqna-docker-deploy` |
+| Deploy to Kubernetes with Helm, configure overrides, verify, uninstall | `chatqna-helm-deploy` |
+| Run backend/UI unit tests and validate code changes | `chatqna-run-unit-tests` |
+| Smoke test REST APIs, runtime endpoints, and docs/openapi availability | `chatqna-api-smoke-test` |
 
 ## Skill Loading Rules
 
