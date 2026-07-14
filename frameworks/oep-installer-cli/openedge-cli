@@ -22,9 +22,6 @@ main () {
       done
       exit 0
       ;;
-    --*)
-      args+=($v)
-      ;;
     *)
       if declare -F subcommand_$v > /dev/null; then
         cmd=$v
@@ -42,9 +39,47 @@ main () {
   subcommand_$cmd ${args[*]}
 }
 
+act_find_modules () {
+  local act_name=$1
+  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${act_name}_" | cut -f4- -d_))
+  local all_module_args=" ${all_modules[*]/#/--} "
+  local -A modules=()
+  local v
+  for v in ${*:1}; do
+    [[ " ${all_module_args} " != *" $v "* ]] || break
+    [[ " ${all_modules[*]} " = *" $v "* ]] || continue
+    modules[$v]=1
+  done
+  echo "${!modules[*]}"
+}
+
+act_find_module_args () {
+  local module_name=$1
+  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${act_name}_" | cut -f4- -d_))
+  local all_module_args=" ${all_modules[*]/#/--} "
+  local v i=1 args=()
+  for v in ${*:1}; do
+    i=$((i+1))
+    if [[ " ${all_module_args} " = *" $v "* ]]; then
+      local j
+      for ((j=i;j<=${#*};j++)); do
+        if [[ " ${all_module_args} " = *" ${*:$j:1} "* ]]; then
+          echo "${args[*]} -- ${*:$i:$((j-i))}"
+          return
+        fi
+      done
+      echo "${args[*]} -- ${*:$i}"
+      return
+    elif [[ "$v" = "--"* ]]; then
+      args+=($v)
+    fi
+  done
+  echo "${args[*]}"
+}
+
 act_find_deps () {
-  local act_name=$1 i=1
-  local modules=(${*##-*})
+  local act_name=$1 i=0
+  local modules=($(act_find_modules $*))
   local -A handlers=()
   while [ $i -lt ${#modules[*]} ]; do
     local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
@@ -87,7 +122,7 @@ act_helpper () {
   fi
 
   # scan for dependencies
-  local handles=($(act_find_deps $act_name "$@"))
+  local handles=($(act_find_deps $act_name $*))
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
@@ -100,7 +135,11 @@ act_helpper () {
         name=$(echo $handler | cut -f4- -d_)
         echo "==== ${act_name} $name ====" > >(logecho $name)
         start_c=$SECONDS
-        [[ "$*" = *"--dry-run"* ]] || ($handler ${*/#[!-]*/}) > >(logecho $name) 2> >(logecho $name)
+        if [[ "$*" = *"--dry-run"* ]]; then
+         echo "Invoke $handler with $(act_find_module_args $name $*)" > >(logecho $name)
+        else
+         ($handler $(act_find_module_args $name $*)) > >(logecho $name) 2> >(logecho $name)
+        fi
         end_c=$SECONDS
         echo "==== ${act_name} $name completed: $(( end_c - start_c )) seconds ====" > >(logecho $name)
       done
