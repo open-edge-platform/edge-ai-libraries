@@ -57,9 +57,13 @@ export const BenchmarkCards = ({
         >
           <Link to={`/benchmarks/${benchmark.slug}?source=${source}`}>
             <img
-              src={thumbnailPlaceholder}
+              src={`/assets/images/benchmarks/${benchmark.slug}.png`}
               alt={benchmark.name}
               className="w-full object-cover"
+              onError={(event) => {
+                event.currentTarget.onerror = null;
+                event.currentTarget.src = thumbnailPlaceholder;
+              }}
             />
           </Link>
           <CardHeader className="space-y-2">

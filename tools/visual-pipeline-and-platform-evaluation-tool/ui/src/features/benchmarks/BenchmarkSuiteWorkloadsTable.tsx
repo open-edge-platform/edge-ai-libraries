@@ -19,6 +19,16 @@ export const BenchmarkSuiteWorkloadsTable = ({
   benchmark,
   pipelinesMap,
 }: BenchmarkSuiteWorkloadsTableProps) => {
+  const truncateModelName = (name: string) => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+
+    if (parts.length <= 3) {
+      return name;
+    }
+
+    return `${parts.slice(0, 3).join(" ")}...`;
+  };
+
   return (
     <Table className="border rounded-lg">
       <TableHeader className="bg-muted">
@@ -67,13 +77,12 @@ export const BenchmarkSuiteWorkloadsTable = ({
               typeof node.data === "object" &&
               (node.data as Record<string, unknown>).model,
           );
-          const models =
+          const modelNames =
             modelNodes && modelNodes.length > 0
               ? modelNodes
                   .map((node) => (node.data as Record<string, unknown>).model)
-                  .filter((m) => m)
-                  .join(", ")
-              : "";
+                  .filter((m): m is string => typeof m === "string" && !!m)
+              : [];
 
           const uniqueStreams = [
             ...new Set(workload.test_cases.map((tc) => tc.streams)),
@@ -106,7 +115,20 @@ export const BenchmarkSuiteWorkloadsTable = ({
               <TableCell className="text-xs">
                 <div className="space-y-1">
                   <div>Input: {String(sourceValue || "-")}</div>
-                  <div>Models: {String(models || "-")}</div>
+                  <div>
+                    Models:{" "}
+                    {modelNames.length > 0
+                      ? modelNames.map((modelName, index) => (
+                          <span
+                            key={`${workload.id}-${modelName}-${index}`}
+                            title={modelName}
+                          >
+                            {truncateModelName(modelName)}
+                            {index < modelNames.length - 1 ? ", " : ""}
+                          </span>
+                        ))
+                      : "-"}
+                  </div>
                   <div>Tested stream counts: {uniqueStreams || "-"}</div>
                 </div>
               </TableCell>
