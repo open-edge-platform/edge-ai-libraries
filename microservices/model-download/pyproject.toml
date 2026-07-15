@@ -8,20 +8,20 @@ readme = "README.md"
 requires-python = "==3.12.*"
 
 dependencies = [
-    "fastapi==0.121.3",
-    "pydantic==2.12.4",
+    "fastapi==0.139.0",
+    "pydantic==2.13.4",
     "python-multipart>=0.0.9",
-    "structlog==25.1.0",
-    "uvicorn==0.38.0",
-    "PyYAML==6.0.2",
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.1",
+    "structlog==26.1.0",
+    "uvicorn==0.51.0",
+    "PyYAML==6.0.3",
+    "huggingface-hub[cli,hf-transfer,hf-xet]==1.22.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.0,<8.0.0",
-    "pytest-cov>=4.1.0,<5.0.0",
-    "pytest-asyncio>=0.21.1,<1.0.0",
+    "pytest>=7.4.0,<10.0.0",
+    "pytest-cov>=4.1.0,<8.0.0",
+    "pytest-asyncio>=0.21.1,<2.0.0",
     "httpx>=0.24.1,<1.0.0",
     "pytest-mock>=3.11.1,<4.0.0",
     "pytest-env>=1.1.0,<2.0.0",
@@ -30,20 +30,20 @@ dev = [
 ]
 
 cpu = [
-    "torch==2.9.1+cpu",
-    "torchvision==0.24.1+cpu",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
 ]
 
 huggingface = [
-    "transformers<4.58",
-    "torch==2.9.1+cpu",
-    "torchvision==0.24.1+cpu",
+    "transformers<5.14",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
 ]
 
 ultralytics = [
-    "ultralytics==8.2.3",
-    "torch==2.9.1+cpu",
-    "torchvision==0.24.1+cpu",
+    "ultralytics==8.4.90",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
 ]
 
 openvino = [
@@ -59,8 +59,8 @@ geti = [
 ]
 
 hls = [
-    "torch==2.9.1+cpu",
-    "torchvision==0.24.1+cpu",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
     "tensorflow",
     "tqdm>=4.67",
 ]
