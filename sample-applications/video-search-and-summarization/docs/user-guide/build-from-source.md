@@ -12,6 +12,7 @@ This section shows how to build the Video Search and Summary sample application 
 1. Address all [prerequisites](./get-started.md#prerequisites).
 2. Configure the required [environment variables](./get-started.md#set-required-environment-variables).
 3. If the setup is behind a proxy, ensure `http_proxy`, `https_proxy`, and `no_proxy` are properly set on the shell.
+4. Ensure `make` is installed on the system.
 
 ## Steps to Build from Source
 
