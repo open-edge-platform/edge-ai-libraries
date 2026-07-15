@@ -90,6 +90,7 @@ x-vippet: &vippet
     - ./shared/images/:/images
     - ./shared/models/:/models
     - ./shared/videos/:/videos
+    - ./shared/assets/:/assets
     - ./shared/scripts/:/scripts
     - ./shared/onvif/:/onvif
     - ./shared/metadata/:/metadata
@@ -121,6 +122,7 @@ services:
     volumes:
       - ./shared/images/:/images
       - ./shared/videos/:/videos
+      - ./shared/assets/:/assets
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
     image: docker.io/intel/model-download:2026.1.0
