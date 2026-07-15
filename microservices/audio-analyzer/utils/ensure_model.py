@@ -1,8 +1,144 @@
 import logging, os
+import yaml
 from typing import Tuple
 from utils.config_loader import config
 from utils.cli_utils import run_cli
 logger = logging.getLogger(__name__)
+
+HF_PYTORCH_WEIGHTS_NAME = "pytorch_model.bin"
+
+# openai-whisper stores model files as "<id>.pt" in the download_root directory.
+_OPENAI_WHISPER_ID_MAP = {
+    "whisper-tiny": "tiny",
+    "whisper-base": "base",
+    "whisper-small": "small",
+    "whisper-medium": "medium",
+    "whisper-large": "large-v3",
+}
+
+
+def _resolve_hf_token() -> str | None:
+    """Return a valid HF token from config or the HF_TOKEN environment variable.
+
+    Priority: ``models.asr.hf_token`` in config → ``HF_TOKEN`` env var.
+    Returns ``None`` when no token is configured (public models only).
+    """
+    raw = getattr(config.models.asr, "hf_token", None)
+    if isinstance(raw, str) and raw.lower() not in ("none", "null", ""):
+        return raw
+    env_token = os.environ.get("HF_TOKEN", "").strip()
+    return env_token if env_token else None
+
+
+def _download_hf_model(
+    model_name: str,
+    output_dir: str,
+    hf_token: str = None,
+    force: bool = False,
+    required_files: list[str] | None = None,
+) -> Tuple[bool, str]:
+    """Download a HuggingFace model snapshot locally (offline-capable after first download)."""
+    os.makedirs(output_dir, exist_ok=True)
+
+    required_files = required_files or []
+    has_required_files = all(
+        os.path.exists(os.path.join(output_dir, f)) for f in required_files
+    )
+
+    if not force and os.listdir(output_dir) and has_required_files:
+        logger.info("⚡ Using cached HF model at %s", output_dir)
+        return True, output_dir
+
+    if os.listdir(output_dir) and not has_required_files:
+        logger.warning("Incomplete HF model cache detected at %s. Re-downloading.", output_dir)
+
+    logger.info(
+        "🚀 Downloading HF model %s → %s\n"
+        "⏳ This may take time depending on model size…\n"
+        "⚠️  Please do not terminate.",
+        model_name, output_dir,
+    )
+
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError as exc:
+        raise RuntimeError("huggingface_hub is required. Run: pip install huggingface_hub") from exc
+
+    try:
+        snapshot_download(
+            repo_id=model_name,
+            local_dir=output_dir,
+            local_dir_use_symlinks=False,
+            token=hf_token,
+        )
+    except Exception as exc:
+        logger.error("❌ HF download failed: %s", exc)
+        return False, output_dir
+
+    success = len(os.listdir(output_dir)) > 0
+    logger.info("✅ Download successful" if success else "❌ Download incomplete")
+    return success, output_dir
+
+
+def _cache_diarization_dependencies_locally(pipeline_dir: str, hf_token: str = None) -> None:
+    """Rewrite pyannote pipeline config.yaml so all sub-model refs point to local paths."""
+    config_path = os.path.join(pipeline_dir, "config.yaml")
+    if not os.path.exists(config_path):
+        return
+
+    with open(config_path, "r", encoding="utf-8") as fh:
+        pipeline_cfg = yaml.safe_load(fh) or {}
+
+    pipeline_params = pipeline_cfg.get("pipeline", {}).get("params", {})
+    changed = False
+
+    for key in ("segmentation", "embedding", "plda"):
+        model_ref = pipeline_params.get(key)
+        if not isinstance(model_ref, str):
+            continue
+        if os.path.isfile(model_ref) or os.path.isdir(model_ref):
+            continue
+        if "/" not in model_ref:
+            continue
+
+        # pyannote 4.x bundles sub-models inside the snapshot as "$model/<name>"
+        if model_ref.startswith("$model/"):
+            sub_name = model_ref[len("$model/"):]
+            sub_dir = os.path.join(pipeline_dir, sub_name)
+            local_checkpoint = os.path.join(sub_dir, HF_PYTORCH_WEIGHTS_NAME)
+            if os.path.exists(local_checkpoint):
+                pipeline_params[key] = local_checkpoint
+                changed = True
+            elif os.path.isdir(sub_dir):
+                pipeline_params[key] = sub_dir
+                changed = True
+            continue
+
+        # Standalone HF sub-model (pyannote 3.x style)
+        dep_dir = os.path.join(pipeline_dir, "dependencies", model_ref.replace("/", "_"))
+        success, _ = _download_hf_model(
+            model_ref, dep_dir, hf_token=hf_token,
+            required_files=[HF_PYTORCH_WEIGHTS_NAME, "config.yaml"],
+        )
+        if not success:
+            continue
+        checkpoint = os.path.join(dep_dir, HF_PYTORCH_WEIGHTS_NAME)
+        if os.path.exists(checkpoint):
+            pipeline_params[key] = checkpoint
+            changed = True
+
+    if changed:
+        with open(config_path, "w", encoding="utf-8") as fh:
+            yaml.safe_dump(pipeline_cfg, fh, sort_keys=False)
+
+
+def get_diarization_model_path() -> str:
+    diar_cfg = config.models.diarization
+    return os.path.join(
+        diar_cfg.models_base_path,
+        diar_cfg.provider,
+        diar_cfg.name.replace("/", "_"),
+    )
 
 _WHISPER_CPP_MODEL_MAP = {
     "whisper-tiny":   "ggml-tiny.bin",
@@ -237,6 +373,45 @@ def ensure_model():
         output_dir = get_asr_model_path()
         weight_format = getattr(config.models.asr, "weight_format", None)
         _download_whispercpp_model(config.models.asr.name, output_dir, weight_format)
+    elif provider == "openai":
+        output_dir = get_asr_model_path()
+        os.makedirs(output_dir, exist_ok=True)
+        model_id = _OPENAI_WHISPER_ID_MAP.get(
+            config.models.asr.name,
+            config.models.asr.name.replace("whisper-", ""),
+        )
+        model_file = os.path.join(output_dir, f"{model_id}.pt")
+        if os.path.isfile(model_file):
+            logger.info("⚡ Using cached openai-whisper model at %s", model_file)
+        else:
+            logger.info(
+                "🚀 Downloading openai-whisper model '%s' → %s\n"
+                "⏳ This may take time depending on model size…\n"
+                "⚠️  Please do not terminate.",
+                model_id, output_dir,
+            )
+            try:
+                import whisper as _whisper
+                _whisper.load_model(model_id, device="cpu", download_root=output_dir)
+                logger.info("✅ openai-whisper model download complete")
+            except Exception as exc:
+                logger.error("❌ openai-whisper model download failed: %s", exc)
+                raise
+
+    # Download diarization model when diarization is enabled
+    if getattr(config.models.asr, "diarization", False):
+        diar_cfg = getattr(config.models, "diarization", None)
+        if diar_cfg and getattr(diar_cfg, "provider", None) == "huggingface":
+            hf_token = _resolve_hf_token()
+            output_dir = get_diarization_model_path()
+            success, _ = _download_hf_model(
+                diar_cfg.name,
+                output_dir,
+                hf_token=hf_token,
+                required_files=["config.yaml"],
+            )
+            if success:
+                _cache_diarization_dependencies_locally(output_dir, hf_token=hf_token)
 
     # Sentiment model download (if enabled)
     sent_cfg = getattr(config, "sentiment", None)
