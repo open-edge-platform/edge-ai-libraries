@@ -258,6 +258,7 @@ http://localhost:8192/docs
 
 ./get-started/system-requirements
 ./get-started/build-from-source
+./get-started/add-swap.md
 
 :::
 hide_directive-->
