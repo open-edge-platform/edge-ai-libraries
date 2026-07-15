@@ -108,7 +108,7 @@ act_helpper () {
     fi
     local profiles=()
     for profiler in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f4- -d_); do
-      local handles=($(act_find_deps $act_name $profiler))
+      local handles=($(act_find_deps $act_name $profiler 2> /dev/null))
       [ ${#handles[@]} -eq 0 ] || profiles+=($profiler)
     done
     mapfile -t profiles < <(printf '%s\n' ${profiles[*]} | grep -Fxv -f <(printf '%s\n' ${components[*]}))
