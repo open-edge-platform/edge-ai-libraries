@@ -118,7 +118,7 @@ export const Home = () => {
         <div className="flex gap-3">
           <BookOpen className="w-6 h-6 text-brand-accent shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/get-started.html"
+            href="https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/get-started.html"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-brand-accent transition-colors"
@@ -133,7 +133,7 @@ export const Home = () => {
         <div className="flex gap-3">
           <Sparkles className="w-6 h-6 text-brand-accent shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/release-notes.html"
+            href="https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/release-notes.html"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-brand-accent transition-colors"
