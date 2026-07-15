@@ -1,11 +1,9 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Hardware Metrics Monitor
+"""Hardware Metrics Monitor.
 
 Samples CPU, GPU (Xe), and NPU KPIs in a background thread during benchmark runs.
-
 Source: VIPPET metrics-manager JSON API (CPU, GPU, NPU, memory, temperature, power).
 """
 
@@ -13,20 +11,20 @@ import logging
 import threading
 from typing import Any
 
-import httpx
+import requests
 
 logger = logging.getLogger(__name__)
 
 
 def _fetch_metrics_manager(url: str) -> dict[str, float]:
-    """
-    Fetch latest metrics from VIPPET metrics-manager JSON API.
+    """Fetch latest metrics from VIPPET metrics-manager JSON API.
+
     Returns flat dict of metric_key -> value.
     Tagged metrics use composite keys (e.g. gpu_power__gpu_cur_power).
     Only gpu_id=0 is collected for GPU metrics with multiple IDs.
     """
     try:
-        resp = httpx.get(url, timeout=5)
+        resp = requests.get(url, timeout=5)
         resp.raise_for_status()
         data = resp.json()
         metrics = data.get("metrics", data)
@@ -39,12 +37,10 @@ def _fetch_metrics_manager(url: str) -> dict[str, float]:
                 name = entry.get("name", key.split("{")[0])
                 tags = entry.get("tags", {})
 
-                # For GPU metrics with multiple gpu_ids, only use gpu_id=0
                 gpu_id = tags.get("gpu_id")
                 if gpu_id is not None and gpu_id != "0":
                     continue
 
-                # Create composite key for metrics needing tag disambiguation
                 type_tag = tags.get("type") or tags.get("engine")
                 composite = f"{name}__{type_tag}" if type_tag else name
 
@@ -58,11 +54,10 @@ def _fetch_metrics_manager(url: str) -> dict[str, float]:
 
 
 class HardwareMonitor:
-    """
-    Background-thread hardware sampler.
+    """Background-thread hardware sampler.
 
     Usage:
-        monitor = HardwareMonitor("http://localhost:9090/api/v1/metrics/latest")
+        monitor = HardwareMonitor("http://localhost/metrics/stream")
         monitor.start()
         ... run workload ...
         hw_stats = monitor.stop()   # returns aggregated dict
@@ -70,7 +65,7 @@ class HardwareMonitor:
 
     def __init__(
         self,
-        metrics_url: str = "http://localhost:9090/api/v1/metrics/latest",
+        metrics_url: str = "http://localhost/metrics/stream",
         sample_interval: float = 2.0,
     ):
         self._metrics_url = metrics_url
@@ -78,10 +73,6 @@ class HardwareMonitor:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._samples: list[dict[str, float]] = []
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def start(self) -> None:
         self._stop.clear()
@@ -100,10 +91,6 @@ class HardwareMonitor:
         logger.debug("HardwareMonitor stopped (%d samples)", len(self._samples))
         return stats
 
-    # ------------------------------------------------------------------
-    # Sampling
-    # ------------------------------------------------------------------
-
     def _loop(self) -> None:
         while not self._stop.is_set():
             try:
@@ -119,7 +106,7 @@ class HardwareMonitor:
 
         mm = _fetch_metrics_manager(self._metrics_url)
 
-        # ── CPU ──
+        # CPU
         idle = mm.get("cpu_usage_idle")
         if idle is not None:
             sample["cpu_util_pct"] = round(100.0 - idle, 2)
@@ -133,7 +120,7 @@ class HardwareMonitor:
         if temp is not None:
             sample["cpu_temperature"] = temp
 
-        # ── GPU (Xe) — per-engine utilization ──
+        # GPU (Xe) — per-engine utilization
         for engine, label in [
             ("rcs", "gpu_render_util_pct"),
             ("vcs", "gpu_video_util_pct"),
@@ -157,7 +144,7 @@ class HardwareMonitor:
         if val is not None:
             sample["pkg_power_w"] = round(val, 3)
 
-        # ── NPU ──
+        # NPU
         for key in (
             "npu_utilization",
             "npu_frequency",
@@ -170,10 +157,6 @@ class HardwareMonitor:
                 sample[key] = mm[key]
 
         return sample
-
-    # ------------------------------------------------------------------
-    # Aggregation
-    # ------------------------------------------------------------------
 
     def _aggregate(self) -> dict[str, Any]:
         if not self._samples:
@@ -193,7 +176,6 @@ class HardwareMonitor:
             agg[f"{key}_min"] = round(min(values), 2)
             agg[f"{key}_max"] = round(max(values), 2)
 
-        # Convenience: combined GPU util (average of render + video engines)
         render_vals = [
             s.get("gpu_render_util_pct")
             for s in self._samples

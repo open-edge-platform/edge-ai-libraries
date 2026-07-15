@@ -1,8 +1,8 @@
 # VIPPET Benchmark Suite - Default Configuration
 
 vippet:
-  # VIPPET API base URL
-  base_url: "http://localhost:7860/api/v1"
+  # VIPPET API base URL (via nginx reverse proxy; override with VIPPET_BASE_URL env var)
+  base_url: "http://localhost/api/v1"
 
   # Connection timeout in seconds
   timeout: 600
@@ -56,8 +56,8 @@ benchmark:
 
 # Hardware metrics collection
 metrics:
-  # VIPPET metrics-manager JSON API (CPU, NPU, memory, temperature)
-  metrics_url: "http://localhost:9090/api/v1/metrics/latest"
+  # Metrics endpoint via nginx proxy (override with VIPPET_METRICS_URL env var)
+  metrics_url: "http://localhost/metrics/stream"
 
   # Sampling interval in seconds while a job runs
   sample_interval_seconds: 2.0

@@ -2,7 +2,7 @@
 # Faster benchmark with reduced coverage for quick validation
 
 vippet:
-  base_url: "http://localhost:7860/api/v1"
+  base_url: "http://localhost/api/v1"
   timeout: 300
   poll_interval: 2
   max_job_duration: 300

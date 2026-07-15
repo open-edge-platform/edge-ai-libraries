@@ -1,67 +1,66 @@
-# VIPPET Benchmark Suite
+# VIPPET Performance Benchmark Suite
 
-Automated benchmarking of VIPPET pipelines on Intel Panther Lake — CPU, GPU (Xe), and NPU.
+Automated benchmarking of VIPPET pipelines on Intel platforms — CPU, GPU (Xe), and NPU.
 Collects hardware KPIs per job and produces JSON, CSV, and HTML bar-chart reports.
 
 ## Prerequisites
 
-- VIPPET running at `http://localhost:7860` with models downloaded (see below)
-- Python 3.9+ with `pip3 install -r requirements.txt`
+- VIPPET running at `http://localhost:7860` with models downloaded
+- Python dev venv set up (`make` from project root creates `.venv` automatically)
 
 ## Usage
 
 ```bash
-./run.sh                   # all pipelines, CPU+GPU+NPU, 1 and 3 streams (~30–60 min)
-./run.sh --quick           # CPU+GPU only, 1 and 3 streams
-./run.sh --dry-run         # preview test matrix without running
-./run.sh --config config/full.yaml          # 1/3/5/10 streams, all variants
-./run.sh --pipelines motion-detection       # single pipeline
-./run.sh --variants cpu,gpu --streams 1,3,5
-./run.sh --report-only results/latest/*.json  # regenerate HTML from existing result
+make test-performance                    # default: CPU+GPU+NPU, 1 and 3 streams
+make test-performance PERF_CONFIG=quick  # CPU+GPU only, 1 and 3 streams
+make test-performance PERF_CONFIG=full   # all variants, 1/3/5/10 streams
 ```
 
-`run.sh` checks dependencies, waits for VIPPET to be ready, runs the benchmark, and generates an HTML
-report alongside the JSON/CSV.
+Or call pytest directly for more control:
+
+```bash
+# Collect only (preview test matrix)
+python -m pytest --collect-only vippet/tests/performance/
+
+# Run a specific pipeline
+python -m pytest --log-cli-level=INFO -m perf -k "object_detection" vippet/tests/performance/
+
+# Generate JUnit XML for CI
+python -m pytest -m perf --junitxml=results/perf.xml vippet/tests/performance/
+```
+
+## Configuration
+
+Test parameters are controlled via YAML config files in `config/` and environment variables:
+
+| Env var | Default | Description |
+|---------|---------|-------------|
+| `VIPPET_BASE_URL` | `http://localhost/api/v1` | VIPPET API endpoint |
+| `VIPPET_METRICS_URL` | `http://localhost/metrics/stream` | Metrics endpoint (via nginx proxy) |
+| `PERF_CONFIG` | `default` | Config preset (`default`, `quick`, `full`) |
+| `PERF_RESULTS_DIR` | `./results` | Output directory for reports |
+| `PERF_METRICS_INTERVAL` | `2.0` | HW sampling interval (seconds) |
 
 ## Layout
 
 ```text
-run.sh                  # entry point
-requirements.txt
+conftest.py                 # pytest fixtures and parametrize hook
+pytest.ini                  # markers and pythonpath
+test_pipeline_performance.py  # test module
+perf_helpers/
+├── config.py               # env-var-driven constants
+├── hw_monitor.py           # background HW metric sampler
+└── reporters.py            # JSON/CSV export + HTML report generation
 config/
-  default.yaml          # all pipelines, cpu+gpu+npu, streams 1,3  (~30–60 min)
-  quick.yaml            # cpu+gpu only,  streams 1,3               (~15–30 min)
-  full.yaml             # all pipelines, all variants, streams 1,3,5,10  (~2–3 h)
-scripts/
-  benchmark.py          # CLI
-  generate_report.py    # HTML report
-src/
-  orchestrator.py       # test matrix, job submission, retry
-  vippet_client.py      # VIPPET REST API client
-  hw_monitor.py         # per-job HW KPI sampler
-  reporters.py          # JSON/CSV export
+├── default.yaml            # CPU+GPU+NPU, 1 & 3 streams
+├── quick.yaml              # CPU+GPU, 1 & 3 streams
+└── full.yaml               # all variants, 1/3/5/10 streams
 ```
 
-## Hardware KPIs
+## Reports
 
-Sampled per job by a background thread via VIPPET metrics-manager — not system-wide averages.
+After a run, results are saved to `results/bench_YYYYMMDD_HHMMSS/`:
 
-| Metric                                          | Source                                       |
-|-------------------------------------------------|----------------------------------------------|
-| GPU engine utilisation (render, video, compute) | `metrics-manager` (`gpu_engine_usage_usage`) |
-| GPU frequency                                   | `metrics-manager` (`gpu_frequency`)          |
-| GPU power, package power                        | `metrics-manager` (`gpu_power`)              |
-| NPU utilisation, frequency, power, temperature  | `metrics-manager` Prometheus                 |
-| CPU utilisation, frequency, system memory       | `metrics-manager` Prometheus                 |
-| CPU temperature                                 | `metrics-manager` (`temp_temp`)              |
-
-## Results
-
-```text
-results/
-├── bench_YYYYMMDD_HHMMSS/
-│   ├── *.json    full results
-│   ├── *.csv     flat table, one row per test
-│   └── *.html    bar-chart report (Chart.js)
-└── latest/       symlink to most recent run
-```
+- `.json` — structured results (all test cases + HW metrics)
+- `.csv` — flat table for spreadsheet analysis
+- `.html` — interactive Chart.js report with FPS, utilization, and power charts
