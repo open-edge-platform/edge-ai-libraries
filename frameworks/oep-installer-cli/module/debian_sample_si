@@ -38,5 +38,5 @@ debian_90_stop_sample_si () {
 
 debian_90_remove_sample_si () {
   configure_sample_si
-  rm -rf "$workspace" || ensure_sudo rm -rf "$workspace"
+  ensure_rmdir "$workspace"
 }
