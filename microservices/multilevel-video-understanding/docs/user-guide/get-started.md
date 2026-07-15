@@ -12,7 +12,7 @@ The **Multi-level Video Understanding Microservice** enables developers to creat
 Before you begin, ensure the following:
 
 - **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
-- **iGPU Driver Installed**: This guide assumes the integrated GPU driver on the target PTL (Panther Lake) machine is already installed. If it is not, follow the [PTL Driver Installation Guide](./get-started/ptl-driver-installer.md) first.
+- **GPU Driver Installed**: This guide assumes the GPU driver on the target machine is already installed. If it is not, install the Intel GPU driver packages by following the official [Installing Packages from the Intel PPA](https://dgpu-docs.intel.com/installation-guides/installing-packages-from-the-intel-ppa.html) guide first.
 - **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
@@ -23,11 +23,13 @@ In the reference deployment, both the model serving and this microservice run **
 
 This microservice is designed to work effortlessly with GenAI model servings that provide OpenAI-compatible APIs. We recommend take **vLLM-IPEX** as an example. A single Mixture-of-Experts model, **Qwen3.5-35B-A3B** (35B total / 3B active), serves both the **VLM** role (per-chunk captioning) and the **LLM** role (hierarchical aggregation) from one endpoint.
 
+> **Platform note:** This guide is written around the **on-device PTL iGPU** profile, where the serving and the microservice share one host. Only the vLLM-IPEX serving ([llm-scaler](https://github.com/intel/llm-scaler)) is platform-sensitive. To run on a discrete-GPU host such as **Intel® Arc™ Pro B60** instead, deploy vLLM-IPEX on that machine (serving `Qwen3.5-35B-A3B` may require multiple GPUs)。
+
 ### Memory & swap requirements
 
 `Qwen3.5-35B-A3B` in FP8 with a 60k context window is memory-hungry on a shared-RAM host. The default configuration targets a **64 GB system**:
 
-- Provide at least **32 GB of swap** so the weight load and KV cache can spill under peak pressure without the OOM killer stepping in.
+- Provide at least **32 GB of swap** so the weight load and KV cache can spill under peak pressure without the OOM killer stepping in. If your host lacks enough swap, see [Adding Swap Space](./get-started/add-swap.md).
 - To lower the footprint, reduce `MAX_MODEL_LEN` (e.g. `32768`) or switch `LOAD_QUANTIZATION` to `awq` / `sym_int4` in [set_env.sh](../../docker/set_env.sh).
 - The **first startup takes 3–20 minutes** while the weights are downloaded and compiled. The serving becomes healthy once it answers on `http://<host>:41091/v1/models`.
 
@@ -66,7 +68,7 @@ Provide the `multilevel-video-understanding` image in one of two ways:
 - **Option 2.** Download the prebuilt image from Docker Hub ([intel/multilevel-video-understanding](https://hub.docker.com/r/intel/multilevel-video-understanding))
 
   ```bash
-  docker pull intel/multilevel-video-understanding:latest
+  docker pull intel/multilevel-video-understanding:2026.2.0
   ```
 
 > **Note:** If `REGISTRY_URL` is provided, the final image name is `${REGISTRY_URL}/multilevel-video-understanding:${TAG}`; otherwise it is `multilevel-video-understanding:${TAG}`.
@@ -111,7 +113,7 @@ docker ps
 ```text
 CONTAINER ID   IMAGE                                          PORTS                                         NAMES
 a1b2c3d4e5f6   intel/llm-scaler-vllm:0.14.0-b7.1              0.0.0.0:41091->8000/tcp                       vllm-ipex-serving
-6f00712bf4b6   intel/multilevel-video-understanding:latest    0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   docker-multilevel-video-understanding-1
+6f00712bf4b6   intel/multilevel-video-understanding:2026.2.0    0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   docker-multilevel-video-understanding-1
 ```
 
 ```bash

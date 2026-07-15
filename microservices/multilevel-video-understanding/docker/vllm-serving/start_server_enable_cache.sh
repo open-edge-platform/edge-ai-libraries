@@ -22,6 +22,16 @@ echo "MAX_MODEL_LEN is $MAX_MODEL_LEN"
 
 python3 "$(dirname "$0")/patch_vllm_video.py"
 
+# Optional dynamic-LoRA support. Off by default (no change to demo behavior).
+# Set DYNAMIC_LORA=1 to enable runtime load/unload of LoRA adapters via
+# /v1/load_lora_adapter + /v1/unload_lora_adapter. rank 64 is a sensible default.
+DYNAMIC_LORA="${DYNAMIC_LORA:-0}"
+LORA_FLAG=""
+if [ "$DYNAMIC_LORA" = "1" ] || [ "$DYNAMIC_LORA" = "true" ]; then
+    LORA_FLAG="--enable-lora --max-loras 4 --max-lora-rank 64 --max-cpu-loras 8"
+    echo "DYNAMIC_LORA enabled: $LORA_FLAG"
+fi
+
 VLLM_ALLOW_RUNTIME_LORA_UPDATING=True \
 TORCH_LLM_ALLREDUCE=1 \
 VLLM_USE_V1=1 \
@@ -43,6 +53,7 @@ python3 -m vllm.entrypoints.openai.api_server \
     --quantization ${LOAD_QUANTIZATION} \
     -tp=${TENSOR_PARALLEL_SIZE} \
     --enable-prefix-caching  \
+    ${LORA_FLAG} \
     --enable-auto-tool-choice \
     --tool-call-parser qwen3_coder \
     --reasoning-parser qwen3 \

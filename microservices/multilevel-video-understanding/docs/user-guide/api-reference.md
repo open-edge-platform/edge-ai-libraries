@@ -163,7 +163,7 @@ Only two tasks are **built-in**: `summary` (English) and `summary_zh` (Chinese).
   "tasks": [
     {"name": "summary", "source": "builtin", "description": "General-purpose video summarization ..."},
     {"name": "summary_zh", "source": "builtin", "description": "General-purpose video summarization (Chinese prompts)."},
-    {"name": "refrigerator_monitor_en", "source": "dynamic", "description": "Fridge monitor + daily report (EN)."}
+    {"name": "fridge_monitor", "source": "dynamic", "description": "Fridge monitor + daily report (EN)."}
   ]
 }
 ```
@@ -176,7 +176,7 @@ Only two tasks are **built-in**: `summary` (English) and `summary_zh` (Chinese).
 
 ```json
 {
-  "task_name": "refrigerator_monitor_en",
+  "task_name": "fridge_monitor",
   "mode": "full",
   "content": {
     "text": "GLOBAL_PROMPT = '''...'''\n\nMACRO_CHUNK_PROMPT = '''...{st_tm}...{end_tm}...'''\n\nLOCAL_PROMPT = '''...{st_tm}...{end_tm}...'''\n\nT_MINUS_1_PROMPT = '''...{dur}...{st_tm}...{end_tm}...{past_summary}...'''"
