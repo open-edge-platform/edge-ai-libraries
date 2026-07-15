@@ -10,6 +10,8 @@ services:
         ports:
             - '${MINIO_API_HOST_PORT:-6010}:9000'
             - '${MINIO_CONSOLE_HOST_PORT:-6011}:9001'
+        networks:
+            - vdms_network
         volumes:
             - 'minio_data:/data'
         command: |
@@ -27,6 +29,8 @@ services:
             - OVERRIDE_pmgd_path=/db/graph
         ports:
             - '${VDMS_VDB_HOST_PORT:-6020}:55555'
+        networks:
+            - vdms_network
         depends_on:
             - minio-server
 
@@ -113,6 +117,8 @@ services:
             - data-prep:/tmp/dataprep
             - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
+        networks:
+            - vdms_network
         devices:
             - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri # Intel GPU device access for OpenVINO GPU acceleration
             - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
@@ -183,16 +189,15 @@ services:
             - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
             - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
         networks:
-            - default
+            - vdms_network
         volumes:
             - ov-models:/home/appuser/.cache/huggingface
             - data-prep:/tmp/dataprep
             - ov-models:${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
 
 networks:
-    default:
+    vdms_network:
         driver: bridge
-
 volumes:
     vdms-yolox-models:
         driver: local
