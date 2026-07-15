@@ -28,7 +28,7 @@ pip install -r requirements.txt
 
 ### Config
 
-- Edit `config.yaml`. For configuration details, see the [Configuration Guide](./configuration.md).
+- Edit `config.yaml`. For configuration details, see the [Configuration Guide](../get-started/configuration.md).
 - The same `config.yaml` is used for both standalone and container runs.
 - Use `TEXT_TO_SPEECH__...` environment variables only for targeted overrides.
 - For Linux Intel iGPU usage, first install the required Intel/OpenVINO host runtime on the machine, then set the OpenVINO device field to `GPU` in config.
