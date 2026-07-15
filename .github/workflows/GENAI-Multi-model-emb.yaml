@@ -25,7 +25,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       
@@ -44,7 +44,7 @@ jobs:
           echo "=== Image Build Verification Complete ==="
       
       - name: Run Trivy Filesystem Scan
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@cda43140ad4881079bc4f8a92f1b07bddcdb2929
         id: trivy-fs
         with:
           scan_type: "fs"  
@@ -56,7 +56,7 @@ jobs:
       
          
       - name: Run trivy Scan - multimodal-embedding-serving (HTML Report)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@cda43140ad4881079bc4f8a92f1b07bddcdb2929
         id: multimodal-embedding-serving-html
         with:
           scan_type: "image"  
@@ -68,7 +68,7 @@ jobs:
           generate_sbom: "false"
 
       - name: Run trivy Scan - multimodal-embedding-serving (SPDX SBOM)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@cda43140ad4881079bc4f8a92f1b07bddcdb2929
         id: multimodal-embedding-serving-spdx
         with:
           scan_type: "image"  
@@ -81,7 +81,7 @@ jobs:
           generate_sbom: "false"
 
       - name: Scan Dockerfile with Trivy
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@cda43140ad4881079bc4f8a92f1b07bddcdb2929
         with:
           scan_type: "config"
           scan_target: "microservices/multimodal-embedding-serving/docker/"
@@ -91,7 +91,7 @@ jobs:
           report_suffix: "-config-multimodal-embedding-serving-CT222"
            
       - name: Upload Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: trivy-report-multimodal-embedding-serving
           path: security-results/trivy*
@@ -101,10 +101,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       
       - name: Run Bandit Scan
-        uses: open-edge-platform/orch-ci/.github/actions/security/bandit@27276444a9bcf247a27369406686b689933bd1ff
+        uses: open-edge-platform/orch-ci/.github/actions/security/bandit@cda43140ad4881079bc4f8a92f1b07bddcdb2929
         id: bandit
         with:
           scan-scope: "all"  
@@ -114,7 +114,7 @@ jobs:
           report_suffix: "-bandit-multimodal-embedding-serving-CT161"
           
       - name: Upload Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bandit-report-multimodal-embedding-serving
           path: bandit-report-*.txt
@@ -125,7 +125,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       
       - name: Run ClamAV Scan
         uses: open-edge-platform/orch-ci/.github/actions/security/clamav@27276444a9bcf247a27369406686b689933bd1ff
@@ -138,7 +138,7 @@ jobs:
           exclude_dirs: ".git,.pytest_cache,__pycache__,.venv"
           
       - name: Upload Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: clamav-report-multimodal-embedding-serving
           path: security-results/clamav*
@@ -150,12 +150,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
           
       - name: Install gitleaks
-        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
+        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@a95228137803b756aae327668c115db235802982
         with:
           bootstrap_tools: "gitleaks"
           
@@ -164,7 +164,7 @@ jobs:
         run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
         
       - name: Clone CI repo
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: open-edge-platform/orch-ci
           path: ci
@@ -175,7 +175,7 @@ jobs:
           gitleaks dir "microservices/multimodal-embedding-serving/" -v -c ci/.gitleaks.toml --baseline-path ci/gitleaks_baselines/gitleaks-multimodal-embedding-serving.json -r gitleaks-multimodal-embedding-serving.json || true
           
       - name: Upload Gitleaks Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gitleaks-report-multimodal-embedding-serving-${{ steps.timestamp.outputs.time }}
           path: gitleaks-multimodal-embedding-serving.json
@@ -186,10 +186,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       
       - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.12'
       
@@ -231,7 +231,7 @@ jobs:
           echo "Pylint scan completed"
       
       - name: Upload pylint Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pylint-report-multimodal-embedding-serving
           path: microservices/multimodal-embedding-serving/security-results/pylint-report-multimodal-embedding-serving.txt
@@ -242,10 +242,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       
       - name: Setup environment with shellcheck
-        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
+        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@a95228137803b756aae327668c115db235802982
         with:
           bootstrap_tools: "shellcheck"
       
@@ -266,7 +266,7 @@ jobs:
           echo "ShellCheck scan completed"
       
       - name: Upload ShellCheck Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: shellcheck-report-multimodal-embedding-serving
           path: security-results/shellcheck-report-multimodal-embedding-serving.txt

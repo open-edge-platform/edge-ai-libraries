@@ -23,7 +23,7 @@ jobs:
           - ubuntu_version: ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
@@ -34,10 +34,10 @@ jobs:
         git submodule update --init --recursive libraries/dlstreamer
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
+      uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c #4.2.0
 
     - name: Log in to GitHub Container Registry
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #3.6.0
+      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 #4.4.0
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
@@ -100,13 +100,13 @@ jobs:
         echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Upload unit test results to Github
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: DLSPS_Coverage-reports-${{ matrix.ubuntu_version }}
         path: /tmp/htmlcov
 
     - name: Scan Docker image with Trivy
-      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@249a8bec26b242358cf0790a68cdc8f2f16aed6c #v0.69.3
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@cda43140ad4881079bc4f8a92f1b07bddcdb2929 #v0.69.3
       with:
         scan_target: "intel/dlstreamer-pipeline-server:${{ github.sha }}-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
@@ -132,7 +132,7 @@ jobs:
       shell: bash
 
     - name: Scan Docker extended image with Trivy
-      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@249a8bec26b242358cf0790a68cdc8f2f16aed6c #v0.69.3
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@cda43140ad4881079bc4f8a92f1b07bddcdb2929 #v0.69.3
       with:
         scan_target: "intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
@@ -159,7 +159,7 @@ jobs:
 
     - name: Upload Trivy image report as artifact
       if: always()
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: DLSPS_${{ matrix.ubuntu_version }}-trivy-image-reports
         path: |
@@ -181,7 +181,7 @@ jobs:
 
     - name: Upload Trivy Filesystem Reports
       if: always() && matrix.ubuntu_version == 'ubuntu22'
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: DLSPS_trivy-fs-reports
         path: reports/*
@@ -289,7 +289,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -307,13 +307,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
         fetch-depth: 0
 
     - name: Check license headers
-      uses: open-edge-platform/dlstreamer/.github/actions/common/license-namespace-checker@6d50b990891fdbe14b7fe42e3d482cabf67ae815
+      uses: open-edge-platform/dlstreamer/.github/actions/common/license-namespace-checker@78274017033fbeca817dc65e5d8305cd7920fca0
       with:
         name: 'DLSPS_license-check-report'
         path: './microservices/dlstreamer-pipeline-server'
@@ -326,7 +326,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
@@ -383,12 +383,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
 
     - name: Run Bandit scan
-      uses: open-edge-platform/orch-ci/.github/actions/security/bandit@1871595c6bb5f5f29b957725e9cbb05ef8071ca1
+      uses: open-edge-platform/orch-ci/.github/actions/security/bandit@cda43140ad4881079bc4f8a92f1b07bddcdb2929
       with:
         scan-scope: "all"
         severity-level: "HIGH"
@@ -420,12 +420,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
       - name: Run pylint
-        uses: open-edge-platform/dlstreamer/.github/actions/common/pylint@76c0a55ba0214c1dadbf989d4b0f395e85361bb0
+        uses: open-edge-platform/dlstreamer/.github/actions/common/pylint@78274017033fbeca817dc65e5d8305cd7920fca0
         with:
           path: ./microservices/dlstreamer-pipeline-server
           output-file: pylint-report.txt
@@ -442,13 +442,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
           fetch-depth: 0
 
       - name: Run shellcheck
-        uses: open-edge-platform/dlstreamer/.github/actions/common/shellcheck@76c0a55ba0214c1dadbf989d4b0f395e85361bb0
+        uses: open-edge-platform/dlstreamer/.github/actions/common/shellcheck@78274017033fbeca817dc65e5d8305cd7920fca0
         with:
           path: ./microservices/dlstreamer-pipeline-server
           output-file: shellcheck-report.txt
@@ -465,12 +465,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
       - name: Run yamlint
-        uses: open-edge-platform/dlstreamer/.github/actions/common/yamllint@76c0a55ba0214c1dadbf989d4b0f395e85361bb0
+        uses: open-edge-platform/dlstreamer/.github/actions/common/yamllint@78274017033fbeca817dc65e5d8305cd7920fca0
         with:
           path: ./microservices/dlstreamer-pipeline-server
           output-file: yamllint-report.txt
