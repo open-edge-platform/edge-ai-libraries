@@ -281,12 +281,13 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
     def _resolve_allowlist(profile: Dict[str, Any]) -> List[str]:
         """Resolve the runtime-URL allowlist of ``host + path`` prefixes.
 
-        ``EXTERNAL_SOURCES_URL_ALLOWLIST`` (comma-separated), when set,
-        REPLACES the profile's ``allowed_prefixes``. An empty result means
-        runtime URL downloads are disabled.
+        ``EXTERNAL_SOURCES_URL_ALLOWLIST`` (comma-separated), env when non-empty,
+        overrides the profile's ``allowed_prefixes``; otherwise the profile
+        default is used.
         """
         env_value = os.environ.get("EXTERNAL_SOURCES_URL_ALLOWLIST")
         if env_value is not None and env_value.strip():
+            # A non-empty env value overrides the profile default.
             return [p.strip() for p in env_value.split(",") if p.strip()]
         return [
             str(p).strip()
