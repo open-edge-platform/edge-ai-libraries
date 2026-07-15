@@ -1,0 +1,12 @@
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+opencv-python-headless>=4.9.0
+Pillow>=10.0
+aioboto3>=12.0.0
+httpx>=0.26.0
+h2>=4.0
+pyyaml>=6.0
+paho-mqtt>=1.6.1,<2.0
+git+https://github.com/intel-retail/performance-tools.git@main#subdirectory=benchmark-scripts

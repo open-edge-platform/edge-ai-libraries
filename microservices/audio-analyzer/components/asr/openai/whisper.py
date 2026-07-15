@@ -2,6 +2,7 @@ from components.asr.base_asr import BaseASR
 import whisper
 import logging
 from utils.config_loader import config
+from utils.ensure_model import get_asr_model_path
 from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,11 @@ class Whisper(BaseASR):
         model_id = WHISPER_MODEL_MAP[model_name]
         logger.info(f"Loading Whisper model={model_id} on device={device}")
 
-        self.model = whisper.load_model(model_id, device=device)
+        # Load from the models volume so the file persisted by ensure_model()
+        # is used.  This prevents openai-whisper from attempting an outbound
+        # download at container startup when the network is unavailable.
+        download_root = get_asr_model_path()
+        self.model = whisper.load_model(model_id, device=device, download_root=download_root)
 
         # ---- Conservative thresholds (DO NOT overtune) ----
         self.NO_SPEECH_THRESHOLD = config.models.asr.no_speech_threshold
