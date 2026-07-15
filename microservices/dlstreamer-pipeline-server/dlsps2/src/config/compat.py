@@ -163,7 +163,7 @@ def _replace_appsink_with_webrtc(
     overlay_element = "gvawatermark ! " if overlay else ""
     webrtc_chain = (
         f"videoconvert ! {overlay_element}"
-        f"openh264enc name=h264enc bitrate={bitrate} ! "
+        f"openh264enc complexity=low name=h264enc ! "
         f"video/x-h264,profile=baseline ! "
         f"whipclientsink name=webrtc_sink signaller::whip-endpoint={whip_url}"
     )

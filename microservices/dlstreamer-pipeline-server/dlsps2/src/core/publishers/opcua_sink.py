@@ -53,23 +53,47 @@ from asyncua.sync import Client, ua  # noqa: E402
 logger = logging.getLogger(__name__)
 
 
+def _tensor_to_dict(t) -> dict:
+    """Best-effort conversion of a ``gstgva.Tensor`` to a JSON-serializable dict.
+
+    Note: ``gstgva.Tensor`` has no ``as_dict()`` method, and calling ``label()``
+    on a detection tensor raises ``RuntimeError`` -- fields must be read
+    defensively.
+    """
+    d: dict = {"name": t.name()}
+    for key, getter in (("layer_name", t.layer_name), ("model_name", t.model_name),
+                        ("confidence", t.confidence)):
+        try:
+            d[key] = getter()
+        except Exception:  # pylint: disable=broad-except
+            pass
+    if not t.is_detection():
+        try:
+            d["label"] = t.label()
+        except Exception:  # pylint: disable=broad-except
+            pass
+    return d
+
+
 def _extract_gva_meta(buf: Gst.Buffer, caps: Gst.Caps | None) -> dict:
     result: dict = {"regions": [], "messages": []}
     if caps is None:
         return result
     try:
-        with VideoFrame(buf, caps=caps) as vf:
-            result["regions"] = [
-                {
-                    "label": r.label(),
-                    "confidence": r.confidence(),
-                    "rect": {"x": r.rect().x, "y": r.rect().y,
-                             "w": r.rect().w, "h": r.rect().h},
-                    "tensors": [t.as_dict() for t in r.tensors()],
-                }
-                for r in vf.regions()
-            ]
-            result["messages"] = [m.as_dict() for m in vf.messages()]
+        vf = VideoFrame(buf, caps=caps)
+        result["regions"] = [
+            {
+                "label": r.label(),
+                "confidence": r.confidence(),
+                "rect": {"x": r.rect().x, "y": r.rect().y,
+                         "w": r.rect().w, "h": r.rect().h},
+                "tensors": [_tensor_to_dict(t) for t in r.tensors()],
+            }
+            for r in vf.regions()
+        ]
+        # gstgva.util.GVAJSONMetaStr is a plain JSON-encoded str subclass, not an
+        # object with as_dict() -- parse it into a dict instead.
+        result["messages"] = [json.loads(str(m)) for m in vf.messages()]
     except Exception as exc:  # pylint: disable=broad-except
         logger.debug("GVA meta extraction failed: %s", exc)
     return result

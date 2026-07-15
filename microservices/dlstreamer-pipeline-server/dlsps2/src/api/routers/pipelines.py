@@ -132,37 +132,3 @@ async def run_named_pipeline(
     return {"instance_id": instance_id}
 
 
-@router.post("/{name}/{version}/{instance_id}", status_code=200, response_model=StartPipelineResponse)
-async def update_named_pipeline_instance(
-    request: StartNamedPipelineRequest,
-    name: str = Path(..., description="Pipeline name"),
-    version: str = Path(..., description="Pipeline version"),
-    instance_id: str = Path(..., description="Pipeline instance identifier"),
-):
-    """Re-queue a named pipeline on an existing instance slot (legacy DLSPS API).
-
-    Stops the existing instance if running, then starts a new one with the
-    updated parameters, reusing the same instance_id is not supported —
-    returns the new instance_id.
-    """
-    if _legacy_config is None:
-        raise HTTPException(status_code=503, detail="No config.json loaded — named pipeline API unavailable")
-
-    pipeline_cfg = _legacy_config.get_pipeline(version)
-    if pipeline_cfg is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Pipeline {version!r} not found in config (name={name!r})",
-        )
-
-    manager = _get_manager()
-    # Stop existing instance if it is still running
-    manager.stop(instance_id)
-
-    pipeline_str = build_pipeline_string(pipeline_cfg, parameters=request.parameters)
-    pipeline_str = apply_source(pipeline_str, request.source)
-    pipeline_str = apply_destination(pipeline_str, request.destination)
-    new_id = manager.start(pipeline_str)
-    return {"instance_id": new_id}
-
-
