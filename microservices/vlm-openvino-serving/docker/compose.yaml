@@ -18,6 +18,11 @@ services:
       https_proxy: ${https_proxy}
       VLM_MODEL_NAME: ${VLM_MODEL_NAME}
       VLM_COMPRESSION_WEIGHT_FORMAT: ${VLM_COMPRESSION_WEIGHT_FORMAT}
+      VLM_NPU_EXPORT_PROFILE: ${VLM_NPU_EXPORT_PROFILE:-safe}
+      VLM_NPU_VLM_NUM_SAMPLES: ${VLM_NPU_VLM_NUM_SAMPLES:-16}
+      VLM_NPU_VLM_GROUP_SIZE: ${VLM_NPU_VLM_GROUP_SIZE:--1}
+      VLM_NPU_VLM_RATIO: ${VLM_NPU_VLM_RATIO:-0.8}
+      VLM_NPU_VLM_SENSITIVITY_METRIC: ${VLM_NPU_VLM_SENSITIVITY_METRIC:-mean_activation_magnitude}
       VLM_DEVICE: ${VLM_DEVICE}
       VLM_SEED: ${VLM_SEED}
       WORKERS: ${WORKERS:-1}
@@ -31,13 +36,14 @@ services:
       VLM_TELEMETRY_MAX_RECORDS: ${VLM_TELEMETRY_MAX_RECORDS:-100}
     restart: unless-stopped
     devices:
-      - /dev/dri:/dev/dri
+      - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
+      - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
     group_add:
-      - ${USER_GROUP_ID:-1000} 
-      - ${VIDEO_GROUP_ID:-44}    
+      - ${USER_GROUP_ID:-1000}
+      - ${VIDEO_GROUP_ID:-44}
       - ${RENDER_GROUP_ID:-1002}
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)"]
       interval: 10s
       timeout: 10s
       retries: 40

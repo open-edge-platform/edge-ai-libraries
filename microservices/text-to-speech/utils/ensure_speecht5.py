@@ -55,14 +55,24 @@ def convert(model_name: str, output_dir: str, ov_dtype: str, quantization_config
     )
 
     if quantization_config is not None:
+        import gc
         ov_core = Core()
         for model_file in ("openvino_encoder_model.xml", "openvino_decoder_model.xml", "openvino_postnet.xml", "openvino_vocoder.xml"):
             model_path = Path(output_dir) / model_file
-            quantized = nncf.compress_weights(ov_core.read_model(model_path), **quantization_config)
+            # Read with memory-mapping disabled so the original .bin file is not
+            # locked on Windows. This allows a clean atomic replace afterwards.
+            # (Copying over a memory-mapped file corrupts the model and causes
+            # "Axis out of tensor rank range" errors at load time.)
+            src_model = ov_core.read_model(model_path, config={"ENABLE_MMAP": False})
+            quantized = nncf.compress_weights(src_model, **quantization_config)
             tmp = model_path.with_name(f"{model_path.stem}__q.xml")
             save_model(quantized, tmp)
-            tmp.replace(model_path)
-            tmp.with_suffix(".bin").replace(model_path.with_suffix(".bin"))
+            # Release model references and any lingering file handles before replacing.
+            del quantized
+            del src_model
+            gc.collect()
+            os.replace(str(tmp), str(model_path))
+            os.replace(str(tmp.with_suffix(".bin")), str(model_path.with_suffix(".bin")))
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     ov_tok = convert_tokenizer(tokenizer)

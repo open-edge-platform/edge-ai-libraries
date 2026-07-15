@@ -28,8 +28,8 @@ class MQTTService:
         self.config = config
         mqtt_cfg = config.get_mqtt_config()
 
-        self.host = mqtt_cfg.get("host", "localhost")
-        self.port = mqtt_cfg.get("port", 1883)
+        self.host = config.get_mqtt_host()
+        self.port = config.get_mqtt_port()
         self.use_tls = mqtt_cfg.get("use_tls", False)
         self.ca_cert_path = mqtt_cfg.get("ca_cert_path", "secrets/certs/scenescape-ca.pem")
         self.cert_required = mqtt_cfg.get("cert_required", False)

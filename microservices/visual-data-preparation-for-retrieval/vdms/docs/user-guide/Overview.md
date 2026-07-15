@@ -20,7 +20,7 @@ The microservice focuses on video-first pipelines while still supporting downstr
 ## Key Benefits
 
 - **Video-aware ingest:** Frame-level sampling, optional YOLOX-based object detection, and manifest-based storage tailored for downstream aggregation in Search-MS.
-- **Flexible runtime:** Runtime toggles for SDK/API processing, OpenVINO acceleration, and GPU offload (`VDMS_DATAPREP_DEVICE=GPU`) without code changes.
+- **Flexible runtime:** Runtime toggles for SDK/API processing, OpenVINO acceleration, and per-component device offload (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, `DETECTION_DEVICE`) without code changes.
 - **Consistent metadata model:** Each stored record always references the canonical download URL and includes timestamps, tag lists, and bucket identifiers for frictionless recall.
 - **Operational efficiency:** Cached SDK clients, preloading at startup, parallel embedding pipelines, and MinIO-aware utilities reduce cold-start latency and I/O overhead.
 - **End-to-end observability:** Structured logging, health reporting, and schema-validated requests provide clear insight during development and production operations.

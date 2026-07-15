@@ -62,6 +62,7 @@ See the [Configuration Guide](./get-started/configuration.md) for the full field
 - [Get Started](./get-started.md) - a step-by-step guide to your first run.
 - [Configuration](./get-started/configuration.md) - scenes, zones, rules, and services.
 - [How It Works](./how-it-works.md) - the internal event and rule flow.
+- [Integration Contract](./integration-contract.md) - MQTT topics, payload schemas, and the BA worker interface for integrators.
 
 <!--hide_directive
 :::{toctree}
@@ -69,6 +70,7 @@ See the [Configuration Guide](./get-started/configuration.md) for the full field
 
 ./get-started.md
 ./how-it-works.md
+./integration-contract.md
 ./api-reference.md
 ./troubleshooting.md
 Release Notes <./release-notes.md>

@@ -4,6 +4,7 @@ version = "2.0.0"
 description = "A microservice based on VDMS VectorDB for data preparation for text, video and images sources"
 authors = []
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.14"
@@ -47,7 +48,7 @@ line-length = 100
 exclude = "(/(.git | .venv | venv | .pytest_cache)/)"
 
 [tool.isort]
-py_version = 310
+py_version = 311
 profile = "black"
 line_length = 100
 indent = "    "

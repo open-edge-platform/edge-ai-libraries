@@ -1,5 +1,7 @@
 {{- $mmDevice := default "CPU" .Values.global.devices.multimodalEmbedding.device -}}
 {{- $mmUsesGpu := eq $mmDevice "GPU" -}}
+{{- $mmUsesNpu := eq $mmDevice "NPU" -}}
+{{- $mmUsesAccelerator := or $mmUsesGpu $mmUsesNpu -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,11 +10,11 @@ metadata:
     {{- include "multimodal-embedding-ms.labels" . | nindent 4 }}
 data:
   EMBEDDING_MODEL_NAME: {{ required "global.embeddingModelName is required" .Values.global.embeddingModelName | quote }}
-  {{- if $mmUsesGpu }}
-  EMBEDDING_DEVICE: "GPU"
+  {{- if $mmUsesAccelerator }}
+  EMBEDDING_DEVICE: {{ $mmDevice | quote }}
   EMBEDDING_USE_OV: "true"
   {{- else }}
-  {{- $embeddingDevice := coalesce .Values.embeddingDevice .Values.global.env.VDMS_DATAPREP_DEVICE .Values.global.env.DEVICE "CPU" }}
+  {{- $embeddingDevice := coalesce .Values.embeddingDevice $mmDevice "CPU" }}
   EMBEDDING_DEVICE: {{ $embeddingDevice | quote }}
   {{- if hasKey .Values "embeddingUseOV" }}
   EMBEDDING_USE_OV: {{ printf "%v" .Values.embeddingUseOV | quote }}
@@ -38,6 +40,9 @@ data:
   TRANSFORMERS_CACHE: "/home/appuser/.cache/huggingface"
   HUGGINGFACE_HUB_CACHE: "/home/appuser/.cache/huggingface"
   XDG_CACHE_HOME: "/home/appuser/.cache"
+  # Persist the OpenVINO compiled-model cache on the (writable, persistent) ov_models
+  # volume so GPU/NPU graph compilation runs once instead of on every pod start.
+  OV_CACHE_DIR: {{ .Values.ovCacheDir | default "/app/ov_models/ov_cache" | quote }}
   http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
   https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
   no_proxy: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch"
