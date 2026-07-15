@@ -1,0 +1,39 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "skill_name": "vdms-dataprep-dev",
+  "evals": [
+    {
+      "id": 1,
+      "name": "run-tests-with-coverage",
+      "prompt": "I'm in a checkout of edge-ai-libraries at microservices/visual-data-preparation-for-retrieval/vdms. Give me the exact project-supported commands to install test dependencies, run the unit suite with coverage, and report the result.",
+      "expected_output": "Provides poetry install --with dev, the Poetry-managed coverage+pytest command over tests, and coverage report -m. It does not invent a coverage threshold, use the nonexistent setup.sh test command, or start service containers.",
+      "expectations": [
+        "Provides poetry install --with dev followed by the Poetry-managed coverage+pytest command over tests",
+        "Reports coverage with coverage report -m without inventing a fail-under threshold absent from project configuration",
+        "Does not use a nonexistent setup.sh test command or require MinIO/VDMS containers for unit tests"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "build-context-edge",
+      "prompt": "Running docker build -f docker/Dockerfile . from the vdms directory fails with COPY errors about multimodal-embedding-serving not being found. What's the actual problem?",
+      "expected_output": "The build context is wrong: the image needs the sibling multimodal-embedding-serving path dependency, so the context must be the microservices/ directory. Use ./build.sh, never docker build from the vdms directory.",
+      "expectations": [
+        "Identifies the build context (not the Dockerfile) as the problem",
+        "Prescribes ./build.sh (or setup.sh --build) as the sanctioned build entry point"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "collection-name-wiring",
+      "prompt": "I exported VS_INDEX_NAME=my-new-index before sourcing setup.sh, but the VDMS dataprep container still gets DB_COLLECTION=video-rag. Why is my override ignored, and how can I make a one-off override work without changing source?",
+      "expected_output": "Explains that setup.sh unconditionally sets INDEX_NAME=video-rag and compose maps DB_COLLECTION from INDEX_NAME; VS_INDEX_NAME is unused. For a one-off override, source setup.sh --nosetup, then export INDEX_NAME=my-new-index after sourcing and invoke docker compose.",
+      "expectations": [
+        "Identifies setup.sh's unconditional INDEX_NAME=video-rag assignment and compose's DB_COLLECTION=${INDEX_NAME} mapping",
+        "States that VS_INDEX_NAME is unused in the current wiring",
+        "Provides a one-off override sequence that sets INDEX_NAME after source setup.sh --nosetup and before docker compose"
+      ]
+    }
+  ]
+}

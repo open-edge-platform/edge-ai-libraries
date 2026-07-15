@@ -11,9 +11,11 @@ services:
             - '${MINIO_CONSOLE_HOST_PORT:-6011}:9001'
         volumes:
             - '${MINIO_MOUNT_PATH:-/mnt/miniodata}:/data'
+        networks:
+            - vdms_network
         command: |
-            server /data 
-            --address ":9000" 
+            server /data
+            --address ":9000"
             --console-address ":9001"
 
     vdms-vector-db:
@@ -24,6 +26,8 @@ services:
             - OVERRIDE_descriptors_path=/db/descriptors
             - OVERRIDE_blobs_path=/db/blobs
             - OVERRIDE_pmgd_path=/db/graph
+        networks:
+            - vdms_network
         ports:
             - '${VDMS_VDB_HOST_PORT:-6020}:55555'
         depends_on:
@@ -36,6 +40,8 @@ services:
             dockerfile: visual-data-preparation-for-retrieval/vdms/docker/Dockerfile
             target: prod
         image: ${REGISTRY}vdms-dataprep:${TAG:-latest}
+        networks:
+            - vdms_network
         environment:
             - no_proxy=${no_proxy},${VDMS_VDB_HOST},${MULTIMODAL_EMBEDDING_HOST},${MINIO_HOST},localhost
             - http_proxy=${http_proxy}
@@ -141,7 +147,7 @@ services:
             - minio-server
 
 networks:
-    default:
+    vdms_network:
         driver: bridge
 
 volumes:
