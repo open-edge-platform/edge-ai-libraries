@@ -1,14 +1,17 @@
+import csv
+import io
 import logging
 import time
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import api.api_schemas as schemas
 from database import get_session
 from managers.benchmark_manager import BenchmarkManager
+from managers.pipeline_manager import PipelineManager
 from orm_models import (
     BenchmarkSuite,
     BenchmarkSuiteRun,
@@ -20,6 +23,15 @@ from orm_models import (
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.benchmarks")
+
+def _build_pipeline_name_by_id_map() -> dict[str, str]:
+    """Best-effort map of pipeline id to display name."""
+    # TODO: Read pipeline names from the pipelines table once pipelines are persisted in DB.
+    try:
+        return {pipeline.id: pipeline.name for pipeline in PipelineManager().get_pipelines()}
+    except Exception:
+        logger.warning("Failed to resolve pipeline names for CSV export", exc_info=True)
+        return {}
 
 
 @router.get(
@@ -416,6 +428,202 @@ async def get_benchmark_suite_runs(
         return JSONResponse(
             content=schemas.MessageResponse(
                 message="Unexpected error while listing benchmark runs."
+            ).model_dump(),
+            status_code=500,
+        )
+
+
+@router.get(
+    "/{suite_slug}/run/{run_id}/csv",
+    operation_id="export_benchmark_suite_run_csv",
+    summary="Export one benchmark suite run as CSV",
+    responses={
+        200: {
+            "description": "CSV file containing workload and test case data",
+        },
+        404: {
+            "description": "Benchmark suite or run not found",
+            "model": schemas.MessageResponse,
+        },
+        500: {
+            "description": "Internal server error",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+async def export_benchmark_suite_run_csv(
+    suite_slug: str,
+    run_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Export one suite run by id as a CSV with workload and test-case sections."""
+    try:
+        suite = await session.scalar(
+            select(BenchmarkSuite).where(BenchmarkSuite.slug == suite_slug)
+        )
+        if suite is None:
+            return JSONResponse(
+                content=schemas.MessageResponse(
+                    message=f"Benchmark suite with slug '{suite_slug}' not found."
+                ).model_dump(),
+                status_code=404,
+            )
+
+        suite_run = await session.scalar(
+            select(BenchmarkSuiteRun).where(
+                BenchmarkSuiteRun.id == run_id,
+                BenchmarkSuiteRun.suite_id == suite.id,
+            )
+        )
+        if suite_run is None:
+            return JSONResponse(
+                content=schemas.MessageResponse(
+                    message=(
+                        f"Benchmark suite run with id={run_id} not found for "
+                        f"suite '{suite_slug}'."
+                    )
+                ).model_dump(),
+                status_code=404,
+            )
+
+        workload_runs_result = await session.execute(
+            select(BenchmarkWorkloadRun)
+            .where(BenchmarkWorkloadRun.suite_run_id == suite_run.id)
+            .order_by(BenchmarkWorkloadRun.id)
+        )
+        workload_runs = workload_runs_result.scalars().all()
+        pipeline_name_by_id = _build_pipeline_name_by_id_map()
+
+        workload_ids = [workload_run.workload_id for workload_run in workload_runs]
+        workloads_by_id: dict[int, BenchmarkWorkload] = {}
+        if workload_ids:
+            workloads_result = await session.execute(
+                select(BenchmarkWorkload).where(BenchmarkWorkload.id.in_(workload_ids))
+            )
+            workloads = workloads_result.scalars().all()
+            workloads_by_id = {workload.id: workload for workload in workloads}
+
+        workload_run_ids = [workload_run.id for workload_run in workload_runs]
+        test_case_runs: list[BenchmarkTestCaseRun] = []
+        if workload_run_ids:
+            test_case_runs_result = await session.execute(
+                select(BenchmarkTestCaseRun)
+                .where(BenchmarkTestCaseRun.workload_run_id.in_(workload_run_ids))
+                .order_by(BenchmarkTestCaseRun.id)
+            )
+            test_case_runs = test_case_runs_result.scalars().all()
+
+        test_case_ids = [test_case_run.test_case_id for test_case_run in test_case_runs]
+        benchmark_test_cases_by_id: dict[int, BenchmarkTestCase] = {}
+        if test_case_ids:
+            benchmark_test_cases_result = await session.execute(
+                select(BenchmarkTestCase).where(BenchmarkTestCase.id.in_(test_case_ids))
+            )
+            benchmark_test_cases = benchmark_test_cases_result.scalars().all()
+            benchmark_test_cases_by_id = {
+                test_case.id: test_case for test_case in benchmark_test_cases
+            }
+
+        test_case_runs_by_workload_run_id: dict[int, list[BenchmarkTestCaseRun]] = {}
+        for row in test_case_runs:
+            test_case_runs_by_workload_run_id.setdefault(row.workload_run_id, []).append(
+                row
+            )
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        workload_header = [
+            "pipeline_name",
+            "overall_score",
+            "performance_score",
+            "efficiency_score",
+            "duration",
+            "pass_rate",
+            "status",
+        ]
+
+        test_header = [
+            "variant",
+            "streams",
+            "duration",
+            "total_fps",
+            "per_stream_fps",
+            "cpu",
+            "gpu",
+            "npu",
+            "media",
+            "memory",
+            "power",
+            "status",
+        ]
+
+        for row in workload_runs:
+            workload_test_case_runs = test_case_runs_by_workload_run_id.get(row.id, [])
+
+            writer.writerow(workload_header)
+            writer.writerow(
+                [
+                    pipeline_name_by_id.get(
+                        workloads_by_id[row.workload_id].pipeline_id,
+                        workloads_by_id[row.workload_id].pipeline_id,
+                    )
+                    if row.workload_id in workloads_by_id
+                    else "",
+                    row.score_total,
+                    row.score_performance,
+                    row.score_efficiency,
+                    row.execution_time,
+                    "",
+                    row.status,
+                ]
+            )
+
+            writer.writerow(test_header)
+
+            for test_row in workload_test_case_runs:
+                benchmark_test_case = benchmark_test_cases_by_id.get(test_row.test_case_id)
+                variant_id = benchmark_test_case.variant_id if benchmark_test_case else ""
+                streams = benchmark_test_case.streams if benchmark_test_case else 0
+
+                status = schemas.BenchmarkTestCaseRunStatus(test_row.status)
+
+                writer.writerow(
+                    [
+                        variant_id,
+                        streams,
+                        test_row.execution_time,
+                        test_row.total_fps,
+                        test_row.per_stream_fps,
+                        test_row.cpu_usage,
+                        test_row.gpu_usage,
+                        "",
+                        "",
+                        test_row.memory_usage,
+                        test_row.power_usage,
+                        status.value,
+                    ]
+                )
+
+            writer.writerow([])
+
+        filename = f"{suite.slug}-run-{suite_run.id}.csv"
+        return Response(
+            content=output.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    except Exception:
+        logger.error(
+            "Unexpected error while exporting benchmark run id=%s for slug=%s",
+            run_id,
+            suite_slug,
+            exc_info=True,
+        )
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message="Unexpected error while exporting benchmark run CSV."
             ).model_dump(),
             status_code=500,
         )
