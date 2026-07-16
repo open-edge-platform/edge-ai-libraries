@@ -13,9 +13,15 @@ Build vector-retriever backend-flavored Docker images.
 Usage:
     ./build.sh
     ./build.sh --backend <name> [--backend <name> ...]
+    ./build.sh --copyleft
 
 Supported backends:
     vdms, milvus, pgvector, faiss
+
+Options:
+    --backend <name>  Build only the specified backend(s). May be repeated.
+    --copyleft        Download copyleft (GPL/LGPL/MPL/EPL/CDDL) source packages
+                      into the image (sets Docker build arg COPYLEFT_SOURCES=true).
 
 Environment variables:
     REGISTRY_URL Optional registry host/prefix
@@ -25,6 +31,7 @@ Environment variables:
 Examples:
     ./build.sh
     TAG=dev ./build.sh --backend pgvector
+    ./build.sh --backend vdms --copyleft
     REGISTRY_URL=my-registry.local PROJECT_NAME=my-team TAG=v1 ./build.sh --backend faiss --backend milvus
 EOF
 }
@@ -44,6 +51,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 selected_backends=()
+copyleft_sources=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -59,6 +67,10 @@ while [[ $# -gt 0 ]]; do
             fi
             selected_backends+=("$2")
             shift 2
+            ;;
+        --copyleft)
+            copyleft_sources=true
+            shift
             ;;
         *)
             if contains_backend "$1"; then
@@ -110,6 +122,10 @@ else
     echo "Using local image names (no registry prefix)."
 fi
 
+if [[ "$copyleft_sources" == "true" ]]; then
+    echo "Copyleft sources: enabled (COPYLEFT_SOURCES=true)"
+fi
+
 for backend in "${validated_backends[@]}"; do
     image_name="${REGISTRY_PREFIX}vector-retriever-${backend}:${TAG}"
     echo ""
@@ -117,6 +133,7 @@ for backend in "${validated_backends[@]}"; do
     docker build \
         -f docker/Dockerfile \
         --build-arg "RETRIEVER_BACKEND=${backend}" \
+        --build-arg "COPYLEFT_SOURCES=${copyleft_sources}" \
         -t "${image_name}" \
         .
 done

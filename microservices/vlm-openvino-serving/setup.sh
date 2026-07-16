@@ -19,9 +19,6 @@ export TAG=${TAG:-latest}
 
 export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 
-docker volume create ov-models
-echo "Created docker volume for the models."
-
 export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-int8}
 export VLM_NPU_EXPORT_PROFILE=${VLM_NPU_EXPORT_PROFILE:-safe}
 export VLM_NPU_VLM_NUM_SAMPLES=${VLM_NPU_VLM_NUM_SAMPLES:-16}
