@@ -7,6 +7,7 @@ Samples CPU, GPU (Xe), and NPU KPIs in a background thread during benchmark runs
 Source: VIPPET metrics-manager JSON API (CPU, GPU, NPU, memory, temperature, power).
 """
 
+import json
 import logging
 import threading
 from typing import Any
@@ -22,31 +23,63 @@ def _fetch_metrics_manager(url: str) -> dict[str, float]:
     Returns flat dict of metric_key -> value.
     Tagged metrics use composite keys (e.g. gpu_power__gpu_cur_power).
     Only gpu_id=0 is collected for GPU metrics with multiple IDs.
+
+    Handles two response formats:
+      - SSE stream (``data: {json}\\n``) — reads the last complete event
+      - Plain JSON with ``metrics`` as a list or dict
     """
     try:
-        resp = requests.get(url, timeout=5)
+        resp = requests.get(url, timeout=5, stream=True)
         resp.raise_for_status()
-        data = resp.json()
+
+        raw = ""
+        for line in resp.iter_lines(decode_unicode=True):
+            if isinstance(line, str) and line.startswith("data: "):
+                raw = line[6:]
+                break
+        resp.close()
+
+        if not raw:
+            return {}
+
+        data = json.loads(raw)
         metrics = data.get("metrics", data)
         result: dict[str, float] = {}
-        for key, entry in metrics.items():
-            if isinstance(entry, dict):
-                val = entry.get("fields", {}).get("value")
-                if val is None:
-                    continue
-                name = entry.get("name", key.split("{")[0])
-                tags = entry.get("tags", {})
 
-                gpu_id = tags.get("gpu_id")
+        if isinstance(metrics, list):
+            for entry in metrics:
+                name = entry.get("name", "")
+                val = entry.get("value")
+                if val is None or not name:
+                    continue
+                labels = entry.get("labels", {})
+
+                gpu_id = labels.get("gpu_id")
                 if gpu_id is not None and gpu_id != "0":
                     continue
 
-                type_tag = tags.get("type") or tags.get("engine")
+                type_tag = labels.get("type") or labels.get("engine")
                 composite = f"{name}__{type_tag}" if type_tag else name
-
                 result[composite] = float(val)
-            elif isinstance(entry, (int, float)):
-                result[key] = float(entry)
+        elif isinstance(metrics, dict):
+            for key, entry in metrics.items():
+                if isinstance(entry, dict):
+                    val = entry.get("fields", {}).get("value")
+                    if val is None:
+                        continue
+                    name = entry.get("name", key.split("{")[0])
+                    tags = entry.get("tags", {})
+
+                    gpu_id = tags.get("gpu_id")
+                    if gpu_id is not None and gpu_id != "0":
+                        continue
+
+                    type_tag = tags.get("type") or tags.get("engine")
+                    composite = f"{name}__{type_tag}" if type_tag else name
+                    result[composite] = float(val)
+                elif isinstance(entry, (int, float)):
+                    result[key] = float(entry)
+
         return result
     except Exception as e:
         logger.debug("metrics-manager fetch failed: %s", e)
@@ -176,19 +209,18 @@ class HardwareMonitor:
             agg[f"{key}_min"] = round(min(values), 2)
             agg[f"{key}_max"] = round(max(values), 2)
 
-        render_vals = [
-            s.get("gpu_render_util_pct")
-            for s in self._samples
-            if "gpu_render_util_pct" in s
-        ]
-        video_vals = [
-            s.get("gpu_video_util_pct")
-            for s in self._samples
-            if "gpu_video_util_pct" in s
-        ]
-        if render_vals or video_vals:
-            all_vals = [v for v in render_vals + video_vals if v is not None]
-            if all_vals:
-                agg["gpu_util_combined_avg"] = round(sum(all_vals) / len(all_vals), 2)
+        # Combined GPU utilization: max(render, video) per sample, then averaged.
+        combined_per_sample = []
+        for s in self._samples:
+            render = s.get("gpu_render_util_pct")
+            video = s.get("gpu_video_util_pct")
+            vals = [v for v in (render, video) if v is not None]
+            if vals:
+                combined_per_sample.append(max(vals))
+        if combined_per_sample:
+            agg["gpu_util_combined_avg"] = round(
+                sum(combined_per_sample) / len(combined_per_sample), 2
+            )
+            agg["gpu_util_combined_max"] = round(max(combined_per_sample), 2)
 
         return agg

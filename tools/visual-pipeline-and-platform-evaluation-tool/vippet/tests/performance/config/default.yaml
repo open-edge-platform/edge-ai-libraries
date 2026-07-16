@@ -43,6 +43,11 @@ benchmark:
     # Note: density tests don't support live_stream
     output_mode: "disabled"
 
+    # How long each pipeline run should last (seconds).
+    # 0 = run until video ends (EOS); >0 = loop input and stop after this duration.
+    # Longer durations give more stable FPS and hardware utilization measurements.
+    max_runtime: 30
+
   # Filters
   filters:
     # Skip these pipelines even if discovered

@@ -23,11 +23,10 @@ from helpers.api_helpers import (
 from helpers.config import BASE_URL
 from helpers.pipeline_case_helpers import PipelineCase
 
+from perf_helpers.config import MAX_RUNTIME, OUTPUT_MODE, RETRY_DELAY_SECONDS
 from perf_helpers.hw_monitor import HardwareMonitor
 
 logger = logging.getLogger(__name__)
-
-RETRY_DELAY_SECONDS: float = 5.0
 
 
 def _build_performance_payload(case: PipelineCase, streams: int) -> dict[str, Any]:
@@ -44,7 +43,8 @@ def _build_performance_payload(case: PipelineCase, streams: int) -> dict[str, An
             }
         ],
         "execution_config": {
-            "output_mode": "disabled",
+            "output_mode": OUTPUT_MODE,
+            "max_runtime": MAX_RUNTIME,
         },
     }
 
@@ -91,6 +91,9 @@ def test_pipeline_performance(
     duration = time.time() - start_time
     is_success = final_status.get("state") == "COMPLETED"
 
+    total_fps = final_status.get("total_fps") if is_success else None
+    per_stream_fps = final_status.get("per_stream_fps") if is_success else None
+
     results_collector.append(
         {
             "pipeline_name": pipeline_case.pipeline_name,
@@ -99,6 +102,8 @@ def test_pipeline_performance(
             "variant_id": pipeline_case.variant_id,
             "streams": stream_count,
             "status": "success" if is_success else "failed",
+            "total_fps": total_fps,
+            "per_stream_fps": per_stream_fps,
             "result": final_status,
             "hw_metrics": hw_stats,
             "duration_seconds": duration,

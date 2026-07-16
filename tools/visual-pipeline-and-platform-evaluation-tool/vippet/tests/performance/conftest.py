@@ -14,18 +14,19 @@ from typing import Any
 
 import pytest
 import requests
-import yaml
 
+from helpers.api_helpers import fetch_devices
 from helpers.pipeline_case_helpers import (
     PipelineCase,
     discover_pipeline_cases_for_pytest,
 )
 from perf_helpers.config import (
-    CONFIG_DIR,
+    CREATE_LATEST_LINK,
     METRICS_SAMPLE_INTERVAL,
     METRICS_URL,
-    PERF_CONFIG,
     PERF_RESULTS_DIR,
+    RESULT_FORMATS,
+    STREAM_COUNTS,
 )
 from helpers.config import BASE_URL
 from perf_helpers.hw_monitor import HardwareMonitor
@@ -34,7 +35,7 @@ from perf_helpers.reporters import ResultExporter, generate_html_report
 logger = logging.getLogger(__name__)
 
 
-def _collect_system_info() -> dict[str, Any]:
+def _collect_system_info(session: requests.Session | None = None) -> dict[str, Any]:
     """Collect system details for the benchmark report."""
 
     def _cmd(args: list[str]) -> str:
@@ -87,30 +88,39 @@ def _collect_system_info() -> dict[str, Any]:
         if ":" in tag:
             vippet_version = tag.split(":", 1)[1]
 
+    devices_info: dict[str, str] = {}
+    if session is not None:
+        try:
+            devices = fetch_devices(session)
+            for device in devices:
+                family = device.get("device_family", "").upper()
+                name = device.get("name") or device.get("device_name", "")
+                if family and name:
+                    devices_info[family] = name
+                elif family:
+                    devices_info[family] = "detected"
+        except Exception:
+            logger.debug("Failed to fetch device info for system_info")
+
+    system: dict[str, str] = {
+        "Processor": cpu_model,
+        "Memory": mem_capacity,
+        "OS": os_name,
+        "Kernel": platform.release(),
+    }
+    if devices_info.get("GPU"):
+        system["GPU"] = devices_info["GPU"]
+    if devices_info.get("NPU"):
+        system["NPU"] = devices_info["NPU"]
+
     return {
-        "system": {
-            "Processor": cpu_model,
-            "Memory": mem_capacity,
-            "OS": os_name,
-            "Kernel": platform.release(),
-        },
+        "system": system,
         "software": {
             "VIPPET": vippet_version,
         },
     }
 
 
-def _load_perf_config() -> dict[str, Any]:
-    """Load the performance config YAML selected by PERF_CONFIG env var."""
-    config_path = CONFIG_DIR / f"{PERF_CONFIG}.yaml"
-    if not config_path.exists():
-        config_path = CONFIG_DIR / "default.yaml"
-    with config_path.open() as f:
-        return yaml.safe_load(f)
-
-
-_PERF_YAML = _load_perf_config()
-_STREAM_COUNTS: list[int] = _PERF_YAML.get("benchmark", {}).get("stream_counts", [1, 3])
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
 _QUICK_VARIANTS: set[str] = {"CPU", "GPU"}
 
@@ -142,7 +152,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             skip_marks = list(wrapped.marks)
             is_skipped = any(m.name == "skip" for m in skip_marks)
 
-        for streams in _STREAM_COUNTS:
+        for streams in STREAM_COUNTS:
             marks: list[Any] = [pytest.mark.perf]
             marks.extend(skip_marks)
 
@@ -179,7 +189,9 @@ def hw_monitor() -> HardwareMonitor:
 
 
 @pytest.fixture(scope="session")
-def results_collector(request: pytest.FixtureRequest) -> list[dict[str, Any]]:
+def results_collector(
+    request: pytest.FixtureRequest, http_client: requests.Session
+) -> list[dict[str, Any]]:
     """Session-scoped accumulator that exports results on teardown."""
     results: list[dict[str, Any]] = []
     start_time = time.time()
@@ -190,7 +202,23 @@ def results_collector(request: pytest.FixtureRequest) -> list[dict[str, Any]]:
         total_duration = time.time() - start_time
         benchmark_id = f"bench_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         output_dir = Path(PERF_RESULTS_DIR) / benchmark_id
-        exporter = ResultExporter(output_dir)
+        exporter = ResultExporter(output_dir, formats=RESULT_FORMATS)
+
+        system_info = _collect_system_info(http_client)
+
+        hw_families: dict[str, list[str]] = {}
+        for r in results:
+            family = r.get("variant_name", "").upper()
+            for part in family.split("_"):
+                if part in {"CPU", "GPU", "NPU"}:
+                    hw_families.setdefault(part, [])
+                    device_name = system_info.get("system", {}).get(
+                        part if part != "CPU" else "Processor", ""
+                    )
+                    if device_name and device_name not in hw_families[part]:
+                        hw_families[part].append(device_name)
+
+        n_skipped = sum(1 for r in results if r["status"] == "skipped")
         result_dict: dict[str, Any] = {
             "benchmark_id": benchmark_id,
             "timestamp": datetime.now().isoformat(),
@@ -200,9 +228,10 @@ def results_collector(request: pytest.FixtureRequest) -> list[dict[str, Any]]:
                 "total": len(results),
                 "success": sum(1 for r in results if r["status"] == "success"),
                 "failed": sum(1 for r in results if r["status"] == "failed"),
-                "skipped": sum(1 for r in results if r["status"] == "skipped"),
+                "skipped": n_skipped,
             },
-            "system_info": _collect_system_info(),
+            "hardware": hw_families,
+            "system_info": system_info,
         }
         exporter.export(result_dict)
         html_content = generate_html_report([result_dict])
@@ -210,5 +239,71 @@ def results_collector(request: pytest.FixtureRequest) -> list[dict[str, Any]]:
         html_path.write_text(html_content)
         logger.info("Performance report: %s", html_path)
 
+        if CREATE_LATEST_LINK:
+            latest_link = Path(PERF_RESULTS_DIR) / "latest"
+            latest_link.unlink(missing_ok=True)
+            latest_link.symlink_to(output_dir.name)
+            logger.info("Latest results symlink: %s", latest_link)
+
     request.addfinalizer(_finalize)
     return results
+
+
+_RESULTS_COLLECTOR_REF: list[list[dict[str, Any]]] = []
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:  # type: ignore[type-arg]
+    """Capture skipped perf tests into the results collector."""
+    if call.when != "setup":
+        return
+    if call.excinfo is None:
+        return
+    if not call.excinfo.errisinstance(pytest.skip.Exception):
+        return
+    if not any(m.name == "perf" for m in item.iter_markers()):
+        return
+
+    callspec = getattr(item, "callspec", None)
+    if callspec is None:
+        return
+    params = callspec.params
+    case_param = params.get("pipeline_case")
+    stream_count = params.get("stream_count", 0)
+
+    actual_case: PipelineCase | None = None
+    if isinstance(case_param, PipelineCase):
+        actual_case = case_param
+    elif case_param is not None:
+        wrapped: Any = case_param
+        vals = getattr(wrapped, "values", None)
+        if vals:
+            actual_case = vals[0]
+
+    skip_reason = str(call.excinfo.value)
+
+    entry = {
+        "pipeline_name": actual_case.pipeline_name if actual_case else "unknown",
+        "pipeline_id": actual_case.pipeline_id if actual_case else "",
+        "variant_name": actual_case.device_family if actual_case else "",
+        "variant_id": actual_case.variant_id if actual_case else "",
+        "streams": stream_count,
+        "status": "skipped",
+        "total_fps": None,
+        "per_stream_fps": None,
+        "result": None,
+        "hw_metrics": {"sample_count": 0},
+        "duration_seconds": 0,
+        "job_id": "",
+        "error": skip_reason,
+    }
+
+    if _RESULTS_COLLECTOR_REF:
+        _RESULTS_COLLECTOR_REF[0].append(entry)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _bind_results_ref(results_collector: list[dict[str, Any]]) -> None:
+    """Bind the results_collector list to the module-level ref for the skip hook."""
+    _RESULTS_COLLECTOR_REF.clear()
+    _RESULTS_COLLECTOR_REF.append(results_collector)

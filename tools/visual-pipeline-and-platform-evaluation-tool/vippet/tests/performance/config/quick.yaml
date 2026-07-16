@@ -14,15 +14,15 @@ benchmark:
     - cpu
     - gpu
 
-  # Only test 1 and 3 streams (skip 5, 10)
+  # Single stream only for quick validation
   stream_counts:
     - 1
-    - 3
 
   execution:
     max_retries: 1
     retry_delay_seconds: 3
     output_mode: "disabled"
+    max_runtime: 10
 
   filters:
     skip_pipelines: []

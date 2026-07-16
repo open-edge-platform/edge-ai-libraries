@@ -55,22 +55,37 @@ class CSVReporter:
             "cpu_util_pct_max",
             "cpu_freq_mhz_avg",
             "cpu_temperature_avg",
+            "cpu_temperature_max",
             "mem_used_percent_avg",
+            "mem_used_percent_max",
             "gpu_render_util_pct_avg",
             "gpu_render_util_pct_max",
             "gpu_video_util_pct_avg",
+            "gpu_video_util_pct_max",
+            "gpu_enhance_util_pct_avg",
+            "gpu_enhance_util_pct_max",
             "gpu_compute_util_pct_avg",
+            "gpu_compute_util_pct_max",
             "gpu_util_combined_avg",
+            "gpu_util_combined_max",
             "gpu_freq_mhz_avg",
+            "gpu_freq_mhz_max",
             "gpu_power_w_avg",
+            "gpu_power_w_max",
             "pkg_power_w_avg",
+            "pkg_power_w_max",
             "npu_utilization_avg",
             "npu_utilization_max",
             "npu_power_avg",
+            "npu_power_max",
             "npu_frequency_avg",
+            "npu_frequency_max",
             "npu_temperature_avg",
+            "npu_temperature_max",
             "npu_memory_mb_avg",
+            "npu_memory_mb_max",
             "npu_bandwidth_avg",
+            "npu_bandwidth_max",
             "hw_sample_count",
             "job_id",
             "error",
@@ -82,8 +97,10 @@ class CSVReporter:
 
             for tc in test_cases:
                 result_data = tc.get("result", {}) or {}
-                total_fps = result_data.get("total_fps")
-                per_stream_fps = result_data.get("per_stream_fps")
+                total_fps = tc.get("total_fps") or result_data.get("total_fps")
+                per_stream_fps = tc.get("per_stream_fps") or result_data.get(
+                    "per_stream_fps"
+                )
                 hw = tc.get("hw_metrics", {}) or {}
 
                 def _f(key: str) -> str:
@@ -110,22 +127,37 @@ class CSVReporter:
                     "cpu_util_pct_max": _f("cpu_util_pct_max"),
                     "cpu_freq_mhz_avg": _f("cpu_freq_mhz_avg"),
                     "cpu_temperature_avg": _f("cpu_temperature_avg"),
+                    "cpu_temperature_max": _f("cpu_temperature_max"),
                     "mem_used_percent_avg": _f("mem_used_percent_avg"),
+                    "mem_used_percent_max": _f("mem_used_percent_max"),
                     "gpu_render_util_pct_avg": _f("gpu_render_util_pct_avg"),
                     "gpu_render_util_pct_max": _f("gpu_render_util_pct_max"),
                     "gpu_video_util_pct_avg": _f("gpu_video_util_pct_avg"),
+                    "gpu_video_util_pct_max": _f("gpu_video_util_pct_max"),
+                    "gpu_enhance_util_pct_avg": _f("gpu_enhance_util_pct_avg"),
+                    "gpu_enhance_util_pct_max": _f("gpu_enhance_util_pct_max"),
                     "gpu_compute_util_pct_avg": _f("gpu_compute_util_pct_avg"),
+                    "gpu_compute_util_pct_max": _f("gpu_compute_util_pct_max"),
                     "gpu_util_combined_avg": _f("gpu_util_combined_avg"),
+                    "gpu_util_combined_max": _f("gpu_util_combined_max"),
                     "gpu_freq_mhz_avg": _f("gpu_freq_mhz_avg"),
+                    "gpu_freq_mhz_max": _f("gpu_freq_mhz_max"),
                     "gpu_power_w_avg": _f("gpu_power_w_avg"),
+                    "gpu_power_w_max": _f("gpu_power_w_max"),
                     "pkg_power_w_avg": _f("pkg_power_w_avg"),
+                    "pkg_power_w_max": _f("pkg_power_w_max"),
                     "npu_utilization_avg": _f("npu_utilization_avg"),
                     "npu_utilization_max": _f("npu_utilization_max"),
                     "npu_power_avg": _f("npu_power_avg"),
+                    "npu_power_max": _f("npu_power_max"),
                     "npu_frequency_avg": _f("npu_frequency_avg"),
+                    "npu_frequency_max": _f("npu_frequency_max"),
                     "npu_temperature_avg": _f("npu_temperature_avg"),
+                    "npu_temperature_max": _f("npu_temperature_max"),
                     "npu_memory_mb_avg": _f("npu_memory_mb_avg"),
+                    "npu_memory_mb_max": _f("npu_memory_mb_max"),
                     "npu_bandwidth_avg": _f("npu_bandwidth_avg"),
+                    "npu_bandwidth_max": _f("npu_bandwidth_max"),
                     "hw_sample_count": hw.get("sample_count", ""),
                     "job_id": tc.get("job_id", ""),
                     "error": tc.get("error", ""),
@@ -167,6 +199,10 @@ DEFAULT_COLOR = {"bg": "rgba(120, 120, 130, 0.8)", "border": "rgba(120, 120, 130
 KPI_COLORS = {
     "GPU Render %": {"bg": "rgba(26, 127, 55, 0.7)", "border": "rgba(26, 127, 55, 1)"},
     "GPU Video %": {"bg": "rgba(5, 80, 174, 0.7)", "border": "rgba(5, 80, 174, 1)"},
+    "GPU Enhance %": {
+        "bg": "rgba(56, 161, 105, 0.7)",
+        "border": "rgba(56, 161, 105, 1)",
+    },
     "NPU %": {"bg": "rgba(130, 80, 223, 0.7)", "border": "rgba(130, 80, 223, 1)"},
     "CPU %": {"bg": "rgba(249, 115, 22, 0.7)", "border": "rgba(249, 115, 22, 1)"},
     "Memory %": {"bg": "rgba(176, 136, 0, 0.7)", "border": "rgba(176, 136, 0, 1)"},
@@ -216,7 +252,7 @@ def _build_fps_charts(test_cases: list[dict[str, Any]]) -> dict[str, Any]:
         p = tc["pipeline_name"]
         v = tc["variant_id"]
         s = tc["streams"]
-        fps = _safe(tc.get("result", {}).get("total_fps"), 2)
+        fps = _safe(tc.get("total_fps") or tc.get("result", {}).get("total_fps"), 2)
         data[p][v][s] = fps
         if p not in variant_order:
             variant_order[p] = {}
@@ -255,6 +291,7 @@ def _build_kpi_chart(
     kpi_keys = [
         ("gpu_render_util_pct_avg", "GPU Render %"),
         ("gpu_video_util_pct_avg", "GPU Video %"),
+        ("gpu_enhance_util_pct_avg", "GPU Enhance %"),
         ("npu_utilization_avg", "NPU %"),
         ("cpu_util_pct_avg", "CPU %"),
         ("mem_used_percent_avg", "Memory %"),
@@ -359,6 +396,7 @@ def _build_summary_rows(test_cases: list[dict[str, Any]]) -> list[dict[str, Any]
     rows = []
     for tc in test_cases:
         hw = tc.get("hw_metrics") or {}
+        result_data = tc.get("result", {}) or {}
         rows.append(
             {
                 "pipeline": tc["pipeline_name"],
@@ -367,12 +405,15 @@ def _build_summary_rows(test_cases: list[dict[str, Any]]) -> list[dict[str, Any]
                 "streams": tc["streams"],
                 "status": tc["status"],
                 "total_fps": (
-                    _safe(tc.get("result", {}).get("total_fps"), 2)
+                    _safe(tc.get("total_fps") or result_data.get("total_fps"), 2)
                     if tc["status"] == "success"
                     else None
                 ),
                 "per_stream_fps": (
-                    _safe(tc.get("result", {}).get("per_stream_fps"), 2)
+                    _safe(
+                        tc.get("per_stream_fps") or result_data.get("per_stream_fps"),
+                        2,
+                    )
                     if tc["status"] == "success"
                     else None
                 ),
@@ -380,11 +421,13 @@ def _build_summary_rows(test_cases: list[dict[str, Any]]) -> list[dict[str, Any]
                 "gpu_util": _safe(hw.get("gpu_util_combined_avg"), 1),
                 "gpu_freq": _safe(hw.get("gpu_freq_mhz_avg"), 0),
                 "gpu_power": _safe(hw.get("gpu_power_w_avg"), 2),
+                "gpu_power_max": _safe(hw.get("gpu_power_w_max"), 2),
                 "pkg_power": _safe(hw.get("pkg_power_w_avg"), 2),
                 "npu_util": _safe(hw.get("npu_utilization_avg"), 1),
                 "npu_power": _safe(hw.get("npu_power_avg"), 2),
                 "cpu_util": _safe(hw.get("cpu_util_pct_avg"), 1),
                 "cpu_temp": _safe(hw.get("cpu_temperature_avg"), 1),
+                "cpu_temp_max": _safe(hw.get("cpu_temperature_max"), 1),
                 "error": tc.get("error"),
             }
         )
@@ -496,11 +539,13 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
                 <td class="r">{_fmt(r["gpu_util"], "%")}</td>
                 <td class="r">{_fmt(r["gpu_freq"], " MHz")}</td>
                 <td class="r">{_fmt(r["gpu_power"], " W")}</td>
+                <td class="r">{_fmt(r["gpu_power_max"], " W")}</td>
                 <td class="r">{_fmt(r["pkg_power"], " W")}</td>
                 <td class="r">{_fmt(r["npu_util"], "%")}</td>
                 <td class="r">{_fmt(r["npu_power"], " W")}</td>
                 <td class="r">{_fmt(r["cpu_util"], "%")}</td>
                 <td class="r">{_fmt(r["cpu_temp"], "°C")}</td>
+                <td class="r">{_fmt(r["cpu_temp_max"], "°C")}</td>
             </tr>"""
             table_rows_html.append(row)
 
@@ -544,9 +589,10 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
                 <th style="text-align:right">Total FPS</th><th style="text-align:right">FPS / stream</th>
                 <th style="text-align:right">Duration</th>
                 <th style="text-align:right">GPU Util</th><th style="text-align:right">GPU Freq</th>
-                <th style="text-align:right">GPU Power</th><th style="text-align:right">Pkg Power</th>
+                <th style="text-align:right">GPU Power</th><th style="text-align:right">GPU Peak</th>
+                <th style="text-align:right">Pkg Power</th>
                 <th style="text-align:right">NPU Util</th><th style="text-align:right">NPU Power</th>
-                <th style="text-align:right">CPU Util</th><th style="text-align:right">CPU Temp</th>
+                <th style="text-align:right">CPU Util</th><th style="text-align:right">CPU Temp</th><th style="text-align:right">CPU Temp Peak</th>
               </tr></thead>
               <tbody>{"".join(table_rows_html)}</tbody>
             </table>
