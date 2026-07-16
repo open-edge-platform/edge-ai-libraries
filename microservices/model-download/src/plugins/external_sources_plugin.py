@@ -177,8 +177,13 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         if "/" in model_name or ".." in model_name or model_name.startswith("."):
             raise ValueError(f"Invalid model name: {model_name!r}")
 
-        target_dir = os.path.join(output_dir, hub, model_name)
+
         kind = profile.get("kind")
+
+        # For pipeline-zoo, `all` and comma-separated model names place each model
+        # under its own folder at `<output_dir>/<hub>/<model_name>/`.
+        is_pzm_multi = hub == "pipeline-zoo-models" and self._is_multi_model_request(model_name)
+        target_dir = os.path.join(output_dir, hub) if is_pzm_multi else os.path.join(output_dir, hub, model_name)
 
         # The 'remote-url' hub takes the archive URL from the request and validates
         # it against the allowlist before download.
@@ -192,16 +197,12 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             self._validate_runtime_url(runtime_url, self._resolve_allowlist(profile))
 
         try:
-            if kind == "tarball":
-                self._fetch_tarball(
-                    hub, model_name, profile, target_dir, runtime_url=runtime_url
-                )
-            elif kind == "omz":
+            if kind == "omz":
                 self._fetch_omz(hub, model_name, target_dir)
+            elif kind == "tarball":
+                self._fetch_tarball(hub, model_name, profile, target_dir, runtime_url=runtime_url)
             else:
-                raise ValueError(
-                    f"Unknown 'kind' for hub {hub!r}: {kind!r} (check sources.yaml)"
-                )
+                raise ValueError(f"Unknown 'kind' for hub {hub!r}: {kind!r} (check sources.yaml)")
 
             host_path = target_dir
             if host_path.startswith("/opt/models/"):
@@ -261,23 +262,79 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         source_base = os.path.join(extract_dir, extracted_root) if extracted_root else extract_dir
 
         model_subdir_template = profile.get("shared_model_subpath", "{model_name}")
-        model_subdir = model_subdir_template.format(model_name=model_name)
-        if ".." in Path(model_subdir).parts:
-            raise ValueError(f"model_subdir resolves outside archive: {model_subdir!r}")
+        model_names = self._resolve_tarball_model_names(model_name, source_base, model_subdir_template)
 
-        source_dir = os.path.join(source_base, model_subdir)
-        if not os.path.isdir(source_dir):
-            raise FileNotFoundError(
-                f"Model {model_name!r} not found in archive at {source_dir}"
+        for resolved_name in model_names:
+            model_subdir = model_subdir_template.format(model_name=resolved_name)
+            if ".." in Path(model_subdir).parts:
+                raise ValueError(f"model_subdir resolves outside archive: {model_subdir!r}")
+
+            source_dir = os.path.join(source_base, model_subdir)
+            if not os.path.isdir(source_dir):
+                raise FileNotFoundError(
+                    f"Model {resolved_name!r} not found in archive at {source_dir}"
+                )
+
+            # pipeline-zoo multi-model requests place each model under its own folder.
+            destination = (
+                os.path.join(target_dir, resolved_name)
+                if hub == "pipeline-zoo-models" and self._is_multi_model_request(model_name)
+                else target_dir
             )
 
-        os.makedirs(target_dir, exist_ok=True)
-        shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
-        logger.info(
-            "external_sources_shared_tarball_copied",
-            model_name=model_name,
-            target=target_dir,
-        )
+            os.makedirs(destination, exist_ok=True)
+            shutil.copytree(source_dir, destination, dirs_exist_ok=True)
+            logger.info(
+                "external_sources_shared_tarball_copied",
+                model_name=resolved_name,
+                target=destination,
+            )
+
+    @staticmethod
+    def _is_multi_model_request(model_name: str) -> bool:
+        normalized = (model_name or "").strip().lower()
+        return normalized == "all" or "," in model_name
+
+    def _resolve_tarball_model_names(
+        self,
+        model_name: str,
+        source_base: str,
+        model_subdir_template: str,
+    ) -> List[str]:
+        """Resolve target model names for shared tarball downloads.
+
+        Supports:
+        - `all`: every model under the shared model root
+        - comma-separated model names: `a,b,c`
+        - single model name
+        """
+        normalized = (model_name or "").strip().lower()
+
+        if normalized == "all":
+            prefix = model_subdir_template.split("{model_name}", 1)[0].strip("/")
+            model_root = Path(source_base) / prefix if prefix else Path(source_base)
+            if not model_root.is_dir():
+                raise RuntimeError(f"Pipeline-zoo model directory not found at {model_root}")
+            names = sorted(path.name for path in model_root.iterdir() if path.is_dir())
+            if not names:
+                raise FileNotFoundError(f"No models found in archive at {model_root}")
+            return names
+
+        if "," in model_name:
+            names: List[str] = []
+            for raw in model_name.split(","):
+                name = raw.strip()
+                if not name:
+                    continue
+                if "/" in name or ".." in name or name.startswith("."):
+                    raise ValueError(f"Invalid model name: {name!r}")
+                if name not in names:
+                    names.append(name)
+            if not names:
+                raise ValueError("Model name is required (hub=pipeline-zoo-models)")
+            return names
+
+        return [model_name]
 
     @staticmethod
     def _resolve_allowlist(profile: Dict[str, Any]) -> List[str]:
