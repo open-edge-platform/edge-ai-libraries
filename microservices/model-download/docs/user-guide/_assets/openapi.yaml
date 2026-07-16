@@ -371,7 +371,26 @@ components:
         model_type:
           type: string
           nullable: true
-          description: Model task/type as reported by the hub
+          description: >-
+            Model task/type as reported by the hub. For Geti, this is the task
+            type (for example, DETECTION or CLASSIFICATION).
+        license:
+          type: string
+          nullable: true
+          description: License identifier reported by the hub (HuggingFace), when available
+        gated:
+          nullable: true
+          description: >-
+            HuggingFace gating status: false (open), or "auto"/"manual" for gated
+            models. Absent for hubs that do not report gating.
+          oneOf:
+            - type: boolean
+            - type: string
+              enum: [auto, manual]
+        requires_token:
+          type: boolean
+          nullable: true
+          description: True when the model is gated and requires an HF token to download
         last_modified:
           type: string
           nullable: true
@@ -385,13 +404,19 @@ components:
       type: object
       description: Request body for listing models from a hub using hub-specific filters.
       additionalProperties: true
+      required:
+        - hub
       properties:
+        hub:
+          type: string
+          description: The hub to list models from
+          example: huggingface
         filters:
           type: object
           additionalProperties: true
-          description: Hub-specific listing filters such as owner, organization, author, search, filter, and tags
+          description: Hub-specific listing filters such as author, search, and tags
           example:
-            owner: microsoft
+            author: microsoft
             search: phi
         limit:
           type: integer
@@ -443,23 +468,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
 
-  /hubs/{hub}/models:
+  /models/list:
     post:
       summary: List models available on a hub using filters
       description: |
-        Lists models available on a hub using a JSON request body for
-        hub-specific filters and pagination. Listing is currently supported for
-        `huggingface`, `ultralytics`, `pipeline-zoo-models`, and `geti`.
+        Lists models available on a hub using a JSON request body containing the
+        target `hub`, hub-specific filters, and pagination. Listing is currently
+        supported for `huggingface`, `ultralytics`, `pipeline-zoo-models`, and
+        `geti`.
 
         Supported filters:
-        - `huggingface`: `author`, `owner`, `organization`, `search`, `filter`, `tags`
+        - `huggingface`: `author`, `search`, `tags`
         - `ultralytics`: `search`
         - `pipeline-zoo-models`: `search`
         - `geti`: `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_name`, `export_type`, `precision`, `model_format`
 
-        For `geti`, `model_type` is the Geti task type (for example,
-        `DETECTION` or `CLASSIFICATION`). Requires `GETI_HOST`, `GETI_TOKEN`,
-        and `GETI_WORKSPACE_ID` to be configured.
+        For `huggingface`, `author` is the repository namespace and accepts a
+        user, owner, or organization name (for example, `microsoft` or
+        `meta-llama`).
+
+        For `geti`, listing requires `GETI_HOST`, `GETI_TOKEN`, and
+        `GETI_WORKSPACE_ID` to be configured.
 
         Extra top-level request body fields are accepted and merged into `filters`.
         Use `GET /api/v1/plugins` to discover each plugin's `listing_filter_fields`.
@@ -468,14 +497,6 @@ paths:
       operationId: listHubModels
       tags:
         - Models
-      parameters:
-        - in: path
-          name: hub
-          required: true
-          schema:
-            type: string
-          description: The hub to list models from
-          example: huggingface
       requestBody:
         required: true
         content:
@@ -486,14 +507,16 @@ paths:
               huggingface_models:
                 summary: List Hugging Face models
                 value:
+                  hub: huggingface
                   filters:
-                    owner: microsoft
+                    author: microsoft
                     search: phi
                   limit: 10
                   offset: 0
               ultralytics_models:
                 summary: List Ultralytics models
                 value:
+                  hub: ultralytics
                   filters:
                     search: yolov8
                   limit: 10
@@ -501,6 +524,7 @@ paths:
               pipeline_zoo_models:
                 summary: List Pipeline Zoo Models
                 value:
+                  hub: pipeline-zoo-models
                   filters:
                     search: yolo
                   limit: 10
@@ -508,6 +532,7 @@ paths:
               geti_models:
                 summary: List Geti™ models
                 value:
+                  hub: geti
                   filters:
                     project_name: detection
                     precision: FP16
@@ -524,6 +549,8 @@ paths:
           description: Invalid pagination parameters, unknown hub, or hub not activated
         "401":
           description: Authentication failed for the hub
+        "422":
+          description: Validation error (for example, missing required `hub` field)
         "501":
           description: Hub does not support listing models
         "502":

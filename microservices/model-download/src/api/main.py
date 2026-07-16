@@ -148,12 +148,12 @@ async def _list_hub_models(
 # TODO: Replace this POST endpoint with HTTP QUERY once FastAPI, OpenAPI tooling,
 # and deployment proxies support QUERY consistently for safe requests with bodies.
 @app.post(
-    "/hubs/{hub}/models",
+    "/models/list",
     response_model=ModelListResponse,
     response_model_exclude_none=True,
     tags=["Models"],
 )
-async def list_hub_models_with_body(hub: str, request: ModelListRequest) -> ModelListResponse:
+async def list_hub_models_with_body(request: ModelListRequest) -> ModelListResponse:
     """
     List models available on a hub using hub-specific filters.
     """
@@ -161,7 +161,7 @@ async def list_hub_models_with_body(hub: str, request: ModelListRequest) -> Mode
     body_extras = request.model_extra or {}
     filters.update({key: value for key, value in body_extras.items() if value is not None})
     return await _list_hub_models(
-        hub,
+        request.hub,
         filters=filters,
         limit=request.limit,
         offset=request.offset,

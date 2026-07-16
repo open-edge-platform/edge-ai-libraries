@@ -21,7 +21,7 @@
 - Introduced a new script to enable the ephemeral download flow.
 - Made HF token optional for model downloads.
 - Added a quickstart guide for ephemeral mode.
-- Added `POST /api/v1/hubs/{hub}/models` to list models available from supported hubs before download. Listing is currently supported for `huggingface`, `ultralytics`, `pipeline-zoo-models`, and `geti`.
+- Added `POST /api/v1/models/list` to list models available from supported hubs before download. Listing is currently supported for `huggingface`, `ultralytics`, `pipeline-zoo-models`, and `geti`.
 
 **Improved**
 

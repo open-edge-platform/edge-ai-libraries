@@ -163,6 +163,7 @@ class GetiPlugin(ModelDownloadPlugin):
     async def _list_models_async(self, filters: Optional[Dict[str, Any]] = None,
                                  limit: int = 50, offset: int = 0) -> Dict[str, Any]:
         filters = filters or {}
+        self._validate_listing_filters(filters)
         await self._ensure_initialized()
 
         if not self.geti.workspace_id:
@@ -176,11 +177,6 @@ class GetiPlugin(ModelDownloadPlugin):
         export_type = str(filters.get("export_type") or DEFAULT_EXPORT_TYPE).lower()
         precision = str(filters.get("precision")).lower() if filters.get("precision") is not None else None
         model_format = filters.get("model_format")
-        listing_filter_keys = set(GETI_LISTING_FILTER_FIELDS)
-        extra_filters = {
-            key: value for key, value in filters.items()
-            if key not in listing_filter_keys and value is not None
-        }
 
         projects = await self.get_projects(project_id=project_id)
         if project_name and not project_id:
@@ -204,15 +200,14 @@ class GetiPlugin(ModelDownloadPlugin):
 
                 optimized_models = list(getattr(model, "optimized_models", []) or [])
                 if export_type == "optimized":
-                    matched_optimized_models, ignored_fields = self._filter_optimized_models(
-                        optimized_models, model_format, precision, extra_filters
+                    matched_optimized_models, _ = self._filter_optimized_models(
+                        optimized_models, model_format, precision
                     )
                     # if none matched, skip the model
                     if not matched_optimized_models:
                         continue
                 else:
                     matched_optimized_models = optimized_models
-                    ignored_fields = []
 
                 creation_time = getattr(model, "creation_time", None)
                 last_modified = getattr(model, "last_updated", None) or getattr(model, "update_time", None) or creation_time
@@ -225,8 +220,6 @@ class GetiPlugin(ModelDownloadPlugin):
                     "model_id": getattr(model, "id", None),
                     "optimized_model_ids": [getattr(om, "id", None) for om in matched_optimized_models],
                 }
-                if ignored_fields:
-                    metadata["ignored_filter_fields"] = ignored_fields
 
                 items.append({
                     "name": getattr(model, "name", None) or getattr(model, "id", ""),

@@ -650,8 +650,8 @@ class TestAPIMain:
         mock_registry.hub_is_available.return_value = (True, None)
 
         response = client.post(
-            "/hubs/pipeline-zoo-models/models",
-            json={"filters": {"owner": "dlstreamer"}, "search": "db", "limit": 25, "offset": 0},
+            "/models/list",
+            json={"hub": "pipeline-zoo-models", "filters": {"owner": "dlstreamer"}, "search": "db", "limit": 25, "offset": 0},
         )
 
         assert response.status_code == 200
@@ -684,8 +684,8 @@ class TestAPIMain:
         mock_registry.hub_is_available.return_value = (True, None)
 
         response = client.post(
-            "/hubs/huggingface/models",
-            json={"limit": 1, "offset": 0},
+            "/models/list",
+            json={"hub": "huggingface", "limit": 1, "offset": 0},
         )
 
         assert response.status_code == 200
@@ -703,7 +703,7 @@ class TestAPIMain:
         mock_plugin.supports_listing = False
         mock_registry.get_plugin.return_value = mock_plugin
 
-        response = client.post("/hubs/geti/models", json={})
+        response = client.post("/models/list", json={"hub": "geti"})
 
         assert response.status_code == 501
         assert response.json()["detail"] == "Hub 'geti' does not support listing models"

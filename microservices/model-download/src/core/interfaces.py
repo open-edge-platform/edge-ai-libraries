@@ -50,6 +50,24 @@ class ModelDownloadPlugin(ABC):
         """Filter fields supported by ``list_models`` for this plugin."""
         return []
 
+    def _validate_listing_filters(self, filters: Optional[Dict[str, Any]]) -> None:
+        """Reject any filter key not declared in ``listing_filter_fields``.
+
+        Plugins with a fixed set of supported filters should call this at the
+        start of ``list_models`` so unsupported keys fail loudly (raising
+        ValueError) instead of being silently ignored.
+        """
+        if not filters:
+            return
+        allowed = set(self.listing_filter_fields)
+        unknown = [key for key in filters if key not in allowed]
+        if unknown:
+            allowed_list = ", ".join(sorted(allowed)) or "(none)"
+            raise ValueError(
+                f"Unsupported filter(s): {', '.join(sorted(unknown))}. "
+                f"Allowed filter(s): {allowed_list}."
+            )
+
     def list_models(self, filters: Optional[Dict[str, Any]] = None, limit: int = 50, offset: int = 0, **kwargs) -> Dict[str, Any]:
         """
         List models available on this hub.

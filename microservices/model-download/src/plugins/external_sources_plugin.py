@@ -112,6 +112,8 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
                 f"Hub '{hub}' does not support listing models"
             )
 
+        self._validate_listing_filters(filters)
+
         profile = _load_profile().get(hub)
         if profile is None:
             raise ListingNotSupportedError(

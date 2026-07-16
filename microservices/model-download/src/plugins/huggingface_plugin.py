@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from huggingface_hub import HfApi, snapshot_download
-from huggingface_hub.utils import HfHubHTTPError
+from huggingface_hub.utils import HfHubHTTPError, GatedRepoError, RepositoryNotFoundError
 from src.core.interfaces import ListingAuthError, ModelDownloadPlugin, DownloadTask
 from src.utils.logging import logger
 import os
@@ -25,19 +25,19 @@ class HuggingFacePlugin(ModelDownloadPlugin):
 
     @property
     def listing_filter_fields(self) -> list[str]:
-        return ["author", "owner", "organization", "search", "filter", "tags"]
+        return ["author", "search", "tags"]
 
     def list_models(self, filters=None, limit=50, offset=0, **kwargs) -> dict:
-        """List models for an owner/organization on the HuggingFace Hub."""
+        """List models for an author (user, owner, or organization) on the HuggingFace Hub."""
         filters = filters or {}
+        self._validate_listing_filters(filters)
         token = os.getenv("HF_TOKEN")
 
-        author = filters.get("author") or filters.get("owner") or filters.get("organization")
+        # HuggingFace exposes the repo namespace (a user, owner, or organization) as `author`.
+        author = filters.get("author")
         search = str(filters.get("search")) if filters.get("search") is not None else None
-        model_filter = filters.get("filter")
-        tags = filters.get("tags")
-        if tags and not model_filter:
-            model_filter = tags
+        # `tags` maps to HuggingFace's `filter` parameter (library, language, task, license, ...).
+        model_filter = filters.get("tags")
 
         api = HfApi(token=token)
         # Fetch one extra item so the API can tell whether another page exists.
@@ -51,7 +51,7 @@ class HuggingFacePlugin(ModelDownloadPlugin):
                 sort="downloads",
                 direction=-1,
                 limit=fetch_limit,
-                expand=["downloads", "likes", "lastModified", "pipeline_tag", "tags", "safetensors"],
+                expand=["downloads", "likes", "lastModified", "pipeline_tag", "tags", "safetensors", "gated"],
             )
             models = list(results)
         except HfHubHTTPError as exc:
@@ -75,12 +75,27 @@ class HuggingFacePlugin(ModelDownloadPlugin):
         params = getattr(safetensors, "parameters", None) if safetensors else None
         precisions = sorted(params.keys()) if params else []
 
+        tags = list(getattr(model, "tags", []) or [])
+        # HuggingFace encodes the license as a "license:<id>" tag (e.g. "license:apache-2.0").
+        license_id = next(
+            (tag.split("license:", 1)[1] for tag in tags if tag.startswith("license:")),
+            None,
+        )
+
+        # `gated` is False for open models, or "auto"/"manual" for gated models.
+        # Gated models require accepting the license/terms and a valid HF token.
+        gated = getattr(model, "gated", None)
+        requires_token = bool(gated) and gated is not False
+
         return {
             "name": model_id,
             "owner": owner,
             "precisions": precisions,
-            "tags": list(getattr(model, "tags", []) or []),
+            "tags": tags,
             "model_type": getattr(model, "pipeline_tag", None),
+            "license": license_id,
+            "gated": gated,
+            "requires_token": requires_token,
             "last_modified": last_modified.isoformat() if hasattr(last_modified, "isoformat") else last_modified,
             "metadata": {
                 "downloads": getattr(model, "downloads", None),
@@ -88,6 +103,40 @@ class HuggingFacePlugin(ModelDownloadPlugin):
                 "library_name": getattr(model, "library_name", None),
             },
         }
+
+    @staticmethod
+    def _check_access(model_name: str, token) -> None:
+        """Raise a clear error if the repo is gated/private and not accessible.
+
+        HuggingFace's snapshot_download can mask a gated or unauthorized repo as a
+        misleading "check your internet connection" error. Checking access first
+        surfaces the real cause. Non-access errors (e.g. transient 5xx or network
+        issues) are ignored here so the actual download can surface them.
+        """
+        api = HfApi(token=token)
+        try:
+            api.auth_check(model_name)
+        except GatedRepoError as exc:
+            raise ValueError(
+                f"'{model_name}' is a gated model. Provide an HF_TOKEN that has been "
+                f"granted access to this repository."
+            ) from exc
+        except RepositoryNotFoundError as exc:
+            raise ValueError(
+                f"'{model_name}' was not found or is private. If it is gated or private, "
+                f"provide an HF_TOKEN with access to this repository."
+            ) from exc
+        except HfHubHTTPError as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status in (401, 403):
+                raise ValueError(
+                    f"Access to '{model_name}' is unauthorized. Provide an HF_TOKEN with "
+                    f"access to this repository."
+                ) from exc
+            return
+        except Exception:
+            # Network or other unexpected error: let the download attempt surface it.
+            return
 
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         return hub.lower() == "huggingface"
@@ -103,6 +152,9 @@ class HuggingFacePlugin(ModelDownloadPlugin):
         os.makedirs(model_specific_path, exist_ok=True)
 
         logger.info(f"Downloading HuggingFace model {model_name} to {model_specific_path}")
+        # Verify access up-front: a gated/unauthorized repo otherwise surfaces as a
+        # misleading "check your internet connection" error from snapshot_download.
+        self._check_access(model_name, hf_token)
         model_downloaded_path = snapshot_download(
             repo_id=model_name,
             token=hf_token,
