@@ -50,6 +50,8 @@ updates:
     directory: "/microservices/vlm-openvino-serving"
     schedule:
       interval: "weekly"
+    # Update only poetry.lock; do not widen/change pyproject.toml constraints.
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -76,6 +78,7 @@ updates:
     directory: "/microservices/document-ingestion/pgvector"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -89,6 +92,7 @@ updates:
     directory: "/microservices/visual-data-preparation-for-retrieval/vdms"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -102,6 +106,7 @@ updates:
     directory: "/microservices/model-download"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -118,6 +123,7 @@ updates:
     directory: "/sample-applications/chat-question-and-answer"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -131,6 +137,7 @@ updates:
     directory: "/sample-applications/chat-question-and-answer-core"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -144,6 +151,7 @@ updates:
     directory: "/sample-applications/document-summarization"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -157,6 +165,7 @@ updates:
     directory: "/sample-applications/video-search-and-summarization/mcp"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -170,6 +179,7 @@ updates:
     directory: "/sample-applications/video-search-and-summarization/search-ms"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
