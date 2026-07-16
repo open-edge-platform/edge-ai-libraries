@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { CpuUsageProgress } from "@/features/metrics/CpuUsageProgress.tsx";
 import { GpuUsageProgress } from "@/features/metrics/GpuUsageProgress.tsx";
 import { PipelineCards } from "@/features/pipelines/PipelineCards.tsx";
+import { BenchmarkCards } from "@/features/benchmarks/BenchmarkCards";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { BookOpen, Code, Sparkles } from "lucide-react";
@@ -9,7 +10,10 @@ import { selectHasNPU } from "@/store/reducers/devices.ts";
 import { NpuUsageProgress } from "@/features/metrics/NpuUsageProgress.tsx";
 import { compareDesc } from "date-fns";
 import { PipelineCardsLoader } from "@/features/pipelines/PipelineCardsLoader";
-import { useGetPipelinesQuery } from "@/api/api.generated";
+import {
+  useGetBenchmarksQuery,
+  useGetPipelinesQuery,
+} from "@/api/api.generated";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
 /**
@@ -70,10 +74,12 @@ const useVisibleCardsCount = (
 
 export const Home = () => {
   const hasNpu = useAppSelector(selectHasNPU);
+  const { data: benchmarks = [], isLoading: isLoadingBenchmarks } =
+    useGetBenchmarksQuery();
   const { isLoading: isLoadingPipelines } = useGetPipelinesQuery();
   const pipelines = useAppSelector(selectPipelines);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const maxCards = useVisibleCardsCount(containerRef);
+  const cardsContainerRef = useRef<HTMLDivElement>(null);
+  const maxCards = useVisibleCardsCount(cardsContainerRef);
 
   const sortedPipelines = pipelines
     ? [...pipelines].sort((p1, p2) =>
@@ -84,8 +90,30 @@ export const Home = () => {
   return (
     <>
       <div className="flex-1 overflow-auto">
-        <div className="p-4 space-y-8">
-          <div ref={containerRef}>
+        <div className="p-4 space-y-8" ref={cardsContainerRef}>
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="font-medium text-xl">Benchmarks</h1>
+              <Link
+                to="/benchmarks"
+                className="text-sm text-primary hover:underline"
+              >
+                See all
+              </Link>
+            </div>
+            {isLoadingBenchmarks ? (
+              <PipelineCardsLoader count={(maxCards ?? 0) + 1} />
+            ) : (
+              <BenchmarkCards
+                benchmarks={benchmarks}
+                maxCards={maxCards}
+                source="dashboard"
+                showCreatePlaceholder
+              />
+            )}
+          </div>
+
+          <div>
             <div className="flex items-center justify-between mb-4">
               <h1 className="font-medium text-xl">Pipelines</h1>
               <Link

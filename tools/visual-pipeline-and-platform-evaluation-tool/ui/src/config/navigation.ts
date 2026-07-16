@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import { ChartNoAxesCombined, type LucideIcon } from "lucide-react";
 import {
   Cpu,
   Film,
@@ -26,6 +26,9 @@ import { OptimizationJobDetail } from "@/pages/OptimizationJobDetail.tsx";
 import { PipelineList } from "@/pages/PipelineList";
 import { Cameras } from "@/pages/Cameras";
 import { Benchmarks } from "@/pages/Benchmarks";
+import { BenchmarkDetail } from "@/pages/BenchmarkDetail";
+import { BenchmarkRunDetail } from "@/pages/BenchmarkRunDetail";
+import { BenchmarkRunTestDetail } from "@/pages/BenchmarkRunTestDetail";
 
 export type NavigationItem = {
   url: string;
@@ -41,6 +44,7 @@ export const menuItems: Array<NavigationItem> = [
     title: "Pipeline Editor",
     hidden: true,
   },
+  { url: "/benchmarks", title: "Benchmarks", icon: ChartNoAxesCombined },
   { url: "/pipelines", title: "Pipelines", icon: GitFork },
   { url: "/models", title: "Models", icon: Cpu },
   { url: "/videos", title: "Videos", icon: Film },
@@ -53,7 +57,6 @@ export const menuItems: Array<NavigationItem> = [
   },
   { url: "/tests/density", title: "Density", icon: Grid3x3 },
   { url: "/jobs", title: "Jobs", icon: ListTodo },
-  { url: "/benchmarks", title: "Benchmarks", icon: Grid3x3 },
 ];
 
 export const routeConfig: Array<RouteObject> = [
@@ -79,6 +82,12 @@ export const routeConfig: Array<RouteObject> = [
   { path: "jobs/optimize", Component: Jobs },
   { path: "jobs/optimize/:jobId", Component: OptimizationJobDetail },
   { path: "benchmarks", Component: Benchmarks },
+  { path: "benchmarks/:id", Component: BenchmarkDetail },
+  { path: "benchmarks/:id/run/:runId", Component: BenchmarkRunDetail },
+  {
+    path: "benchmarks/:benchmarkId/run/:runId/test/:testId",
+    Component: BenchmarkRunTestDetail,
+  },
 ];
 
 // Routes that should stay mounted (keep-alive) when navigating away

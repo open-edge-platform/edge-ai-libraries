@@ -16,9 +16,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { format } from "date-fns";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
-import { formatElapsedTimeMillis } from "@/lib/timeUtils.ts";
+import { formatElapsedTimeMillis, formatTimestamp } from "@/lib/timeUtils.ts";
 import { handleApiError } from "@/lib/apiUtils.ts";
 import { cn } from "@/lib/utils";
 
@@ -102,10 +101,6 @@ export const Jobs = () => {
     { id: "density", label: "Density", path: "/jobs/density" },
     { id: "optimize", label: "Optimize", path: "/jobs/optimize" },
   ];
-
-  const formatTimestamp = (timestamp: number) => {
-    return format(new Date(timestamp), "MMM d, yyyy HH:mm:ss");
-  };
 
   const handleStopPerformanceJob = async (jobId: string) => {
     setStoppingPerformanceJobIds((prev) => {

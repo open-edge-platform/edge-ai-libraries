@@ -8,9 +8,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.tsx";
-import { Link, useParams } from "react-router";
-import { ArrowLeft } from "lucide-react";
+import { useParams } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { BackButton } from "@/components/shared/BackButton";
 import { formatBytes } from "@/lib/fileUtils.ts";
 
 export function ImagesInSet() {
@@ -82,12 +82,11 @@ export function ImagesInSet() {
     <div className="container pl-16 mx-auto py-10">
       <div className="mb-6">
         <div className="flex items-center gap-4 mb-2">
-          <Link
+          <BackButton
             to="/images"
-            className="p-2 hover:bg-accent rounded transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
+            className="p-2 rounded"
+            iconClassName="w-5 h-5"
+          />
 
           <h1 className="text-3xl font-bold">{imageSetName}</h1>
         </div>
