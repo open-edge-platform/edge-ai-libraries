@@ -4,7 +4,7 @@
 [![#Tools](https://img.shields.io/badge/%23Tools-1-green)]()
 [![#Samples](https://img.shields.io/badge/%23Samples-2-green)]()
 
-# Edge-AI-Libraries.
+# Edge-AI-Libraries
 
 Welcome to **Edge AI Libraries** - highly optimized libraries, microservices,
 and tools designed for building and deploying real-time AI solutions
