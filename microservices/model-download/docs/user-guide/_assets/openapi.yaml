@@ -108,7 +108,7 @@ components:
       properties:
         name:
           type: string
-          description: The name/ID of the model (e.g., microsoft/Phi-3.5-mini-instruct)
+          description: Model name/ID. Valid formats are hub-specific; see `POST /models/download` description for details.
           example: microsoft/Phi-3.5-mini-instruct
         hub:
           $ref: "#/components/schemas/ModelHub"
@@ -578,6 +578,13 @@ paths:
         - The URL must point to a tar archive (ex: `.tar`, `.tar.gz`) containing a single model's files — not a shared archive bundling multiple models.
         - Use the optional `{name}` placeholder in `config.url`; it is replaced with the model's `name` field before download.
         - Set `EXTERNAL_SOURCES_URL_ALLOWLIST` (comma-separated) to override the default allowed prefixes.
+
+        **`models[].name` format by hub:**
+        - `huggingface`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name.
+        - `ultralytics`: single name, comma-separated names, or `all`.
+        - `pipeline-zoo-models`: single name, comma-separated names, or `all`.
+        - `omz`: single name or comma-separated names (`all` is not supported).
+        - For `hls`, valid names also depend on the selected `type`.
 
         **Job Processing:**
         - Each model download creates a separate job

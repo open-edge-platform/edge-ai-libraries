@@ -181,6 +181,12 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/list" \
 
 Call `GET /api/v1/plugins` to see which plugins support listing and which `listing_filter_fields` each plugin accepts. Hugging Face supports `author`, `search`, and `tags`. The `author` filter is the repository namespace and accepts a user, owner, or organization name (for example, `microsoft` or `meta-llama`); `tags` filters by Hugging Face tags (library, language, task, license, and so on). Each returned Hugging Face item also includes `license`, `gated` (`false`, `"auto"`, or `"manual"`), and `requires_token` (true when the model is gated and needs an HF token to download). Ultralytics and Pipeline Zoo Models support `search`. Geti™ supports `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_name`, `export_type`, `precision`, and `model_format`.
 
+> **Name format by hub (`models[].name`):**
+> `huggingface`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name.
+> `ultralytics`: single name, comma-separated names, or `all`.
+> `pipeline-zoo-models`: single name, comma-separated names, or `all`.
+> `omz`: single name or comma-separated names (`all` is not supported).
+
 **Download a Hugging Face model:**
 
 ```bash
@@ -234,6 +240,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=yolo_mo
 
 > **Note:** YOLO vision models from Ultralytics model hub will be downloaded and converted to
 > the OpenVINO IR format with FP32 and FP16 precision by default.
+> **Note:** Ultralytics supports a single model name, comma-separated model names, or `"name": "all"`.
 
 **Download an Ultralytics model with INT8 quantization:**
 
@@ -358,7 +365,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=pipelin
   }'
 ```
 
-> **Note:** You can pass `"name": "all"` to download all available models from the Pipeline Zoo `storage` directory.
+> **Note:** Pipeline Zoo supports a single model name, comma-separated model names (for example, `"name": "dbnet,yolov5m-320"`), or `"name": "all"` to download all available models from the `storage` directory.
 
 **Download a tarball model at runtime from a remote URL (`remote-url` hub):**
 
@@ -388,7 +395,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=udf_tim
   }'
 ```
 
-> **Note:** The URL must point to a tar archive (ex: `.tar`, `.tar.gz`) containing a single model's files — not a shared archive bundling multiple models.
+> **Note:** The URL must point to a tar archive (ex: `.tar`, `.tar.gz`) containing a single model's files, and `name` must be a single value (comma-separated names and `all` are not supported for `remote-url`).
 
 > **Note:** Pass hub names (`pipeline-zoo-models`, `remote-url`) directly to `--plugins`. The internal plugin implementation is shared but not user-visible.
 
@@ -414,6 +421,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=omz_mod
 
 > **Note:** Models without a matching entry in `omz_rules.yaml` are downloaded and
 > converted, but no post-processing is applied.
+> **Note:** OMZ supports a single model name or comma-separated model names (for example, `"name": "mobilenet-v2-pytorch,face-detection-retail-0004"`). `"name": "all"` is not supported for OMZ because each model requires both download and conversion, and processing the full catalog can be very time-consuming and resource-intensive.
 
 **Download fixed HLS models (3D pose, rPPG, AI-ECG):**
 

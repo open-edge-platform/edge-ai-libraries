@@ -180,10 +180,15 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
 
         kind = profile.get("kind")
 
-        # For pipeline-zoo, `all` and comma-separated model names place each model
-        # under its own folder at `<output_dir>/<hub>/<model_name>/`.
-        is_pzm_multi = hub == "pipeline-zoo-models" and self._is_multi_model_request(model_name)
-        target_dir = os.path.join(output_dir, hub) if is_pzm_multi else os.path.join(output_dir, hub, model_name)
+        # For pipeline-zoo (`all`/comma) and OMZ (comma) multi-model requests, each
+        # model lands under its own folder with the hub directory as parent.
+        is_multi = (
+            hub == "pipeline-zoo-models"
+            and (model_name.strip().lower() == "all" or "," in model_name)
+        ) or (
+            hub == "omz" and "," in model_name
+        )
+        target_dir = os.path.join(output_dir, hub) if is_multi else os.path.join(output_dir, hub, model_name)
 
         # The 'remote-url' hub takes the archive URL from the request and validates
         # it against the allowlist before download.
@@ -278,7 +283,8 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             # pipeline-zoo multi-model requests place each model under its own folder.
             destination = (
                 os.path.join(target_dir, resolved_name)
-                if hub == "pipeline-zoo-models" and self._is_multi_model_request(model_name)
+                if hub == "pipeline-zoo-models"
+                and (model_name.strip().lower() == "all" or "," in model_name)
                 else target_dir
             )
 
@@ -289,11 +295,6 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
                 model_name=resolved_name,
                 target=destination,
             )
-
-    @staticmethod
-    def _is_multi_model_request(model_name: str) -> bool:
-        normalized = (model_name or "").strip().lower()
-        return normalized == "all" or "," in model_name
 
     def _resolve_tarball_model_names(
         self,
@@ -321,20 +322,25 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             return names
 
         if "," in model_name:
-            names: List[str] = []
-            for raw in model_name.split(","):
-                name = raw.strip()
-                if not name:
-                    continue
-                if "/" in name or ".." in name or name.startswith("."):
-                    raise ValueError(f"Invalid model name: {name!r}")
-                if name not in names:
-                    names.append(name)
-            if not names:
-                raise ValueError("Model name is required (hub=pipeline-zoo-models)")
-            return names
+            return self._parse_comma_names(model_name)
 
         return [model_name]
+
+    @staticmethod
+    def _parse_comma_names(model_name: str) -> List[str]:
+        """Split, validate, and deduplicate a comma-separated model name string."""
+        names: List[str] = []
+        for raw in model_name.split(","):
+            name = raw.strip()
+            if not name:
+                continue
+            if "/" in name or ".." in name or name.startswith("."):
+                raise ValueError(f"Invalid model name: {name!r}")
+            if name not in names:
+                names.append(name)
+        if not names:
+            raise ValueError("Model name is required")
+        return names
 
     @staticmethod
     def _resolve_allowlist(profile: Dict[str, Any]) -> List[str]:
@@ -446,6 +452,11 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
 
     def _fetch_omz(self, hub: str, model_name: str, target_dir: str) -> None:
         """Download and convert an OMZ model using omz_downloader/omz_converter."""
+        if "," in model_name:
+            for name in self._parse_comma_names(model_name):
+                self._fetch_omz(hub, name, os.path.join(target_dir, name))
+            return
+
         omz_downloader = _OMZ_VENV_BIN / "omz_downloader"
         omz_converter = _OMZ_VENV_BIN / "omz_converter"
 
@@ -464,23 +475,32 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
                 hub=hub,
                 model_name=model_name,
             )
-            self._run_omz_tool(
-                [str(omz_downloader), "--name", model_name, "--output_dir", tmp_dir]
-            )
+            download_cmd = [
+                str(omz_downloader),
+                "--name",
+                model_name,
+                "--output_dir",
+                tmp_dir,
+            ]
+            self._run_omz_tool(download_cmd)
 
             # Convert
             logger.info("external_sources_omz_converting", hub=hub, model_name=model_name)
-            self._run_omz_tool(
-                [
-                    str(omz_converter),
-                    "--name",
-                    model_name,
-                    "--download_dir",
-                    tmp_dir,
-                    "--output_dir",
-                    tmp_dir,
-                ]
-            )
+            convert_cmd = [
+                str(omz_converter),
+                "--name",
+                model_name,
+                "--download_dir",
+                tmp_dir,
+                "--output_dir",
+                tmp_dir,
+            ]
+
+            mo_executable = self._resolve_mo_executable()
+            if mo_executable:
+                convert_cmd.extend(["--mo", mo_executable])
+
+            self._run_omz_tool(convert_cmd)
 
             # Move converted artefacts: omz_converter produces intel/ or public/ subdirs
             self._materialize_omz_artefacts(model_name, tmp_dir, target_dir)
@@ -647,15 +667,33 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
                 env=env,
             )
             if result.returncode != 0:
+                stdout = result.stdout.strip() if result.stdout else "<empty>"
                 stderr = result.stderr.strip() if result.stderr else "<empty>"
+                details = f"stderr: {stderr}"
+                if stdout and stdout != "<empty>":
+                    details += f"\nstdout: {stdout}"
                 raise RuntimeError(
                     f"OMZ tool failed (rc={result.returncode}): {' '.join(command)}\n"
-                    f"stderr: {stderr}"
+                    f"{details}"
                 )
             if result.stdout:
                 logger.debug("omz_tool_output", output=result.stdout.strip())
         except FileNotFoundError as e:
             raise RuntimeError(f"OMZ tool not found: {command[0]}") from e
+
+    @staticmethod
+    def _resolve_mo_executable() -> Optional[str]:
+        """Resolve a Model Optimizer executable path for omz_converter."""
+        path = os.environ.get("PATH", "")
+        omz_bin_dir = str(_OMZ_VENV_BIN)
+        search_path = omz_bin_dir + os.pathsep + path if omz_bin_dir else path
+
+        for candidate in ("mo", "mo.py"):
+            mo_path = shutil.which(candidate, path=search_path)
+            if mo_path:
+                return mo_path
+
+        return None
 
     @staticmethod
     def _materialize_omz_artefacts(
