@@ -320,6 +320,76 @@
         }
       }
     },
+    "/benchmarks/{suite_slug}/run/{run_id}/csv": {
+      "get": {
+        "tags": [
+          "benchmarks"
+        ],
+        "summary": "Export one benchmark suite run as CSV",
+        "description": "Export one suite run by id as a CSV with workload and test-case sections.",
+        "operationId": "export_benchmark_suite_run_csv",
+        "parameters": [
+          {
+            "name": "suite_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Suite Slug"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV file containing workload and test case data",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Benchmark suite or run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/benchmarks/{suite_slug}/run/{run_id}": {
       "get": {
         "tags": [
