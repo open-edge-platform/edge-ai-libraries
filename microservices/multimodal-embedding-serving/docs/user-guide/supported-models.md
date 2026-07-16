@@ -51,7 +51,7 @@ CLIP models with sigmoid loss function.
 
 | Model ID | Architecture | Embedding Dimension | HuggingFace Model | Handler |
 |----------|--------------|---------------------|-------------------|---------|
-| `Blip2/blip2_transformers` | BLIP-2 + Q-Former | 256 | `Salesforce/blip2-itm-vit-g` | Transformers |
+| `Blip2/blip2` | BLIP-2 + Q-Former | 256 | `Salesforce/blip2-itm-vit-g` | Transformers |
 
 The BLIP-2 handler uses `Blip2ForImageTextRetrieval` from HuggingFace Transformers with projection layers (768D→256D) to generate compact embeddings.
 
@@ -79,7 +79,7 @@ Set your chosen model using environment variables:
 
 ```bash
 # Example: Using BLIP-2 (Transformers)
-export EMBEDDING_MODEL_NAME="Blip2/blip2_transformers"
+export EMBEDDING_MODEL_NAME="Blip2/blip2"
 
 # Example: Using CLIP
 export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"

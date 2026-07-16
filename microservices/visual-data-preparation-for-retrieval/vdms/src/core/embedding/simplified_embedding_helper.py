@@ -24,8 +24,8 @@ from .sdk_embedding_helper import (
 _client_cache: dict[str, SimpleVDMSClient] = {}
 
 
-def _normalize_tags(tags: Optional[List[str]]) -> List[str]:
-    return [str(tag) for tag in tags or []]
+def _normalize_tags(tags: List[Any]) -> List[str]:
+    return [str(tag) for tag in tags]
 
 
 def _ensure_telemetry_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -42,7 +42,7 @@ def _prepare_video_metadata_payload(
     video_id: str,
     filename: str,
     frame_interval: int,
-    tags: Optional[List[str]],
+    tags: List[str],
     video_url: Optional[str],
     video_rel_url: Optional[str],
     fps: Optional[float],
@@ -131,7 +131,7 @@ def _record_sdk_pipeline(
     video_id: str,
     filename: str,
     frame_interval: int,
-    tags: Optional[List[str]],
+    tags: List[str],
     enable_object_detection: bool,
     detection_confidence: float,
     metadata_dict: Dict[str, Any],
@@ -253,7 +253,7 @@ def _record_api_pipeline(
     video_id: str,
     filename: str,
     frame_interval: int,
-    tags: Optional[List[str]],
+    tags: List[str],
     enable_object_detection: bool,
     detection_confidence: float,
     summary: Dict[str, Any],
@@ -393,7 +393,7 @@ async def generate_video_embedding(
     frame_interval: int = 15,
     enable_object_detection: bool = True,
     detection_confidence: float = 0.85,
-    tags: List[str] = None,
+    tags: List[str] = [],
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """
@@ -467,7 +467,7 @@ async def generate_video_embedding_from_content(
     frame_interval: int = 15,
     enable_object_detection: bool = True,
     detection_confidence: float = 0.85,
-    tags: List[str] = None,
+    tags: List[str] = [],
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """
@@ -518,7 +518,7 @@ async def generate_video_embedding_from_content(
             "bucket_name": bucket_name,
             "video_id": video_id,
             "filename": filename,
-            "tags": tags or [],
+            "tags": tags,
             "processing_mode": "sdk",
             "video_url": video_url,
             "video_rel_url": video_rel_url,
@@ -586,7 +586,7 @@ async def generate_video_embedding_from_uri(
     frame_interval: int = 15,
     enable_object_detection: bool = True,
     detection_confidence: float = 0.85,
-    tags: List[str] = None,
+    tags: List[str] = [],
     telemetry_context: Optional[Dict[str, Any]] = None,
     shutdown_event: Optional[threading.Event] = None,
 ) -> List[str]:
@@ -624,7 +624,7 @@ async def generate_video_embedding_from_uri(
             "bucket_name": "RTSP_BUCKET",
             "video_id": -1,
             "filename": "filename",
-            "tags": tags or [],
+            "tags": tags,
             "processing_mode": "sdk",
         },
         frame_interval=frame_interval,
@@ -643,7 +643,7 @@ async def _generate_video_embedding_api_mode(
     frame_interval: int = 15,
     enable_object_detection: bool = True,
     detection_confidence: float = 0.85,
-    tags: List[str] = None,
+    tags: List[str] = [],
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """
@@ -666,7 +666,7 @@ async def _generate_video_embedding_api_mode(
         frame_interval=frame_interval,
         enable_object_detection=enable_object_detection,
         detection_confidence=detection_confidence,
-        tags=tags or [],
+        tags=tags,
     )
     extraction_time = time.time() - extraction_start
     logger.info(
@@ -742,7 +742,7 @@ async def _generate_video_embedding_sdk_mode(
     frame_interval: int = 15,
     enable_object_detection: bool = True,
     detection_confidence: float = 0.85,
-    tags: List[str] = None,
+    tags: List[str] = [],
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """
@@ -769,7 +769,7 @@ async def _generate_video_embedding_sdk_mode(
         "bucket_name": bucket_name,
         "video_id": video_id,
         "filename": filename,
-        "tags": tags or [],
+        "tags": tags,
         "processing_mode": "sdk",
         "video_url": video_url,
         "video_rel_url": video_rel_url,
