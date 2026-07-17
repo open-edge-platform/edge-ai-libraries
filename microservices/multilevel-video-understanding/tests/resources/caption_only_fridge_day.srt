@@ -1,0 +1,59 @@
+1
+00:00:00,000 --> 00:00:06,000
+[motion] Fridge door opened at 06:32; a carton of milk and two eggs taken out.
+
+2
+00:00:06,000 --> 00:45:00,000
+[static] Idle period, no fridge usage.
+
+3
+00:45:00,000 --> 00:45:05,000
+[motion] Fridge door opened at 07:18; orange juice taken out, then door closed.
+
+4
+00:45:05,000 --> 02:10:00,000
+[static] Idle period, no fridge usage.
+
+5
+02:10:00,000 --> 02:10:07,000
+[motion] Fridge door opened at 08:45; a yogurt cup taken out.
+
+6
+02:10:07,000 --> 05:30:00,000
+[static] Idle period, no fridge usage.
+
+7
+05:30:00,000 --> 05:30:06,000
+[motion] Fridge door opened at 12:05; leftovers container taken out, one bottle of water put in.
+
+8
+05:30:06,000 --> 09:20:00,000
+[static] Idle period, no fridge usage.
+
+9
+09:20:00,000 --> 09:20:05,000
+[motion] Fridge door opened at 15:58; an apple taken out.
+
+10
+09:20:05,000 --> 11:40:00,000
+[static] Idle period, no fridge usage.
+
+11
+11:40:00,000 --> 11:40:08,000
+[motion] Fridge door opened at 18:22; vegetables and a pack of tofu taken out for dinner.
+
+12
+11:40:08,000 --> 11:45:00,000
+[static] Idle period, no fridge usage.
+
+13
+11:45:00,000 --> 11:45:06,000
+[motion] Fridge door opened at 18:28; a carton of milk taken out, now only one carton remaining.
+
+14
+11:45:06,000 --> 15:30:00,000
+[static] Idle period, no fridge usage.
+
+15
+15:30:00,000 --> 15:30:05,000
+[motion] Fridge door opened at 22:12; a cup of yogurt taken out before bed.

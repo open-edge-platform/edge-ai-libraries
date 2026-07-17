@@ -41,10 +41,10 @@ Run integration test with external serving (optional):
 ```bash
 source .venv/bin/activate
 export ENABLE_EXTERNAL_SERVING_TESTS=1
-export VLM_BASE_URL="http://<model-serving-ip-address>:41091/v1"
-export LLM_BASE_URL="http://<model-serving-ip-address>:41090/v1"
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
-export LLM_MODEL_NAME=Qwen/Qwen3-32B-AWQ
+export VLM_BASE_URL="http://localhost:41091/v1"
+export LLM_BASE_URL="http://localhost:41091/v1"
+export VLM_MODEL_NAME=Qwen/Qwen3.5-35B-A3B
+export LLM_MODEL_NAME=Qwen/Qwen3.5-35B-A3B
 pytest -q tests/test_integration/test_summary_external_serving.py
 ```
 

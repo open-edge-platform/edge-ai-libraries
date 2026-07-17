@@ -9,7 +9,7 @@ packages = [{include = "src"}]
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 fastmcp = "^3.4.0"
-httpx = "^0.28.1"
+httpx = ">=0.28.1,<1.0.0"
 pydantic = "^2.13.4"
 
 [tool.poetry.group.dev.dependencies]

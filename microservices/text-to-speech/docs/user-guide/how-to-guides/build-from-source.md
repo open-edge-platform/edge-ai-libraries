@@ -3,11 +3,11 @@
 This page covers building the Text To Speech microservice from source.
 Use this path when you need a code change. To run the prebuilt image
 from Docker Hub without rebuilding, see
-[Run with Docker Compose](./run-container.md).
+[Run with Docker Compose](../get-started/run-container.md).
 
 ## Prerequisites
 
-- Verify the [System Requirements](./system-requirements.md).
+- Verify the [System Requirements](../get-started/system-requirements.md).
 - Clone the repository and `cd` into the `text-to-speech/` directory.
 
 ## Build the Docker Image
