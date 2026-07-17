@@ -54,7 +54,7 @@ services:
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
       - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
     networks:
-      - my_network
+      - mme_network
     volumes:
       - ov-models:/home/appuser/.cache/huggingface
       - data-prep:/tmp/dataprep
@@ -65,5 +65,5 @@ volumes:
   ov-models:
     external: true
 networks:
-  my_network:
+  mme_network:
     driver: bridge
