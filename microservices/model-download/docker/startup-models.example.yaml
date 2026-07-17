@@ -1,0 +1,13 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+download_path: /opt/models
+parallel_downloads: false
+models:
+  - name: BAAI/bge-small-en-v1.5
+    hub: huggingface
+    type: embeddings
+  - name: yolov8n
+    hub: ultralytics
+    type: vision
+    download_path: /opt/models/vision

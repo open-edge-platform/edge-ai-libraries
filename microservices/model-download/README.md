@@ -16,6 +16,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
 - **Deployment**
   - [Build from Source](./docs/user-guide/get-started/build-from-source.md): Instructions for building the microservice from source code.
   - [Deploy with Helm Chart](./docs/user-guide/get-started/deploy-with-helm-chart.md): Instructions for deploying the microservice using a Helm chart.
+  - [Download Models at Startup](./docs/user-guide/get-started.md#download-models-at-startup): Preload models from a mounted YAML or JSON configuration.
 
 - **Testing**
   - [Running Unit Tests](./docs/user-guide/running-tests.md): Comprehensive guide for running the test suite.

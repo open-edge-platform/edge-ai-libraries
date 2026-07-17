@@ -8,8 +8,10 @@ import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 
-from src.api.main import app
+from src.api.main import _submit_startup_models, app
 from src.api.models import ModelHub, ModelType, ModelPrecision, DeviceType
+from src.core.model_submission import ModelSubmissionError
+from src.core.startup_config import StartupModelsConfig
 
 
 class TestAPIMain:
@@ -60,6 +62,125 @@ class TestAPIMain:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
+
+    @patch("src.api.main.submit_models", new_callable=AsyncMock)
+    async def test_startup_models_use_overrides_and_isolate_failures(self, mock_submit):
+        config = StartupModelsConfig.model_validate(
+            {
+                "download_path": "default",
+                "parallel_downloads": True,
+                "models": [
+                    {"name": "bad/model", "hub": "huggingface"},
+                    {
+                        "name": "good/model",
+                        "hub": "huggingface",
+                        "download_path": "override",
+                    },
+                ],
+            }
+        )
+        mock_submit.side_effect = [
+            ModelSubmissionError("not available"),
+            ["good-job"],
+        ]
+
+        await _submit_startup_models(config)
+
+        assert mock_submit.await_count == 2
+        assert mock_submit.await_args_list[0].args[1] == "default"
+        assert mock_submit.await_args_list[1].args[1] == "override"
+        assert all(
+            call.args[0].parallel_downloads is True
+            for call in mock_submit.await_args_list
+        )
+
+    @patch("src.api.main.submit_models", new_callable=AsyncMock)
+    async def test_startup_models_isolate_unexpected_per_model_failures(
+        self,
+        mock_submit,
+    ):
+        config = StartupModelsConfig.model_validate(
+            {
+                "download_path": "default",
+                "models": [
+                    {"name": "broken/model", "hub": "huggingface"},
+                    {"name": "working/model", "hub": "huggingface"},
+                ],
+            }
+        )
+        mock_submit.side_effect = [RuntimeError("unexpected"), ["working-job"]]
+
+        await _submit_startup_models(config)
+
+        assert mock_submit.await_count == 2
+        assert mock_submit.await_args_list[1].args[0].models[0].name == "working/model"
+
+    @patch("src.api.main.submit_models", new_callable=AsyncMock)
+    def test_download_api_uses_shared_submission_path(self, mock_submit, client):
+        mock_submit.return_value = ["shared-job"]
+
+        response = client.post(
+            "/models/download?download_path=api-models",
+            json={"models": [{"name": "org/model", "hub": "huggingface"}]},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "message": "Started processing 1 model(s)",
+            "job_ids": ["shared-job"],
+            "status": "processing",
+        }
+        mock_submit.assert_awaited_once()
+        assert mock_submit.await_args.args[1] == "api-models"
+
+    @patch("src.api.main.plugin_registry")
+    @patch("src.api.main.model_manager")
+    @patch("src.api.main.load_startup_models_config")
+    def test_lifespan_schedules_without_waiting_for_download(
+        self,
+        mock_load_config,
+        mock_manager,
+        mock_registry,
+    ):
+        mock_load_config.return_value = StartupModelsConfig.model_validate(
+            {
+                "download_path": "startup",
+                "models": [{"name": "org/model", "hub": "huggingface"}],
+            }
+        )
+        mock_registry.plugins = {"downloader": {"huggingface": MagicMock()}}
+        mock_registry.get_plugin_names.return_value = ["huggingface"]
+        mock_registry.check_plugin_dependencies.return_value = (True, "")
+        mock_manager._jobs = {}
+
+        def register_job(**kwargs):
+            mock_manager._jobs["startup-job"] = {
+                "id": "startup-job",
+                "model_name": kwargs["model_name"],
+                "status": "queued",
+                "progress": {"current": 0, "total": 0, "percentage": 0},
+            }
+            return "startup-job"
+
+        mock_manager.register_job.side_effect = register_job
+
+        async def wait_for_shutdown(**_):
+            await asyncio.Event().wait()
+
+        mock_manager.process_download = AsyncMock(side_effect=wait_for_shutdown)
+
+        with TestClient(app) as lifespan_client:
+            response = lifespan_client.get("/health")
+            assert response.status_code == 200
+            mock_manager.process_download.assert_called_once()
+            jobs_response = lifespan_client.get("/jobs")
+            assert jobs_response.status_code == 200
+            assert jobs_response.json()["jobs"][0]["id"] == "startup-job"
+            job_response = lifespan_client.get("/jobs/startup-job")
+            assert job_response.status_code == 200
+            assert job_response.json()["model_name"] == "org/model"
+
+        mock_load_config.assert_called_once_with()
 
     @patch('src.api.main.model_manager')
     @patch('src.api.main.plugin_registry')
@@ -416,6 +537,27 @@ class TestAPIMain:
         detail = response.json()["detail"]
         assert f"Plugin '{ModelHub.HUGGINGFACE}' is not available" in detail
         assert "Missing huggingface_hub dependency" in detail
+
+    @patch("src.api.main.model_manager")
+    @patch("src.api.main.plugin_registry")
+    def test_download_rejects_path_outside_models_dir(
+        self,
+        mock_registry,
+        mock_manager,
+        client,
+    ):
+        mock_registry.plugins = {"downloader": {"huggingface": MagicMock()}}
+        mock_registry.get_plugin_names.return_value = ["huggingface"]
+        mock_registry.check_plugin_dependencies.return_value = (True, None)
+
+        response = client.post(
+            "/models/download?download_path=../outside",
+            json={"models": [{"name": "test-model", "hub": "huggingface"}]},
+        )
+
+        assert response.status_code == 400
+        assert "must remain under MODELS_DIR" in response.json()["detail"]
+        mock_manager.register_job.assert_not_called()
 
     @patch('src.api.main.model_manager')
     @patch('src.api.main.plugin_registry')

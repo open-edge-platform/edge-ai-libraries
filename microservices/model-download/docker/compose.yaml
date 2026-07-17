@@ -26,6 +26,7 @@ services:
       - HLS_3D_POSE_CHECKPOINT_URL=${HLS_3D_POSE_CHECKPOINT_URL}
       - HLS_ECG_BASE_URL=${HLS_ECG_BASE_URL}
       - HLS_RPPG_MODEL_URL=${HLS_RPPG_MODEL_URL}
+      - STARTUP_MODELS_CONFIG=${STARTUP_MODELS_CONFIG_HOST_PATH:+/opt/model-download/config/startup-models.yaml}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 60s
@@ -36,5 +37,11 @@ services:
       - "8200:8000"
     volumes:
       - ${MODEL_PATH:-~/models}:/opt/models
+      - type: bind
+        source: ${STARTUP_MODELS_CONFIG_HOST_PATH:-/dev/null}
+        target: /opt/model-download/config/startup-models.yaml
+        read_only: true
+        bind:
+          create_host_path: false
     group_add:
       - ${USER_GROUP_ID:-1001}

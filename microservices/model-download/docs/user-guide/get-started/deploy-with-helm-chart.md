@@ -74,6 +74,8 @@ The following is a summary of key configuration options available in the `values
 | `env.GETI_SERVER_SSL_VERIFY`   | Enables SSL certificate validation for HTTPS/HTTP Geti™ hosts                                                                                                                  | `False`                      | Yes, For Geti™ connection |
 | `service.nodePort`             | Sets the static port (in the 30000–32767 range)                                                                                                                               | 32000                        | Yes                      |
 | `env.ENABLED_PLUGINS`          | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics,pipeline-zoo-models,openvino,geti,hls`) or `all` to enable all available plugins              | `all`                        | Yes                      |
+| `startupConfig.enabled`        | Creates and mounts a startup-model ConfigMap and schedules its models asynchronously                                                                                         | `false`                      | No                       |
+| `startupConfig.config`         | Startup configuration containing the default `download_path`, `parallel_downloads`, and `models` list                                                                        | See `values.yaml`            | When enabled             |
 | `image.repository`             | image repository url                                                                                                                                                          | intel/model-download         | Yes                      |
 | `image.tag`                    | latest image tag                                                                                                                                                              | latest                       | Yes                      |
 | `gpu.enabled`                  | For model download deployed on GPU                                                                                                                                            | false                        |
@@ -83,6 +85,38 @@ The following is a summary of key configuration options available in the `values
 | `affinity.value`               | Provide the values for the respective key                                                                                                                                     |                              |
 
 > **Note:** See the chart's `values.yaml` file for a full list of configurable parameters.
+
+### Preload Models
+
+Startup model loading is disabled by default. To enable the chart's ConfigMap-backed,
+read-only configuration, set:
+
+```yaml
+modeldownload:
+  startupConfig:
+    enabled: true
+    config:
+      download_path: /opt/models/preloaded
+      parallel_downloads: false
+      models:
+        - name: BAAI/bge-small-en-v1.5
+          hub: huggingface
+          type: embeddings
+        - name: yolov8n
+          hub: ultralytics
+          type: vision
+          download_path: /opt/models/vision
+```
+
+Enable every plugin referenced by the model entries in
+`modeldownload.env.ENABLED_PLUGINS`. The chart sets `STARTUP_MODELS_CONFIG` to the mounted
+ConfigMap path. Keep tokens out of `startupConfig.config`; provide credentials through the
+existing environment values or your deployment's secret-injection mechanism.
+
+Model work continues after the readiness probe succeeds. Use the existing jobs endpoints or
+`kubectl logs` to monitor progress. The PVC preserves downloaded artifacts across pod restarts,
+but in-memory job records are not restored and configured entries are scheduled again. For the
+full schema and behavior, see [Download Models at Startup](../get-started.md#download-models-at-startup).
 
 ## Deploy the Helm Chart
 

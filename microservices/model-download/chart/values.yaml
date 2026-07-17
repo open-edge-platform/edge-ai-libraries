@@ -14,6 +14,16 @@ modeldownload:
     tag: latest
     pullPolicy: IfNotPresent
 
+  startupConfig:
+    enabled: false
+    config:
+      download_path: /opt/models
+      parallel_downloads: false
+      models:
+        - name: BAAI/bge-small-en-v1.5
+          hub: huggingface
+          type: embeddings
+
   readinessProbe:
       httpGet:
         path: /health
