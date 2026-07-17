@@ -68,7 +68,7 @@
       ]
     },
     {
-      "id": 7,
+      "id": 6,
       "prompt": "I added a plugin and the service starts, but it never appears in /api/v1/plugins. I already created the plugin file. Give me a focused checklist for what usually breaks in this codebase.",
       "expected_output": "A concise troubleshooting checklist specific to plugin discovery, activation, import failures, and plugin contract mismatches in this repository.",
       "files": [],
