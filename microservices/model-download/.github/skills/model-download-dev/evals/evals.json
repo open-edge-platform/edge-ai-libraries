@@ -10,7 +10,7 @@
         "References src/plugins/__init__.py and uses the current PLUGINS tuple mapping format.",
         "Adds a new ModelHub enum value in src/api/models.py.",
         "Explains that docker/entrypoint.sh needs the plugin added to AVAILABLE_PLUGINS so --plugins myhub works.",
-        "Distinguishes between ENABLED_PLUGINS load-time gating and ACTIVATED_PLUGINS runtime activation checks.",
+        "Distinguishes between ENABLED_PLUGINS load-time gating and ACTIVATED_PLUGINS runtime activation checks, including the role of /opt/activated_plugins.env.",
         "Shows a plugin implementation with plugin_name, plugin_type, can_handle, and download.",
         "Avoids blocking the event loop when the example uses synchronous SDK work."
       ]
@@ -65,19 +65,6 @@
         "Explains whether src/plugins/openvino_plugin.py needs changes beyond the mapping update.",
         "Shows how the new field becomes a CLI flag for export_model.py.",
         "Discusses validation or export-type scoping for the new parameter."
-      ]
-    },
-    {
-      "id": 6,
-      "prompt": "I need to register a new hub called nvidia-ngc. Tell me every file I need to touch so requests can validate the hub, the plugin can load, and the service can activate it with --plugins nvidia-ngc.",
-      "expected_output": "A complete list of code and startup surfaces that must change to add a new hub cleanly.",
-      "files": [],
-      "expectations": [
-        "Includes src/api/models.py for ModelHub.",
-        "Includes src/plugins/__init__.py for the tuple-based PLUGINS registration.",
-        "Includes a new plugin implementation file under src/plugins/.",
-        "Includes docker/entrypoint.sh for AVAILABLE_PLUGINS activation support.",
-        "Mentions the role of /opt/activated_plugins.env or PluginRegistry activation checks."
       ]
     },
     {
