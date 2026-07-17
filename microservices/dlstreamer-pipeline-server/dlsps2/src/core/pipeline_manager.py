@@ -15,11 +15,12 @@ than one subprocess per pipeline. Pipelines are multiplexed onto that one
 worker over a small JSON-lines protocol on its stdin/stdout.
 
 Before a pipeline is handed to the shared worker, it is first validated by
-running it briefly (a couple of seconds) in its own short-lived,
-fully-isolated ``gst_validator.py`` subprocess. This keeps a bad pipeline
-description from ever reaching (and potentially destabilizing) the shared
-worker process, which may be hosting other, unrelated pipelines at the
-same time. Only pipelines that pass validation are submitted to the worker.
+running it in its own short-lived, fully-isolated ``gst_validator.py``
+subprocess, which returns as soon as the pipeline reaches PLAYING (or
+fails). This keeps a bad pipeline description from ever reaching (and
+potentially destabilizing) the shared worker process, which may be
+hosting other, unrelated pipelines at the same time. Only pipelines that
+pass validation are submitted to the worker.
 
 FPS metrics (``avg_fps``/``frame_fps``) are updated live from the worker's
 structured ``{"event": "fps", ...}`` status lines, matching the status
@@ -44,8 +45,11 @@ logger = logging.getLogger(__name__)
 _GST_WORKER = os.path.join(os.path.dirname(__file__), "gst_worker.py")
 _GST_VALIDATOR = os.path.join(os.path.dirname(__file__), "gst_validator.py")
 
-# How long to run a pipeline for during pre-submission validation.
-_VALIDATION_DURATION_SECONDS = 1.5
+# gst_validator.py has no internal timeout for reaching PLAYING (see its
+# module docstring); this is the external hang safety-net bounding the
+# whole validator subprocess -- e.g. an unreachable source that never lets
+# the pipeline reach PLAYING.
+_VALIDATION_SUBPROCESS_TIMEOUT_SECONDS = 30.0
 
 # gst_worker.py logs to stderr as one JSON object per line (see its
 # _JsonLogFormatter): {"level": "INFO", "name": "gst_worker", "message": ...}.
@@ -67,11 +71,11 @@ _RESTART_WINDOW_SECONDS = 60.0
 
 
 class PipelineState(str, Enum):
-    QUEUED = "queued"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    ABORTED = "aborted"
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    ERROR = "ERROR"
+    ABORTED = "ABORTED"
 
 
 @dataclass
@@ -122,7 +126,7 @@ class PipelineManager:
     - ``shutdown()`` (called on application shutdown) tells the shared
       worker to shut down entirely, falling back to SIGKILL if needed.
     - If the shared worker exits on its own (a crash, not a deliberate
-      ``shutdown()``), every pipeline it was hosting is marked FAILED and a
+      ``shutdown()``), every pipeline it was hosting is marked ERROR and a
       fresh worker subprocess is started automatically, up to
       ``_MAX_RESTART_ATTEMPTS`` times per ``_RESTART_WINDOW_SECONDS``.
     """
@@ -242,7 +246,7 @@ class PipelineManager:
 
         if not ok:
             with self._lock:
-                instance.state = PipelineState.FAILED
+                instance.state = PipelineState.ERROR
                 instance.error = f"validation failed: {reason}" if reason else "validation failed"
                 instance.stop_time = time.time()
             logger.error("Pipeline %s failed validation: %s", instance.instance_id, reason)
@@ -273,8 +277,6 @@ class PipelineManager:
         cmd = [
             sys.executable,
             _GST_VALIDATOR,
-            "--duration",
-            str(_VALIDATION_DURATION_SECONDS),
             "--log-level",
             "WARNING",
             pipeline_description,
@@ -286,7 +288,7 @@ class PipelineManager:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=_VALIDATION_DURATION_SECONDS + 15,
+                timeout=_VALIDATION_SUBPROCESS_TIMEOUT_SECONDS,
             )
         except subprocess.TimeoutExpired:
             return False, "validation subprocess timed out"
@@ -364,7 +366,7 @@ class PipelineManager:
         """Background thread: dispatch the shared worker's JSON status events.
 
         If the worker exits on its own (i.e. not as part of a deliberate
-        ``shutdown()``), every instance it was hosting is marked FAILED (no
+        ``shutdown()``), every instance it was hosting is marked ERROR (no
         further events will ever arrive for them) and a fresh worker
         subprocess is started to take its place, so the manager keeps
         working for subsequently submitted pipelines.
@@ -471,12 +473,25 @@ class PipelineManager:
         elif evt == "error":
             with self._lock:
                 instance.error = event.get("reason") or instance.error
+                # Some failures (e.g. Gst.parse_launch() raising before the
+                # pipeline is ever registered with gst_worker) are terminal
+                # and never followed by a "stopped" event, since there is no
+                # Gst.Pipeline to tear down. Mark the instance ERROR right
+                # away so it doesn't stay stuck in RUNNING/QUEUED forever; if
+                # a "stopped" event does still arrive later (e.g. a bus
+                # ERROR message on an already-running pipeline), it will just
+                # confirm the same ERROR state and set the final stop_time.
+                if instance.state not in (
+                    PipelineState.ABORTED, PipelineState.ERROR, PipelineState.COMPLETED,
+                ):
+                    instance.state = PipelineState.ERROR
+                    instance.stop_time = time.time()
             logger.error("Pipeline %s error: %s", instance_id, event.get("reason"))
         elif evt == "stopped":
             with self._lock:
                 instance.stop_time = time.time()
                 if instance.state != PipelineState.ABORTED:
-                    instance.state = PipelineState.FAILED if instance.error else PipelineState.COMPLETED
+                    instance.state = PipelineState.ERROR if instance.error else PipelineState.COMPLETED
             logger.info(
                 "Pipeline %s finished (state=%s, avg_fps=%.2f)",
                 instance_id,
@@ -487,7 +502,7 @@ class PipelineManager:
             logger.debug("Unknown event for pipeline %s: %s", instance_id, event)
 
     def _fail_all_running(self, reason: str) -> None:
-        """Mark every currently RUNNING/QUEUED instance as FAILED.
+        """Mark every currently RUNNING/QUEUED instance as ERROR.
 
         Used when the shared worker process itself exits unexpectedly, since
         no further status events will ever arrive for those instances.
@@ -498,8 +513,8 @@ class PipelineManager:
                 if i.state in (PipelineState.RUNNING, PipelineState.QUEUED)
             ]
             for instance in affected:
-                instance.state = PipelineState.FAILED
+                instance.state = PipelineState.ERROR
                 instance.error = reason
                 instance.stop_time = time.time()
         for instance in affected:
-            logger.error("Pipeline %s marked FAILED: %s", instance.instance_id, reason)
+            logger.error("Pipeline %s marked ERROR: %s", instance.instance_id, reason)

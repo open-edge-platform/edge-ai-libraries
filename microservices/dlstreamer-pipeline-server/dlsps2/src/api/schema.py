@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -43,7 +43,12 @@ class FrameDestinationConfig(BaseModel):
 
 class DestinationConfig(BaseModel):
     metadata: Optional[MetadataDestinationConfig] = None
-    frame: Optional[FrameDestinationConfig] = None
+    # A single frame destination, or a list of them to fan the pipeline out
+    # to multiple frame sinks at once (e.g. webrtc preview + s3_write
+    # archive). See config.compat.apply_destination()/_replace_appsink_with_chains()
+    # for how these are combined with each other and with a Python-element
+    # metadata destination (mqtt/opcua/influx_write) via a shared `tee`.
+    frame: Optional[Union[FrameDestinationConfig, List[FrameDestinationConfig]]] = None
 
     model_config = {"extra": "allow"}
 

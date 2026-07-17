@@ -4,13 +4,31 @@
 Converts a :class:`~config.models.PipelineConfig` into a concrete GStreamer
 pipeline description string suitable for :meth:`~core.pipeline_manager.PipelineManager.start`.
 
-Supported parameter formats
-----------------------------
-``element-properties``
-    Injects ``property=value`` tokens directly into the pipeline string by
-    locating the element whose ``name=<element_name>`` attribute appears in
-    the string, then appending the property token before the next ``!``
-    separator (or end-of-string).
+Supported parameter formats (``config.parameters.properties.<key>.element.format``)
+------------------------------------------------------------------------------------
+``element-properties`` (default)
+    If the runtime parameter value is a ``dict``, each of its keys is
+    injected as a literal ``property=value`` token (the ``element.property``
+    remap, if any, is ignored since the dict keys are themselves already
+    literal property names). If the value is a scalar, it is injected as
+    ``<element.property or param_name>=value``.
+``json``
+    The runtime parameter value (scalar or ``dict``) is JSON-encoded and
+    injected as a single ``<element.property or param_name>=<json>`` token.
+    Mirrors DLSPS 1.0's ``format: json`` (e.g. a ``kwarg`` property on a
+    ``gvapython`` element).
+(anything else, including no format)
+    The runtime parameter value is injected as-is as a single
+    ``<element.property or param_name>=value`` token (direct substitution).
+
+``element`` may also be a list of the mappings described above, in which
+case the same runtime parameter value is applied to every element in the
+list (e.g. one ``device`` parameter setting a property on both a ``source``
+and a ``metaconvert`` element).
+
+Property injection locates the element whose ``name=<element_name>``
+attribute appears in the pipeline string, then appends the property token
+before the next ``!`` separator (or end-of-string).
 
 Note
 ----
@@ -22,10 +40,11 @@ Source substitution (``{auto_source}``) and destination/publisher injection
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
-from config.models import PipelineConfig
+from config.models import PipelineConfig, PipelineParameterElement
 
 # Matches the end of a named element's token block, i.e. the ``!`` that follows
 # the element whose ``name=<target>`` attribute we just found, or end-of-string.
@@ -59,6 +78,42 @@ def _inject_element_property(pipeline: str, element_name: str, prop: str, value:
     return trimmed + prop_token + " " + pipeline[insertion_point:].lstrip()
 
 
+def _apply_parameter_to_element(
+    pipeline: str,
+    element: PipelineParameterElement,
+    param_name: str,
+    param_value: Any,
+) -> str:
+    """Inject one runtime parameter value into one target element.
+
+    Honors ``element.format`` (``element-properties`` / ``json`` / direct
+    substitution) and ``element.property`` (remaps the request's parameter
+    name to a different literal GStreamer property name; ignored for
+    ``element-properties`` dict values, whose own keys are already literal
+    property names).
+    """
+    if element.format == "element-properties" and isinstance(param_value, dict):
+        for prop, val in param_value.items():
+            pipeline = _inject_element_property(
+                pipeline, element_name=element.name, prop=prop, value=val
+            )
+        return pipeline
+
+    prop_name = element.property or param_name
+
+    if element.format == "json":
+        pipeline = _inject_element_property(
+            pipeline, element_name=element.name, prop=prop_name, value=json.dumps(param_value)
+        )
+    else:
+        # Covers "element-properties" with a scalar value, plus any other
+        # (or unset) format: inject the value as-is under prop_name.
+        pipeline = _inject_element_property(
+            pipeline, element_name=element.name, prop=prop_name, value=param_value
+        )
+    return pipeline
+
+
 def build_pipeline_string(
     config: PipelineConfig,
     parameters: dict[str, Any] | None = None,
@@ -88,29 +143,12 @@ def build_pipeline_string(
             if prop_def is None or prop_def.element is None:
                 continue
 
-            element = prop_def.element
-
-            if element.format == "element-properties":
-                if isinstance(param_value, dict):
-                    # Dict value: each entry becomes a separate element property.
-                    # e.g. "detection-properties": {"model": "...", "device": "CPU"}
-                    # → injects model=... device=CPU into the named element.
-                    for prop, val in param_value.items():
-                        pipeline = _inject_element_property(
-                            pipeline,
-                            element_name=element.name,
-                            prop=prop,
-                            value=val,
-                        )
-                else:
-                    # Scalar value: inject as param_name=value.
-                    pipeline = _inject_element_property(
-                        pipeline,
-                        element_name=element.name,
-                        prop=param_name,
-                        value=param_value,
-                    )
-            # Other formats (e.g. "element-name", direct substitution) can be
-            # added here as additional elif branches.
+            elements = (
+                prop_def.element
+                if isinstance(prop_def.element, list)
+                else [prop_def.element]
+            )
+            for element in elements:
+                pipeline = _apply_parameter_to_element(pipeline, element, param_name, param_value)
 
     return pipeline

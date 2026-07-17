@@ -31,7 +31,7 @@ Destination - frame
       port are read from the ``RTSP_HOST`` (default ``localhost``) and
       ``RTSP_PORT`` (default ``8554``) environment variables.
 
-      The replacement sink chain added is::
+      The chain added is::
 
           videoconvert ! openh264enc ! rtph264pay pt=96 \
               config-interval=1 ! rtspclientsink name=rtsp_sink \
@@ -47,7 +47,7 @@ Destination - frame
       variable (default ``http://mediamtx-server:8889``), matching the legacy
       DLSPS ``server/arguments.py`` convention.
 
-      The replacement sink chain added is::
+      The chain added is::
 
           videoconvert ! [gvawatermark !] openh264enc name=h264enc \
               bitrate=<bitrate> ! video/x-h264,profile=baseline ! \
@@ -57,6 +57,10 @@ Destination - frame
       A WHIP-compatible signaling/relay server (e.g. MediaMTX) must be
       reachable at that address.  View the stream at
       ``<WEBRTC_SIGNALING_SERVER>/<peer-id>``.
+
+  ``destination.frame`` may be a single object, or a list of objects to
+  request more than one frame destination at once (e.g. a WebRTC preview
+  *and* an S3 archive of the same stream).
 
 Destination - metadata (Python elements)
   ``type=mqtt``
@@ -77,6 +81,31 @@ Destination - frame (Python elements)
       Replaces ``appsink name=appsink`` with
       ``s3sinkpy bucket=<path>``.
       S3 connection details come from ``S3_STORAGE_*`` env vars.
+
+Fanning out to multiple destinations
+-------------------------------------
+``mqtt``/``opcua``/``influx_write`` metadata destinations and
+``rtsp``/``webrtc``/``s3_write`` frame destinations are all, ultimately,
+terminal GStreamer sink elements that replace the single ``appsink`` in the
+pipeline template — they cannot simply be chained with ``!``. When more than
+one such destination is requested in the same call (e.g. an MQTT metadata
+destination *and* a WebRTC frame destination, or two frame destinations in a
+``destination.frame`` list), :func:`apply_destination` replaces ``appsink``
+with a ``tee`` instead, giving each requested sink its own ``queue``-buffered
+branch so a slow/stalled destination cannot block the others or the shared
+upstream pipeline::
+
+    ... ! tee name=dest_tee ! queue ! <sink 1>
+    dest_tee. ! queue ! <sink 2>
+    dest_tee. ! queue ! <sink 3>
+
+When only one such destination is requested, ``appsink`` is still replaced
+in-place with no ``tee`` involved, exactly as before.
+
+``file``/``kafka`` metadata destinations inject properties into the existing
+``gvametapublish name=destination`` element instead, and are therefore
+completely independent of the ``appsink``/``tee`` fan-out above — they can be
+freely combined with any frame/Python-element metadata destination.
 """
 
 from __future__ import annotations
@@ -107,91 +136,83 @@ _RTSP_PORT = os.environ.get("RTSP_PORT", "8554")
 _WEBRTC_SIGNALING_SERVER = os.environ.get("WEBRTC_SIGNALING_SERVER", "http://mediamtx-server:8889").rstrip("/")
 
 
-def _replace_appsink_with_rtsp(pipeline: str, path: str) -> str:
-    """Replace ``appsink`` with an encode + rtspclientsink chain.
-
-    The replacement chain is::
-
-        videoconvert ! openh264enc ! rtph264pay pt=96 \
-            config-interval=1 ! rtspclientsink name=rtsp_sink \
-            location=rtsp://<RTSP_HOST>:<RTSP_PORT>/<path>
-
-    If no ``appsink`` element is found the original string is returned
-    unchanged and a warning is logged.
-    """
+def _rtsp_chain(path: str) -> str:
+    """Build the encode + rtspclientsink chain for an RTSP frame destination."""
     mount = path.lstrip("/")
     rtsp_url = f"rtsp://{_RTSP_HOST}:{_RTSP_PORT}/{mount}"
-    rtsp_chain = (
+    return (
         f"videoconvert ! openh264enc ! "
         f"h264parse ! "
         f"rtspclientsink name=rtsp_sink location={rtsp_url}"
     )
-    replaced, n = _APPSINK_RE.subn(rtsp_chain, pipeline, count=1)
-    if n == 0:
-        logger.warning(
-            "RTSP frame destination requested but no 'appsink' element found "
-            "in pipeline — RTSP sink not added."
-        )
-        return pipeline
-    logger.debug("Replaced appsink with rtspclientsink at %s", rtsp_url)
-    return replaced
 
 
-def _replace_appsink_with_webrtc(
-    pipeline: str,
-    peer_id: str,
-    *,
-    overlay: bool = True,
-    bitrate: int = 2048,
-) -> str:
-    """Replace ``appsink`` with an encode + whipclientsink chain.
-
-    The replacement chain is::
-
-        videoconvert ! [gvawatermark !] openh264enc name=h264enc \
-            bitrate=<bitrate> ! video/x-h264,profile=baseline ! \
-            whipclientsink name=webrtc_sink \
-            signaller::whip-endpoint=<WEBRTC_SIGNALING_SERVER>/<peer_id>/whip
+def _webrtc_chain(peer_id: str, *, overlay: bool = True, bitrate: int = 2048) -> str:
+    """Build the encode + whipclientsink chain for a WebRTC frame destination.
 
     ``gvawatermark`` is included only when ``overlay`` is true.  A
     WHIP-compatible signaling/relay server (e.g. MediaMTX) must be reachable at
-    the endpoint.  If no ``appsink`` element is found the original string is
-    returned unchanged and a warning is logged.
+    the resulting endpoint.
     """
     mount = peer_id.strip("/")
     whip_url = f"{_WEBRTC_SIGNALING_SERVER}/{mount}/whip"
     overlay_element = "gvawatermark ! " if overlay else ""
-    webrtc_chain = (
+    return (
         f"videoconvert ! {overlay_element}"
         f"openh264enc complexity=low name=h264enc ! "
         f"video/x-h264,profile=baseline ! "
         f"whipclientsink name=webrtc_sink signaller::whip-endpoint={whip_url}"
     )
-    replaced, n = _APPSINK_RE.subn(webrtc_chain, pipeline, count=1)
+
+
+def _replace_appsink_with_chains(pipeline: str, chains: list[str]) -> str:
+    """Replace the pipeline's single ``appsink`` with one or more sink chains.
+
+    - Zero chains: no-op, pipeline is returned unchanged.
+    - One chain: ``appsink`` is replaced in-place, exactly as in the
+      single-destination implementation this replaces -- no ``tee`` is
+      introduced, so single-destination pipelines are unaffected.
+    - Two or more chains: ``appsink`` is replaced with a ``tee`` and each
+      chain is attached to its own ``queue``-buffered branch, e.g.::
+
+          tee name=dest_tee ! queue ! <chains[0]>
+          dest_tee. ! queue ! <chains[1]>
+          dest_tee. ! queue ! <chains[2]>
+
+      The per-branch ``queue`` means a slow or stalled destination applies
+      backpressure only to its own branch, not to the other destinations or
+      the shared upstream pipeline.
+
+    If no ``appsink`` element is found in the pipeline, the original string is
+    returned unchanged and a warning is logged.
+    """
+    if not chains:
+        return pipeline
+
+    if len(chains) == 1:
+        replacement = chains[0]
+    else:
+        tee_name = "dest_tee"
+        branches = [f"tee name={tee_name} ! queue ! {chains[0]}"]
+        branches.extend(f"{tee_name}. ! queue ! {chain}" for chain in chains[1:])
+        replacement = " ".join(branches)
+
+    replaced, n = _APPSINK_RE.subn(replacement, pipeline, count=1)
     if n == 0:
         logger.warning(
-            "WebRTC frame destination requested but no 'appsink' element found "
-            "in pipeline — WebRTC sink not added."
+            "No 'appsink' found in pipeline — cannot add %d destination(s).",
+            len(chains),
         )
         return pipeline
-    logger.debug("Replaced appsink with whipclientsink at %s", whip_url)
-    return replaced
 
-
-def _replace_appsink_with_py_sink(pipeline: str, element_str: str) -> str:
-    """Replace ``appsink`` with a custom Python GStreamer sink element string.
-
-    If no ``appsink`` element is found the original string is returned
-    unchanged and a warning is logged.
-    """
-    sink_name = element_str.split()[0] if element_str else "(unknown)"
-    replaced, n = _APPSINK_RE.subn(element_str, pipeline, count=1)
-    if n == 0:
-        logger.warning(
-            "No 'appsink' found in pipeline — cannot add %s sink.", sink_name
-        )
+    if len(chains) == 1:
+        logger.debug("Replaced appsink with: %s", chains[0])
     else:
-        logger.debug("Replaced appsink with: %s", element_str)
+        logger.info(
+            "Replaced appsink with a %d-way tee fan-out (%s)",
+            len(chains),
+            ", ".join(chain.split()[0] for chain in chains),
+        )
     return replaced
 
 
@@ -237,25 +258,46 @@ def apply_source(pipeline: str, source: SourceConfig | None) -> str:
     return pipeline.replace("{auto_source}", src_element)
 
 
+def _as_list(value):
+    """Normalize a value that may be ``None``, a single item, or a list."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
 def apply_destination(pipeline: str, destination: DestinationConfig | None) -> str:
     """Configure destination elements already present in the pipeline template.
 
-    Injects properties into ``gvametapublish name=destination`` for metadata
-    destinations and into ``rtspclientsink name=rtsp_sink`` for RTSP frame
-    destinations.
+    ``file``/``kafka`` metadata destinations inject properties directly into
+    the ``gvametapublish name=destination`` element already present in the
+    pipeline template.
+
+    Every other destination type (``mqtt``/``opcua``/``influx_write``
+    metadata, and ``rtsp``/``webrtc``/``s3_write`` frame — one or more, via
+    ``destination.frame`` being a single object or a list) is a terminal sink
+    element that replaces the pipeline's ``appsink``. These are collected
+    first and applied together via :func:`_replace_appsink_with_chains`: a
+    single requested sink replaces ``appsink`` in-place as before, and two or
+    more are fanned out through a ``tee`` so, for example, an MQTT metadata
+    destination and a WebRTC frame preview can both run concurrently from the
+    same pipeline.
 
     Args:
         pipeline:    GStreamer pipeline description string.
         destination: Destination configuration from the request body.
 
     Returns:
-        Pipeline string with destination element properties injected.
+        Pipeline string with destination element properties/sinks injected.
     """
     if destination is None:
         return pipeline
 
+    sink_chains: list[str] = []
+
     # ------------------------------------------------------------------
-    # Metadata destination → gvametapublish name=destination
+    # Metadata destination
     # ------------------------------------------------------------------
     if destination.metadata is not None:
         meta = destination.metadata
@@ -274,9 +316,7 @@ def apply_destination(pipeline: str, destination: DestinationConfig | None) -> s
             # Broker comes from env vars.
             topic = meta.topic or "dlstreamer_pipeline_results"
             publish_frame = "true" if meta.publish_frame else "false"
-            pipeline = _replace_appsink_with_py_sink(
-                pipeline, f"mqttsinkpy topic={topic} publish-frame={publish_frame} qos=0"
-            )
+            sink_chains.append(f"mqttsinkpy topic={topic} publish-frame={publish_frame} qos=0")
 
         elif dest_type == "kafka":
             kafka_address = meta.topic
@@ -287,55 +327,44 @@ def apply_destination(pipeline: str, destination: DestinationConfig | None) -> s
         elif dest_type == "opcua":
             # OPC-UA node variable; connection from OPCUA_SERVER_* env vars.
             variable = meta.path or "ns=2;s=0"
-            pipeline = _replace_appsink_with_py_sink(
-                pipeline, f"opcuasinkpy variable={variable}"
-            )
+            sink_chains.append(f"opcuasinkpy variable={variable}")
 
         elif dest_type in ("influx_write", "influxdb"):
             # InfluxDB bucket from meta.path, measurement from meta.format.
             bucket = meta.path or ""
             measurement = meta.format or "dlstreamer_metadata"
-            element = f"influxsinkpy bucket={bucket} measurement={measurement}"
             if not bucket:
                 logger.warning(
                     "influx_write destination: no bucket specified (set destination.path)"
                 )
-            pipeline = _replace_appsink_with_py_sink(pipeline, element)
+            sink_chains.append(f"influxsinkpy bucket={bucket} measurement={measurement}")
 
         else:
             logger.warning("Unsupported metadata destination type %r — skipping", dest_type)
 
     # ------------------------------------------------------------------
-    # Frame destination → rtspclientsink name=rtsp_sink
+    # Frame destination(s) — destination.frame may be a single object or a list
     # ------------------------------------------------------------------
-    if destination.frame is not None:
-        frame = destination.frame
+    for frame in _as_list(destination.frame):
         frame_type = (frame.type or "").lower()
 
         if frame_type == "rtsp":
-            path = frame.path or "stream"
-            pipeline = _replace_appsink_with_rtsp(pipeline, path)
+            sink_chains.append(_rtsp_chain(frame.path or "stream"))
 
         elif frame_type == "webrtc":
             peer_id = frame.peer_id or frame.path or "dlstreamer"
-            pipeline = _replace_appsink_with_webrtc(
-                pipeline,
-                peer_id,
-                overlay=frame.overlay,
-                bitrate=frame.bitrate,
-            )
+            sink_chains.append(_webrtc_chain(peer_id, overlay=frame.overlay, bitrate=frame.bitrate))
 
         elif frame_type in ("s3_write", "s3"):
             # S3 bucket from frame.path; connection from S3_STORAGE_* env vars.
             bucket = frame.path or ""
-            element = f"s3sinkpy bucket={bucket}"
             if not bucket:
                 logger.warning(
                     "s3_write destination: no bucket specified (set destination.frame.path)"
                 )
-            pipeline = _replace_appsink_with_py_sink(pipeline, element)
+            sink_chains.append(f"s3sinkpy bucket={bucket}")
 
         else:
             logger.warning("Unsupported frame destination type %r — skipping", frame_type)
 
-    return pipeline
+    return _replace_appsink_with_chains(pipeline, sink_chains)

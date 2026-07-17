@@ -66,16 +66,33 @@ class S3WriteConfig(BaseModel):
 
 
 class PipelineParameterElement(BaseModel):
-    """Describes how a parameter maps to a GStreamer element property."""
+    """Describes how a parameter maps to a GStreamer element property.
+
+    ``property`` lets the request/parameter key differ from the actual
+    GStreamer property name being set (e.g. request key ``path`` mapping to
+    the ``file-path`` property). If omitted, the parameter key itself is
+    used as the property name. It is ignored when ``format`` is
+    ``"element-properties"``, since in that case each key of the parameter
+    value dict is itself already a literal property name.
+    """
 
     name: str
+    property: str | None = None
     format: str = "element-properties"
 
     model_config = {"extra": "allow"}
 
 
 class PipelineParameterProperty(BaseModel):
-    element: PipelineParameterElement | None = None
+    """One entry in ``parameters.properties``.
+
+    ``element`` may be a single mapping or a list of mappings so that one
+    request parameter can fan out and set a property on multiple elements
+    at once (e.g. a ``device`` parameter applied to both a ``source`` and a
+    ``metaconvert`` element).
+    """
+
+    element: PipelineParameterElement | list[PipelineParameterElement] | None = None
 
     model_config = {"extra": "allow"}
 

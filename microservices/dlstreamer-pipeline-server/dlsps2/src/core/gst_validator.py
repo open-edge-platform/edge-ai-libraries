@@ -5,9 +5,8 @@
 """
 GStreamer Pipeline Validator for DLSPS 2.0
 
-Runs a pipeline description for a short, bounded duration (a couple of
-seconds by default) and checks that it starts and runs without emitting any
-GStreamer ERROR.
+Starts a pipeline description and waits for it to reach PLAYING, checking
+that it does so without emitting any GStreamer ERROR.
 
 Why this exists
 ----------------
@@ -18,28 +17,41 @@ pipeline description could, in principle, destabilize a worker process
 that is also hosting other, unrelated pipelines.
 
 This validator runs a candidate pipeline description FIRST, on its own, in
-a short-lived, fully isolated subprocess — bounded to a couple of seconds
-instead of running indefinitely. Only if that validation passes does
-``pipeline_manager.py`` then hand the (unchanged) pipeline description off
-to the single, shared, long-lived :mod:`core.gst_worker` process for real
-execution.
+a short-lived, fully isolated subprocess. Only if that validation passes
+does ``pipeline_manager.py`` then hand the (unchanged) pipeline description
+off to the single, shared, long-lived :mod:`core.gst_worker` process for
+real execution.
 
 Validation semantics
 ---------------------
 FAIL if:
   * ``Gst.parse_launch()`` raises, OR
   * GStreamer logs an ERROR during parsing, OR
-  * a GStreamer ERROR is observed on the bus at any point during the
-    bounded run.
+  * a GStreamer ERROR is observed on the bus at any point.
 
 PASS if:
-  * the pipeline parses and reaches PLAYING, and
-  * it runs for the configured duration (or reaches EOS earlier) without
-    any ERROR.
+  * the pipeline parses, and
+  * it reaches PLAYING (or EOS, for very short test clips) without any
+    ERROR.
+
+Because GStreamer prerolls before completing the PAUSED -> PLAYING
+transition, reaching PLAYING already implies that at least one buffer has
+flowed all the way through every element in the pipeline — including
+through any inference elements — so it is a meaningful validation signal
+on its own. Validation therefore returns as soon as PLAYING is reached
+instead of keeping the pipeline running for a fixed extra duration
+afterwards.
+
+This module has no internal timeout: a pipeline that never reaches
+PLAYING (e.g. because of an unreachable source) will hang here
+indefinitely. Guarding against that is the caller's responsibility —
+``pipeline_manager.py`` runs this validator as a subprocess bounded by an
+external ``subprocess.run(..., timeout=...)``, which kills the subprocess
+(and thus this hang) if it takes too long.
 
 CLI usage
 ---------
-    python3 gst_validator.py [--duration SECONDS] [--log-level LEVEL] <pipeline...>
+    python3 gst_validator.py [--log-level LEVEL] <pipeline...>
 
 Exit code 0 means the pipeline is valid; 1 means it is not (or an
 unexpected internal error occurred).
@@ -65,9 +77,6 @@ import gi  # pyright: ignore[reportMissingImports]
 gi.require_version("Gst", "1.0")
 gi.require_version("GObject", "2.0")
 from gi.repository import Gst, GLib  # noqa: E402 # pyright: ignore[reportMissingImports]
-
-# Default bound on how long a pipeline is allowed to run during validation.
-DEFAULT_VALIDATION_SECONDS = 2.0
 
 
 ###############################################################################
@@ -402,7 +411,7 @@ def parse_pipeline(pipeline_description: str) -> Tuple[Optional[Gst.Pipeline], b
 
 @dataclass
 class _ValidationState:
-    """Internal state tracked during a single bounded validation run."""
+    """Internal state tracked during a single validation run."""
 
     error_seen: bool = False
     eos_seen: bool = False
@@ -410,24 +419,21 @@ class _ValidationState:
 
 
 class _PipelineValidator:
-    """Runs an already-parsed pipeline for a bounded duration, watching for
-    GStreamer ERRORs on the bus.
+    """Runs an already-parsed pipeline until it reaches PLAYING (or fails),
+    watching for GStreamer ERRORs on the bus.
 
-    Always stops itself after ``duration_seconds`` if nothing else ends the
-    run first (unlike a production runner, which would run until EOS,
-    error, or SIGINT).
+    There is no internal timeout here: validation returns as soon as the
+    pipeline reaches PLAYING, hits EOS, or errors. A pipeline that never
+    reaches PLAYING (e.g. an unreachable source) will hang in :meth:`run`
+    indefinitely -- guarding against that is the caller's responsibility
+    (``pipeline_manager.py`` bounds the whole validator subprocess with an
+    external ``subprocess.run(..., timeout=...)``).
     """
 
-    def __init__(self, pipeline: Gst.Pipeline, duration_seconds: float):
+    def __init__(self, pipeline: Gst.Pipeline):
         self._pipeline = pipeline
-        self._duration_seconds = duration_seconds
         self._state = _ValidationState()
         self._logger = get_logger()
-        # Tracks whether the timeout source already fired (and thus already
-        # auto-removed itself via GLib.SOURCE_REMOVE), so run()'s cleanup
-        # doesn't try to remove it again (which would just log a harmless
-        # but noisy "Source ID ... was not found" warning).
-        self._timeout_fired = False
 
     def _on_bus_message(self, _bus: Gst.Bus, message: Gst.Message, loop: GLib.MainLoop) -> bool:
         mtype = message.type
@@ -442,30 +448,30 @@ class _PipelineValidator:
             self._state.reason = self._state.reason or "error"
             loop.quit()
         elif mtype == Gst.MessageType.EOS:
-            self._logger.info("Validation: pipeline reached EOS before the validation duration elapsed.")
+            self._logger.info("Validation: pipeline reached EOS before reaching PLAYING.")
             self._state.eos_seen = True
             self._state.reason = self._state.reason or "eos"
             loop.quit()
+        elif mtype == Gst.MessageType.STATE_CHANGED and message.src == self._pipeline:
+            _old, new, _pending = message.parse_state_changed()
+            if new == Gst.State.PLAYING:
+                self._logger.info("Validation: pipeline reached PLAYING.")
+                self._state.reason = self._state.reason or "playing"
+                loop.quit()
 
         return True
 
-    def _on_timeout(self, loop: GLib.MainLoop) -> bool:
-        self._logger.info(
-            "Validation: duration of %.2fs elapsed without any error.",
-            self._duration_seconds,
-        )
-        self._state.reason = self._state.reason or "duration_elapsed"
-        self._timeout_fired = True
-        loop.quit()
-        return GLib.SOURCE_REMOVE
-
     def run(self) -> Tuple[bool, Optional[str]]:
-        """Run the bounded validation and return (ok, reason).
+        """Wait for the pipeline to reach PLAYING (or fail) and return (ok, reason).
+
+        Validation ends as soon as one of these happens, whichever is first:
+        the pipeline reaches PLAYING, a GStreamer ERROR is observed, or EOS
+        is reached. There is no internal timeout.
 
         Returns:
-            (True, "eos" | "duration_elapsed")
-                if the pipeline ran cleanly (no ERROR) until EOS or until
-                the configured duration elapsed.
+            (True, "playing" | "eos")
+                if the pipeline reached PLAYING (or EOS, for very short
+                test clips) with no ERROR observed.
             (False, "error")
                 if a GStreamer ERROR was observed on the bus at any point.
         """
@@ -474,24 +480,13 @@ class _PipelineValidator:
 
         bus.add_signal_watch()
         handler_id = bus.connect("message", self._on_bus_message, loop)
-        timeout_id = GLib.timeout_add(int(self._duration_seconds * 1000), self._on_timeout, loop)
 
         ret = self._pipeline.set_state(Gst.State.PLAYING)
         self._logger.debug("Validation: requested pipeline state PLAYING, result: %s", ret)
 
-        state_change_ret, current_state, pending = self._pipeline.get_state(5 * Gst.SECOND)
-        self._logger.debug(
-            "Validation: initial state change result: %s, current: %s, pending: %s",
-            state_change_ret,
-            current_state,
-            pending,
-        )
-
         try:
             loop.run()
         finally:
-            if not self._timeout_fired:
-                GLib.source_remove(timeout_id)
             try:
                 bus.disconnect(handler_id)
             except Exception:  # noqa: BLE001
@@ -508,7 +503,7 @@ class _PipelineValidator:
                 self._state.reason = self._state.reason or "error"
 
         if self._state.error_seen:
-            return False, "error"
+            return False, self._state.reason or "error"
         return True, self._state.reason
 
 
@@ -517,19 +512,15 @@ class _PipelineValidator:
 ###############################################################################
 
 
-def validate_pipeline(
-    pipeline_description: str,
-    duration_seconds: float = DEFAULT_VALIDATION_SECONDS,
-) -> Tuple[bool, Optional[str]]:
+def validate_pipeline(pipeline_description: str) -> Tuple[bool, Optional[str]]:
     """High-level pipeline validation helper.
 
-    Combines parsing (via :func:`parse_pipeline`) and a
-    bounded run into a single call.
+    Combines parsing (via :func:`parse_pipeline`) and waiting for PLAYING
+    into a single call. There is no internal timeout; see the module
+    docstring for why (the caller is expected to bound this externally).
 
     Args:
         pipeline_description: Textual GStreamer pipeline description.
-        duration_seconds: How long to run the pipeline before declaring it
-            valid, if no EOS/ERROR happens first.
 
     Returns:
         (True, reason)  if the pipeline is considered valid.
@@ -543,7 +534,7 @@ def validate_pipeline(
         return False, "parse_error"
 
     try:
-        ok, reason = _PipelineValidator(pipeline, duration_seconds).run()
+        ok, reason = _PipelineValidator(pipeline).run()
     finally:
         # Ensure the pipeline is always set to NULL, even if something goes
         # wrong in the validator, then force GObject finalization so any
@@ -563,9 +554,9 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="GStreamer Pipeline Validator",
         description=(
-            "Parse and briefly run a GStreamer pipeline description (a "
-            "couple of seconds by default) to check that it does not "
-            "error out, without running it for production."
+            "Parse a GStreamer pipeline description and wait for it to "
+            "reach PLAYING to check that it does not error out, without "
+            "running it for production."
         ),
     )
 
@@ -574,16 +565,6 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default="INFO",
         choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
         help="Minimum log level to use (default: %(default)s).",
-    )
-
-    parser.add_argument(
-        "--duration",
-        type=float,
-        default=DEFAULT_VALIDATION_SECONDS,
-        help=(
-            "How many seconds to run the pipeline for before declaring it "
-            "valid, if no EOS/ERROR happens first (default: %(default)s)."
-        ),
     )
 
     parser.add_argument(
@@ -623,10 +604,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1
 
     pipeline_description = " ".join(args.pipeline)
-    logger.debug("Validating pipeline (duration=%.2fs): %s", args.duration, pipeline_description)
+    logger.debug("Validating pipeline: %s", pipeline_description)
 
     try:
-        ok, reason = validate_pipeline(pipeline_description, args.duration)
+        ok, reason = validate_pipeline(pipeline_description)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Unexpected internal error during pipeline validation: %r", exc)
         return 1
