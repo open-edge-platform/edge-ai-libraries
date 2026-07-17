@@ -11,9 +11,16 @@ class InferenceRouterError(Exception):
 
 
 class ProviderError(InferenceRouterError):
-    """Raised when a provider operation fails."""
+    """Raised when a provider operation fails.
 
-    pass
+    ``status_code`` carries the upstream HTTP status (e.g. litellm's 400 for a
+    bad request) so the API layer can forward client errors instead of masking
+    every provider failure as a 500.
+    """
+
+    def __init__(self, message: str, *, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class ConfigurationError(InferenceRouterError):

@@ -27,12 +27,21 @@ router = APIRouter(tags=["Video Processing APIs"])
 @router.post(
     "/videos/upload",
     summary="Upload and process a video file for embedding generation.",
+    operation_id="uploadAndProcessVideo",
     status_code=HTTPStatus.CREATED,
+    response_model=DataPrepResponse,
     response_model_exclude_none=True,
 )
 @validate_params
 async def upload_and_process_video(
     file: Annotated[UploadFile, File(description="Video file to upload (MP4 format only)")],
+    tags: Annotated[
+        List[str],
+        Query(
+            default_factory=list,
+            description="List of tags to be associated with the video. Useful for filtering the search.(Optional)",
+        ),
+    ],
     bucket_name: Annotated[
         Optional[str],
         Query(
@@ -50,13 +59,6 @@ async def upload_and_process_video(
     detection_confidence: Annotated[
         Optional[float],
         Query(ge=0.1, le=1.0, description="Confidence threshold for object detection (default: 0.85)"),
-    ] = None,
-    tags: Annotated[
-        Optional[List[str]],
-        Query(
-            default_factory=list,
-            description="List of tags to be associated with the video. Useful for filtering the search.",
-        ),
     ] = None,
 ) -> DataPrepResponse:
     """
@@ -82,7 +84,7 @@ async def upload_and_process_video(
     - **frame_interval (int, optional) :** Extract every Nth frame for processing (default: 15, range: 1-60)
     - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (default: True)
     - **detection_confidence (float, optional) :** Confidence threshold for object detection (default: 0.85, range: 0.1-1.0)
-    - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
+    - **tags (list(str)) :** A list of tags to be associated with the video. Useful for filtering the search. (default: empty list)
 
     #### Raises:
     - **400 Bad Request :** If the video file is not an MP4 or fails validation.
@@ -173,7 +175,7 @@ async def upload_and_process_video(
                 frame_interval=frame_interval,
                 enable_object_detection=enable_object_detection,
                 detection_confidence=detection_confidence,
-                tags=tags or [],
+                tags=tags,
                 telemetry_context=telemetry_context,
             )
             logger.info(f"SDK mode: {len(ids)} embeddings created with optimized memory usage")
@@ -196,7 +198,7 @@ async def upload_and_process_video(
                 frame_interval=frame_interval,
                 enable_object_detection=enable_object_detection,
                 detection_confidence=detection_confidence,
-                tags=tags or [],
+                tags=tags,
                 telemetry_context=telemetry_context,
             )
             logger.info(f"API mode: {len(ids)} embeddings created using HTTP calls")
@@ -238,7 +240,9 @@ async def upload_and_process_video(
 @router.post(
     "/videos/rtsp",
     summary="Provide list of RTSP Stream URLs to process and generate embeddings.",
+    operation_id="processRtspStreams",
     status_code=HTTPStatus.OK,
+    response_model=DataPrepResponse,
     response_model_exclude_none=True,
 )
 @validate_params
@@ -248,6 +252,13 @@ async def process_rtsp_streams(
         List[str],
         Query(
             description="List of RTSP stream URLs to process. Each URL will be validated and processed for embedding generation."
+        ),
+    ],
+    tags: Annotated[
+        List[str],
+        Query(
+            default_factory=list,
+            description="List of tags to be associated with the videos. Useful for filtering the search. (Optional)",
         ),
     ],
     frame_interval: Annotated[
@@ -261,13 +272,6 @@ async def process_rtsp_streams(
     detection_confidence: Annotated[
         Optional[float],
         Query(ge=0.1, le=1.0, description="Confidence threshold for object detection (default: 0.85)"),
-    ] = None,
-    tags: Annotated[
-        Optional[List[str]],
-        Query(
-            default_factory=list,
-            description="List of tags to be associated with the videos. Useful for filtering the search.",
-        ),
     ] = None,
 ) -> DataPrepResponse:
     """
@@ -285,7 +289,7 @@ async def process_rtsp_streams(
     - **frame_interval (int, optional) :** Extract every Nth frame for processing (default: 15, range: 1-60)
     - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (default: True)
     - **detection_confidence (float, optional) :** Confidence threshold for object detection (default: 0.85, range: 0.1-1.0)
-    - **tags (list(str), optional) :** A list of tags to be associated with the videos. Useful for filtering the search.
+    - **tags (list(str)) :** A list of tags to be associated with the videos. Useful for filtering the search. (default: empty list)
 
     #### Raises:
     - **400 Bad Request :** If any of the RTSP URLs are invalid or fail validation.
@@ -350,7 +354,7 @@ async def process_rtsp_streams(
                     frame_interval=frame_interval,
                     enable_object_detection=enable_object_detection,
                     detection_confidence=detection_confidence,
-                    tags=tags or [],
+                    tags=tags,
                     telemetry_context=telemetry_context,
                     shutdown_event=shutdown_event,
                 )

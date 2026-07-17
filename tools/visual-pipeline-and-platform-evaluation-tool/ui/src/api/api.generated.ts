@@ -1139,13 +1139,15 @@ export type PipelineDensitySpec = {
     | ({
         source: "variant";
       } & VariantReference);
-  /** Relative share of total streams for this pipeline (percentage). */
+  /** Relative share of total streams for this pipeline (percentage). Used only in classic density mode (when no spec sets 'streams'). Ignored in mixed-density mode. */
   stream_rate?: number;
+  /** Fixed input stream count for this pipeline. When set on exactly one of two specs, the request switches to mixed-density mode: this pipeline is pinned to 'streams' and the other pipeline is incremented by the benchmark algorithm. Leave unset for classic density mode. */
+  streams?: number | null;
 };
 export type DensityTestSpec = {
   /** Minimum acceptable FPS per stream. */
   fps_floor: number;
-  /** List of pipelines with relative stream_rate percentages that must sum to 100. */
+  /** List of pipelines. In classic density mode every spec carries `stream_rate` and the values must sum to 100. In mixed-density mode the list must contain exactly two specs and exactly one of them must set `streams` (the fixed pipeline). */
   pipeline_density_specs: PipelineDensitySpec[];
   /** Execution configuration for output and runtime. */
   execution_config?: ExecutionConfig;

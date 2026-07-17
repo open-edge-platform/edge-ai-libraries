@@ -401,6 +401,33 @@ curl -X POST http://localhost:8000/embeddings \
   }'
 ```
 
+## Interactive API Documentation
+
+When the service is running, FastAPI provides interactive docs:
+
+- **Swagger UI**: `http://<HOST_IP>:<EMBEDDING_SERVER_PORT>/docs`
+- **ReDoc**: `http://<HOST_IP>:<EMBEDDING_SERVER_PORT>/redoc`
+- **OpenAPI JSON**: `http://<HOST_IP>:<EMBEDDING_SERVER_PORT>/openapi.json`
+
+With default settings:
+
+```bash
+http://<HOST_IP>:9777/docs
+http://<HOST_IP>:9777/redoc
+http://<HOST_IP>:9777/openapi.json
+```
+
+Replace `<HOST_IP>` with the hostname or IP of the machine running MME.
+
+## Using the OpenAPI Spec with Bruno
+
+For tooling and collection generation, import the checked-in spec:
+
+- File: `docs/user-guide/api-docs/openapi.yaml`
+- Bruno: **Collections → Import OpenAPI** and select the YAML file
+
+This is the recommended source for reproducible API collections in CI/local workflows.
+
 ## Supporting Resources
 
 - [Get Started](./get-started.md)

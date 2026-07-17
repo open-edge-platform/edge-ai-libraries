@@ -41,6 +41,12 @@ export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 export VLM_DEVICE=GPU
 
+# NPU acceleration
+export VLM_MODEL_NAME=microsoft/Phi-3.5-vision-instruct
+export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+export VLM_DEVICE=NPU
+export VLM_NPU_EXPORT_PROFILE=safe
+
 # Performance optimization
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
@@ -53,12 +59,13 @@ export VLM_ACCESS_LOG_FILE="/dev/null"
 
 **Key Environment Variables**:
 
-- **VLM_DEVICE**: Set to `CPU` (default) or `GPU` for device selection
+- **VLM_DEVICE**: Set to `CPU` (default), `GPU`, or `NPU` for device selection
 - **OV_CONFIG**: JSON string for OpenVINO performance tuning
 - **VLM_LOG_LEVEL**: Control logging verbosity (`debug`, `info`, `warning`, `error`)
 - **VLM_MAX_COMPLETION_TOKENS**: Limit response length
 - **HUGGINGFACE_TOKEN**: Required for gated models
 - **VLM_TELEMETRY_PATH / VLM_TELEMETRY_MAX_RECORDS**: Configure where `/v1/telemetry` data is stored and how many records are retained
+- **NPU export profile knobs**: `VLM_NPU_EXPORT_PROFILE`, `VLM_NPU_VLM_NUM_SAMPLES`, `VLM_NPU_VLM_GROUP_SIZE`, `VLM_NPU_VLM_RATIO`, and `VLM_NPU_VLM_SENSITIVITY_METRIC` (see [Environment Variables Guide](./environment-variables.md#vlm_npu_export_profile))
 
 For detailed information about each variable, configuration examples, and advanced setups, refer to the [Environment Variables Guide](./environment-variables.md).
 
@@ -134,6 +141,56 @@ curl --location --request GET 'http://localhost:9764/device'
 ```
 
 > **Note**: For detailed GPU configuration options, device discovery, and performance tuning recommendations, refer to the `Device Configuration` section in [Environment Variables Guide](./environment-variables.md#device-configuration).
+
+## Running the Server with NPU
+
+To run the server with NPU acceleration, follow these steps:
+
+### 1. Configure NPU Device
+
+Examples of configuring environment variables for NPU acceleration:
+
+```bash
+export VLM_MODEL_NAME=OpenGVLab/InternVL2-1B
+export VLM_DEVICE=NPU
+# Increase NPU prompt budget for image+text heavy requests (example)
+export OV_CONFIG='{"DEVICE_PROPERTIES":{"NPU":{"MAX_PROMPT_LEN":2048,"MIN_RESPONSE_LEN":512}}}'
+```
+
+> **Note**: For NPU prompt/response length tuning, see [Prompt and response length options](https://docs.openvino.ai/2026/openvino-workflow-generative/inference-with-genai/inference-with-genai-on-npu.html#prompt-and-response-length-options).
+
+```bash
+export VLM_MODEL_NAME=microsoft/Phi-3.5-vision-instruct
+export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+export VLM_DEVICE=NPU
+```
+
+> **Note**: NPU support is model-dependent. Verify that the selected model is listed as NPU-supported at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page. For NPU `int4`/`nf4` exports, `VLM_NPU_EXPORT_PROFILE=safe` is the default (`--task image-text-to-text --sym --ratio 1.0 --group-size -1`). `setup.sh` enforces `VLM_NPU_EXPORT_PROFILE=data_aware` when model name contains `Qwen2.5-VL`; for other models, the user-provided profile is used as-is (`safe` or `data_aware`).
+
+### 2. Run Setup Script
+
+```bash
+source setup.sh
+```
+
+### 3. Start the Service
+
+```bash
+docker compose -f docker/compose.yaml up -d
+```
+
+### 4. Verify NPU Configuration
+
+```bash
+# Verify /dev/accel/accel0 is available on the host
+ls -l /dev/accel/accel0
+
+# Check service health
+curl --location --request GET 'http://localhost:9764/health'
+
+# Check available devices and current configuration
+curl --location --request GET 'http://localhost:9764/device'
+```
 
 ## Stop the VLM OpenVINO Serving microservice
 
@@ -501,6 +558,29 @@ These steps will help you verify the functionality of the microservice and ensur
       ```bash
       docker ps
       ```
+
+3. **NPU: `VLM pipeline on NPU may only process input embeddings up to 1024 tokens`**:
+    - Full error (seen in `docker logs vlm-openvino-serving` during a chat completion request):
+
+      ```text
+      Error occurred in chat_completions endpoint: Check 'inputs_embeds.get_shape().at(1) <= m_max_prompt_len' failed
+      ... VLM pipeline on NPU may only process input embeddings up to 1024 tokens. 1539 is passed.
+      Set the "MAX_PROMPT_LEN" config option to increase the limit.
+      ```
+
+    - **Cause**: On NPU, the OpenVINO GenAI VLM pipeline compiles with a fixed maximum prompt length (default `1024` tokens). Image-plus-text requests can easily exceed this once image tokens are added to the text prompt, so the request is rejected.
+    - **Fix**: Increase the NPU prompt budget via `OV_CONFIG` before starting the server, then restart it so the model is recompiled with the new limit:
+
+      ```bash
+      # Increase NPU prompt budget for image+text heavy requests (example)
+      export OV_CONFIG='{"DEVICE_PROPERTIES":{"NPU":{"MAX_PROMPT_LEN":2048,"MIN_RESPONSE_LEN":512}}}'
+      ```
+
+    - **Notes**:
+        - Set `MAX_PROMPT_LEN` above the largest prompt you expect (in the example above, `1539` tokens needs a limit of at least `2048`). `MIN_RESPONSE_LEN` reserves token budget for the generated response.
+        - Larger values increase NPU memory use and compilation time; raise them only as needed.
+        - This setting only takes effect at model load/compile time — restart the server after changing it.
+        - For details, see [Prompt and response length options](https://docs.openvino.ai/2026/openvino-workflow-generative/inference-with-genai/inference-with-genai-on-npu.html#prompt-and-response-length-options).
 
 ## Supporting Resources
 

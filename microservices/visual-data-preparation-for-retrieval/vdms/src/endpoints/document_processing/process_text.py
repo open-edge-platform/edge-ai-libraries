@@ -67,7 +67,9 @@ def verify_params_and_get_video_name(
 @router.post(
     "/summary",
     summary="Process summary text with video timestamp references for embedding generation.",
+    operation_id="createVideoSummaryEmbedding",
     status_code=HTTPStatus.CREATED,
+    response_model=DataPrepResponse,
     response_model_exclude_none=True,
 )
 async def process_video_summary(
@@ -87,7 +89,7 @@ async def process_video_summary(
        - **video_summary (str) :** The text summary for the video to be embedded
        - **video_start_time (float) :** The start timestamp in seconds for the video or video chunk
        - **video_end_time (float) :** The end timestamp in seconds for the video or video chunk
-       - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
+       - **tags (list(str)) :** A list of tags to be associated with the video. Useful for filtering the search.
        
     #### Raises:
     - **400 Bad Request :** If required parameters are missing or invalid.

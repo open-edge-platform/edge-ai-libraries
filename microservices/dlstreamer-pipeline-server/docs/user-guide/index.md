@@ -62,6 +62,10 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
   metadata to a MQTT message broker. It also supports publishing metadata and frame over OPCUA.
   The frames can also be saved on S3 compliant storage.
 
+- **DL Streamer Pipeline Server Model Dwonload**
+
+  Supports integration with the [Model Download service](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/index.html) for model download, deployment and management.
+
 - **Open Telemetry**
 
   Supports gathering metrics over Open Telemetry for seamless visualization and analysis.
