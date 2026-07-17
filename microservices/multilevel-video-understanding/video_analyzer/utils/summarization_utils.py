@@ -8,9 +8,38 @@ from video_analyzer.utils.logger import logger
 """
 Utility functions for video summarization.
 """
+import re
 import os
-from typing import List, Any
+from typing import List, Any, Dict, Union
 
+
+def redact_base64(data: Union[str, List[Dict[str, Any]]]) -> Union[str, List[Dict[str, Any]]]:
+    """
+    Replace long base64 blobs with a short placeholder for readable console output.
+
+    Supports:
+    - str: returns redacted string
+    - List[Dict[str, Any]]: scans each dict value; redacts any string values containing long base64
+    """
+    pattern = re.compile(r"[A-Za-z0-9+/=]{80,}")
+
+    def _redact_str(s: str) -> str:
+        def repl(m):
+            blob = m.group(0)
+            return f"<BASE64:{blob[:12]}...len={len(blob)}>"
+        return pattern.sub(repl, s)
+
+    def _redact_obj(obj: Any) -> Any:
+        if isinstance(obj, str):
+            return _redact_str(obj)
+        elif isinstance(obj, dict):
+            return {k: _redact_obj(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [_redact_obj(x) for x in obj]
+        else:
+            return obj
+
+    return _redact_obj(data)
 
 def remove_brackets(text: str) -> str:
     """

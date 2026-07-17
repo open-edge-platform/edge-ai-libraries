@@ -2,35 +2,42 @@
 
 ## Scenario
 
-Download `meta-llama/Llama-3.2-1B` from HuggingFace and convert it to OpenVINO IR format
-(INT4 precision, CPU target) for deployment with OpenVINO Model Server (OVMS).
+Download `meta-llama/Llama-3.2-1B` and convert it into an OVMS-ready OpenVINO model:
+
+- `hub: "openvino"`
+- `type: "llm"`
+- `is_ovms: true`
+- `precision: "int4"`
+- `device: "CPU"`
+- `cache_size: 4`
+
+This is the recommended request shape for the current `/models/download` flow when the
+user wants an OpenVINO / OVMS artifact.
 
 ---
 
-## Step 1 — Set Up Service
+## Step 1 — Start the Service
 
 ```bash
 cd edge-ai-libraries/microservices/model-download
 
-export HUGGINGFACEHUB_API_TOKEN=hf_your_token_here
 export REGISTRY="intel/"
 export TAG=latest
+export HUGGINGFACEHUB_API_TOKEN=hf_your_token_here
 
-# Both huggingface (download) and openvino (convert) plugins are required
 source scripts/run_service.sh up --plugins huggingface,openvino --model-path $PWD/models
+curl -s http://localhost:8200/api/v1/health
 ```
 
-Verify health:
-```bash
-curl http://localhost:8200/api/v1/health
-```
+Plugins are required:
+- `openvino` for conversion
 
 ---
 
-## Step 2 — Submit Conversion Job
+## Step 2 — Submit the Conversion Job
 
 ```bash
-curl -s -X POST \
+JOB_RESPONSE=$(curl -s -X POST \
   "http://localhost:8200/api/v1/models/download?download_path=llm-converted" \
   -H "Content-Type: application/json" \
   -d '{
@@ -38,27 +45,6 @@ curl -s -X POST \
       {
         "name": "meta-llama/Llama-3.2-1B",
         "hub": "openvino",
-        "type": "llm",
-        "config": {
-          "precision": "int4",
-          "device": "CPU",
-          "cache_size": 4
-        }
-      }
-    ]
-  }'
-```
-
-**Alternative — Download + Convert in one request (using `is_ovms`):**
-```bash
-curl -s -X POST \
-  "http://localhost:8200/api/v1/models/download?download_path=llm-converted" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "models": [
-      {
-        "name": "meta-llama/Llama-3.2-1B",
-        "hub": "huggingface",
         "type": "llm",
         "is_ovms": true,
         "config": {
@@ -68,43 +54,53 @@ curl -s -X POST \
         }
       }
     ]
-  }'
+  }')
+
+echo "$JOB_RESPONSE"
+JOB_ID=$(echo "$JOB_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin)[\"job_ids\"][0])")
 ```
 
 ---
 
-## Step 3 — Monitor Progress
-
-Conversion takes 10–30 minutes depending on model size and hardware.
+## Step 3 — Watch Progress
 
 ```bash
-JOB_ID=<uuid>
-# Watch status every 30 seconds
 watch -n 30 "curl -s http://localhost:8200/api/v1/jobs/$JOB_ID | python3 -m json.tool"
 ```
 
-Status flow: `queued` → `converting` → `completed`
+Typical flow:
+
+`queued` → `converting` → `completed`
+
+Large LLM conversions can take a while. That is expected.
 
 ---
 
-## Step 4 — Verify Output
+## Step 4 — Verify the Output
 
 ```bash
-curl -s http://localhost:8200/api/v1/jobs/$JOB_ID | python3 -m json.tool
+curl -s "http://localhost:8200/api/v1/jobs/$JOB_ID" | python3 -m json.tool
 ```
 
-Converted model location: `$PWD/models/openvino_models/CPU/int4/`
+On success, the converted model is typically stored under:
+
+`$PWD/models/openvino_models/CPU/int4/`
+
+The job result includes a host-visible `conversion_path` you can mount into OVMS.
+
+> For the current conversion flow, send the request with `hub: "openvino"` and
+> `is_ovms: true`.
 
 ---
 
-## Precision Options for LLMs
+## Precision Notes
 
-| Precision | Tradeoff |
-|-----------|---------|
-| `int4` | Smallest size, fastest inference, slight quality loss |
-| `int8` | Good balance of size and quality |
-| `fp16` | Near-original quality, 2× larger than int8 |
-| `fp32` | Full precision, largest, slowest |
+| Precision | Typical use |
+|-----------|-------------|
+| `int4` | Smallest footprint, common choice for LLM deployment |
+| `int8` | Balance of size and quality |
+| `fp16` | Higher fidelity, larger model |
+| `fp32` | Largest and slowest, rarely preferred for edge deployment |
 
 ---
 
@@ -122,6 +118,7 @@ curl -s -X POST \
         "name": "meta-llama/Llama-3.2-1B",
         "hub": "openvino",
         "type": "llm",
+        "is_ovms": true,
         "config": {
           "precision": "int4",
           "device": "CPU",
@@ -149,6 +146,7 @@ curl -s -X POST \
         "name": "meta-llama/Llama-3.2-1B",
         "hub": "openvino",
         "type": "llm",
+        "is_ovms": true,
         "config": {
           "precision": "int4",
           "device": "NPU"
@@ -157,3 +155,7 @@ curl -s -X POST \
     ]
   }'
 ```
+
+## NPU Note
+
+If the user targets `NPU`, the service forces `int4` automatically.

@@ -130,7 +130,6 @@ RUN mkdir -p /tmp/dataprep/video /home/appuser/.cache/huggingface /app/ov_models
     chown -R appuser:appuser /home/appuser/.cache /app/ov_models /tmp/dataprep
 
 USER appuser
-
 EXPOSE 8000
 
 CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.app:app", "--timeout", "300", "--log-level", "debug"]
