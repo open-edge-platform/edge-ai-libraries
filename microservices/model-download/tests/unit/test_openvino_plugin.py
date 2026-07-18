@@ -650,6 +650,21 @@ class TestOpenVINOPluginFutureProof:
         # Boolean False should not be added
         assert "--truncate" not in command
 
+    def test_build_export_command_hetero_device(self, openvino_plugin, temp_dir):
+        """Test _build_export_command passes HETERO device strings through intact"""
+        command = openvino_plugin._build_export_command(
+            export_type="text_generation",
+            model_name="test-model",
+            output_dir=temp_dir,
+            config_dict={"precision": "int8"},
+            target_device="HETERO:GPU,CPU",
+            weight_format="int8"
+        )
+
+        # HETERO string must survive as a single argv element (colon/comma intact)
+        assert "--target_device" in command
+        assert command[command.index("--target_device") + 1] == "HETERO:GPU,CPU"
+
     def test_build_export_command_with_unknown_params(self, openvino_plugin, temp_dir):
         """Test _build_export_command passes unknown parameters through (future-proof)"""
         config_dict = {
@@ -725,7 +740,32 @@ class TestOpenVINOPluginFutureProof:
 
     @patch.object(OpenVINOConverter, 'convert_to_ovms_format')
     @patch('os.getenv')
-    def test_convert_new_nested_openvino_config(self, mock_getenv, mock_convert_to_ovms, 
+    def test_convert_hetero_device_no_int4_override(self, mock_getenv, mock_convert_to_ovms,
+                                                    openvino_plugin, temp_dir):
+        """HETERO devices pass through raw and do not trigger the NPU int4 override"""
+        mock_convert_to_ovms.return_value = {"returncode": 0, "stdout": "", "stderr": ""}
+        mock_getenv.return_value = "/host/models"
+
+        result = openvino_plugin.convert(
+            model_name="test-model",
+            output_dir=temp_dir,
+            hf_token="test_token",
+            precision="int8",
+            device="HETERO:NPU,CPU",
+            type="llm"
+        )
+
+        assert mock_convert_to_ovms.called
+        call_kwargs = mock_convert_to_ovms.call_args[1]
+        assert call_kwargs["target_device"] == "HETERO:NPU,CPU"
+        # "NPU" appears in the HETERO string but the int4 override must not fire
+        assert call_kwargs["weight_format"] == "int8"
+
+        assert result["config"]["device"] == "HETERO:NPU,CPU"
+
+    @patch.object(OpenVINOConverter, 'convert_to_ovms_format')
+    @patch('os.getenv')
+    def test_convert_new_nested_openvino_config(self, mock_getenv, mock_convert_to_ovms,
                                                openvino_plugin, temp_dir, conversion_config_optimum_cli):
         """Test convert supports new Optimum CLI-aligned nested structure"""
         mock_convert_to_ovms.return_value = {"returncode": 0, "stdout": "", "stderr": ""}

@@ -1,9 +1,10 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from enum import Enum
-from typing import List, Optional, TypedDict, Dict, Any, Tuple
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import Annotated, List, Optional, TypedDict, Dict, Any, Tuple
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 
 # Parameter mapping for export_model.py command builder
 # Format: {param_name: (flag_name, param_type)}
@@ -68,6 +69,29 @@ class DeviceType(str, Enum):
     GPU = "GPU"
     NPU = "NPU"
 
+
+# HETERO mode: a fallback list of base devices, optionally with an index suffix,
+# e.g. HETERO:GPU,CPU or HETERO:NPU,GPU.1,CPU. Bare "HETERO" is rejected because
+# OVMS cannot compile a model without device priorities.
+_HETERO_DEVICE_RE = re.compile(
+    r"^HETERO:(CPU|GPU|NPU)(\.\d+)?(,(CPU|GPU|NPU)(\.\d+)?)*$", re.IGNORECASE
+)
+
+
+def _validate_device(v):
+    if v is None:
+        return v
+    s = str(v).strip().upper()
+    if s in {d.value for d in DeviceType} or _HETERO_DEVICE_RE.match(s):
+        return s
+    raise ValueError(
+        f"Invalid device '{v}'. Use CPU, GPU, NPU, or HETERO:<dev>[,<dev>...] "
+        f"(e.g. HETERO:GPU,CPU)"
+    )
+
+
+DeviceValue = Annotated[str, BeforeValidator(_validate_device)]
+
 class ModelHub(str, Enum):
     HUGGINGFACE = "huggingface"
     ULTRALYTICS = "ultralytics"
@@ -110,9 +134,10 @@ class OpenVINOOptimizationConfig(BaseModel):
         None,
         description="Weight format (int4, int8, fp16, fp32). Maps to export_model.py: --weight-format"
     )
-    device: Optional[DeviceType] = Field(
+    device: Optional[DeviceValue] = Field(
         None,
-        description="Target device (CPU, GPU, NPU, HETERO). Maps to export_model.py: --target_device"
+        description="Target device: CPU, GPU, NPU, or HETERO:<dev>[,<dev>...] "
+                    "(e.g. HETERO:GPU,CPU). Maps to export_model.py: --target_device"
     )
     
     # Optional common parameters
@@ -243,9 +268,10 @@ class Config(BaseModel):
         None,
         description="Weight format for optimization (applies to compatible plugins)"
     )
-    device: Optional[DeviceType] = Field(
+    device: Optional[DeviceValue] = Field(
         None,
-        description="Target device (applies to compatible plugins)"
+        description="Target device: CPU, GPU, NPU, or HETERO:<dev>[,<dev>...] "
+                    "(e.g. HETERO:GPU,CPU). Applies to compatible plugins."
     )
     cache_size: Optional[int] = Field(
         None,

@@ -86,6 +86,9 @@ On success, the converted model is typically stored under:
 
 `$PWD/models/openvino_models/CPU/int4/`
 
+For HETERO devices the device directory is a filesystem-safe slug, e.g.
+`device: "HETERO:GPU,CPU"` → `$PWD/models/openvino_models/hetero_gpu_cpu/int8/`.
+
 The job result includes a host-visible `conversion_path` you can mount into OVMS.
 
 > For the current conversion flow, send the request with `hub: "openvino"` and

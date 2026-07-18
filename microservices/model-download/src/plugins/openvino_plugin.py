@@ -91,7 +91,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             model_name: Source model identifier
             output_dir: Output directory path
             config_dict: Configuration dictionary (can contain any parameters)
-            target_device: Target device (CPU, GPU, NPU, HETERO)
+            target_device: Target device (CPU, GPU, NPU, or HETERO:<dev>[,<dev>...] e.g. HETERO:GPU,CPU)
             weight_format: Precision format (int4, int8, fp16, fp32)
             
         Returns:
