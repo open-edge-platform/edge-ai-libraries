@@ -19,8 +19,8 @@ services:
             video-search:
                 condition: service_started
         environment:
-            SEARCH_ENDPOINT: http://video-search:8000
-            SEARCH_DATAPREP_ENDPOINT: http://vdms-dataprep:8000
+            SEARCH_ENDPOINT: http://${VS_HOST:-video-search}:8000
+            SEARCH_DATAPREP_ENDPOINT: http://${VDMS_DATAPREP_HOST:-vdms-dataprep}:8000
             SEARCH_FEATURE: "FEATURE_ON"
 
     video-search:
@@ -45,9 +45,9 @@ services:
             no_proxy_env: ${no_proxy},multimodal-embedding-serving,vdms-dataprep,minio-service,vdms-vector-db,pipeline-manager,localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
-            VDMS_VDB_HOST: vdms-vector-db
-            VDMS_VDB_PORT: 55555
-            EMBEDDINGS_ENDPOINT: http://multimodal-embedding-serving:8000/embeddings
+            VDMS_VDB_HOST: ${VDMS_VDB_HOST:-vdms-vector-db}
+            VDMS_VDB_PORT: ${VDMS_VDB_HOST_PORT:-55555}
+            EMBEDDINGS_ENDPOINT: http://${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving}:8000/embeddings
             EMBEDDINGS_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
             INDEX_NAME: ${VS_INDEX_NAME}
             WATCH_DIRECTORY: ${VS_WATCHER_DIR}
@@ -93,14 +93,14 @@ services:
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             # Basic app settings
-            APP_HOST: vdms-dataprep
+            APP_HOST: ${VDMS_DATAPREP_HOST:-vdms-dataprep}
 
             # VDMS Vector Database settings
-            VDMS_VDB_HOST: vdms-vector-db
-            VDMS_VDB_PORT: 55555
+            VDMS_VDB_HOST: ${VDMS_VDB_HOST:-vdms-vector-db}
+            VDMS_VDB_PORT: ${VDMS_VDB_HOST_PORT:-55555}
 
             # MinIO settings
-            MINIO_ENDPOINT: minio-service:80
+            MINIO_ENDPOINT: ${MINIO_HOST:-minio-service}:${MINIO_PORT:-80}
             MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
             MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
             MINIO_SECURE: false
@@ -110,7 +110,7 @@ services:
             DB_COLLECTION: ${VS_INDEX_NAME}
 
             # Embedding service settings
-            MULTIMODAL_EMBEDDING_ENDPOINT: http://multimodal-embedding-serving:8000/embeddings
+            MULTIMODAL_EMBEDDING_ENDPOINT: http://${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving}:8000/embeddings
             MULTIMODAL_EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME} # Used for both SDK and API modes
 
             # Embedding processing mode settings (SDK vs API)

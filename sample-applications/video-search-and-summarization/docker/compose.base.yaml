@@ -44,13 +44,13 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       MINIO_PROTOCOL: "http:"
-      MINIO_HOST: minio-service
-      MINIO_PORT: 80
+      MINIO_HOST: ${MINIO_HOST:-minio-service}
+      MINIO_PORT: ${MINIO_PORT:-80}
       MINIO_BUCKET: ${PM_MINIO_BUCKET:-video-summary}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      DB_HOST: postgres-service
-      DB_PORT: 5432
+      DB_HOST: ${POSTGRES_HOST:-postgres-service}
+      DB_PORT: ${POSTGRES_HOST_PORT:-5432}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB:-video_summary_db}

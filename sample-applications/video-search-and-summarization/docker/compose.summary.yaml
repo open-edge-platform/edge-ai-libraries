@@ -17,21 +17,21 @@ services:
       audio-analyzer:
         condition: service_healthy
     environment:
-      EVAM_HOST: video-ingestion
+      EVAM_HOST: ${EVAM_HOST:-video-ingestion}
       EVAM_DEVICE: ${EVAM_DEVICE:-CPU}
-      EVAM_PIPELINE_PORT: 8080
-      EVAM_PUBLISH_PORT: 1883
+      EVAM_PIPELINE_PORT: ${EVAM_PIPELINE_PORT:-8080}
+      EVAM_PUBLISH_PORT: ${RABBITMQ_MQTT_HOST_PORT:-1883}
       EVAM_DETECTION_MODEL: ${EVAM_DETECTION_MODEL}
       EVAM_DETECTION_MODEL_PATH: ${EVAM_DETECTION_MODEL_PATH}
-      RABBITMQ_HOST: rabbitmq-service
-      RABBITMQ_AMQP_PORT: 5672
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-service}
+      RABBITMQ_AMQP_PORT: ${RABBITMQ_AMQP_HOST_PORT:-5672}
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       LLM_SUMMARIZATION_KEY: ""
-      LLM_SUMMARIZATION_API: http://ovms-service/v3
+      LLM_SUMMARIZATION_API: http://${OVMS_HOST:-ovms-service}/v3
       LLM_SUMMARIZATION_DEVICE: ${LLM_TARGET_DEVICE}
       VLM_CAPTIONING_KEY: ""
-      VLM_CAPTIONING_API: http://ovms-service/v3
+      VLM_CAPTIONING_API: http://${OVMS_HOST:-ovms-service}/v3
       VLM_CAPTIONING_DEVICE: ${VLM_TARGET_DEVICE}
       LLM_CONCURRENT: ${PM_LLM_CONCURRENT}
       VLM_CONCURRENT: ${PM_VLM_CONCURRENT}
@@ -43,7 +43,7 @@ services:
       VLM_MODEL_NAME: ${VLM_STORAGE_MODEL_NAME:-${VLM_MODEL_NAME}}
       USE_VLLM: CONFIG_OFF
       MULTI_FRAME_COUNT: ${PM_MULTI_FRAME_COUNT}
-      AUDIO_HOST: http://audio-analyzer:8000
+      AUDIO_HOST: http://${AUDIO_HOST:-audio-analyzer}:8000
       AUDIO_DEVICE: CPU
       SEARCH_ENDPOINT: ""
       SEARCH_DATAPREP_ENDPOINT: ""
@@ -103,11 +103,11 @@ services:
       no_proxy: ${no_proxy},minio-service,rabbitmq-service,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      RABBITMQ_HOST: rabbitmq-service
-      RABBITMQ_PORT: 1883
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-service}
+      RABBITMQ_PORT: ${RABBITMQ_MQTT_HOST_PORT:-1883}
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
-      MINIO_SERVER: minio-service:80
+      MINIO_SERVER: ${MINIO_HOST:-minio-service}:${MINIO_PORT:-80}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       RUN_MODE: EVA
@@ -163,7 +163,7 @@ services:
       - ENABLED_WHISPER_MODELS=${ENABLED_WHISPER_MODELS} # Comma-separated list of models to enable
       - MAX_FILE_SIZE=314572800 # 300MB
       - USE_FP16=${USE_FP16:-true} # Use FP16 on GPUs
-      - MINIO_ENDPOINT=minio-service:80
+      - MINIO_ENDPOINT=${MINIO_HOST:-minio-service}:${MINIO_PORT:-80}
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - STORAGE_BACKEND=${STORAGE_BACKEND:-minio} # can be minio or local

@@ -170,7 +170,7 @@ Before running the application, you need to set several environment variables:
       ```
 
       > **Audio Transcript Summarization (`PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY`)**:
-      > When enabled (the default), the pipeline runs a separate LLM-based map-reduce summarization pass over the complete audio transcript *before* generating the final video summary. The condensed transcript summary is then injected into the video summary prompt via the `%audio_summary%` placeholder, giving the LLM a coherent, high-quality representation of spoken content rather than raw subtitle fragments. This significantly improves accuracy for dialogue-heavy or narration-heavy videos. When disabled, audio transcripts are only used at the chunk captioning level — each chunk's VLM prompt includes its time-matched portion of the transcript — but no audio content is included in the final map-reduce video summary.
+      > When enabled (the default), the pipeline runs a separate LLM-based map-reduce summarization pass over the complete audio transcript *before* generating the final video summary. The condensed transcript summary is then injected into the video summary prompt via the `%audio_summary%` placeholder, giving the LLM a coherent, high-quality representation of spoken content rather than raw subtitle fragments. This significantly improves accuracy for dialogue-heavy or narration-heavy videos. When disabled, audio transcripts are only used at the chunk captioning level, each chunk's VLM prompt includes its time-matched portion of the transcript but no audio content is included in the final map-reduce video summary.
       >
       > This environment variable sets the **default** value. Users can override it per-video using the **"Use Audio in Summary"** checkbox in the Audio Settings section of the video upload modal.
 
@@ -292,7 +292,7 @@ Before running the application, you need to set several environment variables:
     export MME_EMBEDDING_DEVICE=GPU
     ```
 
-    There is no "baseline" device — each component is configured directly, matching the Helm chart's per-component model.
+    There is no "baseline" device, each component is configured directly, matching the Helm chart's per-component model.
 
     > **Mode note:** `DATAPREP_EMBEDDING_DEVICE` controls embedding execution when `EMBEDDING_PROCESSING_MODE=sdk` (in-process DataPrep embedding). `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving` when `EMBEDDING_PROCESSING_MODE=api`. `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut: in `sdk` mode it sets `DATAPREP_EMBEDDING_DEVICE=GPU`; in `api` mode it sets `MME_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
 
@@ -418,7 +418,7 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 > **Note:**
 >
 > 1) These options apply to modes where search is enabled: `--search`, `--summary --search`, and `--summary-and-search`.
-> 2) Each component device defaults to `CPU` and is set independently — there is no "baseline" device.
+> 2) Each component device defaults to `CPU` and is set independently, there is no "baseline" device.
 > 3) In `EMBEDDING_PROCESSING_MODE=sdk`, embedding execution runs in `vdms-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`.
 > 4) In `EMBEDDING_PROCESSING_MODE=api`, embedding execution runs in `multimodal-embedding-serving` and follows `MME_EMBEDDING_DEVICE`.
 > 5) **NPU Support:** Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU`.
@@ -426,7 +426,7 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 
 ## Using Edge Microvisor Toolkit
 
-If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit (EMT)** — an Azure Linux-based build pipeline for Intel® platforms — the deployment approach depends on the EMT flavor. Refer to the detailed documentation for [EMT-D](https://github.com/open-edge-platform/edge-microvisor-toolkit/blob/3.0/docs/developer-guide/emt-architecture-overview.md#developer-node-mutable-iso-image) and [EMT-S](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node) for full details.
+If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit (EMT)**, an Azure Linux-based build pipeline for Intel® platforms, the deployment approach depends on the EMT flavor. Refer to the detailed documentation for [EMT-D](https://github.com/open-edge-platform/edge-microvisor-toolkit/blob/3.0/docs/developer-guide/emt-architecture-overview.md#developer-node-mutable-iso-image) and [EMT-S](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node) for full details.
 
 ### EMT-D (Mutable)
 
@@ -444,7 +444,7 @@ Install additional tools such as `git` and `wget` using the same package manager
 
 ### EMT-S (Immutable)
 
-EMT-S is an **immutable** OS image — standard package managers such as `apt` are not available, and the VSS `setup.sh` script **cannot be run directly on the EMT-S node** (doing so will fail with `sudo: apt: command not found`). Use one of the following approaches:
+EMT-S is an **immutable** OS image, standard package managers such as `apt` are not available, and the VSS `setup.sh` script **cannot be run directly on the EMT-S node** (doing so will fail with `sudo: apt: command not found`). Use one of the following approaches:
 
 - **Option 1 (USB provisioning):** While preparing the USB drive, copy the required Docker images under `/opt/user-apps` on the image, then flash and deploy the Edge node.
 - **Option 2 (Remote copy):** On a Ubuntu development system, pull/build all required Docker images and prepare the project directory. Copy the entire directory to the EMT-S node without modifications and deploy from there. This approach has been verified to successfully bring up all VSS containers.

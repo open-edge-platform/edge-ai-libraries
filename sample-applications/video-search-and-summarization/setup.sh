@@ -13,10 +13,9 @@ NC='\033[0m' # No Color
 
 # =================== Setup Config Directories ======================
 nginx_config_dir="${PWD}/config/nginx"
-# Host root for all OpenVINO model assets — holds both the object-detection IRs
-# and the OVMS converted models + config.json (written by the model-download
-# microservice).
+# Host root for all model assets
 export OV_MODELS_ROOT="${PWD}/ov_models"
+export MODEL_DOWNLOAD_CTR_NAME=${MODEL_DOWNLOAD_CTR_NAME:-vss-model-download}
 
 # ================================= SETUP ALIASES ======================================
 if [ "$#" -eq 1 ] && [ "$1" = "config" ]; then    # config with no args defaults to both summary and search
@@ -51,6 +50,7 @@ fi
 # =================== Function Definitions =========================
 stop_containers() {
     echo -e "${YELLOW}Bringing down all the Docker containers... ${NC}"
+    docker rm -f "${MODEL_DOWNLOAD_CTR_NAME}" >/dev/null 2>&1
     docker compose \
         -f docker/compose.base.yaml \
         -f docker/compose.summary.yaml \
@@ -437,63 +437,219 @@ else
     echo -e "${YELLOW}/dev/accel/accel0 not found, NPU not available. Will mount /dev/null instead.${NC}"
 fi
 
-# =================== Model Download Microservice (ephemeral) ===================
+# =================== Model Download Microservice (service mode) ===================
 # Image auto-pulled by `docker run` if absent. Override MODEL_DOWNLOAD_IMAGE to pin a tag.
-export MODEL_DOWNLOAD_TAG=${MODEL_DOWNLOAD_TAG:-${TAG:-latest}}
-export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-intel/model-download:${MODEL_DOWNLOAD_TAG}}
+export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-intel/model-download:${MODEL_DOWNLOAD_TAG:-latest}}
 # OVMS release tag used by the openvino plugin's export_model.py.
 export MODEL_DOWNLOAD_OVMS_TAG=${MODEL_DOWNLOAD_OVMS_TAG:-v2026.1}
 # Sub-path under the OVMS models dir for converted models (kept lowercase).
 export OVMS_MS_DOWNLOAD_PATH=${OVMS_MS_DOWNLOAD_PATH:-ovms}
+export MODEL_DOWNLOAD_HOST_PORT=${MODEL_DOWNLOAD_HOST_PORT:-8640}
+MD_API_URL="http://127.0.0.1:${MODEL_DOWNLOAD_HOST_PORT}"
+MD_NEED_OD=false; MD_NEED_VLM=false; MD_NEED_LLM=false
 
-# One-shot (ephemeral) model download+convert via the microservice container.
-# Usage: download_model_via_ms <host_models_dir> <plugins> [get_model.sh args...]
-download_model_via_ms() {
-    local host_models_dir="$1"; shift
-    local plugins="$1"; shift
+# curl wrapper for the model-download REST API. --noproxy keeps corporate proxy settings from intercepting loopback traffic.
+md_curl() {
+    curl -s --noproxy '*' --max-time 60 "$@"
+}
 
-    if [ -z "$host_models_dir" ] || [ -z "$plugins" ]; then
-        echo -e "${RED}ERROR: download_model_via_ms requires <host_models_dir> and <plugins>.${NC}" >&2
-        return 1
-    fi
+# Render a seconds count as "3m41s" for status lines.
+md_fmt_elapsed() {
+    local total_seconds=$1
+    printf '%dm%02ds' $((total_seconds / 60)) $((total_seconds % 60))
+}
 
-    mkdir -p "$host_models_dir"
+# Print one top-level field from a JSON document on stdin (empty if missing).
+# Usage: ... | md_json_field <field>
+md_json_field() {
+    python3 -c 'import sys, json; print(json.load(sys.stdin).get(sys.argv[1]) or "")' "$1" 2>/dev/null
+}
+
+# Refresh a single in-place status line (TTY only); no text clears the line.
+md_progress_line() {
+    [ -t 1 ] && printf '\r\033[K%b' "${1:-}"
+}
+
+# True while the model-download container is running.
+md_container_running() {
+    [ "$(docker inspect -f '{{.State.Running}}' "${MODEL_DOWNLOAD_CTR_NAME}" 2>/dev/null)" = "true" ]
+}
+
+md_start_service() {
+    # All three plugins are always enabled; the container installs their deps at start.
+    local plugins="ultralytics,huggingface,openvino"
 
     local env_args=(
-        -e "ENABLED_PLUGINS=${plugins}"
         -e "MODEL_PATH=/opt/models"
         -e "HF_HUB_ENABLE_HF_TRANSFER=1"
         -e "OVMS_RELEASE_TAG=${MODEL_DOWNLOAD_OVMS_TAG}"
+        -e "UV_CACHE_DIR=/opt/models/.model-download-cache/uv"
         -e "no_proxy=${no_proxy:-}"
         -e "http_proxy=${http_proxy:-}"
         -e "https_proxy=${https_proxy:-}"
     )
-
     local hf_token="${HUGGINGFACE_TOKEN:-${HUGGINGFACEHUB_API_TOKEN:-}}"
     if [ -n "$hf_token" ]; then
         env_args+=(-e "HF_TOKEN=${hf_token}")
     fi
-    
-    local log_file="${host_models_dir}/model-download.log"
 
-    echo -e "[model-download] ${BLUE}Running ${YELLOW}${MODEL_DOWNLOAD_IMAGE}${BLUE} (plugins: ${plugins}) — image auto-pulls if absent...${NC}"
-    echo -e "[model-download] ${GRAY}This may take a while. Output is logged to ${log_file}${NC}"
-    docker run --rm \
+    # Remove any leftover container from an interrupted earlier run.
+    docker rm -f "${MODEL_DOWNLOAD_CTR_NAME}" >/dev/null 2>&1
+
+    mkdir -p "${OV_MODELS_ROOT}"
+    echo -e "[model-download] ${BLUE}Starting model-download container (plugins: ${YELLOW}${plugins}${BLUE})${NC}"
+    echo -e "[model-download] ${GRAY}API: ${MD_API_URL} ; follow detailed logs with: docker logs -f ${MODEL_DOWNLOAD_CTR_NAME}${NC}"
+    if ! docker run -d \
+        --name "${MODEL_DOWNLOAD_CTR_NAME}" \
+        -p "127.0.0.1:${MODEL_DOWNLOAD_HOST_PORT}:8000" \
         "${env_args[@]}" \
-        -v "${host_models_dir}:/opt/models" \
+        -v "${OV_MODELS_ROOT}:/opt/models" \
         --group-add "$(id -g)" \
         "${MODEL_DOWNLOAD_IMAGE}" \
-        --plugins "${plugins}" --ephemeral "$@" >"$log_file" 2>&1
-    local rc=$?
+        --plugins "${plugins}" >/dev/null; then
+        echo -e "${RED}ERROR: Could not start the model-download container.${NC}" >&2
+        echo -e "${YELLOW}If port ${MODEL_DOWNLOAD_HOST_PORT} is busy, set MODEL_DOWNLOAD_HOST_PORT to a free port and re-run.${NC}" >&2
+        return 1
+    fi
+    return 0
+}
 
-    if [ $rc -eq 0 ]; then
-        rm -f "$log_file"
-    else
-        echo -e "${RED}ERROR: model-download failed (exit code ${rc}). Last log lines:${NC}" >&2
+md_wait_healthy() {
+    local started_at=$SECONDS
+    echo -e "[model-download] ${YELLOW}Waiting for container to become healthy...${NC}"
+    while true; do
+        if md_curl -f "${MD_API_URL}/health" >/dev/null 2>&1; then
+            md_progress_line ""
+            echo -e "[model-download] ${GREEN}Container healthy ($(md_fmt_elapsed $((SECONDS - started_at))))${NC}"
+            return 0
+        fi
+        if ! md_container_running; then
+            md_progress_line ""
+            echo -e "${RED}ERROR: model-download container exited before becoming healthy.${NC}" >&2
+            return 1
+        fi
+        if [ $((SECONDS - started_at)) -ge 900 ]; then
+            md_progress_line ""
+            echo -e "${RED}ERROR: model-download container did not become healthy within 900s.${NC}" >&2
+            return 1
+        fi
+        md_progress_line "[model-download] ${YELLOW}Waiting for container... ($(md_fmt_elapsed $((SECONDS - started_at))))${NC}"
+        sleep 5
+    done
+}
+
+md_payload_od() {
+    printf '{"models":[{"name":"%s","hub":"ultralytics"}]}' "$1"
+}
+
+md_payload_ovms() {
+    local model="$1" model_type="$2" device="$3" precision="$4" cache_size="$5"
+    local extra_config=""
+    [ "$model_type" = "vlm" ] && extra_config=',"pipeline_type":"VLM_CB"'
+    printf '{"models":[{"name":"%s","hub":"openvino","type":"%s","is_ovms":true,"config":{"precision":"%s","device":"%s","cache_size":%s%s}}]}' \
+        "$model" "$model_type" "$precision" "$device" "$cache_size" "$extra_config"
+}
+
+# Submit one download job to the service; prints the job id on success.
+# Usage: md_submit_job <download_path> <payload_json>
+md_submit_job() {
+    local download_path="$1"
+    local payload="$2"
+    local body_file http_code job_id
+
+    body_file=$(mktemp)
+    http_code=$(md_curl -o "$body_file" -w '%{http_code}' \
+        -X POST "${MD_API_URL}/models/download?download_path=${download_path}" \
+        -H 'Content-Type: application/json' \
+        -d "$payload")
+    if [ "$http_code" != "200" ]; then
+        echo -e "${RED}ERROR: model-download job submission failed (HTTP ${http_code}): $(cat "$body_file")${NC}" >&2
+        rm -f "$body_file"
+        return 1
+    fi
+
+    job_id=$(python3 -c 'import sys, json; print(json.load(open(sys.argv[1]))["job_ids"][0])' "$body_file" 2>/dev/null)
+    rm -f "$body_file"
+    if [ -z "$job_id" ]; then
+        echo -e "${RED}ERROR: model-download returned an unexpected response (no job id).${NC}" >&2
+        return 1
+    fi
+    echo "$job_id"
+}
+
+# Poll one job until it completes, printing a status line on each state change
+md_wait_job() {
+    local job_id="$1" label="$2"
+    local state="queued" started_at=$SECONDS
+    local job_json job_status job_error elapsed
+    while true; do
+        sleep 5
+        if ! md_container_running; then
+            md_progress_line ""
+            echo -e "${RED}ERROR: model-download container stopped while a job was running.${NC}" >&2
+            return 1
+        fi
+
+        job_json=$(md_curl "${MD_API_URL}/jobs/${job_id}")
+        job_status=$(printf '%s' "$job_json" | md_json_field status)
+        elapsed=$(md_fmt_elapsed $((SECONDS - started_at)))
+
+        if [ "$job_status" = "completed" ]; then
+            md_progress_line ""
+            echo -e "[model-download] ${GREEN}${label}: completed (${elapsed})${NC}"
+            return 0
+        elif [ "$job_status" = "failed" ]; then
+            job_error=$(printf '%s' "$job_json" | md_json_field error)
+            md_progress_line ""
+            echo -e "[model-download] ${RED}${label}: FAILED : ${job_error:-unknown error}${NC}" >&2
+            return 1
+        elif [ -n "$job_status" ] && [ "$job_status" != "$state" ]; then
+            # An empty status is a transient API hiccup; retry next poll.
+            md_progress_line ""
+            echo -e "[model-download] ${YELLOW}${label}: ${job_status} (${elapsed})${NC}"
+            state="$job_status"
+        elif [ -n "$job_status" ]; then
+            # Same state as before: tick the elapsed time so it doesn't look stuck.
+            md_progress_line "[model-download] ${YELLOW}${label}: ${job_status} (${elapsed})${NC}"
+        fi
+    done
+}
+
+# Download one model: submit the job, then wait for it to finish.
+# Usage: md_download_model <download_path> <payload_json> <label>
+md_download_model() {
+    local download_path="$1" payload="$2" label="$3"
+    local job_id
+    job_id=$(md_submit_job "$download_path" "$payload") || return 1
+    echo -e "[model-download] ${BLUE}${label}: queued${NC}"
+    md_wait_job "$job_id" "$label"
+}
+
+# Download one OVMS export: compute the cache size, build the payload, download.
+# Usage: md_download_ovms_model <llm|vlm> <model> <device> <weight_format>
+md_download_ovms_model() {
+    local model_type="$1" model="$2" device="$3" weight_format="$4"
+    local cache_size
+    cache_size=$(get_ovms_cache_size "$device") || return 1
+    echo -e "[ovms-service] ${BLUE}Cache size: ${YELLOW}${cache_size} GB${NC} for device ${YELLOW}${device}${NC}"
+    md_download_model "${OVMS_MS_DOWNLOAD_PATH}" \
+        "$(md_payload_ovms "$model" "$model_type" "$device" "$weight_format" "$cache_size")" \
+        "${model_type^^} (${model})"
+}
+
+# Usage: md_teardown <rc>
+md_teardown() {
+    local rc=$1
+    if [ "$rc" -ne 0 ]; then
+        local log_file
+        log_file="${OV_MODELS_ROOT}/model-download-$(date -u +%Y%m%dT%H%M%S.%NZ).log"
+        docker logs "${MODEL_DOWNLOAD_CTR_NAME}" >"$log_file" 2>&1
+        echo -e "${RED}ERROR: model download failed. Last log lines:${NC}" >&2
         tail -n 20 "$log_file" >&2 2>/dev/null
         echo -e "${YELLOW}Full log persisted at: ${log_file}${NC}" >&2
     fi
-    return $rc
+    docker rm -f "${MODEL_DOWNLOAD_CTR_NAME}" >/dev/null 2>&1
+    return "$rc"
 }
 
 # Fix ownership of files written by the model-download container (runs as UID 1001):
@@ -508,25 +664,8 @@ fix_model_dir_ownership() {
     }
 }
 
-# Download & convert the object detection model via the model-download
-# microservice (ultralytics plugin -> OpenVINO IR, FP16 + FP32).
-convert_object_detection_models() {
-    echo -e "[video-ingestion] ${BLUE}Downloading & converting object detection model '${OD_MODEL_NAME}' via model-download microservice...${NC}"
-
-    download_model_via_ms \
-        "${OV_MODELS_ROOT}" \
-        "ultralytics" \
-        --model-name "${OD_MODEL_NAME}" \
-        --hub ultralytics \
-        --download-path "${OD_MODEL_DOWNLOAD_PATH}"
-
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}ERROR: Model download/conversion failed for ${OD_MODEL_NAME}.${NC}" >&2
-        return 1
-    fi
-
-    fix_model_dir_ownership "${OV_MODELS_ROOT}/${OD_MODEL_DOWNLOAD_PATH}"
-
+# Verify the expected object detection IR exists after download.
+md_verify_od_model() {
     if [ -f "${OD_MODEL_OUTPUT_DIR}/FP32/${OD_MODEL_NAME}.xml" ]; then
         echo -e "[video-ingestion] ${GREEN}Object detection model ${OD_MODEL_NAME} ready at ${OD_MODEL_OUTPUT_DIR}/FP32/${NC}"
     else
@@ -552,7 +691,8 @@ convert_object_detection_models() {
 #          weights. The lower upper clamp (6 GB) prevents starving
 #          the GPU driver's limited memory pool.
 #   dGPU — 33% of dedicated VRAM, clamped to [2, 16] GB.
-#          Discrete GPUs have their own VRAM (queried via sysfs).
+#          Discrete GPUs have their own VRAM, queried via the dmem
+#          cgroup (xe driver) or lmem_total_bytes sysfs (i915 DKMS).
 #          A higher percentage is safe because VRAM isn't shared with
 #          the OS, but we still reserve ~67% for model weights.
 #   NPU  — Not applicable; OVMS ignores cache_size for NPU stateful
@@ -563,7 +703,7 @@ get_ovms_cache_size() {
     local target_device="$1"
     # Allow user override via OVMS_CACHE_SIZE_GB environment variable (validated at startup)
     if [[ -n "${OVMS_CACHE_SIZE_GB:-}" ]]; then
-        echo -e "[ovms-service] ${YELLOW}OVMS_CACHE_SIZE_GB is set — overriding dynamic cache size with ${OVMS_CACHE_SIZE_GB} GB${NC}" >&2
+        echo -e "[ovms-service] ${YELLOW}OVMS_CACHE_SIZE_GB is set, overriding dynamic cache size with ${OVMS_CACHE_SIZE_GB} GB${NC}" >&2
         echo "$OVMS_CACHE_SIZE_GB"
         return
     fi
@@ -574,26 +714,23 @@ get_ovms_cache_size() {
     local cache_gb
     case "$target_device" in
         *GPU*)
-            # Detect dedicated VRAM via sysfs (mem_info_vram_total, i915/xe drivers).
+            # Probe dedicated VRAM (xe driver: dmem cgroup; i915 DKMS: lmem sysfs) and
+            # use 33% of it; if none found, assume iGPU and use 25% of shared system RAM.
             local vram_bytes=0
-            local vram_file
-            for vram_file in \
-                /sys/bus/pci/drivers/i915/*/mem_info_vram_total \
-                /sys/bus/pci/drivers/xe/*/mem_info_vram_total; do
-                [[ -f "$vram_file" ]] || continue
+            if [[ -r /sys/fs/cgroup/dmem.capacity ]]; then
+                vram_bytes=$(awk '$1 ~ /\/vram/ && $2 > max { max = $2 } END { print max + 0 }' \
+                    /sys/fs/cgroup/dmem.capacity)
+            fi
+
+            local lmem_file
+            for lmem_file in /sys/class/drm/card*/lmem_total_bytes; do
+                [[ -f "$lmem_file" ]] || continue
                 local v
-                v=$(cat "$vram_file" 2>/dev/null)
+                v=$(cat "$lmem_file" 2>/dev/null)
                 if [[ -n "$v" && "$v" -gt "$vram_bytes" ]] 2>/dev/null; then
                     vram_bytes="$v"
                 fi
             done
-
-            # xe reports dedicated VRAM through the cgroup device-memory
-            # controller on systems where mem_info_vram_total is unavailable.
-            if [[ "$vram_bytes" -eq 0 && -r /sys/fs/cgroup/dmem.capacity ]]; then
-                vram_bytes=$(awk '$1 ~ /\/vram/ && $2 > max { max = $2 } END { print max + 0 }' \
-                    /sys/fs/cgroup/dmem.capacity)
-            fi
 
             if [[ "$vram_bytes" -gt 0 ]] 2>/dev/null; then
                 # dGPU: ~33% of dedicated VRAM, clamped to [2, 16]
@@ -716,119 +853,49 @@ ovms_ms_model_dir() {
         "${OV_MODELS_ROOT}" "${OVMS_MS_DOWNLOAD_PATH}" "${device_lc}" "${format_lc}" "${source_model}"
 }
 
-# Export a model for OVMS via the model-download microservice (ephemeral).
-# Storage-aware naming {model}_{device}_{format} lets multiple configs coexist.
-export_model_for_ovms() {
-    local source_model="$1"
-    local target_device="$2"
-    local weight_format="$3"
-    local pipeline_type="$4"
-    local storage_model_name cache_size model_type config_json model_dir
-    local ms_args=()
+ovms_model_present() {
+    local model_dir
+    model_dir=$(ovms_ms_model_dir "$1" "$2" "$3")
+    [ -f "${model_dir}/graph.pbtxt" ]
+}
 
-    if [ -z "$source_model" ]; then
-        echo -e "${RED}ERROR: Missing source model for OVMS export.${NC}" >&2
-        return 1
-    fi
+finalize_ovms_model() {
+    local model="$1" target_device="$2" weight_format="$3"
+    local model_dir storage_model_name desired_cache_size existing_cache_size
 
-    # Generate storage-aware model name that includes device and format
-    storage_model_name=$(get_ovms_storage_model_name "$source_model" "$target_device" "$weight_format")
-
-    cache_size=$(get_ovms_cache_size "$target_device") || return 1
-    echo -e "[ovms-service] ${BLUE}Cache size: ${YELLOW}${cache_size} GB${NC} for device ${YELLOW}${target_device}${NC}"
-
-    # A non-empty pipeline_type (e.g. VLM_CB) marks a vision-language model.
-    if [ -n "$pipeline_type" ]; then
-        model_type="vlm"
-        config_json="{\"pipeline_type\":\"${pipeline_type}\"}"
-    else
-        model_type="llm"
-        config_json=""
-    fi
-
-    mkdir -p "${OV_MODELS_ROOT}"
-
-    ms_args=(
-        --model-name "$source_model"
-        --hub openvino
-        --type "$model_type"
-        --is-ovms
-        --precision "$weight_format"
-        --device "$target_device"
-        --cache-size "$cache_size"
-        --download-path "$OVMS_MS_DOWNLOAD_PATH"
-    )
-    [ -n "$config_json" ] && ms_args+=(--config-json "$config_json")
-
-    # The microservice handles gated models via the HF_TOKEN env (forwarded by
-    # download_model_via_ms); no host-side `hf auth login` is required.
-    if ! download_model_via_ms "${OV_MODELS_ROOT}" "huggingface,openvino" "${ms_args[@]}"; then
-        echo -e "${RED}ERROR: Failed to export the model '${source_model}' for OVMS via model-download.${NC}" >&2
-        return 1
-    fi
-
-    fix_model_dir_ownership "${OV_MODELS_ROOT}/${OVMS_MS_DOWNLOAD_PATH}"
-
-    model_dir=$(ovms_ms_model_dir "$source_model" "$target_device" "$weight_format")
+    model_dir=$(ovms_ms_model_dir "$model" "$target_device" "$weight_format")
     if [ ! -f "${model_dir}/graph.pbtxt" ]; then
         echo -e "${RED}ERROR: Converted OVMS model not found at ${model_dir} (missing graph.pbtxt).${NC}" >&2
         return 1
     fi
 
-    # Patch the KV cache size in graph.pbtxt to the desired value.
-    local existing_cache_size
+    # Patch the KV cache size in graph.pbtxt if it differs from the desired one.
+    desired_cache_size=$(get_ovms_cache_size "$target_device") || return 1
     existing_cache_size=$(grep -oP 'cache_size:\s*\K[0-9]+' "${model_dir}/graph.pbtxt" 2>/dev/null)
-    if [[ -n "$existing_cache_size" && "$existing_cache_size" -ne "$cache_size" ]]; then
-        sed -i "s/cache_size:\s*${existing_cache_size}/cache_size: ${cache_size}/" "${model_dir}/graph.pbtxt"
-        echo -e "[ovms-service] ${BLUE}Updated cache size: ${YELLOW}${existing_cache_size} → ${cache_size} GB${NC} in graph.pbtxt"
+    if [[ -n "$existing_cache_size" && "$existing_cache_size" -ne "$desired_cache_size" ]]; then
+        fix_model_dir_ownership "${model_dir}"
+        sed -i "s/cache_size:\s*${existing_cache_size}/cache_size: ${desired_cache_size}/" "${model_dir}/graph.pbtxt" || {
+            echo -e "${RED}ERROR: Failed to patch cache_size in ${model_dir}/graph.pbtxt${NC}" >&2
+            return 1
+        }
+        echo -e "[ovms-service] ${BLUE}Updated cache size: ${YELLOW}${existing_cache_size} → ${desired_cache_size} GB${NC} in graph.pbtxt"
     fi
 
-    # Register the converted model under its storage-aware name in OVMS config.
+    # Register the model in OVMS config.json (add_model_to_ovms_config is idempotent).
+    storage_model_name=$(get_ovms_storage_model_name "$model" "$target_device" "$weight_format")
     add_model_to_ovms_config "${OV_MODELS_ROOT}/${OVMS_MS_DOWNLOAD_PATH}/config.json" "${storage_model_name}" "${model_dir}"
 }
 
-ensure_ovms_model() {
-    local model_name="$1"
-    local target_device="$2"
-    local weight_format="$3"
-    local pipeline_type="$4"
-    local ovms_model_config="${OV_MODELS_ROOT}/${OVMS_MS_DOWNLOAD_PATH}/config.json"
-    local storage_model_name
-    local model_path
-
-    # Generate storage-aware model name (includes device and format)
-    storage_model_name=$(get_ovms_storage_model_name "$model_name" "$target_device" "$weight_format")
-    model_path=$(ovms_ms_model_dir "$model_name" "$target_device" "$weight_format")
-
-    # Check if model folder already exists with this device/format configuration
-    if [ -d "$model_path" ] && [ -f "${model_path}/graph.pbtxt" ]; then
-        echo -e "[ovms-service] ${GREEN}Model ${YELLOW}${storage_model_name}${GREEN} already exists. Skipping export.${NC}"
-
-        # Compute the desired cache size and update graph.pbtxt if it differs
-        local desired_cache_size existing_cache_size
-        desired_cache_size=$(get_ovms_cache_size "$target_device") || return 1
-        existing_cache_size=$(grep -oP 'cache_size:\s*\K[0-9]+' "${model_path}/graph.pbtxt" 2>/dev/null)
-
-        if [[ -n "$existing_cache_size" && "$existing_cache_size" -ne "$desired_cache_size" ]]; then
-            fix_model_dir_ownership "${model_path}"
-            sed -i "s/cache_size:\s*${existing_cache_size}/cache_size: ${desired_cache_size}/" "${model_path}/graph.pbtxt" || {
-                echo -e "${RED}ERROR: Failed to patch cache_size in ${model_path}/graph.pbtxt${NC}" >&2
-                return 1
-            }
-            echo -e "[ovms-service] ${BLUE}Updated cache size: ${YELLOW}${existing_cache_size} → ${desired_cache_size} GB${NC} in graph.pbtxt"
-        fi
-
-        # Ensure it's registered in config.json (add_model_to_ovms_config is idempotent)
-        add_model_to_ovms_config "${ovms_model_config}" "${storage_model_name}" "${model_path}"
+# Decide what to do for one OVMS model: finalize it when already on disk,
+# otherwise mark it for download by setting the given MD_NEED_* flag.
+md_finalize_or_queue_ovms() {
+    local model="$1" device="$2" weight_format="$3" storage_name="$4" need_flag_var="$5"
+    if ovms_model_present "$model" "$device" "$weight_format"; then
+        echo -e "[ovms-service] ${GREEN}Model ${YELLOW}${storage_name}${GREEN} already exists. Skipping export.${NC}"
+        finalize_ovms_model "$model" "$device" "$weight_format"
     else
-        echo -e "[ovms-service] ${YELLOW}Model ${RED}${storage_model_name}${YELLOW} not found. Exporting...${NC}"
-        
-        # Export the model
-        export_model_for_ovms \
-            "$model_name" \
-            "$target_device" \
-            "$weight_format" \
-            "$pipeline_type" || return 1
+        echo -e "[ovms-service] ${YELLOW}Model ${RED}${storage_name}${YELLOW} not found. Queueing download...${NC}"
+        printf -v "$need_flag_var" '%s' true
     fi
 }
 
@@ -869,6 +936,47 @@ with open(config_path, 'w') as f:
     json.dump(config, f, indent=2)
 print(f"Added {model_name} to config")
 PY
+}
+
+# Download every model this run still needs (MD_NEED_OD / MD_NEED_VLM /
+# MD_NEED_LLM) through one transient model-download service container.
+# Models download one at a time, in OD -> VLM -> LLM order.
+md_run_downloads() {
+    if [ "$MD_NEED_OD" != true ] && [ "$MD_NEED_VLM" != true ] && [ "$MD_NEED_LLM" != true ]; then
+        return 0
+    fi
+
+    md_start_service || return 1
+    md_wait_healthy || { md_teardown 1; return 1; }
+
+    # Download the needed models one at a time.
+    if [ "$MD_NEED_OD" = true ]; then
+        md_download_model "${OD_MODEL_DOWNLOAD_PATH}" "$(md_payload_od "$OD_MODEL_NAME")" \
+            "Object Detection (${OD_MODEL_NAME})" || { md_teardown 1; return 1; }
+    fi
+    if [ "$MD_NEED_VLM" = true ]; then
+        md_download_ovms_model vlm "$VLM_MODEL_NAME" "$VLM_TARGET_DEVICE" "$VLM_COMPRESSION_WEIGHT_FORMAT" \
+            || { md_teardown 1; return 1; }
+    fi
+    if [ "$MD_NEED_LLM" = true ]; then
+        md_download_ovms_model llm "$LLM_MODEL_NAME" "$LLM_TARGET_DEVICE" "$LLM_COMPRESSION_WEIGHT_FORMAT" \
+            || { md_teardown 1; return 1; }
+    fi
+
+    # Post-download steps: one ownership sweep over everything the containerwrote as UID 1001, then IR verification and OVMS registration.
+    local rc=0
+    fix_model_dir_ownership "${OV_MODELS_ROOT}"
+    if [ "$MD_NEED_OD" = true ]; then
+        md_verify_od_model || rc=1
+    fi
+    if [ "$rc" -eq 0 ] && [ "$MD_NEED_VLM" = true ]; then
+        finalize_ovms_model "$VLM_MODEL_NAME" "$VLM_TARGET_DEVICE" "$VLM_COMPRESSION_WEIGHT_FORMAT" || rc=1
+    fi
+    if [ "$rc" -eq 0 ] && [ "$MD_NEED_LLM" = true ]; then
+        finalize_ovms_model "$LLM_MODEL_NAME" "$LLM_TARGET_DEVICE" "$LLM_COMPRESSION_WEIGHT_FORMAT" || rc=1
+    fi
+
+    md_teardown "$rc"
 }
 
 if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "$1" = "--unified" ]; then
@@ -936,9 +1044,9 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
     od_model_bin="${OD_MODEL_OUTPUT_DIR}/FP32/${OD_MODEL_NAME}.bin"
     if [ "$1" != "--search" ] && [ "$2" != "config" ]; then
         if [ ! -f "${od_model_xml}" ] || [ ! -f "${od_model_bin}" ]; then
-            echo -e  "[video-ingestion] ${YELLOW}Object detection model file not found at ${od_model_xml} or ${od_model_bin}. Running model conversion...${NC}"
+            echo -e  "[video-ingestion] ${YELLOW}Object detection model file not found at ${od_model_xml} or ${od_model_bin}. Queueing model download...${NC}"
             mkdir -p "${OD_MODEL_OUTPUT_DIR}"
-            convert_object_detection_models
+            MD_NEED_OD=true
         else
             echo -e  "[video-ingestion] ${YELLOW}Object detection model file found at ${od_model_xml}. Skipping model setup...${NC}"
         fi
@@ -1005,7 +1113,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             enforce_npu_int4_weight_format "VLM" "$VLM_TARGET_DEVICE" "VLM_COMPRESSION_WEIGHT_FORMAT"
             enforce_npu_int4_weight_format "LLM" "$LLM_TARGET_DEVICE" "LLM_COMPRESSION_WEIGHT_FORMAT"
 
-            echo -e "[ovms-service] ${BLUE}Target devices — VLM: ${YELLOW}${VLM_TARGET_DEVICE}${BLUE} (${VLM_COMPRESSION_WEIGHT_FORMAT}), LLM: ${YELLOW}${LLM_TARGET_DEVICE}${BLUE} (${LLM_COMPRESSION_WEIGHT_FORMAT})${NC}"
+            echo -e "[ovms-service] ${BLUE}Target device - VLM: ${YELLOW}${VLM_TARGET_DEVICE}${BLUE} (${VLM_COMPRESSION_WEIGHT_FORMAT}), LLM: ${YELLOW}${LLM_TARGET_DEVICE}${BLUE} (${LLM_COMPRESSION_WEIGHT_FORMAT})${NC}"
 
             # Adjust concurrency and frame count for non-CPU devices
             if [[ "$VLM_TARGET_DEVICE" != "CPU" ]]; then
@@ -1048,7 +1156,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
                 export LLM_STORAGE_MODEL_NAME="$VLM_STORAGE_MODEL_NAME"
             fi
             
-            echo -e "[ovms-service] ${GREEN}Storage models — VLM: ${YELLOW}${VLM_STORAGE_MODEL_NAME}${GREEN}, LLM: ${YELLOW}${LLM_STORAGE_MODEL_NAME}${NC}"
+            echo -e "[ovms-service] ${GREEN}Storage models - VLM: ${YELLOW}${VLM_STORAGE_MODEL_NAME}${GREEN}, LLM: ${YELLOW}${LLM_STORAGE_MODEL_NAME}${NC}"
 
             if [ "$2" != "config" ]; then
                 # Reset OVMS config to only include storage model names needed for this run
@@ -1058,21 +1166,21 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
                     reset_ovms_config "$VLM_STORAGE_MODEL_NAME"
                 fi
 
-                ensure_ovms_model \
-                    "$VLM_MODEL_NAME" \
-                    "$VLM_TARGET_DEVICE" \
-                    "$VLM_COMPRESSION_WEIGHT_FORMAT" \
-                    "VLM_CB" || return 1
-
+                # Models already on disk are finalized right away; missing ones
+                # are queued for md_run_downloads below.
+                md_finalize_or_queue_ovms "$VLM_MODEL_NAME" "$VLM_TARGET_DEVICE" \
+                    "$VLM_COMPRESSION_WEIGHT_FORMAT" "$VLM_STORAGE_MODEL_NAME" MD_NEED_VLM || return 1
                 if [ "$ovms_split_model" = true ]; then
-                    ensure_ovms_model \
-                        "$LLM_MODEL_NAME" \
-                        "$LLM_TARGET_DEVICE" \
-                        "$LLM_COMPRESSION_WEIGHT_FORMAT" \
-                        "" || return 1
+                    md_finalize_or_queue_ovms "$LLM_MODEL_NAME" "$LLM_TARGET_DEVICE" \
+                        "$LLM_COMPRESSION_WEIGHT_FORMAT" "$LLM_STORAGE_MODEL_NAME" MD_NEED_LLM || return 1
                 fi
             fi
         fi
+    fi
+
+    # Download any models still missing before bringing the application up.
+    if [ "$2" != "config" ]; then
+        md_run_downloads || return 1
     fi
 
     # if config is passed, set the command to only generate the config
