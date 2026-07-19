@@ -12,7 +12,7 @@ Collects hardware KPIs per job and produces JSON, CSV, and HTML bar-chart report
 
 ```bash
 make test-performance                    # default: CPU+GPU+NPU, 1 and 3 streams
-make test-performance PERF_CONFIG=quick  # CPU+GPU only, 1 and 3 streams
+make test-performance PERF_CONFIG=quick  # CPU+GPU only, 1 stream
 make test-performance PERF_CONFIG=full   # all variants, 1/3/5/10 streams
 ```
 
@@ -53,7 +53,7 @@ perf_helpers/
 └── reporters.py            # JSON/CSV export + HTML report generation
 config/
 ├── default.yaml            # CPU+GPU+NPU, 1 & 3 streams
-├── quick.yaml              # CPU+GPU, 1 & 3 streams
+├── quick.yaml              # CPU+GPU, 1 stream
 └── full.yaml               # all variants, 1/3/5/10 streams
 ```
 

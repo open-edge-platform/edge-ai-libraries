@@ -10,6 +10,7 @@ Source: VIPPET metrics-manager JSON API (CPU, GPU, NPU, memory, temperature, pow
 import json
 import logging
 import threading
+import time
 from typing import Any
 
 import requests
@@ -29,15 +30,18 @@ def _fetch_metrics_manager(url: str) -> dict[str, float]:
       - Plain JSON with ``metrics`` as a list or dict
     """
     try:
-        resp = requests.get(url, timeout=5, stream=True)
-        resp.raise_for_status()
-
         raw = ""
-        for line in resp.iter_lines(decode_unicode=True):
-            if isinstance(line, str) and line.startswith("data: "):
-                raw = line[6:]
+        for attempt in range(3):
+            resp = requests.get(url, timeout=5, stream=True)
+            resp.raise_for_status()
+            for line in resp.iter_lines(decode_unicode=True):
+                if isinstance(line, str) and line.startswith("data: "):
+                    raw = line[6:]
+                    break
+            resp.close()
+            if raw:
                 break
-        resp.close()
+            time.sleep(1)
 
         if not raw:
             return {}
