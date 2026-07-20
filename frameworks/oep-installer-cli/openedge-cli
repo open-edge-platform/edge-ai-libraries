@@ -78,7 +78,7 @@ act_find_deps () {
   local -A handlers=()
   while [ $i -lt ${#modules[*]} ]; do
     local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
-    [ -z "$profiler" ] || modules+=($($profiler))
+    [ -z "$profiler" ] || modules+=($($profiler $act_name))
     local handler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_${act_name}_${modules[$i]}$" | cut -f3 -d' ')
     if [ -n "$handler" ]; then
       handlers[$handler]=1
@@ -196,7 +196,7 @@ subcommand_bootstrap () {
       scripts["$script"]=1
       . "$script"
       local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
-      [ -z "$profiler" ] || modules+=($($profiler))
+      [ -z "$profiler" ] || modules+=($(for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do $profiler $cmd;done))
     else
       echo "Unknown component or profile: ${modules[$i]}" 1>&2
       exit 3

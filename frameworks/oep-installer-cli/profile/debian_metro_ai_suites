@@ -1,0 +1,10 @@
+
+# metro ai suites cannot start at the same time
+debian_99_profile_metro_ai_suites () {
+  case "$1" in
+  install|remove)
+    echo "smart_intersection smart_parking loitering_detection"
+    ;;
+  esac
+}
+

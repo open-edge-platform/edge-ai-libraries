@@ -1,0 +1,42 @@
+
+configure_loitering_detection () {
+  workspace="$(readlink -f ~)/openedge-catalog/sample-loitering-detection"
+  version=release-2026.1.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+debian_90_profile_loitering_detection () {
+  echo "git curl gawk"
+}
+
+debian_90_install_loitering_detection () {
+  configure_loitering_detection
+  [ ! -e "$workspace" ] || [[ "$*" = *"--reset-loitering_detection"* ]] || return 0
+
+  # clone the repository
+  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+
+  # setup
+  pushd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe" > /dev/null
+  ./install.sh smart-parking $(ensure_ip)
+  popd > /dev/null
+}
+
+debian_90_start_loitering_detection () {
+  configure_loitering_detection
+  pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
+  ./sample_start.sh
+  popd > /dev/null
+}
+
+debian_90_stop_loitering_detection () {
+  configure_loitering_detection
+  pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
+  ./sample_start.sh
+  popd > /dev/null
+}
+
+debian_90_remove_loitering_detection () {
+  configure_loitering_detection
+  ensure_rmdir "$workspace"
+}

@@ -1,0 +1,42 @@
+
+configure_smart_parking () {
+  workspace="$(readlink -f ~)/openedge-catalog/sample-smart-parking"
+  version=release-2026.1.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+debian_90_profile_smart_parking () {
+  echo "git curl gawk"
+}
+
+debian_90_install_smart_parking () {
+  configure_smart_parking
+  [ ! -e "$workspace" ] || [[ "$*" = *"--reset-smart_parking"* ]] || return 0
+
+  # clone the repository
+  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+
+  # setup
+  pushd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe" > /dev/null
+  ./install.sh smart-parking $(ensure_ip)
+  popd > /dev/null
+}
+
+debian_90_start_smart_parking () {
+  configure_smart_parking
+  pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
+  ./sample_start.sh
+  popd > /dev/null
+}
+
+debian_90_stop_smart_parking () {
+  configure_smart_parking
+  pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
+  ./sample_start.sh
+  popd > /dev/null
+}
+
+debian_90_remove_smart_parking () {
+  configure_smart_parking
+  ensure_rmdir "$workspace"
+}
