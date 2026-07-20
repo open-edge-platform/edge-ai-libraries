@@ -18,6 +18,9 @@ import GVAGenAINode, { GVAGenAINodeWidth } from "./GVAGenAINode.tsx";
 import GVAMotionDetectNode, {
   GVAMotionDetectNodeWidth,
 } from "./GVAMotionDetectNode.tsx";
+import GVAProximityTriggerPyNode, {
+  GVAProximityTriggerPyNodeWidth,
+} from "./GVAProximityTriggerPyNode.tsx";
 import GVATrackNode from "./GVATrackNode.tsx";
 import GVAWatermarkNode, {
   GVAWatermarkNodeWidth,
@@ -63,13 +66,17 @@ export const nodeTypes = {
   gvametapublish: GVAMetaPublishNode,
   gvagenai: GVAGenAINode,
   gvamotiondetect: GVAMotionDetectNode,
+  gvaproximitytrigger_py: GVAProximityTriggerPyNode,
   fakesink: FakeSinkNode,
   "video/x-raw(memory:VAMemory)": VideoXRawNode,
   vapostproc: VAPostProcNode,
   videoconvert: VideoConvertNode,
+  videoconvertscale: VideoConvertNode,
   "video/x-raw": VideoXRawWithDimensionsNode,
   mp4mux: Mp4MuxNode,
   filesink: FileSinkNode,
+  multifilesink: FileSinkNode,
+  jpegenc: QueueNode,
   vah264enc: VAH264EncNode,
   decodebin3: Decodebin3Node,
   parsebin: ParsebinNode,
@@ -98,6 +105,7 @@ export const nodeWidths: Record<string, number> = {
   gvametapublish: GVAMetaPublishNodeWidth,
   gvagenai: GVAGenAINodeWidth,
   gvamotiondetect: GVAMotionDetectNodeWidth,
+  gvaproximitytrigger_py: GVAProximityTriggerPyNodeWidth,
   gvafpscounter: GVAFpsCounterNodeWidth,
   gvawatermark: GVAWatermarkNodeWidth,
   videoconvert: VideoConvertNodeWidth,

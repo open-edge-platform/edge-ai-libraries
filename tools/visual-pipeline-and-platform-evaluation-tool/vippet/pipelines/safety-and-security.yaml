@@ -1,0 +1,45 @@
+name: Safety and Security
+definition: >
+  Safety and security pipeline with object detection, proximity trigger, VLM analysis, and dual outputs
+  (annotated video + JSON metadata and JPEG snapshots).
+tags:
+  - Safety
+  - Security
+  - GenAi
+thumbnail: images/smart-nvr.png
+variants:
+  - name: NPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 caps=video/x-raw\(ANY\) !
+      gvadetect
+        model=/models/output/public/yolo11s/INT8/yolo11s.xml
+        device=NPU !
+      queue !
+      tee name=t
+      queue flush-on-eos=true !
+      gvawatermark !
+      gvafpscounter !
+      vah264enc !
+      h264parse !
+      mp4mux fragment-duration=1000 !
+      filesink location=/tmp/safety-and-security-output.mp4
+      t. !
+      queue leaky=downstream max-size-buffers=1 flush-on-eos=true !
+      gvaproximitytrigger_py
+        class-a=person
+        class-b=bicycle
+        distance=150
+        frames=10 !
+      videoconvertscale !
+      video/x-raw,width=796,height=448 !
+      gvagenai
+        model-path=/models/output/openvino_models/cpu/int4/google/gemma-3-4b-it
+        device=CPU
+        prompt="Are people riding on bicycles? Answer yes or no."
+        generation-config="max_new_tokens=10"
+        chunk-size=1
+        metrics=true !
+      gvametapublish method=file file-format=json-lines file-path=/tmp/safety-and-security-events.jsonl !
+      jpegenc !
+      multifilesink location=/tmp/safety-and-security-vlm_frame_%05d.jpeg async=false

@@ -257,6 +257,41 @@ const NodeDataPanel = ({
         return gvaGenAIConfig;
       case "gvamotiondetect":
         return gvaMotionDetectConfig;
+      case "gvaproximitytrigger_py":
+        return {
+          editableProperties: [
+            {
+              key: "class-a",
+              label: "Class A",
+              type: "text" as const,
+              defaultValue: "person",
+              description: "Primary class used in proximity condition",
+            },
+            {
+              key: "class-b",
+              label: "Class B",
+              type: "text" as const,
+              defaultValue: "bicycle",
+              description: "Secondary class used in proximity condition",
+            },
+            {
+              key: "distance",
+              label: "Distance (px)",
+              type: "number" as const,
+              defaultValue: 150,
+              description:
+                "Maximum center-to-center distance between class A and class B objects",
+            },
+            {
+              key: "frames",
+              label: "Consecutive frames",
+              type: "number" as const,
+              defaultValue: 10,
+              description:
+                "How many consecutive frames must satisfy the distance condition before triggering",
+            },
+          ],
+        };
       case "source":
         return sourceNodeConfig;
       default:
