@@ -93,6 +93,28 @@ class Settings(BaseSettings):
         "each bucket maps to a subdirectory.",
     )
 
+    # ------------------------------------------------------------------
+    # Batch ingestion settings
+    # ------------------------------------------------------------------
+    # Root directory (mounted into the container) that directory-ingest requests
+    # are resolved against. Requested paths are constrained to this root to
+    # prevent path traversal. Parity with the EOL milvus-dataprep host-dir ingest.
+    INGEST_DATA_ROOT: str = Field(
+        default="/tmp/dataprep/ingest",
+        description="Root directory for POST /videos/ingest-dir; requested paths "
+        "are constrained to this root (no traversal outside it).",
+    )
+    BATCH_MAX_ITEMS: int = Field(
+        default=100,
+        ge=1,
+        description="Maximum number of items (files/videos) accepted in a single batch job.",
+    )
+    BATCH_JOB_RETENTION: int = Field(
+        default=200,
+        ge=1,
+        description="Maximum number of finished batch jobs retained in memory for status polling.",
+    )
+
     EMBEDDING_MODEL_NAME: str = ""  # Model name - must be explicitly set
 
     # Embedding settings

@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Intel GenAI Multimodal DataPrep Microservice (VDMS Based)
+  title: Intel GenAI Multimodal DataPrep Microservice
   description: A microservice for data preparation from text, video and image sources
   version: 0.1.0
 paths:
@@ -408,6 +408,201 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /videos/upload/batch:
+    post:
+      tags:
+      - Batch Ingestion APIs
+      summary: Upload and process multiple video files (async batch job).
+      description: Accept multiple MP4 uploads, stash them to storage, and submit
+        one async job.
+      operationId: uploadAndProcessVideoBatch
+      parameters:
+      - name: bucket_name
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Target bucket (default if unset).
+          title: Bucket Name
+        description: Target bucket (default if unset).
+      - name: frame_interval
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            maximum: 60
+            minimum: 1
+          - type: 'null'
+          description: 'Extract every Nth frame (default: 15).'
+          title: Frame Interval
+        description: 'Extract every Nth frame (default: 15).'
+      - name: enable_object_detection
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: Enable object detection and crop extraction.
+          title: Enable Object Detection
+        description: Enable object detection and crop extraction.
+      - name: detection_confidence
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.1
+          - type: 'null'
+          description: Object detection confidence threshold.
+          title: Detection Confidence
+        description: Object detection confidence threshold.
+      - name: tags
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          description: Tags for all uploaded videos.
+          title: Tags
+        description: Tags for all uploaded videos.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_uploadAndProcessVideoBatch'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchSubmitResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /videos/batch:
+    post:
+      tags:
+      - Batch Ingestion APIs
+      summary: Batch-process videos already present in storage (async batch job).
+      description: 'Submit an async job over videos that already exist in storage.
+
+
+        Provide either an explicit ``items`` list or a ``bucket_name`` (optionally
+
+        narrowed by ``prefix``) selector.'
+      operationId: processVideoBatchExisting
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchProcessExistingRequest'
+              description: Batch selection + params
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchSubmitResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /videos/ingest-dir:
+    post:
+      tags:
+      - Batch Ingestion APIs
+      summary: Ingest all supported videos from a mounted directory (async batch job).
+      description: Walk a mounted directory, stash each MP4 into storage, and submit
+        one async job.
+      operationId: ingestDirectory
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DirectoryIngestRequest'
+              description: Directory ingest parameters
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchSubmitResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /videos/batch/{job_id}:
+    get:
+      tags:
+      - Batch Ingestion APIs
+      summary: Get the status and per-item results of a batch job.
+      operationId: getBatchJobStatus
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchJobStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Batch Ingestion APIs
+      summary: Request cancellation of a pending/running batch job.
+      operationId: cancelBatchJob
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchJobStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /telemetry:
     get:
       tags:
@@ -682,6 +877,206 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
+    BatchItemResult:
+      properties:
+        identifier:
+          type: string
+          title: Identifier
+          description: Human-readable item identifier (e.g. filename).
+        bucket_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Bucket Name
+        video_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Video Id
+        status:
+          $ref: '#/components/schemas/BatchItemStatusEnum'
+          default: pending
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        embeddings_count:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Embeddings Count
+      type: object
+      required:
+      - identifier
+      title: BatchItemResult
+      description: Result of processing a single item within a batch job.
+    BatchItemStatusEnum:
+      type: string
+      enum:
+      - pending
+      - running
+      - success
+      - error
+      - skipped
+      title: BatchItemStatusEnum
+      description: Per-item processing status within a batch job.
+    BatchJobStateEnum:
+      type: string
+      enum:
+      - pending
+      - running
+      - completed
+      - completed_with_errors
+      - failed
+      - cancelled
+      title: BatchJobStateEnum
+      description: Lifecycle states for an asynchronous batch ingestion job.
+    BatchJobStatus:
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: success
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        job_id:
+          type: string
+          title: Job Id
+        state:
+          $ref: '#/components/schemas/BatchJobStateEnum'
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+        total:
+          type: integer
+          title: Total
+          default: 0
+        completed:
+          type: integer
+          title: Completed
+          default: 0
+        failed:
+          type: integer
+          title: Failed
+          default: 0
+        items:
+          items:
+            $ref: '#/components/schemas/BatchItemResult'
+          type: array
+          title: Items
+        created_ts:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Created Ts
+        updated_ts:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Updated Ts
+      type: object
+      required:
+      - job_id
+      - state
+      title: BatchJobStatus
+      description: Status and per-item results for an asynchronous batch job.
+    BatchProcessExistingRequest:
+      properties:
+        items:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/VideoRequest'
+            type: array
+          - type: 'null'
+          title: Items
+          description: Explicit list of videos to process.
+        bucket_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Bucket Name
+          description: 'Selector: process all videos in this bucket.'
+        prefix:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Prefix
+          description: 'Selector: only video_ids starting with this prefix.'
+        frame_interval:
+          anyOf:
+          - type: integer
+            maximum: 60.0
+            minimum: 1.0
+          - type: 'null'
+          title: Frame Interval
+          description: 'Extract every Nth frame (default: 15).'
+        enable_object_detection:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Enable Object Detection
+          description: Enable object detection and crop extraction.
+        detection_confidence:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.1
+          - type: 'null'
+          title: Detection Confidence
+          description: Object detection confidence threshold.
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+          description: Tags associated with every video in the batch.
+      type: object
+      title: BatchProcessExistingRequest
+      description: 'Request model for batch-processing videos that already exist in
+        storage.
+
+
+        Either provide an explicit list of ``items`` (per-video overrides), or a
+
+        ``bucket_name`` selector (optionally narrowed by ``prefix``) to process every
+
+        video found in that bucket. Selector-level ``frame_interval`` /
+
+        ``enable_object_detection`` / ``detection_confidence`` / ``tags`` apply to
+        all
+
+        videos matched by the selector.'
+    BatchSubmitResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: success
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        job_id:
+          type: string
+          title: Job Id
+          description: Identifier used to poll job status.
+        accepted:
+          type: integer
+          title: Accepted
+          description: Number of items accepted into the job.
+      type: object
+      required:
+      - job_id
+      - accepted
+      title: BatchSubmitResponse
+      description: Response returned when a batch job is accepted (HTTP 202).
     Body_uploadAndProcessVideo:
       properties:
         file:
@@ -693,6 +1088,19 @@ components:
       required:
       - file
       title: Body_uploadAndProcessVideo
+    Body_uploadAndProcessVideoBatch:
+      properties:
+        files:
+          items:
+            type: string
+            contentMediaType: application/octet-stream
+          type: array
+          title: Files
+          description: Video files to upload (MP4 only)
+      type: object
+      required:
+      - files
+      title: Body_uploadAndProcessVideoBatch
     BucketVideoListResponse:
       properties:
         status:
@@ -730,6 +1138,66 @@ components:
       type: object
       title: DataPrepResponse
       description: Response model for API Responses from DataStore service
+    DirectoryIngestRequest:
+      properties:
+        dir_path:
+          type: string
+          title: Dir Path
+          description: Directory to ingest, relative to the configured ingest data
+            root.
+        bucket_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Bucket Name
+          description: Target bucket for stored videos (default bucket if unset).
+        recursive:
+          type: boolean
+          title: Recursive
+          description: Recurse into subdirectories (the 'meta' dir is skipped).
+          default: false
+        frame_interval:
+          anyOf:
+          - type: integer
+            maximum: 60.0
+            minimum: 1.0
+          - type: 'null'
+          title: Frame Interval
+          description: 'Extract every Nth frame (default: 15).'
+        enable_object_detection:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Enable Object Detection
+          description: Enable object detection and crop extraction.
+        detection_confidence:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.1
+          - type: 'null'
+          title: Detection Confidence
+          description: Object detection confidence threshold.
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+          description: Tags associated with every ingested file.
+      type: object
+      required:
+      - dir_path
+      title: DirectoryIngestRequest
+      description: 'Request model for backward-compatible directory ingestion.
+
+
+        Walks ``dir_path`` (resolved against the configured ingest data root) and
+
+        submits every supported media file as a batch job. Mirrors the EOL
+
+        milvus-dataprep host-directory ingest contract.'
     HTTPValidationError:
       properties:
         detail:

@@ -22,6 +22,7 @@ from src.common import logger, settings
 from src.common.schema import DataPrepResponse, StatusEnum
 from src.core.vectorstores import get_vector_store
 from src.endpoints import (
+    batch_ingest_router,
     check_health_router,
     delete_video_router,
     download_video_router,
@@ -199,6 +200,7 @@ app.include_router(process_document_router)
 # Video processing endpoints
 app.include_router(process_minio_video_router)
 app.include_router(upload_and_process_video_router)
+app.include_router(batch_ingest_router)
 
 # Telemetry endpoints
 app.include_router(telemetry_router)

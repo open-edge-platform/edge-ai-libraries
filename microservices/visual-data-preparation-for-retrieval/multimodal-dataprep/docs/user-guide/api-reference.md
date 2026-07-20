@@ -275,6 +275,100 @@ curl -X POST "http://localhost:8000/v1/dataprep/videos/upload?frame_interval=15&
 
 ---
 
+## Batch Ingestion (asynchronous)
+
+Batch ingestion processes many videos with a single request. All batch endpoints
+return **`202 Accepted`** immediately with a `job_id`; the heavy processing runs
+in the background so the service stays responsive. Poll
+`GET /videos/batch/{job_id}` for per-item results. Batches are processed
+sequentially with **per-item error isolation** — one failing video does not abort
+the rest of the batch. The maximum items per batch is `MM_DATAPREP_BATCH_MAX_ITEMS`
+(default 100). Batch ingestion works identically for both the MinIO and local
+storage backends.
+
+### `POST /videos/upload/batch`
+
+Upload multiple MP4 files in one multipart request.
+
+**Request:** `multipart/form-data` — repeat the `files` field for each file.
+Query params (`bucket_name`, `frame_interval`, `enable_object_detection`,
+`detection_confidence`, `tags`) apply to every file in the batch.
+
+```bash
+curl -X POST "http://localhost:8000/v1/dataprep/videos/upload/batch?frame_interval=15" \
+  -F "files=@/path/to/video1.mp4" \
+  -F "files=@/path/to/video2.mp4"
+```
+
+**202 Accepted:**
+
+```json
+{ "status": "success", "message": "Batch ingestion job accepted and is being processed.", "job_id": "…", "accepted": 2 }
+```
+
+### `POST /videos/batch`
+
+Process videos that already exist in storage. Provide **either** an explicit
+`items` list **or** a `bucket_name` selector (optionally narrowed by `prefix`).
+
+```bash
+# Explicit list
+curl -X POST http://localhost:8000/v1/dataprep/videos/batch \
+  -H "Content-Type: application/json" \
+  -d '{"items":[{"video_id":"dp_video_1"},{"video_id":"dp_video_2"}]}'
+
+# Selector: every video in a bucket whose video_id starts with "dp_"
+curl -X POST http://localhost:8000/v1/dataprep/videos/batch \
+  -H "Content-Type: application/json" \
+  -d '{"bucket_name":"video-summary","prefix":"dp_","frame_interval":15}'
+```
+
+### `POST /videos/ingest-dir`
+
+Backward-compatible directory ingest. Walks `dir_path` (resolved against the
+mounted `MM_DATAPREP_INGEST_DATA_ROOT`; paths are constrained to that root to
+prevent traversal) and ingests every `.mp4` file. A `meta/<basename>.json`
+sidecar next to a file may supply `tags` (parity with the legacy milvus-dataprep
+directory ingest). Mount a host directory to `MM_DATAPREP_INGEST_DATA_ROOT` via
+`MM_DATAPREP_INGEST_DATA_ROOT_HOST` in Docker Compose.
+
+```bash
+curl -X POST http://localhost:8000/v1/dataprep/videos/ingest-dir \
+  -H "Content-Type: application/json" \
+  -d '{"dir_path":"clips","recursive":true,"tags":["batch-1"]}'
+```
+
+### `GET /videos/batch/{job_id}`
+
+Poll a batch job. Returns overall `state`
+(`pending` | `running` | `completed` | `completed_with_errors` | `failed` |
+`cancelled`), `total` / `completed` / `failed` counts, and a per-item `items`
+array (`identifier`, `video_id`, `status`, `message`, `embeddings_count`).
+
+```json
+{
+    "status": "success",
+    "job_id": "…",
+    "state": "completed_with_errors",
+    "total": 3,
+    "completed": 2,
+    "failed": 1,
+    "items": [
+        { "identifier": "video1.mp4", "video_id": "dp_video_…", "status": "success", "embeddings_count": 372 },
+        { "identifier": "video2.mp4", "video_id": "dp_video_…", "status": "error", "message": "No video found …" }
+    ]
+}
+```
+
+- 404 Not Found — unknown `job_id`.
+
+### `DELETE /videos/batch/{job_id}`
+
+Request cooperative cancellation of a pending/running job. Items not yet started
+are marked `skipped`. Returns the current job status.
+
+---
+
 ## `GET /videos`
 
 List all videos stored in a Minio bucket.

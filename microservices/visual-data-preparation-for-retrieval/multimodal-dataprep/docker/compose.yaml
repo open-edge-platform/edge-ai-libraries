@@ -99,6 +99,11 @@ services:
             # Application configuration
             - MM_DATAPREP_LOG_LEVEL=${MM_DATAPREP_LOG_LEVEL:-INFO}
 
+            # Batch ingestion settings
+            - MM_DATAPREP_INGEST_DATA_ROOT=${MM_DATAPREP_INGEST_DATA_ROOT:-/tmp/dataprep/ingest}
+            - MM_DATAPREP_BATCH_MAX_ITEMS=${MM_DATAPREP_BATCH_MAX_ITEMS:-100}
+            - MM_DATAPREP_BATCH_JOB_RETENTION=${MM_DATAPREP_BATCH_JOB_RETENTION:-200}
+
             # CORS settings
             - MM_DATAPREP_ALLOW_ORIGINS=${ALLOW_ORIGINS:-*}
             - MM_DATAPREP_ALLOW_METHODS=${ALLOW_METHODS:-*}
@@ -120,6 +125,9 @@ services:
         volumes:
             - '${YOLOX_MODELS_VOLUME_NAME:-dataprep-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
             - data-prep:/tmp/dataprep
+            # Optional bind mount for POST /videos/ingest-dir (directory ingest).
+            # Point MM_DATAPREP_INGEST_DATA_ROOT_HOST at a host directory of videos.
+            - '${MM_DATAPREP_INGEST_DATA_ROOT_HOST:-./ingest-data}:${MM_DATAPREP_INGEST_DATA_ROOT:-/tmp/dataprep/ingest}'
             - ov-models:/home/appuser/.cache/huggingface # Share embedding models cache
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory
         devices:

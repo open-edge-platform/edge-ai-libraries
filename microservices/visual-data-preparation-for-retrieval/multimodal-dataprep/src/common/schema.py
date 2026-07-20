@@ -125,6 +125,137 @@ class VideoRequest(BaseModel):
     ]
 
 
+class BatchJobStateEnum(str, Enum):
+    """Lifecycle states for an asynchronous batch ingestion job."""
+
+    pending = "pending"
+    running = "running"
+    completed = "completed"
+    completed_with_errors = "completed_with_errors"
+    failed = "failed"
+    cancelled = "cancelled"
+
+
+class BatchItemStatusEnum(str, Enum):
+    """Per-item processing status within a batch job."""
+
+    pending = "pending"
+    running = "running"
+    success = "success"
+    error = "error"
+    skipped = "skipped"
+
+
+class BatchProcessExistingRequest(BaseModel):
+    """Request model for batch-processing videos that already exist in storage.
+
+    Either provide an explicit list of ``items`` (per-video overrides), or a
+    ``bucket_name`` selector (optionally narrowed by ``prefix``) to process every
+    video found in that bucket. Selector-level ``frame_interval`` /
+    ``enable_object_detection`` / ``detection_confidence`` / ``tags`` apply to all
+    videos matched by the selector.
+    """
+
+    items: Annotated[
+        Optional[List[VideoRequest]],
+        Field(default=None, description="Explicit list of videos to process."),
+    ] = None
+    bucket_name: Annotated[
+        Optional[str],
+        Field(default=None, description="Selector: process all videos in this bucket."),
+    ] = None
+    prefix: Annotated[
+        Optional[str],
+        Field(default=None, description="Selector: only video_ids starting with this prefix."),
+    ] = None
+    frame_interval: Annotated[
+        Optional[int],
+        Field(default=None, ge=1, le=60, description="Extract every Nth frame (default: 15)."),
+    ] = None
+    enable_object_detection: Annotated[
+        Optional[bool],
+        Field(default=None, description="Enable object detection and crop extraction."),
+    ] = None
+    detection_confidence: Annotated[
+        Optional[float],
+        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold."),
+    ] = None
+    tags: Annotated[
+        Optional[List[str]],
+        Field(default_factory=list, description="Tags associated with every video in the batch."),
+    ]
+
+
+class DirectoryIngestRequest(BaseModel):
+    """Request model for backward-compatible directory ingestion.
+
+    Walks ``dir_path`` (resolved against the configured ingest data root) and
+    submits every supported media file as a batch job. Mirrors the EOL
+    milvus-dataprep host-directory ingest contract.
+    """
+
+    dir_path: Annotated[
+        str,
+        Field(description="Directory to ingest, relative to the configured ingest data root."),
+    ]
+    bucket_name: Annotated[
+        Optional[str],
+        Field(default=None, description="Target bucket for stored videos (default bucket if unset)."),
+    ] = None
+    recursive: Annotated[
+        bool,
+        Field(default=False, description="Recurse into subdirectories (the 'meta' dir is skipped)."),
+    ] = False
+    frame_interval: Annotated[
+        Optional[int],
+        Field(default=None, ge=1, le=60, description="Extract every Nth frame (default: 15)."),
+    ] = None
+    enable_object_detection: Annotated[
+        Optional[bool],
+        Field(default=None, description="Enable object detection and crop extraction."),
+    ] = None
+    detection_confidence: Annotated[
+        Optional[float],
+        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold."),
+    ] = None
+    tags: Annotated[
+        Optional[List[str]],
+        Field(default_factory=list, description="Tags associated with every ingested file."),
+    ]
+
+
+class BatchItemResult(BaseModel):
+    """Result of processing a single item within a batch job."""
+
+    identifier: Annotated[str, Field(description="Human-readable item identifier (e.g. filename).")]
+    bucket_name: Optional[str] = None
+    video_id: Optional[str] = None
+    status: BatchItemStatusEnum = BatchItemStatusEnum.pending
+    message: Optional[str] = None
+    embeddings_count: Optional[int] = None
+
+
+class BatchSubmitResponse(DataPrepResponse):
+    """Response returned when a batch job is accepted (HTTP 202)."""
+
+    job_id: Annotated[str, Field(description="Identifier used to poll job status.")]
+    accepted: Annotated[int, Field(description="Number of items accepted into the job.")]
+
+
+class BatchJobStatus(DataPrepResponse):
+    """Status and per-item results for an asynchronous batch job."""
+
+    job_id: str
+    state: BatchJobStateEnum
+    source: Optional[str] = None
+    total: int = 0
+    completed: int = 0
+    failed: int = 0
+    items: Annotated[List[BatchItemResult], Field(default_factory=list)]
+    created_ts: Optional[float] = None
+    updated_ts: Optional[float] = None
+
+
 class VideoInfo(BaseModel):
     """Information about a video file in Minio storage"""
 

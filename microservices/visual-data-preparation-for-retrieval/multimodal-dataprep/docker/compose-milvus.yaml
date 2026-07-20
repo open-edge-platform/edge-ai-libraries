@@ -157,6 +157,9 @@ services:
             MM_DATAPREP_ROI_CONSOLIDATION_CLASS_AWARE: ${MM_DATAPREP_ROI_CONSOLIDATION_CLASS_AWARE:-false}
             MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE: ${MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
             MM_DATAPREP_LOG_LEVEL: ${MM_DATAPREP_LOG_LEVEL:-INFO}
+            MM_DATAPREP_INGEST_DATA_ROOT: ${MM_DATAPREP_INGEST_DATA_ROOT:-/tmp/dataprep/ingest}
+            MM_DATAPREP_BATCH_MAX_ITEMS: ${MM_DATAPREP_BATCH_MAX_ITEMS:-100}
+            MM_DATAPREP_BATCH_JOB_RETENTION: ${MM_DATAPREP_BATCH_JOB_RETENTION:-200}
             MM_DATAPREP_ALLOW_ORIGINS: ${MM_DATAPREP_ALLOW_ORIGINS:-*}
             MM_DATAPREP_ALLOW_METHODS: ${MM_DATAPREP_ALLOW_METHODS:-*}
             MM_DATAPREP_ALLOW_HEADERS: ${MM_DATAPREP_ALLOW_HEADERS:-*}
@@ -177,6 +180,8 @@ services:
         volumes:
             - '${YOLOX_MODELS_VOLUME_NAME:-dataprep-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
             - data-prep:/tmp/dataprep
+            # Optional bind mount for POST /videos/ingest-dir (directory ingest).
+            - '${MM_DATAPREP_INGEST_DATA_ROOT_HOST:-./ingest-data}:${MM_DATAPREP_INGEST_DATA_ROOT:-/tmp/dataprep/ingest}'
             - ov-models:/home/appuser/.cache/huggingface
             - ov-models:${OV_MODELS_DIR:-/app/ov_models}
         devices:
