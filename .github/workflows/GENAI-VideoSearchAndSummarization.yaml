@@ -14,7 +14,7 @@ concurrency:
 on:
   pull_request:
     branches:
-      - fix/vss-ci-dynamic-secrets
+      - main
     paths:
       - 'sample-applications/video-search-and-summarization/**'
       - 'microservices/visual-data-preparation-for-retrieval/**'
