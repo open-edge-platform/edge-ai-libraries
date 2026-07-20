@@ -1,3 +1,4 @@
+{{- $odModelName := include "video-summarization.objectDetectionModel" .Values.odModelName | trim -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -43,7 +44,7 @@ spec:
               /scripts/download-od-model.sh
           env:
             - name: MODEL_NAME
-              value: {{ required "Value for odModelName is required!" .Values.odModelName | quote }}
+              value: {{ $odModelName | quote }}
             - name: MODEL_PATH
               value: /opt/models
             - name: no_proxy
@@ -113,9 +114,9 @@ spec:
             - name: REST_SERVER_PORT
               value: "{{ .Values.videoingestion.env.REST_SERVER_PORT }}"
             - name: EVAM_DETECTION_MODEL
-              value: {{ required "Value for odModelName is required!" .Values.odModelName | quote }}
+              value: {{ $odModelName | quote }}
             - name: EVAM_DETECTION_MODEL_PATH
-              value: "/home/pipeline-server/models/object-detection/ultralytics/public/{{ .Values.odModelName }}/FP32/{{ .Values.odModelName }}.xml"
+              value: "/home/pipeline-server/models/object-detection/ultralytics/public/{{ $odModelName }}/FP32/{{ $odModelName }}.xml"
           volumeMounts:
           - mountPath: /var/cache/pipeline_root
             name: vol-pipeline-root-tmpfs0

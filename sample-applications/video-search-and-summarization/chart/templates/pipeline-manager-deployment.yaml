@@ -7,7 +7,7 @@
 {{- $vlmStorageName := $ovms.vlmStorageName -}}
 {{- $llmStorageName := $ovms.llmStorageName -}}
 {{- $useVllm := .Values.vllm.enabled -}}
-{{- $odModelName := .Values.videoingestion.odModelName | default "yolov8l" -}}
+{{- $odModelName := include "video-summarization.objectDetectionModel" .Values.videoingestion.odModelName | trim -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
