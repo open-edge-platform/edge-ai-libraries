@@ -1,3 +1,0 @@
-debian_90_profile_vision () {
-  echo "esq sample_si"
-}

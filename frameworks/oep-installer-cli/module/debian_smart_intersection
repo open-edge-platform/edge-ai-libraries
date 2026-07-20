@@ -1,17 +1,17 @@
 
-configure_sample_si () {
+configure_smart_intersection () {
   workspace="$(readlink -f ~)/openedge-catalog/sample-smart-intersection"
   version=release-2026.1.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
 }
 
-debian_90_profile_sample_si () {
+debian_90_profile_smart_intersection () {
   echo "git curl gawk"
 }
 
-debian_90_install_sample_si () {
-  configure_sample_si
-  [ ! -e "$workspace" ] || [[ "$*" = *"--reset-sample_si"* ]] || return 0
+debian_90_install_smart_intersection () {
+  configure_smart_intersection
+  [ ! -e "$workspace" ] || [[ "$*" = *"--reset-smart_intersection"* ]] || return 0
 
   # clone the repository
   ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
@@ -22,21 +22,21 @@ debian_90_install_sample_si () {
   popd > /dev/null
 }
 
-debian_90_start_sample_si () {
-  configure_sample_si
+debian_90_start_smart_intersection () {
+  configure_smart_intersection
   pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
   ./sample_start.sh
   popd > /dev/null
 }
 
-debian_90_stop_sample_si () {
-  configure_sample_si
+debian_90_stop_smart_intersection () {
+  configure_smart_intersection
   pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
   ./sample_start.sh
   popd > /dev/null
 }
 
-debian_90_remove_sample_si () {
-  configure_sample_si
+debian_90_remove_smart_intersection () {
+  configure_smart_intersection
   ensure_rmdir "$workspace"
 }
