@@ -1,7 +1,9 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Optional, Dict, Any, List
 
 class DownloadTask:
@@ -13,6 +15,26 @@ class DownloadTask:
         self.file_id = file_id
         self.url = url
         self.destination = destination
+
+
+@dataclass(frozen=True)
+class PluginConfigKey:
+    """
+    Declares one configuration value a plugin consumes.
+
+    A configuration key maps to an environment variable of the same ``name``.
+    Callers may override it per request; the environment variable stays as the
+    fallback default. Keys flagged ``sensitive`` (tokens/passwords) must never
+    be logged. Keys sharing a ``group`` are resolved together: if a request
+    overrides any key in the group, the whole group is taken from the request
+    (env values are not mixed in), and every ``required`` key in that group
+    must be supplied.
+    """
+    name: str
+    description: str = ""
+    sensitive: bool = False
+    required: bool = False
+    group: Optional[str] = None
 
 
 class ListingNotSupportedError(NotImplementedError):
@@ -39,6 +61,63 @@ class ModelDownloadPlugin(ABC):
         Plugins should override this to implement their specific logic.
         """
         return False
+
+    def config_keys(self) -> List[PluginConfigKey]:
+        """
+        Return the connection/configuration keys this plugin consumes.
+
+        Each key can be overridden per request; the matching environment
+        variable is the fallback default. Plugins that need credentials or
+        external-service settings override this so the keys are discoverable
+        through GET /plugins and eligible for per-request overrides for free.
+        """
+        return []
+
+    def resolve_config(self, overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Resolve this plugin's declared config keys for a single request.
+
+        Per-request ``overrides`` win over environment variables (the fallback).
+        The returned mapping is a fresh local dict scoped to the caller, so
+        values never persist globally or leak between requests. Unknown keys are
+        rejected, and grouped keys are resolved together (see PluginConfigKey).
+        """
+        overrides = overrides or {}
+        declared = {key.name: key for key in self.config_keys()}
+
+        # Reject any override key the plugin does not understand.
+        for name in overrides:
+            if name not in declared:
+                allowed = ", ".join(sorted(declared)) or "(none)"
+                raise ValueError(
+                    f"Unknown override key '{name}' for plugin '{self.plugin_name}'. "
+                    f"Allowed keys: {allowed}."
+                )
+
+        # Groups that the request is overriding (any member supplied).
+        touched_groups = {
+            declared[name].group
+            for name in overrides
+            if overrides[name] is not None and declared[name].group
+        }
+
+        resolved: Dict[str, Any] = {}
+        for key in self.config_keys():
+            if key.name in overrides and overrides[key.name] is not None:
+                resolved[key.name] = overrides[key.name]
+            elif key.group and key.group in touched_groups:
+                # The group is being overridden; never mix in the env value.
+                if key.required:
+                    raise ValueError(
+                        f"When overriding '{key.group}' credentials, '{key.name}' "
+                        f"must also be provided in the request."
+                    )
+                continue
+            else:
+                env_value = os.environ.get(key.name)
+                if env_value is not None:
+                    resolved[key.name] = env_value
+        return resolved
 
     @property
     def supports_listing(self) -> bool:

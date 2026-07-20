@@ -85,6 +85,7 @@ async def _list_hub_models(
     filters: Optional[Dict[str, Any]] = None,
     limit: int = 50,
     offset: int = 0,
+    override_credentials: Optional[Dict[str, str]] = None,
 ) -> ModelListResponse:
     if limit < 1 or limit > 200:
         raise HTTPException(status_code=400, detail="limit must be between 1 and 200")
@@ -105,6 +106,13 @@ async def _list_hub_models(
     if not is_available:
         raise HTTPException(status_code=400, detail=f"Hub '{hub}' is not available: {reason}")
 
+    # Resolve per-request connection overrides for this plugin (override wins,
+    # env is the fallback). Scoped to this request; never stored or logged.
+    try:
+        resolved_config = plugin.resolve_config(override_credentials or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     try:
         result = await asyncio.to_thread(
             plugin.list_models,
@@ -112,6 +120,7 @@ async def _list_hub_models(
             limit=limit,
             offset=offset,
             hub=hub_name,
+            resolved_config=resolved_config,
         )
     except ListingNotSupportedError:
         raise HTTPException(status_code=501, detail=f"Hub '{hub}' does not support listing models")
@@ -165,6 +174,7 @@ async def list_hub_models_with_body(request: ModelListRequest) -> ModelListRespo
         filters=filters,
         limit=request.limit,
         offset=request.offset,
+        override_credentials=request.override_credentials,
     )
 
 
@@ -219,7 +229,12 @@ async def download_models(
                 )
 
             extra_kwargs = model.model_dump().copy()
-            logger.info(f"Model '{model.name}' download initiated using hub '{model.hub}' with parameters: {extra_kwargs}")
+            # Per-request connection overrides. Forwarded to the plugin (via
+            # ModelManager) where they override the plugin's environment
+            # variables for this request only. Never logged (may hold secrets).
+            request_credentials = extra_kwargs.get("override_credentials") or {}
+            loggable_kwargs = {k: v for k, v in extra_kwargs.items() if k != "override_credentials"}
+            logger.info(f"Model '{model.name}' download initiated using hub '{model.hub}' with parameters: {loggable_kwargs}")
 
             needs_conversion = model.is_ovms
             model_download_path = os.path.join(models_dir, download_path)
@@ -313,6 +328,7 @@ async def download_models(
                         model_name=model.name,
                         model_type=model.type,
                         hf_token=extra_kwargs["token"],
+                        override_credentials=request_credentials,
                         **config
                     )
                 )
@@ -421,6 +437,27 @@ async def list_plugins():
             # Check if plugin dependencies are installed
             is_available, reason = plugin_registry.check_plugin_dependencies(plugin_name)
 
+            # Connection/configuration keys the plugin understands. These can be
+            # overridden per request via the 'override_credentials' field of
+            # POST /models/download and POST /models/list; environment variables
+            # remain the fallback default.
+            config_keys = []
+            try:
+                keys_provider = getattr(plugin, "config_keys", None)
+                raw_keys = keys_provider() if callable(keys_provider) else []
+                for key in raw_keys:
+                    config_keys.append({
+                        "name": key.name,
+                        "description": key.description,
+                        "sensitive": key.sensitive,
+                        "required": key.required,
+                        "group": key.group,
+                    })
+            except Exception:
+                # Plugins without a proper config_keys() implementation (e.g. mocks)
+                # simply advertise no overridable configuration keys.
+                config_keys = []
+
             plugin_info = {
                 "name": plugin_name,
                 "type": plugin_type,
@@ -430,6 +467,7 @@ async def list_plugins():
                     "supports_listing": getattr(plugin, "supports_listing", False),
                     "listing_filter_fields": getattr(plugin, "listing_filter_fields", []),
                 },
+                "config_keys": config_keys,
                 "available": is_available,
                 "unavailable_reason": reason if not is_available else None
             }

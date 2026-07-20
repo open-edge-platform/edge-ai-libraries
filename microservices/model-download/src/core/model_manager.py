@@ -16,6 +16,18 @@ from .interfaces import ModelDownloadPlugin, DownloadTask
 from src.utils.logging import logger
 
 
+# Kwarg keys that may carry secrets (tokens, raw overrides) and must never be logged.
+_SENSITIVE_KWARG_KEYS = {"override_credentials", "resolved_config", "token", "hf_token"}
+
+
+def _redact_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a shallow copy of ``kwargs`` with sensitive values masked for logging."""
+    return {
+        key: ("***" if key in _SENSITIVE_KWARG_KEYS else value)
+        for key, value in kwargs.items()
+    }
+
+
 class ModelManager:
     """
     Core orchestration component that manages model operations.
@@ -123,11 +135,15 @@ class ModelManager:
         try:
             # Update job status
             self._jobs[job_id]["status"] = "downloading"
-            logger.info(f"Request details: {model_name}, {hub}, {kwargs}")
+            # Per-request connection overrides. Held aside until the plugin is
+            # known, then resolved against its declared keys (override wins,
+            # env is the fallback). Scoped to this call; never stored globally.
+            request_credentials = kwargs.pop("override_credentials", None) or {}
+            logger.info(f"Request details: {model_name}, {hub}, {_redact_kwargs(kwargs)}")
             # Find appropriate downloader plugin
             download_plugin = None
             if downloader:
-                logger.info(f"Request details: {downloader},{model_name}, {hub}, {kwargs}")
+                logger.info(f"Request details: {downloader},{model_name}, {hub}, {_redact_kwargs(kwargs)}")
                 # Try as plugin name first, then fall back to hub lookup for multi-hub plugins.
                 download_plugin = self.registry.get_plugin("downloader", downloader)
                 if not download_plugin:
@@ -142,7 +158,7 @@ class ModelManager:
                     raise ValueError(err_msg)
             else:
                 # Auto-detect appropriate downloader
-                logger.info(f"Request details: {model_name}, {hub}, {kwargs}")
+                logger.info(f"Request details: {model_name}, {hub}, {_redact_kwargs(kwargs)}")
                 download_plugin = self.registry.find_plugin_for_model(
                     "downloader", model_name, hub, **kwargs
                 )
@@ -153,6 +169,10 @@ class ModelManager:
                 self._jobs[job_id]["error"] = err_msg
                 logger.error("no_suitable_downloader", model_name=model_name)
                 raise ValueError(err_msg)
+
+            # Resolve per-request overrides for the selected plugin and expose
+            # them via 'resolved_config'. Values are scoped to this call only.
+            kwargs["resolved_config"] = download_plugin.resolve_config(request_credentials)
 
             # Check if the plugin supports parallel downloading via tasks
             use_parallel = kwargs.pop("parallel_downloads", True)
@@ -304,6 +324,9 @@ class ModelManager:
             # Update job status
             self._jobs[job_id]["status"] = "converting"
 
+            # Per-request connection overrides for the converter.
+            request_credentials = kwargs.pop("override_credentials", None) or {}
+
             # Find appropriate converter plugin
             convert_plugin = None
             if converter:
@@ -328,6 +351,10 @@ class ModelManager:
                 logger.error("no_suitable_converter", model_path=model_path)
                 raise ValueError(err_msg)
 
+            # Resolve per-request overrides for the converter (override wins,
+            # env fallback); scoped to this call only.
+            kwargs["resolved_config"] = convert_plugin.resolve_config(request_credentials)
+
             # Execute the conversion
             logger.info(
                 "starting_conversion",
@@ -335,7 +362,7 @@ class ModelManager:
                 model_path=model_path,
             )
 
-            logger.info(f"Request details: {model_path}, {hub}, {kwargs}")
+            logger.info(f"Request details: {model_path}, {hub}, {_redact_kwargs(kwargs)}")
 
             result = await asyncio.to_thread(
                 convert_plugin.convert,

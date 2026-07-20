@@ -300,6 +300,16 @@ class ModelRequest(BaseModel):
     is_ovms: bool = False
     revision: Optional[str] = None
     config: Optional[Config] = None
+    override_credentials: Optional[Dict[str, str]] = Field(
+        default=None,
+        description=(
+            "Optional per-request overrides for the target plugin's connection "
+            "keys (for example HF_TOKEN, or GETI_HOST/GETI_TOKEN/GETI_WORKSPACE_ID). "
+            "Values provided here take precedence over the service's environment "
+            "variables for this request only and are never stored or logged. Use "
+            "GET /plugins to discover the keys each plugin understands."
+        ),
+    )
 
     @field_validator("hub", mode="before")
     @classmethod
@@ -328,6 +338,15 @@ class ModelListRequest(BaseModel):
     )
     limit: int = Field(50, ge=1, le=200, description="Maximum models to return.")
     offset: int = Field(0, ge=0, description="Number of models to skip.")
+    override_credentials: Optional[Dict[str, str]] = Field(
+        default=None,
+        description=(
+            "Optional per-request overrides for the hub plugin's connection keys "
+            "(for example HF_TOKEN, or GETI_HOST/GETI_TOKEN/GETI_WORKSPACE_ID). "
+            "Values take precedence over environment variables for this request "
+            "only and are never stored or logged."
+        ),
+    )
 
 
 class ModelListItem(BaseModel):

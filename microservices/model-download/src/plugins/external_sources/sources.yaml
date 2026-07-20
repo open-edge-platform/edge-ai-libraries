@@ -29,4 +29,5 @@ sources:
   remote-url:
     kind: tarball
     allowed_prefixes:
-      - github.com/open-edge-platform/edge-ai-resources/
+      - github.com/open-edge-platform/edge-ai-resources/, github.com/vkb1/edge-ai-resources
+      
