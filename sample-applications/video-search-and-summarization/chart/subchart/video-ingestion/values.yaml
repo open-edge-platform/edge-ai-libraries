@@ -18,12 +18,6 @@ global:
     MINIO_ROOT_USER: ""
     MINIO_ROOT_PASSWORD: ""
 
-  # model-download microservice image used by the object detection model init container.
-  modelDownload:
-    image:
-      repository: intel/model-download
-      tag: "latest"
-      pullPolicy: IfNotPresent
 
 # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
 pvcName: ""

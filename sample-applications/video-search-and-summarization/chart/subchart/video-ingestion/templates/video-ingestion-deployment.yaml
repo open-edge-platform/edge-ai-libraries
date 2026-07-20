@@ -29,8 +29,8 @@ spec:
         # REST API. The script lives in the vss-model-download-helper ConfigMap
         # (chart/templates/model-download-helper.yaml) to keep this template clean.
         - name: model-converter
-          image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.videoingestion.image.repository "tag" (.Values.global.tag | default .Values.videoingestion.image.tag)) }}"
-          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.videoingestion.image.pullPolicy }}
+          image: "{{ .Values.global.modelDownload.image.repository }}:{{ .Values.global.modelDownload.image.tag }}"
+          imagePullPolicy: {{ .Values.global.modelDownload.image.pullPolicy }}
           command: ["/bin/bash", "-c"]
           args:
             - |
@@ -112,6 +112,10 @@ spec:
               value: "{{ .Values.videoingestion.env.APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC }}"
             - name: REST_SERVER_PORT
               value: "{{ .Values.videoingestion.env.REST_SERVER_PORT }}"
+            - name: EVAM_DETECTION_MODEL
+              value: {{ required "Value for odModelName is required!" .Values.odModelName | quote }}
+            - name: EVAM_DETECTION_MODEL_PATH
+              value: "/home/pipeline-server/models/object-detection/ultralytics/public/{{ .Values.odModelName }}/FP32/{{ .Values.odModelName }}.xml"
           volumeMounts:
           - mountPath: /var/cache/pipeline_root
             name: vol-pipeline-root-tmpfs0

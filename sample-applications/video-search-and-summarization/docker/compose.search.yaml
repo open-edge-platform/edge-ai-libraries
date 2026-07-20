@@ -2,16 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Backend services required for Video Search Application.
-# NOTE: The default OpenVINO performance mode has been changed from "LATENCY" to "THROUGHPUT".
-# This impacts inference characteristics: "THROUGHPUT" optimizes for overall throughput, while "LATENCY" optimizes for response time.
-# Please review user documentation or migration notes for details on this change.
 services:
     pipeline-manager:
         depends_on:
-            # env for vdms-vector-db
             vdms-vector-db:
                 condition: service_started
-            # env for vdms-dataprep-ms
             vdms-dataprep:
                 condition: service_healthy
             multimodal-embedding-serving:
@@ -170,7 +165,6 @@ services:
         depends_on:
             vdms-vector-db:
                 condition: service_started
-            # env for multimodal-embedding-serving (unified embedding service)
             multimodal-embedding-serving:
                 condition: service_healthy
             minio-service:

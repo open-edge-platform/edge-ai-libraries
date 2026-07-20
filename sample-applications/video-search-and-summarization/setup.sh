@@ -346,19 +346,17 @@ export VS_WATCHER_DIR=${VS_WATCHER_DIR:-$PWD/data}
 # Telemetry collector toggle for search (disabled by default)
 export ENABLE_VSS_COLLECTOR=${ENABLE_VSS_COLLECTOR:-false}
 
-# Object detection model (ultralytics hub id; converted to OpenVINO IR by the
-# model-download microservice). Required for all modes except --search;
-# validated below with the other required environment variables.
+# Object detection model (ultralytics hub id)   
 export OD_MODEL_NAME=${OD_MODEL_NAME}
 # Default object detection model; used as fallback for unsupported selections.
 OD_MODEL_DEFAULT="yolov8l"
 if [ "$1" != "--search" ]; then
-    # yolov8l-worldv2 (open-vocabulary YOLO-World) is not supported by the
-    # object-detection pipeline. Warn and fall back to the default model.
-    if [ "$OD_MODEL_NAME" = "yolov8l-worldv2" ]; then
-        echo -e "[video-ingestion] ${YELLOW}Warning: object detection model '${RED}${OD_MODEL_NAME}${YELLOW}' is not supported. Falling back to the default model '${GREEN}${OD_MODEL_DEFAULT}${YELLOW}'.${NC}" >&2
-        export OD_MODEL_NAME="$OD_MODEL_DEFAULT"
-    fi
+    case "$OD_MODEL_NAME" in
+        *-world|*-world[0-9]*|*-worldv[0-9]*)
+            echo -e "[video-ingestion] ${YELLOW}Warning: object detection model '${RED}${OD_MODEL_NAME}${YELLOW}' (YOLO-World) is not supported. Falling back to the default model '${GREEN}${OD_MODEL_DEFAULT}${YELLOW}'.${NC}" >&2
+            export OD_MODEL_NAME="$OD_MODEL_DEFAULT"
+            ;;
+    esac
     export OD_MODEL_DOWNLOAD_PATH="object-detection"
     # Host IR dir: <root>/<download_path>/ultralytics/public/<model>(/FP32/<model>.xml)
     export OD_MODEL_OUTPUT_DIR=${OV_MODELS_ROOT}/${OD_MODEL_DOWNLOAD_PATH}/ultralytics/public/${OD_MODEL_NAME}
@@ -577,6 +575,9 @@ md_submit_job() {
     echo "$job_id"
 }
 
+# Wall-clock cap (seconds) for a single download/conversion job before setup.sh gives up.
+export MODEL_DOWNLOAD_JOB_TIMEOUT=${MODEL_DOWNLOAD_JOB_TIMEOUT:-5400}
+
 # Poll one job until it completes, printing a status line on each state change
 md_wait_job() {
     local job_id="$1" label="$2"
@@ -587,6 +588,14 @@ md_wait_job() {
         if ! md_container_running; then
             md_progress_line ""
             echo -e "${RED}ERROR: model-download container stopped while a job was running.${NC}" >&2
+            return 1
+        fi
+
+        if [ "${MODEL_DOWNLOAD_JOB_TIMEOUT}" -gt 0 ] 2>/dev/null && \
+           [ $((SECONDS - started_at)) -ge "${MODEL_DOWNLOAD_JOB_TIMEOUT}" ]; then
+            md_progress_line ""
+            echo -e "[model-download] ${RED}${label}: TIMED OUT after $(md_fmt_elapsed $((SECONDS - started_at))) (last status: ${state:-unknown}).${NC}" >&2
+            echo -e "${YELLOW}Increase MODEL_DOWNLOAD_JOB_TIMEOUT if this model legitimately needs longer.${NC}" >&2
             return 1
         fi
 
@@ -842,12 +851,14 @@ is_openvino_namespace_model() {
 
 # Host dir where the openvino plugin writes the converted OVMS model:
 #   <models>/<download_path>/openvino_models/<device>/<precision>/<source_model>  (lowercased except source_model).
+# The device segment must match model-download's path sanitization (main.py:
+# re.sub(r"[^A-Za-z0-9._-]+", "_", device)), e.g. HETERO:GPU,CPU -> hetero_gpu_cpu.
 ovms_ms_model_dir() {
     local source_model="$1"
     local target_device="$2"
     local weight_format="$3"
     local device_lc format_lc
-    device_lc=$(printf '%s' "$target_device" | tr '[:upper:]' '[:lower:]')
+    device_lc=$(printf '%s' "$target_device" | sed -E 's/[^A-Za-z0-9._-]+/_/g' | tr '[:upper:]' '[:lower:]')
     format_lc=$(printf '%s' "$weight_format" | tr '[:upper:]' '[:lower:]')
     printf '%s/%s/openvino_models/%s/%s/%s' \
         "${OV_MODELS_ROOT}" "${OVMS_MS_DOWNLOAD_PATH}" "${device_lc}" "${format_lc}" "${source_model}"
@@ -963,7 +974,7 @@ md_run_downloads() {
             || { md_teardown 1; return 1; }
     fi
 
-    # Post-download steps: one ownership sweep over everything the containerwrote as UID 1001, then IR verification and OVMS registration.
+    # Post-download steps: one ownership sweep over everything the container wrote as UID 1001, then IR verification and OVMS registration.
     local rc=0
     fix_model_dir_ownership "${OV_MODELS_ROOT}"
     if [ "$MD_NEED_OD" = true ]; then

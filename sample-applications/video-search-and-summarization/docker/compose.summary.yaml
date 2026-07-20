@@ -8,12 +8,10 @@ services:
       ovms-service:
         condition: service_healthy
         required: false  # ignored when vllm profile is active (e.g. ENABLE_VLLM=true)
-      # env for video-ingestion-service
       video-ingestion:
         condition: service_healthy
       rabbitmq-service:
         condition: service_healthy
-      # env for audio-analyzer service
       audio-analyzer:
         condition: service_healthy
     environment:

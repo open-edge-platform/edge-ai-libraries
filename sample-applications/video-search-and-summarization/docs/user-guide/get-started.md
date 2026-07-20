@@ -140,7 +140,7 @@ Before running the application, you need to set several environment variables:
 
       # Object detection model used for Video Ingestion Service. Only generic
       # YOLO models supported by the model-download ultralytics hub are
-      # supported (e.g. yolov8l, yolov8s, yolov5su).
+      # supported (e.g. yolov8l, yolov8s).
       export OD_MODEL_NAME="yolov8l"
       ```
 

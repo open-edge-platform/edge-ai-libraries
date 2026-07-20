@@ -38,11 +38,13 @@
 {{- /* --- 6b. EMITTED MODEL PATHS (model-download microservice layout) --- */ -}}
 {{- /* The model-download openvino plugin writes converted models to a deep,
        lowercased path: ovms/openvino_models/<device>/<precision>/<source_model>.
+       The device segment is sanitized by model-download (main.py:
+       re.sub(r"[^A-Za-z0-9._-]+", "_", device)), e.g. HETERO:GPU,CPU -> hetero_gpu_cpu.
        OVMS config.json base_path (relative to /opt/data/models) points there. */ -}}
-{{- $vlmBasePath := printf "ovms/openvino_models/%s/%s/%s" (lower $ovmsVlmDevice) (lower $ovmsVlmWeightFormat) .Values.global.vlmName -}}
-{{- $llmBasePath := printf "ovms/openvino_models/%s/%s/%s" (lower $ovmsLlmDevice) (lower $ovmsLlmWeightFormat) $effectiveOvmLlmModel -}}
-{{- $vlmCacheSize := ternary 2 10 (or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice)) -}}
-{{- $llmCacheSize := ternary 2 10 (or (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsLlmDevice)) -}}
+{{- $vlmDeviceDir := regexReplaceAll "[^A-Za-z0-9._-]+" (lower $ovmsVlmDevice) "_" -}}
+{{- $llmDeviceDir := regexReplaceAll "[^A-Za-z0-9._-]+" (lower $ovmsLlmDevice) "_" -}}
+{{- $vlmBasePath := printf "ovms/openvino_models/%s/%s/%s" $vlmDeviceDir (lower $ovmsVlmWeightFormat) .Values.global.vlmName -}}
+{{- $llmBasePath := printf "ovms/openvino_models/%s/%s/%s" $llmDeviceDir (lower $ovmsLlmWeightFormat) $effectiveOvmLlmModel -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -75,8 +77,10 @@ spec:
         - name: download-vlm
           image: "{{ .Values.global.modelDownload.image.repository }}:{{ .Values.global.modelDownload.image.tag }}"
           imagePullPolicy: {{ .Values.global.modelDownload.image.pullPolicy }}
-          command: ["/bin/sh", "/scripts/download-vlm.sh"]
+          command: ["/bin/sh", "/scripts/download-ovms-model.sh"]
           env:
+            - name: MODEL_TYPE
+              value: "vlm"
             - name: MODEL_NAME
               value: {{ required "Value for `global.vlmName` is required!" .Values.global.vlmName | quote }}
             - name: WEIGHT_FORMAT
@@ -120,8 +124,10 @@ spec:
         - name: download-llm
           image: "{{ .Values.global.modelDownload.image.repository }}:{{ .Values.global.modelDownload.image.tag }}"
           imagePullPolicy: {{ .Values.global.modelDownload.image.pullPolicy }}
-          command: ["/bin/sh", "/scripts/download-llm.sh"]
+          command: ["/bin/sh", "/scripts/download-ovms-model.sh"]
           env:
+            - name: MODEL_TYPE
+              value: "llm"
             - name: MODEL_NAME
               value: {{ $effectiveOvmLlmModel | quote }}
             - name: WEIGHT_FORMAT

@@ -53,7 +53,7 @@ global:
   modelDownload:
     image:
       repository: intel/model-download
-      tag: "latest"
+      tag: "2026.2.0-ww30"
       pullPolicy: IfNotPresent
     # OVMS release tag whose export_model.py the openvino plugin uses.
     ovmsReleaseTag: "v2026.1"

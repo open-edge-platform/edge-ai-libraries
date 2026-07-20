@@ -7,6 +7,7 @@
 {{- $vlmStorageName := $ovms.vlmStorageName -}}
 {{- $llmStorageName := $ovms.llmStorageName -}}
 {{- $useVllm := .Values.vllm.enabled -}}
+{{- $odModelName := .Values.videoingestion.odModelName | default "yolov8l" -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -45,19 +46,25 @@ spec:
             - sh
             - -c
             - |
-              echo "Waiting for OVMS service to be ready..."
-              RETRIES=0
-              MAX_RETRIES=120
-              until [ $RETRIES -ge $MAX_RETRIES ] || curl -s -f -m 10 http://{{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready; do
-                RETRIES=$((RETRIES+1))
-                echo "OVMS service is not ready yet, waiting... (Attempt $RETRIES of $MAX_RETRIES) on {{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready"
-                if [ $RETRIES -ge $MAX_RETRIES ]; then
-                  echo "OVMS service health check failed after $MAX_RETRIES attempts"
-                  exit 1
-                fi
-                sleep 10
-              done
-              echo "OVMS service is ready!"
+              wait_model() {
+                NAME="$1"; ENC="$2"
+                RETRIES=0
+                MAX_RETRIES=240
+                until curl -s -f -m 10 "http://{{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v1/models/${ENC}" | grep -q '"AVAILABLE"'; do
+                  RETRIES=$((RETRIES+1))
+                  if [ $RETRIES -ge $MAX_RETRIES ]; then
+                    echo "OVMS servable ${NAME} not AVAILABLE after $MAX_RETRIES attempts"
+                    exit 1
+                  fi
+                  echo "Waiting for OVMS servable ${NAME}... (Attempt $RETRIES of $MAX_RETRIES)"
+                  sleep 15
+                done
+                echo "OVMS servable ${NAME} is AVAILABLE"
+              }
+              wait_model "{{ $vlmStorageName }}" "{{ $vlmStorageName | urlquery }}"
+              {{- if $ovms.splitModel }}
+              wait_model "{{ $llmStorageName }}" "{{ $llmStorageName | urlquery }}"
+              {{- end }}
         {{- end }}
         {{- if .Values.vllm.enabled }}
         - name: wait-for-vllm
@@ -123,9 +130,9 @@ spec:
             - name: EVAM_DEVICE
               value: "CPU"
             - name: EVAM_DETECTION_MODEL
-              value: {{ .Values.videoingestion.odModelName | default "yolov8l" | quote }}
+              value: {{ $odModelName | quote }}
             - name: EVAM_DETECTION_MODEL_PATH
-              value: {{ printf "/home/pipeline-server/models/object-detection/ultralytics/public/%s/FP32/%s.xml" (.Values.videoingestion.odModelName | default "yolov8l") (.Values.videoingestion.odModelName | default "yolov8l") | quote }}
+              value: {{ printf "/home/pipeline-server/models/object-detection/ultralytics/public/%s/FP32/%s.xml" $odModelName $odModelName | quote }}
             - name: RABBITMQ_HOST
               value: "{{ .Values.rabbitmq.name }}"
             - name: RABBITMQ_USER
@@ -151,7 +158,7 @@ spec:
               value: "{{ if and .Values.ovms.enabled (not $useVllm) }}{{ $ovmsVlmDevice }}{{ else }}{{ .Values.pipelinemanager.env.VLM_CAPTIONING_DEVICE }}{{ end }}"
             - name: VLM_MODEL_NAME
               # Use storage model name for OVMS (includes device/format), raw name for vLLM
-              value: {{ if $useVllm }}{{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}{{ else if .Values.ovms.enabled }}{{ $vlmStorageName | quote }}{{ else }}{{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}{{ end }}
+              value: {{ if $useVllm }}{{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}{{ else if .Values.ovms.enabled }}{{ $vlmStorageName | quote }}{{ else }}{{ .Values.global.vlmName | quote }}{{ end }}
             - name: LLM_CONCURRENT
               value: "{{ if and .Values.ovms.enabled (not $useVllm) $ovmsVlmUsesAccelerator }}1{{ else }}{{ .Values.pipelinemanager.env.LLM_CONCURRENT }}{{ end }}"
             - name: VLM_CONCURRENT
