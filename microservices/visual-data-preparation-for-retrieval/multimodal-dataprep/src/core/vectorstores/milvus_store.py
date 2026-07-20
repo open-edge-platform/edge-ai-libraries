@@ -25,6 +25,7 @@ dependency/PoC spike and MUST be preserved:
 from __future__ import annotations
 
 import os
+import threading
 from typing import List, Optional
 from urllib.parse import urlparse
 
@@ -65,6 +66,7 @@ class MilvusVectorStore(BaseVectorStore):
         self.index_type = (settings.VDB_INDEX_TYPE or "FLAT").upper()
         self.uri = self._resolve_uri(host, port, uri)
         self.store = None  # langchain_milvus.Milvus, lazily constructed
+        self._connect_lock = threading.Lock()
 
     @staticmethod
     def _resolve_uri(
@@ -90,40 +92,69 @@ class MilvusVectorStore(BaseVectorStore):
     def connect(self) -> None:
         if self.store is not None:
             return
-        try:
-            from langchain_milvus import Milvus
-            from pymilvus import connections
+        # Double-checked locking: connect() runs inside the EmbeddingClient
+        # singleton init, which is not itself locked, so guard construction so
+        # concurrent worker threads cannot race into building two stores or
+        # registering the ORM alias twice.
+        with self._connect_lock:
+            if self.store is not None:
+                return
+            try:
+                from langchain_milvus import Milvus
+                from pymilvus import connections
 
-            self._disable_proxy_for_host()
+                self._disable_proxy_for_host()
 
-            # Quirk 1: pass the full URI via connection_args.
-            self.store = Milvus(
-                embedding_function=_DummyEmbedding(),
-                collection_name=self.collection_name,
-                connection_args={"uri": self.uri},
-                enable_dynamic_field=True,  # Quirk 3: preserve list/nested metadata
-                index_params={
-                    "metric_type": self.metric_type,
-                    "index_type": self.index_type,
-                },
-                auto_id=True,
-            )
+                uri = self.uri
 
-            # Quirk 2: register an ORM-style connection so the `col` property
-            # resolves during inserts with langchain_milvus 0.3.3 + pymilvus 2.6.
-            alias = getattr(self.store, "alias", None) or "default"
-            connections.connect(alias=alias, uri=self.uri)
+                # langchain_milvus binds its ORM ``col`` property to
+                # ``self.alias`` (the MilvusClient's internal ``cm-<id>``
+                # handle), which it never registers in pymilvus' ORM connection
+                # registry. When the target collection ALREADY EXISTS,
+                # ``_init()`` touches ``col`` during construction and raises
+                # ``ConnectionNotExistException`` before we get a chance to
+                # register the connection. Register the ORM connection under
+                # that alias *before* ``_init`` runs so both first-time creation
+                # and existing-collection (restart / redeploy) paths work.
+                class _ORMAwareMilvus(Milvus):  # noqa: N801 - local shim
+                    def _init(self, *args, **kwargs):
+                        if not connections.has_connection(self.alias):
+                            connections.connect(alias=self.alias, uri=uri)
+                        return super()._init(*args, **kwargs)
 
-            logger.info(
-                "Milvus initialized - collection: %s (%s/%s) at %s",
-                self.collection_name,
-                self.metric_type,
-                self.index_type,
-                self.uri,
-            )
-        except Exception as ex:
-            logger.error("Error initializing Milvus: %s", ex)
-            raise Exception(Strings.db_conn_error)
+                # Quirk 1: pass the full URI via connection_args.
+                store = _ORMAwareMilvus(
+                    embedding_function=_DummyEmbedding(),
+                    collection_name=self.collection_name,
+                    connection_args={"uri": uri},
+                    enable_dynamic_field=True,  # Quirk 3: preserve list/nested metadata
+                    index_params={
+                        "metric_type": self.metric_type,
+                        "index_type": self.index_type,
+                    },
+                    auto_id=True,
+                )
+
+                # Safety net: ensure the ORM connection remains registered for
+                # the alias used by subsequent inserts/reads.
+                alias = getattr(store, "alias", None) or "default"
+                if not connections.has_connection(alias):
+                    connections.connect(alias=alias, uri=uri)
+
+                # Publish only after fully constructed + connected so a partial
+                # store is never observed by another thread.
+                self.store = store
+
+                logger.info(
+                    "Milvus initialized - collection: %s (%s/%s) at %s",
+                    self.collection_name,
+                    self.metric_type,
+                    self.index_type,
+                    self.uri,
+                )
+            except Exception as ex:
+                logger.error("Error initializing Milvus: %s", ex)
+                raise Exception(Strings.db_conn_error)
 
     def clean_metadata(self, metadata: dict) -> dict:
         """Project onto the canonical contract, then drop ``None`` values.

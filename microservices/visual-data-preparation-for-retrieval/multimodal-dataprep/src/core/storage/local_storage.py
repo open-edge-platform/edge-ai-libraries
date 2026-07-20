@@ -18,8 +18,10 @@ from typing import List, Optional
 
 from src.common import logger, sanitize_for_log, settings
 from src.core.storage.base import BaseStorage, StorageObject
+from src.core.storage.factory import register_backend
 
 
+@register_backend("local")
 class LocalStorage(BaseStorage):
     """Storage backend backed by the local filesystem."""
 

@@ -20,8 +20,10 @@ from minio.error import S3Error
 from src.common import Strings, logger, sanitize_for_log, settings
 from src.core.minio_client import MinioClient
 from src.core.storage.base import BaseStorage, StorageObject
+from src.core.storage.factory import register_backend
 
 
+@register_backend("minio")
 class MinioStorage(BaseStorage):
     """Storage backend backed by a MinIO object store."""
 
