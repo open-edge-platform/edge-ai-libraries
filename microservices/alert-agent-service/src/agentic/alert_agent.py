@@ -446,8 +446,9 @@ class AlertActionAgent:
                     logger.debug(f"Tool '{name}' result: {result}")
                     return name, result.get("status") != "error"
                 except asyncio.TimeoutError:
-                    logger.error(f"Tool '{name}' timed out after {_TOOL_TIMEOUT}s (attempt {attempt}/{settings.RETRY_ATTEMPTS})")
-                    return name, False
+                    logger.warning(f"Tool '{name}' timed out after {_TOOL_TIMEOUT}s (attempt {attempt}/{settings.RETRY_ATTEMPTS})")
+                    if attempt < settings.RETRY_ATTEMPTS:
+                        await asyncio.sleep(settings.RETRY_INTERVAL_SECONDS)
                 except Exception as exc:
                     logger.warning(f"Tool '{name}' attempt {attempt}/{settings.RETRY_ATTEMPTS} failed: {exc}")
                     if attempt < settings.RETRY_ATTEMPTS:

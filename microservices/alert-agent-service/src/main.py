@@ -56,6 +56,29 @@ logger = logging.getLogger(__name__)
 _startup_time: float = time.monotonic()
 
 # ---------------------------------------------------------------------------
+# Mapping from legacy DELIVERY_HANDLERS values to tool names
+# ---------------------------------------------------------------------------
+_HANDLER_TO_TOOL = {
+    "log": "log_alert",
+    "webhook": "trigger_webhook",
+    "mqtt": "publish_mqtt",
+}
+
+
+def _delivery_handlers_to_tools(handlers_csv: str) -> list[str]:
+    """Convert comma-separated DELIVERY_HANDLERS env var to tool names."""
+    tools: list[str] = []
+    for handler in handlers_csv.split(","):
+        handler = handler.strip().lower()
+        if not handler:
+            continue
+        tool = _HANDLER_TO_TOOL.get(handler, handler)
+        if tool not in tools:
+            tools.append(tool)
+    return tools
+
+
+# ---------------------------------------------------------------------------
 # Application state (initialised in lifespan)
 # ---------------------------------------------------------------------------
 agent: Optional[AlertActionAgent] = None
@@ -73,6 +96,12 @@ async def lifespan(app: FastAPI):
         f"ADK={'on' if settings.AGENT_MODE else 'off'} "
         f"MCP={'on' if settings.MCP_ENABLED else 'off'}"
     )
+
+    if settings.DELIVERY_HANDLERS:
+        logger.info(
+            f"DELIVERY_HANDLERS override active: '{settings.DELIVERY_HANDLERS}' "
+            f"→ tools {_delivery_handlers_to_tools(settings.DELIVERY_HANDLERS)}"
+        )
 
     # ── Subscription config ─────────────────────────────────────────────────
     _subscription_config = load_subscription_config(settings.SUBSCRIPTION_CONFIG_PATH)
@@ -479,6 +508,13 @@ async def execute_action(data: AlertActionRequest, original_payload: Optional[di
     if not effective_tools or effective_tools == ["log_alert"]:
         if sub and sub.tools:
             effective_tools = list(sub.tools)
+
+    # DELIVERY_HANDLERS env var override: if set, forcefully replace tool list
+    # (backward-compatible with alert-service behavior)
+    if settings.DELIVERY_HANDLERS:
+        env_tools = _delivery_handlers_to_tools(settings.DELIVERY_HANDLERS)
+        if env_tools:
+            effective_tools = env_tools
 
     # Merge tool_arguments: request overrides subscription defaults
     effective_tool_args = dict(sub.tool_arguments) if sub else {}

@@ -159,13 +159,13 @@ docker compose -f docker/docker-compose.yml --profile agent down
 curl -X POST http://localhost:8000/api/v1/actions/execute \
   -H "Content-Type: application/json" \
   -d '{
-  "data":{
-    "source_id": "sensor-42",
-    "alert_name": "TemperatureThreshold",
-    "answer": "YES",
-    "reason": "CPU temperature exceeded 90°C",
-    "tools": ["log_alert", "trigger_webhook"]
-  }
+      "data":{
+        "source_id": "sensor-42",
+        "alert_name": "TemperatureThreshold",
+        "answer": "YES",
+        "reason": "CPU temperature exceeded 90°C",
+        "tools": ["log_alert", "trigger_webhook"]
+      }
 }'
 ```
 
@@ -175,22 +175,22 @@ curl -X POST http://localhost:8000/api/v1/actions/execute \
 curl -X POST http://localhost:8000/api/v1/actions/execute \
   -H "Content-Type: application/json" \
   -d '{
-  "data":{
-      "source_id": "cam-01",
-      "alert_name": "CONCEALMENT",
-      "answer": "YES",
-      "reason": "Camera lens partially covered",
-      "tools": ["log_alert", "capture_snapshot", "trigger_webhook"],
-      "payloads": [
-        {
-          "kind": "image",
-          "mime_type": "image/jpeg",
-          "encoding": "base64",
-          "data_base64": "<base64-encoded-jpeg>",
-          "metadata": {"width": 1920, "height": 1080}
-        }
-      ]
-    }
+        "data":{
+            "source_id": "cam-01",
+            "alert_name": "CONCEALMENT",
+            "answer": "YES",
+            "reason": "Camera lens partially covered",
+            "tools": ["log_alert", "capture_snapshot", "trigger_webhook"],
+            "payloads": [
+              {
+                "kind": "image",
+                "mime_type": "image/jpeg",
+                "encoding": "base64",
+                "data_base64": "<base64-encoded-jpeg>",
+                "metadata": {"width": 1920, "height": 1080}
+              }
+            ]
+          }
   }'
 ```
 

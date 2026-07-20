@@ -154,6 +154,13 @@ def _normalize_delivery(sub: dict) -> tuple[List[str], Dict[str, dict]]:
             tools.append("publish_mqtt")
             if item.get("topic"):
                 tool_arguments["publish_mqtt"] = {"topic_override": item["topic"]}
+        elif delivery_type == "websocket":
+            # WebSocket broadcast is now automatic for all alerts;
+            # explicit 'websocket' delivery entries are accepted but no-op.
+            logger.debug(
+                "Delivery type 'websocket' is deprecated — "
+                "WebSocket broadcast is now unconditional for all alerts"
+            )
 
     return tools or ["log_alert"], tool_arguments
 
