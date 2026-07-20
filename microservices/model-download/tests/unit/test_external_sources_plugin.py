@@ -242,12 +242,23 @@ class TestListModels:
 
 
 class TestRuntimeUrlValidation:
-    _ALLOWLIST = ["github.com/open-edge-platform/edge-ai-resources/"]
+    _ALLOWLIST = [
+        "github.com/open-edge-platform/edge-ai-resources/",
+        "github.com/vkb1/edge-ai-resources/",
+    ]
 
     def test_allowed_url_passes(self):
         url = (
             "https://github.com/open-edge-platform/edge-ai-resources/raw/main/"
             "timeseries-udf-deployment-packages/m.tar"
+        )
+        # Should not raise.
+        ExternalSourcesPlugin._validate_runtime_url(url, self._ALLOWLIST)
+
+    def test_vkb_github_raw_url_passes(self):
+        url = (
+            "https://github.com/vkb1/edge-ai-resources/raw/refs/heads/feature/vkb1/new-udf/"
+            "timeseries-udf-deployment-packages/wind-turbine-anomaly-detection.tar"
         )
         # Should not raise.
         ExternalSourcesPlugin._validate_runtime_url(url, self._ALLOWLIST)
