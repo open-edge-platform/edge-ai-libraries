@@ -123,28 +123,35 @@ act_helpper () {
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
+    logecho () {
+      awk -v n=$1 '{print strftime("%s"),n,$0;fflush()}'
+    }
+    local start_t=$SECONDS
+    local -A timings=()
+    for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
+      name=$(echo $handler | cut -f4- -d_)
+      echo "==== ${act_name} $name ====" > >(logecho $name)
+      local start_c=$SECONDS
+      if [[ "$*" = *"--dry-run"* ]]; then
+        echo "Invoke $handler with $(act_extract_args $act_name $name $*)" > >(logecho $name)
+      else
+        ($handler $(act_extract_args $act_name $name $*)) > >(logecho $name) 2> >(logecho $name)
+      fi
+      timings[$name]=$(( SECONDS - start_c ))
+      echo "==== ${act_name} $name completed: ${timings[$name]} seconds ====" > >(logecho $name)
+    done
+    # wait for background processes
+    wait
+    local end_t=$SECONDS
+
+    echo
+    echo "==== Timing Report ===="
     (
-      logecho () {
-        awk -v n=$1 '{print strftime("%s"),n,$0;fflush()}'
-      }
-      start_t=$SECONDS
-      for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
-        name=$(echo $handler | cut -f4- -d_)
-        echo "==== ${act_name} $name ====" > >(logecho $name)
-        start_c=$SECONDS
-        if [[ "$*" = *"--dry-run"* ]]; then
-         echo "Invoke $handler with $(act_extract_args $act_name $name $*)" > >(logecho $name)
-        else
-         ($handler $(act_extract_args $act_name $name $*)) > >(logecho $name) 2> >(logecho $name)
-        fi
-        end_c=$SECONDS
-        echo "==== ${act_name} $name completed: $(( end_c - start_c )) seconds ====" > >(logecho $name)
+      for name in ${!timings[@]}; do
+        echo "$name: ${timings[$name]} seconds"
       done
-      # wait for background processes
-      wait
-      end_t=$SECONDS
-      echo "total duration: $(( end_t - start_t )) seconds"
-    )
+      echo "Total duration: $(( end_t - start_t )) seconds"
+    ) | column -s: -t
   else
     echo "Component not found" 1>&2
     exit 3
