@@ -294,9 +294,13 @@ configure_device() {
         echo -e "${YELLOW}GPU acceleration requested for one or more components...${NC}"
         if ! lspci | grep -i "vga.*intel" > /dev/null 2>&1; then
             echo -e "${RED}Warning: No Intel GPU detected. GPU mode may not work properly.${NC}" >&2
+        else
+            echo -e "${GREEN}Intel GPU detected${NC}"
         fi
         if [[ ! -d "/dev/dri" ]]; then
             echo -e "${RED}Warning: /dev/dri not found. GPU acceleration may not be available.${NC}" >&2
+        else
+            echo -e "${GREEN}DRI devices found for GPU acceleration${NC}"
         fi
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
     elif [[ "${accel}" == NPU* ]]; then
@@ -310,8 +314,6 @@ configure_device() {
     else
         echo -e "${BLUE}CPU mode configured for all components${NC}"
     fi
-    export VDMS_DATAPREP_DEVICE="${device}"
-    echo -e "[vdms-dataprep] ${BLUE}Processing device: ${YELLOW}${device}${NC} (video decoding, object detection, embedding)"
 }
 
 # Detect accelerator usage across the per-component devices and validate the host.
@@ -335,9 +337,15 @@ if [ $1 != "--summary" ]; then
     else
         embedding_model_display="${MULTIMODAL_EMBEDDING_MODEL:-"(not provided)"}"
     fi
-    # sdk mode runs embeddings in-process within vdms-dataprep; api mode routes
-    # them over HTTP to the multimodal-embedding-serving container.
-    echo -e "[vdms-dataprep] ${BLUE}Embedding: mode ${YELLOW}${EMBEDDING_PROCESSING_MODE}${BLUE}, model ${YELLOW}${embedding_model_display}${BLUE}, device ${YELLOW}${EMBEDDING_DEVICE}${NC}"
+    echo -e "[vdms-dataprep] ${BLUE}Runtime Summary (per-component devices, default CPU):${NC}"
+    if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
+        echo -e "  • [multimodal-embedding-serving] Embedding Device: ${YELLOW}${MME_EMBEDDING_DEVICE}${NC} (active in api mode)."
+    else
+        echo -e "  • [vdms-dataprep] Embedding Device: ${YELLOW}${DATAPREP_EMBEDDING_DEVICE}${NC} (active in sdk mode)."
+    fi
+    echo -e "  • [vdms-dataprep] Detection Device: ${YELLOW}${DATAPREP_DETECTION_DEVICE}${NC}"
+    echo -e "  • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC}"
+    echo -e "  • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
 fi
 
 # env for video-search
@@ -662,7 +670,6 @@ md_teardown() {
 }
 
 # Fix ownership of files written by the model-download container (runs as UID 1001):
-# chown back to the host user and add group-write so re-downloads still work.
 fix_model_dir_ownership() {
     local host_dir="$1"
     [ -d "$host_dir" ] || return 0
