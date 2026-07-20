@@ -49,9 +49,8 @@ COPY multimodal-embedding-serving /multimodal-embedding-serving
 COPY visual-data-preparation-for-retrieval/vdms/poetry.lock visual-data-preparation-for-retrieval/vdms/pyproject.toml ./
 
 
-# Install runtime deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
-# torch/torchvision/numpy are pinned to CPU wheels (OpenVINO handles CPU/Intel
-# GPU/NPU acceleration, so a CUDA torch build is never needed).
+# torch/torchvision are pinned to CPU wheels in MME pyproject.toml (a dependency of VDMS data-prep).
+# (This is because OpenVINO handles Intel CPU/GPU/NPU acceleration, so a CUDA torch build is never needed).
 RUN poetry install --no-root
 
 # Install additional packages that have dependency conflicts with --no-deps

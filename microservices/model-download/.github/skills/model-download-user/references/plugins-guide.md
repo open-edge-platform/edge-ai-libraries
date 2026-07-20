@@ -44,7 +44,7 @@ Downloads any public or gated model from HuggingFace Hub using `snapshot_downloa
 | `hub` | string | Yes | Must be `"huggingface"` |
 | `revision` | string | No | Branch, tag, or commit hash (default: `main`) |
 
-**Environment:** Set `HF_TOKEN` or `HUGGINGFACEHUB_API_TOKEN` for gated models.
+**Environment:** For compose-based startup, set `HUGGINGFACEHUB_API_TOKEN` on the host. Docker maps it into the container as `HF_TOKEN`.
 
 ### Output Path
 
@@ -74,9 +74,7 @@ curl -s -X POST \
 Converts HuggingFace models to OpenVINO IR format for deployment with OVMS.
 This is a **converter** plugin — it downloads from HuggingFace first, then converts.
 
-There are two ways to trigger conversion:
-
-**Option A — Use `hub: "openvino"` (pure conversion flow):**
+Use `hub: "openvino"` (pure conversion flow):**
 ```json
 {
   "models": [
@@ -84,6 +82,7 @@ There are two ways to trigger conversion:
       "name": "<org/model-name>",
       "hub": "openvino",
       "type": "llm",
+      "is_ovms": true,
       "config": {
         "precision": "int4",
         "device": "CPU",
@@ -94,32 +93,15 @@ There are two ways to trigger conversion:
 }
 ```
 
-**Option B — Use `hub: "huggingface"` with `is_ovms: true` (download + convert):**
-```json
-{
-  "models": [
-    {
-      "name": "<org/model-name>",
-      "hub": "huggingface",
-      "type": "llm",
-      "is_ovms": true,
-      "config": {
-        "precision": "int8",
-        "device": "CPU"
-      }
-    }
-  ]
-}
-```
 
 ### Parameters
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | HuggingFace model ID |
-| `hub` | string | Yes | `"openvino"` or `"huggingface"` |
+| `hub` | string | Yes | Use `"openvino"` for the current REST conversion flow |
 | `type` | string | Yes | Model type — see table below |
-| `is_ovms` | bool | No | `true` to trigger conversion (required with `hub: "huggingface"`) |
+| `is_ovms` | bool | Yes for conversion | Set to `true` to trigger OpenVINO conversion |
 | `config.precision` | string | No | `int4`, `int8`, `fp16`, `fp32` (default: `int8`) |
 | `config.device` | string | No | `CPU`, `GPU`, `NPU` (default: `CPU`) |
 | `config.cache_size` | int | No | KV cache size in GB (LLM/VLM only) |
@@ -134,9 +116,12 @@ There are two ways to trigger conversion:
 | `type` value | Export type used | Typical models |
 |--------------|-----------------|----------------|
 | `llm` | `text_generation` | Llama, Mistral, Phi, Qwen |
-| `vlm` | `text_generation` (VLM mode) | LLaVA, InternVL, Phi-3-Vision |
-| `embeddings` | `embeddings_ov` | sentence-transformers, BGE |
+| `vlm` | `text_generation` (VLM mode) | LLaVA, InternVL, Phi-3-Vision, Gemma-4 |
+| `embeddings` | `embeddings_ov` | sentence-transformers, BGE, GTE |
 | `rerank` | `rerank_ov` | cross-encoder rerankers |
+| `text2speech` | `text2speech` | SpeechT5, Kokoro |
+| `speech2text` | `speech2text` | Whisper |
+| `image_generation` | `image_generation` | Stable Diffusion, Dreamlike |
 
 **NPU constraint:** NPU device forces `int4` precision regardless of config.
 
@@ -156,6 +141,7 @@ curl -s -X POST \
         "name": "meta-llama/Llama-3.2-1B",
         "hub": "openvino",
         "type": "llm",
+        "is_ovms":true,
         "config": {
           "precision": "int4",
           "device": "CPU",
@@ -178,6 +164,7 @@ curl -s -X POST \
         "name": "sentence-transformers/all-MiniLM-L6-v2",
         "hub": "openvino",
         "type": "embeddings",
+        "is_ovms": true,
         "config": {
           "precision": "int8",
           "device": "CPU"

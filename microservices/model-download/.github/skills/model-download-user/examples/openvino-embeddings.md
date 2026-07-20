@@ -33,6 +33,7 @@ curl -s -X POST \
         "name": "sentence-transformers/all-MiniLM-L6-v2",
         "hub": "openvino",
         "type": "embeddings",
+        "is_ovms": true,
         "config": {
           "precision": "int8",
           "device": "CPU"
@@ -69,6 +70,7 @@ curl -s -X POST \
         "name": "cross-encoder/ms-marco-MiniLM-L-6-v2",
         "hub": "openvino",
         "type": "rerank",
+        "is_ovms": true,
         "config": {
           "precision": "int8",
           "device": "CPU"
@@ -103,6 +105,7 @@ curl -s -X POST \
         "name": "BAAI/bge-large-en-v1.5",
         "hub": "openvino",
         "type": "embeddings",
+        "is_ovms": true,
         "config": {
           "precision": "int8",
           "device": "CPU",
