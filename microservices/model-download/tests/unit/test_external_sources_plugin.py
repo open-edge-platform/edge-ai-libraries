@@ -30,7 +30,7 @@ class TestPluginProperties:
         assert plugin.plugin_type == "downloader"
 
     def test_supported_hubs(self, plugin):
-        hubs = plugin.supported_hubs()
+        hubs = plugin.plugin_supported_hubs()
         assert "pipeline-zoo-models" in hubs
         assert "remote-url" in hubs
         assert "omz" in hubs

@@ -95,18 +95,14 @@ class PluginRegistry:
     def supported_hubs(self) -> List[str]:
         """Return the union of every hub claimed by a registered plugin.
 
-        Plugins may either expose a ``supported_hubs()`` method (when
-        they handle multiple hubs, e.g. ``external-sources``) or simply
-        register under a hub-named ``plugin_name``.
+        Every plugin exposes ``plugin_supported_hubs()`` (defined on the base
+        class). Single-hub plugins return ``[plugin_name]``; multi-hub plugins
+        (e.g. ``external-sources``) override it to return all hubs they serve.
         """
         hubs: set[str] = set()
         for plugins_by_name in self.plugins.values():
-            for plugin_name, plugin in plugins_by_name.items():
-                supported = getattr(plugin, "supported_hubs", None)
-                if callable(supported):
-                    hubs.update(str(h).lower() for h in (supported() or []))
-                else:
-                    hubs.add(plugin_name.lower())
+            for plugin in plugins_by_name.values():
+                hubs.update(str(h).lower() for h in plugin.plugin_supported_hubs())
         return sorted(hubs)
 
     def hub_is_available(self, hub: str) -> Tuple[bool, str]:
@@ -132,20 +128,3 @@ class PluginRegistry:
             f"Hub '{hub}' was not activated during container startup. "
             f"Active hubs: {', '.join(sorted(self.activated_plugins))}"
         )
-        
-    def check_plugin_dependencies(self, plugin_name: str) -> Tuple[bool, str]:
-        """
-        Check if a plugin was activated during container startup.
-        
-        Args:
-            plugin_name: Name of the plugin to check
-        
-        Returns:
-            tuple: (bool, str) indicating if the plugin is available and reason if not
-        """
-        # Check if the plugin was activated during container startup
-        if self.activated_plugins:
-            if "all" not in self.activated_plugins and plugin_name.lower() not in self.activated_plugins:
-                return False, f"Plugin '{plugin_name}' was not activated during container startup. Active plugins: {', '.join(self.activated_plugins)}"
-        
-        return True, ""
