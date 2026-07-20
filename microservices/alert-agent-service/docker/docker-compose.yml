@@ -5,7 +5,7 @@ name: ${PROJECT_NAME:-alert-agent-service}
 
 services:
   ovms-llm:
-    image: openvino/model_server:2026.1-gpu
+    image: openvino/model_server:2026.2.1-gpu
     container_name: ovms-llm
     restart: unless-stopped
     user: "0:0"

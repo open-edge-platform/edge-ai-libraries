@@ -42,14 +42,14 @@ cd edge-ai-libraries/microservices/alert-agent-service
 
 ### 3. Configure Environment Variables
 
-Create a `.env` file (or export variables in your shell) with the required configuration:
+Export variables with the required configuration:
 
 ```bash
 # ----- Service -----
 export PORT=8000
 export LOG_LEVEL=INFO
 export REGISTRY="intel/"
-export TAG=2026.2.0-rc1
+export TAG=latest
 
 # ----- ADK / LLM -----
 export AGENT_MODE=true
@@ -116,7 +116,7 @@ docker compose -f docker/docker-compose.yml ps
 Check the health endpoint:
 
 ```bash
-curl http://localhost:9001/api/v1/health
+curl http://localhost:8000/api/v1/health
 ```
 
 Expected response:
@@ -135,8 +135,8 @@ Expected response:
 
 Open the Swagger UI at:
 
-```
-http://localhost:9001/docs
+```json
+  http://localhost:8000/docs
 ```
 
 ### 7. Stop the Services
@@ -156,37 +156,41 @@ docker compose -f docker/docker-compose.yml --profile agent down
 ### Dispatch a Text Alert
 
 ```bash
-curl -X POST http://localhost:9001/api/v1/actions/execute \
+curl -X POST http://localhost:8000/api/v1/actions/execute \
   -H "Content-Type: application/json" \
   -d '{
+  "data":{
     "source_id": "sensor-42",
     "alert_name": "TemperatureThreshold",
     "answer": "YES",
     "reason": "CPU temperature exceeded 90°C",
     "tools": ["log_alert", "trigger_webhook"]
-  }'
+  }
+}'
 ```
 
 ### Dispatch an Image Alert (base64 JPEG)
 
 ```bash
-curl -X POST http://localhost:9001/api/v1/actions/execute \
+curl -X POST http://localhost:8000/api/v1/actions/execute \
   -H "Content-Type: application/json" \
   -d '{
-    "source_id": "cam-01",
-    "alert_name": "CONCEALMENT",
-    "answer": "YES",
-    "reason": "Camera lens partially covered",
-    "tools": ["log_alert", "capture_snapshot", "trigger_webhook"],
-    "payloads": [
-      {
-        "kind": "image",
-        "mime_type": "image/jpeg",
-        "encoding": "base64",
-        "data_base64": "<base64-encoded-jpeg>",
-        "metadata": {"width": 1920, "height": 1080}
-      }
-    ]
+  "data":{
+      "source_id": "cam-01",
+      "alert_name": "CONCEALMENT",
+      "answer": "YES",
+      "reason": "Camera lens partially covered",
+      "tools": ["log_alert", "capture_snapshot", "trigger_webhook"],
+      "payloads": [
+        {
+          "kind": "image",
+          "mime_type": "image/jpeg",
+          "encoding": "base64",
+          "data_base64": "<base64-encoded-jpeg>",
+          "metadata": {"width": 1920, "height": 1080}
+        }
+      ]
+    }
   }'
 ```
 
@@ -204,33 +208,10 @@ curl -X POST http://localhost:9001/api/v1/actions/execute \
 }
 ```
 
-### Dispatch an Audio Alert (URI reference)
-
-```bash
-curl -X POST http://localhost:9001/api/v1/actions/execute \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source_id": "mic-lobby",
-    "alert_name": "GlassBreak",
-    "answer": "YES",
-    "reason": "High-frequency impact detected at 2.3 kHz",
-    "tools": ["log_alert", "publish_mqtt"],
-    "payloads": [
-      {
-        "kind": "audio",
-        "mime_type": "audio/wav",
-        "encoding": "uri",
-        "uri": "s3://alerts/mic-lobby/20260615_073045.wav",
-        "metadata": {"duration_ms": 2500, "sample_rate": 44100}
-      }
-    ]
-  }'
-```
-
 ### Subscribe to Real-Time SSE Events
 
 ```bash
-curl -N http://localhost:9001/api/v1/events
+curl -N http://localhost:8000/api/v1/events
 ```
 
 Example output:
@@ -249,7 +230,7 @@ data: {"ts": 1749971445.123}
 ### List Available Tools
 
 ```bash
-curl http://localhost:9001/api/v1/tools
+curl http://localhost:8000/api/v1/tools
 ```
 
 ---
@@ -260,7 +241,7 @@ curl http://localhost:9001/api/v1/tools
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `9001` | Port the service listens on |
+| `PORT` | `8000` | Port the service listens on |
 | `LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `AGENT_MODE` | `true` | Enable ADK (LLM-reasoned) dispatch; set `false` for rule-based mode |
 | `TARGET_DEVICE` | `GPU` | OVMS inference device — set to `CPU` for Intel devices without a discrete GPU |
