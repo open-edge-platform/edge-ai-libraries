@@ -15,6 +15,9 @@ Download pre-converted OpenVINO IR models for Intel Health & Life Sciences (HLS)
 | `rppg` | `mtts_can` | Heart rate estimation from video (rPPG) |
 | `ai-ecg` | `ecg_17920_ir10_fp16`, `ecg_8960_ir10_fp16` | ECG signal classification |
 
+Even if the user only asks about one type, briefly mention the other two — they're part
+of the same plugin and the user is often building a multi-modal healthcare demo.
+
 ---
 
 ## Step 1 — Set Up Service
