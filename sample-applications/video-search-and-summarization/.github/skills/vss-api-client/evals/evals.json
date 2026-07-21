@@ -1,0 +1,100 @@
+{
+  "skill_name": "vss-api-client",
+  "evals": [
+    {
+      "id": 1,
+      "prompt_file": "example-prompts/01-upload-video-curl.md",
+      "prompt": "I have a file called `sample.mp4` in my current directory and I want to upload it to my running VSS instance at `localhost:12345`. Can you give me a curl command that posts it to the API as multipart form data, tags it \"demo\", and prints out just the videoId from the JSON response?",
+      "expected_output": "A copy-pasteable upload example that checks the nginx-routed Pipeline Manager API, posts sample.mp4 as multipart/form-data field video with tags, and extracts the returned videoId.",
+      "files": [],
+      "expectations": [
+        "Uses the nginx-routed Pipeline Manager base URL http://localhost:12345/manager and optionally checks GET /manager/health before upload.",
+        "Uses POST /manager/videos with multipart/form-data field name 'video' and includes the comma-separated tags field with value 'demo'.",
+        "Extracts videoId from the JSON response rather than inventing a different response key.",
+        "Does not imply that uploading to /manager/videos starts summarization; treats upload as only creating the video record."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt_file": "example-prompts/02-poll-summary-status.md",
+      "prompt": "I already have a `videoId` from uploading a clip to VSS. Now I need Python code that calls `POST /manager/summary` with a sampling config (30 second chunks, 4 frames per chunk) to kick off summarization, then repeatedly polls `GET /manager/summary/{stateId}` every few seconds until `videoSummaryStatus` says complete, and finally prints the summary text.",
+      "expected_output": "A correct async summary-start and polling example for an existing videoId that calls POST /manager/summary, treats summaryPipelineId as stateId, and polls until completion before printing the summary.",
+      "files": [],
+      "expectations": [
+        "Uses POST /manager/summary with videoId, title, sampling fields chunkDuration, samplingFrame, frameOverlap, multiFrame, and evam.evamPipeline='video_ingestion'.",
+        "Uses chunkDuration=30 and samplingFrame=4, and provides a valid multiFrame value consistent with samplingFrame plus frameOverlap.",
+        "Reads summaryPipelineId from the 201 response and uses it as the stateId for GET /manager/summary/{stateId}.",
+        "Polls GET /manager/summary/{stateId} with a sleep interval and stops when videoSummaryStatus is 'complete' and/or summary text is non-empty.",
+        "Prints the final summary text without assuming that POST /manager/videos started the processing job."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt_file": "example-prompts/03-socketio-progress.md",
+      "prompt": "After I call `/manager/summary` and get back a `summaryPipelineId`, I want a Node.js script using `socket.io-client` that connects to VSS, joins that room, and logs each `chunks`, `frameSummary`, and `summaryStream` event as they arrive so I can show a live progress bar in my app.",
+      "expected_output": "A Socket.IO client example that correctly connects through nginx, joins the summaryPipelineId/stateId room, and listens to the documented public progress event names.",
+      "files": [],
+      "expectations": [
+        "Connects to http://localhost:12345 with socket.io-client using path '/ws/' instead of connecting under /manager.",
+        "Emits the client event 'join' with the returned summaryPipelineId/stateId after the socket connects.",
+        "Listens for documented events under summary:sync/{stateId}/, including chunks, frameSummary, summaryStream, and optionally status, inferenceConfig, or summary.",
+        "Explains that summaryPipelineId is the Socket.IO room name and the ID used by summary retrieval endpoints."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt_file": "example-prompts/04-direct-search-ms-query.md",
+      "prompt": "For a performance test, I want to skip the Pipeline Manager entirely and send a search query straight to the search microservice on port 7890. I need to look for \"person walking\" clips tagged \"demo\" between 2026-01-01 and 2026-06-30, using a query_id of \"perf-test-1\". What does the request body look like and how do I curl it directly?",
+      "expected_output": "A direct search-ms request that bypasses Pipeline Manager, posts a list of query objects to port 7890/query, includes a tags array and absolute ISO time_filter bounds, and notes the tradeoff versus managed Pipeline Manager queries.",
+      "files": [],
+      "expectations": [
+        "Uses POST http://localhost:7890/query rather than /manager/search or /manager/search/query.",
+        "Sends a JSON list containing an object with query_id, query, tags as an array, and time_filter with start and end ISO 8601 strings.",
+        "Uses query_id perf-test-1, query text person walking, tag demo, and the 2026-01-01 through 2026-06-30 time range requested by the prompt.",
+        "Notes that direct search-ms bypasses Pipeline Manager persistence, watch mode, and managed queryId lifecycle."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt_file": "example-prompts/05-integration-test-lifecycle.md",
+      "prompt": "I'm adding an integration test to our CI suite for VSS. It needs to upload `./fixtures/sample.mp4`, start a summarization job with a 30-second chunk duration, wait for the pipeline to finish (up to a reasonable timeout), and then assert that the returned summary text is non-empty and that `videoSummaryStatus` equals \"complete\". Can you write this as a Python test function?",
+      "expected_output": "A dependency-light Python integration test or equivalent smoke-test adaptation that checks health, uploads a fixture video, starts summarization, polls with a bounded timeout, and asserts on completed non-empty summary output.",
+      "files": [],
+      "expectations": [
+        "Runs the documented lifecycle in order: GET /manager/health, POST /manager/videos, POST /manager/summary, then GET /manager/summary/{stateId}.",
+        "Uploads ./fixtures/sample.mp4 as multipart/form-data field 'video' and captures videoId from the response.",
+        "Starts summarization with chunkDuration=30 and a valid sampling plus evam.evamPipeline='video_ingestion' payload, capturing summaryPipelineId/stateId.",
+        "Uses a bounded polling loop that fails or raises on timeout instead of hanging indefinitely.",
+        "Asserts that videoSummaryStatus equals 'complete' and summary is a non-empty string."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt_file": "example-prompts/06-watched-search-query-lifecycle.md",
+      "prompt": "I want to set up a search query for \"unattended bag\" through the Pipeline Manager (not the raw search microservice), turn on watch mode so it re-checks automatically, and later manually refetch it with an updated time filter of the last 6 hours. What are the API calls for creating it, enabling watch, and refetching?",
+      "expected_output": "A complete managed search workflow that creates a saved Pipeline Manager query, enables watch mode, refetches it with a new six-hour time filter, and distinguishes this flow from one-off or direct search-ms requests.",
+      "files": [],
+      "expectations": [
+        "Uses POST /manager/search through http://localhost:12345/manager to create the saved query and captures the top-level queryId from the 201 response.",
+        "Uses the managed SearchQueryDTO shape with query 'unattended bag' and a flat timeFilter object when a time filter is supplied.",
+        "Enables watch mode with PATCH /manager/search/{queryId}/watch and body {\"watch\": true}.",
+        "Refetches with POST /manager/search/{queryId}/refetch and body {\"timeFilter\": {\"value\": 6, \"unit\": \"hours\"}}.",
+        "Mentions GET /manager/search/{queryId} for current state and GET /manager/search/watched for listing watched queries."
+      ]
+    },
+    {
+      "id": 90,
+      "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
+      "prompt": "I just uploaded a video to VSS and generated its search embeddings. Now I want to run a natural language query like \"person entering through the side door\" against `/search/query`, restrict results to clips tagged \"warehouse\", and only look within the last 24 hours. Can you show me the exact request body and how to read the ranked clip results from the response?",
+      "expected_output": "Before answering the search question, the response unconditionally runs the skill's bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at the official VSS repo or a fork of it and reuses that checkout if so, or otherwise performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main; it then cd's into the resolved app root before giving the /search/query request body and result-reading guidance.",
+      "files": [],
+      "expectations": [
+        "The response runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) as a first step before addressing the requested search query task, even though the prompt never asked about setup, location, or cloning.",
+        "The bootstrap step determines whether the current location is already a valid clone/checkout (or a fork) of the VSS project by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, checking origin/upstream URLs) for a match to the official VSS repo (open-edge-platform/edge-ai-libraries) or a fork of it, rather than merely checking for local marker files.",
+        "If that remote check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the response reuses it and performs NO re-clone.",
+        "If no valid checkout or matching remote is found, the response performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the main branch.",
+        "The response changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's real commands for the search query task."
+      ]
+    }
+  ]
+}
