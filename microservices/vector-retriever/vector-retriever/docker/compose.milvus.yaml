@@ -1,0 +1,124 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  multimodal-embedding-serving:
+    image: intel/multimodal-embedding-serving:latest
+    container_name: multimodal-embedding-serving
+    ports:
+      - '${EMBEDDING_SERVER_PORT:-9777}:8000'
+    environment:
+      no_proxy: ${no_proxy:-},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},localhost
+      NO_PROXY: ${no_proxy:-},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},localhost
+      no_proxy_env: ${no_proxy:-},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},localhost
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-}
+      EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-CPU}
+      EMBEDDING_USE_OV: ${EMBEDDING_USE_OV:-true}
+      EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
+      DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC:-0}
+      DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION:--1}
+      DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES:-64}
+      OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-LATENCY}
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:8000/health || exit 1']
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+    volumes:
+      - ov-models:/home/appuser/.cache/huggingface
+      - data-prep:/tmp/dataprep
+      - ov-models:${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
+    networks:
+      - vr_network
+
+  milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: '1000'
+      ETCD_QUOTA_BACKEND_BYTES: '4294967296'
+      ETCD_SNAPSHOT_COUNT: '50000'
+      http_proxy: ''
+      https_proxy: ''
+      no_proxy: ''
+      HTTP_PROXY: ''
+      HTTPS_PROXY: ''
+      NO_PROXY: ''
+    command: >
+      etcd
+      -advertise-client-urls=http://127.0.0.1:2379
+      -listen-client-urls http://0.0.0.0:2379
+      --data-dir /etcd
+    volumes:
+      - milvus-etcd:/etcd
+    healthcheck:
+      test: ['CMD', 'etcdctl', 'endpoint', 'health']
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - vr_network
+
+  milvus-standalone:
+    image: ${MILVUS_IMAGE:-milvusdb/milvus:v2.6.14}
+    command: ['milvus', 'run', 'standalone']
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: milvus-etcd:2379
+      COMMON_STORAGETYPE: 'local'
+      http_proxy: ''
+      https_proxy: ''
+      no_proxy: ''
+      HTTP_PROXY: ''
+      HTTPS_PROXY: ''
+      NO_PROXY: ''
+    ports:
+      - '${MILVUS_HOST_PORT:-19530}:19530'
+      - '${MILVUS_METRICS_HOST_PORT:-9091}:9091'
+    volumes:
+      - milvus-db:/var/lib/milvus
+    depends_on:
+      milvus-etcd:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:9091/healthz']
+      interval: 30s
+      timeout: 20s
+      retries: 10
+      start_period: 90s
+    networks:
+      - vr_network
+
+  vector-retriever:
+    environment:
+      RETRIEVER_BACKEND: milvus
+      EMBEDDINGS_ENDPOINT: ${EMBEDDINGS_ENDPOINT:-${MULTIMODAL_EMBEDDING_ENDPOINT:-http://multimodal-embedding-serving:8000/embeddings}}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-}
+      MILVUS_URI: ${MILVUS_URI:-http://milvus-standalone:19530}
+      MILVUS_TOKEN: ${MILVUS_TOKEN:-}
+      MILVUS_DB_NAME: ${MILVUS_DB_NAME:-}
+      MILVUS_INDEX_TYPE: ${MILVUS_INDEX_TYPE:-FLAT}
+      MILVUS_METRIC_TYPE: ${MILVUS_METRIC_TYPE:-L2}
+      MILVUS_TEXT_FIELD: ${MILVUS_TEXT_FIELD:-text}
+      MILVUS_METADATA_FIELD: ${MILVUS_METADATA_FIELD:-}
+    depends_on:
+      - multimodal-embedding-serving
+      - milvus-etcd
+      - milvus-standalone
+    networks:
+      - vr_network
+
+volumes:
+  milvus-etcd:
+    driver: local
+  milvus-db:
+    driver: local
+  ov-models:
+    driver: local
+  data-prep:
+    driver: local

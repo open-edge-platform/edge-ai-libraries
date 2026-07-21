@@ -1,0 +1,45 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[tool.poetry]
+name = "vector-retriever"
+version = "1.0.0"
+description = "Semantic retrieval service over pluggable vector backends with batch query support"
+authors = []
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11,<3.13"
+fastapi = "^0.136.3"
+uvicorn = "^0.48.0"
+gunicorn = "^26.0.0"
+pydantic = "^2.13.4"
+pydantic-settings = "^2.14.1"
+python-dotenv = "^1.2.2"
+requests = "^2.34.2"
+langchain-core = "^1.4.0"
+
+[tool.poetry.group.backend-vdms.dependencies]
+langchain-vdms = "^0.2.0"
+numpy = "^2.4.6"
+
+[tool.poetry.group.backend-faiss.dependencies]
+faiss-cpu = "^1.14.2"
+langchain-community = "^0.4.2"
+
+[tool.poetry.group.backend-pgvector.dependencies]
+langchain-postgres = "^0.0.17"
+psycopg = {version = ">=3.3.4", extras = ["binary"]}
+sqlalchemy = "^2.0.50"
+
+[tool.poetry.group.backend-milvus.dependencies]
+langchain-milvus = "^0.3.3"
+pymilvus = "^2.6.14"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.3"
+httpx = "^0.28.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -89,10 +89,19 @@ export class SearchController {
   @ApiCreatedResponse({ description: 'Search results' })
   async searchQuery(@Body() reqBody: SearchQueryDTO) {
     const normalized = this.$search.buildTimeFilterRange(reqBody.timeFilter);
+    const tags = reqBody.tags
+      ? reqBody.tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter((tag) => tag.length > 0)
+      : [];
     const queryShim: SearchShimQuery = {
       query: reqBody.query,
       query_id: uuidV4(),
     };
+    if (tags.length > 0) {
+      queryShim.tags = tags;
+    }
     if (normalized.range) {
       queryShim.time_filter = normalized.range;
     }

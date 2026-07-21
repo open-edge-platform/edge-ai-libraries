@@ -285,3 +285,67 @@ def test_summary_endpoint_bubbles_http_exception(mock_validate_video_path, test_
 
     assert response.status_code == 400
     assert response.json()["detail"]["error_message"] == "Invalid video path"
+
+
+# ---------------------------------------------------------------- subtitle modes
+_SRT = "1\n00:00:00,000 --> 00:00:05,000\n[motion] fridge opened\n"
+
+
+@pytest.mark.api
+@patch("video_analyzer.api.endpoints.summarization.VideoSummarizer")
+def test_summary_caption_only_mode(mock_video_summarizer, test_client: TestClient):
+    """video='none' + subtitles → caption-only: no video path, subtitles forwarded."""
+    _mock_ok_summarizer(mock_video_summarizer)
+
+    response = test_client.post(
+        "/v1/summary",
+        json={
+            "video": "none",
+            "video_subtitles": {"text": _SRT},
+            "method": "SIMPLE",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+    kwargs = mock_video_summarizer.call_args.kwargs
+    assert kwargs["video_path"] == "none"
+    assert kwargs["video_subtitles"] == {"text": _SRT}
+
+
+@pytest.mark.api
+@patch("video_analyzer.api.endpoints.summarization.VideoSummarizer")
+@patch("video_analyzer.api.endpoints.summarization.validate_video_path")
+def test_summary_video_with_subtitles(mock_validate_video_path, mock_video_summarizer, test_client: TestClient):
+    """video + subtitles coexist → VLM path runs AND subtitles are forwarded."""
+    mock_validate_video_path.return_value = "/tmp/demo.mp4"
+    _mock_ok_summarizer(mock_video_summarizer)
+
+    response = test_client.post(
+        "/v1/summary",
+        json={
+            "video": "https://example.com/video.mp4",
+            "video_subtitles": {"text": _SRT},
+            "method": "USE_ALL_T-1",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+    kwargs = mock_video_summarizer.call_args.kwargs
+    assert kwargs["video_path"] == "/tmp/demo.mp4"   # real video path, NOT caption-only
+    assert kwargs["video_subtitles"] == {"text": _SRT}
+
+
+@pytest.mark.api
+def test_summary_caption_only_requires_subtitles(test_client: TestClient):
+    """video='none' with no subtitles is a 400 (nothing to summarize)."""
+    response = test_client.post(
+        "/v1/summary",
+        json={"video": "none", "method": "SIMPLE"},
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["error_message"] == "Summarization failed!"
+    assert "video or video_subtitles" in detail["details"]

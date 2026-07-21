@@ -23,4 +23,4 @@ dist/
 ov_model_venv
 ovms_config
 docs/implementation-history
-.github
+# .github is tracked: it holds the agent scaffolding (copilot-instructions.md, skills/)

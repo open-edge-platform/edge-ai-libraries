@@ -5,6 +5,31 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+check_proxy_format() {
+    local proxy_vars=("HTTP_PROXY" "HTTPS_PROXY" "NO_PROXY" \
+                      "http_proxy" "https_proxy" "no_proxy")
+    local malformed=0
+
+    for var in "${proxy_vars[@]}"; do
+        if [ -n "${!var}" ]; then
+            if [[ "${!var}" =~ ^, ]]; then
+                echo "ERROR: Malformed proxy environment variable detected!" >&2
+                echo "  Variable: $var" >&2
+                echo "  Value: ${!var}" >&2
+                echo "  Error: should not start with comma" >&2
+                malformed=1
+            fi
+        fi
+    done
+
+    if [ $malformed -eq 1 ]; then
+        echo "ERROR: One or more proxy environment variables have invalid format." >&2
+        echo "Please fix the proxy configuration before continuing." >&2
+        return 1
+    fi
+    return 0
+}
+
 # Pre-requisites needed for Gencam based Cameras video Ingestion
 genicam_prequisites() {
     # Adding path of Generic Plugin
@@ -44,6 +69,9 @@ ros2_prerequisites() {
 }
 
 gpu_execution_prequisites
+
+# Check proxy environment variables before proceeding
+check_proxy_format || exit 1
 
 # genicam_prequisites
 

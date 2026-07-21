@@ -1,4 +1,25 @@
 global:
+  # Single source of override for image registry and tag across VSS service images
+  # (pipeline-manager, video-ingestion, video-search, vss-ui, vdms-dataprep,
+  # multimodal-embedding-serving). Leave empty to keep each subchart's own defaults.
+  #   registry: when set, images are pulled from this registry using their bare image name.
+  #   tag: when set, overrides the image tag for the VSS service images above.
+  registry: ""
+  tag: ""
+  # pullPolicy overrides the imagePullPolicy for the VSS service images above.
+  # Leave empty to keep each subchart's own default (IfNotPresent).
+  # Set to "Always" to force a fresh pull on every pod start (e.g. when reusing a mutable tag).
+  pullPolicy: ""
+
+  # accelGroupIds are the host group ids that own the accelerator device nodes
+  # (/dev/dri for GPU, /dev/accel for NPU). When a service is configured to use a
+  # GPU or NPU, these gids are added to the pod's supplementalGroups so the non-root
+  # container user can open the device. This mirrors the compose `group_add`
+  # (render + video groups). The gids are host-specific, so override these to match
+  # the target node (check with `ls -ln /dev/accel` and `ls -ln /dev/dri`).
+  accelGroupIds:
+    - 992
+
   # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
   volumeHostPath: "/mnt/vss-data"
 
@@ -8,7 +29,7 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
+  # sharedPvcName is the PVC used for collector signal exchange (pipeline-manager <-> vss-collector).
   sharedPvcName: "vss-shared-pvc"
 
   # huggingfaceToken should be set during installation if gated models need to be accessed.
@@ -31,13 +52,17 @@ global:
   devices:
     # Multimodal Embedding Microservice
     multimodalEmbedding:
-      device: CPU # CPU | GPU
-      key: "" # K8s resource key (e.g., 'gpu.intel.com/xe')
+      device: CPU # CPU | GPU | NPU
+      key: "" # K8s resource key (e.g., 'gpu.intel.com/xe', 'npu.intel.com/accel')
 
     # VDMS Dataprep
     vdmsDataprep:
-      device: CPU # CPU | GPU
-      key: ""
+      embedding:
+        device: CPU # CPU | GPU | NPU
+        key: "" # K8s resource key when using GPU/NPU
+      detection:
+        device: CPU # CPU | GPU | NPU
+        key: "" # K8s resource key when using GPU/NPU
 
     # OVMS - per-model device selection (supports split-device configs)
     ovms:
@@ -47,9 +72,6 @@ global:
       llm:
         device: CPU # CPU | GPU | NPU | HETERO:GPU,CPU
         key: ""
-
-  # Render group for GPU device access
-  renderGroupId: ""
 
   proxy:
     no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8,.svc.cluster.local"
@@ -69,14 +91,13 @@ global:
     MULTIMODAL_EMBEDDING_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
     EMBEDDING_PROCESSING_MODE: "sdk"
     SDK_USE_OPENVINO: true
-    VDMS_DATAPREP_DEVICE: "CPU"
-    DEVICE: "CPU"
     OV_MODELS_DIR: "/app/ov_models"
     OV_PERFORMANCE_MODE: "THROUGHPUT"
     VDMS_DATAPREP_LOG_LEVEL: "INFO"
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart
 
-# sharedClaimSize is the storage size claimed by shared PVC used by VDMS Dataprep and Multimodal-Embedding-MS subcharts.
+# sharedClaimSize is the storage size for the shared collector-signals PVC
+# consumed by pipeline-manager and vss-collector.
 sharedClaimSize: "7Gi"
 
 rabbitmq:
