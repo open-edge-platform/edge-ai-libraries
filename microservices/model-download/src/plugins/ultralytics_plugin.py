@@ -35,6 +35,7 @@ class UltralyticsDownloader(ModelDownloadPlugin):
 
     def list_models(self, filters=None, limit=50, offset=0, **kwargs) -> dict:
         """List the statically supported Ultralytics model names."""
+        self._validate_listing_filters(filters)
         models = [m for m in self.get_supported_models() if m not in ("all", "yolo_all")]
 
         search_term = str((filters or {}).get("search", "")).lower()

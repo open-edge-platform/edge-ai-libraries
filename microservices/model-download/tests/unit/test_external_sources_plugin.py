@@ -30,7 +30,7 @@ class TestPluginProperties:
         assert plugin.plugin_type == "downloader"
 
     def test_supported_hubs(self, plugin):
-        hubs = plugin.supported_hubs()
+        hubs = plugin.plugin_supported_hubs()
         assert "pipeline-zoo-models" in hubs
         assert "remote-url" in hubs
         assert "omz" in hubs
@@ -125,6 +125,52 @@ class TestTarballDownload:
         assert (target / "model.xml").is_file()
         assert result["success"] is True
 
+    def test_shared_archive_tarball_all_downloads_each_model_under_its_name(self, plugin, temp_dir, monkeypatch):
+        extract_root = Path(temp_dir) / "extracted"
+        storage_dir = extract_root / "pipeline-zoo-models-main" / "storage"
+        for name in ["dbnet", "yolov5m-320"]:
+            model_src = storage_dir / name
+            model_src.mkdir(parents=True, exist_ok=True)
+            Path(model_src, "model.xml").write_text("<xml/>", encoding="utf-8")
+
+        monkeypatch.setattr(
+            plugin, "_ensure_shared_archive_extracted", lambda hub, profile: str(extract_root)
+        )
+
+        result = plugin.download("all", temp_dir, hub="pipeline-zoo-models")
+
+        dbnet = Path(temp_dir) / "pipeline-zoo-models" / "dbnet"
+        yolo = Path(temp_dir) / "pipeline-zoo-models" / "yolov5m-320"
+        assert (dbnet / "model.xml").is_file()
+        assert (yolo / "model.xml").is_file()
+        # multi-model requests should resolve to hub root, not all/
+        assert not (Path(temp_dir) / "pipeline-zoo-models" / "all").exists()
+        assert result["download_path"].endswith("pipeline-zoo-models")
+        assert result["success"] is True
+
+    def test_shared_archive_tarball_comma_separated_downloads_each_model_under_its_name(self, plugin, temp_dir, monkeypatch):
+        extract_root = Path(temp_dir) / "extracted"
+        storage_dir = extract_root / "pipeline-zoo-models-main" / "storage"
+        for name in ["dbnet", "yolov5m-320"]:
+            model_src = storage_dir / name
+            model_src.mkdir(parents=True, exist_ok=True)
+            Path(model_src, "model.xml").write_text("<xml/>", encoding="utf-8")
+
+        monkeypatch.setattr(
+            plugin, "_ensure_shared_archive_extracted", lambda hub, profile: str(extract_root)
+        )
+
+        result = plugin.download("dbnet,yolov5m-320", temp_dir, hub="pipeline-zoo-models")
+
+        dbnet = Path(temp_dir) / "pipeline-zoo-models" / "dbnet"
+        yolo = Path(temp_dir) / "pipeline-zoo-models" / "yolov5m-320"
+        assert (dbnet / "model.xml").is_file()
+        assert (yolo / "model.xml").is_file()
+        # multi-model requests should resolve to hub root, not comma-joined folder
+        assert not (Path(temp_dir) / "pipeline-zoo-models" / "dbnet,yolov5m-320").exists()
+        assert result["download_path"].endswith("pipeline-zoo-models")
+        assert result["success"] is True
+
     def test_download_cleans_up_on_failure(self, plugin, temp_dir, monkeypatch):
         def boom(url, target):
             os.makedirs(target, exist_ok=True)
@@ -196,12 +242,23 @@ class TestListModels:
 
 
 class TestRuntimeUrlValidation:
-    _ALLOWLIST = ["github.com/open-edge-platform/edge-ai-resources/"]
+    _ALLOWLIST = [
+        "github.com/open-edge-platform/edge-ai-resources/",
+        "github.com/vkb1/edge-ai-resources/",
+    ]
 
     def test_allowed_url_passes(self):
         url = (
             "https://github.com/open-edge-platform/edge-ai-resources/raw/main/"
             "timeseries-udf-deployment-packages/m.tar"
+        )
+        # Should not raise.
+        ExternalSourcesPlugin._validate_runtime_url(url, self._ALLOWLIST)
+
+    def test_vkb_github_raw_url_passes(self):
+        url = (
+            "https://github.com/vkb1/edge-ai-resources/raw/refs/heads/feature/vkb1/new-udf/"
+            "timeseries-udf-deployment-packages/wind-turbine-anomaly-detection.tar"
         )
         # Should not raise.
         ExternalSourcesPlugin._validate_runtime_url(url, self._ALLOWLIST)

@@ -33,7 +33,7 @@ The following are the core components of the plugin-based microservice architect
      - Provides RESTful API endpoints for service operations.
      - Handles incoming request validation, serialization, and routes to the appropriate components.
      - Generates and serves OpenAPI (Swagger suite) documentation for clear, interactive API specifications.
-      - Lists discoverable models from supported hubs through `POST /api/v1/hubs/{hub}/models`.
+      - Lists discoverable models from supported hubs through `POST /api/v1/models/list`.
 
 2. **Model Manager**
    - **Description**: The Model Manager is the central orchestration component that directs model download and conversion processes. It coordinates actions between the API layer and the plugin system.
