@@ -110,24 +110,6 @@
       ]
     },
     {
-      "name": "vss-model-onboarding",
-      "path": ".github/skills/vss-model-onboarding/SKILL.md",
-      "description": "Bring a new VLM/embedding model into OVMS with OpenVINO IR conversion and model-dir layout.",
-      "triggers": [
-        "onboard new model",
-        "add vlm model",
-        "convert to ovms",
-        "openVINO IR conversion",
-        "model deployment"
-      ],
-      "requires": [
-        ".github/skills/vss-model-onboarding/scripts/vss-bootstrap.sh",
-        ".github/skills/vss-model-onboarding/scripts/prepare_ovms_model.py",
-        "OpenVINO",
-        "model assets"
-      ]
-    },
-    {
       "name": "vss-deploy-helm",
       "path": ".github/skills/vss-deploy-helm/SKILL.md",
       "description": "Deploy VSS to Kubernetes via Helm chart with mode mapping to values.yaml.",
@@ -193,24 +175,6 @@
         "docker compose",
         "DLStreamer",
         "video-ingestion/"
-      ]
-    },
-    {
-      "name": "vss-search-internals",
-      "path": ".github/skills/vss-search-internals/SKILL.md",
-      "description": "Work on embeddings and VDMS retrieval; understand frame vs summary-text embedding.",
-      "triggers": [
-        "search internals",
-        "embeddings",
-        "vdms retrieval",
-        "embedding model",
-        "vector search"
-      ],
-      "requires": [
-        ".github/skills/vss-search-internals/scripts/vss-bootstrap.sh",
-        "search-ms/",
-        "VDMS",
-        "embedding model"
       ]
     },
     {
