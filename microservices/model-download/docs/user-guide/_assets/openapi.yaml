@@ -490,8 +490,8 @@ paths:
         For `geti`, listing requires `GETI_HOST`, `GETI_TOKEN`, and
         `GETI_WORKSPACE_ID` to be configured.
 
-        Extra top-level request body fields are accepted and merged into `filters`.
         Use `GET /api/v1/plugins` to discover each plugin's `listing_filter_fields`.
+
         This endpoint should move to HTTP QUERY once FastAPI, OpenAPI tooling,
         and deployment proxies support QUERY consistently for safe requests with bodies.
       operationId: listHubModels

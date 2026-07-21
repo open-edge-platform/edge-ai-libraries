@@ -93,8 +93,33 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
     def plugin_type(self) -> str:
         return "downloader"
 
-    def supported_hubs(self) -> List[str]:
+    def plugin_supported_hubs(self) -> List[str]:
+        """Return all hub names this plugin serves."""
         return list(_load_profile().keys())
+
+    def hub_description(self, hub: str) -> Optional[str]:
+        """Return the user-facing description for a single hub, if defined.
+
+        This is displayed in the /plugins endpoint under the hub's entry so
+        users understand what each hub does. Descriptions are defined in
+        sources.yaml per hub.
+        """
+        profile = _load_profile().get((hub or "").lower().replace("_", "-"))
+        return profile.get("description") if profile else None
+
+    def hub_capabilities(self, hub: str) -> Dict[str, Any]:
+        """Return per-hub listing capabilities from the profile.
+
+        Only some hubs support listing (e.g. ``pipeline-zoo-models``); the
+        rest report no listing support so the /plugins endpoint shows accurate
+        capabilities for each hub. For multi-hub plugins, this allows different
+        hubs to have different capabilities.
+        """
+        profile = _load_profile().get((hub or "").lower().replace("_", "-")) or {}
+        return {
+            "supports_listing": bool(profile.get("supports_listing", False)),
+            "listing_filter_fields": list(profile.get("listing_filter_fields") or []),
+        }
 
     @property
     def supports_listing(self) -> bool:

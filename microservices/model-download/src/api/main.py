@@ -54,10 +54,26 @@ MAX_UPLOAD_SIZE_BYTES = int(os.getenv("MAX_UPLOAD_SIZE_MB", "500")) * 1024 * 102
 UPLOAD_CHUNK_SIZE_BYTES = int(os.getenv("UPLOAD_CHUNK_SIZE_KB", "8")) * 1024
 CUSTOM_MODELS_SUBDIR = "custom_uploaded_models"
 
-# Log which plugins are activated at startup
+# Log which plugins are activated at startup. Plugins that serve multiple
+# user-facing hubs (e.g. external-sources) are logged per hub so operators
+# see the hub names they actually enable, not the internal plugin name.
+#
+# Multi-hub detection: If plugin_supported_hubs() returns multiple hubs, log
+# per hub; otherwise log the plugin itself.
 for plugin_type in plugin_registry.plugins:
     for plugin_name in plugin_registry.get_plugin_names(plugin_type):
-        is_available, reason = plugin_registry.check_plugin_dependencies(plugin_name)
+        plugin = plugin_registry.get_plugin(plugin_type, plugin_name)
+        plugin_supported_hubs = plugin.plugin_supported_hubs()
+        if len(plugin_supported_hubs) > 1:
+            # Multi-hub plugins (e.g. external-sources) load when any one hub is
+            # activated; log only activated hubs and skip the rest.
+            for hub in plugin_supported_hubs:
+                is_available, _ = plugin_registry.hub_is_available(hub)
+                if not is_available:
+                    continue
+                logger.info(f"Hub {hub} ({plugin_type}): AVAILABLE")
+            continue
+        is_available, reason = plugin_registry.hub_is_available(plugin_name)
         status = "AVAILABLE" if is_available else f"NOT AVAILABLE: {reason}"
         logger.info(f"Plugin {plugin_name} ({plugin_type}): {status}")
 
@@ -97,14 +113,17 @@ async def _list_hub_models(
     if plugin is None:
         plugin = plugin_registry.find_plugin_for_model("downloader", "", hub_name)
     if plugin is None:
-        raise HTTPException(status_code=400, detail=f"Unknown hub '{hub}'")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Hub '{hub}' was not activated during container startup. ",
+        )
 
     if not getattr(plugin, "supports_listing", False):
         raise HTTPException(status_code=501, detail=f"Hub '{hub}' does not support listing models")
 
     is_available, reason = plugin_registry.hub_is_available(hub_name)
     if not is_available:
-        raise HTTPException(status_code=400, detail=f"Hub '{hub}' is not available: {reason}")
+        raise HTTPException(status_code=400, detail=reason)
 
     # Resolve per-request connection overrides for this plugin (override wins,
     # env is the fallback). Scoped to this request; never stored or logged.
@@ -210,7 +229,8 @@ async def download_models(
             if model.hub.lower() not in supported_hubs:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Unsupported model download/conversion detected. Supported methods are {sorted(supported_hubs)}.",
+                    detail=f"Hub '{model.hub.value}' was not activated during container startup. "
+                           f"Active hubs: {', '.join(sorted(plugin_registry.activated_plugins))}.",
                 )
 
         # Get HuggingFace token from environment variable
@@ -220,13 +240,10 @@ async def download_models(
         job_ids = []
 
         for model in request.models:
-            # Check if the plugin's dependencies are installed
-            is_plugin_available, error_reason = plugin_registry.check_plugin_dependencies(model.hub.value)
-            if not is_plugin_available:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Plugin '{model.hub.value}' is not available: {error_reason}"
-                )
+            # Check if the hub was activated during container startup.
+            is_hub_available, error_reason = plugin_registry.hub_is_available(model.hub.value)
+            if not is_hub_available:
+                raise HTTPException(status_code=400, detail=error_reason)
 
             extra_kwargs = model.model_dump().copy()
             # Per-request connection overrides. Forwarded to the plugin (via
@@ -274,7 +291,7 @@ async def download_models(
 
             if needs_conversion:
                 # Check if OpenVINO plugin is available for conversion
-                is_openvino_available, openvino_error = plugin_registry.check_plugin_dependencies("openvino")
+                is_openvino_available, openvino_error = plugin_registry.hub_is_available("openvino")
                 if not is_openvino_available:
                     raise HTTPException(
                         status_code=400,
@@ -433,9 +450,7 @@ async def list_plugins():
         for plugin_name, plugin in plugin_registry.plugins.get(plugin_type, {}).items():
             # Get plugin capabilities
             can_handle_parallel = hasattr(plugin, "get_download_tasks") and callable(getattr(plugin, "get_download_tasks"))
-
-            # Check if plugin dependencies are installed
-            is_available, reason = plugin_registry.check_plugin_dependencies(plugin_name)
+            plugin_supported_hubs = plugin.plugin_supported_hubs()
 
             # Connection/configuration keys the plugin understands. These can be
             # overridden per request via the 'override_credentials' field of
@@ -458,15 +473,52 @@ async def list_plugins():
                 # simply advertise no overridable configuration keys.
                 config_keys = []
 
+            # Multi-hub plugins (e.g. external-sources) expose each hub as its
+            # own entry under the user-facing hub name; only activated hubs are listed.
+            # Detection: If plugin_supported_hubs() returns multiple hubs, it's multi-hub.
+            if len(plugin_supported_hubs) > 1:
+                hub_description = getattr(plugin, "hub_description", None)
+                hub_capabilities = getattr(plugin, "hub_capabilities", None)
+                for hub in plugin_supported_hubs:
+                    is_available, _ = plugin_registry.hub_is_available(hub)
+                    if not is_available:
+                        continue
+                    # Display a per-hub description as users not aware of internal combined plugin structure.
+                    hub_desc = hub_description(hub) if callable(hub_description) else None
+
+                    # Listing support differs per hub (only some hubs support it),
+                    # so read capabilities per hub instead of at the plugin level.
+                    hub_caps = {"supports_parallel_downloads": can_handle_parallel}
+                    if callable(hub_capabilities):
+                        hub_caps.update(hub_capabilities(hub))
+
+                    plugins_info[plugin_type].append({
+                        "name": hub,
+                        "type": plugin_type,
+                        "description": hub_desc or "No description available",
+                        "capabilities": hub_caps,
+                        "config_keys": config_keys,
+                        "available": True,
+                        "unavailable_reason": None,
+                    })
+                continue
+
+            # For single-hub plugins, the plugin_name is also the hub name,
+            # so we can use hub_is_available() to check activation.
+            capabilities = {
+                "supports_parallel_downloads": can_handle_parallel,
+                "supports_listing": getattr(plugin, "supports_listing", False),
+                "listing_filter_fields": getattr(plugin, "listing_filter_fields", []),
+            }
+            description = getattr(plugin, "__doc__", "No description available").strip()
+            is_available, reason = plugin_registry.hub_is_available(plugin_name)
+
+
             plugin_info = {
                 "name": plugin_name,
                 "type": plugin_type,
-                "description": getattr(plugin, "__doc__", "No description available").strip(),
-                "capabilities": {
-                    "supports_parallel_downloads": can_handle_parallel,
-                    "supports_listing": getattr(plugin, "supports_listing", False),
-                    "listing_filter_fields": getattr(plugin, "listing_filter_fields", []),
-                },
+                "description": description,
+                "capabilities": capabilities,
                 "config_keys": config_keys,
                 "available": is_available,
                 "unavailable_reason": reason if not is_available else None

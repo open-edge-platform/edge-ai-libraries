@@ -118,6 +118,14 @@ class ModelDownloadPlugin(ABC):
                 if env_value is not None:
                     resolved[key.name] = env_value
         return resolved
+    def plugin_supported_hubs(self) -> List[str]:
+        """Return the list of hub names this plugin handles.
+
+        Single-hub plugins return ``[self.plugin_name]`` (the default).
+        Multi-hub plugins (e.g. external-sources) override this to return
+        all the user-facing hub names they serve.
+        """
+        return [self.plugin_name]
 
     @property
     def supports_listing(self) -> bool:
