@@ -49,7 +49,7 @@ x-vippet: &vippet
     UPLOAD_ALLOWED_CODECS: "h264,h265"
     UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
     METADATA_DIR: /metadata
-    SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source,tsam-udf"
+    SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
@@ -73,8 +73,6 @@ x-vippet: &vippet
     # venv so the legacy 2024.x ``openvino`` package never collides
     # with the OpenVINO 2026.x runtime used for inference.
     OMZ_VIRTUAL_ENV: ${OMZ_VIRTUAL_ENV:-/home/dlstreamer/.omz-venv}
-    TSAM_HOST: ${TSAM_HOST:-ia-time-series-analytics-microservice}
-    TSAM_KAPACITOR_PORT: ${TSAM_KAPACITOR_PORT:-9092}
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download"
@@ -264,126 +262,5 @@ services:
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
 
-  ia-timeseries-ingestion:
-    build:
-      context: ./timeseries-ingestion
-      dockerfile: ./Dockerfile
-      args:
-        TIMESERIES_USER_NAME: ${TIMESERIES_USER_NAME}
-        TIMESERIES_UID: ${TIMESERIES_UID}
-    container_name: ia-timeseries-ingestion
-    image: ${DOCKER_REGISTRY}intel/ia-timeseries-ingestion:2026.1.0
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      HOST: ia-time-series-analytics-microservice
-      PORT: 5000
-      TOPIC: wind-turbine-data
-      METADATA_DIR: /metadata
-      no_proxy: "ia-time-series-analytics-microservice,${no_proxy}"
-      NO_PROXY: "ia-time-series-analytics-microservice,${no_proxy}"
-      PYTHONUNBUFFERED: 1
-    volumes:
-      - ./timeseries-ingestion/input:/app/input:ro
-      - ./shared/metadata/:/metadata
-  ia-influxdb:
-    user: "${TIMESERIES_UID}:${TIMESERIES_UID}"
-    image: influxdb:1.12.4
-    container_name: ia-influxdb
-    hostname: ia-influxdb
-    restart: unless-stopped
-    read_only: true
-    security_opt:
-    - no-new-privileges
-    healthcheck:
-      test: ["CMD-SHELL", "exit", "0"]
-      interval: 5m
-    environment:
-      INFLUXDB_DB: datain
-      INFLUXDB_ADMIN_USER: admin
-      INFLUXDB_ADMIN_PASSWORD: ${INFLUXDB_PASSWORD}
-      INFLUXDB_USER : ${INFLUXDB_USERNAME}
-      INFLUXDB_USER_PASSWORD: ${INFLUXDB_PASSWORD}
-      RETENTION_DURATION: ${INFLUXDB_RETENTION_DURATION:-1h0m0s}
-      no_proxy: "ia-time-series-analytics-microservice,"
-      NO_PROXY: "ia-time-series-analytics-microservice"
-      INFLUXDB_CONFIG_PATH: "/etc/influxdb/influxdb.conf"
-      INFLUXDB_LOGGING_LEVEL: INFO
-      INFLUXDB_TLS_CIPHERS: TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
-    volumes:
-      # Mount for influxdb data directory and configuration
-    - vol_influxdb_conf:/var/lib/influxdb:rw
-    - ./influxdb/config:/etc/influxdb
-    - ./influxdb/init-influxdb.sh:/docker-entrypoint-initdb.d/init-influxdb.sh
-  ia-time-series-analytics-microservice:
-    build:
-      context: ./../../microservices/time-series-analytics
-      dockerfile: ./Dockerfile
-      args:
-        KAPACITOR_VERSION: 1.8.6
-        TIMESERIES_UID: ${TIMESERIES_UID}
-        TIMESERIES_USER_NAME: ${TIMESERIES_USER_NAME}
-        PYTHON_VERSION: "3.13"
-        no_proxy: ${timeseries_no_proxy}
-        INSTALL_SOURCES: "no"
-    container_name: ia-time-series-analytics-microservice
-    hostname: ia-time-series-analytics-microservice
-    image: ${DOCKER_REGISTRY}intel/ia-time-series-analytics-microservice:${IMAGE_SUFFIX:-latest}${WEEKLY_BUILD_DATE:+-${WEEKLY_BUILD_DATE}}${WEEKLY_BUILD_DATE:+-weekly}
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9092/kapacitor/v1/ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-    environment:
-      no_proxy: "ia-time-series-analytics-microservice,ia-influxdb,ia-mqtt-broker,ia-opcua-server,localhost"
-      NO_PROXY: "ia-time-series-analytics-microservice,ia-influxdb,ia-mqtt-broker,ia-opcua-server,localhost"
-      KAPACITOR_PORT: 9092
-      INFLUX_SERVER: "ia-influxdb"
-      KAPACITOR_INFLUXDB_0_USERNAME: ${INFLUXDB_USERNAME}
-      KAPACITOR_INFLUXDB_0_PASSWORD: ${INFLUXDB_PASSWORD}
-      PROFILING_MODE: "false"
-      KAPACITOR_URL: http://ia-time-series-analytics-microservice:9092
-      KAPACITOR_UNSAFE_SSL: "true"
-      KAPACITOR_INFLUXDB_0_URLS_0: http://ia-influxdb:8086/
-      INFLUXDB_PORT: 8086
-      KAPACITOR_LOGGING_LEVEL: INFO
-      INFLUXDB_DBNAME: datain
-      PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
-      UDF_MAX_FILE_SIZE_MB: 100
-      SSL_CERT_FILE: /run/secrets/ca_certificate.pem
-      MODEL_REGISTRY_URL: http://model-registry:8111
-      SAMPLE_APP: "wind-turbine-anomaly-detection"
-    ports:
-      - 5000:5000
-    volumes:
-      - "vol_temp_time_series_analytics_microservice:/tmp/"
-      - /dev/dri:/dev/dri:ro
-      - "/run/udev:/run/udev:ro"
-    devices:
-      # Following devices under /dev filesystem will be needed based on usecase
-      # dri - GPU
-      - "/dev/dri:/dev/dri"
-    group_add:
-      # render group ID for ubuntu 20.04 host OS
-      - "109"
-      # render group ID for ubuntu 22.04 host OS
-      - "110"
-      # render group ID for ubuntu 24.04 host OS
-      - "992"
+volumes: {}
 
-volumes:
-  vol_temp_time_series_analytics_microservice:
-    driver: local
-    driver_opts:
-      type: tmpfs
-      device: tmpfs
-  vol_influxdb_conf:
-    driver: local
-    driver_opts:
-      type: tmpfs
-      device: tmpfs

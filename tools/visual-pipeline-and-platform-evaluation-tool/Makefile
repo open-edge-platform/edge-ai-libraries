@@ -8,7 +8,7 @@ SHELL := bash -eu -o pipefail
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
 	build-videogenerator build-onvif-discovery docker-build env-setup \
-	test-smoke test-full
+	test-smoke test-full build-experimental run-experimental stop-experimental clean-experimental
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -99,6 +99,18 @@ run-videogenerator: env-setup build-videogenerator ## Run only the videogenerato
 
 run-dev: env-setup ## Run the docker compose services for development
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
+
+build-experimental: env-setup ## Build core images for experimental timeseries setup
+	. .env && docker compose -f compose-experimental.yml -f compose.$$COMPOSE_PROFILES.yml build
+
+run-experimental: env-setup ## Run the docker compose services with experimental timeseries features
+	. .env && docker compose -f compose-experimental.yml -f compose.$$COMPOSE_PROFILES.yml up -d --remove-orphans
+
+stop-experimental: ## Stop experimental docker compose services
+	docker compose -f compose-experimental.yml down
+
+clean-experimental: ## Clean experimental setup artifacts
+	docker compose -f compose-experimental.yml down -v
 
 test: env-setup ## Run unit tests and generate coverage report
     # Run tests using the cpu profile (tests are device agnostic)
