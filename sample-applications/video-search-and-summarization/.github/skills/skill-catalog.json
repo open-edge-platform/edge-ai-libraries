@@ -6,44 +6,6 @@
   "skillsRoot": ".github/skills",
   "skills": [
     {
-      "name": "vss-up",
-      "path": ".github/skills/vss-up/SKILL.md",
-      "description": "Deploy, dry-run, stop, or clean the VSS stack in summary, search, dual, or unified mode using setup.sh.",
-      "triggers": [
-        "deploy vss",
-        "start vss",
-        "bring up vss",
-        "stop vss",
-        "clean vss data",
-        "summary mode",
-        "search mode",
-        "dual mode",
-        "unified mode"
-      ],
-      "requires": [
-        "setup.sh",
-        ".github/skills/vss-up/vss.config.env",
-        ".github/skills/vss-up/scripts/gen-secrets.sh"
-      ]
-    },
-    {
-      "name": "vss-doctor",
-      "path": ".github/skills/vss-doctor/SKILL.md",
-      "description": "Diagnose a running or failing VSS deployment through health endpoints, feature/config probes, Docker Compose state, and logs.",
-      "triggers": [
-        "is vss up",
-        "check vss health",
-        "what mode is running",
-        "debug vss",
-        "vss is broken",
-        "container logs"
-      ],
-      "requires": [
-        "curl",
-        "docker compose"
-      ]
-    },
-    {
       "name": "vss-build",
       "path": ".github/skills/vss-build/SKILL.md",
       "description": "Build and optionally push VSS Docker images from source using build.sh.",
@@ -55,13 +17,42 @@
         "push images"
       ],
       "requires": [
+        ".github/skills/vss-build/scripts/vss-bootstrap.sh",
         "build.sh",
         "docker"
       ]
     },
     {
-      "name": "vss-summarize",
-      "path": ".github/skills/vss-summarize/SKILL.md",
+      "name": "vss-deploy",
+      "path": ".github/skills/vss-deploy/SKILL.md",
+      "description": "Deploy, dry-run, switch modes, inspect configuration, stop, or clean VSS using setup.sh with Docker Compose overlays; generates credentials, waits for health, and prints UI/API URLs.",
+      "triggers": [
+        "deploy vss",
+        "spin up vss",
+        "start vss",
+        "bring up vss",
+        "switch deployment mode",
+        "compose files",
+        "stop vss",
+        "tear down vss",
+        "clean vss data",
+        "summary mode",
+        "search mode",
+        "dual mode",
+        "unified mode"
+      ],
+      "requires": [
+        ".github/skills/vss-deploy/scripts/vss-bootstrap.sh",
+        "setup.sh",
+        "docker/compose.*.yaml",
+        "docker compose",
+        ".github/skills/vss-deploy/vss.config.env",
+        ".github/skills/vss-deploy/scripts/gen-secrets.sh"
+      ]
+    },
+    {
+      "name": "vss-summarize-video",
+      "path": ".github/skills/vss-summarize-video/SKILL.md",
       "description": "Run and inspect VSS video summarization through the Pipeline Manager summary API.",
       "triggers": [
         "summarize this video",
@@ -70,13 +61,14 @@
         "summary pipeline"
       ],
       "requires": [
+        ".github/skills/vss-summarize-video/scripts/vss-bootstrap.sh",
         "healthy Pipeline Manager",
         "summary-capable deployment"
       ]
     },
     {
-      "name": "vss-search",
-      "path": ".github/skills/vss-search/SKILL.md",
+      "name": "vss-search-index",
+      "path": ".github/skills/vss-search-index/SKILL.md",
       "description": "Upload, index, and search videos with natural language through the Pipeline Manager search API.",
       "triggers": [
         "search my videos",
@@ -87,8 +79,209 @@
         "query video library"
       ],
       "requires": [
+        ".github/skills/vss-search-index/scripts/vss-bootstrap.sh",
         "healthy Pipeline Manager",
         "search-capable deployment"
+      ]
+    },
+    {
+      "name": "vss-troubleshoot",
+      "path": ".github/skills/vss-troubleshoot/SKILL.md",
+      "description": "Diagnose a running or broken VSS deployment: health/mode detection via Pipeline Manager, then containers, OVMS/vLLM load, DLStreamer, RabbitMQ/MinIO/Postgres/VDMS, 'no summary', 'search returns nothing'.",
+      "triggers": [
+        "is vss up",
+        "check vss health",
+        "what mode is running",
+        "debug vss",
+        "vss is broken",
+        "container logs",
+        "vss troubleshoot",
+        "diagnose vss",
+        "no summary appearing",
+        "search returns nothing",
+        "container restarting",
+        "vss not working"
+      ],
+      "requires": [
+        ".github/skills/vss-troubleshoot/scripts/vss-bootstrap.sh",
+        ".github/skills/vss-troubleshoot/scripts/triage.sh",
+        "docker compose",
+        "curl"
+      ]
+    },
+    {
+      "name": "vss-model-onboarding",
+      "path": ".github/skills/vss-model-onboarding/SKILL.md",
+      "description": "Bring a new VLM/embedding model into OVMS with OpenVINO IR conversion and model-dir layout.",
+      "triggers": [
+        "onboard new model",
+        "add vlm model",
+        "convert to ovms",
+        "openVINO IR conversion",
+        "model deployment"
+      ],
+      "requires": [
+        ".github/skills/vss-model-onboarding/scripts/vss-bootstrap.sh",
+        ".github/skills/vss-model-onboarding/scripts/prepare_ovms_model.py",
+        "OpenVINO",
+        "model assets"
+      ]
+    },
+    {
+      "name": "vss-deploy-helm",
+      "path": ".github/skills/vss-deploy-helm/SKILL.md",
+      "description": "Deploy VSS to Kubernetes via Helm chart with mode mapping to values.yaml.",
+      "triggers": [
+        "deploy to kubernetes",
+        "helm deploy vss",
+        "k8s deployment",
+        "vss on k8s"
+      ],
+      "requires": [
+        ".github/skills/vss-deploy-helm/scripts/vss-bootstrap.sh",
+        "helm",
+        "kubernetes cluster",
+        ".github/skills/vss-deploy-helm/chart/"
+      ]
+    },
+    {
+      "name": "vss-pipeline-config",
+      "path": ".github/skills/vss-pipeline-config/SKILL.md",
+      "description": "Tune VSS pipeline parameters with latency/quality trade-offs.",
+      "triggers": [
+        "tune pipeline",
+        "adjust parameters",
+        "optimize performance",
+        "chunk duration",
+        "frame sampling"
+      ],
+      "requires": [
+        ".github/skills/vss-pipeline-config/scripts/vss-bootstrap.sh",
+        "config files",
+        "docker compose"
+      ]
+    },
+    {
+      "name": "vss-add-nest-module",
+      "path": ".github/skills/vss-add-nest-module/SKILL.md",
+      "description": "Scaffold a new pipeline-manager NestJS module idiomatic way.",
+      "triggers": [
+        "add nest module",
+        "scaffold pipeline-manager module",
+        "new controller",
+        "new service"
+      ],
+      "requires": [
+        ".github/skills/vss-add-nest-module/scripts/vss-bootstrap.sh",
+        ".github/skills/vss-add-nest-module/assets/module-template/",
+        "pipeline-manager/"
+      ]
+    },
+    {
+      "name": "vss-dlstreamer-pipeline",
+      "path": ".github/skills/vss-dlstreamer-pipeline/SKILL.md",
+      "description": "Understand and modify DLStreamer Pipeline Server ingestion pipelines and frame/chunk extraction.",
+      "triggers": [
+        "dlstreamer pipeline",
+        "frame extraction",
+        "video ingestion",
+        "evam pipeline",
+        "pipeline modification"
+      ],
+      "requires": [
+        ".github/skills/vss-dlstreamer-pipeline/scripts/vss-bootstrap.sh",
+        "docker compose",
+        "DLStreamer",
+        "video-ingestion/"
+      ]
+    },
+    {
+      "name": "vss-search-internals",
+      "path": ".github/skills/vss-search-internals/SKILL.md",
+      "description": "Work on embeddings and VDMS retrieval; understand frame vs summary-text embedding.",
+      "triggers": [
+        "search internals",
+        "embeddings",
+        "vdms retrieval",
+        "embedding model",
+        "vector search"
+      ],
+      "requires": [
+        ".github/skills/vss-search-internals/scripts/vss-bootstrap.sh",
+        "search-ms/",
+        "VDMS",
+        "embedding model"
+      ]
+    },
+    {
+      "name": "vss-observability",
+      "path": ".github/skills/vss-observability/SKILL.md",
+      "description": "Enable OpenTelemetry, trace videos end-to-end, and find latency bottlenecks.",
+      "triggers": [
+        "observability",
+        "opentelemetry",
+        "tracing",
+        "latency bottleneck",
+        "performance profiling"
+      ],
+      "requires": [
+        ".github/skills/vss-observability/scripts/vss-bootstrap.sh",
+        "OpenTelemetry instrumentation",
+        "docker compose"
+      ]
+    },
+    {
+      "name": "vss-api-client",
+      "path": ".github/skills/vss-api-client/SKILL.md",
+      "description": "Call the REST/WebSocket APIs correctly for video upload, processing, and search.",
+      "triggers": [
+        "api client",
+        "call api",
+        "upload video api",
+        "search api",
+        "rest api"
+      ],
+      "requires": [
+        ".github/skills/vss-api-client/scripts/vss-bootstrap.sh",
+        ".github/skills/vss-api-client/scripts/api_smoke.py",
+        "curl",
+        "python"
+      ]
+    },
+    {
+      "name": "vss-mcp-integration",
+      "path": ".github/skills/vss-mcp-integration/SKILL.md",
+      "description": "Configure and extend the spec-driven FastMCP proxy that exposes VSS search to AI agents.",
+      "triggers": [
+        "mcp integration",
+        "mcp proxy",
+        "agent integration",
+        "fastmcp",
+        "expose to agent"
+      ],
+      "requires": [
+        ".github/skills/vss-mcp-integration/scripts/vss-bootstrap.sh",
+        "mcp/",
+        "FastMCP",
+        "docker compose"
+      ]
+    },
+    {
+      "name": "vss-e2e-smoke",
+      "path": ".github/skills/vss-e2e-smoke/SKILL.md",
+      "description": "One-command end-to-end verification per VSS mode.",
+      "triggers": [
+        "e2e smoke test",
+        "verify deployment",
+        "smoke test",
+        "end-to-end test"
+      ],
+      "requires": [
+        ".github/skills/vss-e2e-smoke/scripts/vss-bootstrap.sh",
+        ".github/skills/vss-e2e-smoke/scripts/e2e_summary.sh",
+        ".github/skills/vss-e2e-smoke/scripts/e2e_search.sh",
+        "bash",
+        "curl"
       ]
     }
   ]
