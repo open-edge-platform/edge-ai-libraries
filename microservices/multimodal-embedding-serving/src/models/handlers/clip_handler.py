@@ -297,8 +297,6 @@ class CLIPHandler(BaseEmbeddingModel):
         try:
             from optimum.intel import OVModelOpenCLIPText, OVModelOpenCLIPVisual
             from open_clip.pretrained import get_pretrained_cfg
-            from huggingface_hub import HfFolder
-            import os
             
             # Use HuggingFace's default cache directory instead of creating our own
             # This leverages existing caching and avoids redundant downloads
@@ -355,9 +353,12 @@ class CLIPHandler(BaseEmbeddingModel):
                 logger.error(f"No HuggingFace Hub mapping found for {self.model_name}:{self.pretrained}")
                 raise RuntimeError("Model does not have HuggingFace Hub support - OpenVINO conversion requires HF Hub mapping")
                 
-        except ImportError:
-            logger.error("Optimum Intel not available. Please install optimum-intel to use OpenVINO conversion.")
-            raise RuntimeError("Optimum Intel not installed - required for OpenVINO conversion")
+        except ImportError as e:
+            logger.error(f"Failed to import dependencies required for OpenVINO conversion: {e}")
+            raise RuntimeError(
+                "Failed to import OpenVINO conversion dependencies. "
+                "Please ensure optimum-intel and compatible huggingface-hub/open-clip packages are installed."
+            ) from e
         except Exception as e:
             logger.error(f"Optimum Intel conversion failed: {e}")
             raise RuntimeError(f"OpenVINO conversion failed: {e}")

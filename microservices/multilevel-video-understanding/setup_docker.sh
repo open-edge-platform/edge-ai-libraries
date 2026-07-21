@@ -18,7 +18,33 @@ NC='\033[0m'
 BUILD_IMAGE=false
 UP_CONTAINERS=true
 DOWN_CONTAINERS=false
+LIGHT_MODE=false
 DOCKER_DIR="$(dirname "$0")/docker"
+VLLM_SERVICE_PORT=${VLLM_SERVICE_PORT:-41091}
+
+# Decide whether we manage the bundled on-device serving or the user has pointed
+# the microservice at an external / remote OpenAI-compatible serving. This is
+# driven entirely by VLM_BASE_URL / LLM_BASE_URL (falling back to the bundled
+# default). Anything that is not the in-network `vllm-ipex-serving` is external.
+VLLM_ENDPOINT="${VLM_BASE_URL:-${LLM_BASE_URL:-http://vllm-ipex-serving:8000/v1}}"
+case "$VLLM_ENDPOINT" in
+  *vllm-ipex-serving*) USE_LOCAL_VLLM=true ;;   # bundled service on app-network
+  *)                   USE_LOCAL_VLLM=false ;;  # external / remote serving
+esac
+
+# Host-reachable URL for the readiness probe. The in-network name
+# `vllm-ipex-serving` is not resolvable from the host, so probe the mapped port;
+# a remote endpoint is probed directly at its configured URL.
+if [ "$USE_LOCAL_VLLM" = true ]; then
+  VLLM_HEALTH_URL="http://localhost:${VLLM_SERVICE_PORT}/v1/models"
+else
+  VLLM_HEALTH_URL="${VLLM_ENDPOINT%/}/models"
+fi
+
+# Returns success if the target serving already answers with a loaded model.
+is_vllm_healthy() {
+  curl -s --max-time 5 "$VLLM_HEALTH_URL" 2>/dev/null | grep -q '"id"'
+}
 
 # Display help information
 show_help() {
@@ -27,15 +53,17 @@ show_help() {
   echo "Usage: $0 [options]"
   echo ""
   echo "Options:"
-  echo "  --prod                Create and start production containers only"
+  echo "  --prod                End-to-end: start all services (vllm-ipex-serving + multilevel-video-understanding)"
+  echo "  --light               Reuse an existing serving at VLM_BASE_URL/LLM_BASE_URL if healthy; start multilevel only"
   echo "  --build               Build production Docker image only"
   echo "  --build-prod          Build and then run production Docker images"
   echo "  --down                Stop and remove all containers, networks, and volumes"
   echo "  -h, --help            Show this help message"
   echo ""
   echo "Examples:"
-  echo "  $0                    Create and start production containers only"
-  echo "  $0 --prod             Create and start production containers only"
+  echo "  $0                    End-to-end: start all services (default)"
+  echo "  $0 --prod             End-to-end: start all services"
+  echo "  $0 --light            Use existing serving: start multilevel only when the serving is already healthy"
   echo "  $0 --build            Build production Docker image only"
   echo "  $0 --build-prod       Build and then run production Docker images"
   echo "  $0 --down             Stop and remove all containers"
@@ -61,6 +89,13 @@ while [[ $# -gt 0 ]]; do
       BUILD_IMAGE=false
       UP_CONTAINERS=true
       DOWN_CONTAINERS=false
+      shift
+      ;;
+    --light)
+      BUILD_IMAGE=false
+      UP_CONTAINERS=true
+      DOWN_CONTAINERS=false
+      LIGHT_MODE=true
       shift
       ;;
     --down)
@@ -114,8 +149,27 @@ fi
 # Handle container startup
 if [ "$UP_CONTAINERS" = true ]; then
   if docker image inspect "$TARGET_IMAGE_NAME" >/dev/null 2>&1; then
-    echo "Starting containers for $ENVIRONMENT environment..."
-    $DOCKER_CMD up -d
+    if [ "$LIGHT_MODE" = true ]; then
+      # User intent (--light): reuse an already-running model serving at the
+      # configured endpoint (VLM_BASE_URL / LLM_BASE_URL) and start only the
+      # microservice. Works for a warm local serving OR an external/remote one.
+      if is_vllm_healthy; then
+        echo "Model serving already healthy at ${VLLM_HEALTH_URL} — starting multilevel-video-understanding only."
+        $DOCKER_CMD up -d --no-deps multilevel-video-understanding
+      elif [ "$USE_LOCAL_VLLM" = true ]; then
+        echo "Local vllm-ipex-serving not healthy yet — starting the full stack instead."
+        echo "(first run pulls/compiles the model — this can take 3-20+ min)"
+        $DOCKER_CMD up -d
+      else
+        echo "Warning: external serving not reachable at ${VLLM_HEALTH_URL}; starting multilevel only (it will retry at runtime)."
+        $DOCKER_CMD up -d --no-deps multilevel-video-understanding
+      fi
+    else
+      # Default (end-to-end): bring up the bundled serving + microservice together.
+      echo "Starting all services for $ENVIRONMENT environment..."
+      echo "(first run pulls/compiles the model in vllm-ipex-serving — this can take 3-20+ min)"
+      $DOCKER_CMD up -d
+    fi
     echo "==== Setup complete! ===="
     echo "Multi-level Video Understanding service is running at http://localhost:${SERVICE_PORT}/v1"
     echo "API documentation available at http://localhost:${SERVICE_PORT}/docs"
