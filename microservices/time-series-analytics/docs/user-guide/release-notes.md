@@ -1,10 +1,14 @@
 # Release Notes: Time Series Analytics
 
+<!--## Version 2026.2-->
+
+<!--date TBD-->
+
 ## Version 2026.1
 
-**June 17, 2026**
+**Release Date:** June 17, 2026
 
-**New**
+**New:**
 
 - Support for optional CPU core-pinning enabled with the `CORE_PINNING`
   environment variable, which allows the service to prefer specific core types
@@ -13,28 +17,29 @@
   packages as tar archives via HTTP. The UDF updates do not require manual
   placement of files.
 
-**Improved**
+**Improved:**
 
 - The base Kapacitor Docker image is replaced by a Debian-based Python slim
   image with Kapacitor installed via `.deb`, reducing image size and improving
   flexibility.
-- Updated Intel GPU drivers to support WCL (compute-runtime/IGC version `26.14.37833`).
+- Updated Intel® GPU drivers to support WCL (compute-runtime/IGC version `26.14.37833`).
 - Updated the Kapacitor and Python library dependency versions.
 
 ---
 
 ## Version 2026.0
 
-**March 27, 2026**
+**Release Date:** March 27, 2026
+
 This release improves deployment consistency, reliability, and documentation usability for
 Time Series Analytics.
 
-**New**
+**New:**
 
 - Standardized container image versioning across deployment methods.
 - Updated Helm chart versioning format for clearer chart tracking.
 
-**Improved**
+**Improved:**
 
 - Fixed issues in API utility and Docker test workflows.
 - Resolved unit test stability issues.
