@@ -41,6 +41,7 @@ class GStreamerWebRTCDestination(AppDestination):
         self._sync_with_destination = request.get("sync-with-destination", True)
         self.overlay = request.get("overlay",True)
         self.bitrate = request.get("bitrate", 2048)
+        self._watermark_cfg = request.get("gvawatermark", {})
 
     def _init_stream(self, sample):
         self._frame_size = sample.get_buffer().get_size()
@@ -53,7 +54,7 @@ class GStreamerWebRTCDestination(AppDestination):
             self._logger.info("Setting the appsink sync property to {}".format(self._sync_with_source))
         self._logger.info("Adding WebRTC frame destination stream for peer_id {}.".format(self._webrtc_peerid))
         self._logger.debug("WebRTC Stream frame caps == {}".format(caps))
-        self._webrtc_manager.add_stream(self._webrtc_peerid, caps, self,self.overlay)
+        self._webrtc_manager.add_stream(self._webrtc_peerid, caps, self, self.overlay, self._watermark_cfg)
 
     def _on_need_data(self, _unused_src, _):
         self._need_data = True

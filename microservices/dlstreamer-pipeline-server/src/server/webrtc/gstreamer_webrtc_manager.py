@@ -6,6 +6,7 @@
 import gi
 
 gi.require_version("Gst", "1.0")
+import json
 from gi.repository import Gst
 
 from src.server.webrtc.gstreamer_webrtc_stream import GStreamerWebRTCStream
@@ -55,10 +56,11 @@ class GStreamerWebRTCManager:
             return True
         return False
 
-    def add_stream(self, peer_id, frame_caps, destination_instance, overlay):
+    def add_stream(self, peer_id, frame_caps, destination_instance, overlay, watermark_cfg=None):
         stream_caps = self._select_caps(frame_caps.to_string())
         if not self._peerid_in_use(peer_id):
-            launch_string = self._get_launch_string(stream_caps, peer_id, overlay)
+            watermark_cfg = watermark_cfg or {}
+            launch_string = self._get_launch_string(stream_caps, peer_id, overlay, watermark_cfg)
             self._streams[peer_id] = GStreamerWebRTCStream(
                 peer_id,
                 stream_caps,
@@ -101,11 +103,29 @@ class GStreamerWebRTCManager:
             return True, "VAMemory"
         return False, None
 
-    def _get_launch_string(self, stream_caps, peer_id, overlay):
+    def _build_watermark_element(self, watermark_cfg):
+        if not watermark_cfg:
+            return "gvawatermark"
+
+        watermark_properties = ",".join(
+            "{}={}".format(
+                key,
+                str(value).lower() if isinstance(value, bool) else str(value),
+            )
+            for key, value in watermark_cfg.items()
+            if value is not None
+        )
+        if not watermark_properties:
+            return "gvawatermark"
+        return 'gvawatermark displ-cfg="{}"'.format(watermark_properties)
+
+    def _get_launch_string(self, stream_caps, peer_id, overlay, watermark_cfg=None):
         # pylint: disable=consider-using-f-string, too-many-branches
         s_src = '{} caps="{}"'.format(self._source_mediamtx, ",".join(stream_caps))
 
         is_gpu, buffer_type = self._is_gpu_buffer(stream_caps)
+        watermark_cfg = watermark_cfg or {}
+        watermark_element = self._build_watermark_element(watermark_cfg)
 
         # Look for vah264enc element. Reported in some Xeon platforms as missing.
         # When incoming buffers are from GPU and vah264enc is not present, we look for
@@ -159,10 +179,14 @@ class GStreamerWebRTCManager:
             # CPU buffers with raw video input
             else:
                 video_pipeline = self._WebRTCVideoPipeline
-        if overlay is False:
+        if overlay is False and not watermark_cfg:
             video_pipeline = video_pipeline.replace("! gvawatermark ", "")
-        elif overlay is True:
-            video_pipeline = video_pipeline
+        if watermark_cfg:
+            video_pipeline = video_pipeline.replace(
+                "! gvawatermark ",
+                "! gvawatermark ! {} ".format(watermark_element),
+                1,
+            )
         pipeline_launch = " {} {} ".format(s_src, video_pipeline)
         pipeline_launch = (
             pipeline_launch + self._whip_endpoint + "/" + peer_id + "/whip"

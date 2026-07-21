@@ -8,6 +8,7 @@ import gi
 gi.require_version('GstRtspServer', '1.0')
 gi.require_version('Gst', '1.0')
 # pylint: disable=wrong-import-position
+import json
 from gi.repository import Gst, GstRtspServer
 from src.server.common.utils import logging
 # pylint: enable=wrong-import-position
@@ -44,6 +45,22 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
         if "jpegdec" in pipeline:
             pipeline = pipeline.replace("jpegdec", "vajpegdec")
         return pipeline        
+
+    def _build_watermark_element(self, watermark_cfg):
+        if not watermark_cfg:
+            return "gvawatermark"
+
+        watermark_properties = ",".join(
+            "{}={}".format(
+                key,
+                str(value).lower() if isinstance(value, bool) else str(value),
+            )
+            for key, value in watermark_cfg.items()
+            if value is not None
+        )
+        if not watermark_properties:
+            return "gvawatermark"
+        return 'gvawatermark displ-cfg="{}"'.format(watermark_properties)
 
     def __init__(self, rtsp_server):
         GstRtspServer.RTSPMediaFactory.__init__(self)
@@ -102,21 +119,38 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
         source = stream.source
         caps = stream.caps
         overlay = stream.overlay
+        watermark_cfg = getattr(stream, "watermark_cfg", {})
+        if not isinstance(watermark_cfg, dict):
+            watermark_cfg = {}
         new_caps = self._select_caps(caps.to_string())
         s_src = "{} caps=\"{}\"".format(GStreamerRtspFactory._source, ','.join(new_caps))
         
         # Determine if we're dealing with GPU or CPU buffers
         is_gpu, buffer_type = self._is_gpu_buffer(caps)
+        watermark_element = self._build_watermark_element(watermark_cfg)
         
         if "image/jpeg" in new_caps:
             if overlay:
                 media_pipeline = GStreamerRtspFactory._RtspVideoPipeline_withjpeginput_overlay
+                if watermark_cfg:
+                    media_pipeline = media_pipeline.replace("! gvawatermark !",
+                                                            "! gvawatermark ! {} !".format(watermark_element))
+            elif watermark_cfg:
+                media_pipeline = GStreamerRtspFactory._RtspVideoPipeline_withjpeginput_overlay
+                media_pipeline = media_pipeline.replace("! gvawatermark !",
+                                                        "! {} !".format(watermark_element))
             else:
                 media_pipeline = GStreamerRtspFactory._RtspVideoPipeline_withjpeginput
         else:
             media_pipeline = GStreamerRtspFactory._RtspVideoPipeline
-            if overlay is False:
+            if overlay is False and not watermark_cfg:
                 media_pipeline = media_pipeline.replace("gvawatermark ! ", "")
+            if overlay and watermark_cfg:
+                media_pipeline = media_pipeline.replace("! gvawatermark !",
+                                                        "! gvawatermark ! {} !".format(watermark_element))
+            elif watermark_cfg:
+                media_pipeline = media_pipeline.replace("! gvawatermark !",
+                                                        "! {} !".format(watermark_element))
 
         if is_gpu and buffer_type == "VAMemory":
             self._logger.debug("Using GPU pipeline for caps: {} (type: {})".format(caps.to_string(), buffer_type))
