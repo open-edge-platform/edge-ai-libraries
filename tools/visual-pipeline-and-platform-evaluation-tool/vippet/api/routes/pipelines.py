@@ -16,6 +16,7 @@ from internal_types import (
     InternalPipelineDefinition,
     InternalPipelineRequestOptimize,
     InternalPipelineSource,
+    InternalPipelineType,
     InternalPipelineValidation,
     InternalVariant,
     InternalVariantCreate,
@@ -1593,6 +1594,7 @@ def _internal_pipeline_to_api(pipeline: InternalPipeline) -> schemas.Pipeline:
         name=pipeline.name,
         description=pipeline.description,
         source=schemas.PipelineSource(pipeline.source.value),
+        type=schemas.PipelineType(pipeline.type.value),
         tags=pipeline.tags,
         variants=[_internal_variant_to_api(v) for v in pipeline.variants],
         thumbnail=pipeline.thumbnail,
@@ -1631,6 +1633,7 @@ def _pipeline_definition_to_internal(
         name=api_def.name,
         description=api_def.description,
         source=InternalPipelineSource(api_def.source.value),
+        type=InternalPipelineType(api_def.type.value),
         tags=api_def.tags,
         variants=internal_variants,
     )
