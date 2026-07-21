@@ -157,16 +157,19 @@ class HardwareMonitor:
         if temp is not None:
             sample["cpu_temperature"] = temp
 
-        # GPU (Xe) — per-engine utilization
-        for engine, label in [
-            ("rcs", "gpu_render_util_pct"),
-            ("vcs", "gpu_video_util_pct"),
-            ("vecs", "gpu_enhance_util_pct"),
-            ("ccs", "gpu_compute_util_pct"),
+        # GPU (Xe/i915) — per-engine utilization
+        for label, aliases in [
+            ("gpu_render_util_pct", ("render", "rcs")),
+            ("gpu_video_util_pct", ("video", "vcs")),
+            ("gpu_enhance_util_pct", ("video-enhance", "vecs")),
+            ("gpu_compute_util_pct", ("compute", "ccs")),
+            ("gpu_copy_util_pct", ("copy", "bcs")),
         ]:
-            val = mm.get(f"gpu_engine_usage_usage__{engine}")
-            if val is not None:
-                sample[label] = round(val, 2)
+            for engine in aliases:
+                val = mm.get(f"gpu_engine_usage_usage__{engine}")
+                if val is not None:
+                    sample[label] = round(val, 2)
+                    break
 
         # GPU frequency
         val = mm.get("gpu_frequency__cur_freq")
