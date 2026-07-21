@@ -2,11 +2,13 @@
 
 ## Scenario
 
-Pull `llama3.2:3b` from Ollama for local LLM inference.
+Pull `llama3.2:3b` through the model-download REST API.
+
+For Ollama, the tag goes in `revision`, not in `name`.
 
 ---
 
-## Step 1 — Set Up Service
+## Step 1 — Start the Service
 
 ```bash
 cd edge-ai-libraries/microservices/model-download
@@ -14,60 +16,71 @@ export REGISTRY="intel/"
 export TAG=latest
 
 source scripts/run_service.sh up --plugins ollama --model-path $PWD/models
+curl -s http://localhost:8200/api/v1/health
 ```
 
 ---
 
-## Step 2 — Submit Download Job
+## Step 2 — Submit the Download Job
 
 ```bash
-curl -s -X POST \
+JOB_RESPONSE=$(curl -s -X POST \
   "http://localhost:8200/api/v1/models/download?download_path=ollama-models" \
   -H "Content-Type: application/json" \
   -d '{
     "models": [
       {
-        "name": "llama3.2",
         "hub": "ollama",
+        "name": "llama3.2",
         "revision": "3b"
       }
     ]
-  }'
+  }')
+
+echo "$JOB_RESPONSE"
+JOB_ID=$(echo "$JOB_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin)[\"job_ids\"][0])")
 ```
 
-The `revision` field is appended as a tag: `llama3.2:3b`.
+**Important field mapping:**
+
+- `hub` must be `ollama`
+- `name` is the base model family, for example `llama3.2`
+- `revision` is the tag, for example `3b`
+
+Do **not** send:
+
+```json
+{"name": "llama3.2:3b"}
+```
 
 ---
 
-## Step 3 — Poll Status
+## Step 3 — Poll the Job
 
 ```bash
-JOB_ID=<uuid>
-curl -s http://localhost:8200/api/v1/jobs/$JOB_ID | python3 -m json.tool
+curl -s "http://localhost:8200/api/v1/jobs/$JOB_ID" | python3 -m json.tool
 ```
 
-Download typically takes 5–20 minutes depending on model size and network speed.
+Typical job flow:
 
-Output path: `$PWD/models/ollama/llama3.2/3b/`
+`queued` → `downloading` → `completed`
 
----
-
-## Common Ollama Models
-
-| Model name | `revision` | Notes |
-|-----------|------------|-------|
-| `llama3.2` | `3b`, `1b` | Meta Llama 3.2 |
-| `llama3.1` | `8b`, `70b` | Meta Llama 3.1 |
-| `mistral` | `latest`, `7b` | Mistral 7B |
-| `codellama` | `7b`, `13b`, `34b` | Code-focused Llama |
-| `phi3` | `mini`, `medium` | Microsoft Phi-3 |
-| `gemma2` | `2b`, `9b` | Google Gemma 2 |
+Ollama pulls can take several minutes depending on model size and network speed.
 
 ---
 
-## Download Without a Specific Tag
+## Step 4 — Where the Model Is Stored
 
-Omit `revision` to pull the `latest` tag:
+The job result points to the Ollama model store managed by the service. In a local setup,
+you will typically see artifacts under a path like:
+
+`$PWD/models/ollama/llama3.2/3b/`
+
+---
+
+## Variant — Pull the Default Tag
+
+If you omit `revision`, Ollama pulls `latest`:
 
 ```bash
 curl -s -X POST \
@@ -76,8 +89,8 @@ curl -s -X POST \
   -d '{
     "models": [
       {
-        "name": "mistral",
-        "hub": "ollama"
+        "hub": "ollama",
+        "name": "mistral"
       }
     ]
   }'
@@ -85,8 +98,7 @@ curl -s -X POST \
 
 ---
 
-## Note on Parallel Downloads
+## Note on Parallel Requests
 
-Ollama downloads are serialized — if you submit multiple Ollama jobs simultaneously,
-they queue and execute one at a time. This is by design to avoid port conflicts with
-the local Ollama server.
+Ollama downloads are serialized inside the service. If you queue multiple Ollama jobs,
+they run one at a time to avoid conflicts with the embedded Ollama server.

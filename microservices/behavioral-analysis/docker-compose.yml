@@ -1,0 +1,52 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  # ---------- Behavioral Analysis (YOLO Pose + VLM) ----------
+  behavioral-analysis:
+    build:
+      context: docker
+      dockerfile: Dockerfile
+    image: intel/behavioral-analysis:${RELEASE_TAG}
+    ports:
+      - "${BA_SERVICE_PORT:-8085}:8080"
+    networks:
+      - ba-network
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+      ovms-vlm:
+        condition: service_healthy
+    environment:
+      SEAWEEDFS_ENDPOINT: ${SEAWEEDFS_ENDPOINT}
+      SEAWEEDFS_BUCKET: ${SEAWEEDFS_BUCKET:-behavioral-frames}
+      MIN_FRAMES_FOR_DETECTION: ${BA_MIN_FRAMES:-3}
+      MAX_FRAMES_TO_FETCH: ${BA_MAX_FRAMES:-120}
+      POSE_FRAMES_COUNT: ${BA_POSE_FRAMES:-60}
+      POSE_CONFIDENCE_THRESHOLD: ${BA_CONFIDENCE:-0.5}
+      YOLO_POSE_MODEL: /models/yolo_models/yolo26n-pose/yolo26n-pose.xml
+      GST_INFERENCE_DEVICE: ${BA_GST_DEVICE:-CPU}
+      VLM_ENDPOINT: ${VLM_ENDPOINT:-true}
+      VLM_ENABLED: ${VLM_ENABLED:-true}
+      VLM_TIMEOUT: ${VLM_TIMEOUT:-120}
+      MQTT_HOST: ${MQTT_HOST:-broker.scenescape.intel.com}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      BA_RESULT_TOPIC: ${BA_RESULT_TOPIC:-ba/results}
+      USECASE_1: ${USECASE_1:-Behavorial-Analysis}
+      CONTAINER_RESULTS_PATH: /app/results/ba
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy:-${NO_PROXY:-}},seaweedfs,ovms-vlm,broker.scenescape.intel.com,localhost,127.0.0.1,172.18.0.0/16,10.0.0.0/8
+    volumes:
+      - ${DOWNLOADED_MODEL_PATH:-./models}:/models:ro
+      - ./behavioral-analysis/config:/app/config:ro
+    restart: unless-stopped
+
+networks:
+ ba-network:

@@ -2,213 +2,178 @@
 
 ## Scenario
 
-Write a complete unit test suite for the `ModelScopePlugin` from the
-[new-plugin.md](./new-plugin.md) example.
+Write a realistic unit test suite for the `MyHubPlugin` from
+[new-downloader-plugin.md](./new-downloader-plugin.md), following the same style as the existing
+plugin tests under `tests/unit/`.
 
 ---
 
-## `tests/unit/test_modelscope_plugin.py`
+## `tests/unit/test_myhub_plugin.py`
 
 ```python
-# Copyright (C) 2025 Intel Corporation
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import pytest
 import tempfile
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from src.plugins.modelscope_plugin import ModelScopePlugin
+import pytest
+
+from src.plugins.myhub_plugin import MyHubPlugin
 
 
-class TestModelScopePlugin:
-    """Test suite for ModelScopePlugin."""
-
+class TestMyHubPlugin:
     @pytest.fixture
     def plugin(self):
-        return ModelScopePlugin()
+        return MyHubPlugin()
 
     @pytest.fixture
     def temp_dir(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             yield tmpdir
 
-    # -----------------------------------------------------------------------
-    # Plugin contract tests
-    # -----------------------------------------------------------------------
-
-    def test_plugin_name(self, plugin):
-        assert plugin.plugin_name == "modelscope"
-
-    def test_plugin_type(self, plugin):
+    def test_plugin_properties(self, plugin):
+        assert plugin.plugin_name == "myhub"
         assert plugin.plugin_type == "downloader"
 
-    # -----------------------------------------------------------------------
-    # can_handle tests — always parametrize for full coverage
-    # -----------------------------------------------------------------------
-
-    @pytest.mark.parametrize("hub,expected", [
-        ("modelscope", True),
-        ("ModelScope", True),   # case-insensitive
-        ("MODELSCOPE", True),
-        ("huggingface", False),
-        ("ollama", False),
-        ("openvino", False),
-        ("", False),
-    ])
+    @pytest.mark.parametrize(
+        "hub,expected",
+        [
+            ("myhub", True),
+            ("MyHub", True),
+            ("MYHUB", True),
+            ("huggingface", False),
+            ("ollama", False),
+            ("", False),
+        ],
+    )
     def test_can_handle_hub(self, plugin, hub, expected):
-        assert plugin.can_handle("any/model", hub) == expected
-
-    @pytest.mark.parametrize("model_name", [
-        "damo/nlp_structbert_backbone_base_std",
-        "iic/cv_resnet50_image-classification_imagenet",
-        "simple-model",
-    ])
-    def test_can_handle_model_names(self, plugin, model_name):
-        """Any model name is accepted when hub matches."""
-        assert plugin.can_handle(model_name, "modelscope") is True
-
-    # -----------------------------------------------------------------------
-    # download() — happy path
-    # -----------------------------------------------------------------------
+        assert plugin.can_handle("org/model-name", hub) is expected
 
     @pytest.mark.asyncio
-    @patch('src.plugins.modelscope_plugin.os.getenv')
-    @patch('src.plugins.modelscope_plugin.ModelScopePlugin.download')
-    async def test_download_success(self, mock_download, mock_getenv, plugin, temp_dir):
-        """Test that download() returns the expected structure."""
-        expected_result = {
-            "model_name": "damo/nlp_bert",
-            "source": "modelscope",
-            "download_path": f"{temp_dir}/modelscope/",
-            "success": True,
-        }
-        mock_download.return_value = expected_result
-
-        result = await plugin.download(
-            model_name="damo/nlp_bert",
-            output_dir=temp_dir
+    @patch("src.plugins.myhub_plugin.download_from_provider")
+    async def test_download_success(self, mock_snapshot_download, plugin, temp_dir):
+        mock_snapshot_download.return_value = os.path.join(
+            temp_dir,
+            "myhub",
+            "org_model-name",
         )
 
-        assert result["success"] is True
-        assert result["source"] == "modelscope"
-        assert result["model_name"] == "damo/nlp_bert"
-        assert "modelscope" in result["download_path"]
+        result = await plugin.download(
+            model_name="org/model-name",
+            output_dir=temp_dir,
+            revision="main",
+            api_token="test-token",
+        )
+
+        expected_model_dir = os.path.join(
+            temp_dir,
+            "myhub",
+            "org_model-name",
+        )
+        mock_snapshot_download.assert_called_once_with(
+            model_name="org/model-name",
+            revision="main",
+            destination=expected_model_dir,
+            token="test-token",
+        )
+        assert result == {
+            "model_name": "org/model-name",
+            "source": "myhub",
+            "download_path": os.path.join(temp_dir, "myhub"),
+            "success": True,
+        }
 
     @pytest.mark.asyncio
-    async def test_download_creates_hub_directory(self, plugin, temp_dir):
-        """Verify the hub_dir is created under output_dir."""
-        with patch('src.plugins.modelscope_plugin.snapshot_download') as mock_dl:
-            mock_dl.return_value = os.path.join(temp_dir, "modelscope", "damo_nlp_bert")
+    @patch("src.plugins.myhub_plugin.download_from_provider")
+    async def test_download_uses_env_token(self, mock_snapshot_download, plugin, temp_dir, monkeypatch):
+        monkeypatch.setenv("MYHUB_TOKEN", "env-token")
 
-            await plugin.download(
-                model_name="damo/nlp_bert",
-                output_dir=temp_dir
-            )
+        await plugin.download(
+            model_name="org/model-name",
+            output_dir=temp_dir,
+        )
 
-            hub_dir = os.path.join(temp_dir, "modelscope")
-            assert os.path.isdir(hub_dir)
-
-    # -----------------------------------------------------------------------
-    # download() — revision / token handling
-    # -----------------------------------------------------------------------
+        assert mock_snapshot_download.call_args.kwargs["token"] == "env-token"
 
     @pytest.mark.asyncio
-    async def test_download_with_revision(self, plugin, temp_dir):
-        with patch('src.plugins.modelscope_plugin.snapshot_download') as mock_dl:
-            mock_dl.return_value = temp_dir
+    @patch("src.plugins.myhub_plugin.download_from_provider")
+    @patch("src.plugins.myhub_plugin.os.getenv")
+    async def test_download_rewrites_opt_models_path(
+        self,
+        mock_getenv,
+        mock_snapshot_download,
+        plugin,
+    ):
+        mock_getenv.return_value = "/host/models"
 
+        result = await plugin.download(
+            model_name="org/model-name",
+            output_dir="/opt/models/downloads",
+        )
+
+        assert result["download_path"] == "/host/models/downloads/myhub"
+
+    @pytest.mark.asyncio
+    @patch("src.plugins.myhub_plugin.download_from_provider")
+    async def test_download_surfaces_sdk_errors(self, mock_snapshot_download, plugin, temp_dir):
+        mock_snapshot_download.side_effect = RuntimeError("provider API error")
+
+        with pytest.raises(RuntimeError, match="provider API error"):
             await plugin.download(
-                model_name="damo/nlp_bert",
+                model_name="org/model-name",
                 output_dir=temp_dir,
-                revision="v1.0.0"
             )
-
-            call_kwargs = mock_dl.call_args[1]
-            assert call_kwargs["revision"] == "v1.0.0"
-
-    @pytest.mark.asyncio
-    async def test_download_uses_env_token(self, plugin, temp_dir):
-        with patch('src.plugins.modelscope_plugin.snapshot_download') as mock_dl, \
-             patch.dict(os.environ, {"MODELSCOPE_TOKEN": "env-token"}):
-            mock_dl.return_value = temp_dir
-
-            await plugin.download(
-                model_name="damo/nlp_bert",
-                output_dir=temp_dir
-            )
-
-            call_kwargs = mock_dl.call_args[1]
-            assert call_kwargs["token"] == "env-token"
-
-    # -----------------------------------------------------------------------
-    # download() — error paths
-    # -----------------------------------------------------------------------
-
-    @pytest.mark.asyncio
-    async def test_download_sdk_failure(self, plugin, temp_dir):
-        with patch('src.plugins.modelscope_plugin.snapshot_download') as mock_dl:
-            mock_dl.side_effect = RuntimeError("ModelScope API error")
-
-            with pytest.raises(RuntimeError, match="ModelScope API error"):
-                await plugin.download(
-                    model_name="damo/nlp_bert",
-                    output_dir=temp_dir
-                )
-
-    @pytest.mark.asyncio
-    async def test_download_invalid_model_name(self, plugin, temp_dir):
-        with patch('src.plugins.modelscope_plugin.snapshot_download') as mock_dl:
-            mock_dl.side_effect = ValueError("Model not found: invalid-model")
-
-            with pytest.raises(ValueError):
-                await plugin.download(
-                    model_name="invalid-model",
-                    output_dir=temp_dir
-                )
 ```
+
+---
+
+## Why this version is better
+
+- It patches the SDK function, not the method under test.
+- It mirrors the structure already used in `test_huggingface_plugin.py` and other plugin tests.
+- It verifies behavior that matters to users: request routing, token use, returned paths, and surfaced failures.
 
 ---
 
 ## Key Patterns to Follow
 
-### 1. Import path for patches
+### 1. Patch at the usage site
 
-Always patch at the **usage location**, not the definition:
 ```python
-# WRONG — patches the original module
-@patch('modelscope.snapshot_download')
-
-# RIGHT — patches where the plugin uses it
-@patch('src.plugins.modelscope_plugin.snapshot_download')
+@patch("src.plugins.myhub_plugin.download_from_provider")
 ```
 
-### 2. Async tests need `@pytest.mark.asyncio`
+Do not patch the original third-party module path if the plugin imports the symbol locally.
+
+### 2. Use `@pytest.mark.asyncio` for async plugins
 
 ```python
 @pytest.mark.asyncio
-async def test_something(plugin, temp_dir):
+async def test_download_success(...):
     result = await plugin.download(...)
 ```
 
-### 3. Check `pyproject.toml` for `asyncio_mode`
+### 3. Prefer a few high-signal tests
 
-```toml
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-```
+Cover:
 
-### 4. Don't test implementation — test behavior
+- plugin properties
+- `can_handle()`
+- happy path
+- auth / env handling
+- error propagation
+- host-path rewriting if the plugin returns a container path
 
-Test that:
-- The right SDK function was called with the right arguments
-- The return dict has the correct shape
-- Error conditions raise the expected exceptions
+### 4. Match existing repository style
 
-Don't test:
-- Internal variables
-- Log messages (fragile)
-- File system layout beyond what the plugin promises
+Use:
+
+- `tests/unit/test_<plugin>_plugin.py`
+- `tempfile.TemporaryDirectory()` fixtures
+- `unittest.mock.patch`
+- direct assertions on the returned result dict
 
 ---
 
@@ -216,13 +181,10 @@ Don't test:
 
 ```bash
 cd microservices/model-download
-
-# Install test dependencies
 pip install -e ".[dev]"
 
-# Run only the new plugin tests
-pytest tests/unit/test_modelscope_plugin.py -v
+pytest tests/unit/test_myhub_plugin.py -v
 
 # Run with coverage
-pytest tests/unit/test_modelscope_plugin.py -v --cov=src.plugins.modelscope_plugin
+pytest tests/unit/test_myhub_plugin.py -v --cov=src.plugins.myhub_plugin
 ```

@@ -152,7 +152,7 @@ def curl_examples():
     print("4. Image Embedding from URL:")
     print("   curl -X POST http://localhost:8080/embed_image_url \\")
     print('     -H "Content-Type: application/json" \\')
-    print('     -d \'{"image_url": "https://example.com/image.jpg"}\'')
+    print('     -d \'{"image_url": "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image/coco_bike.jpg"}\'')
     print()
 
 
@@ -182,13 +182,13 @@ def environment_variable_examples():
     print()
 
     print("4. Use BLIP2 Transformers model:")
-    print("   export EMBEDDING_MODEL_NAME=Blip2/blip2_transformers")
+    print("   export EMBEDDING_MODEL_NAME=Blip2/blip2")
     print("   export EMBEDDING_USE_OV=false")
     print("   export EMBEDDING_DEVICE=CPU")
     print()
 
     print("5. Use BLIP2 Transformers with OpenVINO:")
-    print("   export EMBEDDING_MODEL_NAME=Blip2/blip2_transformers")
+    print("   export EMBEDDING_MODEL_NAME=Blip2/blip2")
     print("   export EMBEDDING_USE_OV=true")
     print("   export EMBEDDING_DEVICE=CPU")
     print("   export EMBEDDING_OV_MODELS_DIR=./ov-models")
@@ -223,7 +223,7 @@ def docker_examples():
 
     print("4. Run with BLIP2 Transformers:")
     print("   docker run -p 8080:8080 \\")
-    print("     -e EMBEDDING_MODEL_NAME=Blip2/blip2_transformers \\")
+    print("     -e EMBEDDING_MODEL_NAME=Blip2/blip2 \\")
     print("     -e EMBEDDING_USE_OV=false \\")
     print("     -e EMBEDDING_DEVICE=CPU \\")
     print("     multimodal-embedding-serving")
@@ -231,7 +231,7 @@ def docker_examples():
 
     print("5. Run with BLIP2 Transformers + OpenVINO:")
     print("   docker run -p 8080:8080 \\")
-    print("     -e EMBEDDING_MODEL_NAME=Blip2/blip2_transformers \\")
+    print("     -e EMBEDDING_MODEL_NAME=Blip2/blip2 \\")
     print("     -e EMBEDDING_USE_OV=true \\")
     print("     -e EMBEDDING_DEVICE=CPU \\")
     print("     -v $(pwd)/ov-models:/app/ov_models \\")

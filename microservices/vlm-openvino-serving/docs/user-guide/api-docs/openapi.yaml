@@ -1,246 +1,446 @@
----
 openapi: 3.1.0
 info:
-  title: FastAPI
-  version: 0.1.0
+  title: vlm-openvino-serving
+  description: Fastapi server wrapping Openvino runtime to serve /chat/completion endpoint to consume text and image and serve
+    inference with LLM/VLM models
+  version: 1.3.2
 paths:
-  "/v1/queue-status":
+  /v1/queue-status:
     get:
-      summary: Queue Status
-      description: |-
-        Get the current status of the request queue.
-
-        Returns:
-            JSONResponse: A JSON response containing the number of active and queued requests.
-      operationId: queue_status_v1_queue_status_get
+      tags:
+      - Service
+      summary: Get request queue status
+      description: "Get the current status of the request queue.\n\nReturns:\n    JSONResponse: A JSON response containing\
+        \ the number of active and queued requests."
+      operationId: getQueueStatus
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
-              schema: {}
-  "/v1/chat/completions":
+              schema:
+                $ref: '#/components/schemas/QueueStatusResponse'
+  /v1/chat/completions:
     post:
-      summary: Chat Completions
-      description: |-
-        Handle chat completion requests.
-
-        Args:
-            request (ChatRequest): The chat request containing messages, model, and generation parameters.
-
-        Returns:
-            JSONResponse or StreamingResponse: The chat completion response.
-      operationId: chat_completions_v1_chat_completions_post
+      tags:
+      - Chat Completions
+      summary: Generate multimodal chat completion
+      description: "Handle chat completion requests.\n\nArgs:\n    request (ChatRequest): The chat request containing messages,\
+        \ model, and generation parameters.\n\nReturns:\n    JSONResponse or StreamingResponse: The chat completion response."
+      operationId: createChatCompletion
       requestBody:
         content:
           application/json:
             schema:
-              "$ref": "#/components/schemas/ChatRequest"
+              $ref: '#/components/schemas/ChatRequest'
         required: true
       responses:
         '200':
-          description: Successful Response
+          description: Chat completion response. Returns JSON when stream=false and server-sent events when stream=true.
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ChatCompletionResponse'
+            text/event-stream:
+              schema:
+                type: string
+                example: 'data: {"id":"chatcmpl-123","object":"chat.completion.chunk"}\n\n'
+        '400':
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Requested model does not match configured model.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error during completion generation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/HTTPValidationError"
-  "/v1/models":
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/telemetry:
     get:
-      summary: Get Models
-      description: |-
-        Retrieve the list of available models.
-
-        Returns:
-            ModelsResponse: A response containing the list of available models.
-      operationId: get_models_v1_models_get
+      tags:
+      - Telemetry
+      summary: List recent telemetry records
+      description: Return the most recent telemetry entries (newest first).
+      operationId: listTelemetry
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            maximum: 100
+            exclusiveMinimum: 0
+          - type: 'null'
+          description: Maximum number of newest telemetry items to return.
+          title: Limit
+        description: Maximum number of newest telemetry items to return.
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/ModelsResponse"
-  "/device":
+                $ref: '#/components/schemas/TelemetryListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/models:
     get:
       tags:
-      - Device API
-      summary: Get available device list
-      description: |-
-        Retrieve a list of available devices.
-
-        Returns:
-            dict: A dictionary with a key "devices" containing the list of devices.
-
-        Raises:
-            HTTPException: If an error occurs while retrieving the devices.
-      operationId: get_device_device_get
+      - Models
+      summary: List configured model
+      description: "Retrieve the list of available models.\n\nReturns:\n    ModelsResponse: A response containing the list\
+        \ of available models."
+      operationId: listModels
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
-              schema: {}
-  "/device/{device}":
+              schema:
+                $ref: '#/components/schemas/ModelsResponse'
+  /device:
     get:
       tags:
-      - Device API
-      summary: Get device property
-      description: |-
-        Retrieve information about a specific device.
-
-        Args:
-            device (str): The name of the device to retrieve information for.
-
-        Returns:
-            JSONResponse: A JSON response containing the properties of the specified device.
-
-        Raises:
-            HTTPException: If the device is not found or if there is an error retrieving the device properties.
-      operationId: get_device_info_device__device__get
+      - Device
+      summary: List available OpenVINO devices
+      description: "Retrieve a list of available devices.\n\nReturns:\n    dict: A dictionary with a key \"devices\" containing\
+        \ the list of devices.\n\nRaises:\n    HTTPException: If an error occurs while retrieving the devices."
+      operationId: listDevices
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceListResponse'
+  /device/{device}:
+    get:
+      tags:
+      - Device
+      summary: Get OpenVINO device properties
+      description: "Retrieve information about a specific device.\n\nArgs:\n    device (str): The name of the device to retrieve\
+        \ information for.\n\nReturns:\n    JSONResponse: A JSON response containing the properties of the specified device.\n\
+        \nRaises:\n    HTTPException: If the device is not found or if there is an error retrieving the device properties."
+      operationId: getDeviceProperties
       parameters:
       - name: device
         in: path
         required: true
         schema:
           type: string
+          description: OpenVINO device name, for example CPU, GPU, or NPU.
           title: Device
+        description: OpenVINO device name, for example CPU, GPU, or NPU.
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Getdeviceproperties
+        '404':
+          description: Device not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/HTTPValidationError"
-  "/health":
+                $ref: '#/components/schemas/HTTPValidationError'
+  /health:
     get:
-      summary: Health Check
-      description: |-
-        Perform a health check for the application.
-
-        Returns:
-            JSONResponse: A JSON response indicating the health status of the application.
-      operationId: health_check_health_get
+      tags:
+      - Service
+      summary: Check service health
+      description: "Perform a health check for the application.\n\nReturns:\n    JSONResponse: A JSON response indicating\
+        \ the health status of the application."
+      operationId: getHealthStatus
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Model is not ready yet.
 components:
   schemas:
+    ChatCompletionChoice:
+      properties:
+        index:
+          type: integer
+          title: Index
+        message:
+          $ref: '#/components/schemas/ChatCompletionDelta'
+        finish_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Finish Reason
+      type: object
+      required:
+      - index
+      - message
+      title: ChatCompletionChoice
+      description: "Represents a choice in chat completion.\n\nAttributes:\n    index (int): The index of the choice.\n  \
+        \  message (ChatCompletionDelta): The message delta.\n    finish_reason (Optional[str]): The reason for finishing."
+    ChatCompletionDelta:
+      properties:
+        role:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Role
+        content:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Content
+      type: object
+      title: ChatCompletionDelta
+      description: "Represents a delta in chat completion.\n\nAttributes:\n    role (Optional[str]): The role of the message\
+        \ sender.\n    content (Optional[str]): The content of the message."
+    ChatCompletionResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        object:
+          type: string
+          title: Object
+          default: chat.completion
+        created:
+          type: integer
+          title: Created
+        model:
+          type: string
+          title: Model
+        system_fingerprint:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: System Fingerprint
+        choices:
+          items:
+            $ref: '#/components/schemas/ChatCompletionChoice'
+          type: array
+          title: Choices
+        usage:
+          anyOf:
+          - $ref: '#/components/schemas/ChatUsageStats'
+          - type: 'null'
+        telemetry:
+          anyOf:
+          - $ref: '#/components/schemas/TelemetryMetrics'
+          - type: 'null'
+      type: object
+      required:
+      - id
+      - created
+      - model
+      - choices
+      title: ChatCompletionResponse
+      description: "Represents a response for chat completion.\n\nAttributes:\n    id (str): The ID of the response.\n   \
+        \ object (str): The type of the object.\n    created (int): The creation timestamp.\n    model (str): The model used\
+        \ for the response.\n    system_fingerprint (Optional[str]): The system fingerprint.\n    choices (List[ChatCompletionChoice]):\
+        \ A list of completion choices.\n    usage (Optional[ChatUsageStats]): The usage statistics.\n    telemetry (Optional[TelemetryMetrics]):\
+        \ Detailed telemetry information."
     ChatRequest:
       properties:
         messages:
           items:
-            "$ref": "#/components/schemas/Message"
+            $ref: '#/components/schemas/Message'
           type: array
           title: Messages
         model:
           type: string
           title: Model
-          example: llama-2-13b
+          description: Model identifier. Must match the configured VLM_MODEL_NAME on the running service.
         repetition_penalty:
           anyOf:
           - type: number
           - type: 'null'
           title: Repetition Penalty
-          example: 1.15
+          description: Optional repetition penalty override.
         presence_penalty:
           anyOf:
           - type: number
           - type: 'null'
           title: Presence Penalty
-          example: 1.15
+          description: Optional presence penalty override.
         frequency_penalty:
           anyOf:
           - type: number
           - type: 'null'
           title: Frequency Penalty
-          example: 1.15
+          description: Optional frequency penalty override.
         max_completion_tokens:
           anyOf:
           - type: integer
           - type: 'null'
           title: Max Completion Tokens
-          example: 1000
+          description: Optional max completion token override. Defaults to VLM_MAX_COMPLETION_TOKENS when configured; otherwise
+            model/runtime defaults apply.
         temperature:
           anyOf:
           - type: number
           - type: 'null'
           title: Temperature
-          example: 0.3
+          description: Optional temperature override.
         top_p:
           anyOf:
           - type: number
           - type: 'null'
           title: Top P
-          example: 0.5
+          description: Optional top-p override.
         stream:
           anyOf:
           - type: boolean
           - type: 'null'
           title: Stream
+          description: When true, returns server-sent events.
           default: false
-          example: true
         top_k:
           anyOf:
           - type: integer
           - type: 'null'
           title: Top K
-          example: 40
+          description: Optional top-k override.
         do_sample:
           anyOf:
           - type: boolean
           - type: 'null'
           title: Do Sample
-          example: true
+          description: Optional sampling override.
         seed:
           anyOf:
           - type: integer
           - type: 'null'
           title: Seed
-          description: Seed for reproducibility
-          example: 42
+          description: Optional seed override. Defaults to setup/runtime VLM_SEED (or SEED) value.
       type: object
       required:
       - messages
       - model
       title: ChatRequest
-      description: |-
-        Represents a chat request.
-
-        Attributes:
-            messages (List[Message]): A list of messages in the chat.
-            model (str): The model to be used for the chat.
-            repetition_penalty (Optional[float]): The penalty for repetition.
-            presence_penalty (Optional[float]): The penalty for presence.
-            frequency_penalty (Optional[float]): The penalty for frequency.
-            max_completion_tokens (Optional[int]): The maximum number of completion tokens.
-            temperature (Optional[float]): The temperature for randomness.
-            top_p (Optional[float]): The top-p sampling value.
-            stream (Optional[bool]): Whether to stream the response.
-            top_k (Optional[int]): The top-k sampling value.
-            do_sample (Optional[bool]): Whether to sample.
-            seed (Optional[int]): The seed for reproducibility.
+      description: "Represents a chat request.\n\nAttributes:\n    messages (List[Message]): A list of messages in the chat.\n\
+        \    model (str): The model to be used for the chat.\n    repetition_penalty (Optional[float]): The penalty for repetition.\n\
+        \    presence_penalty (Optional[float]): The penalty for presence.\n    frequency_penalty (Optional[float]): The penalty\
+        \ for frequency.\n    max_completion_tokens (Optional[int]): The maximum number of completion tokens.\n    temperature\
+        \ (Optional[float]): The temperature for randomness.\n    top_p (Optional[float]): The top-p sampling value.\n   \
+        \ stream (Optional[bool]): Whether to stream the response.\n    top_k (Optional[int]): The top-k sampling value.\n\
+        \    do_sample (Optional[bool]): Whether to sample.\n    seed (Optional[int]): The seed for reproducibility."
+    ChatUsageStats:
+      properties:
+        prompt_tokens:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Prompt Tokens
+        completion_tokens:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Completion Tokens
+        total_tokens:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Total Tokens
+        tps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tps
+        time_to_first_token:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Time To First Token
+        latency:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latency
+        completion_tokens_details:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Completion Tokens Details
+      type: object
+      title: ChatUsageStats
+      description: "Represents usage statistics for a chat.\n\nAttributes:\n    prompt_tokens (Optional[int]): The number\
+        \ of prompt tokens.\n    completion_tokens (Optional[int]): The number of completion tokens.\n    total_tokens (Optional[int]):\
+        \ The total number of tokens.\n    tps (Optional[float]): The tokens per second.\n    time_to_first_token (Optional[float]):\
+        \ The time to the first token.\n    latency (Optional[float]): The latency of the response.\n    completion_tokens_details\
+        \ (Optional[dict]): Details of completion tokens."
+    DeviceListResponse:
+      properties:
+        devices:
+          items:
+            type: string
+          type: array
+          title: Devices
+      type: object
+      required:
+      - devices
+      title: DeviceListResponse
+      description: Response payload listing available OpenVINO devices.
+    ErrorResponse:
+      properties:
+        error:
+          type: string
+          title: Error
+      type: object
+      required:
+      - error
+      title: ErrorResponse
+      description: Generic error payload used by API endpoints.
     HTTPValidationError:
       properties:
         detail:
           items:
-            "$ref": "#/components/schemas/ValidationError"
+            $ref: '#/components/schemas/ValidationError'
           type: array
           title: Detail
       type: object
       title: HTTPValidationError
+    HealthResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - status
+      title: HealthResponse
+      description: Response payload for service health endpoint.
     Message:
       properties:
         role:
@@ -252,10 +452,10 @@ components:
           - items:
               anyOf:
               - type: string
-              - "$ref": "#/components/schemas/MessageContentText"
-              - "$ref": "#/components/schemas/MessageContentImageUrl"
-              - "$ref": "#/components/schemas/MessageContentVideo"
-              - "$ref": "#/components/schemas/MessageContentVideoUrl"
+              - $ref: '#/components/schemas/MessageContentText'
+              - $ref: '#/components/schemas/MessageContentImageUrl'
+              - $ref: '#/components/schemas/MessageContentVideo'
+              - $ref: '#/components/schemas/MessageContentVideoUrl'
             type: array
           title: Content
       type: object
@@ -263,13 +463,9 @@ components:
       - role
       - content
       title: Message
-      description: |-
-        Represents a message in a chat.
-
-        Attributes:
-            role (str): The role of the message sender (e.g., "user").
-            content (Union[str, List[Union[str, MessageContentText, MessageContentImageUrl, MessageContentVideo, MessageContentVideoUrl]]]):
-                The content of the message.
+      description: "Represents a message in a chat.\n\nAttributes:\n    role (str): The role of the message sender (e.g.,\
+        \ \"user\").\n    content (Union[str, List[Union[str, MessageContentText, MessageContentImageUrl, MessageContentVideo,\
+        \ MessageContentVideoUrl]]]):\n        The content of the message."
     MessageContentImageUrl:
       properties:
         type:
@@ -285,12 +481,8 @@ components:
       - type
       - image_url
       title: MessageContentImageUrl
-      description: |-
-        Represents an image URL message content.
-
-        Attributes:
-            type (str): The type of the content (e.g., "image_url").
-            image_url (Dict[str, str]): A dictionary containing the image URL.
+      description: "Represents an image URL message content.\n\nAttributes:\n    type (str): The type of the content (e.g.,\
+        \ \"image_url\").\n    image_url (Dict[str, str]): A dictionary containing the image URL."
     MessageContentText:
       properties:
         type:
@@ -304,12 +496,8 @@ components:
       - type
       - text
       title: MessageContentText
-      description: |-
-        Represents a text message content.
-
-        Attributes:
-            type (str): The type of the content (e.g., "text").
-            text (str): The text content.
+      description: "Represents a text message content.\n\nAttributes:\n    type (str): The type of the content (e.g., \"text\"\
+        ).\n    text (str): The text content."
     MessageContentVideo:
       properties:
         type:
@@ -325,12 +513,8 @@ components:
       - type
       - video
       title: MessageContentVideo
-      description: |-
-        Represents a video message content.
-
-        Attributes:
-            type (str): The type of the content (e.g., "video").
-            video (List[str]): A list of video frames.
+      description: "Represents a video message content.\n\nAttributes:\n    type (str): The type of the content (e.g., \"\
+        video\").\n    video (List[str]): A list of video frames."
     MessageContentVideoUrl:
       properties:
         type:
@@ -357,14 +541,9 @@ components:
       - type
       - video_url
       title: MessageContentVideoUrl
-      description: |-
-        Represents a video URL message content.
-
-        Attributes:
-            type (str): The type of the content (e.g., "video_url").
-            video_url (Dict[str, str]): A dictionary containing the video URL.
-            max_pixels (Optional[Union[int, str]]): The maximum number of pixels for the video.
-            fps (Optional[float]): The frames per second for the video.
+      description: "Represents a video URL message content.\n\nAttributes:\n    type (str): The type of the content (e.g.,\
+        \ \"video_url\").\n    video_url (Dict[str, str]): A dictionary containing the video URL.\n    max_pixels (Optional[Union[int,\
+        \ str]]): The maximum number of pixels for the video.\n    fps (Optional[float]): The frames per second for the video."
     ModelData:
       properties:
         id:
@@ -374,28 +553,16 @@ components:
           type: string
           title: Object
           default: model
-        created:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Created
-        owned_by:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Owned By
+        device:
+          type: string
+          title: Device
       type: object
       required:
       - id
+      - device
       title: ModelData
-      description: |-
-        Represents data for a model.
-
-        Attributes:
-            id (str): The ID of the model.
-            object (str): The type of the object.
-            created (Optional[int]): The creation timestamp.
-            owned_by (Optional[str]): The owner of the model.
+      description: "Represents data for a model.\n\nAttributes:\n    id (str): The ID of the model.\n    object (str): The\
+        \ type of the object.\n    device (str): The runtime device used by the loaded model."
     ModelsResponse:
       properties:
         object:
@@ -404,19 +571,195 @@ components:
           default: list
         data:
           items:
-            "$ref": "#/components/schemas/ModelData"
+            $ref: '#/components/schemas/ModelData'
           type: array
           title: Data
       type: object
       required:
       - data
       title: ModelsResponse
-      description: |-
-        Represents a response containing a list of models.
-
-        Attributes:
-            object (str): The type of the object.
-            data (List[ModelData]): A list of model data.
+      description: "Represents a response containing a list of models.\n\nAttributes:\n    object (str): The type of the object.\n\
+        \    data (List[ModelData]): A list of model data."
+    QueueStatusResponse:
+      properties:
+        active_requests:
+          type: integer
+          title: Active Requests
+        queued_requests:
+          type: integer
+          title: Queued Requests
+      type: object
+      required:
+      - active_requests
+      - queued_requests
+      title: QueueStatusResponse
+      description: Response payload for request queue status endpoint.
+    TelemetryListResponse:
+      properties:
+        count:
+          type: integer
+          title: Count
+        items:
+          items:
+            $ref: '#/components/schemas/TelemetryRecord'
+          type: array
+          title: Items
+      type: object
+      required:
+      - count
+      - items
+      title: TelemetryListResponse
+      description: Envelope for telemetry history API.
+    TelemetryMetrics:
+      properties:
+        prompt_tokens:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Prompt Tokens
+        completion_tokens:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Completion Tokens
+        total_tokens:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Total Tokens
+        load_time_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Load Time Ms
+        generate_time_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Generate Time Ms
+        generate_time_std_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Generate Time Std Ms
+        tokenization_time_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tokenization Time Ms
+        tokenization_time_std_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tokenization Time Std Ms
+        detokenization_time_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Detokenization Time Ms
+        detokenization_time_std_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Detokenization Time Std Ms
+        embeddings_prep_time_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Embeddings Prep Time Ms
+        embeddings_prep_time_std_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Embeddings Prep Time Std Ms
+        ttft_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ttft Ms
+        ttft_std_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ttft Std Ms
+        tpot_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tpot Ms
+        tpot_std_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tpot Std Ms
+        throughput_tps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Throughput Tps
+        throughput_std_tps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Throughput Std Tps
+      type: object
+      title: TelemetryMetrics
+      description: Detailed performance telemetry captured from ov_genai PerfMetrics.
+    TelemetryRecord:
+      properties:
+        id:
+          type: string
+          title: Id
+        timestamp:
+          type: string
+          title: Timestamp
+        status:
+          type: string
+          title: Status
+        request:
+          $ref: '#/components/schemas/TelemetryRequestMetadata'
+        usage:
+          anyOf:
+          - $ref: '#/components/schemas/ChatUsageStats'
+          - type: 'null'
+        telemetry:
+          anyOf:
+          - $ref: '#/components/schemas/TelemetryMetrics'
+          - type: 'null'
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      type: object
+      required:
+      - id
+      - timestamp
+      - status
+      - request
+      title: TelemetryRecord
+      description: Single telemetry entry exposed via /telemetry endpoint.
+    TelemetryRequestMetadata:
+      properties:
+        message_count:
+          type: integer
+          title: Message Count
+        media:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Media
+        parameters:
+          additionalProperties: true
+          type: object
+          title: Parameters
+      type: object
+      required:
+      - message_count
+      - media
+      - parameters
+      title: TelemetryRequestMetadata
+      description: Metadata describing the original request parameters (without sensitive payloads).
     ValidationError:
       properties:
         loc:
@@ -432,6 +775,11 @@ components:
         type:
           type: string
           title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
       type: object
       required:
       - loc

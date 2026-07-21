@@ -65,7 +65,6 @@ class ModelDownloadPlugin(ABC):
 - `"downloader"` — fetches model files from a remote source
 - `"converter"` — transforms existing model files (e.g. OpenVINO conversion)
 
----
 
 ## Plugin Registration
 
@@ -94,6 +93,16 @@ PLUGINS = {
 (set from the `--plugins` flag in `entrypoint.sh`), injects each plugin's dedicated venv
 site-packages into `sys.path`, imports the class, and exports it into the module namespace.
 Plugins whose dependencies aren't installed are silently skipped.
+
+**Important import-time detail:** the injected plugin venv path is removed immediately after
+the plugin module is imported. That means dependencies that exist **only** in the plugin's
+dedicated venv must either:
+
+- be imported during module import time, or
+- be invoked through a subprocess using the plugin venv helpers in `plugin_venv.py`
+
+If you lazily import a plugin-only SDK later inside `download()` or a helper called by it,
+you can get `ModuleNotFoundError` even though the plugin was activated correctly.
 
 ---
 

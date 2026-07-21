@@ -1,8 +1,8 @@
 # Get Started
 
-The **Multi-level Video Understanding Microservice** enables developers to create video summary from video files. This section provides step-by-step instructions to:
+The **Multi-level Video Understanding Microservice** enables developers to create video summaries from video files (especially long videos). This section provides step-by-step instructions to:
 
-- Set up dependent microservices of genai model servings, including large language models(llms) and vision language models(vlms).
+- Set up an on-device GenAI model serving (VLM + LLM) that exposes an OpenAI-compatible API.
 - Set up the microservice using a pre-built Docker image for quick deployment.
 - Run predefined tasks to explore its functionality.
 - Learn how to modify basic configurations to suit specific requirements.
@@ -12,235 +12,114 @@ The **Multi-level Video Understanding Microservice** enables developers to creat
 Before you begin, ensure the following:
 
 - **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
+- **GPU Driver Installed**: This guide assumes the GPU driver on the target machine is already installed. If it is not, install the Intel GPU driver packages by following the official [Installing Packages from the Intel PPA](https://dgpu-docs.intel.com/installation-guides/installing-packages-from-the-intel-ppa.html) guide first.
 - **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
 
-## Setup GenAI Model Servings for VLM and LLM
+## On-device AI Services
 
-This microservice is designed to work effortlessly with GenAI model servings that provide OpenAI-compatible APIs. We recommend take **vLLM-IPEX** as an example, this is primarily used for inference on Intel single-GPU or multiple-GPUs, optimized for Intel® Arc™ Pro B60 Graphics.
+In the reference deployment, both the model serving and this microservice run **locally on a single Intel® Core™ Ultra (Panther Lake, PTL) host**, with the integrated GPU sharing system RAM — no discrete accelerator or remote inference cluster is required.
 
-First of all, prepare GenAIComps from Open Platform for Enterprise AI (OPEA):
+This microservice is designed to work effortlessly with GenAI model servings that provide OpenAI-compatible APIs. We recommend take **vLLM-IPEX** as an example. A single Mixture-of-Experts model, **Qwen3.5-35B-A3B** (35B total / 3B active), serves both the **VLM** role (per-chunk captioning) and the **LLM** role (hierarchical aggregation) from one endpoint.
 
-```bash
-git clone https://github.com/opea-project/GenAIComps.git
-cd GenAIComps
-```
+> **Platform note:** This guide is written around the **on-device PTL iGPU** profile, where the serving and the microservice share one host. Only the vLLM-IPEX serving ([llm-scaler](https://github.com/intel/llm-scaler)) is platform-sensitive. To run on a discrete-GPU host such as **Intel® Arc™ Pro B60** instead, deploy vLLM-IPEX on that machine (serving `Qwen3.5-35B-A3B` may require multiple GPUs)。
 
-### Start model serving for VLM
+### Memory & swap requirements
 
-**Key Configuration**
+`Qwen3.5-35B-A3B` in FP8 with a 60k context window is memory-hungry on a shared-RAM host. The default configuration targets a **64 GB system**:
 
-- `MAX_MODEL_LEN`: max model length, constraints to GPU memory.
-- `LLM_MODEL_ID`: huggingface model id.
-- `LOAD_QUANTIZATION`: model precision.
-- `VLLM_PORT`: VLM model serving port.
-- `ONEAPI_DEVICE_SELECTOR`: device id, use `export ONEAPI_DEVICE_SELECTOR=level_zero:[gpu_id];level_zero:[gpu_id]` to select device before excuting your command.
-- `TENSOR_PARALLEL_SIZE`: tensor parallel size.
+- Provide at least **32 GB of swap** so the weight load and KV cache can spill under peak pressure without the OOM killer stepping in. If your host lacks enough swap, see [Adding Swap Space](./get-started/add-swap.md).
+- To lower the footprint, reduce `MAX_MODEL_LEN` (e.g. `32768`) or switch `LOAD_QUANTIZATION` to `awq` / `sym_int4` in [set_env.sh](../../docker/set_env.sh).
+- The **first startup takes 3–20 minutes** while the weights are downloaded and compiled. The serving becomes healthy once it answers on `http://<host>:41091/v1/models`.
 
-**Deployment Steps**
+## Step 1. Configure the environment
 
-1. Pull the official docker image first.
-
-   ```bash
-   docker pull intel/llm-scaler-vllm:0.10.0-b4
-   ```
-
-2. Export the required environment variables.
-
-   ```bash
-   # Use image: intel/llm-scaler-vllm:0.10.0-b4
-   export REGISTRY=intel
-   export TAG=0.10.0-b4
-
-   export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
-   export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
-
-   HF_HOME=${HF_HOME:=~/.cache/huggingface}
-   export HF_HOME
-
-   export MAX_MODEL_LEN=20000
-   export LLM_MODEL_ID=Qwen/Qwen2.5-VL-7B-Instruct
-   export LOAD_QUANTIZATION=fp8
-   export VLLM_PORT=41091
-   export ONEAPI_DEVICE_SELECTOR="level_zero:0;level_zero:1"
-   export TENSOR_PARALLEL_SIZE=2
-   ```
-
-3. Navigate to the Docker Compose directory and start the services:
-
-   ```bash
-   cd comps/lvms/deployment/docker_compose/
-   docker compose up lvm-vllm-ipex-service -d
-   ```
-
-   Then, verify the service:
-
-   ```bash
-   docker logs -f lvm-vllm-ipex-service
-   ```
-
-   ```text
-   ...
-   INFO:     Started server process [411]
-   INFO:     Waiting for application startup.
-   INFO:     Application startup complete.
-   ```
-
-> **Note:** It may take some time to load the models, especially when deploying a new model for the first time. The resources will be downloaded from a Hugging Face endpoint.
-
-If you would like to uninstall the model serving, run the following command in the same environment where you performed the installation:
+All environment variables for both the model serving and the microservice live in one file, [docker/set_env.sh](../../docker/set_env.sh). Source it in your shell before starting anything:
 
 ```bash
-docker compose down lvm-vllm-ipex-service
+cd edge-ai-libraries/microservices/multilevel-video-understanding
+source docker/set_env.sh
 ```
 
-More details can be found in [LVM Microservice with vLLM on Intel XPU](https://opea-project.github.io/latest/GenAIComps/comps/lvms/src/README_vllm_ipex.html)
+**Key variables**
 
-### Start model serving for LLM
+Model serving (vLLM-IPEX):
 
-**Key Configuration**
+- `LLM_MODEL`: model served for both roles (default `Qwen/Qwen3.5-35B-A3B`).
+- `MAX_MODEL_LEN`: context window; drives KV-cache memory (default `61440` = 60k).
+- `LOAD_QUANTIZATION`: precision — `fp8` (default), `awq`, or `sym_int4`.
+- `GPU_MEM_UTIL`: fraction of shared system RAM the serving may reserve (`0.7` for fp8, `0.5` for awq/sym_int4).
+- `VLLM_SERVICE_PORT`: OpenAI-compatible serving port (default `41091`).
 
-- `MAX_MODEL_LEN`: max model length, constraints to GPU memory.
-- `LLM_MODEL_ID`: huggingface model id.
-- `LOAD_QUANTIZATION`: model precision.
-- `VLLM_PORT`: LLM model serving port.
-- `ONEAPI_DEVICE_SELECTOR`: device id, use `export ONEAPI_DEVICE_SELECTOR=level_zero:[gpu_id];level_zero:[gpu_id]` to select device before excuting your command.
-- `TENSOR_PARALLEL_SIZE`: tensor parallel size.
+Microservice:
 
-**Deployment Steps**
+- `VLM_MODEL_NAME` / `LLM_MODEL_NAME`: must match the served model name (both default to `LLM_MODEL`).
+- `VLM_BASE_URL` / `LLM_BASE_URL`: OpenAI-compatible endpoints (both default to the on-device serving).
+- `SERVICE_PORT`: microservice port (default `8192`).
+- `MAX_CONCURRENT_REQUESTS`: max concurrent inference requests (default `4`).
+- `VIDEO_SUMMARY_CACHE_HOST`: host directory for the runtime prompt-registry cache. Must exist as a user-owned directory before `docker compose up` (the script creates it for you).
 
-1. Pull the official docker image first.
+## Step 2. Prepare the microservice image
 
-   ```bash
-   docker pull intel/llm-scaler-vllm:0.10.0-b4
-   ```
+Provide the `multilevel-video-understanding` image in one of two ways:
 
-2. Export the required environment variables.
-
-   ```bash
-   # Use image: intel/llm-scaler-vllm:0.10.0-b4
-   export REGISTRY=intel
-   export TAG=0.10.0-b4
-
-   export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
-   export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
-
-   HF_HOME=${HF_HOME:=~/.cache/huggingface}
-   export HF_HOME
-
-   export MAX_MODEL_LEN=20000
-   export LLM_MODEL_ID=Qwen/Qwen3-32B-AWQ
-   export LOAD_QUANTIZATION=awq
-   export VLLM_PORT=41090
-   export ONEAPI_DEVICE_SELECTOR="level_zero:2;level_zero:3"
-   export TENSOR_PARALLEL_SIZE=2
-   ```
-
-3. Navigate to the Docker Compose directory and start the services:
-
-   ```bash
-   cd comps/llms/deployment/docker_compose/
-   docker compose -f compose_text-generation.yaml up textgen-vllm-ipex-service -d
-   ```
-
-   Then, verify the service:
-
-   ```bash
-   docker logs -f textgen-vllm-ipex-service
-
-   ...
-   INFO:     Started server process [411]
-   INFO:     Waiting for application startup.
-   INFO:     Application startup complete.
-   ```
-
-> **Note:** Please refer to [validated models](./index.md#validated-models) for the list of models that has been verified in video summarization.
-
-If you would like to uninstall the model serving, run the following command in the same environment where you performed the installation:
-
-```bash
-docker compose -f compose_text-generation.yaml down textgen-vllm-ipex-service
-```
-
-More details can be found in  [LLM Microservice with vLLM on Intel XPU](https://opea-project.github.io/latest/GenAIComps/comps/llms/src/text-generation/README_vllm_ipex.html)
-
-## Quick Start with Docker
-
-### Step 1. Prepare docker image
-
-Before launching the service as documented below, users need to prepare the docker images:
-
-- **Option1.** [Build the docker images](./get-started/build-from-source.md#steps-to-build)
-- **Option2.** Download the prebuilt images from Docker Hub ([intel/multilevel-video-understanding](https://hub.docker.com/r/intel/multilevel-video-understanding))
+- **Option 1.** [Build the docker image](./get-started/build-from-source.md#steps-to-build)
+- **Option 2.** Download the prebuilt image from Docker Hub ([intel/multilevel-video-understanding](https://hub.docker.com/r/intel/multilevel-video-understanding))
 
   ```bash
-  docker pull intel/multilevel-video-understanding:2025.2.0
+  docker pull intel/multilevel-video-understanding:2026.2.0
   ```
 
-Then, use the following commands to set up the `multilevel-video-understanding` microservice.
+> **Note:** If `REGISTRY_URL` is provided, the final image name is `${REGISTRY_URL}/multilevel-video-understanding:${TAG}`; otherwise it is `multilevel-video-understanding:${TAG}`.
 
-### Step 2. Set up environment variables
+## Step 3. Launch
 
-The following environment variables can be configured:
-
-**Basic configuration**
-
-- `REGISTRY_URL`: Docker image registry url
-- `TAG`: Docker image tag (default: 2025.2.0, the stable release version)
-- `SERVICE_PORT`: Multi-level Video Understanding Microservice port (default: 8192)
-- `MAX_CONCURRENT_REQUESTS`: Max concurrent requests for this microservice (default: 6)
-- `DEBUG`: Enable debug mode (default: False)
-
-**Model configuration**
-
-- `VLM_MODEL_NAME`: Vision-Language model(VLM), this should comply with model serving's `model` field.
-- `VLM_BASE_URL`: Model serving's base url for VLM. (e.g., `http://localhost:41091/v1`)
-- `LLM_MODEL_NAME`: Large Language model(LLM), this should comply with model serving's `model` field.
-- `LLM_BASE_URL`: Model serving's base url for LLM. (e.g., `http://localhost:41090/v1`)
-
-**Example of minimum required environment variables**
+The Compose file ([docker/compose.yaml](../../docker/compose.yaml)) defines both services on a shared network: `vllm-ipex-serving` (the model serving) and `multilevel-video-understanding`. Choose one of the two deployment options below.
 
 ```bash
-export REGISTRY_URL=intel/
-export TAG=2025.2.0
-export VLM_BASE_URL="http://<model-serving-ip-address>:41091/v1"
-export LLM_BASE_URL="http://<model-serving-ip-address>:41090/v1"
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
-export LLM_MODEL_NAME=Qwen/Qwen3-32B-AWQ
-export SERVICE_PORT=8192
-```
-
-> **Note:**
->
-> - Please remember to change `REGISTRY_URL` and `TAG` as needed.
->   - If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}/multilevel-video-understanding:${TAG}`.
->   - If `REGISTRY_URL` is not provided, the image name will be: `multilevel-video-understanding:${TAG}`
-> - Make sure `VLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for VLM](#start-model-serving-for-vlm)
-> - Make sure `LLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for LLM](#start-model-serving-for-llm)
-
-### Step 3. Launch the microservice
-
-```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b main
-cd edge-ai-libraries/microservices/multilevel-video-understanding
 chmod +x ./setup_docker.sh
-./setup_docker.sh
 ```
 
-Once the service is up, you can check the log:
+### Option 1 — End-to-end (bundled model serving)
+
+Start **both** the on-device model serving and the microservice together. This is the default. Compose pulls the `vllm-ipex-serving` image (`intel/llm-scaler-vllm`) automatically, and the microservice `depends_on` the serving being **healthy**, so on the first run Compose waits while the model downloads and compiles (the 3–20 minute step).
+
+```bash
+./setup_docker.sh            # or: ./setup_docker.sh --prod
+```
+
+### Option 2 — Use an existing model serving
+
+If you already have an OpenAI-compatible serving running — a **warm local `vllm-ipex-serving`** (fast iteration on the same host) or a **remote** endpoint — point the microservice at it in [docker/set_env.sh](../../docker/set_env.sh) and start with `--light`:
+
+```bash
+# in docker/set_env.sh (or your shell), set the endpoint(s), e.g. a remote host:
+export VLM_BASE_URL=http://<serving-host>:41091/v1
+export LLM_BASE_URL=http://<serving-host>:41091/v1
+
+source docker/set_env.sh
+./setup_docker.sh --light
+```
+
+`--light` health-checks the configured endpoint (`VLM_BASE_URL` / `LLM_BASE_URL`); if it is already serving a model, only `multilevel-video-understanding` is started (the serving is never touched). For a **local** endpoint that is not yet healthy, `--light` transparently falls back to the full end-to-end start; for a **remote** endpoint it starts the microservice anyway and lets it retry at runtime.
+
+Check the status and logs:
 
 ```bash
 docker ps
 ```
 
 ```text
-CONTAINER ID   IMAGE                                         PORTS                                         NAMES
-6f00712bf4b6   intel/multilevel-video-understanding:2025.2.0   0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   docker-multilevel-video-understanding-1
+CONTAINER ID   IMAGE                                          PORTS                                         NAMES
+a1b2c3d4e5f6   intel/llm-scaler-vllm:0.14.0-b7.1              0.0.0.0:41091->8000/tcp                       vllm-ipex-serving
+6f00712bf4b6   intel/multilevel-video-understanding:2026.2.0    0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   docker-multilevel-video-understanding-1
 ```
 
 ```bash
-# the container name may change depend to your runtime
+# Follow the model-serving startup (weights download + compile on first run):
+docker logs -f vllm-ipex-serving        # ready when it serves /v1/models
+# Then the microservice:
 docker logs -f docker-multilevel-video-understanding-1
 ```
 
@@ -251,7 +130,11 @@ INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 ```
 
-> **Note**: Please ensure that the dependent VLM and LLM model services have been successfully set up, and the `VLM_MODEL_NAME`, `LLM_MODEL_NAME`, `VLM_BASE_URL`, `LLM_BASE_URL` variables are correctly set. Users can refer to [Setting up GenAI model services to support VLM and LLM](#setup-genai-model-servings-for-vlm-and-llm)
+(In Option 2 only the `multilevel-video-understanding` container is started.)
+
+To stop everything: `./setup_docker.sh --down`.
+
+> **Note:** `--light` is the equivalent of `docker compose up -d --no-deps multilevel-video-understanding` plus a readiness probe of the configured endpoint — use the raw command if you prefer to manage the serving entirely yourself.
 
 ## Microservice Usage Examples
 
@@ -347,20 +230,13 @@ http://localhost:8192/docs
    pip install ../../libraries/video-chunking-utils/
    ```
 
-5. Set the environment variables as needed:
+5. Set the environment variables. The simplest way is to reuse the deployment env file (it also works for a host run):
 
    ```bash
-   export VLM_BASE_URL="http://<model-serving-ip-address>:41091/v1"
-   export LLM_BASE_URL="http://<model-serving-ip-address>:41090/v1"
-   export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
-   export LLM_MODEL_NAME=Qwen/Qwen3-32B-AWQ
-   export SERVICE_PORT=8192
+   source docker/set_env.sh
    ```
 
-   > **Note:**
-   >
-   > - Make sure `VLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for VLM](#start-model-serving-for-vlm)
-   > - Make sure `LLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for LLM](#start-model-serving-for-llm)
+   > **Note:** Ensure `VLM_MODEL_NAME` / `LLM_MODEL_NAME` match the served model and `VLM_BASE_URL` / `LLM_BASE_URL` point at your on-device serving.
 
 6. Run the service:
 
@@ -382,6 +258,7 @@ http://localhost:8192/docs
 
 ./get-started/system-requirements
 ./get-started/build-from-source
+./get-started/add-swap.md
 
 :::
 hide_directive-->

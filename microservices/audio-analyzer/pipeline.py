@@ -270,7 +270,7 @@ class Pipeline:
 
         verbose_segments = []
         for index, segment in enumerate(segments):
-            verbose_segments.append(self._build_verbose_segment(index, segment, include_speaker=False))
+            verbose_segments.append(self._build_verbose_segment(index, segment, include_speaker=True))
 
         result = {
             "task": "transcribe",

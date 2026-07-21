@@ -52,10 +52,11 @@ stop_containers() {
         -f docker/compose.base.yaml \
         -f docker/compose.summary.yaml \
         -f docker/compose.vllm.yaml \
+        -f docker/compose.vllm.xpu.yaml \
         -f docker/compose.search.yaml \
         -f docker/compose.ui.yaml \
         -f docker/compose.telemetry.yaml \
-        --profile ovms --profile vlm-ov --profile vllm \
+        --profile ovms --profile vlm-ov --profile vllm --profile vllm-xpu \
         --profile dual_ui --profile singleton_unified_ui \
         --profile singleton_summary_ui \
         --profile singleton_search_ui \
@@ -190,7 +191,12 @@ export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-}
 export VLM_TARGET_DEVICE=${VLM_TARGET_DEVICE:-CPU}
 export USE_VLLM=${USE_VLLM:-CONFIG_OFF}
 export ENABLE_VLLM=${ENABLE_VLLM:-false}
-export VLLM_HOST=vllm-cpu-service
+export ENABLE_VLLM_GPU=${ENABLE_VLLM_GPU:-false}
+if [ "$ENABLE_VLLM_GPU" = true ]; then
+    export VLLM_HOST=vllm-xpu-service
+else
+    export VLLM_HOST=vllm-cpu-service
+fi
 export VLLM_HOST_PORT=${VLLM_HOST_PORT:-8200}
 export VLLM_ENDPOINT=http://${VLLM_HOST}:8000/v1
 export USER_ID=$(id -u)
@@ -318,6 +324,14 @@ export DEFAULT_START_OFFSET_SEC=0
 export DEFAULT_CLIP_DURATION=${DEFAULT_CLIP_DURATION:--1}
 export DEFAULT_NUM_FRAMES=64
 export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-$SDK_USE_OPENVINO}
+# Per-component device selection (CPU default | GPU | NPU). Each component is
+# independent — parity with the Helm charts. No "baseline" device.
+#   DATAPREP_EMBEDDING_DEVICE → embedding in vdms-dataprep (EMBEDDING_PROCESSING_MODE=sdk)
+#   DATAPREP_DETECTION_DEVICE → YOLOX object detection in vdms-dataprep
+#   MME_EMBEDDING_DEVICE      → embedding in multimodal-embedding-serving (EMBEDDING_PROCESSING_MODE=api)
+export DATAPREP_EMBEDDING_DEVICE=${DATAPREP_EMBEDDING_DEVICE:-"CPU"}
+export DATAPREP_DETECTION_DEVICE=${DATAPREP_DETECTION_DEVICE:-"CPU"}
+export MME_EMBEDDING_DEVICE=${MME_EMBEDDING_DEVICE:-"CPU"}
 export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
 export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-$OV_MODELS_DIR}
 # NOTE: The default OpenVINO performance mode has been changed from "LATENCY" to "THROUGHPUT".
@@ -327,69 +341,68 @@ export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
 echo -e "[multimodal-embedding-serving] ${GREEN}OpenVINO performance mode: ${YELLOW}$OV_PERFORMANCE_MODE${NC}"
 
 # Device Configuration
-export VDMS_DATAPREP_DEVICE=${VDMS_DATAPREP_DEVICE:-"CPU"}
 export SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
 
+# Easy-button: put embedding on GPU. Mode-aware — targets the component that
+# actually runs embedding in the active EMBEDDING_PROCESSING_MODE.
 if [ "$ENABLE_EMBEDDING_GPU" = true ]; then
-    export VDMS_DATAPREP_DEVICE=GPU
+    if [ "${EMBEDDING_PROCESSING_MODE}" = "api" ]; then
+        export MME_EMBEDDING_DEVICE=GPU
+    else
+        export DATAPREP_EMBEDDING_DEVICE=GPU
+    fi
 fi
 
 
 # Device Configuration Helper Functions
+# Validates host accelerator availability and enforces OpenVINO when any component
+# targets GPU/NPU. Operates on the per-component device values (no baseline device).
 configure_device() {
-    local device=${1:-"CPU"}
+    local accel="$1"  # "GPU", "NPU", or "CPU"
 
-    echo -e "${BLUE}Configuring device for all processing components: ${YELLOW}${device}${NC}"
-    echo -e "${BLUE}  This affects: embedding model, and object detection${NC}"
-
-    if [[ "${device}" == GPU* ]]; then
-        echo -e "${YELLOW}⚙️  Setting up GPU configuration...${NC}"
-        
-        # Check if Intel GPU is available
+    if [[ "${accel}" == GPU* ]]; then
+        echo -e "${YELLOW}GPU acceleration requested for one or more components...${NC}"
         if ! lspci | grep -i "vga.*intel" > /dev/null 2>&1; then
             echo -e "${RED}Warning: No Intel GPU detected. GPU mode may not work properly.${NC}" >&2
         else
             echo -e "${GREEN}Intel GPU detected${NC}"
         fi
-        
-        # Check if /dev/dri exists for GPU access
         if [[ ! -d "/dev/dri" ]]; then
             echo -e "${RED}Warning: /dev/dri not found. GPU acceleration may not be available.${NC}" >&2
         else
             echo -e "${GREEN}DRI devices found for GPU acceleration${NC}"
         fi
-        
-        # Set GPU-specific configuration
-        export VDMS_DATAPREP_DEVICE="${device}"
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
-        
-        echo -e "${GREEN}GPU mode configured for all components:${NC}"
-        echo -e "  • OpenVINO: ${YELLOW}enabled${NC} (required for GPU)"
-        echo -e "  • Processing Device: ${YELLOW}GPU${NC} (decord, embedding, detection)"
-        echo -e "  • Video decoding: ${YELLOW}GPU-accelerated${NC}"
-        
+    elif [[ "${accel}" == NPU* ]]; then
+        echo -e "${YELLOW}NPU acceleration requested for one or more components...${NC}"
+        if [[ ! -e "/dev/accel/accel0" ]]; then
+            echo -e "${RED}Warning: /dev/accel/accel0 not found. NPU acceleration may not be available.${NC}" >&2
+        else
+            echo -e "${GREEN}NPU device found for acceleration${NC}"
+        fi
+        export SDK_USE_OPENVINO=true  # Force OpenVINO for NPU mode
     else
         echo -e "${BLUE}CPU mode configured for all components${NC}"
-        export VDMS_DATAPREP_DEVICE="${device}"
     fi
 }
 
-# Device mode selection
-if [[ "${VDMS_DATAPREP_DEVICE}" == GPU* ]]; then
-    configure_device "${VDMS_DATAPREP_DEVICE}"
+# Detect accelerator usage across the per-component devices and validate the host.
+if [[ "${DATAPREP_EMBEDDING_DEVICE}" == GPU* ]] || [[ "${DATAPREP_DETECTION_DEVICE}" == GPU* ]] || [[ "${MME_EMBEDDING_DEVICE}" == GPU* ]]; then
+    configure_device "GPU"
+elif [[ "${DATAPREP_EMBEDDING_DEVICE}" == NPU* ]] || [[ "${DATAPREP_DETECTION_DEVICE}" == NPU* ]] || [[ "${MME_EMBEDDING_DEVICE}" == NPU* ]]; then
+    configure_device "NPU"
 else
     configure_device "CPU"
 fi
 
-export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
+# Keep embedding service OpenVINO mode aligned with final SDK_USE_OPENVINO/device resolution
+export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-$SDK_USE_OPENVINO}
+if [[ "${MME_EMBEDDING_DEVICE}" == GPU* ]] || [[ "${MME_EMBEDDING_DEVICE}" == NPU* ]]; then
+    export EMBEDDING_USE_OV=true
+fi
 
 export MULTIMODAL_EMBEDDING_HOST=multimodal-embedding-serving
 export MULTIMODAL_EMBEDDING_ENDPOINT=http://$MULTIMODAL_EMBEDDING_HOST:8000/embeddings
-
-processing_scope="vdms-dataprep video decoding, YOLOX detection, and embedding execution"
-if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
-    processing_scope+=", plus the multimodal-embedding-serving container"
-fi
 
 if [ $1 != "--summary" ]; then
     if [ "$1" = "--unified" ]; then
@@ -406,11 +419,13 @@ if [ $1 != "--summary" ]; then
         embedding_mode_details="API mode routes embeddings to multimodal-embedding-serving at ${embedding_endpoint_display}."
     fi
 
-    echo -e "[vdms-dataprep] ${BLUE}Runtime Summary:${NC}"
-    echo -e "  • [vdms-dataprep] Processing Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${processing_scope})."
+    echo -e "[vdms-dataprep] ${BLUE}Runtime Summary (per-component devices, default CPU):${NC}"
     if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
-        echo -e "  • [multimodal-embedding-serving] Embedding Service Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (HTTP mode container)."
+        echo -e "  • [multimodal-embedding-serving] Embedding Device: ${YELLOW}${MME_EMBEDDING_DEVICE}${NC} (active in api mode)."
+    else
+        echo -e "  • [vdms-dataprep] Embedding Device: ${YELLOW}${DATAPREP_EMBEDDING_DEVICE}${NC} (active in sdk mode)."
     fi
+    echo -e "  • [vdms-dataprep] Detection Device: ${YELLOW}${DATAPREP_DETECTION_DEVICE}${NC}"
     echo -e "  • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC} — ${embedding_mode_details}"
     echo -e "  • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
 fi
@@ -558,10 +573,10 @@ fi
 # Set ACCEL_MOUNT_PATH based on whether /dev/accel/accel0 exists (for NPU)
 if [ -e /dev/accel/accel0 ]; then
     export ACCEL_MOUNT_PATH="/dev/accel/accel0"
-    echo -e "${GREEN}/dev/accel/accel0 found. NPU device available.${NC}"
+    echo -e "${GREEN}/dev/accel/accel0 found. NPU device available and will be mounted.${NC}"
 else
     export ACCEL_MOUNT_PATH="/dev/null"
-    echo -e "${YELLOW}/dev/accel/accel0 not found, NPU not available.${NC}"
+    echo -e "${YELLOW}/dev/accel/accel0 not found, NPU not available. Will mount /dev/null instead.${NC}"
 fi
 
 # Function to convert object detection models
@@ -893,7 +908,7 @@ export_model_for_ovms() {
 
         # Always pull latest export_model.py script
         echo -e "Downloading latest export_model.py from OVMS repository..."
-        curl -fsSL https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/export_model.py -o export_model.py || exit 1
+        curl -fsSL https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.2/demos/common/export_models/export_model.py -o export_model.py || exit 1
 
         echo -e "Creating Python virtual environment for model export..."
         if ! python3 -m venv --help > /dev/null 2>&1; then
@@ -929,7 +944,7 @@ export_model_for_ovms() {
             fi
         else
             # Full conversion path: install all requirements for optimum-cli conversion
-            local ovms_requirements_url="https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.1/demos/common/export_models/requirements.txt"
+            local ovms_requirements_url="https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2026.2/demos/common/export_models/requirements.txt"
             local tmp_requirements
             tmp_requirements=$(mktemp)
 
@@ -1156,7 +1171,29 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
     BACKEND_PROFILE="ovms"
 
     if [ "$1" != "--search" ]; then
-        if [ "$ENABLE_VLLM" = true ]; then
+        if [ "$ENABLE_VLLM_GPU" = true ]; then
+            echo -e "[vllm-xpu-service] ${BLUE}Using vLLM on XPU/GPU for both chunk captioning and final summary${NC}"
+            echo -e "[vllm-xpu-service] ${YELLOW}Disabling OVMS because ENABLE_VLLM_GPU=true${NC}"
+            BACKEND_PROFILE="vllm-xpu"
+            export USE_VLLM=CONFIG_ON
+            export LLM_SUMMARIZATION_API=${VLLM_ENDPOINT}
+            export VLM_ENDPOINT=${VLLM_ENDPOINT}
+            export VLM_HOST=${VLLM_HOST}
+            if [ -n "$configured_ovms_llm_model" ] && [ "$configured_ovms_llm_model" != "$VLM_MODEL_NAME" ]; then
+                echo -e "[pipeline-manager] ${YELLOW}Ignoring separate OVMS LLM model in vLLM-only mode; summarization will use VLM_MODEL_NAME=${VLM_MODEL_NAME}${NC}"
+            fi
+            export LLM_MODEL_NAME=${VLM_MODEL_NAME}
+            if [ "$PM_VLM_CONCURRENT_DEFAULTED" = true ]; then
+                export PM_VLM_CONCURRENT=1
+            fi
+            if [ "$PM_LLM_CONCURRENT_DEFAULTED" = true ]; then
+                export PM_LLM_CONCURRENT=1
+            fi
+            if [ "$PM_CAPTIONING_MAX_COMPLETION_TOKENS_DEFAULTED" = true ]; then
+                export PM_CAPTIONING_MAX_COMPLETION_TOKENS=256
+            fi
+            APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.vllm.xpu.yaml"
+        elif [ "$ENABLE_VLLM" = true ]; then
             echo -e "[vllm-cpu-service] ${BLUE}Using vLLM for both chunk captioning and final summary${NC}"
             BACKEND_PROFILE="vllm"
             export USE_VLLM=CONFIG_ON
