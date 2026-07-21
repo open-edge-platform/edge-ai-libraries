@@ -1,8 +1,12 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""Centralized user-facing strings (messages, errors) used across the service."""
+
 
 class Strings:
+    """Namespace of constant message strings referenced throughout the service."""
+
     server_error: str = "Some error ocurred at API server. Please try later!"
     format_error: str = "Only .mp4 file is supported."
     video_open_error: str = "Error: Could not open video file."
@@ -19,6 +23,7 @@ class Strings:
     embedding_error: str = "Error occurred while trying to create embeddings."
     text_validation_error: str = "Invalid text or video timestamp parameters."
     invalid_time_range: str = "End time must be greater than start time."
+    range_not_satisfiable: str = "Requested range is not satisfiable."
     vdms_client_error: str = "Error occurred while initializing VDMS client."
     batch_accepted: str = "Batch ingestion job accepted and is being processed."
     batch_job_not_found: str = "No batch job found for the specified job ID."

@@ -57,6 +57,34 @@ def test_listing_helpers(local_storage):
     assert videos[0]["video_name"] == "clip.mp4"
 
 
+def test_stream_object_range(local_storage):
+    name = local_storage.compose_object_name("vid1", "clip.mp4")
+    data = bytes(range(256)) * 8  # 2048 bytes
+    local_storage.upload_video("b1", name, io.BytesIO(data), len(data))
+
+    # Full stream (no offset/length).
+    assert b"".join(local_storage.stream_object_range("b1", name)) == data
+    # Bounded range [100, 200).
+    assert (
+        b"".join(local_storage.stream_object_range("b1", name, offset=100, length=100))
+        == data[100:200]
+    )
+    # Offset to end-of-object.
+    assert (
+        b"".join(local_storage.stream_object_range("b1", name, offset=2040))
+        == data[2040:]
+    )
+    # Small chunk_size still yields the exact bytes.
+    assert (
+        b"".join(
+            local_storage.stream_object_range(
+                "b1", name, offset=10, length=50, chunk_size=7
+            )
+        )
+        == data[10:60]
+    )
+
+
 def test_metadata_file_and_delete(local_storage):
     key = local_storage.save_metadata_file("b1", b"{}", "vid1")
     assert key == "vid1/metadata.json"

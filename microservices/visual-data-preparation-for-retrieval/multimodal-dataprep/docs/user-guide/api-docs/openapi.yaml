@@ -696,44 +696,56 @@ paths:
     get:
       tags:
       - Video Management APIs
-      summary: Download a video from Minio storage.
-      description: '### Download a video from Minio storage.
+      summary: Download or stream a video (supports HTTP Range/seek).
+      description: '### Download or stream a video from storage.
 
 
-        This endpoint retrieves a video from Minio storage and returns it as a stream.
+        Streams a video from the active storage backend (MinIO or local filesystem).
+
+        The endpoint advertises ``Accept-Ranges: bytes`` and honours the HTTP
+
+        ``Range`` request header, so media players can **seek** without downloading
+
+        the whole file:
+
+
+        - No ``Range`` header -> ``200 OK`` with the full body.
+
+        - Valid ``Range`` header -> ``206 Partial Content`` with ``Content-Range``.
+
+        - Unsatisfiable ``Range`` -> ``416 Range Not Satisfiable``.
 
 
         #### Query Params:
 
         - **video_id (str, required) :** The video ID (directory) containing the video
-        to download
+        to download.
 
-        - **bucket_name (str, optional) :** The bucket name where the video is stored.
-        If not provided, default bucket will be used.
+        - **bucket_name (str, optional) :** The bucket where the video is stored.
+        Defaults to the configured bucket.
 
-        - **video_name (str, optional) :** The video filename to download. If not
-        provided, the first video in the directory will be used.
+        - **video_name (str, optional) :** The video filename. If omitted, the first
+        video in the directory is used.
 
-        - **download (bool, optional) :** Set to true to download the file instead
-        of streaming it
+        - **download (bool, optional) :** Set to true to force a file download (``attachment``)
+        instead of inline streaming.
 
 
         #### Raises:
 
         - **400 Bad Request :** If required parameters are missing or invalid.
 
-        - **404 Not Found :** If the specified video cannot be found in Minio or no
-        videos exist in the specified directory.
+        - **404 Not Found :** If the specified video cannot be found.
 
-        - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
+        - **416 Range Not Satisfiable :** If the requested byte range is invalid for
+        the object.
 
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep
-        API server.
+        - **500 Internal Server Error :** On an internal error.
 
 
         Returns:
 
-        - **response (stream) :** The video file as a stream.'
+        - **response (stream) :** The (partial or full) video file as a stream.'
       operationId: downloadVideo
       parameters:
       - name: video_id
@@ -779,12 +791,21 @@ paths:
         description: Set to true to download the file instead of streaming it
       responses:
         '200':
-          description: Video stream response
+          description: Full video stream response
           content:
             video/mp4:
               schema:
                 type: string
                 format: binary
+        '206':
+          description: Partial video stream response (byte range).
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '416':
+          description: The requested byte range cannot be satisfied.
         '422':
           description: Validation Error
           content:

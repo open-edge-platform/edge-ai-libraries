@@ -1238,7 +1238,18 @@ def _process_video_from_memory_simple_pipeline(
                 raise  # Worker will see shutdown_event on its next iteration
 
         # Register after detection_meta_queue is defined — handle_sigint references it.
-        signal.signal(signal.SIGINT, handle_sigint)
+        # signal.signal() only works on the main thread of the main interpreter, so
+        # skip registration when the pipeline runs on a worker thread (e.g. the batch
+        # job engine). The process-level SIGINT handler installed on the main thread
+        # still drives graceful shutdown in that case.
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGINT, handle_sigint)
+        else:
+            logger.debug(
+                "Skipping SIGINT handler registration: pipeline running on worker "
+                "thread '%s' (signal handlers require the main thread).",
+                threading.current_thread().name,
+            )
 
         detection_thread = threading.Thread(
             target=detection_worker,
@@ -2022,8 +2033,27 @@ def store_worker(
     logger.info("[STORE_WORKER] Worker shutdown complete")
 
 
+def _safe_div(numerator: float, denominator: float) -> float:
+    """Divide two numbers, returning ``0.0`` when the denominator is zero.
+
+    Pipeline throughput/efficiency metrics divide by per-stage elapsed times or
+    frame/id counts, any of which can legitimately be zero (e.g. object detection
+    disabled means the detect stage records no time, or a stream yields no frames).
+    A raw division would raise :class:`ZeroDivisionError` inside the result worker
+    thread and stall the whole request, so all telemetry ratios funnel through this
+    guard instead.
+
+    Args:
+        numerator: The dividend.
+        denominator: The divisor; ``0`` yields ``0.0`` rather than raising.
+
+    Returns:
+        float: ``numerator / denominator`` or ``0.0`` when ``denominator`` is zero.
+    """
+    return numerator / denominator if denominator else 0.0
+
+
 def _summarize_stage_times(samples: List[float]) -> Dict[str, float]:
-    """Compute aggregate statistics for a collection of stage timings."""
     if not samples:
         return {
             "total": 0.0,
@@ -2125,23 +2155,23 @@ def save_batch_results(completed_batches, all_stream_metadata):
     for k, v in stream_stats.items():
         stream_stats[f"{k}"]["metrics"]["decode"] = _summarize_stage_times(v["stats"]["decode"])
 
-        stream_stats[f"{k}"]["metrics"]["decode"]["throughput"] = (
-            v["total_frames_processed"] / stream_stats[f"{k}"]["metrics"]["decode"]["total"]
+        stream_stats[f"{k}"]["metrics"]["decode"]["throughput"] = _safe_div(
+            v["total_frames_processed"], stream_stats[f"{k}"]["metrics"]["decode"]["total"]
         )
 
         stream_stats[f"{k}"]["metrics"]["detect"] = _summarize_stage_times(v["stats"]["detect"])
-        stream_stats[f"{k}"]["metrics"]["detect"]["throughput"] = (
-            v["total_frames_processed"] / stream_stats[f"{k}"]["metrics"]["detect"]["total"]
+        stream_stats[f"{k}"]["metrics"]["detect"]["throughput"] = _safe_div(
+            v["total_frames_processed"], stream_stats[f"{k}"]["metrics"]["detect"]["total"]
         )
 
         stream_stats[f"{k}"]["metrics"]["embed"] = _summarize_stage_times(v["stats"]["embed"])
-        stream_stats[f"{k}"]["metrics"]["embed"]["throughput"] = (
-            v["total_stored_ids"] / stream_stats[f"{k}"]["metrics"]["embed"]["total"]
+        stream_stats[f"{k}"]["metrics"]["embed"]["throughput"] = _safe_div(
+            v["total_stored_ids"], stream_stats[f"{k}"]["metrics"]["embed"]["total"]
         )
 
         stream_stats[f"{k}"]["metrics"]["store"] = _summarize_stage_times(v["stats"]["store"])
-        stream_stats[f"{k}"]["metrics"]["store"]["throughput"] = (
-            v["total_stored_ids"] / stream_stats[f"{k}"]["metrics"]["store"]["total"]
+        stream_stats[f"{k}"]["metrics"]["store"]["throughput"] = _safe_div(
+            v["total_stored_ids"], stream_stats[f"{k}"]["metrics"]["store"]["total"]
         )
 
         stream_stats[f"{k}"]["metrics"]["total"] = _summarize_stage_times(v["stats"]["total"])
@@ -2149,8 +2179,8 @@ def save_batch_results(completed_batches, all_stream_metadata):
         stream_stats[f"{k}"]["metrics"]["embed_inference_time"] = _summarize_stage_times(
             v["stats"]["embed_inference_time"]
         )
-        stream_stats[f"{k}"]["metrics"]["embed_inference_time"]["throughput"] = (
-            v["total_stored_ids"] / stream_stats[f"{k}"]["metrics"]["embed_inference_time"]["total"]
+        stream_stats[f"{k}"]["metrics"]["embed_inference_time"]["throughput"] = _safe_div(
+            v["total_stored_ids"], stream_stats[f"{k}"]["metrics"]["embed_inference_time"]["total"]
         )
 
         pipeline_wall_duration = (
@@ -2158,20 +2188,20 @@ def save_batch_results(completed_batches, all_stream_metadata):
             - stream_stats[f"{k}"]["stats"]["pipeline_wall_start_us"]
         ) / 1_000_000
         stream_stats[f"{k}"]["pipeline_wall_duration_s"] = pipeline_wall_duration
-        stream_stats[f"{k}"]["pipeline_throughput_fps"] = (
-            stream_stats[f"{k}"]["total_frames_processed"] / pipeline_wall_duration
+        stream_stats[f"{k}"]["pipeline_throughput_fps"] = _safe_div(
+            stream_stats[f"{k}"]["total_frames_processed"], pipeline_wall_duration
         )
 
-        stream_stats[f"{k}"]["pipeline_throughput_fps_with_OD"] = (
-            stream_stats[f"{k}"]["total_stored_ids"] / pipeline_wall_duration
+        stream_stats[f"{k}"]["pipeline_throughput_fps_with_OD"] = _safe_div(
+            stream_stats[f"{k}"]["total_stored_ids"], pipeline_wall_duration
         )
 
         # Pipeline/concurrency efficiencies
         # Total time taken by (decode, detect and embed+store / total wall duration)
         # If pipeline_concurrency_factor results 2.5 means, 2.5 seconds worth of work done in 1 second due to concurrency.
         # Higher is better, capped by number of threads.
-        stream_stats[f"{k}"]["pipeline_concurrency_factor"] = (
-            stream_stats[f"{k}"]["metrics"]["total"]["total"] / pipeline_wall_duration
+        stream_stats[f"{k}"]["pipeline_concurrency_factor"] = _safe_div(
+            stream_stats[f"{k}"]["metrics"]["total"]["total"], pipeline_wall_duration
         )
 
         # 3 concurrent threads (decode, detect, embed+store) in action.
@@ -2180,27 +2210,30 @@ def save_batch_results(completed_batches, all_stream_metadata):
         )
 
         stream_stats[f"{k}"]["parallel_efficiency_pct"] = round(
-            max(
-                stream_stats[f"{k}"]["metrics"]["decode"]["total"],
-                stream_stats[f"{k}"]["metrics"]["detect"]["total"],
-                stream_stats[f"{k}"]["metrics"]["embed"]["total"],
-                stream_stats[f"{k}"]["metrics"]["store"]["total"],
-            )
-            * 100
-            / pipeline_wall_duration,
+            _safe_div(
+                max(
+                    stream_stats[f"{k}"]["metrics"]["decode"]["total"],
+                    stream_stats[f"{k}"]["metrics"]["detect"]["total"],
+                    stream_stats[f"{k}"]["metrics"]["embed"]["total"],
+                    stream_stats[f"{k}"]["metrics"]["store"]["total"],
+                )
+                * 100,
+                pipeline_wall_duration,
+            ),
             3,
         )
 
-        stream_stats[f"{k}"]["decode_pipeline_efficiency_pct"] = (
-            stream_stats[f"{k}"]["metrics"]["decode"]["total"] / pipeline_wall_duration
+        stream_stats[f"{k}"]["decode_pipeline_efficiency_pct"] = _safe_div(
+            stream_stats[f"{k}"]["metrics"]["decode"]["total"], pipeline_wall_duration
         )
-        stream_stats[f"{k}"]["detect_pipeline_efficiency_pct"] = (
-            stream_stats[f"{k}"]["metrics"]["detect"]["total"] / pipeline_wall_duration
+        stream_stats[f"{k}"]["detect_pipeline_efficiency_pct"] = _safe_div(
+            stream_stats[f"{k}"]["metrics"]["detect"]["total"], pipeline_wall_duration
         )
-        stream_stats[f"{k}"]["embed_store_pipeline_efficiency_pct"] = (
+        stream_stats[f"{k}"]["embed_store_pipeline_efficiency_pct"] = _safe_div(
             stream_stats[f"{k}"]["metrics"]["embed"]["total"]
-            + stream_stats[f"{k}"]["metrics"]["store"]["total"]
-        ) / pipeline_wall_duration
+            + stream_stats[f"{k}"]["metrics"]["store"]["total"],
+            pipeline_wall_duration,
+        )
 
     for k, _ in stream_stats.items():
         stream_stats[f"{k}"]["video_metadata"] = (

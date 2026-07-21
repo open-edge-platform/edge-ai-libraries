@@ -1,88 +1,111 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""Tests for the seekable ``/videos/download`` endpoint.
+
+These exercise the endpoint end-to-end against the real local filesystem
+storage backend so HTTP Range (206), full download (200), and unsatisfiable
+range (416) behaviour is verified without mocking the storage layer.
+"""
+
 import io
 from http import HTTPStatus
-from unittest.mock import MagicMock
+
+import pytest
+from fastapi.testclient import TestClient
 
 from src.common import settings
-from src.core.utils.video_utils import get_video_from_minio
+from src.core.storage import get_storage, reset_storage
 
-def test_download(test_client, mocker):
-    """Test successful download of a video from Minio."""
-
-    # Mock Minio client functionality
-    mock_minio = MagicMock()
-
-    mocker.patch("src.core.utils.common_utils.get_minio_client", return_value=mock_minio)
-    mocker.patch("src.endpoints.video_management.download_video.StreamingResponse", return_value={})
-
-    response = test_client.get("/videos/download?video_id=test-video-id")
-    assert response.status_code == HTTPStatus.OK
-    
-
-def test_download_video_not_found(test_client, mocker):
-    """Test when video is not found in Minio."""
-
-    # Mock Minio client with no video found
-    mock_minio = MagicMock()
-    mock_minio.get_video_in_directory.return_value = None
-    mocker.patch("src.core.utils.common_utils.get_minio_client", return_value=mock_minio)
-
-    response = test_client.get("/videos/download?video_id=non-existent-id")
-    assert response.status_code == HTTPStatus.NOT_FOUND
+_BUCKET = "test-bucket"
+_VIDEO_ID = "vid-download"
+_VIDEO_NAME = "clip.mp4"
+_CONTENT = bytes(range(256)) * 16  # 4096 deterministic bytes
 
 
-def test_download_minio_error(test_client, mocker):
-    """Test when Minio service throws an error."""
+@pytest.fixture
+def client(monkeypatch, tmp_path):
+    """App wired to a local storage backend seeded with one known video."""
+    monkeypatch.setattr(settings, "STORAGE_BACKEND", "local")
+    monkeypatch.setattr(settings, "LOCAL_STORAGE_PATH", str(tmp_path / "store"))
+    monkeypatch.setattr(settings, "DEFAULT_BUCKET_NAME", _BUCKET)
+    reset_storage()
 
-    # Mock Minio client to throw an exception
-    mock_minio = MagicMock()
-    mock_minio.get_video_in_directory.side_effect = Exception("Minio error")
-    mocker.patch("src.core.utils.common_utils.get_minio_client", return_value=mock_minio)
+    storage = get_storage()
+    object_name = storage.compose_object_name(_VIDEO_ID, _VIDEO_NAME)
+    storage.upload_video(_BUCKET, object_name, io.BytesIO(_CONTENT), len(_CONTENT))
 
-    response = test_client.get("/videos/download?video_id=test-video-id")
-    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+    from src.main import app
+
+    with TestClient(app) as c:
+        yield c
+    reset_storage()
 
 
-def test_minio_util_func_call(test_client, mocker):
-    """Test calls to utility functions while downloading video."""
+def test_full_download_advertises_ranges(client):
+    resp = client.get(f"/videos/download?video_id={_VIDEO_ID}")
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.headers["accept-ranges"] == "bytes"
+    assert resp.headers["content-length"] == str(len(_CONTENT))
+    assert resp.content == _CONTENT
 
-    mocker_tuple = (io.BytesIO(b"test video content"), "filename")
 
-    mock_util = mocker.patch("src.endpoints.video_management.download_video.get_video_from_minio")
-    mock_util.return_value = mocker_tuple
-    mock_streaming = mocker.patch("src.endpoints.video_management.download_video.StreamingResponse")
-    mock_streaming.return_value = {}
-
-    response = test_client.get("/videos/download?video_id=test-video-id")
-
-    mock_util.assert_called_once_with(
-        settings.DEFAULT_BUCKET_NAME,
-        "test-video-id",
-        None,
+def test_range_returns_partial_content(client):
+    resp = client.get(
+        f"/videos/download?video_id={_VIDEO_ID}",
+        headers={"Range": "bytes=100-199"},
     )
-    mock_streaming.assert_called_once()
-    assert response.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.PARTIAL_CONTENT
+    assert resp.headers["content-range"] == f"bytes 100-199/{len(_CONTENT)}"
+    assert resp.headers["content-length"] == "100"
+    assert resp.headers["accept-ranges"] == "bytes"
+    assert resp.content == _CONTENT[100:200]
 
 
-def test_get_video_from_minio_calls(test_client, mocker):
-    """Test calls to get_video_from_minio function while downloading video."""
+def test_open_ended_range(client):
+    start = len(_CONTENT) - 10
+    resp = client.get(
+        f"/videos/download?video_id={_VIDEO_ID}",
+        headers={"Range": f"bytes={start}-"},
+    )
+    assert resp.status_code == HTTPStatus.PARTIAL_CONTENT
+    assert resp.headers["content-range"] == f"bytes {start}-{len(_CONTENT) - 1}/{len(_CONTENT)}"
+    assert resp.content == _CONTENT[start:]
 
-    file_name = "filename"
-    byte_obj = io.BytesIO(b"test video content")
-    bucket_name = "test-bucket"
-    video_id = "test-video-id"
-    minio_object_name = f"{video_id}/{file_name}"
 
-    mock_minio = MagicMock()
-    mock_minio.get_video_in_directory.return_value = minio_object_name
-    mock_minio.download_video_stream.return_value = byte_obj
+def test_suffix_range(client):
+    resp = client.get(
+        f"/videos/download?video_id={_VIDEO_ID}",
+        headers={"Range": "bytes=-50"},
+    )
+    assert resp.status_code == HTTPStatus.PARTIAL_CONTENT
+    assert resp.content == _CONTENT[-50:]
 
-    mock_minio_client = mocker.patch("src.core.utils.common_utils.get_minio_client")
-    mock_minio_client.return_value = mock_minio
 
-    assert get_video_from_minio(bucket_name, video_id) == (byte_obj, file_name)
-    mock_minio_client.assert_called_once()
-    mock_minio.get_video_in_directory.assert_called_once_with(bucket_name, video_id)
-    mock_minio.download_video_stream.assert_called_once_with(bucket_name, minio_object_name)
+def test_unsatisfiable_range_returns_416(client):
+    resp = client.get(
+        f"/videos/download?video_id={_VIDEO_ID}",
+        headers={"Range": f"bytes={len(_CONTENT) + 10}-"},
+    )
+    assert resp.status_code == HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE
+    assert resp.headers["content-range"] == f"bytes */{len(_CONTENT)}"
+
+
+def test_invalid_range_header_serves_full_body(client):
+    resp = client.get(
+        f"/videos/download?video_id={_VIDEO_ID}",
+        headers={"Range": "rows=0-10"},
+    )
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.content == _CONTENT
+
+
+def test_download_flag_sets_attachment(client):
+    resp = client.get(f"/videos/download?video_id={_VIDEO_ID}&download=true")
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.headers["content-disposition"].startswith("attachment;")
+
+
+def test_download_not_found_returns_404(client):
+    resp = client.get("/videos/download?video_id=does-not-exist")
+    assert resp.status_code == HTTPStatus.NOT_FOUND

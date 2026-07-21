@@ -410,24 +410,45 @@ curl "http://localhost:8000/v1/dataprep/videos?bucket_name=my-bucket"
 
 ## `GET /videos/download`
 
-Download or stream a video file from Minio storage.
+Download or stream a video file from the active storage backend (MinIO or local
+filesystem).
+
+The endpoint advertises `Accept-Ranges: bytes` and honours the HTTP `Range`
+request header, so media players (e.g. an HTML5 `<video>` element) can **seek**
+without downloading the whole file — regardless of which storage backend is
+configured. Byte ranges are served directly from storage (a server-side range
+read on MinIO, a seek/read on the local backend), so large videos are never
+fully buffered in memory.
 
 **Query Parameters:**
 
 | Parameter     | Type    | Required | Default | Description                                                                          |
 | ------------- | ------- | -------- | ------- | ------------------------------------------------------------------------------------ |
 | `video_id`    | string  | Yes      | —       | Video directory (ID) containing the video to download.                               |
-| `bucket_name` | string  | No       | config  | Minio bucket. Falls back to the application default bucket.                          |
+| `bucket_name` | string  | No       | config  | Storage bucket. Falls back to the application default bucket.                        |
 | `video_name`  | string  | No       | —       | Specific filename to download. If omitted, the first video in the directory is used. |
 | `download`    | boolean | No       | `false` | Set to `true` to send `Content-Disposition: attachment` (force download).            |
 
+**Request Headers:**
+
+| Header  | Description                                                                                     |
+| ------- | ----------------------------------------------------------------------------------------------- |
+| `Range` | Optional single byte range, e.g. `bytes=0-1023`, `bytes=1024-`, or `bytes=-500` (last 500 bytes). |
+
 **Response:**
 
-- 200 OK — `video/mp4` stream with `Content-Disposition` header.
+- 200 OK — full `video/mp4` stream with `Accept-Ranges: bytes` and `Content-Length`
+  (returned when no `Range` header is sent, or when it is syntactically invalid).
+
+- 206 Partial Content — byte range response with `Content-Range: bytes <start>-<end>/<total>`
+  and a `Content-Length` equal to the range size (returned for a valid `Range` header).
 
 - 400 Bad Request — missing or invalid parameters.
 
 - 404 Not Found — video or bucket not found.
+
+- 416 Range Not Satisfiable — the requested range lies outside the object; the
+  response includes `Content-Range: bytes */<total>`.
 
 - 500 Internal Server Error.
 
@@ -439,6 +460,10 @@ curl "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001&v
 
 # Force download
 curl -O "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001&video_name=clip.mp4&download=true"
+
+# Request a byte range (seek) — returns 206 Partial Content
+curl -H "Range: bytes=0-1023" \
+  "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001&video_name=clip.mp4"
 ```
 
 ---

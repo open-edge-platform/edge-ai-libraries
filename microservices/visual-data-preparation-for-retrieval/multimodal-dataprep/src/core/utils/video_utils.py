@@ -42,6 +42,42 @@ from .file_utils import create_temp_directory
 toPIL = ToPILImage()
 
 
+def resolve_video_object(
+    bucket_name: str, video_id: str, video_name: Optional[str] = None
+) -> Tuple[str, str]:
+    """Resolve a stored video's object key and filename without downloading it.
+
+    Args:
+        bucket_name (str): The bucket containing the video.
+        video_id (str): The directory (video_id) containing the video.
+        video_name (Optional[str]): Specific video filename. If None, the first
+            video found in the directory is used.
+
+    Returns:
+        Tuple[str, str]: ``(object_name, filename)`` where ``object_name`` is the
+        fully composed ``<video_id>/<filename>`` storage key.
+
+    Raises:
+        DataPrepException: If no matching video object can be found.
+    """
+    minio_client = get_minio_client()
+
+    if video_name:
+        object_name = minio_client.compose_object_name(video_id, video_name)
+    else:
+        object_name = minio_client.get_video_in_directory(bucket_name, video_id)
+
+    if not object_name:
+        logger.error(
+            "No video found in directory %s",
+            sanitize_for_log(video_id, max_length=128),
+        )
+        raise DataPrepException(status_code=404, msg=Strings.video_id_not_found)
+
+    filename = pathlib.Path(object_name).name
+    return object_name, filename
+
+
 def get_video_from_minio(
     bucket_name: str, video_id: str, video_name: Optional[str] = None
 ) -> Tuple[io.BytesIO, str]:
@@ -61,21 +97,8 @@ def get_video_from_minio(
     try:
         minio_client = get_minio_client()
 
-        # Determine the object name
-        object_name = None
-        if video_name:
-            # If video_name is provided, use it directly
-            object_name = minio_client.compose_object_name(video_id, video_name)
-        else:
-            # Otherwise, find the first video in the directory
-            object_name = minio_client.get_video_in_directory(bucket_name, video_id)
-
-        if not object_name:
-            logger.error(
-                "No video found in directory %s",
-                sanitize_for_log(video_id, max_length=128),
-            )
-            raise DataPrepException(status_code=404, msg=Strings.video_id_not_found)
+        # Resolve the object key + filename (no download yet)
+        object_name, filename = resolve_video_object(bucket_name, video_id, video_name)
 
         # Get the video data
         data = minio_client.download_video_stream(bucket_name, object_name)
@@ -85,9 +108,6 @@ def get_video_from_minio(
                 sanitize_for_log(object_name, max_length=256),
             )
             raise DataPrepException(status_code=404, msg=Strings.minio_file_not_found)
-
-        # Extract just the filename part
-        filename = pathlib.Path(object_name).name
 
         return data, filename
     except DataPrepException as ex:

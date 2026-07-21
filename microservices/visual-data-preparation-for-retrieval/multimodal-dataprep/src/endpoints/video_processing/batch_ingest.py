@@ -66,6 +66,7 @@ def _resolve_defaults(
 
 
 def _check_batch_size(count: int) -> None:
+    """Validate the batch item count is non-empty and within ``BATCH_MAX_ITEMS``."""
     if count <= 0:
         raise DataPrepException(status_code=HTTPStatus.BAD_REQUEST, msg=Strings.batch_empty)
     if count > settings.BATCH_MAX_ITEMS:
@@ -76,10 +77,12 @@ def _check_batch_size(count: int) -> None:
 
 
 def _new_video_id(index: int) -> str:
+    """Generate a unique ``video_id`` for a newly stashed batch upload."""
     return f"dp_video_{int(datetime.datetime.now().timestamp())}_{index}_{uuid.uuid4().hex[:6]}"
 
 
 def _stash_bytes(bucket_name: str, video_id: str, filename: str, content: bytes) -> None:
+    """Persist raw upload bytes to storage under ``<video_id>/<filename>``."""
     minio_client = get_minio_client()
     minio_client.ensure_bucket_exists(bucket_name)
     object_name = f"{video_id}/{filename}"
@@ -93,6 +96,7 @@ def _stash_bytes(bucket_name: str, video_id: str, filename: str, content: bytes)
 
 
 def _job_to_status(job: BatchJob) -> BatchJobStatus:
+    """Convert an internal :class:`BatchJob` into the API status response model."""
     completed, failed = job.counts()
     items = [
         BatchItemResult(
@@ -370,6 +374,7 @@ async def ingest_directory(
     response_model_exclude_none=True,
 )
 async def get_batch_job_status(job_id: str) -> BatchJobStatus:
+    """Return the current state and per-item results of a batch job (404 if unknown)."""
     job = get_job(sanitize_string(job_id))
     if job is None:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=Strings.batch_job_not_found)
@@ -384,6 +389,7 @@ async def get_batch_job_status(job_id: str) -> BatchJobStatus:
     response_model_exclude_none=True,
 )
 async def cancel_batch_job(job_id: str) -> BatchJobStatus:
+    """Request cooperative cancellation of a batch job (404 if unknown)."""
     job = cancel_job(sanitize_string(job_id))
     if job is None:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=Strings.batch_job_not_found)

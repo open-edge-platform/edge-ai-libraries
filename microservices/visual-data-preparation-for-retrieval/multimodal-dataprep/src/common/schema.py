@@ -1,6 +1,8 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""Pydantic request/response schemas and enums for the DataPrep REST API."""
+
 from enum import Enum
 from typing import Annotated, Any, Dict, List, Optional, Tuple
 
@@ -8,6 +10,8 @@ from pydantic import BaseModel, Field
 
 
 class StatusEnum(str, Enum):
+    """Generic success/error status returned in API responses."""
+
     success = "success"
     error = "error"
 

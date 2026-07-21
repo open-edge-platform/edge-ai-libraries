@@ -14,7 +14,7 @@ import io
 import os
 import shutil
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Iterator, List, Optional
 
 from src.common import logger, sanitize_for_log, settings
 from src.core.storage.base import BaseStorage, StorageObject
@@ -26,6 +26,7 @@ class LocalStorage(BaseStorage):
     """Storage backend backed by the local filesystem."""
 
     def __init__(self, root_path: Optional[str] = None) -> None:
+        """Initialize the backend rooted at ``root_path`` (or the configured default)."""
         self._root = os.path.abspath(root_path or settings.LOCAL_STORAGE_PATH)
         os.makedirs(self._root, exist_ok=True)
         logger.info("Local storage initialized at root: %s", self._root)
@@ -33,6 +34,7 @@ class LocalStorage(BaseStorage):
     # --- path helpers -------------------------------------------------------
     @staticmethod
     def _validate_component(value: str, field_name: str) -> str:
+        """Return a trimmed path component, rejecting empty/unsafe values."""
         cleaned = (value or "").strip()
         if not cleaned:
             raise ValueError(f"{field_name} cannot be empty.")
@@ -43,6 +45,7 @@ class LocalStorage(BaseStorage):
         return cleaned
 
     def _bucket_dir(self, bucket_name: str) -> str:
+        """Return the absolute directory for a bucket, validating its name."""
         safe_bucket = self._validate_component(bucket_name, "Bucket name")
         return os.path.join(self._root, safe_bucket)
 
@@ -64,21 +67,25 @@ class LocalStorage(BaseStorage):
 
     # --- bucket / container operations -------------------------------------
     def bucket_exists(self, bucket_name: str) -> bool:
+        """Implements :meth:`BaseStorage.bucket_exists`."""
         try:
             return os.path.isdir(self._bucket_dir(bucket_name))
         except ValueError:
             return False
 
     def ensure_bucket_exists(self, bucket_name: str) -> None:
+        """Implements :meth:`BaseStorage.ensure_bucket_exists`."""
         os.makedirs(self._bucket_dir(bucket_name), exist_ok=True)
 
     # --- object existence / naming -----------------------------------------
     def compose_object_name(self, video_id: str, object_name: str) -> str:
+        """Implements :meth:`BaseStorage.compose_object_name`."""
         safe_video_id = self._validate_component(video_id, "Video ID")
         safe_object_name = self._validate_component(object_name, "Object name")
         return f"{safe_video_id}/{safe_object_name}"
 
     def validate_object_name(self, video_id: str, video_name: str) -> bool:
+        """Implements :meth:`BaseStorage.validate_object_name`."""
         try:
             if not video_id or not video_name:
                 return False
@@ -93,12 +100,14 @@ class LocalStorage(BaseStorage):
             return False
 
     def object_exists_by_path(self, bucket_name: str, object_name: str) -> bool:
+        """Implements :meth:`BaseStorage.object_exists_by_path`."""
         try:
             return os.path.isfile(self._resolve_object_path(bucket_name, object_name))
         except ValueError:
             return False
 
     def object_exists(self, bucket_name: str, video_id: str, video_name: str) -> bool:
+        """Implements :meth:`BaseStorage.object_exists`."""
         try:
             object_name = self.compose_object_name(video_id, video_name)
         except ValueError:
@@ -109,6 +118,7 @@ class LocalStorage(BaseStorage):
     def list_objects_in_directory(
         self, bucket_name: str, video_id: str
     ) -> List[StorageObject]:
+        """Implements :meth:`BaseStorage.list_objects_in_directory`."""
         safe_video_id = self._validate_component(video_id, "Video ID")
         dir_path = os.path.join(self._bucket_dir(bucket_name), safe_video_id)
         results: List[StorageObject] = []
@@ -132,6 +142,7 @@ class LocalStorage(BaseStorage):
         return results
 
     def list_all_videos(self, bucket_name: str) -> List[dict]:
+        """Implements :meth:`BaseStorage.list_all_videos`."""
         bucket_dir = self._bucket_dir(bucket_name)
         result: List[dict] = []
         if not os.path.isdir(bucket_dir):
@@ -162,6 +173,7 @@ class LocalStorage(BaseStorage):
     def get_video_in_directory(
         self, bucket_name: str, video_id: str, return_prefix: bool = True
     ) -> Optional[str]:
+        """Implements :meth:`BaseStorage.get_video_in_directory`."""
         safe_video_id = self._validate_component(video_id, "Video ID")
         dir_path = os.path.join(self._bucket_dir(bucket_name), safe_video_id)
         if not os.path.isdir(dir_path):
@@ -180,6 +192,7 @@ class LocalStorage(BaseStorage):
     def download_video_stream(
         self, bucket_name: str, object_name: str
     ) -> Optional[io.BytesIO]:
+        """Implements :meth:`BaseStorage.download_video_stream`."""
         abs_path = self._resolve_object_path(bucket_name, object_name)
         try:
             with open(abs_path, "rb") as handle:
@@ -194,9 +207,43 @@ class LocalStorage(BaseStorage):
             )
             raise Exception(f"Error downloading video: {exc}")
 
+    def stream_object_range(
+        self,
+        bucket_name: str,
+        object_name: str,
+        offset: int = 0,
+        length: Optional[int] = None,
+        chunk_size: int = 1024 * 1024,
+    ) -> Iterator[bytes]:
+        """Implements :meth:`BaseStorage.stream_object_range` via file seek/read."""
+        abs_path = self._resolve_object_path(bucket_name, object_name)
+
+        def _generator() -> Iterator[bytes]:
+            """Yield ``[offset, offset+length)`` bytes of the file in chunks."""
+            with open(abs_path, "rb") as handle:
+                if offset:
+                    handle.seek(offset)
+                remaining = length
+                while True:
+                    if remaining is not None:
+                        if remaining <= 0:
+                            break
+                        to_read = min(chunk_size, remaining)
+                    else:
+                        to_read = chunk_size
+                    chunk = handle.read(to_read)
+                    if not chunk:
+                        break
+                    if remaining is not None:
+                        remaining -= len(chunk)
+                    yield chunk
+
+        return _generator()
+
     def upload_video(
         self, bucket_name: str, object_name: str, data, file_size: Optional[int] = None
     ) -> None:
+        """Implements :meth:`BaseStorage.upload_video`."""
         self.ensure_bucket_exists(bucket_name)
         abs_path = self._resolve_object_path(bucket_name, object_name)
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
@@ -220,6 +267,7 @@ class LocalStorage(BaseStorage):
         video_id: str,
         filename: str = "metadata.json",
     ) -> str:
+        """Implements :meth:`BaseStorage.save_metadata_file`."""
         self.ensure_bucket_exists(bucket_name)
         object_name = self.compose_object_name(video_id, filename)
         abs_path = self._resolve_object_path(bucket_name, object_name)
@@ -230,6 +278,7 @@ class LocalStorage(BaseStorage):
         return object_name
 
     def get_object_metadata(self, bucket_name: str, object_name: str) -> dict:
+        """Implements :meth:`BaseStorage.get_object_metadata`."""
         abs_path = self._resolve_object_path(bucket_name, object_name)
         stat = os.stat(abs_path)
         return {
@@ -242,11 +291,13 @@ class LocalStorage(BaseStorage):
         }
 
     def get_object_size(self, bucket_name: str, object_name: str) -> int:
+        """Implements :meth:`BaseStorage.get_object_size`."""
         abs_path = self._resolve_object_path(bucket_name, object_name)
         return os.stat(abs_path).st_size
 
     # --- delete -------------------------------------------------------------
     def delete_object(self, bucket_name: str, object_name: str) -> None:
+        """Implements :meth:`BaseStorage.delete_object`."""
         abs_path = self._resolve_object_path(bucket_name, object_name)
         try:
             os.remove(abs_path)

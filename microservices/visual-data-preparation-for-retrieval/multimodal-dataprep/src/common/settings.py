@@ -1,6 +1,8 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""Application configuration settings loaded from environment/.env via Pydantic."""
+
 from pathlib import Path
 
 from pydantic import Field, field_validator
@@ -52,6 +54,7 @@ class Settings(BaseSettings):
     @field_validator("VECTORDB_BACKEND", "STORAGE_BACKEND", mode="before")
     @classmethod
     def _normalize_backend(cls, value):
+        """Normalize backend selector strings to lower-case, trimmed values."""
         if value in (None, ""):
             return value
         return str(value).strip().lower()
@@ -235,6 +238,7 @@ class Settings(BaseSettings):
     @field_validator("MAX_PARALLEL_WORKERS", mode="before")
     @classmethod
     def normalize_max_parallel_workers(cls, value):
+        """Treat unset/empty ``MAX_PARALLEL_WORKERS`` as ``None`` (auto)."""
         if value in (None, ""):
             return None
         return value

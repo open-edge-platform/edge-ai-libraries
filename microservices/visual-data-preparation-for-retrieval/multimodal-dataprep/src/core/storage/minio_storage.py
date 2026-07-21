@@ -13,7 +13,7 @@ raw client (``bucket_exists``, ``object_exists_by_path``,
 from __future__ import annotations
 
 import io
-from typing import List, Optional
+from typing import Iterator, List, Optional
 
 from minio.error import S3Error
 
@@ -28,6 +28,7 @@ class MinioStorage(BaseStorage):
     """Storage backend backed by a MinIO object store."""
 
     def __init__(self) -> None:
+        """Initialize the backend, constructing a validated MinIO client."""
         if (
             not settings.MINIO_ENDPOINT
             or not settings.MINIO_ACCESS_KEY
@@ -54,6 +55,7 @@ class MinioStorage(BaseStorage):
 
     # --- bucket / container operations -------------------------------------
     def bucket_exists(self, bucket_name: str) -> bool:
+        """Implements :meth:`BaseStorage.bucket_exists`."""
         try:
             return bool(self._client.client.bucket_exists(bucket_name))
         except S3Error as exc:
@@ -65,16 +67,20 @@ class MinioStorage(BaseStorage):
             return False
 
     def ensure_bucket_exists(self, bucket_name: str) -> None:
+        """Implements :meth:`BaseStorage.ensure_bucket_exists`."""
         self._client.ensure_bucket_exists(bucket_name)
 
     # --- object existence / naming -----------------------------------------
     def compose_object_name(self, video_id: str, object_name: str) -> str:
+        """Implements :meth:`BaseStorage.compose_object_name`."""
         return self._client.compose_object_name(video_id, object_name)
 
     def validate_object_name(self, video_id: str, video_name: str) -> bool:
+        """Implements :meth:`BaseStorage.validate_object_name`."""
         return self._client.validate_object_name(video_id, video_name)
 
     def object_exists_by_path(self, bucket_name: str, object_name: str) -> bool:
+        """Implements :meth:`BaseStorage.object_exists_by_path`."""
         try:
             self._client.client.stat_object(bucket_name, object_name)
             return True
@@ -85,12 +91,14 @@ class MinioStorage(BaseStorage):
             return False
 
     def object_exists(self, bucket_name: str, video_id: str, video_name: str) -> bool:
+        """Implements :meth:`BaseStorage.object_exists`."""
         return self._client.object_exists(bucket_name, video_id, video_name)
 
     # --- listing ------------------------------------------------------------
     def list_objects_in_directory(
         self, bucket_name: str, video_id: str
     ) -> List[StorageObject]:
+        """Implements :meth:`BaseStorage.list_objects_in_directory`."""
         safe_video_id = self._client._validate_object_component(video_id, "Video ID")
         prefix = f"{safe_video_id}/"
         try:
@@ -120,22 +128,38 @@ class MinioStorage(BaseStorage):
             raise Exception(f"Error listing objects in directory {video_id}: {exc}")
 
     def list_all_videos(self, bucket_name: str) -> List[dict]:
+        """Implements :meth:`BaseStorage.list_all_videos`."""
         return self._client.list_all_videos(bucket_name)
 
     def get_video_in_directory(
         self, bucket_name: str, video_id: str, return_prefix: bool = True
     ) -> Optional[str]:
+        """Implements :meth:`BaseStorage.get_video_in_directory`."""
         return self._client.get_video_in_directory(bucket_name, video_id, return_prefix)
 
     # --- read / write -------------------------------------------------------
     def download_video_stream(
         self, bucket_name: str, object_name: str
     ) -> Optional[io.BytesIO]:
+        """Implements :meth:`BaseStorage.download_video_stream`."""
         return self._client.download_video_stream(bucket_name, object_name)
+
+    def stream_object_range(
+        self,
+        bucket_name: str,
+        object_name: str,
+        offset: int = 0,
+        length: Optional[int] = None,
+    ) -> Iterator[bytes]:
+        """Implements :meth:`BaseStorage.stream_object_range`."""
+        return self._client.stream_object_range(
+            bucket_name, object_name, offset=offset, length=length
+        )
 
     def upload_video(
         self, bucket_name: str, object_name: str, data, file_size: Optional[int] = None
     ) -> None:
+        """Implements :meth:`BaseStorage.upload_video`."""
         self._client.upload_video(bucket_name, object_name, data, file_size)
 
     def save_metadata_file(
@@ -145,18 +169,22 @@ class MinioStorage(BaseStorage):
         video_id: str,
         filename: str = "metadata.json",
     ) -> str:
+        """Implements :meth:`BaseStorage.save_metadata_file`."""
         return self._client.save_metadata_file(
             bucket_name, metadata_content, video_id, filename
         )
 
     def get_object_metadata(self, bucket_name: str, object_name: str) -> dict:
+        """Implements :meth:`BaseStorage.get_object_metadata`."""
         return self._client.get_object_metadata(bucket_name, object_name)
 
     def get_object_size(self, bucket_name: str, object_name: str) -> int:
+        """Implements :meth:`BaseStorage.get_object_size`."""
         return self._client.get_object_size(bucket_name, object_name)
 
     # --- delete -------------------------------------------------------------
     def delete_object(self, bucket_name: str, object_name: str) -> None:
+        """Implements :meth:`BaseStorage.delete_object`."""
         try:
             self._client.client.remove_object(bucket_name, object_name)
             logger.info(

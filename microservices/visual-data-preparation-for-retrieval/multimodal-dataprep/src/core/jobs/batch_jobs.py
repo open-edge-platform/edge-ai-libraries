@@ -73,6 +73,7 @@ _lock = threading.Lock()
 
 
 def _touch(job: BatchJob) -> None:
+    """Update a job's ``updated_ts`` to the current time."""
     job.updated_ts = time.time()
 
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 import io
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Iterator, List, Optional
 
 
 @dataclass
@@ -88,6 +88,29 @@ class BaseStorage(ABC):
         self, bucket_name: str, object_name: str
     ) -> Optional[io.BytesIO]:
         """Download an object into an in-memory stream."""
+
+    @abstractmethod
+    def stream_object_range(
+        self,
+        bucket_name: str,
+        object_name: str,
+        offset: int = 0,
+        length: Optional[int] = None,
+    ) -> Iterator[bytes]:
+        """Yield an object's bytes as chunks, optionally limited to a byte range.
+
+        Implementations MUST read lazily (without materializing the whole object)
+        so that HTTP Range requests can be served efficiently.
+
+        Args:
+            bucket_name: The bucket/container holding the object.
+            object_name: The fully composed ``<video_id>/<filename>`` key.
+            offset: Zero-based byte offset to start reading from.
+            length: Number of bytes to read; ``None`` reads to end-of-object.
+
+        Returns:
+            An iterator yielding ``bytes`` chunks for ``[offset, offset+length)``.
+        """
 
     @abstractmethod
     def upload_video(

@@ -1,10 +1,17 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""MinIO object-storage client used by the MinIO storage backend.
+
+Wraps the ``minio`` SDK behind the service's ``<video_id>/<filename>`` object
+convention, adding validation, streaming (including HTTP Range reads), and
+metadata helpers. Exposed as a process-wide singleton via :class:`MinioClient`.
+"""
+
 import io
 import pathlib
 from http import HTTPStatus
-from typing import List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 from minio import Minio
 from minio.error import S3Error
@@ -20,6 +27,7 @@ class MinioClient:
     _instance = None
 
     def __new__(cls, *args, **kwargs):
+        """Return the shared singleton instance, creating it on first use."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.client = None
@@ -246,6 +254,60 @@ class MinioClient:
                 sanitize_for_log(ex, max_length=256),
             )
             raise Exception(f"Error downloading video: {ex}")
+
+    def stream_object_range(
+        self,
+        bucket_name: str,
+        object_name: str,
+        offset: int = 0,
+        length: Optional[int] = None,
+        chunk_size: int = 1024 * 1024,
+    ) -> Iterator[bytes]:
+        """Stream an object's bytes lazily, optionally limited to a byte range.
+
+        Uses the MinIO SDK's server-side range read (``offset``/``length``) so
+        only the requested bytes are transferred, enabling efficient HTTP Range
+        (seek) responses.
+
+        Args:
+            bucket_name (str): The bucket containing the object.
+            object_name (str): The object name (path).
+            offset (int): Zero-based byte offset to start from.
+            length (Optional[int]): Number of bytes to read; ``None``/0 reads to end.
+            chunk_size (int): Streaming chunk size in bytes.
+
+        Yields:
+            bytes: Consecutive chunks of the requested range.
+
+        Raises:
+            Exception: If getting the object fails.
+        """
+        try:
+            response = self.client.get_object(
+                bucket_name,
+                object_name,
+                offset=offset,
+                length=length if length is not None else 0,
+            )
+        except S3Error as ex:
+            logger.error(
+                "Error streaming range of %s from bucket %s: %s",
+                sanitize_for_log(object_name, max_length=256),
+                sanitize_for_log(bucket_name, max_length=128),
+                sanitize_for_log(ex, max_length=256),
+            )
+            raise Exception(f"Error streaming object range: {ex}")
+
+        def _generator() -> Iterator[bytes]:
+            """Yield response chunks, releasing the connection when exhausted."""
+            try:
+                for chunk in response.stream(chunk_size):
+                    yield chunk
+            finally:
+                response.close()
+                response.release_conn()
+
+        return _generator()
 
     def get_object_size(self, bucket_name: str, object_name: str) -> int:
         """Get the size of an object in bytes.
