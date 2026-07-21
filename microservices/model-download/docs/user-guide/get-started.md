@@ -1,12 +1,12 @@
 # Get Started
 
-The Model Download is a microservice that downloads models from multiple hubs as follows: Hugging Face, Ollama, Geti™ software, Ultralytics, and Pipeline Zoo Models. It supports conversion to OpenVINO™ model server format for Hugging Face models, supports uploading custom model ZIP artifacts, and exposes a RESTful API for managing model downloads, uploads, and conversions.
+The Model Download is a microservice that downloads models from multiple hubs as follows: Hugging Face, Ollama, Geti™ software, Ultralytics, Pipeline Zoo Models, Open Model Zoo (OMZ), remote URL, and HLS. It supports conversion to OpenVINO™ model server format for Hugging Face models, supports uploading custom model ZIP artifacts, and exposes a RESTful API for managing model downloads, uploads, and conversions.
 
 > **Note:** Model Download replaces Model Registry, which will be deprecated soon. See [Migrate from Model Registry to Model Download](./get-started/migration.md) for the migration guidelines.
 
 ## Features
 
-- Downloads models from Hugging Face, Ollama, Geti software, Ultralytics, and Pipeline Zoo Models hubs
+- Downloads models from Hugging Face, Ollama, Geti software, Ultralytics, Pipeline Zoo Models, Open Model Zoo (OMZ), remote URL, and HLS hubs
 - Lists available models from supported hubs before download
 - Converts Hugging Face models to OpenVINO model server format
 - Supports multiple model precisions (INT4, INT8, FP16, and FP32)
