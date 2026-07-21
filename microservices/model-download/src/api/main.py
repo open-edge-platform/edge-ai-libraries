@@ -114,12 +114,14 @@ async def _list_hub_models(
     if plugin is None:
         raise HTTPException(
             status_code=400,
-            detail=f"Hub '{hub}' was not activated during container startup. ",
+            detail=f"Hub '{hub}' was not activated during container startup. "
+                   f"Active hubs: {', '.join(sorted(plugin_registry.activated_plugins))}.",
         )
 
     if not getattr(plugin, "supports_listing", False):
         raise HTTPException(status_code=501, detail=f"Hub '{hub}' does not support listing models")
 
+    # Multi-hub plugins may be found even when the specific hub was not activated.
     is_available, reason = plugin_registry.hub_is_available(hub_name)
     if not is_available:
         raise HTTPException(status_code=400, detail=reason)
