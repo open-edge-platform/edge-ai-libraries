@@ -25,8 +25,6 @@
 - Updated Intel® GPU drivers to support WCL (compute-runtime/IGC version `26.14.37833`).
 - Updated the Kapacitor and Python library dependency versions.
 
----
-
 ## Version 2026.0
 
 **Release Date:** March 27, 2026
@@ -46,7 +44,7 @@ Time Series Analytics.
 - Simplified documentation by removing outdated Model Registry references.
 - Reorganized documentation structure and navigation for easier access.
 
-For older release notes, check out:
+## Previous Releases
 
 - [Release notes 2025](./release-notes/release-notes-2025.md)
 

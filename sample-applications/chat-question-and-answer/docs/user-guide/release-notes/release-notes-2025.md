@@ -64,8 +64,6 @@
 - Support for GPU (discrete and integrated) is now available. Refer to system requirements documentation for details.
 - Bug fixes
 
-## Earlier releases
-
 ## Version 1.1.2
 
 **Release Date:** WW16 2025
