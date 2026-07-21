@@ -369,7 +369,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             config: Configuration parameters from the request
         """
         try:
-            target_device = str(config.get("device", config.get("target_device", "CPU"))).upper()
+            target_device = self._convert_value_to_string(config.get("device", config.get("target_device", "CPU"))).upper()
             cache_size = config.get("cache_size", config.get("cache", 0)) or 0
             num_streams = config.get("num_streams", 1) or 1
             # Use full model name preserving "/" for nested directory structure and config naming
