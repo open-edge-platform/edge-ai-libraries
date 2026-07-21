@@ -67,6 +67,42 @@ them discoverable.
 
 ---
 
+## Works with or without the VSS source (auto-bootstrap)
+
+Every skill is self-contained and no longer assumes the VSS application source is
+already sitting in your workspace. Each skill ships an identical
+`scripts/vss-bootstrap.sh` and begins with an **Environment setup (run first)**
+section that the agent executes before anything else. The bootstrap:
+
+- **Detects an existing checkout** by walking up from the current directory and
+  inspecting the enclosing git repo. If you are already anywhere inside a VSS
+  checkout, it is reused and **nothing is cloned** - it just resolves and `cd`s
+  into the app root.
+- **Clones only when needed.** If no VSS source is found (e.g. the skill is
+  installed standalone in a central skills directory with no application code
+  present), it performs a shallow, **single-branch**, **sparse** checkout of just
+  `sample-applications/video-search-and-summarization` from `main`, then `cd`s in.
+
+This means the skills work identically whether they live inside the VSS repo or in
+a centralized `~/.agents/skills/` install with no application code nearby.
+
+Override the clone source with environment variables before running a skill:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VSS_REPO_URL` | `https://github.com/open-edge-platform/edge-ai-libraries.git` | Repo to clone from |
+| `VSS_REPO_BRANCH` | `main` | Branch to fetch |
+| `VSS_CLONE_DIR` | `${XDG_CACHE_HOME:-$HOME/.cache}/vss-src/edge-ai-libraries` | Where the sparse checkout lands |
+| `VSS_FORCE_CLONE` | `0` | Set to `1` to skip detection and always clone |
+
+You can also run the bootstrap directly to see the resolved app root:
+
+```bash
+APP_ROOT="$(bash .github/skills/vss-troubleshoot/scripts/vss-bootstrap.sh)" && cd "$APP_ROOT"
+```
+
+---
+
 ## Installation
 
 Skills are discovered from a skills directory that your agent scans at startup. Pick the option

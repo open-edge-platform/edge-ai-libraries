@@ -7,6 +7,32 @@ description: Scaffolds and wires a new NestJS service/module for the Video Searc
 
 Use this when adding a new `pipeline-manager/src/<feature>/` capability. First read nearby modules again (`summary`, `search`, `video-upload`, `state-manager`) because this repo has concrete patterns that matter more than generic NestJS advice.
 
+## Environment setup (run first)
+
+This skill drives the Video Search & Summarization app through its real source
+files, so the VSS application must be present and you must run commands from its
+app root. **Do this before anything else**, and it works whether or not the VSS
+source is already in your workspace.
+
+Run the bundled bootstrap. It first tries to find an existing VSS checkout -
+walking up from the current directory and inspecting the enclosing git repo - and
+reuses it **without ever re-cloning**. Only when no checkout is found does it do a
+shallow, single-branch, sparse checkout of just
+`sample-applications/video-search-and-summarization` from `main`. It prints the
+resolved app root on stdout:
+
+```bash
+# SKILL_DIR is THIS skill's own directory (shown to you when the skill loads);
+# in-repo it is .github/skills/vss-add-nest-module. Works the same if the skill is installed standalone.
+SKILL_DIR=".github/skills/vss-add-nest-module"
+APP_ROOT="$(bash "$SKILL_DIR/scripts/vss-bootstrap.sh")"
+cd "$APP_ROOT"
+```
+
+Every command below assumes the working directory is this `APP_ROOT`. To pull
+from a fork/branch or reuse a specific checkout dir, override `VSS_REPO_URL`,
+`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it.
+
 ## 1. Match the repo layout
 
 Most feature modules use this shape:

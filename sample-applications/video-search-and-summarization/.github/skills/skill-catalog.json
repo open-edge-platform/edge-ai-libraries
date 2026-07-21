@@ -17,6 +17,7 @@
         "push images"
       ],
       "requires": [
+        ".github/skills/vss-build/scripts/vss-bootstrap.sh",
         "build.sh",
         "docker"
       ]
@@ -41,6 +42,7 @@
         "unified mode"
       ],
       "requires": [
+        ".github/skills/vss-deploy/scripts/vss-bootstrap.sh",
         "setup.sh",
         "docker/compose.*.yaml",
         "docker compose",
@@ -59,6 +61,7 @@
         "summary pipeline"
       ],
       "requires": [
+        ".github/skills/vss-summarize-video/scripts/vss-bootstrap.sh",
         "healthy Pipeline Manager",
         "summary-capable deployment"
       ]
@@ -76,6 +79,7 @@
         "query video library"
       ],
       "requires": [
+        ".github/skills/vss-search-index/scripts/vss-bootstrap.sh",
         "healthy Pipeline Manager",
         "search-capable deployment"
       ]
@@ -99,6 +103,7 @@
         "vss not working"
       ],
       "requires": [
+        ".github/skills/vss-troubleshoot/scripts/vss-bootstrap.sh",
         ".github/skills/vss-troubleshoot/scripts/triage.sh",
         "docker compose",
         "curl"
@@ -116,6 +121,7 @@
         "model deployment"
       ],
       "requires": [
+        ".github/skills/vss-model-onboarding/scripts/vss-bootstrap.sh",
         ".github/skills/vss-model-onboarding/scripts/prepare_ovms_model.py",
         "OpenVINO",
         "model assets"
@@ -132,6 +138,7 @@
         "vss on k8s"
       ],
       "requires": [
+        ".github/skills/vss-deploy-helm/scripts/vss-bootstrap.sh",
         "helm",
         "kubernetes cluster",
         ".github/skills/vss-deploy-helm/chart/"
@@ -149,6 +156,7 @@
         "frame sampling"
       ],
       "requires": [
+        ".github/skills/vss-pipeline-config/scripts/vss-bootstrap.sh",
         "config files",
         "docker compose"
       ]
@@ -164,6 +172,7 @@
         "new service"
       ],
       "requires": [
+        ".github/skills/vss-add-nest-module/scripts/vss-bootstrap.sh",
         ".github/skills/vss-add-nest-module/assets/module-template/",
         "pipeline-manager/"
       ]
@@ -180,6 +189,7 @@
         "pipeline modification"
       ],
       "requires": [
+        ".github/skills/vss-dlstreamer-pipeline/scripts/vss-bootstrap.sh",
         "docker compose",
         "DLStreamer",
         "video-ingestion/"
@@ -197,6 +207,7 @@
         "vector search"
       ],
       "requires": [
+        ".github/skills/vss-search-internals/scripts/vss-bootstrap.sh",
         "search-ms/",
         "VDMS",
         "embedding model"
@@ -214,6 +225,7 @@
         "performance profiling"
       ],
       "requires": [
+        ".github/skills/vss-observability/scripts/vss-bootstrap.sh",
         "OpenTelemetry instrumentation",
         "docker compose"
       ]
@@ -230,6 +242,7 @@
         "rest api"
       ],
       "requires": [
+        ".github/skills/vss-api-client/scripts/vss-bootstrap.sh",
         ".github/skills/vss-api-client/scripts/api_smoke.py",
         "curl",
         "python"
@@ -247,6 +260,7 @@
         "expose to agent"
       ],
       "requires": [
+        ".github/skills/vss-mcp-integration/scripts/vss-bootstrap.sh",
         "mcp/",
         "FastMCP",
         "docker compose"
@@ -263,6 +277,7 @@
         "end-to-end test"
       ],
       "requires": [
+        ".github/skills/vss-e2e-smoke/scripts/vss-bootstrap.sh",
         ".github/skills/vss-e2e-smoke/scripts/e2e_summary.sh",
         ".github/skills/vss-e2e-smoke/scripts/e2e_search.sh",
         "bash",

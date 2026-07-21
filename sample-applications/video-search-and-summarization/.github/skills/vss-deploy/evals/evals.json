@@ -3,32 +3,50 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I'm bringing up the Video Search & Summarization sample on a CPU-only workstation just for summarization. I already exported the MinIO/Postgres/RabbitMQ credentials, but I keep forgetting which model variables summary mode actually needs and whether I should run `./setup.sh` or `source setup.sh`. Give me the exact commands to render the Compose config first without starting containers, then launch the stack for real, and tell me which URL I should open when it is ready.",
-      "expected_output": "Explains that setup.sh must be sourced from the VSS app root, lists the summary-mode model environment variables to export, shows the config-only command followed by the real start command, and points the user to the summary UI URL on the nginx gateway.",
+      "prompt_file": "example-prompts/01-summary-mode-deploy.md",
+      "prompt": "I just cloned the video-search-and-summarization sample app and want to try video summarization. Can you spin up VSS in summary mode with the default settings and tell me the URL to open once it's ready?",
+      "expected_output": "Runs the VSS deploy flow for summary mode from the resolved app root: generates/reuses runtime secrets, sources config and secrets, stops any stale stack, sources setup.sh with --summary, waits for manager health, and reports the summary UI URL on the nginx gateway.",
       "files": [],
       "expectations": [
-        "The answer tells the user to run `source setup.sh --summary config` to inspect the resolved Compose configuration without starting containers.",
-        "The answer states that summary mode requires `VLM_MODEL_NAME`, `ENABLED_WHISPER_MODELS`, and `OD_MODEL_NAME` in addition to the shared service credentials.",
-        "The answer explicitly says to use `source setup.sh --summary` rather than executing `./setup.sh` because the script exports environment and uses shell `return`.",
-        "The answer gives the summary UI URL as `http://<host-ip>:12345/` or otherwise references `APP_HOST_PORT=12345`."
+        "The answer uses the bundled bootstrap helper to resolve APP_ROOT and changes directory into the VSS app root before deployment commands.",
+        "The answer generates or reuses vss.secrets.env with .github/skills/vss-deploy/scripts/gen-secrets.sh and sources both vss.config.env and vss.secrets.env.",
+        "The answer runs source setup.sh --stop before source setup.sh --summary so stale or wrong-mode containers cannot collide.",
+        "The answer sources setup.sh rather than executing ./setup.sh directly.",
+        "The answer waits for health with scripts/wait-health.sh and reports the summary UI URL as http://<host-ip>:12345/ or using APP_HOST_PORT."
       ]
     },
     {
       "id": 2,
-      "prompt": "I currently have VSS running in summary-only mode with the default OVMS CPU backend, and now I need to switch it to dual UI so my team gets both `/summary/` and `/search/`. For the summarization side I want the vLLM backend, and for the search side I want GPU acceleration for embeddings. Tell me the exact stop/start commands, the env toggles I need to set, which model variables must already be exported for this mode, and any important service port or URL details I should expect after the switch.",
-      "expected_output": "Stops the existing deployment before switching modes, uses the dual-mode startup command with the correct vLLM and embedding GPU environment toggles, lists every model variable required for Dual UI, and mentions the dual UI paths and/or the vLLM service port.",
+      "prompt_file": "example-prompts/02-dual-ui-config-dry-run.md",
+      "prompt": "Before I commit to anything, I want to see which Docker Compose files and profiles would be used if I ran VSS in dual UI mode (both summary and search with separate UIs), without actually starting any containers. Can you show me that?",
+      "expected_output": "Performs a config-only inspection for Dual UI mode without starting containers, showing the compose overlays/profiles that setup.sh would use and explaining the resulting dual UI paths.",
       "files": [],
       "expectations": [
-        "The answer includes `source setup.sh --stop` or `source setup.sh --down` before changing deployment modes.",
-        "The answer starts Dual UI with `source setup.sh --summary --search` or an explicit alias to internal `--dual` mode.",
-        "The answer includes both `ENABLE_VLLM=true` and `ENABLE_EMBEDDING_GPU=true` as the relevant toggles for this request.",
-        "The answer lists `VLM_MODEL_NAME`, `ENABLED_WHISPER_MODELS`, `OD_MODEL_NAME`, and `MULTIMODAL_EMBEDDING_MODEL` as required model variables for Dual UI.",
-        "The answer mentions either the Dual UI URLs `/summary/` and `/search/` on host port `12345` or that `vllm-cpu-service` is exposed on host port `8200`."
+        "The answer uses source setup.sh --summary --search config or the equivalent --dual config for the dry-run.",
+        "The answer makes clear that config mode renders docker compose config rather than running up -d or starting containers.",
+        "The answer identifies the Dual UI compose overlays as docker/compose.base.yaml, docker/compose.summary.yaml, docker/compose.search.yaml, and docker/compose.ui.yaml.",
+        "The answer identifies the Dual UI profiles as ovms and dual_ui.",
+        "The answer mentions the Dual UI paths /summary/ and /search/ on the nginx gateway host port 12345."
       ]
     },
     {
       "id": 3,
-      "prompt": "I'm done testing VSS and want to fully reset this machine before the next demo. What is the exact difference between `--stop` and `--clean-data`, do either of those commands need the usual credential variables exported first, and which named Docker volumes or local data artifacts get deleted by the full cleanup?",
+      "prompt_file": "example-prompts/03-switch-summary-to-search-mode.md",
+      "prompt": "VSS is currently running in --summary mode but I actually need to test search instead. Please switch it over to search mode for me \u2014 do I need to stop it first, and will my MULTIMODAL_EMBEDDING_MODEL setting carry over?",
+      "expected_output": "Switches an existing summary deployment to search mode by stopping the old stack, ensuring search configuration and secrets are loaded, starting setup.sh with --search, waiting for health, and explaining that MULTIMODAL_EMBEDDING_MODEL must be present from config or the shell.",
+      "files": [],
+      "expectations": [
+        "The answer includes source setup.sh --stop or source setup.sh --down before starting search mode.",
+        "The answer starts search mode with source setup.sh --search.",
+        "The answer states that MULTIMODAL_EMBEDDING_MODEL is required for Search mode and must be exported or sourced from vss.config.env; it does not magically carry over unless present in the environment/config.",
+        "The answer mentions search mode uses docker/compose.search.yaml with the singleton search UI on http://<host-ip>:12345/.",
+        "The answer waits for health through the nginx gateway using scripts/wait-health.sh or the /manager/health route."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt_file": "example-prompts/04-full-teardown-clean-data.md",
+      "prompt": "I'm done testing VSS for today. Please stop all the containers and also wipe the Postgres, MinIO, and VDMS data volumes so my next deployment starts completely fresh.",
       "expected_output": "Explains the teardown commands that must be sourced, distinguishes stopping/removing containers from full data cleanup, notes that these teardown commands bypass normal deployment env validation, and lists the concrete volumes or artifacts removed by `--clean-data`.",
       "files": [],
       "expectations": [
@@ -37,6 +55,34 @@
         "The answer states that `--stop`, `--clean-data`, or config-only inspection skip the normal required-environment validation.",
         "The answer lists at least three exact cleanup targets from `docker_minio_data`, `docker_pg_data`, `docker_vdms-db`, `docker_audio_analyzer_data`, `docker_data-prep`, `docker_collector_signals`, or `.ov_venv`.",
         "The answer distinguishes that `--stop` removes containers across VSS overlays/profiles, while `--clean-data` additionally removes persisted volumes/data."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt_file": "example-prompts/05-unified-custom-port-setenv.md",
+      "prompt": "Deploy VSS in unified mode (one UI where I can search over the generated summaries) on host port 18080 instead of the default 12345. Also, I want to keep running manual docker compose commands myself afterward, so leave the resolved environment variables in my shell instead of just running everything for me.",
+      "expected_output": "Deploys Unified UI mode on APP_HOST_PORT=18080, distinguishes normal deployment that the agent can run in a subshell from --setenv which the user must source in their own shell, waits for health on the custom port, and reports the unified UI URL.",
+      "files": [],
+      "expectations": [
+        "The answer uses APP_HOST_PORT=18080 with source setup.sh --summary-and-search or an equivalent unified alias for the deployment.",
+        "The answer states that --setenv is the exception that must be run by the user in their interactive shell because a subshell cannot persist exported variables back to that shell.",
+        "The answer provides the user-facing setenv command APP_HOST_PORT=18080 source setup.sh --setenv --summary-and-search or an equivalent unified alias.",
+        "The answer reports the Unified UI URL as http://<host-ip>:18080/.",
+        "The answer mentions Unified UI behavior grounded in the skill, such as search over summaries, TEXT_EMBEDDING_MODEL/EMBEDDING_MODEL_NAME, VS_INDEX_NAME=video_summary_embeddings, or APP_FEATURE_MUX=SUMMARY_SEARCH."
+      ]
+    },
+    {
+      "id": 90,
+      "prompt_file": "example-prompts/06-bootstrap-fresh-machine.md",
+      "prompt": "Deploy VSS in summary mode using the defaults, then once it's healthy tell me the UI URL and confirm which containers came up.",
+      "expected_output": "Before touching setup.sh, the answer unconditionally runs the bundled scripts/vss-bootstrap.sh to resolve the VSS app root, checking the enclosing git repo's remote (origin/upstream) to see if it already traces back to the official open-edge-platform/edge-ai-libraries repo (or a fork of it) and reusing that checkout if so, or otherwise performing a shallow single-branch sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before deploying in summary mode and reporting the UI URL and running containers.",
+      "files": [],
+      "expectations": [
+        "The answer runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) as a first step before doing the requested summary-mode deployment, even though the prompt never asked about setup, location, or cloning.",
+        "The bootstrap check determines whether the current location is already a valid clone/checkout (or a fork) of the VSS project by inspecting the enclosing git repository's remote configuration (e.g., git remote -v / origin or upstream URL) to see if it points at the official open-edge-platform/edge-ai-libraries repo or a fork of it, rather than relying on local marker files alone.",
+        "If that check finds a valid existing checkout (the user's own clone, or a fork whose remote traces back to the official repo), the answer states that checkout is reused and NO re-clone is performed.",
+        "If no valid checkout or matching remote is found, the answer performs a shallow, single-branch sparse checkout of only sample-applications/video-search-and-summarization from main.",
+        "The answer changes directory into the resolved app root (cd \"$APP_ROOT\") before running the skill's real setup.sh/deployment commands for the requested task."
       ]
     }
   ]

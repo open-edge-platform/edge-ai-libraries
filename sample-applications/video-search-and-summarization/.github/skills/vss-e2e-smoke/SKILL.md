@@ -7,6 +7,32 @@ description: Run this skill whenever the user asks to verify my VSS install work
 
 Use this skill for the Video Search & Summarization sample application when a user wants a quick, real deployment check rather than unit tests. The bundled scripts exercise the same public APIs exposed by the running app.
 
+## Environment setup (run first)
+
+This skill drives the Video Search & Summarization app through its real source
+files, so the VSS application must be present and you must run commands from its
+app root. **Do this before anything else**, and it works whether or not the VSS
+source is already in your workspace.
+
+Run the bundled bootstrap. It first tries to find an existing VSS checkout -
+walking up from the current directory and inspecting the enclosing git repo - and
+reuses it **without ever re-cloning**. Only when no checkout is found does it do a
+shallow, single-branch, sparse checkout of just
+`sample-applications/video-search-and-summarization` from `main`. It prints the
+resolved app root on stdout:
+
+```bash
+# SKILL_DIR is THIS skill's own directory (shown to you when the skill loads);
+# in-repo it is .github/skills/vss-e2e-smoke. Works the same if the skill is installed standalone.
+SKILL_DIR=".github/skills/vss-e2e-smoke"
+APP_ROOT="$(bash "$SKILL_DIR/scripts/vss-bootstrap.sh")"
+cd "$APP_ROOT"
+```
+
+Every command below assumes the working directory is this `APP_ROOT`. To pull
+from a fork/branch or reuse a specific checkout dir, override `VSS_REPO_URL`,
+`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it.
+
 ## Which smoke test to run
 
 - **Summary mode (`source setup.sh --summary`)**: run `scripts/e2e_summary.sh`. It uploads a video through Pipeline Manager, starts the summary pipeline, polls state, verifies chunking, and requires a non-empty final summary.

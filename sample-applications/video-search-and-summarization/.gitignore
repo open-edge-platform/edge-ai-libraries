@@ -25,3 +25,4 @@ ov_model_venv
 ovms_config
 .ovms
 .ov_venv
+node_modules

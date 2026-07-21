@@ -3,72 +3,97 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "On a VSS stack exposed through nginx at http://localhost:12345, write a curl + Python polling sequence that checks GET http://localhost:12345/manager/health, uploads ./sample.mp4 to POST http://localhost:12345/manager/videos as multipart/form-data field video with tags=demo,api, starts summarization with POST http://localhost:12345/manager/summary using title 'API smoke', sampling {chunkDuration:30,samplingFrame:4,frameOverlap:1,multiFrame:5}, and evam {evamPipeline:'video_ingestion'}, then polls GET http://localhost:12345/manager/summary/{summaryPipelineId} every 5 seconds until the final summary is available. Capture both videoId and summaryPipelineId and stop polling when videoSummaryStatus is 'complete' or summary is non-empty.",
-      "expected_output": "A correct end-to-end async lifecycle example that uploads a video, starts summarization in a second request, and polls the UI summary endpoint until completion.",
+      "prompt_file": "example-prompts/01-upload-video-curl.md",
+      "prompt": "I have a file called `sample.mp4` in my current directory and I want to upload it to my running VSS instance at `localhost:12345`. Can you give me a curl command that posts it to the API as multipart form data, tags it \"demo\", and prints out just the videoId from the JSON response?",
+      "expected_output": "A copy-pasteable upload example that checks the nginx-routed Pipeline Manager API, posts sample.mp4 as multipart/form-data field video with tags, and extracts the returned videoId.",
       "files": [],
       "expectations": [
-        "References GET /manager/health on port 12345 and expects HTTP 200 before starting the workflow.",
-        "Uses POST /manager/videos with multipart/form-data field name 'video' (and optional comma-separated tags) and expects a 2xx response containing videoId.",
-        "Uses POST /manager/summary with videoId, title, sampling.chunkDuration=30, sampling.samplingFrame=4, sampling.frameOverlap=1, sampling.multiFrame=5, and evam.evamPipeline='video_ingestion', and expects HTTP 201 with summaryPipelineId.",
-        "Polls GET /manager/summary/{stateId} rather than assuming /videos started processing, and checks for videoSummaryStatus values such as 'inProgress' or 'complete'.",
-        "Treats summaryPipelineId as the stateId for follow-up requests and stops when videoSummaryStatus is 'complete' and/or summary text is non-empty."
+        "Uses the nginx-routed Pipeline Manager base URL http://localhost:12345/manager and optionally checks GET /manager/health before upload.",
+        "Uses POST /manager/videos with multipart/form-data field name 'video' and includes the comma-separated tags field with value 'demo'.",
+        "Extracts videoId from the JSON response rather than inventing a different response key.",
+        "Does not imply that uploading to /manager/videos starts summarization; treats upload as only creating the video record."
       ]
     },
     {
       "id": 2,
-      "prompt": "Show a JavaScript or TypeScript example that subscribes to VSS progress events while a video is being processed through nginx at http://localhost:12345. The flow should call GET /manager/health, POST /manager/videos, and POST /manager/summary first, then connect with socket.io-client to http://localhost:12345 using path '/ws/', emit 'join' with the returned summaryPipelineId, and log progress events for summary:sync/{stateId}/status, summary:sync/{stateId}/chunks, summary:sync/{stateId}/frameSummary, summary:sync/{stateId}/summary, and summary:sync/{stateId}/summaryStream until summarization completes.",
-      "expected_output": "A Socket.IO client example that correctly joins the summary room and listens to the documented public progress event names tied to the summaryPipelineId/stateId.",
+      "prompt_file": "example-prompts/02-poll-summary-status.md",
+      "prompt": "I already have a `videoId` from uploading a clip to VSS. Now I need Python code that calls `POST /manager/summary` with a sampling config (30 second chunks, 4 frames per chunk) to kick off summarization, then repeatedly polls `GET /manager/summary/{stateId}` every few seconds until `videoSummaryStatus` says complete, and finally prints the summary text.",
+      "expected_output": "A correct async summary-start and polling example for an existing videoId that calls POST /manager/summary, treats summaryPipelineId as stateId, and polls until completion before printing the summary.",
       "files": [],
       "expectations": [
-        "Connects to the app origin http://localhost:12345 with Socket.IO path '/ws/' instead of trying to open a websocket under /manager.",
-        "Shows the prerequisite REST sequence where POST /manager/summary returns summaryPipelineId/stateId after upload succeeds.",
-        "Emits the client event 'join' with the summaryPipelineId so the socket joins the room for that state.",
-        "Listens for documented public events summary:sync/{stateId}/status, /chunks, /frameSummary, /summary, and /summaryStream (or a justified subset of these exact event names).",
-        "Explains that summaryPipelineId is both the Socket.IO room name and the ID used by GET /manager/summary/{stateId}."
+        "Uses POST /manager/summary with videoId, title, sampling fields chunkDuration, samplingFrame, frameOverlap, multiFrame, and evam.evamPipeline='video_ingestion'.",
+        "Uses chunkDuration=30 and samplingFrame=4, and provides a valid multiFrame value consistent with samplingFrame plus frameOverlap.",
+        "Reads summaryPipelineId from the 201 response and uses it as the stateId for GET /manager/summary/{stateId}.",
+        "Polls GET /manager/summary/{stateId} with a sleep interval and stops when videoSummaryStatus is 'complete' and/or summary text is non-empty.",
+        "Prints the final summary text without assuming that POST /manager/videos started the processing job."
       ]
     },
     {
       "id": 3,
-      "prompt": "Write a curl request, and optionally a Python equivalent, for the Pipeline Manager one-off search API at http://localhost:12345/manager/search/query. Use the natural-language query 'show me people walking near vehicles', tags 'demo,api', and a relative time filter limited to the last 24 hours. The example should send the flattened Pipeline Manager timeFilter shape, parse the JSON response, and point out where query_id, metadata.video_id, metadata.segment_start, metadata.segment_end, and metadata.relevance_score appear in the results.",
-      "expected_output": "A correct one-off search example that calls the nginx-routed Pipeline Manager endpoint with a natural-language query and a relative time filter, then interprets the response schema.",
+      "prompt_file": "example-prompts/03-socketio-progress.md",
+      "prompt": "After I call `/manager/summary` and get back a `summaryPipelineId`, I want a Node.js script using `socket.io-client` that connects to VSS, joins that room, and logs each `chunks`, `frameSummary`, and `summaryStream` event as they arrive so I can show a live progress bar in my app.",
+      "expected_output": "A Socket.IO client example that correctly connects through nginx, joins the summaryPipelineId/stateId room, and listens to the documented public progress event names.",
       "files": [],
       "expectations": [
-        "Uses POST /manager/search/query on port 12345 with Content-Type: application/json and expects HTTP 200.",
-        "Sends the Pipeline Manager request body with query, tags as a comma-separated string, and flattened timeFilter like {\"value\":24,\"unit\":\"hours\"} rather than the direct search service's absolute start/end shape.",
-        "Describes the response as a top-level object containing results, where each entry includes query_id, results, and aggregation_stats.",
-        "Points to per-hit metadata fields such as metadata.video_id, metadata.segment_start, metadata.segment_end, metadata.seek_timestamp, and metadata.relevance_score when explaining how to inspect matches."
+        "Connects to http://localhost:12345 with socket.io-client using path '/ws/' instead of connecting under /manager.",
+        "Emits the client event 'join' with the returned summaryPipelineId/stateId after the socket connects.",
+        "Listens for documented events under summary:sync/{stateId}/, including chunks, frameSummary, summaryStream, and optionally status, inferenceConfig, or summary.",
+        "Explains that summaryPipelineId is the Socket.IO room name and the ID used by summary retrieval endpoints."
       ]
     },
     {
       "id": 4,
-      "prompt": "Show me how to create a persistent/managed search query on VSS at http://localhost:12345 using POST /manager/search. Use the query 'person walking near a vehicle', tags 'outdoor,daytime', and a relative time filter of 7 days. Then poll GET /manager/search/{queryId} until queryStatus is 'idle', and show how to refetch with a new time filter of 48 hours.",
-      "expected_output": "A complete managed search workflow covering create, poll, and refetch - correctly describing how tags and timeFilter are stored, forwarded, and reused across runs.",
-      "files": ["references/api-lifecycle.md"],
+      "prompt_file": "example-prompts/04-direct-search-ms-query.md",
+      "prompt": "For a performance test, I want to skip the Pipeline Manager entirely and send a search query straight to the search microservice on port 7890. I need to look for \"person walking\" clips tagged \"demo\" between 2026-01-01 and 2026-06-30, using a query_id of \"perf-test-1\". What does the request body look like and how do I curl it directly?",
+      "expected_output": "A direct search-ms request that bypasses Pipeline Manager, posts a list of query objects to port 7890/query, includes a tags array and absolute ISO time_filter bounds, and notes the tradeoff versus managed Pipeline Manager queries.",
+      "files": [],
       "expectations": [
-        "Uses POST /manager/search (not POST /manager/search/query) and expects HTTP 201 with a top-level queryId in the response body.",
-        "Request body uses the SearchQueryDTO with query as required string, tags as a comma-separated string (e.g. 'outdoor,daytime'), and timeFilter as a flat object with value=7 and unit='days'.",
-        "Explains that tags is split into a string[] and stored in the DB, and is forwarded to the search microservice on every run and refetch - unlike the one-off endpoint where tags are ignored.",
-        "Explains that timeFilter value+unit are normalized by normalizeTimeFilter() into computed start/end ISO timestamps stored in the DB as timeFilterStart/timeFilterEnd and forwarded as time_filter.start/end on every run.",
-        "Describes the initial 201 response shape: queryId, query, watch:false, results:[], queryStatus:'running', tags as string[], timeFilter with computed start/end added, createdAt, updatedAt.",
-        "States that queryStatus transitions from 'running' → 'idle' when results are ready, or to 'error' with an errorMessage if the search microservice fails (e.g. no videos indexed).",
-        "Polls GET /manager/search/{queryId} and stops when queryStatus is 'idle' or 'error', not when results[] is non-empty (results populate asynchronously via the event system).",
-        "Shows POST /manager/search/{queryId}/refetch with body {\"timeFilter\":{\"value\":48,\"unit\":\"hours\"}} and explains that the new timeFilter overrides the stored one (updates timeFilterStart/timeFilterEnd in the DB) and is used for this run and all future reruns.",
-        "Does not confuse the managed search response shape (top-level queryId, tags as array) with the one-off search response shape (results[] with nested query_id, no persistent handle)."
+        "Uses POST http://localhost:7890/query rather than /manager/search or /manager/search/query.",
+        "Sends a JSON list containing an object with query_id, query, tags as an array, and time_filter with start and end ISO 8601 strings.",
+        "Uses query_id perf-test-1, query text person walking, tag demo, and the 2026-01-01 through 2026-06-30 time range requested by the prompt.",
+        "Notes that direct search-ms bypasses Pipeline Manager persistence, watch mode, and managed queryId lifecycle."
       ]
     },
     {
       "id": 5,
-      "prompt": "I want to call POST /manager/search/query with all optional fields populated: query 'car parked at intersection', tags 'outdoor,night', timeFilter with value=7, unit='days', and source='quick'. Show the exact curl request, the full expected JSON response shape including every aggregation_stats field, and explain what each aggregation_stats field means.",
-      "expected_output": "A curl command that fills all fields, the complete response schema with aggregation_stats, and a description of every aggregation_stats field.",
-      "files": ["references/api-lifecycle.md"],
+      "prompt_file": "example-prompts/05-integration-test-lifecycle.md",
+      "prompt": "I'm adding an integration test to our CI suite for VSS. It needs to upload `./fixtures/sample.mp4`, start a summarization job with a 30-second chunk duration, wait for the pipeline to finish (up to a reasonable timeout), and then assert that the returned summary text is non-empty and that `videoSummaryStatus` equals \"complete\". Can you write this as a Python test function?",
+      "expected_output": "A dependency-light Python integration test or equivalent smoke-test adaptation that checks health, uploads a fixture video, starts summarization, polls with a bounded timeout, and asserts on completed non-empty summary output.",
+      "files": [],
       "expectations": [
-        "Uses POST /manager/search/query (through nginx on port 12345) with Content-Type: application/json.",
-        "Request body contains query, tags as a comma-separated string, and timeFilter as a flat object with value, unit, and source.",
-        "Notes that tags is accepted but not forwarded to the search microservice in this one-off path, so tag filtering will not be applied to the results.",
-        "Response is a top-level object with a results array; each element contains query_id, results, and aggregation_stats.",
-        "Describes aggregation_stats fields: total_frame_matches (raw frame-level hits), segments_created, segments_after_filtering, final_results (capped at AGGREGATION_MAX_RESULTS default 20), processing_time_ms, segmentation_time_ms, scoring_time_ms, filtering_time_ms, and formatting_time_ms.",
-        "Mentions the two alternative aggregation_stats shapes: aggregation disabled ({aggregation_enabled:false, frame_count:N}) and aggregation failed ({aggregation_failed:true, error:'...', fallback_frame_count:N}).",
-        "Points to result metadata fields segment_start, segment_end, seek_timestamp, relevance_score, and video_id as the key fields for locating a match in a video."
+        "Runs the documented lifecycle in order: GET /manager/health, POST /manager/videos, POST /manager/summary, then GET /manager/summary/{stateId}.",
+        "Uploads ./fixtures/sample.mp4 as multipart/form-data field 'video' and captures videoId from the response.",
+        "Starts summarization with chunkDuration=30 and a valid sampling plus evam.evamPipeline='video_ingestion' payload, capturing summaryPipelineId/stateId.",
+        "Uses a bounded polling loop that fails or raises on timeout instead of hanging indefinitely.",
+        "Asserts that videoSummaryStatus equals 'complete' and summary is a non-empty string."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt_file": "example-prompts/06-watched-search-query-lifecycle.md",
+      "prompt": "I want to set up a search query for \"unattended bag\" through the Pipeline Manager (not the raw search microservice), turn on watch mode so it re-checks automatically, and later manually refetch it with an updated time filter of the last 6 hours. What are the API calls for creating it, enabling watch, and refetching?",
+      "expected_output": "A complete managed search workflow that creates a saved Pipeline Manager query, enables watch mode, refetches it with a new six-hour time filter, and distinguishes this flow from one-off or direct search-ms requests.",
+      "files": [],
+      "expectations": [
+        "Uses POST /manager/search through http://localhost:12345/manager to create the saved query and captures the top-level queryId from the 201 response.",
+        "Uses the managed SearchQueryDTO shape with query 'unattended bag' and a flat timeFilter object when a time filter is supplied.",
+        "Enables watch mode with PATCH /manager/search/{queryId}/watch and body {\"watch\": true}.",
+        "Refetches with POST /manager/search/{queryId}/refetch and body {\"timeFilter\": {\"value\": 6, \"unit\": \"hours\"}}.",
+        "Mentions GET /manager/search/{queryId} for current state and GET /manager/search/watched for listing watched queries."
+      ]
+    },
+    {
+      "id": 90,
+      "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
+      "prompt": "I just uploaded a video to VSS and generated its search embeddings. Now I want to run a natural language query like \"person entering through the side door\" against `/search/query`, restrict results to clips tagged \"warehouse\", and only look within the last 24 hours. Can you show me the exact request body and how to read the ranked clip results from the response?",
+      "expected_output": "Before answering the search question, the response unconditionally runs the skill's bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at the official VSS repo or a fork of it and reuses that checkout if so, or otherwise performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main; it then cd's into the resolved app root before giving the /search/query request body and result-reading guidance.",
+      "files": [],
+      "expectations": [
+        "The response runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) as a first step before addressing the requested search query task, even though the prompt never asked about setup, location, or cloning.",
+        "The bootstrap step determines whether the current location is already a valid clone/checkout (or a fork) of the VSS project by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, checking origin/upstream URLs) for a match to the official VSS repo (open-edge-platform/edge-ai-libraries) or a fork of it, rather than merely checking for local marker files.",
+        "If that remote check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the response reuses it and performs NO re-clone.",
+        "If no valid checkout or matching remote is found, the response performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the main branch.",
+        "The response changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's real commands for the search query task."
       ]
     }
   ]

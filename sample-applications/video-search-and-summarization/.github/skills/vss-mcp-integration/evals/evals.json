@@ -2,8 +2,11 @@
   "skill_name": "vss-mcp-integration",
   "evals": [
     {
-      "id": "start-and-connect-claude-desktop",
-      "prompt": "How do I start the VSS MCP server and connect Claude Desktop to it?",
+      "id": 1,
+      "prompt_file": "example-prompts/01-start-and-connect-claude.md",
+      "prompt": "I already have VSS deployed in search mode and reachable at `http://10.10.1.20:12345`. I want to stand up the MCP server from the `mcp/` folder so Claude Desktop can call the VSS search tools. Walk me through starting it with Docker Compose and tell me exactly what URL and transport I should configure in Claude Desktop.",
+      "expected_output": "Explains how to start the VSS MCP server from the mcp/ directory with Docker Compose, configure .env for the VSS backend and MCP host, and connect Claude Desktop or MCP Inspector using Streamable HTTP at http://<HOST_IP>:8000/mcp.",
+      "files": [],
       "expectations": [
         "Mentions the real run flow from sample-applications/video-search-and-summarization/mcp: cd into mcp/, copy .env.example to .env, set VSS_IP and HOST_IP, then run docker compose up --build -d from compose.yaml.",
         "References the actual connection endpoint http://<HOST_IP>:8000/mcp with Streamable HTTP, rather than inventing a stdio-only setup.",
@@ -13,25 +16,87 @@
       ]
     },
     {
-      "id": "add-vss-endpoint-as-tool",
-      "prompt": "I want to expose an additional VSS endpoint as an MCP tool - what do I change in search.json and filters/config.py?",
+      "id": 2,
+      "prompt_file": "example-prompts/02-add-endpoint-as-tool.md",
+      "prompt": "The VSS OpenAPI spec has a `DELETE /tags/{tagId}` endpoint that isn't reachable from my MCP client yet \u2014 wait, actually I need `GET /videos/{videoId}` to also come back as a distinct tool named `fetch_single_video` instead of the default. How do I add that entry to `search.json` correctly so it doesn't get silently excluded?",
+      "expected_output": "Shows how to add an exact GET /videos/{videoId} entry under apis in mcp/search.json as a tool named fetch_single_video, explains the final vss_fetch_single_video name and validation rules, and tells the user to restart the MCP server.",
+      "files": [],
       "expectations": [
-        "Explains that the primary change is adding an exact \"METHOD /path\" entry under apis in mcp/search.json with type: \"tool\", a valid identifier name, and optional description; for example POST /search/query or another real OpenAPI route.",
+        "Explains that the primary change is adding an exact \"METHOD /path\" entry under apis in mcp/search.json with type: \"tool\", a valid identifier name, and optional description; for this prompt, the key must be \"GET /videos/{videoId}\" and the name \"fetch_single_video\".",
         "References the real validation behavior in mcp/src/filters/config.py: only tool/resource are allowed, names must be identifiers, wildcards are rejected, duplicate names are rejected, and resources must be GET-only.",
         "States that operations not listed in search.json are excluded by the allow-list route mapping, so the method/path must exactly match the live OpenAPI spec, including path params such as {videoId}.",
         "Notes that src/server.py does not need a hand-written tool implementation because create_mcp() loads the filter, fetches API_SPEC_URL, and calls FastMCP.from_openapi(...) with build_mcp_names/build_route_map_fn/build_component_fn.",
-        "Mentions restarting the MCP server after editing the filter, and if using a custom filter path with compose.yaml, also updating FILTER_FILE_PATH and the matching volume mount instead of assuming the container sees the new file automatically."
+        "Mentions restarting the MCP server after editing the filter because the spec and filter are read at startup."
       ]
     },
     {
-      "id": "debug-missing-mcp-tool",
-      "prompt": "My MCP tool isn't showing up in my AI agent's tool list even though I added it to the spec - what should I check?",
+      "id": 3,
+      "prompt_file": "example-prompts/03-custom-filter-compose-mount.md",
+      "prompt": "I want a leaner MCP surface for a demo: only `GET /app/features` as a resource and `POST /search/query` as a tool, under server name `vss_search_mcp` and prefix `vss`. I'll call the file `mcp/my-search-filter.json`. Since I'm running via `docker compose up`, what else besides `FILTER_FILE_PATH` do I need to change so the container actually sees this file?",
+      "expected_output": "Provides a valid custom filter for GET /app/features as a resource and POST /search/query as a tool, then explains that Docker Compose must both set FILTER_FILE_PATH and mount the new file into the container.",
+      "files": [],
+      "expectations": [
+        "Shows a filter JSON using server_name \"vss_search_mcp\", prefix \"vss\", and exact apis entries for \"GET /app/features\" as a resource named app_features and \"POST /search/query\" as a tool named run_search_query.",
+        "Explains that mcp/compose.yaml only mounts ./search.json to /app/search.json by default, so setting FILTER_FILE_PATH=/app/my-search-filter.json alone is not enough.",
+        "Instructs the user to add a matching read-only volume mount such as ./my-search-filter.json:/app/my-search-filter.json:ro or use an override file, alongside updating FILTER_FILE_PATH.",
+        "Mentions that server_name and prefix are normalized and must be valid identifiers, and that final component names use the prefix, such as vss_app_features and vss_run_search_query.",
+        "Tells the user to restart or rerun docker compose up --build -d and verify with MCP Inspector or LOG_LEVEL=DEBUG logs."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt_file": "example-prompts/04-debug-missing-tool.md",
+      "prompt": "I added `\"GET /videos/{id}\": {\"type\": \"tool\", \"name\": \"get_video\"}` to `search.json`, restarted the MCP server, and reconnected in MCP Inspector, but `vss_get_video` still doesn't show up. The container logs don't show any errors either. What am I missing?",
+      "expected_output": "Diagnoses the missing tool as an exact method/path mismatch: the filter uses GET /videos/{id} but the live OpenAPI route is GET /videos/{videoId}; tells the user to fix the key, restart, and verify with DEBUG mapping logs or MCP Inspector.",
+      "files": [],
       "expectations": [
         "Checks the real silent-drop path: mcp/src/openapi/mapping.py returns MCPType.EXCLUDE for routes absent from the filter, so adding an endpoint to the upstream spec alone is not enough without a matching search.json entry.",
         "Tells the user to compare the filter key to the live OpenAPI method/path exactly, including parameter names such as GET /videos/{videoId} versus GET /videos/{id}, because filters/config.py normalizes spacing/case but not path semantics.",
         "Mentions config and filesystem issues grounded in src/core/config.py and compose.yaml: API_SPEC_URL and API_BASE_URL must be correct, FILTER_FILE_PATH must exist inside the process/container, and compose.yaml only mounts ./search.json to /app/search.json by default.",
         "Calls out FastMCP naming behavior from src/server.py and mcp/src/openapi/mapping.py: build_mcp_names() only renames routes that both exist in the filter and have an OpenAPI operationId, so missing operationId can affect the expected tool name.",
         "Includes concrete debugging steps from the skill docs such as setting LOG_LEVEL=DEBUG to see [exclude]/[tool]/[resource] logs, remembering non-GET resources are invalid, rejecting stale fields like expose/tool_name/resource_name, and noting POST /videos is intentionally not exposed."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt_file": "example-prompts/05-local-poetry-run.md",
+      "prompt": "I'm developing against `mcp/src` directly and don't want to rebuild a Docker image every time. VSS is running at `192.168.1.50:12345` in search mode. How do I run the MCP server locally with Poetry, and which environment variables do I actually need to set by hand since I'm skipping `.env`?",
+      "expected_output": "Gives the local Poetry run flow for mcp-app with API_SPEC_URL, API_BASE_URL, and FILTER_FILE_PATH set explicitly for a VSS backend at 192.168.1.50:12345, plus optional MCP host/port/path settings and the Streamable HTTP test URL.",
+      "files": [],
+      "expectations": [
+        "States that API_SPEC_URL, API_BASE_URL, and FILTER_FILE_PATH are required by mcp/src/core/config.py and have no usable defaults for a local run.",
+        "Provides commands from the mcp/ directory including poetry install and poetry run mcp-app with API_SPEC_URL=http://192.168.1.50:12345/manager/swagger/json, API_BASE_URL=http://192.168.1.50:12345/manager, and FILTER_FILE_PATH=\"$PWD/search.json\".",
+        "Explains that mcp-app maps to src.main:main, which runs FastMCP with streamable-http using MCP_HOST, MCP_PORT, MCP_PATH, stateless_http, and log_level settings.",
+        "Mentions optional defaults such as MCP_HOST=0.0.0.0, MCP_PORT=8000, MCP_PATH=/mcp, REQUEST_TIMEOUT=60, MCP_STATELESS_HTTP=true, and LOG_LEVEL.",
+        "Gives the local connection URL such as http://localhost:8000/mcp for MCP Inspector or an agent client."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt_file": "example-prompts/06-upload-endpoint-not-exposed.md",
+      "prompt": "I tried adding `\"POST /videos\": {\"type\": \"resource\", \"name\": \"upload_video\"}` to `search.json` so my agent could upload videos through MCP, but the server won't even start now \u2014 it just errors out. Is this a bug in my JSON, or is video upload just not supported over MCP?",
+      "expected_output": "Explains that the immediate startup error comes from configuring a POST endpoint as a resource, because resources must be GET-only, and that POST /videos is intentionally absent from the bundled MCP filter because uploads should use the VSS REST API directly.",
+      "files": [],
+      "expectations": [
+        "Identifies the validation failure from mcp/src/filters/config.py: type \"resource\" is only valid for GET endpoints, so POST /videos as a resource prevents startup.",
+        "Explains that changing the entry to type \"tool\" may satisfy the filter schema, but POST /videos is intentionally not exposed in the bundled search.json because upload is a long-running multipart operation.",
+        "Recommends reverting or removing the invalid search.json entry so the MCP server can start again.",
+        "Directs uploads through the VSS REST API directly, while using MCP for read/search/indexing endpoints such as vss_get_all_videos, vss_create_video_search_embeddings, or vss_run_search_query.",
+        "Suggests upload-adjacent MCP alternatives grounded in the docs, such as exposing GET /videos/{videoId} as a tool or resource if needed."
+      ]
+    },
+    {
+      "id": 90,
+      "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
+      "prompt": "I want my LangChain agent to browse VSS search results as read-only resources instead of invoking them as tools, specifically for `GET /videos` and `GET /tags`. How do I mark those two entries as resources in `search.json`, and will my agent still be able to filter by tag once they're exposed that way?",
+      "expected_output": "Runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) unconditionally as a first step before touching search.json, even though the prompt never mentioned setup or location. The helper checks the enclosing git repository's remote configuration to see if it already points at the official VSS repo (or a fork of it) and reuses that checkout with no re-clone if so; otherwise it performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before editing search.json.",
+      "files": [],
+      "expectations": [
+        "The answer runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) as an unconditional first step, before making the requested search.json changes, even though the prompt never asked about setup, location, or cloning.",
+        "The bootstrap check determines whether the current location is already a valid VSS checkout by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v` / the origin or upstream URL) to see if it points at the official open-edge-platform/edge-ai-libraries repo or a fork of it - not merely by checking for local marker files or directories.",
+        "If that remote check finds a valid existing checkout (the user's own clone, or a fork whose remote traces back to the official repo), the answer states it is reused and NO re-clone is performed.",
+        "If no valid checkout or matching remote is found, the answer performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the main branch, rather than a full-history, all-branches, or full-repo clone.",
+        "The answer changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's real commands for the requested search.json task."
       ]
     }
   ]
