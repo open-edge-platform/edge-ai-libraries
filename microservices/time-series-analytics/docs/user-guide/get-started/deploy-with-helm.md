@@ -23,10 +23,10 @@
 
     1. Download the Helm chart with the following command
 
+       Replace `<date>` with the actual patch version date (e.g., `20260120` for January 20th, 2026).
+
         `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.2.0-<date>-weekly-helm`
 
-        Replace `<date>` with the actual patch version date (e.g., `20260120` for January 20th, 2026).
-    `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.2.0-<date>-weekly-helm`
 
     2. Extract the package using the following command
 
