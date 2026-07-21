@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """MinIO object-storage helper for the VSS-compatibility endpoints.
 
 This is only used by ``POST /transcriptions`` (see api/custom_endpoints.py)
