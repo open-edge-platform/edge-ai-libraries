@@ -456,7 +456,7 @@ async def export_benchmark_suite_run_csv(
     run_id: int,
     session: AsyncSession = Depends(get_session),
 ):
-    """Export one suite run by id as a CSV with workload and test-case sections."""
+    """Export one suite run by id as a CSV with run metadata and workload sections."""
     try:
         suite = await session.scalar(
             select(BenchmarkSuite).where(BenchmarkSuite.slug == suite_slug)
@@ -533,6 +533,15 @@ async def export_benchmark_suite_run_csv(
         output = io.StringIO()
         writer = csv.writer(output)
 
+        writer.writerow(["suite_name", "start_time", "id", "status"])
+        writer.writerow([
+            suite.name,
+            suite_run.start_time,
+            suite_run.id,
+            suite_run.status,
+        ])
+        writer.writerow([])
+
         workload_header = [
             "pipeline_name",
             "overall_score",
@@ -597,8 +606,8 @@ async def export_benchmark_suite_run_csv(
                         test_row.per_stream_fps,
                         test_row.cpu_usage,
                         test_row.gpu_usage,
-                        "",
-                        "",
+                        test_row.npu_usage,
+                        test_row.media_usage,
                         test_row.memory_usage,
                         test_row.power_usage,
                         status.value,
@@ -758,6 +767,8 @@ async def get_benchmark_suite_run_by_id(
                     ),
                     cpu_usage=row.cpu_usage,
                     gpu_usage=row.gpu_usage,
+                    npu_usage=row.npu_usage,
+                    media_usage=row.media_usage,
                     memory_usage=row.memory_usage,
                     power_usage=row.power_usage,
                     metrics=row.metrics,
@@ -992,6 +1003,8 @@ async def get_benchmark_test_run_by_id(
             ),
             cpu_usage=test_case_run.cpu_usage,
             gpu_usage=test_case_run.gpu_usage,
+            npu_usage=test_case_run.npu_usage,
+            media_usage=test_case_run.media_usage,
             memory_usage=test_case_run.memory_usage,
             power_usage=test_case_run.power_usage,
             metrics=test_case_run.metrics,

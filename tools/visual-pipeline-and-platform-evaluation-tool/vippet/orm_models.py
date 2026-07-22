@@ -121,6 +121,8 @@ class BenchmarkTestCaseRun(Base):
     per_stream_fps: Mapped[float | None] = mapped_column(Float, nullable=True)
     cpu_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
     gpu_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    npu_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    media_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
     memory_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
     power_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
     metrics: Mapped[str | None] = mapped_column(Text, nullable=True)

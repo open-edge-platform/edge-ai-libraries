@@ -86,18 +86,24 @@ class BenchmarkManager:
 
     @staticmethod
     def _parse_metrics_text(metrics_text: str | None) -> list[dict]:
+        logger = logging.getLogger(__name__)
         if not metrics_text:
+            logger.warning("_parse_metrics_text: metrics_text is None or empty")
             return []
 
         try:
             parsed = json.loads(metrics_text)
-        except Exception:
+        except Exception as e:
+            logger.error(f"_parse_metrics_text: Failed to parse JSON: {e}")
             return []
 
         if not isinstance(parsed, list):
+            logger.warning(f"_parse_metrics_text: Expected list, got {type(parsed)}")
             return []
 
-        return [item for item in parsed if isinstance(item, dict)]
+        result = [item for item in parsed if isinstance(item, dict)]
+        logger.debug(f"_parse_metrics_text: Parsed {len(result)} dict items from {len(parsed)} total items")
+        return result
 
     @staticmethod
     def _get_metric_values_from_parsed_metrics(
@@ -133,14 +139,19 @@ class BenchmarkManager:
 
     @staticmethod
     def _trim_metric_edge_values(values: list[float]) -> list[float]:
+        logger = logging.getLogger(__name__)
         if not values:
+            logger.debug("_trim_metric_edge_values: Empty values list")
             return []
 
         trim_count = int(len(values) * 0.1)
         if trim_count == 0 or trim_count * 2 >= len(values):
+            logger.debug(f"_trim_metric_edge_values: Not trimming (len={len(values)}, trim_count={trim_count})")
             return values
 
-        return values[trim_count:-trim_count]
+        trimmed = values[trim_count:-trim_count]
+        logger.debug(f"_trim_metric_edge_values: Trimmed {trim_count} items from each end (before={len(values)}, after={len(trimmed)})")
+        return trimmed
 
     @classmethod
     def _get_average_metric_from_parsed_metrics(
@@ -154,11 +165,86 @@ class BenchmarkManager:
             return None
         return sum(trimmed_values) / len(trimmed_values)
 
+    # TODO: maybe better would be to iterate over metrics and process them based on their name, instead of haveing separate methods that iterate over metrics again.
     @classmethod
     def get_cpu_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
         return cls._get_average_metric_from_parsed_metrics(
             parsed_metrics, metric_name="cpu_usage_user"
         )
+
+    @classmethod
+    def get_gpu_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
+        primary_values: list[float] = []
+        fallback_values: list[float] = []
+
+        for event in parsed_metrics:
+            metrics = event.get("metrics")
+            if isinstance(metrics, list):
+                metric_entries = metrics
+            elif event.get("name") == "gpu_engine_usage_usage":
+                metric_entries = [event]
+            else:
+                continue
+
+            for metric in metric_entries:
+                if (
+                    not isinstance(metric, dict)
+                    or metric.get("name") != "gpu_engine_usage_usage"
+                ):
+                    continue
+
+                labels = metric.get("labels")
+                engine = metric.get("engine")
+                engine_label = None
+
+                if isinstance(labels, dict):
+                    engine_label = labels.get("engine") or labels.get("engine.labels")
+
+                if engine_label is None and isinstance(engine, dict):
+                    engine_label = engine.get("labels")
+
+                fields = metric.get("fields")
+                raw_value = None
+                if isinstance(fields, dict):
+                    if "value" in fields:
+                        raw_value = fields.get("value")
+                    elif "gpu_engine_usage_usage" in fields:
+                        raw_value = fields.get("gpu_engine_usage_usage")
+                    elif len(fields) == 1:
+                        raw_value = next(iter(fields.values()))
+                elif "value" in metric:
+                    raw_value = metric.get("value")
+
+                if not isinstance(raw_value, (int, float)):
+                    continue
+
+                value = float(raw_value)
+                if engine_label in {"compute", "ccs"}:
+                    primary_values.append(value)
+                elif engine_label in {"render", "rcs"}:
+                    fallback_values.append(value)
+
+        # Phase 1: select the set with the most non-zero values.
+        # Break ties by preferring compute/ccs over render/rcs.
+        nonzero_primary_count = sum(1 for v in primary_values if v > 0)
+        nonzero_fallback_count = sum(1 for v in fallback_values if v > 0)
+        if nonzero_primary_count >= nonzero_fallback_count and nonzero_primary_count > 0:
+            selected_values = primary_values
+        elif nonzero_fallback_count > 0:
+            selected_values = fallback_values
+        else:
+            selected_values = primary_values or fallback_values
+
+        # Phase 2: calculate the average from the selected set.
+        trimmed_values = cls._trim_metric_edge_values(selected_values)
+        if not trimmed_values:
+            return None
+        return sum(trimmed_values) / len(trimmed_values)
+
+    @classmethod
+    def get_gpu_usage_from_metrics_text(cls, metrics_text: str | None) -> float | None:
+        parsed_metrics = cls._parse_metrics_text(metrics_text)
+        return cls.get_gpu_usage_from_parsed_metrics(parsed_metrics)
 
     @classmethod
     def get_mem_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
@@ -167,14 +253,135 @@ class BenchmarkManager:
         )
 
     @classmethod
-    def get_cpu_usage_from_metrics(cls, metrics_text: str | None) -> float | None:
-        parsed_metrics = cls._parse_metrics_text(metrics_text)
-        return cls.get_cpu_usage_from_parsed_metrics(parsed_metrics)
+    def get_npu_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
+        return cls._get_average_metric_from_parsed_metrics(
+            parsed_metrics, metric_name="npu_utilization"
+        )
 
     @classmethod
-    def get_mem_usage_from_metrics(cls, metrics_text: str | None) -> float | None:
+    def get_npu_usage_from_metrics_text(cls, metrics_text: str | None) -> float | None:
         parsed_metrics = cls._parse_metrics_text(metrics_text)
-        return cls.get_mem_usage_from_parsed_metrics(parsed_metrics)
+        return cls.get_npu_usage_from_parsed_metrics(parsed_metrics)
+
+    @classmethod
+    def get_media_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
+        # Media usage groups samples by supported media engine labels and returns
+        # the highest trimmed average because different platforms can report the
+        # same workload under different engine buckets.
+        video_values: list[float] = []
+        vcs_values: list[float] = []
+        video_enhance_values: list[float] = []
+        vecs_values: list[float] = []
+
+        for event in parsed_metrics:
+            if not isinstance(event, dict):
+                continue
+
+            metrics = event.get("metrics")
+            if isinstance(metrics, list):
+                metric_entries = metrics
+            elif event.get("name") == "gpu_engine_usage_usage":
+                metric_entries = [event]
+            else:
+                continue
+
+            for metric in metric_entries:
+                if (
+                    not isinstance(metric, dict)
+                    or metric.get("name") != "gpu_engine_usage_usage"
+                ):
+                    continue
+
+                labels = metric.get("labels")
+                engine = metric.get("engine")
+                engine_label = None
+
+                if isinstance(labels, dict):
+                    engine_label = labels.get("engine") or labels.get("engine.labels")
+
+                if engine_label is None and isinstance(engine, dict):
+                    engine_label = engine.get("labels")
+
+                fields = metric.get("fields")
+                raw_value = None
+                if isinstance(fields, dict):
+                    if "value" in fields:
+                        raw_value = fields.get("value")
+                    elif "gpu_engine_usage_usage" in fields:
+                        raw_value = fields.get("gpu_engine_usage_usage")
+                    elif len(fields) == 1:
+                        raw_value = next(iter(fields.values()))
+                elif "value" in metric:
+                    raw_value = metric.get("value")
+
+                if not isinstance(raw_value, (int, float)):
+                    continue
+
+                value = float(raw_value)
+
+                if engine_label == "video":
+                    video_values.append(value)
+                elif engine_label == "vcs":
+                    vcs_values.append(value)
+                elif engine_label == "video-enhance":
+                    video_enhance_values.append(value)
+                elif engine_label == "vecs":
+                    vecs_values.append(value)
+
+        def average(values: list[float]) -> float | None:
+            trimmed_values = cls._trim_metric_edge_values(values)
+            if not trimmed_values:
+                return None
+            avg = sum(trimmed_values) / len(trimmed_values)
+            return avg
+
+        video_avg = average(video_values)
+        vcs_avg = average(vcs_values)
+        video_enhance_avg = average(video_enhance_values)
+        vecs_avg = average(vecs_values)
+
+        averages = [avg for avg in [video_avg, vcs_avg, video_enhance_avg, vecs_avg] if avg is not None]
+        if not averages:
+            return None
+
+        return max(averages)
+
+    @classmethod
+    def get_power_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
+        values: list[float] = []
+
+        for event in parsed_metrics:
+            metrics = event.get("metrics")
+            if not isinstance(metrics, list):
+                continue
+
+            for metric in metrics:
+                if not isinstance(metric, dict) or metric.get("name") != "gpu_power":
+                    continue
+
+                labels = metric.get("labels")
+                if not isinstance(labels, dict) or labels.get("type") != "pkg_cur_power":
+                    continue
+
+                fields = metric.get("fields")
+                raw_value = None
+                if isinstance(fields, dict):
+                    if "value" in fields:
+                        raw_value = fields.get("value")
+                    elif "gpu_power" in fields:
+                        raw_value = fields.get("gpu_power")
+                    elif len(fields) == 1:
+                        raw_value = next(iter(fields.values()))
+                elif "value" in metric:
+                    raw_value = metric.get("value")
+
+                if isinstance(raw_value, (int, float)):
+                    values.append(float(raw_value))
+
+        trimmed_values = cls._trim_metric_edge_values(values)
+        if not trimmed_values:
+            return None
+        return sum(trimmed_values) / len(trimmed_values)
 
     def start_suite(self, suite_slug: str) -> str:
         job_id = self._generate_job_id()
@@ -524,7 +731,11 @@ class BenchmarkManager:
             test_case_run.total_fps = total_fps
             parsed_metrics = self._parse_metrics_text(metrics_text)
             test_case_run.cpu_usage = self.get_cpu_usage_from_parsed_metrics(parsed_metrics)
+            test_case_run.gpu_usage = self.get_gpu_usage_from_parsed_metrics(parsed_metrics)
+            test_case_run.npu_usage = self.get_npu_usage_from_parsed_metrics(parsed_metrics)
+            test_case_run.media_usage = self.get_media_usage_from_parsed_metrics(parsed_metrics)
             test_case_run.memory_usage = self.get_mem_usage_from_parsed_metrics(parsed_metrics)
+            test_case_run.power_usage = self.get_power_usage_from_parsed_metrics(parsed_metrics)
             if total_fps is not None and benchmark_test_case is not None and benchmark_test_case.streams > 0:
                 test_case_run.per_stream_fps = total_fps / benchmark_test_case.streams
             else:

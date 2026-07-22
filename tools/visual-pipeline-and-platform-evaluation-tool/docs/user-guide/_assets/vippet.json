@@ -326,7 +326,7 @@
           "benchmarks"
         ],
         "summary": "Export one benchmark suite run as CSV",
-        "description": "Export one suite run by id as a CSV with workload and test-case sections.",
+        "description": "Export one suite run by id as a CSV with run metadata and workload sections.",
         "operationId": "export_benchmark_suite_run_csv",
         "parameters": [
           {
@@ -4230,6 +4230,28 @@
             ],
             "title": "Gpu Usage"
           },
+          "npu_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Npu Usage"
+          },
+          "media_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Usage"
+          },
           "memory_usage": {
             "anyOf": [
               {
@@ -4284,6 +4306,8 @@
           "per_stream_fps",
           "cpu_usage",
           "gpu_usage",
+          "npu_usage",
+          "media_usage",
           "memory_usage",
           "power_usage",
           "metrics",
@@ -4381,6 +4405,28 @@
             ],
             "title": "Gpu Usage"
           },
+          "npu_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Npu Usage"
+          },
+          "media_usage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Usage"
+          },
           "memory_usage": {
             "anyOf": [
               {
@@ -4453,6 +4499,8 @@
           "per_stream_fps",
           "cpu_usage",
           "gpu_usage",
+          "npu_usage",
+          "media_usage",
           "memory_usage",
           "power_usage",
           "metrics",

@@ -1672,6 +1672,8 @@ class BenchmarkTestCaseRun(BaseModel):
     per_stream_fps: float | None
     cpu_usage: float | None
     gpu_usage: float | None
+    npu_usage: float | None
+    media_usage: float | None
     memory_usage: float | None
     power_usage: float | None
     metrics: str | None
