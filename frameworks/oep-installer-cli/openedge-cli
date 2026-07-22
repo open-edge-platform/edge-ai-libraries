@@ -182,8 +182,8 @@ subcommand_bootstrap () {
   if [[ "$*" = "--help" ]]; then
     echo "bootstrap options:"
     echo "  --dry-run              dry-run the bootstrap sequence."
-    echo "  --install=<component>  set default installation component."
-    echo "  --start=<component>    set default start component."
+    echo "  --install=<name>       set default installation component|profile."
+    echo "  --start=<name>         set default start component|profile."
     echo
     local profiles=($(ls -1 "$mydir/profile" | grep -E "^${ID_LIKE}_" | cut -f2- -d_))
     [ ${#profiles[*]} -eq 0 ] || echo "  list of bootstrap profiles: ${profiles[*]}"
