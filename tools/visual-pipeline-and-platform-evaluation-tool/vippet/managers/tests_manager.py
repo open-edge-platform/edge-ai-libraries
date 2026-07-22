@@ -3,6 +3,7 @@ import threading
 import time
 import uuid
 from typing import TypeVar
+
 from graph import Graph
 
 from internal_types import (
@@ -23,6 +24,11 @@ from internal_types import (
 )
 from pipeline_runner import LatencyTracerSample, PipelineRunner
 from benchmark import Benchmark
+from managers.execution_coordinator import (
+    ExecutionCoordinator,
+    ExecutionLease,
+    PIPELINE_EXECUTION_GROUP,
+)
 from managers.pipeline_manager import PipelineManager
 from managers.metadata_manager import MetadataManager
 from videos import collect_video_outputs_from_dirs
@@ -138,25 +144,36 @@ class TestsManager:
             Job ID of the created performance job.
         """
         job_id = self._generate_job_id()
-
-        # Create job record with original request dict from internal spec
-        job = InternalPerformanceJobStatus(
-            id=job_id,
-            request=internal_spec.original_request,
-            state=InternalTestJobState.RUNNING,
-            start_time=int(time.time() * 1000),  # milliseconds
+        execution_lease = ExecutionCoordinator().acquire(
+            job_id=job_id,
+            job_kind="performance",
+            groups=[PIPELINE_EXECUTION_GROUP],
         )
 
-        with self._jobs_lock:
-            self.jobs[job_id] = job
+        try:
+            # Create job record with original request dict from internal spec
+            job = InternalPerformanceJobStatus(
+                id=job_id,
+                request=internal_spec.original_request,
+                state=InternalTestJobState.RUNNING,
+                start_time=int(time.time() * 1000),  # milliseconds
+            )
 
-        # Start execution in background thread
-        thread = threading.Thread(
-            target=self._execute_performance_test,
-            args=(job_id, internal_spec),
-            daemon=True,
-        )
-        thread.start()
+            with self._jobs_lock:
+                self.jobs[job_id] = job
+
+            # Start execution in background thread
+            thread = threading.Thread(
+                target=self._execute_performance_test,
+                args=(job_id, internal_spec, execution_lease),
+                daemon=True,
+            )
+            thread.start()
+        except Exception:
+            with self._jobs_lock:
+                self.jobs.pop(job_id, None)
+            ExecutionCoordinator().release(execution_lease)
+            raise
 
         self.logger.info(f"Performance test started for job {job_id}")
 
@@ -181,25 +198,36 @@ class TestsManager:
             Job ID of the created density job.
         """
         job_id = self._generate_job_id()
-
-        # Create job record with original request dict from internal spec
-        job = InternalDensityJobStatus(
-            id=job_id,
-            request=internal_spec.original_request,
-            state=InternalTestJobState.RUNNING,
-            start_time=int(time.time() * 1000),  # milliseconds
+        execution_lease = ExecutionCoordinator().acquire(
+            job_id=job_id,
+            job_kind="density",
+            groups=[PIPELINE_EXECUTION_GROUP],
         )
 
-        with self._jobs_lock:
-            self.jobs[job_id] = job
+        try:
+            # Create job record with original request dict from internal spec
+            job = InternalDensityJobStatus(
+                id=job_id,
+                request=internal_spec.original_request,
+                state=InternalTestJobState.RUNNING,
+                start_time=int(time.time() * 1000),  # milliseconds
+            )
 
-        # Start execution in background thread
-        thread = threading.Thread(
-            target=self._execute_density_test,
-            args=(job_id, internal_spec),
-            daemon=True,
-        )
-        thread.start()
+            with self._jobs_lock:
+                self.jobs[job_id] = job
+
+            # Start execution in background thread
+            thread = threading.Thread(
+                target=self._execute_density_test,
+                args=(job_id, internal_spec, execution_lease),
+                daemon=True,
+            )
+            thread.start()
+        except Exception:
+            with self._jobs_lock:
+                self.jobs.pop(job_id, None)
+            ExecutionCoordinator().release(execution_lease)
+            raise
 
         self.logger.info(f"Density test started for job {job_id}")
 
@@ -343,6 +371,7 @@ class TestsManager:
         self,
         job_id: str,
         internal_spec: InternalPerformanceTestSpec,
+        execution_lease: ExecutionLease,
     ):
         """
         Execute the performance test in a background thread.
@@ -570,11 +599,14 @@ class TestsManager:
                 self.runners.pop(job_id, None)
             MetadataManager().stop_tailing(job_id)
             self._update_job_failed(job_id, str(e))
+        finally:
+            ExecutionCoordinator().release(execution_lease)
 
     def _execute_density_test(
         self,
         job_id: str,
         internal_spec: InternalDensityTestSpec,
+        execution_lease: ExecutionLease,
     ):
         """
         Execute the density test in a background thread.
@@ -682,6 +714,8 @@ class TestsManager:
             with self._jobs_lock:
                 self.runners.pop(job_id, None)
             self._update_job_failed(job_id, str(e))
+        finally:
+            ExecutionCoordinator().release(execution_lease)
 
     def _update_job_failed(self, job_id: str, detail_message: str) -> None:
         """
