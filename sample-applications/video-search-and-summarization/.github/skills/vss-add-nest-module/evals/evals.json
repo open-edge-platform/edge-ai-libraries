@@ -1,0 +1,103 @@
+{
+  "skill_name": "vss-add-nest-module",
+  "evals": [
+    {
+      "id": 1,
+      "prompt_file": "example-prompts/01-scaffold-basic-module.md",
+      "prompt": "I want to add a new `health-report` feature to the VSS pipeline-manager. It should expose a `GET /health-report` endpoint that returns a simple status object with `uptimeSeconds` and `videoCount` fields. No database persistence needed - just scaffold the module, controller, and service the way this repo already does it.",
+      "expected_output": "Scaffold a REST-only health-report feature using the VSS pipeline-manager module/controller/service/model layout, with thin Swagger-decorated controller methods, no TypeORM or queue wiring, root AppModule registration, and existing pipeline-manager validation commands.",
+      "files": [],
+      "expectations": [
+        "Runs the bundled scripts/vss-bootstrap.sh first to resolve APP_ROOT and changes into the VSS app root before working under pipeline-manager.",
+        "Creates src/health-report/health-report.module.ts plus controllers/health-report.controller.ts, services/health-report.service.ts, and models/health-report.model.ts following the feature layout described by the skill.",
+        "Keeps the controller thin with constructor-injected HealthReportService using the repo's $name dependency style and Swagger decorators such as @ApiTags and @ApiOperation.",
+        "Registers HealthReportModule in pipeline-manager/src/app.module.ts and does not add TypeOrmModule.forFeature, an entity, or a queue because the prompt says no persistence is needed.",
+        "Validates from pipeline-manager with the existing commands npm run build, npm test -- --runInBand, and npm run lint."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt_file": "example-prompts/02-add-endpoint-existing-style.md",
+      "prompt": "We need a new `/manager/clips` endpoint in pipeline-manager that lets clients request a short clip around a timestamp for an already-uploaded video. Scaffold the NestJS module, a thin controller, and a service layer for it, and have it inject `VideoService` from `VideoUploadModule` the same way `SummaryModule` does.",
+      "expected_output": "Scaffold a clips endpoint/module that reuses existing video-upload services through Nest module imports/exports, following the SummaryModule-to-VideoUploadModule dependency injection pattern and registering the feature in AppModule.",
+      "files": [],
+      "expectations": [
+        "Runs scripts/vss-bootstrap.sh to resolve APP_ROOT and inspects the existing SummaryModule/VideoUploadModule pattern before creating the clips module.",
+        "Creates src/clips/clips.module.ts, controllers/clips.controller.ts, services/clips.service.ts, and models/clips.model.ts using the repo's feature-module layout.",
+        "Imports VideoUploadModule in ClipsModule so ClipsService can constructor-inject VideoService instead of constructing it manually.",
+        "Adds a thin Swagger-tagged ClipsController route such as @Post('') or @Get(':videoId') with a request DTO in models/clips.model.ts.",
+        "Registers ClipsModule in src/app.module.ts and avoids adding a TypeORM entity because the feature only reads existing video metadata."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt_file": "example-prompts/03-typeorm-persisted-module.md",
+      "prompt": "Add a `notifications` module to pipeline-manager. It needs a controller, a service, a TypeORM entity called `NotificationEntity` (fields: `dbId`, `stateId`, `message`, `read` boolean), and a `NotificationsDbService` for repository access, following the same pattern `search/search.module.ts` uses for `SearchEntity`.",
+      "expected_output": "Scaffold a persisted notifications feature with a NotificationEntity, repository-backed DB service, TypeOrmModule.forFeature wiring in the feature module, and root TypeORM entity/AppModule registration.",
+      "files": [],
+      "expectations": [
+        "Uses search/search.module.ts and the SearchEntity/SearchDbService pattern as the concrete TypeORM reference for the new notifications feature.",
+        "Creates NotificationEntity under src/notifications/models with @Entity('notifications'), a generated dbId primary key, and columns for stateId, message, and read with a default false value.",
+        "Creates NotificationsDbService that injects @InjectRepository(NotificationEntity) and exposes repository access methods such as create and read/list.",
+        "Adds TypeOrmModule.forFeature([NotificationEntity]) to notifications.module.ts providers/imports wiring along with NotificationsService and NotificationsController.",
+        "Updates src/app.module.ts to import NotificationsModule and add NotificationEntity to the root TypeOrmModule.forRoot({ entities: [...] }) list."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt_file": "example-prompts/04-queue-background-processor.md",
+      "prompt": "How do I scaffold a `keyframe-extraction` module in pipeline-manager that listens on `AppEvents.FAST_TICK` and processes queued items the way `SummaryQueueService` does? It should enqueue work when a new `PipelineEvents.CHUNKING_COMPLETE` event fires, keep `waiting`/`processing` arrays, and emit a `keyframe.extraction.complete` event when done.",
+      "expected_output": "Scaffold an event-driven keyframe-extraction queue processor using the repo's waiting/processing array pattern, @OnEvent handlers, AppEvents.FAST_TICK processing, central PipelineEvents enum updates, and module/AppModule registration.",
+      "files": [],
+      "expectations": [
+        "Re-reads the state-manager queue services, especially the SummaryQueueService pattern, before creating the keyframe-extraction queue service.",
+        "Creates src/keyframe-extraction/keyframe-extraction.module.ts plus service, queue, and model files using the repo's feature/queues layout.",
+        "Defines waiting and processing arrays, enqueues on @OnEvent(PipelineEvents.CHUNKING_COMPLETE), and processes work from @OnEvent(AppEvents.FAST_TICK).",
+        "Adds a dot-delimited keyframe completion event in src/events/Pipeline.events.ts and emits it through the injected EventEmitter2 rather than a raw string.",
+        "Registers KeyframeExtractionQueueService as a provider and imports KeyframeExtractionModule in src/app.module.ts."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt_file": "example-prompts/05-socket-and-events-module.md",
+      "prompt": "Extend the VSS orchestrator with a `transcription-review` module. As review progress changes it should emit a socket event so the UI updates live - add a new value to `src/events/socket.events.ts`, emit it from the service, and add the corresponding `@OnEvent` handler in `sockets/events.gateway.ts` that broadcasts `transcription-review:update` to clients, following the pattern used for `SocketEvent.SEARCH_UPDATE`.",
+      "expected_output": "Wire a transcription-review feature so services emit a central SocketEvent and EventsGateway translates it to Socket.IO updates, without duplicating the root EventEmitterModule configuration.",
+      "files": [],
+      "expectations": [
+        "Reads src/events/socket.events.ts and sockets/events.gateway.ts to mirror the existing SocketEvent.SEARCH_UPDATE and state-room update patterns.",
+        "Creates the transcription-review module, controller, service, and model files using the standard pipeline-manager feature layout.",
+        "Adds a TRANSCRIPTION_REVIEW_UPDATE value to src/events/socket.events.ts and emits it from TranscriptionReviewService through the injected event emitter with stateId/payload data.",
+        "Adds an @OnEvent(SocketEvent.TRANSCRIPTION_REVIEW_UPDATE) handler in EventsGateway that emits a transcription-review Socket.IO event, using a state room when appropriate.",
+        "Registers TranscriptionReviewModule in src/app.module.ts while keeping EventEmitterModule.forRoot configured only once in root wiring."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt_file": "example-prompts/06-full-feature-with-dependencies.md",
+      "prompt": "We're adding a full `recommendations` capability to pipeline-manager: a REST module with request/response DTOs and Swagger decorators, a TypeORM entity for storing generated recommendations, a queue service that processes recommendation jobs on `AppEvents.FAST_TICK`, and it should import `VideoUploadModule` and `StateManagerModule` via DI to reuse `VideoService` and `StateService`. It also needs a new config key under `recommendations.maxConcurrent` read through `ConfigService`. Please scaffold this the real VSS way, not generic NestJS boilerplate.",
+      "expected_output": "Scaffold a complete recommendations feature with DTOs/controllers, TypeORM persistence, queue processing on AppEvents.FAST_TICK, DI imports for VideoUploadModule and StateManagerModule, centralized configuration, and AppModule/root entity wiring.",
+      "files": [],
+      "expectations": [
+        "Re-reads summary, search, and state-manager/queues as concrete references before scaffolding src/recommendations from the module-template layout.",
+        "Defines RecommendationEntity and RecommendationsDbService following the SearchEntity/SearchDbService pattern, with TypeOrmModule.forFeature([RecommendationEntity]) in RecommendationsModule.",
+        "Imports VideoUploadModule and StateManagerModule so RecommendationsService can constructor-inject VideoService and StateService through Nest DI.",
+        "Implements RecommendationsQueueService with waiting/processing arrays, an @OnEvent trigger, @OnEvent(AppEvents.FAST_TICK) processing, and completion event emission via EventEmitter2.",
+        "Adds recommendations.maxConcurrent in src/config/configuration.ts, reads it with ConfigService dot-path access, registers RecommendationsModule in src/app.module.ts, and adds RecommendationEntity to the root entities list."
+      ]
+    },
+    {
+      "id": 90,
+      "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
+      "prompt": "Add a `watchlist` module to pipeline-manager. It should let clients flag a video for follow-up review, with a controller exposing `POST /watchlist/:videoId` and `GET /watchlist`, a service layer, and a TypeORM entity called `WatchlistEntity` (fields: `dbId`, `videoId`, `reason`, `createdAt`) persisted through a `WatchlistDbService`, following the same repository pattern `search/search.module.ts` uses for `SearchEntity`.",
+      "expected_output": "Even though the request never mentions setup, environment, or cloning, the skill first runs its bundled scripts/vss-bootstrap.sh to resolve the VSS app root: it checks the enclosing git repository's remote (origin/upstream) to see if it already points at open-edge-platform/edge-ai-libraries or a fork of it, reusing that checkout with no re-clone if so, or otherwise performing a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before scaffolding the watchlist module.",
+      "files": [],
+      "expectations": [
+        "Even though the prompt only asks to scaffold the watchlist module and never mentions setup, location, or cloning, the answer unconditionally runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) first, before doing any of the requested scaffolding work.",
+        "The bootstrap check determines whether the current location is already a valid clone/checkout (or a fork) of the VSS project by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, origin/upstream URL) to see if it points at the official open-edge-platform/edge-ai-libraries repo or a fork of it - not merely by checking for local marker files or directory names.",
+        "If that remote check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the answer reuses it and performs NO re-clone.",
+        "If no valid checkout/remote is found, the answer performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the main branch, rather than a full-history, all-branches, or full-repo clone.",
+        "The answer changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's real commands to scaffold the watchlist module."
+      ]
+    }
+  ]
+}

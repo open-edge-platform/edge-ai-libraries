@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Make downloaded artifacts group-writable (dirs 0775, files 0664) so the
+# mounted models volume can be edited by members of the shared group.
+umask 0002
+
 # Define color codes for messages
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -129,7 +133,7 @@ install_dependencies() {
             ;;
         ollama)
             echo -e "${BLUE}INFO:${NC} Installing Ollama binary..."
-            OLLAMA_VERSION="v0.17.4"
+            OLLAMA_VERSION="v0.32.0"
             OLLAMA_ARCHIVE="${PARALLEL_TMP_DIR}/ollama-linux-amd64.tar.zst"
             OLLAMA_URL="https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst"
 
@@ -165,8 +169,9 @@ install_dependencies() {
             ;;
         ultralytics)
             echo -e "${BLUE}INFO:${NC} Downloading Ultralytics public models script from GitHub"
-            mkdir -p /opt/scripts
-            if curl -fsSL -o /opt/scripts/download_public_models.sh https://raw.githubusercontent.com/open-edge-platform/dlstreamer/v2026.1.0/samples/download_public_models.sh; then
+            DLSTREAMER_SAMPLES_URL="https://raw.githubusercontent.com/open-edge-platform/dlstreamer/v2026.1.0/samples"
+            mkdir -p /opt/scripts/models
+            if curl -fsSL -o /opt/scripts/download_public_models.sh "${DLSTREAMER_SAMPLES_URL}/download_public_models.sh"; then
                 chmod +x /opt/scripts/download_public_models.sh
                 echo -e "${GREEN} SUCCESS:${NC} Ultralytics public models script downloaded to /opt/scripts/download_public_models.sh"
             else
@@ -174,6 +179,21 @@ install_dependencies() {
                 echo "1" > "${status_file}"
                 return 1
             fi
+
+            # mars-small128 relies on a companion converter (models/convert_mars_deepsort.py)
+            # and shared_utils.py; the script expects them alongside itself under /opt/scripts.
+            if ! curl -fsSL -o /opt/scripts/shared_utils.py "${DLSTREAMER_SAMPLES_URL}/shared_utils.py"; then
+                echo -e "${RED} ERROR:${NC} Failed to download shared_utils.py"
+                echo "1" > "${status_file}"
+                return 1
+            fi
+            if ! curl -fsSL -o /opt/scripts/models/convert_mars_deepsort.py "${DLSTREAMER_SAMPLES_URL}/models/convert_mars_deepsort.py"; then
+                echo -e "${RED} ERROR:${NC} Failed to download convert_mars_deepsort.py"
+                echo "1" > "${status_file}"
+                return 1
+            fi
+            echo -e "${GREEN} SUCCESS:${NC} Mars-Small128 converter and shared_utils.py downloaded"
+
             echo -e "${BLUE}INFO:${NC} Ultralytics dependencies will be installed via uv sync"
             echo "0" > "${status_file}"
             ;;
@@ -187,7 +207,15 @@ install_dependencies() {
             echo "0" > "${status_file}"
             ;;
         pipeline-zoo-models)
-            print_info "Pipeline-zoo-models plugin has no additional dependencies"
+            print_info "Pipeline-zoo-models hub is served by the external-sources plugin (kind=tarball, no extra deps)"
+            echo "0" > "${status_file}"
+            ;;
+        remote-url)
+            print_info "remote-url hub is served by the external-sources plugin (kind=tarball, no extra deps)"
+            echo "0" > "${status_file}"
+            ;;
+        omz)
+            print_info "OMZ hub is served by the external-sources plugin (kind=omz, its own venv lets it coexist with geti)"
             echo "0" > "${status_file}"
             ;;
         *)
@@ -279,29 +307,52 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Define all available plugins in the application
-AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "pipeline-zoo-models" "geti" "hls")
+# User-facing hubs accepted by --plugins. External Hubs served by the
+# external-sources plugin are listed individually; 'external-sources'
+# itself is an internal plugin name and is rejected if passed by the user.
+EXTERNAL_SOURCES_HUBS=(pipeline-zoo-models omz remote-url)
+AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "${EXTERNAL_SOURCES_HUBS[@]}" "geti" "hls")
 
 # Install plugin-specific dependencies (in parallel)
 if [ "$PLUGINS" = "all" ]; then
     print_info "Installing ALL plugins"
-    run_plugins_parallel "${AVAILABLE_PLUGINS[@]}"
+    # Only install actual plugins/hubs; external-sources is implicit
     ACTIVATED_PLUGIN_LIST=("${AVAILABLE_PLUGINS[@]}")
+    run_plugins_parallel "${ACTIVATED_PLUGIN_LIST[@]}"
     echo "ACTIVATED_PLUGINS=all" > "$PLUGINS_ENV_FILE"
     print_success "All plugins are activated"
 else
-    # Split comma-separated plugins and run them in parallel
+    # Split comma-separated plugins and trim whitespace
     IFS=',' read -ra PLUGIN_LIST <<< "$PLUGINS"
-    # Trim whitespace from each plugin name
     ACTIVATED_PLUGIN_LIST=()
     for plugin in "${PLUGIN_LIST[@]}"; do
         ACTIVATED_PLUGIN_LIST+=("$(echo "$plugin" | xargs)")
     done
 
+    # Validate each requested name against AVAILABLE_PLUGINS.
+    for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
+        if [[ "$plugin" == "external-sources" ]]; then
+            print_error "'external-sources' is an internal plugin name. Pass the hub(s) instead: ${EXTERNAL_SOURCES_HUBS[*]}"
+            exit 1
+        fi
+        valid=false
+        for available in "${AVAILABLE_PLUGINS[@]}"; do
+            [[ "$plugin" == "$available" ]] && { valid=true; break; }
+        done
+        if ! $valid; then
+            print_error "Unknown plugin '$plugin'. Available: ${AVAILABLE_PLUGINS[*]}"
+            exit 1
+        fi
+    done
+
+    # Save the user's literal --plugins list for the env file.
+    USER_PLUGINS_CSV=$(IFS=,; echo "${ACTIVATED_PLUGIN_LIST[*]}")
+
+    # Run install_dependencies for each plugin/hub (don't add external-sources explicitly)
     run_plugins_parallel "${ACTIVATED_PLUGIN_LIST[@]}"
 
-    echo "ACTIVATED_PLUGINS=$PLUGINS" > "$PLUGINS_ENV_FILE"
-    print_success "Activated plugins: $PLUGINS"
+    echo "ACTIVATED_PLUGINS=${USER_PLUGINS_CSV}" > "$PLUGINS_ENV_FILE"
+    print_success "Activated plugins: ${USER_PLUGINS_CSV}"
 fi
 
 # Sync base dependencies (core app only, no plugin extras)
@@ -311,11 +362,11 @@ cd /opt
 # ollama to PATH if it's not already there
 export PATH="/opt/bin/:$PATH"
 
-# Generate a comprehensive lockfile that includes ALL extras so that per-plugin
-# venv syncs below can resolve extra packages from the lockfile.
-print_info "Generating lockfile with all extras..."
-if ! uv lock --all-extras; then
-    print_warning "Failed to generate all-extras lockfile; plugin venvs may be incomplete"
+# Generate a lockfile so per-plugin venv syncs below can resolve packages from
+# the current pyproject.toml and any declared extras/conflicts.
+print_info "Generating lockfile..."
+if ! uv lock; then
+    print_warning "Failed to generate lockfile; plugin venvs may be incomplete"
 fi
 
 print_info "Installing core dependencies from pyproject.toml..."
@@ -329,9 +380,35 @@ print_success "Base dependencies synced successfully"
 print_header "Creating per-plugin virtual environments"
 echo "# Plugin venv paths — written by entrypoint.sh" > "${PLUGIN_VENVS_FILE}"
 
+
 for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
     if [[ "$plugin" == "ollama" ]]; then
         print_info "ollama: binary-only plugin, no Python venv needed"
+        continue
+    fi
+
+    # OMZ hub: create a special venv with openvino-dev (legacy 2024.6.0) for omz_downloader/omz_converter
+    if [[ "$plugin" == "omz" ]]; then
+        OMZ_VENV="/opt/.venv-omz"
+        print_info "Creating isolated OMZ venv at ${OMZ_VENV} with openvino-dev==2024.6.0"
+        if UV_PROJECT_ENVIRONMENT="${OMZ_VENV}" uv sync --extra omz --no-dev; then
+            if "${OMZ_VENV}/bin/omz_downloader" --help > /dev/null 2>&1; then
+                print_success "OMZ venv created with openvino-dev and OMZ tools ready"
+                echo "OMZ_VENV=${OMZ_VENV}" >> "${PLUGIN_VENVS_FILE}"
+            else
+                print_warning "OMZ downloader not found after sync; continuing anyway"
+                echo "OMZ_VENV=${OMZ_VENV}" >> "${PLUGIN_VENVS_FILE}"
+            fi
+        else
+            print_error "Failed to create OMZ venv with uv sync --extra omz"
+            exit 1
+        fi
+        continue
+    fi
+
+    # Tarball-based external-sources hubs run in the main app process; no venv needed.
+    # (omz is handled above and continues before reaching here)
+    if [[ "$plugin" == "pipeline-zoo-models" || "$plugin" == "remote-url" ]]; then
         continue
     fi
 

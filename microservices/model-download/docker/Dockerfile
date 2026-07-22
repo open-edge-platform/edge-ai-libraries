@@ -26,8 +26,8 @@ COPY pyproject.toml uv.lock /opt/
 # ---- Stage 2: Final slim image ----
 FROM python:3.12-slim
 
-ARG UID=1001
-ARG GID=1001
+ARG UID=1000
+ARG GID=1000
 ENV PYTHONPATH=/opt
 ENV MODELS_DIR=/opt/models
 

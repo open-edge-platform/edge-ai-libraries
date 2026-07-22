@@ -1,0 +1,22 @@
+[
+  {"query": "Deploy VSS to Kubernetes using Helm", "should_trigger": true},
+  {"query": "How do I helm install the video search and summarization app on my k8s cluster?", "should_trigger": true},
+  {"query": "Create a user_values_override.yaml for VSS with vLLM backend on Xeon", "should_trigger": true},
+  {"query": "Put VSS on k8s with OVMS GPU using intel i915 device key", "should_trigger": true},
+  {"query": "What helm -f override files do I need to deploy VSS in unified summary+search mode?", "should_trigger": true},
+  {"query": "Install VSS in search-only mode on Kubernetes with a custom namespace", "should_trigger": true},
+  {"query": "Switch my VSS Helm deployment from OVMS to vLLM and run helm upgrade", "should_trigger": true},
+  {"query": "My helm install for VSS fails with GPU key errors - how do I fix global.devices values?", "should_trigger": true},
+  {"query": "Get the NodePort URL for vss-nginx after deploying VSS with Helm", "should_trigger": true},
+  {"query": "How do I configure the vllm subchart PVC size and kv-cache env vars in VSS Helm values?", "should_trigger": true},
+  {"query": "How do I start VSS in summary mode using setup.sh?", "should_trigger": false},
+  {"query": "My VSS pods are in CrashLoopBackOff after the Helm release was already installed - how do I debug?", "should_trigger": false},
+  {"query": "How do I set ENABLE_VLLM=true when starting VSS with Docker Compose?", "should_trigger": false},
+  {"query": "Create a docker-compose.override.yml for VSS that enables GPU for the OVMS service", "should_trigger": false},
+  {"query": "Deploy a Helm chart for PostgreSQL on Kubernetes with persistent storage", "should_trigger": false},
+  {"query": "What Intel GPU and NPU resource keys are available on my Kubernetes nodes?", "should_trigger": false},
+  {"query": "Build and push the VSS Docker images to my registry before deploying", "should_trigger": false},
+  {"query": "Configure nginx ingress with TLS termination for multiple applications on my Kubernetes cluster", "should_trigger": false},
+  {"query": "How do I map the VSS --unified setup.sh mode to Docker Compose environment variables?", "should_trigger": false},
+  {"query": "Check if the VSS pipeline-manager is healthy and show me the running container logs", "should_trigger": false}
+]

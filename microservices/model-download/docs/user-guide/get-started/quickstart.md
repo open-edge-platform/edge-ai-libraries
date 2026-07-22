@@ -68,7 +68,7 @@ curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 | Argument | Description | Required |
 |----------|-------------|----------|
 | `--model-name <name>` | Model identifier (e.g. `meta-llama/Llama-3.2-1B`) | Yes |
-| `--hub <hub>` | Source hub: `huggingface`, `ultralytics`, `ollama`, `openvino`, `geti`, `hls` | Yes |
+| `--hub <hub>` | Source hub: `huggingface`, `ultralytics`, `pipeline-zoo-models`, `remote-url`, `omz`, `ollama`, `openvino`, `geti`, `hls` | Yes |
 | `--type <type>` | Model type: `llm`, `vlm`, `embeddings`, `rerank`, `vision`, `3d-pose`, `rppg`, `ai-ecg` | No |
 | `--revision <rev>` | Branch, tag, or commit hash | No |
 | `--is-ovms` | Convert to OpenVINO format after downloading | No |
