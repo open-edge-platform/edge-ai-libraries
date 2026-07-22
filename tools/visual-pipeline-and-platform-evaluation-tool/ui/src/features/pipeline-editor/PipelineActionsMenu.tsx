@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { handleApiError } from "@/lib/apiUtils";
+import { downloadFile, MimeType } from "@/lib/fileUtils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -135,17 +136,12 @@ export const PipelineActionsMenu = ({
       edges: currentEdges,
       viewport: currentViewport,
     };
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${pipelineName || "pipeline"}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const jsonString = JSON.stringify(exportData, null, 2);
+    downloadFile(
+      jsonString,
+      `${pipelineName || "pipeline"}.json`,
+      MimeType.JSON,
+    );
     toast.success("Pipeline state downloaded");
   };
 
@@ -172,17 +168,11 @@ export const PipelineActionsMenu = ({
       }).unwrap();
 
       const description = response.pipeline_description;
-      const blob = new Blob([description], {
-        type: "text/plain",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${pipelineName || "pipeline"}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadFile(
+        description,
+        `${pipelineName || "pipeline"}.txt`,
+        MimeType.TEXT,
+      );
       toast.success("Pipeline description downloaded");
     } catch (error) {
       handleApiError(error, "Failed to generate pipeline description");

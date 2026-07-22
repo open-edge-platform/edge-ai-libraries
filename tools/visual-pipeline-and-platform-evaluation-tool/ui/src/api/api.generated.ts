@@ -66,6 +66,15 @@ const injectedRtkApi = api
         }),
         providesTags: ["benchmarks"],
       }),
+      exportBenchmarkSuiteRunCsv: build.query<
+        ExportBenchmarkSuiteRunCsvApiResponse,
+        ExportBenchmarkSuiteRunCsvApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/run/${queryArg.runId}/csv`,
+        }),
+        providesTags: ["benchmarks"],
+      }),
       getBenchmarkSuiteRunById: build.query<
         GetBenchmarkSuiteRunByIdApiResponse,
         GetBenchmarkSuiteRunByIdApiArg
@@ -583,6 +592,12 @@ export type GetBenchmarkSuiteRunsApiResponse =
 export type GetBenchmarkSuiteRunsApiArg = {
   suiteSlug: string;
 };
+export type ExportBenchmarkSuiteRunCsvApiResponse =
+  /** status 200 CSV file containing workload and test case data */ any;
+export type ExportBenchmarkSuiteRunCsvApiArg = {
+  suiteSlug: string;
+  runId: number;
+};
 export type GetBenchmarkSuiteRunByIdApiResponse =
   /** status 200 Detailed suite run with nested workload and test case runs */ BenchmarkSuiteRunDetails;
 export type GetBenchmarkSuiteRunByIdApiArg = {
@@ -720,17 +735,17 @@ export type GetModelDownloadJobStatusApiArg = {
 export type GetModelsApiResponse =
   /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
-export type UploadModelApiResponse = /** status 200 Successful Response */
-  | any
-  | /** status 201 Model uploaded successfully */ ModelUploadResponse;
+export type UploadModelApiResponse =
+  /** status 200 Successful Response */
+  any | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
   /** status 200 Successful Response */
-    | any
-    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+  | any
+  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };
@@ -950,6 +965,8 @@ export type BenchmarkTestCaseRun = {
   per_stream_fps: number | null;
   cpu_usage: number | null;
   gpu_usage: number | null;
+  npu_usage: number | null;
+  media_usage: number | null;
   memory_usage: number | null;
   power_usage: number | null;
   metrics: string | null;
@@ -1008,6 +1025,8 @@ export type BenchmarkTestCaseRunDetails = {
   per_stream_fps: number | null;
   cpu_usage: number | null;
   gpu_usage: number | null;
+  npu_usage: number | null;
+  media_usage: number | null;
   memory_usage: number | null;
   power_usage: number | null;
   metrics: string | null;
@@ -1597,6 +1616,8 @@ export const {
   useRunBenchmarkSuiteMutation,
   useGetBenchmarkSuiteRunsQuery,
   useLazyGetBenchmarkSuiteRunsQuery,
+  useExportBenchmarkSuiteRunCsvQuery,
+  useLazyExportBenchmarkSuiteRunCsvQuery,
   useGetBenchmarkSuiteRunByIdQuery,
   useLazyGetBenchmarkSuiteRunByIdQuery,
   useGetBenchmarkTestRunByIdQuery,

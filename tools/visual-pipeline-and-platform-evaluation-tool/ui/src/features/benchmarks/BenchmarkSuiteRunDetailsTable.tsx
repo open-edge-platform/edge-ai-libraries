@@ -20,7 +20,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatElapsedTimeMillis } from "@/lib/timeUtils";
-import { ChevronDown, ChevronRight, Loader2, MoreVertical } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Loader2,
+  MoreVertical,
+} from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import {
@@ -284,6 +290,9 @@ export const BenchmarkSuiteRunDetailsTable = ({
                                 <TableCell>
                                   {testCaseRun.status === "running" ? (
                                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                  ) : typeof testCaseRun.npu_usage ===
+                                    "number" ? (
+                                    `${testCaseRun.npu_usage.toFixed(1)}%`
                                   ) : (
                                     "-"
                                   )}
@@ -291,6 +300,9 @@ export const BenchmarkSuiteRunDetailsTable = ({
                                 <TableCell>
                                   {testCaseRun.status === "running" ? (
                                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                  ) : typeof testCaseRun.media_usage ===
+                                    "number" ? (
+                                    `${testCaseRun.media_usage.toFixed(1)}%`
                                   ) : (
                                     "-"
                                   )}
@@ -342,6 +354,7 @@ export const BenchmarkSuiteRunDetailsTable = ({
                                           )
                                         }
                                       >
+                                        <FileText className="mr-2 h-4 w-4" />
                                         View details
                                       </DropdownMenuItem>
                                       {testCaseRun.status === "running" && (
