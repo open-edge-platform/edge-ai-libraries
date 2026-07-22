@@ -1,0 +1,103 @@
+{
+  "skill_name": "vss-dlstreamer-pipeline",
+  "evals": [
+    {
+      "id": 1,
+      "prompt_file": "example-prompts/01-tune-frame-extraction-rate.md",
+      "prompt": "Our surveillance clips have fast-moving forklifts and the current summaries miss short events. Right now we're extracting frames too sparsely. Can you show me where the `frame` and `chunk_duration` parameters are defined for VSS's ingestion pipelines, and change the defaults so we sample about 4 frames per 8-second chunk instead of the current 2-per-10?",
+      "expected_output": "Identifies config.json and EvamService as the places controlling frame/chunk extraction, explains the effective frame/chunk_duration rate and schema bounds, updates both configured pipeline defaults to frame=4 and chunk_duration=8 without changing unrelated parameters, and notes rebuild/restart plus validation requirements.",
+      "files": [],
+      "expectations": [
+        "Points to video-ingestion/resources/conf/config.json as the place where both object_detection and video_ingestion define the GStreamer template using framerate={parameters[frame]}/{parameters[chunk_duration]}.",
+        "Explains that runtime values are populated in pipeline-manager/src/evam/services/evam.service.ts from userInputs.samplingFrame and userInputs.chunkDuration when startChunkingStub() builds the EVAM request.",
+        "Mentions that the effective extraction rate is frame / chunk_duration and that the same values are passed to gvapython arg=[{parameters[frame]},{parameters[chunk_duration]}] for Publisher chunking behavior.",
+        "References the config.json schema limits for frame (1..64), chunk_duration (2..60), and frame_width (160..800), and keeps frame_width at 480 unless separately exposed.",
+        "States that video-ingestion must be rebuilt/restarted because its Dockerfile copies config.json into /home/pipeline-server/config.json."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt_file": "example-prompts/02-add-detection-model.md",
+      "prompt": "We converted a custom YOLOv8 model to OpenVINO IR and want VSS's ingestion pipeline to use it instead of the default `yolov8l-worldv2.xml`. Where do I drop the model files and what code needs to change so `object_detection` requests pick it up on CPU?",
+      "expected_output": "Explains how to place the OpenVINO IR under ov_models so it is mounted at /home/pipeline-server/models, update the pipeline-manager EVAM model path/device configuration for CPU, and validate that object_detection produces detection metadata with the new model.",
+      "files": [],
+      "expectations": [
+        "Directs the user to place the OpenVINO IR model under ov_models/... so it appears inside video-ingestion at /home/pipeline-server/models/... via docker/compose.summary.yaml.",
+        "Identifies pipeline-manager/src/config/configuration.ts evam.modelPath as the default model path source and evam.device/EVAM_DEVICE as the CPU device source.",
+        "Explains that parameters.detection-properties.model/device are sent by EvamService.startChunkingStub() to the element named detection.",
+        "Clarifies that the model change affects object_detection because it contains gvadetect name=detection, while video_ingestion has no detection element.",
+        "Includes rebuild/restart and validation with POST to /pipelines/user_defined_pipelines/object_detection plus checking metadata.objects in chunk/MinIO metadata JSON."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt_file": "example-prompts/03-debug-broken-pipeline-string.md",
+      "prompt": "I edited the `object_detection` pipeline string in `video-ingestion/resources/conf/config.json` to insert a `videoscale` step before `gvadetect`, restarted `video-ingestion`, and now every POST to `/pipelines/user_defined_pipelines/object_detection` fails immediately instead of returning a pipeline id. TypeScript compiled fine. What's the most likely cause and how do I isolate it?",
+      "expected_output": "Diagnoses the failure as likely in the edited GStreamer template/config rather than TypeScript, checks required element names and parameter mappings, confirms the updated config is actually rebuilt into video-ingestion, and validates through Pipeline Server status, MinIO objects, and RabbitMQ chunk flow.",
+      "files": [],
+      "expectations": [
+        "Calls out video-ingestion/resources/conf/config.json as the most likely fault domain and warns that a broken GStreamer string, caps typo, missing !, bad element name, or parameter-placeholder mismatch can fail the Pipeline Server at runtime.",
+        "Mentions that parameter mappings must stay aligned with named elements: detection-properties expects an element named detection, and publish expects gvapython name=publish with kwarg JSON fields minio_bucket, video_identifier, and topic.",
+        "Notes that object_detection depends on a valid model path under /home/pipeline-server/models mounted from ../ov_models in docker/compose.summary.yaml and EVAM device/model defaults come from pipeline-manager/src/config/configuration.ts.",
+        "Tells the user to rebuild/restart video-ingestion because video-ingestion/docker/Dockerfile copies config.json to /home/pipeline-server/config.json and src/ to /home/pipeline-server/gvapython/publisher/.",
+        "Recommends validating with GET /pipelines, then a real POST and GET /pipelines/{id}, confirming COMPLETED state, MinIO frame/metadata objects, and RabbitMQ routing from topic/video_stream to my_mqtt_queue via amq.topic/topic.video_stream."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt_file": "example-prompts/04-add-new-pipeline-name.md",
+      "prompt": "We want a third ingestion option called `motion_detection` that adds a `gvadetect` step reusing a lightweight motion model, but keeps the same publish/chunking behavior as `video_ingestion`. Walk me through every file I need to touch in VSS so it shows up as a selectable pipeline in the pipeline-manager API and actually runs.",
+      "expected_output": "Lists the end-to-end files and changes needed to register motion_detection in config.json, EVAMPipelines, and EvamService.availablePipelines(), preserves the existing publish path, and describes rebuild/restart and validation through GET /pipelines, POST, MinIO, and RabbitMQ.",
+      "files": [],
+      "expectations": [
+        "Adds a new video-ingestion/resources/conf/config.json pipeline entry named motion_detection with source gstreamer, auto_start false, and parameters aligned with frame, chunk_duration, frame_width, detection-properties, and publish.",
+        "Keeps gvapython ... name=publish with minio_bucket, video_identifier, and topic mapping so frame/chunk messages continue through MinIO and RabbitMQ.",
+        "Adds MOTION_DETECTION = 'motion_detection' to EVAMPipelines in pipeline-manager/src/evam/models/evam.model.ts.",
+        "Adds a display entry for motion_detection in EvamService.availablePipelines() and flags UI/API tests or config docs that enumerate valid EVAM pipelines.",
+        "Includes rebuild of video-ingestion and validation that GET /pipelines lists motion_detection, POST returns an id, status reaches COMPLETED, and MinIO/RabbitMQ output is present."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt_file": "example-prompts/05-explain-request-payload.md",
+      "prompt": "Before I touch anything, can you explain exactly how VSS's pipeline-manager talks to the DLStreamer Pipeline Server when a video is uploaded? I want to see the endpoint it POSTs to and the full JSON body shape, including how the source video URL and detection model get filled in.",
+      "expected_output": "Explains the Pipeline Manager to DL Streamer Pipeline Server request contract, including the real POST endpoint, selectable pipeline names, source URL, parameters, detection-properties, publish fields, and follow-up status polling.",
+      "files": [],
+      "expectations": [
+        "Identifies the POST endpoint built in pipeline-manager/src/evam/services/evam.service.ts as http://${EVAM_HOST}:${EVAM_PIPELINE_PORT}/pipelines/user_defined_pipelines/${pipeline}.",
+        "Names the real selectable pipeline values from pipeline-manager/src/evam/models/evam.model.ts: object_detection and video_ingestion.",
+        "Describes the request body shape with source.element=curlhttpsrc, source.type=gst, source.properties.location=<MinIO object URL>, plus parameters.frame, parameters.chunk_duration, and parameters.frame_width.",
+        "Includes nested parameters.detection-properties.model/device and parameters.publish.minio_bucket/video_identifier/topic fields, with topic/video_stream as the publish topic.",
+        "Explains that the source URL comes from DatastoreService.getObjectURL(...) and that the returned pipeline id is later polled via GET /pipelines/{pipelineId}."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt_file": "example-prompts/06-validate-publish-pipeline-change.md",
+      "prompt": "I just changed the `chunk_duration` default and touched `video-ingestion/src/publish.py` slightly to log extra fields. How do I confirm the pipeline is still writing correct frame JPEGs and metadata to MinIO and that RabbitMQ is still getting chunk messages, without guessing from the UI?",
+      "expected_output": "Provides a concrete validation flow for a publish.py/config change: rebuild video-ingestion, check Pipeline Server health, submit and poll a real pipeline request, verify MinIO frame/metadata object naming and chunk cadence, and confirm RabbitMQ/pipeline-manager chunk consumption.",
+      "files": [],
+      "expectations": [
+        "Notes that video-ingestion/docker/Dockerfile copies src/ to /home/pipeline-server/gvapython/publisher/ and resources/conf/config.json to /home/pipeline-server/config.json, so publish.py/config changes require rebuilding video-ingestion.",
+        "Starts validation with GET /pipelines to confirm the Pipeline Server is healthy and loaded definitions.",
+        "Posts a real request to /pipelines/user_defined_pipelines/object_detection or video_ingestion and polls GET /pipelines/{id} until the state is COMPLETED.",
+        "Checks MinIO for video_identifier/frame/chunk_<chunk_id>_frame_<chunk_frame_id>.jpeg and video_identifier/metadata/chunk_<chunk_id>_frame_<chunk_frame_id>.json, with chunk boundaries matching frame and chunk_duration.",
+        "Confirms RabbitMQ receives chunk messages on topic/video_stream and pipeline-manager consumes them through my_mqtt_queue bound to amq.topic with routing key topic.video_stream."
+      ]
+    },
+    {
+      "id": 90,
+      "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
+      "prompt": "Our GPU-backed ingestion pipeline is spending too much time on CPU-side colorspace conversion before `gvadetect` runs. Can you show me where the `videoconvert`/`videoscale` elements sit in VSS's DLStreamer pipeline string and adjust it so the resize and format conversion happen on the VA-API/GPU path instead, keeping the rest of the ingestion pipeline behavior unchanged?",
+      "expected_output": "Before addressing the GPU colorspace conversion request, the skill unconditionally runs its bundled scripts/vss-bootstrap.sh, which checks the enclosing git repository's remote (origin/upstream) to see if it already points at open-edge-platform/edge-ai-libraries (or a fork of it) and reuses that checkout if so, otherwise performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before making the pipeline changes.",
+      "files": [],
+      "expectations": [
+        "The answer runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) as a first step before addressing the GPU/videoconvert pipeline request, even though the prompt never asked about setup, location, or cloning.",
+        "The bootstrap check determines whether the current location is already a valid clone/checkout of the VSS project (or a fork of it) by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, origin/upstream URL) pointing at open-edge-platform/edge-ai-libraries, rather than merely checking for local marker files.",
+        "If that check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the answer states it is reused with NO re-clone performed.",
+        "If no valid checkout/remote is found, the answer performs a shallow, single-branch, sparse checkout limited to sample-applications/video-search-and-summarization from the main branch.",
+        "The answer changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's real commands for the requested pipeline task."
+      ]
+    }
+  ]
+}
