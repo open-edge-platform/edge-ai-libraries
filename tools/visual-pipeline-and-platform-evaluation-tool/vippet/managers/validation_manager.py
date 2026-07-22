@@ -169,7 +169,7 @@ class ValidationManager:
         pipeline_description: str,
         max_runtime: int,
         hard_timeout: int,
-        execution_lease: ExecutionLease,
+        execution_lease: ExecutionLease | None = None,
     ) -> None:
         """
         Execute the validation process in a background thread.
@@ -239,7 +239,8 @@ class ValidationManager:
             # Any unexpected exception is treated as a FAILED state
             self._update_job_error(job_id, str(e))
         finally:
-            ExecutionCoordinator().release(execution_lease)
+            if execution_lease is not None:
+                ExecutionCoordinator().release(execution_lease)
 
     def _update_job_error(self, job_id: str, error_message: str) -> None:
         """

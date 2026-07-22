@@ -371,7 +371,7 @@ class TestsManager:
         self,
         job_id: str,
         internal_spec: InternalPerformanceTestSpec,
-        execution_lease: ExecutionLease,
+        execution_lease: ExecutionLease | None = None,
     ):
         """
         Execute the performance test in a background thread.
@@ -600,13 +600,14 @@ class TestsManager:
             MetadataManager().stop_tailing(job_id)
             self._update_job_failed(job_id, str(e))
         finally:
-            ExecutionCoordinator().release(execution_lease)
+            if execution_lease is not None:
+                ExecutionCoordinator().release(execution_lease)
 
     def _execute_density_test(
         self,
         job_id: str,
         internal_spec: InternalDensityTestSpec,
-        execution_lease: ExecutionLease,
+        execution_lease: ExecutionLease | None = None,
     ):
         """
         Execute the density test in a background thread.
@@ -715,7 +716,8 @@ class TestsManager:
                 self.runners.pop(job_id, None)
             self._update_job_failed(job_id, str(e))
         finally:
-            ExecutionCoordinator().release(execution_lease)
+            if execution_lease is not None:
+                ExecutionCoordinator().release(execution_lease)
 
     def _update_job_failed(self, job_id: str, detail_message: str) -> None:
         """
