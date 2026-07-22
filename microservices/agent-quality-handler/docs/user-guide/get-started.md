@@ -43,6 +43,14 @@ docker compose -f docker/compose.yaml --profile llm up --build -d
 
 The `llm` profile additionally starts `aqh-ovms` and `model-download`. Starting the profile without `LLM_MODE=llm` leaves the agent in fallback mode; setting `LLM_MODE=llm` without the profile does not start the bundled OVMS dependency.
 
+### LLM Model Settings
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `LLM_MODEL_NAME` | Model name passed to the model-download service | `Phi-4-mini-instruct` |
+| `LLM_DEVICE` | Target inference device (`GPU`, `CPU`) | `GPU` |
+| `LLM_PRECISION` | Model quantization precision (`int8`, `int4`, `fp16`, …) | `int8` |
+
 ## Configure Batch Events
 
 The bundled broker is private and intended for container-network traffic. Configure a secured external broker with:
@@ -88,6 +96,38 @@ Terminal outputs are also retained as per-agent JSON files in the
 `aqh_agent_output` named volume. `OUTPUT_DIR` defaults to `/app/output` in
 Compose. See the [API Reference](./api-reference.md) for the file schema and
 all routes.
+
+## Validate Standalone with the Mock Storage Service
+
+The `dev` Compose profile starts a mock storage service with canned detection
+data, removing the need for a real storage backend.
+
+```bash
+export STORAGE_SERVICE_URL=http://mock-storage:5001
+docker compose -f docker/compose.yaml --profile dev up --build -d
+```
+
+Verify all services are healthy:
+
+```bash
+docker compose -f docker/compose.yaml --profile dev ps
+curl http://localhost:5001/detections
+```
+
+Then follow [Run the Pipeline](#run-the-pipeline) above to trigger and inspect
+a run against the mock data.
+
+### Run unit tests
+
+```bash
+uv run pytest
+```
+
+Tear down when finished:
+
+```bash
+docker compose -f docker/compose.yaml --profile dev down
+```
 
 ## Stop
 

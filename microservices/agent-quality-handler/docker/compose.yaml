@@ -3,7 +3,7 @@
 
 services:
   aqh-agent:
-    image: ${REGISTRY:-intel/}aqh-agent-service:${TAG:-1.0.0}
+    image: ${REGISTRY:-intel/}agent-quality-handler:${TAG:-1.0.0}
     container_name: aqh-agent
     hostname: aqh-agent
     build:
@@ -178,8 +178,8 @@ services:
               \"type\": \"llm\",
               \"is_ovms\": true,
               \"config\": {
-                \"precision\": \"int8\",
-                \"device\": \"CPU\",
+                \"precision\": \"${LLM_PRECISION:-int8}\",
+                \"device\": \"${LLM_DEVICE:-GPU}\",
                 \"cache_size\": 10
               }
             }
