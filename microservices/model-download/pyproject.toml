@@ -8,20 +8,20 @@ readme = "README.md"
 requires-python = "==3.12.*"
 
 dependencies = [
-    "fastapi==0.121.3",
-    "pydantic==2.12.4",
+    "fastapi==0.139.0",
+    "pydantic==2.13.4",
     "python-multipart>=0.0.9",
-    "structlog==25.1.0",
-    "uvicorn==0.38.0",
-    "PyYAML==6.0.2",
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.1",
+    "structlog==26.1.0",
+    "uvicorn==0.51.0",
+    "PyYAML==6.0.3",
+    "huggingface-hub[cli,hf-transfer,hf-xet]==1.23.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.0,<8.0.0",
-    "pytest-cov>=4.1.0,<5.0.0",
-    "pytest-asyncio>=0.21.1,<1.0.0",
+    "pytest>=7.4.0,<10.0.0",
+    "pytest-cov>=4.1.0,<8.0.0",
+    "pytest-asyncio>=0.21.1,<2.0.0",
     "httpx>=0.24.1,<1.0.0",
     "pytest-mock>=3.11.1,<4.0.0",
     "pytest-env>=1.1.0,<2.0.0",
@@ -30,20 +30,20 @@ dev = [
 ]
 
 cpu = [
-    "torch==2.9.1+cpu",
-    "torchvision==0.24.1+cpu",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
 ]
 
 huggingface = [
-    "transformers<4.58",
-    "torch==2.9.1+cpu",
-    "torchvision==0.24.1+cpu",
+    "transformers<5.15",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
 ]
 
 ultralytics = [
-    "ultralytics==8.2.3",
-    "torch==2.9.1+cpu",
-    "torchvision==0.24.1+cpu",
+    "ultralytics==8.4.96",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
 ]
 
 openvino = [
@@ -59,8 +59,8 @@ geti = [
 ]
 
 hls = [
-    "torch==2.9.1+cpu",
-    "torchvision==0.24.1+cpu",
+    "torch==2.13.0",
+    "torchvision==0.28.0",
     "tensorflow",
     "tqdm>=4.67",
 ]
@@ -80,11 +80,11 @@ omz = [
     # from main runtime which uses openvino==2026.x. Conflicts with geti (needs openvino>=2025.2)
     # are resolved by uv.conflicts below into separate venv buckets.
     "openvino-dev[onnx,pytorch,tensorflow2]==2024.6.0",
-    "openvino==2024.6.0",
-    # Pin torch < 2.9: torch 2.9 changed torch.onnx.export to default dynamo=True, which pulls in
+    "openvino==2026.2.1",
+    # Pin torch < 2.14: torch 2.9 changed torch.onnx.export to default dynamo=True, which pulls in
     # onnxscript -> onnx_ir -> ml_dtypes.float8_e8m0fnu (needs ml_dtypes>=0.5, but TensorFlow caps
     # it at <0.5 in this bucket). The legacy omz_tools converter relies on the TorchScript exporter
-    # (dynamo=False), which is the default for torch < 2.9 and needs none of that chain.
+    # (dynamo=False), which is the default for torch < 2.14 and needs none of that chain.
     "torch<2.9",
 ]
 
@@ -95,7 +95,7 @@ omz = [
 # satisfy both at once. OMZ and geti can still be enabled together because they
 # are isolated into separate venvs at runtime.
 conflicts = [
-    [{ extra = "omz" }, { extra = "geti" }],  # omz pins openvino==2024.6.0; geti requires openvino>=2025.2
+    [{ extra = "omz" }, { extra = "geti" }],  # omz pins openvino==2026.2.1; geti requires openvino>=2025.2
     # omz needs torch<2.9 (legacy TorchScript ONNX exporter); these extras pin torch==2.9.1+cpu.
     # They never share a venv at runtime, so resolve them in separate buckets.
     [{ extra = "omz" }, { extra = "cpu" }],
