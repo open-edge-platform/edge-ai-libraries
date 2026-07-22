@@ -166,6 +166,7 @@ export const Pipelines = () => {
   const detailsPanelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
+  const startedToastJobIdRef = useRef<string | null>(null);
 
   const {
     currentNodes,
@@ -208,6 +209,17 @@ export const Pipelines = () => {
   });
 
   useActiveJobSync(jobId);
+
+  useEffect(() => {
+    if (!jobId || startedToastJobIdRef.current === jobId) {
+      return;
+    }
+
+    startedToastJobIdRef.current = jobId;
+    toast.success("Pipeline run started", {
+      description: new Date().toISOString(),
+    });
+  }, [jobId]);
 
   // Reset editor state when variant changes
   useEffect(() => {
@@ -346,10 +358,6 @@ export const Pipelines = () => {
       const hasMetadata = payloadGraphData.nodes.some(
         (n) => n.type === "gvametapublish",
       );
-
-      toast.success("Pipeline run started", {
-        description: new Date().toISOString(),
-      });
 
       const status = await runPipeline({
         performanceTestSpec: {
