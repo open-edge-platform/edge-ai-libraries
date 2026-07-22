@@ -22,6 +22,7 @@ model download. It does not include a UI or Nginx.
 - [How It Works](./how-it-works.md)
 - [Build from Source](./build-from-source.md)
 - [API Reference](./api-reference.md)
+- [Agent Service Integration Guide](./agent-service-integration-guide.md)
 - [Troubleshooting](./troubleshooting.md)
 - [Release Notes](./release-notes.md)
 
