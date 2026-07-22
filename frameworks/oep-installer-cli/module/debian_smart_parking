@@ -26,6 +26,7 @@ debian_90_start_smart_parking () {
   configure_smart_parking
   pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
   ./sample_start.sh
+  echo "UI entrypoint: https://$(ensure_ip)"
   popd > /dev/null
 }
 

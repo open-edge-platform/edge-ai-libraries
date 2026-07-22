@@ -26,6 +26,7 @@ debian_90_start_smart_intersection () {
   configure_smart_intersection
   pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
   ./sample_start.sh
+  echo "UI entrypoint: https://$(ensure_ip)"
   popd > /dev/null
 }
 

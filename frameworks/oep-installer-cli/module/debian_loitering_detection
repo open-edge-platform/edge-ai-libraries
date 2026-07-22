@@ -26,6 +26,7 @@ debian_90_start_loitering_detection () {
   configure_loitering_detection
   pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
   ./sample_start.sh
+  echo "UI entrypoint: $(ensure_ip)"
   popd > /dev/null
 }
 
