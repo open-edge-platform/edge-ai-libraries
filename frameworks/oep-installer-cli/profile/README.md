@@ -1,12 +1,12 @@
 
 ### Introduction
 
-Profiles are virtual groups of installer components. The profile filename must follow this pattern: `<OS_LIKE>_<name>`, where `<OS_LIKE>` is the OS family identifier obtained from `/etc/os-release`, 
-and `<name>` is the profile name, which should contain no space or special character except `_`.  
+Profiles are virtual groups of installer components. The profile filenames use this pattern: `<OS_LIKE>_<profile-name>`, where `<OS_LIKE>` is the OS family identifier obtained from `/etc/os-release`, 
+and the profile name should contain no space or special character except `_`.  
 
 ### Develop a Profile
 
-A profile specifies the list of required components in a single shell function: `<OS_LIKE>_<priority>_<name>`, where `<priority>` specifies the installation order. Since profiles are virtual groups, they always use priority `99` to install the latest. 
+A profile specifies the list of required components in a single shell function: `<OS_LIKE>_<order>_<name>`, where `<order>` specifies the installation order. Since profiles are virtual groups, they always use order `99` to install the latest. 
 
 A profile can be as simple as follows:
 
