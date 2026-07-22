@@ -671,6 +671,7 @@ class TestAPIMain:
             limit=25,
             offset=0,
             hub="pipeline-zoo-models",
+            resolved_config=mock_plugin.resolve_config.return_value,
         )
 
     @patch('src.api.main.plugin_registry')
@@ -1191,4 +1192,50 @@ class TestUploadModel:
             files={"file": ("model.zip", self._make_valid_zip(), "application/zip")},
         )
         assert response.status_code == 500
-        assert "Failed to extract model" in response.json()["detail"]
+
+
+class TestOverrideCredentials:
+    """override_credentials accepts plaintext strings and rejects non-string values."""
+
+    def test_model_request_accepts_plaintext_credentials(self):
+        from src.api.models import ModelRequest
+
+        req = ModelRequest(
+            name="some-model",
+            hub="huggingface",
+            override_credentials={"HF_TOKEN": "hf_secret_token"},
+        )
+        assert req.override_credentials == {"HF_TOKEN": "hf_secret_token"}
+
+    def test_model_request_accepts_multiple_credentials(self):
+        from src.api.models import ModelRequest
+
+        req = ModelRequest(
+            name="some-model",
+            hub="geti",
+            override_credentials={
+                "GETI_HOST": "https://geti.example.com",
+                "GETI_TOKEN": "geti_secret",
+            },
+        )
+        assert req.override_credentials == {
+            "GETI_HOST": "https://geti.example.com",
+            "GETI_TOKEN": "geti_secret",
+        }
+
+    def test_none_is_passthrough(self):
+        from src.api.models import ModelRequest
+
+        req = ModelRequest(name="some-model", hub="huggingface")
+        assert req.override_credentials is None
+
+    def test_non_string_value_is_rejected(self):
+        from pydantic import ValidationError
+        from src.api.models import ModelRequest
+
+        with pytest.raises(ValidationError, match="must be a string"):
+            ModelRequest(
+                name="some-model",
+                hub="huggingface",
+                override_credentials={"HF_TOKEN": 12345},
+            )

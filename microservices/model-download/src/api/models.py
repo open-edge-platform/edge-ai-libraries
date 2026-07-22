@@ -290,6 +290,29 @@ class DownloadResponse(BaseModel):
     model_path: Optional[str] = None
 
 
+def _validate_override_credentials(
+    value: Optional[Dict[str, str]]
+) -> Optional[Dict[str, str]]:
+    """Validate that ``override_credentials`` values are plain strings.
+
+    Values are passed as-is to the plugin's ``resolve_config``. Non-string
+    values are rejected at the API boundary so plugins always receive clean
+    input. Confidentiality relies on TLS (HTTPS) in the deployment — see the
+    deployment docs for TLS termination requirements.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("override_credentials must be an object of string values")
+
+    for key, raw in value.items():
+        if raw is not None and not isinstance(raw, str):
+            raise ValueError(
+                f"override_credentials['{key}'] must be a string"
+            )
+    return value
+
+
 class ModelRequest(BaseModel):
     name: str = Field(
         ...,
@@ -305,9 +328,11 @@ class ModelRequest(BaseModel):
         description=(
             "Optional per-request overrides for the target plugin's connection "
             "keys (for example HF_TOKEN, or GETI_HOST/GETI_TOKEN/GETI_WORKSPACE_ID). "
-            "Values provided here take precedence over the service's environment "
-            "variables for this request only and are never stored or logged. Use "
-            "GET /plugins to discover the keys each plugin understands."
+            "Values are plaintext strings and take precedence over the service's "
+            "environment variables for this request only. They are never stored "
+            "or logged. IMPORTANT: deploy behind HTTPS to protect credentials "
+            "in transit. Use GET /plugins to discover the keys each plugin "
+            "understands."
         ),
     )
 
@@ -316,6 +341,11 @@ class ModelRequest(BaseModel):
     def _normalize_hub(cls, v):
         # Accept hub names case-insensitively (e.g. 'Geti', 'GETI', 'HuggingFace').
         return v.lower() if isinstance(v, str) else v
+
+    @field_validator("override_credentials", mode="before")
+    @classmethod
+    def _validate_creds(cls, v):
+        return _validate_override_credentials(v)
 
 
 
@@ -338,15 +368,6 @@ class ModelListRequest(BaseModel):
     )
     limit: int = Field(50, ge=1, le=200, description="Maximum models to return.")
     offset: int = Field(0, ge=0, description="Number of models to skip.")
-    override_credentials: Optional[Dict[str, str]] = Field(
-        default=None,
-        description=(
-            "Optional per-request overrides for the hub plugin's connection keys "
-            "(for example HF_TOKEN, or GETI_HOST/GETI_TOKEN/GETI_WORKSPACE_ID). "
-            "Values take precedence over environment variables for this request "
-            "only and are never stored or logged."
-        ),
-    )
 
 
 class ModelListItem(BaseModel):

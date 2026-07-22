@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from src.core.interfaces import DownloadTask, ListingNotSupportedError, ModelDownloadPlugin
+from src.core.interfaces import DownloadTask, ListingNotSupportedError, ModelDownloadPlugin, PluginConfigKey
 from src.utils.logging import logger
 
 
@@ -92,6 +92,18 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
     @property
     def plugin_type(self) -> str:
         return "downloader"
+
+    def config_keys(self) -> List[PluginConfigKey]:
+        return [
+            PluginConfigKey(
+                name="EXTERNAL_SOURCES_URL_ALLOWLIST",
+                description=(
+                    "Comma-separated host/path prefixes for the remote-url hub "
+                    "allowlist. Overrides the default allowlist in sources.yaml."
+                ),
+                sensitive=False,
+            ),
+        ]
 
     def plugin_supported_hubs(self) -> List[str]:
         """Return all hub names this plugin serves."""
@@ -224,7 +236,8 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             if not raw_url or not str(raw_url).strip():
                 raise ValueError("hub 'remote-url' requires 'url' in the request config")
             runtime_url = str(raw_url).strip().replace("{name}", model_name)
-            self._validate_runtime_url(runtime_url, self._resolve_allowlist(profile))
+            resolved_config = kwargs.get("resolved_config") or {}
+            self._validate_runtime_url(runtime_url, self._resolve_allowlist(profile, resolved_config))
 
         try:
             if kind == "omz":
@@ -368,17 +381,25 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         return names
 
     @staticmethod
-    def _resolve_allowlist(profile: Dict[str, Any]) -> List[str]:
+    def _resolve_allowlist(profile: Dict[str, Any], resolved_config: Optional[Dict[str, Any]] = None) -> List[str]:
         """Resolve the runtime-URL allowlist of ``host + path`` prefixes.
 
-        ``EXTERNAL_SOURCES_URL_ALLOWLIST`` (comma-separated), env when non-empty,
-        overrides the profile's ``allowed_prefixes``; otherwise the profile
-        default is used.
+        Resolution order (first non-empty wins):
+        1. Per-request ``resolved_config["EXTERNAL_SOURCES_URL_ALLOWLIST"]``
+        2. ``EXTERNAL_SOURCES_URL_ALLOWLIST`` environment variable
+        3. Profile's ``allowed_prefixes`` from sources.yaml
         """
+        # 1. Per-request override via override_credentials
+        override_value = (resolved_config or {}).get("EXTERNAL_SOURCES_URL_ALLOWLIST")
+        if override_value is not None and str(override_value).strip():
+            return [p.strip() for p in str(override_value).split(",") if p.strip()]
+
+        # 2. Environment variable
         env_value = os.environ.get("EXTERNAL_SOURCES_URL_ALLOWLIST")
         if env_value is not None and env_value.strip():
-            # A non-empty env value overrides the profile default.
             return [p.strip() for p in env_value.split(",") if p.strip()]
+
+        # 3. Profile default from sources.yaml
         return [
             str(p).strip()
             for p in (profile.get("allowed_prefixes") or [])

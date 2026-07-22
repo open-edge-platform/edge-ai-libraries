@@ -542,6 +542,38 @@ Volumes:
 
 - `~/models:/app/models`: Persist downloaded models
 
+## Per-Request Credential Overrides
+
+Instead of restarting the service to change credentials, you can override plugin connection
+settings per request using the `override_credentials` field in `POST /api/v1/models/download`.
+Values take precedence over environment variables for that single request only and are never
+stored or logged.
+
+```bash
+curl -X POST "https://<host-ip>:8200/api/v1/models/download?download_path=hf_model" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "microsoft/Phi-3.5-mini-instruct",
+        "hub": "huggingface",
+        "type": "llm",
+        "override_credentials": {
+          "HF_TOKEN": "hf_myRealToken123"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+Call `GET /api/v1/plugins` to discover which `config_keys` each plugin accepts.
+
+> **Security: TLS required.** Credentials are sent as plaintext strings in the request body.
+> You **must** deploy the service behind HTTPS termination (reverse proxy, ingress, or
+> uvicorn `--ssl-keyfile`/`--ssl-certfile`) before using `override_credentials` with real
+> secrets. Without TLS, credentials are visible to any observer on the network path.
+
 ## Troubleshooting
 
 - If you encounter any issues during the build or run process, check the Docker logs for errors:
