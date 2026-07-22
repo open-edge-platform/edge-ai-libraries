@@ -76,6 +76,8 @@ class ModelHub(str, Enum):
     OPENVINO = "openvino"
     GETI = "geti"
     HLS = "hls"
+    REMOTE_URL = "remote-url"
+    OMZ = "omz"
 
 class ModelType(str, Enum):
     LLM = "llm"
@@ -267,6 +269,10 @@ class Config(BaseModel):
         None,
         description="OpenVINO/Optimum CLI specific parameters. Aligned with export_model.py arguments."
     )
+    post_processing: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Optional post-processing overrides for model-specific workflows"
+    )
 
 
 
@@ -306,3 +312,62 @@ class ModelRequest(BaseModel):
 class ModelDownloadRequest(BaseModel):
     models: List[ModelRequest]
     parallel_downloads: Optional[bool] = False
+
+
+class ModelListRequest(BaseModel):
+    """Request body for listing models from a hub."""
+    model_config = ConfigDict(extra="allow")
+
+    hub: str = Field(
+        ...,
+        description="The hub to list models from, e.g. 'huggingface', 'ultralytics', 'pipeline-zoo-models', or 'geti'.",
+    )
+    filters: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Hub-specific listing filters such as author, search, filter, tags, and gated.",
+    )
+    limit: int = Field(50, ge=1, le=200, description="Maximum models to return.")
+    offset: int = Field(0, ge=0, description="Number of models to skip.")
+
+
+class ModelListItem(BaseModel):
+    """A single model entry returned by a hub listing."""
+    model_config = ConfigDict(extra="allow", protected_namespaces=())
+
+    name: str = Field(
+        ..., description="Model name to pass as 'name' in POST /api/v1/models/download."
+    )
+    owner: Optional[str] = Field(
+        None, description="Owner / organization / project (whatever applies to the hub)."
+    )
+    precisions: Optional[List[str]] = Field(
+        None,
+        description="Available precisions / formats / variants.",
+    )
+    tags: Optional[List[str]] = Field(None, description="Tags associated with the model.")
+    model_type: Optional[str] = Field(None, description="Model type/task, if available.")
+    last_modified: Optional[str] = Field(
+        None, description="Last update timestamp (ISO 8601), if available."
+    )
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Extra hub-specific metadata.")
+
+
+class ModelListResponse(BaseModel):
+    """Response body for a hub model listing."""
+
+    hub: str = Field(..., description="The hub the models were listed from.")
+    items: List[ModelListItem] = Field(
+        default_factory=list, description="Models discovered on the hub."
+    )
+    count: int = Field(..., description="Number of models returned in this response.")
+    total: Optional[int] = Field(
+        None, description="Total number of matching models, if the hub reports it."
+    )
+    limit: int = Field(..., description="Applied page size.")
+    offset: int = Field(..., description="Applied offset.")
+    has_more: Optional[bool] = Field(
+        None, description="Whether another page is available, if known."
+    )
+    next_offset: Optional[int] = Field(
+        None, description="Offset to request the next page, when another page is available."
+    )

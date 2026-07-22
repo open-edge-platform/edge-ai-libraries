@@ -1,6 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import os
 import asyncio
 import pytest
@@ -25,6 +26,12 @@ class TestOpenVINOConverter:
         """Create a temporary directory for testing"""
         with tempfile.TemporaryDirectory() as tmpdir:
             yield tmpdir
+
+    @pytest.fixture(autouse=True)
+    def mock_pull_mode(self):
+        """Disable pull mode by default so conversion tests are unaffected"""
+        with patch.object(OpenVINOConverter, '_try_pull_preconverted', return_value=None):
+            yield
 
     def test_plugin_properties(self, openvino_plugin):
         """Test plugin basic properties"""
@@ -564,6 +571,12 @@ class TestOpenVINOPluginFutureProof:
         with tempfile.TemporaryDirectory() as tmpdir:
             yield tmpdir
 
+    @pytest.fixture(autouse=True)
+    def mock_pull_mode(self):
+        """Disable pull mode by default so conversion tests are unaffected"""
+        with patch.object(OpenVINOConverter, '_try_pull_preconverted', return_value=None):
+            yield
+
     def test_get_param_from_nested_openvino_config(self, openvino_plugin):
         """Test _get_param falls back to default when only nested config is provided"""
         config = {
@@ -812,3 +825,492 @@ class TestOpenVINOPluginFutureProof:
         assert config_dict["custom_optimization_flag"] is True
         assert result["config"]["precision"] == config["precision"]
 
+
+
+class TestOpenVINOPullMode:
+    """Test suite for OpenVINO plugin pull mode (pre-converted model download)"""
+
+    @pytest.fixture
+    def openvino_plugin(self):
+        """Create an instance of OpenVINOConverter for testing"""
+        return OpenVINOConverter()
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Create a temporary directory for testing"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
+    @patch('huggingface_hub.HfApi')
+    def test_search_preconverted_model_found(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model finds a matching model"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+
+        mock_model = MagicMock()
+        mock_model.id = "OpenVINO/Llama-3.1-8B-int4-ov"
+        mock_api.list_models.return_value = [mock_model]
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            hf_token="test_token",
+        )
+
+        assert result == "OpenVINO/Llama-3.1-8B-int4-ov"
+        mock_api.list_models.assert_called_once_with(
+            author="OpenVINO",
+            search="Llama-3.1-8B",
+        )
+
+    @patch('huggingface_hub.HfApi')
+    def test_search_preconverted_model_not_found(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model returns None when no match"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+        mock_api.list_models.return_value = []
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            hf_token="test_token",
+        )
+
+        assert result is None
+
+    @patch('huggingface_hub.HfApi')
+    def test_search_preconverted_model_precision_mismatch(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model returns None when precision doesn't match"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+
+        mock_model = MagicMock()
+        mock_model.id = "OpenVINO/Llama-3.1-8B-fp16-ov"
+        mock_api.list_models.return_value = [mock_model]
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            hf_token="test_token",
+        )
+
+        assert result is None
+
+    @patch('huggingface_hub.HfApi')
+    def test_search_preconverted_model_api_error(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model handles API errors gracefully"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+        mock_api.list_models.side_effect = Exception("API connection error")
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            hf_token="test_token",
+        )
+
+        assert result is None
+
+    @patch('huggingface_hub.HfApi')
+    def test_search_preconverted_model_npu_selects_cw_variant(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model selects 'cw' variant for NPU device"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+
+        mock_model_cpu = MagicMock()
+        mock_model_cpu.id = "OpenVINO/Llama-3.1-8B-int4-ov"
+        mock_model_npu = MagicMock()
+        mock_model_npu.id = "OpenVINO/Llama-3.1-8B-int4-cw-ov"
+        mock_api.list_models.return_value = [mock_model_cpu, mock_model_npu]
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            hf_token="test_token",
+            target_device="NPU",
+        )
+
+        assert result == "OpenVINO/Llama-3.1-8B-int4-cw-ov"
+
+    @patch('huggingface_hub.HfApi')
+    def test_search_preconverted_model_non_npu_skips_cw_variant(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model skips 'cw' variant for non-NPU device"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+
+        mock_model_cpu = MagicMock()
+        mock_model_cpu.id = "OpenVINO/Llama-3.1-8B-int4-ov"
+        mock_model_npu = MagicMock()
+        mock_model_npu.id = "OpenVINO/Llama-3.1-8B-int4-cw-ov"
+        mock_api.list_models.return_value = [mock_model_cpu, mock_model_npu]
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            hf_token="test_token",
+            target_device="CPU",
+        )
+
+        assert result == "OpenVINO/Llama-3.1-8B-int4-ov"
+
+    @patch('huggingface_hub.HfApi')
+    def test_search_preconverted_model_npu_no_cw_available(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model returns None for NPU when no 'cw' variant exists"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+
+        mock_model = MagicMock()
+        mock_model.id = "OpenVINO/Llama-3.1-8B-int4-ov"
+        mock_api.list_models.return_value = [mock_model]
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            hf_token="test_token",
+            target_device="NPU",
+        )
+
+        assert result is None
+
+    @patch('huggingface_hub.snapshot_download')
+    @patch.object(OpenVINOConverter, '_search_preconverted_model')
+    def test_try_pull_preconverted_success(
+        self, mock_search, mock_snapshot, openvino_plugin, temp_dir
+    ):
+        """Test _try_pull_preconverted successfully pulls a model"""
+        mock_search.return_value = "OpenVINO/Llama-3.1-8B-int4-ov"
+        mock_snapshot.return_value = temp_dir
+
+        result = openvino_plugin._try_pull_preconverted(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            output_dir=temp_dir,
+            hf_token="test_token",
+        )
+
+        assert result is not None
+        assert result["repo_id"] == "OpenVINO/Llama-3.1-8B-int4-ov"
+        assert result["success"] is True
+        expected_model_dir = os.path.join(temp_dir, "meta-llama/Llama-3.1-8B")
+        mock_snapshot.assert_called_once_with(
+            repo_id="OpenVINO/Llama-3.1-8B-int4-ov",
+            token="test_token",
+            local_dir=expected_model_dir,
+        )
+
+    @patch.object(OpenVINOConverter, '_search_preconverted_model')
+    def test_try_pull_preconverted_no_match(
+        self, mock_search, openvino_plugin, temp_dir
+    ):
+        """Test _try_pull_preconverted returns None when no model found"""
+        mock_search.return_value = None
+
+        result = openvino_plugin._try_pull_preconverted(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            output_dir=temp_dir,
+            hf_token="test_token",
+        )
+
+        assert result is None
+
+    @patch('huggingface_hub.snapshot_download')
+    @patch.object(OpenVINOConverter, '_search_preconverted_model')
+    def test_try_pull_preconverted_download_error(
+        self, mock_search, mock_snapshot, openvino_plugin, temp_dir
+    ):
+        """Test _try_pull_preconverted handles download errors gracefully"""
+        mock_search.return_value = "OpenVINO/Llama-3.1-8B-int4-ov"
+        mock_snapshot.side_effect = Exception("Download failed")
+
+        result = openvino_plugin._try_pull_preconverted(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+            output_dir=temp_dir,
+            hf_token="test_token",
+        )
+
+        assert result is None
+
+    @patch.object(OpenVINOConverter, '_try_pull_preconverted')
+    def test_convert_uses_pull_mode_when_available(
+        self, mock_pull, openvino_plugin, temp_dir
+    ):
+        """Test convert method returns pull result when pre-converted model is found"""
+        mock_pull.return_value = {
+            "repo_id": "OpenVINO/neural-chat-7b-v3-3-int8-ov",
+            "download_path": temp_dir,
+            "success": True,
+        }
+
+        result = openvino_plugin.convert(
+            model_name="Intel/neural-chat-7b-v3-3",
+            output_dir=temp_dir,
+            hf_token="test_token",
+            precision="int8",
+            device="CPU",
+            type="llm",
+        )
+
+        assert result["success"] is True
+        assert result["mode"] == "pull"
+        assert result["pulled_from"] == "OpenVINO/neural-chat-7b-v3-3-int8-ov"
+        assert result["model_name"] == "Intel/neural-chat-7b-v3-3"
+        assert result["source"] == "openvino"
+        assert result["is_ovms"] is True
+        assert result["config"]["precision"] == "int8"
+        assert result["config"]["device"] == "CPU"
+
+    @patch.object(OpenVINOConverter, 'convert_to_ovms_format')
+    @patch.object(OpenVINOConverter, '_try_pull_preconverted')
+    def test_convert_falls_back_to_conversion(
+        self, mock_pull, mock_convert_to_ovms, openvino_plugin, temp_dir
+    ):
+        """Test convert method falls back to conversion when pull returns None"""
+        mock_pull.return_value = None
+        mock_convert_to_ovms.return_value = {"returncode": 0, "stdout": "", "stderr": ""}
+
+        result = openvino_plugin.convert(
+            model_name="Intel/neural-chat-7b-v3-3",
+            output_dir=temp_dir,
+            hf_token="test_token",
+            precision="int8",
+            device="CPU",
+            type="llm",
+        )
+
+        assert result["success"] is True
+        assert result["mode"] == "convert"
+        assert mock_convert_to_ovms.called
+
+    @patch('huggingface_hub.HfApi')
+    def test_search_model_name_without_org(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model handles model names without org prefix"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+
+        mock_model = MagicMock()
+        mock_model.id = "OpenVINO/bert-base-uncased-int8-ov"
+        mock_api.list_models.return_value = [mock_model]
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="bert-base-uncased",
+            weight_format="int8",
+            hf_token=None,
+        )
+
+        assert result == "OpenVINO/bert-base-uncased-int8-ov"
+        mock_api.list_models.assert_called_once_with(
+            author="OpenVINO",
+            search="bert-base-uncased",
+        )
+
+    @patch('huggingface_hub.HfApi')
+    def test_search_selects_first_matching_model(self, mock_hf_api_cls, openvino_plugin):
+        """Test _search_preconverted_model selects the first matching model"""
+        mock_api = MagicMock()
+        mock_hf_api_cls.return_value = mock_api
+
+        mock_model1 = MagicMock()
+        mock_model1.id = "OpenVINO/Llama-3.1-8B-int4-ov"
+        mock_model2 = MagicMock()
+        mock_model2.id = "OpenVINO/Llama-3.1-8B-int4-ov-v2"
+        mock_api.list_models.return_value = [mock_model1, mock_model2]
+
+        result = openvino_plugin._search_preconverted_model(
+            model_name="meta-llama/Llama-3.1-8B",
+            weight_format="int4",
+        )
+
+        assert result == "OpenVINO/Llama-3.1-8B-int4-ov"
+
+
+class TestOpenVINOServingConfigs:
+    """Test suite for serving config generation (graph.pbtxt, config_all.json)"""
+
+    @pytest.fixture
+    def openvino_plugin(self):
+        return OpenVINOConverter()
+
+    @pytest.fixture
+    def temp_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
+    def test_generate_serving_configs_llm(self, openvino_plugin, temp_dir):
+        """Test graph.pbtxt and config_all.json generation for LLM model"""
+        openvino_plugin._generate_serving_configs(
+            model_name="meta-llama/Llama-3.1-8B",
+            output_dir=temp_dir,
+            model_type="llm",
+            config={"device": "CPU", "cache_size": 10},
+        )
+
+        graph_path = os.path.join(temp_dir, "meta-llama/Llama-3.1-8B", "graph.pbtxt")
+        config_path = os.path.join(temp_dir, "config_all.json")
+
+        assert os.path.isfile(graph_path)
+        assert os.path.isfile(config_path)
+
+        with open(graph_path) as f:
+            content = f.read()
+        assert "HttpLLMCalculator" in content
+        assert '"CPU"' in content
+        assert "cache_size: 10" in content
+
+        with open(config_path) as f:
+            config_data = json.load(f)
+        assert len(config_data["model_config_list"]) == 1
+        assert config_data["model_config_list"][0]["config"]["name"] == "meta-llama/Llama-3.1-8B"
+        assert config_data["model_config_list"][0]["config"]["base_path"] == "meta-llama/Llama-3.1-8B"
+
+    def test_generate_serving_configs_embeddings(self, openvino_plugin, temp_dir):
+        """Test graph.pbtxt generation for embeddings model"""
+        openvino_plugin._generate_serving_configs(
+            model_name="BAAI/bge-small-en-v1.5",
+            output_dir=temp_dir,
+            model_type="embeddings",
+            config={"device": "CPU", "num_streams": 4, "normalize": True},
+        )
+
+        graph_path = os.path.join(temp_dir, "BAAI/bge-small-en-v1.5", "graph.pbtxt")
+        assert os.path.isfile(graph_path)
+
+        with open(graph_path) as f:
+            content = f.read()
+        assert "EmbeddingsCalculatorOV" in content
+        assert '"CPU"' in content
+        assert "normalize_embeddings: true" in content
+
+    def test_generate_serving_configs_rerank(self, openvino_plugin, temp_dir):
+        """Test graph.pbtxt generation for rerank model"""
+        openvino_plugin._generate_serving_configs(
+            model_name="BAAI/bge-reranker-v2-m3",
+            output_dir=temp_dir,
+            model_type="rerank",
+            config={"device": "GPU", "num_streams": 2},
+        )
+
+        graph_path = os.path.join(temp_dir, "BAAI/bge-reranker-v2-m3", "graph.pbtxt")
+        assert os.path.isfile(graph_path)
+
+        with open(graph_path) as f:
+            content = f.read()
+        assert "RerankCalculatorOV" in content
+        assert '"GPU"' in content
+
+    def test_generate_serving_configs_unknown_type(self, openvino_plugin, temp_dir):
+        """Test that unknown model types skip graph.pbtxt but still create config"""
+        openvino_plugin._generate_serving_configs(
+            model_name="some/model",
+            output_dir=temp_dir,
+            model_type="unknown_type",
+            config={"device": "CPU"},
+        )
+
+        graph_path = os.path.join(temp_dir, "some/model", "graph.pbtxt")
+        config_path = os.path.join(temp_dir, "config_all.json")
+
+        assert not os.path.isfile(graph_path)
+        assert os.path.isfile(config_path)
+
+    def test_generate_serving_configs_updates_existing_config(self, openvino_plugin, temp_dir):
+        """Test that config_all.json is updated if it already exists"""
+        config_path = os.path.join(temp_dir, "config_all.json")
+        existing_data = {
+            "model_config_list": [
+                {"config": {"name": "existing-model", "base_path": "./existing"}}
+            ]
+        }
+        with open(config_path, "w") as f:
+            json.dump(existing_data, f)
+
+        openvino_plugin._generate_serving_configs(
+            model_name="org/new-model",
+            output_dir=temp_dir,
+            model_type="llm",
+            config={"device": "CPU"},
+        )
+
+        with open(config_path) as f:
+            config_data = json.load(f)
+        assert len(config_data["model_config_list"]) == 2
+        names = [m["config"]["name"] for m in config_data["model_config_list"]]
+        assert "existing-model" in names
+        assert "org/new-model" in names
+
+    @patch.object(OpenVINOConverter, '_try_pull_preconverted')
+    def test_convert_pull_mode_generates_configs(self, mock_pull, openvino_plugin, temp_dir):
+        """Test that convert in pull mode generates serving configs"""
+        mock_pull.return_value = {
+            "repo_id": "OpenVINO/Llama-3.1-8B-int4-ov",
+            "download_path": temp_dir,
+            "success": True,
+        }
+
+        result = openvino_plugin.convert(
+            model_name="meta-llama/Llama-3.1-8B",
+            output_dir=temp_dir,
+            hf_token="test_token",
+            precision="int4",
+            device="CPU",
+            cache_size=10,
+            type="llm",
+        )
+
+        assert result["mode"] == "pull"
+        # Verify config files were created
+        # graph.pbtxt goes inside the model subfolder
+        assert os.path.isfile(os.path.join(temp_dir, "meta-llama/Llama-3.1-8B", "graph.pbtxt"))
+        # config_all.json stays at the repository (output_dir) level
+        assert os.path.isfile(os.path.join(temp_dir, "config_all.json"))
+
+    def test_generate_serving_configs_text2speech(self, openvino_plugin, temp_dir):
+        """Test graph.pbtxt generation for text2speech model"""
+        openvino_plugin._generate_serving_configs(
+            model_name="microsoft/speecht5_tts",
+            output_dir=temp_dir,
+            model_type="text2speech",
+            config={"device": "CPU", "num_streams": 2},
+        )
+
+        graph_path = os.path.join(temp_dir, "microsoft/speecht5_tts", "graph.pbtxt")
+        assert os.path.isfile(graph_path)
+
+        with open(graph_path) as f:
+            content = f.read()
+        assert "T2sCalculator" in content
+        assert '"CPU"' in content
+        assert "NUM_STREAMS" in content
+
+    def test_generate_serving_configs_speech2text(self, openvino_plugin, temp_dir):
+        """Test graph.pbtxt generation for speech2text model"""
+        openvino_plugin._generate_serving_configs(
+            model_name="openai/whisper-large-v3",
+            output_dir=temp_dir,
+            model_type="speech2text",
+            config={"device": "CPU", "enable_word_timestamps": True},
+        )
+
+        graph_path = os.path.join(temp_dir, "openai/whisper-large-v3", "graph.pbtxt")
+        assert os.path.isfile(graph_path)
+
+        with open(graph_path) as f:
+            content = f.read()
+        assert "S2tCalculator" in content
+        assert '"CPU"' in content
+        assert "enable_word_timestamps: true" in content
+
+    def test_generate_serving_configs_speech2text_no_timestamps(self, openvino_plugin, temp_dir):
+        """Test speech2text graph with timestamps disabled"""
+        openvino_plugin._generate_serving_configs(
+            model_name="openai/whisper-large-v3",
+            output_dir=temp_dir,
+            model_type="speech2text",
+            config={"device": "CPU"},
+        )
+
+        graph_path = os.path.join(temp_dir, "openai/whisper-large-v3", "graph.pbtxt")
+        with open(graph_path) as f:
+            content = f.read()
+        assert "enable_word_timestamps: false" in content

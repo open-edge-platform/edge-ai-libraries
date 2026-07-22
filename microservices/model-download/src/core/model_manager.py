@@ -47,7 +47,6 @@ class ModelManager:
         model_name: str,
         hub: str,
         output_dir: Optional[str] = None,
-        plugin_name: Optional[str] = None,
         model_type: Optional[str] = None,
     ) -> str:
         """
@@ -57,7 +56,6 @@ class ModelManager:
             operation_type: Type of operation ('download' or 'convert')
             model_name: Name of the model to process
             output_dir: Optional custom directory for output
-            plugin_name: Optional specific plugin to use
             model_type: Optional type of model (llm, embeddings, rerank, vlm, vision)
 
         Returns:
@@ -83,7 +81,6 @@ class ModelManager:
             "output_dir": output_dir,
             "status": "queued",
             "start_time": datetime.now().isoformat(),
-            "plugin_name": plugin_name,
             "model_type": model_type,
         }
 
@@ -131,8 +128,12 @@ class ModelManager:
             download_plugin = None
             if downloader:
                 logger.info(f"Request details: {downloader},{model_name}, {hub}, {kwargs}")
-                # User specifically requested a downloader
+                # Try as plugin name first, then fall back to hub lookup for multi-hub plugins.
                 download_plugin = self.registry.get_plugin("downloader", downloader)
+                if not download_plugin:
+                    download_plugin = self.registry.find_plugin_for_model(
+                        "downloader", model_name, downloader, **kwargs
+                    )
                 if not download_plugin:
                     err_msg = f"Requested downloader '{downloader}' not found"
                     self._jobs[job_id]["status"] = "failed"
@@ -152,9 +153,6 @@ class ModelManager:
                 self._jobs[job_id]["error"] = err_msg
                 logger.error("no_suitable_downloader", model_name=model_name)
                 raise ValueError(err_msg)
-
-            # Update job with selected plugin
-            self._jobs[job_id]["plugin"] = download_plugin.plugin_name
 
             # Check if the plugin supports parallel downloading via tasks
             use_parallel = kwargs.pop("parallel_downloads", True)
@@ -196,6 +194,9 @@ class ModelManager:
                 plugin=download_plugin.plugin_name,
                 model_name=model_name,
             )
+
+            # Expose hub to multi-hub plugins; single-hub plugins ignore it.
+            kwargs.setdefault("hub", hub)
 
             # Check if the download method is async
             if inspect.iscoroutinefunction(download_plugin.download):
@@ -326,9 +327,6 @@ class ModelManager:
                 self._jobs[job_id]["error"] = err_msg
                 logger.error("no_suitable_converter", model_path=model_path)
                 raise ValueError(err_msg)
-
-            # Update job with selected plugin
-            self._jobs[job_id]["plugin"] = convert_plugin.plugin_name
 
             # Execute the conversion
             logger.info(
@@ -535,7 +533,7 @@ class ModelManager:
         Returns:
             Dictionary with job details and status
         """
-        job_id = self.register_job("download", model_name, hub, output_dir, downloader)
+        job_id = self.register_job("download", model_name, hub, output_dir)
         return asyncio.run(self.process_download(
             job_id, model_name, hub, output_dir, downloader, **kwargs
         ))
@@ -563,7 +561,7 @@ class ModelManager:
         """
         # Extract model name from path for job registration
         model_name = os.path.basename(model_path)
-        job_id = self.register_job("convert", model_name, "openvino", output_dir, converter)
+        job_id = self.register_job("convert", model_name, "openvino", output_dir)
         return asyncio.run(self.process_conversion(
             job_id=job_id, model_path=model_path, model_name=model_name, hub="openvino", hf_token=kwargs.get("hf_token", ""), output_dir=output_dir, converter=converter, **kwargs
         ))
