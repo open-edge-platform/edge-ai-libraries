@@ -182,7 +182,8 @@ subcommand_bootstrap () {
   if [[ "$*" = "--help" ]]; then
     echo "bootstrap options:"
     echo "  --dry-run              dry-run the bootstrap sequence."
-    echo "  --default=<component>  set default installation component."
+    echo "  --install=<component>  set default installation component."
+    echo "  --start=<component>    set default start component."
     echo
     local profiles=($(ls -1 "$mydir/profile" | grep -E "^${ID_LIKE}_" | cut -f2- -d_))
     [ ${#profiles[*]} -eq 0 ] || echo "  list of bootstrap profiles: ${profiles[*]}"
@@ -213,16 +214,19 @@ subcommand_bootstrap () {
 
   # construct final installer
   if [ ${#scripts[@]} -gt 0 ]; then
+    local install_modules=() start_modules=()
     if [[ "$*" != *"--dry-run"* ]]; then
       sed -i '/^#### COLLECTION OF MODULES ####/q' "$0"
-      local modules=()
       for m in $*; do
-        [[ "$m" = "--default="* ]] || continue
-        modules+=(${m#--default=})
+        case "$m" in
+        --install=*)
+          install_modules+=(${m#*=})
+          ;;
+        --start=*)
+          start_modules+=(${m#*=})
+          ;;
+        esac
       done
-      if [ ${#modules[*]} -gt 0 ]; then
-        sed -i "1a[ \${#@} -gt 1 ] || set -- install ${modules[*]}" "$0"
-      fi
       cat "$mydir"/common/os-agnostic >> "$0"
       if [ -r "$mydir"/common/${ID_LIKE} ]; then
         cat "$mydir"/common/${ID_LIKE} >> "$0"
@@ -232,6 +236,8 @@ subcommand_bootstrap () {
       echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
       [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$0"
     done
+    [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]}" >> "$0"
+    [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]}" >> "$0"
   else
     echo "No bootstrap component" 1>&2
     exit 3
