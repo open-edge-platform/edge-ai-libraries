@@ -5,7 +5,7 @@
 
 Implements the two endpoints AQH requires:
   GET /detections       — JSON array of detection records
-  GET /detections/stats — JSON object with per-class aggregates
+  GET /detections/summary — JSON object with per-class aggregates
 
 Start locally:  python3 tests/mock_storage_server.py
 Via Compose:    docker compose -f docker/compose.yaml --profile dev up mock-storage
@@ -38,7 +38,7 @@ class MockStorageHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/detections":
             self._handle_detections(qs)
-        elif parsed.path == "/detections/stats":
+        elif parsed.path == "/detections/summary":
             self._handle_stats(qs)
         else:
             self._respond(404, {"error": "not found"})

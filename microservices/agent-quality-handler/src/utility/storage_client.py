@@ -159,7 +159,7 @@ class StorageClient:
         if max_id is not None:
             params["max_id"] = max_id
         return self._request(
-            "GET", "/detections/stats", expected_type=dict, params=params
+            "GET", "/detections/summary", expected_type=dict, params=params
         )
 
 

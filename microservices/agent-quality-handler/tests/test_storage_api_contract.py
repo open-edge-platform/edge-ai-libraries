@@ -7,7 +7,7 @@ These tests start a lightweight mock storage server and verify that the
 StorageClient correctly consumes both required endpoints:
 
   GET /detections      — JSON array of detection records
-  GET /detections/stats — JSON object with per-class aggregates
+  GET /detections/summary — JSON object with per-class aggregates
 
 Run with:  pytest tests/test_storage_api_contract.py -v
 """
@@ -60,7 +60,7 @@ class MockStorageHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/detections":
             self._handle_detections(qs)
-        elif parsed.path == "/detections/stats":
+        elif parsed.path == "/detections/summary":
             self._handle_stats(qs)
         else:
             self._respond(404, {"error": "not found"})
@@ -193,10 +193,10 @@ class TestGetDetections:
 
 
 # ---------------------------------------------------------------------------
-# GET /detections/stats
+# GET /detections/summary
 # ---------------------------------------------------------------------------
 
-class TestGetStats:
+class TestGetSummary:
     def test_returns_object_with_by_class(self, client):
         result = client.get_summary()
         assert isinstance(result, dict)
@@ -210,12 +210,12 @@ class TestGetStats:
             missing = required - entry.keys()
             assert not missing, f"Class entry missing fields: {missing}"
 
-    def test_stats_reflect_all_detections(self, client):
+    def test_summary_reflect_all_detections(self, client):
         result = client.get_summary()
         total = sum(c["count"] for c in result["by_class"])
         assert total == len(DETECTIONS)
 
-    def test_stats_filtered_by_id_window(self, client):
+    def test_summary_filtered_by_id_window(self, client):
         result = client.get_summary(min_id=100, max_id=150)
         labels = {c["label"] for c in result["by_class"]}
         # IDs 101,102 = Rupture; 103 = Deformation; 150 = Rupture
@@ -255,8 +255,8 @@ class TestContractViolations:
         with pytest.raises(StorageContractError, match="must be a JSON array"):
             client.get_detections()
 
-    def test_stats_rejects_array_response(self, monkeypatch, client):
-        """Storage must return a JSON object for /detections/stats, not an array."""
+    def test_summary_rejects_array_response(self, monkeypatch, client):
+        """Storage must return a JSON object for /detections/summary, not an array."""
         import src.utility.storage_client as sc
 
         monkeypatch.setattr(

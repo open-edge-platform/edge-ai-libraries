@@ -46,6 +46,16 @@ def _optional_text(
     return value
 
 
+def _optional_status(
+    payload: Mapping[str, Any], name: str
+) -> Mapping[str, Any] | str | None:
+    """pipeline_status may be the raw DL Streamer status object, a string, or null."""
+    value = payload.get(name)
+    if value is None or isinstance(value, str) or isinstance(value, Mapping):
+        return value
+    raise InvalidBatchEvent(f"{name} must be a string, object, or null")
+
+
 def _non_negative_integer(payload: Mapping[str, Any], name: str) -> int:
     value = payload.get(name)
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -60,10 +70,10 @@ class BatchEvent:
     run_id: str
     status: str
     device: str
-    video_filename: str
-    start_id: int
-    end_id: int
-    pipeline_status: str | None
+    video_filename: str | None
+    start_id: int | None
+    end_id: int | None
+    pipeline_status: Mapping[str, Any] | str | None
     error: str | None
     schema_version: str = "1.0"
 
@@ -77,20 +87,28 @@ class BatchEvent:
         status = _required_text(payload, "status", maximum=16)
         if status not in {"completed", "error"}:
             raise InvalidBatchEvent("status must be 'completed' or 'error'")
-        start_id = _non_negative_integer(payload, "start_id")
-        end_id = _non_negative_integer(payload, "end_id")
-        if status == "completed" and start_id >= end_id:
-            raise InvalidBatchEvent(
-                "completed batches require start_id to be less than end_id"
-            )
+        if status == "completed":
+            start_id = _non_negative_integer(payload, "start_id")
+            end_id = _non_negative_integer(payload, "end_id")
+            if start_id >= end_id:
+                raise InvalidBatchEvent(
+                    "completed batches require start_id to be less than end_id"
+                )
+        else:
+            # Error events may legitimately omit start_id/end_id (e.g. the
+            # detection pipeline failed before either watermark was resolved).
+            start_id = payload.get("start_id")
+            end_id = payload.get("end_id")
+            start_id = _non_negative_integer(payload, "start_id") if start_id is not None else None
+            end_id = _non_negative_integer(payload, "end_id") if end_id is not None else None
         return cls(
             run_id=_required_text(payload, "run_id", maximum=128),
             status=status,
             device=_required_text(payload, "device"),
-            video_filename=_required_text(payload, "video_filename", maximum=4096),
+            video_filename=_optional_text(payload, "video_filename", maximum=4096),
             start_id=start_id,
             end_id=end_id,
-            pipeline_status=_optional_text(payload, "pipeline_status"),
+            pipeline_status=_optional_status(payload, "pipeline_status"),
             error=_optional_text(payload, "error"),
             schema_version="1.0",
         )
