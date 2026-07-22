@@ -41,8 +41,8 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `ROI_CONSOLIDATION_IOU_THRESHOLD` | Optional | `0.2` | IoU threshold used to group overlapping boxes into a single ROI. |
 | `ROI_CONSOLIDATION_CLASS_AWARE` | Optional | `false` | Merge only boxes of the same class when `true`. |
 | `ROI_CONSOLIDATION_CONTEXT_SCALE` | Optional | `0.2` | Expands merged ROIs by this fraction of their width/height. |
-| `SDK_VIDEO_SHM_MAX_BLOCKS` | Optional | `512` | Shared memory block count for SDK video decode and embedding pipeline. |
-| `SDK_VIDEO_SHM_BLOCK_SIZE` | Optional | `6220800` | Per-block shared memory size in bytes (default sized for 1080p RGB frames). |
+| `SDK_VIDEO_SHM_MAX_BLOCKS` | Optional | `512` | Number of shared-memory blocks in the SDK frame-transport pool. Total shared memory used ≈ `SDK_VIDEO_SHM_MAX_BLOCKS × SDK_VIDEO_SHM_BLOCK_SIZE`, allocated in the host `/dev/shm` (the container runs with `ipc: host`). |
+| `SDK_VIDEO_SHM_BLOCK_SIZE` | Optional | `6220800` | Per-block shared-memory size in **bytes**. Each decoded RGB frame must fit in one block, so this must be **≥ `width × height × 3`** for your source resolution. The default `6220800 = 1920 × 1080 × 3` is sized for 1080p; 4K/8K sources require a larger value (see [4K/8K frames overflow the shared-memory block](#4k8k-frames-overflow-the-shared-memory-block-worker-timeout)). |
 | `SDK_VIDEO_EXTRACTION_BATCH_SIZE` | Optional | `256` | Decoder-side batch size used when extracting frames for SDK processing. |
 | `SDK_PIPELINE_QUEUE_MAXSIZE` | Optional | `16` | Queue capacity for inter-stage SDK pipeline buffers. |
 | `SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE` | Optional | `1` | Queue capacity for completion/result handoff stage. |
@@ -150,6 +150,7 @@ Use `source ./setup.sh --conf` to print the resolved Docker Compose configuratio
 - [Video Ingestion Flow](./video-ingestion-flow.md) - Detailed flow diagrams of the video processing pipeline
 - [API Reference](api-reference.md)
 - [System Requirements](system-requirements.md)
+- [Troubleshooting](troubleshooting.md)
 
 ## Quick Start with Docker
 
@@ -293,10 +294,6 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 
 ## Troubleshooting
 
-- **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before launching Docker (required for both SDK and API modes).
-- **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
-- **API mode returns 502:** Verify the multimodal embedding service is healthy at `MULTIMODAL_EMBEDDING_ENDPOINT` (see `docker compose -f docker/compose-with-embedding.yaml ps`).
-- **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/videos/minio` instead.
-- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, or `DETECTION_DEVICE`) to `GPU`, and keep `SDK_USE_OPENVINO=true`.
-- **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, or `DETECTION_DEVICE`) to `NPU`, and keep `SDK_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
-- **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.
+Common startup, device, and ingestion problems (including the
+`SDK_VIDEO_SHM_BLOCK_SIZE` sizing needed for 4K/8K video) are covered in the
+dedicated [Troubleshooting](troubleshooting.md) guide.
