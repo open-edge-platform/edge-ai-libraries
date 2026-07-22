@@ -438,18 +438,14 @@ def _build_sysinfo_cards(system_info: dict[str, Any]) -> str:
     if not system_info:
         return ""
 
-    system = dict(system_info.get("system", {}))
-    mem_section = system_info.get("memory", {})
-    if "Memory" not in system and mem_section.get("Capacity"):
-        system["Memory"] = mem_section["Capacity"]
+    system = {k: v for k, v in system_info.get("system", {}).items() if v}
 
-    if not system or not any(v for v in system.values()):
+    if not system:
         return ""
 
     rows = ""
     for k, v in system.items():
-        val = v if v else "—"
-        rows += f'<div class="si-row"><dt>{k}</dt><dd>{val}</dd></div>\n'
+        rows += f'<div class="si-row"><dt>{k}</dt><dd>{v}</dd></div>\n'
 
     return f"""
         <div class="sysinfo-card">
@@ -480,7 +476,6 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
 
     run_meta = []
     system_info: dict[str, Any] = {}
-    vippet_version = ""
     for run in runs:
         hw = run.get("hardware", {})
         hw_str = ", ".join(f"{k}: {', '.join(v)}" for k, v in hw.items())
@@ -495,10 +490,6 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
         )
         if not system_info:
             system_info = run.get("system_info", {})
-        if not vippet_version:
-            vippet_version = (
-                run.get("system_info", {}).get("software", {}).get("VIPPET", "")
-            )
 
     pipeline_sections_html = []
     chart_data_js: dict[str, Any] = {}
@@ -788,7 +779,6 @@ td.hi {{ color: var(--text); font-weight: 500; }}
           <h3>Benchmark</h3>
           <dl>
             {"".join(f'<div class="si-row"><dt>Run ID</dt><dd>{m["id"]}</dd></div><div class="si-row"><dt>Timestamp</dt><dd>{m["timestamp"]}</dd></div><div class="si-row"><dt>Duration</dt><dd>{m["duration"]}</dd></div>' for m in run_meta)}
-            {f'<div class="si-row"><dt>VIPPET</dt><dd>{vippet_version}</dd></div>' if vippet_version else ""}
           </dl>
         </div>
       </div>

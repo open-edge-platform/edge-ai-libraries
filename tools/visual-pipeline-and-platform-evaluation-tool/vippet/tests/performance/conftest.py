@@ -4,8 +4,6 @@
 """Shared fixtures for VIPPET performance benchmark tests."""
 
 import logging
-import platform
-import subprocess
 import time
 from collections.abc import Generator
 from datetime import datetime
@@ -28,7 +26,6 @@ from perf_helpers.config import (
     RESULT_FORMATS,
     STREAM_COUNTS,
 )
-from helpers.config import BASE_URL
 from perf_helpers.hw_monitor import HardwareMonitor
 from perf_helpers.reporters import ResultExporter, generate_html_report
 
@@ -36,57 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def _collect_system_info(session: requests.Session | None = None) -> dict[str, Any]:
-    """Collect system details for the benchmark report."""
-
-    def _cmd(args: list[str]) -> str:
-        try:
-            return subprocess.check_output(
-                args, text=True, stderr=subprocess.DEVNULL
-            ).strip()
-        except Exception:
-            return ""
-
-    cpu_model = ""
-    try:
-        with open("/proc/cpuinfo") as f:
-            for line in f:
-                if line.startswith("model name"):
-                    cpu_model = line.split(":", 1)[1].strip()
-                    break
-    except Exception:
-        pass
-
-    os_name = ""
-    try:
-        with open("/etc/os-release") as f:
-            for line in f:
-                if line.startswith("PRETTY_NAME="):
-                    os_name = line.split("=", 1)[1].strip().strip('"')
-                    break
-    except Exception:
-        pass
-
-    mem_capacity = ""
-    try:
-        for line in _cmd(["free", "-h", "--si"]).split("\n"):
-            if line.startswith("Mem:"):
-                mem_capacity = line.split()[1]
-                break
-    except Exception:
-        pass
-
-    vippet_version = ""
-    try:
-        resp = requests.get(f"{BASE_URL}/version", timeout=5)
-        if resp.ok:
-            data = resp.json()
-            vippet_version = data.get("version", str(data))
-    except Exception:
-        pass
-    if not vippet_version:
-        tag = _cmd(["docker", "inspect", "--format", "{{.Config.Image}}", "vippet"])
-        if ":" in tag:
-            vippet_version = tag.split(":", 1)[1]
+    """Collect system details from VIPPET APIs for the benchmark report."""
 
     devices_info: dict[str, str] = {}
     if session is not None:
@@ -94,31 +41,21 @@ def _collect_system_info(session: requests.Session | None = None) -> dict[str, A
             devices = fetch_devices(session)
             for device in devices:
                 family = device.get("device_family", "").upper()
-                name = device.get("name") or device.get("device_name", "")
-                if family and name:
-                    devices_info[family] = name
-                elif family:
-                    devices_info[family] = "detected"
+                full_name = device.get("full_device_name", "")
+                if family and full_name:
+                    devices_info[family] = full_name
         except Exception:
-            logger.debug("Failed to fetch device info for system_info")
+            logger.debug("Failed to fetch device info from VIPPET /devices API")
 
-    system: dict[str, str] = {
-        "Processor": cpu_model,
-        "Memory": mem_capacity,
-        "OS": os_name,
-        "Kernel": platform.release(),
-    }
+    system: dict[str, str] = {}
+    if devices_info.get("CPU"):
+        system["Processor"] = devices_info["CPU"]
     if devices_info.get("GPU"):
         system["GPU"] = devices_info["GPU"]
     if devices_info.get("NPU"):
         system["NPU"] = devices_info["NPU"]
 
-    return {
-        "system": system,
-        "software": {
-            "VIPPET": vippet_version,
-        },
-    }
+    return {"system": system}
 
 
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
