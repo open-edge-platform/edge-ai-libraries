@@ -324,7 +324,7 @@ model-download init container:
 kubectl describe pod -n "$NAMESPACE" <pod-name>
 kubectl logs -n "$NAMESPACE" <ovms-pod> -c download-vlm
 kubectl logs -n "$NAMESPACE" <ovms-pod> -c download-llm   # split-model mode only
-kubectl logs -n "$NAMESPACE" <video-ingestion-pod> -c model-converter
+kubectl logs -n "$NAMESPACE" <video-ingestion-pod> -c od-model-downloader
 ```
 
 OVMS metrics, when `ovms.enabled=true`:

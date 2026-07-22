@@ -23,7 +23,7 @@ global:
 pvcName: ""
 
 # odModelName defines the name of Object Detection Model (ultralytics hub id)
-odModelName: "yolov8l"
+odModelName: ""
 
 # claimSize is the storage size claimed by PVC if usePvc is set to true.
 # claimSize should be set based on the size of models and files expected to be stored.

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (C) 2026 Intel Corporation
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 # Color codes for terminal output
@@ -669,7 +669,7 @@ md_teardown() {
     return "$rc"
 }
 
-# Fix ownership of files written by the model-download container (runs as UID 1001):
+# Fix ownership of files written by the model-download container (runs as UID 1000):
 fix_model_dir_ownership() {
     local host_dir="$1"
     [ -d "$host_dir" ] || return 0
@@ -889,10 +889,10 @@ finalize_ovms_model() {
 
     # Patch the KV cache size in graph.pbtxt if it differs from the desired one.
     desired_cache_size=$(get_ovms_cache_size "$target_device") || return 1
-    existing_cache_size=$(grep -oP 'cache_size:\s*\K[0-9]+' "${model_dir}/graph.pbtxt" 2>/dev/null)
+    existing_cache_size=$(sed -nE 's/.*cache_size:[[:space:]]*([0-9]+).*/\1/p' "${model_dir}/graph.pbtxt" 2>/dev/null | head -n 1)
     if [[ -n "$existing_cache_size" && "$existing_cache_size" -ne "$desired_cache_size" ]]; then
         fix_model_dir_ownership "${model_dir}"
-        sed -i "s/cache_size:\s*${existing_cache_size}/cache_size: ${desired_cache_size}/" "${model_dir}/graph.pbtxt" || {
+        sed -i -E "s/cache_size:[[:space:]]*${existing_cache_size}/cache_size: ${desired_cache_size}/" "${model_dir}/graph.pbtxt" || {
             echo -e "${RED}ERROR: Failed to patch cache_size in ${model_dir}/graph.pbtxt${NC}" >&2
             return 1
         }
@@ -981,7 +981,7 @@ md_run_downloads() {
             || { md_teardown 1; return 1; }
     fi
 
-    # Post-download steps: one ownership sweep over everything the container wrote as UID 1001, then IR verification and OVMS registration.
+    # Post-download steps: one ownership sweep over everything the container wrote as UID 1000, then IR verification and OVMS registration.
     local rc=0
     fix_model_dir_ownership "${OV_MODELS_ROOT}"
     if [ "$MD_NEED_OD" = true ]; then
