@@ -1,6 +1,6 @@
 ---
 name: vss-deploy
-description: Deploy, dry-run, switch, inspect, stop, or clean the Video Search & Summarization (VSS) sample app using its real setup.sh modes, Docker Compose overlays, profiles, services, ports, and environment variables. Generates runtime credentials, deploys the chosen mode (summary / search / dual / unified), waits for health, and prints UI/API URLs. Use when users say "deploy vss", "spin up VSS", "run summary mode", "switch to search", "use GPU/vLLM", "which compose files do I need", "stop vss", "clean vss data", or ask deployment questions for sample-applications/video-search-and-summarization.
+description: Deploys and manages VSS through setup.sh and its Docker Compose overlays. Use this skill for local lifecycle tasks such as configuration, startup, mode changes, inspection, shutdown, data cleanup, and health checks. It supports summary, search, dual, and unified modes with GPU and vLLM variants.
 license: Apache-2.0
 metadata:
   version: "2.0.0"
@@ -224,9 +224,9 @@ It does not remove the host-backed `ov_models/` model cache.
 
 For anything past these basics - model-server crashes, OVMS token/cache/GPU
 errors, host model-cache or model-download permission failures, search returning no results,
-NPU/OpenGL issues - hand off to the
-[`vss-troubleshoot`](../vss-troubleshoot/SKILL.md) skill and the canonical guide
-[`docs/user-guide/troubleshooting.md`](../../../docs/user-guide/troubleshooting.md).
+NPU/OpenGL issues - hand off to the `vss-troubleshoot` skill at
+`.github/skills/vss-troubleshoot/SKILL.md` and the canonical guide at
+`docs/user-guide/troubleshooting.md`.
 
 ## References
 

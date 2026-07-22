@@ -54,7 +54,7 @@ source setup.sh --summary config     # or --search config / --summary-and-search
 Before diving into the decision tree, confirm whether the backend is even up and
 which mode is live. Set `HOST=http://${HOST_IP:-localhost}:${APP_HOST_PORT:-12345}`
 and **run each command yourself**, then relay the result. If nothing is deployed,
-hand off to the [`vss-deploy`](../vss-deploy/SKILL.md) skill.
+hand off to the `vss-deploy` skill at `.github/skills/vss-deploy/SKILL.md`.
 
 ```bash
 # 1. Is the Pipeline Manager reachable?
