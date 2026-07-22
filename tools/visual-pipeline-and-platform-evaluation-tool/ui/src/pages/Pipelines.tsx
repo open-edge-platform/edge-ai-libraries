@@ -66,6 +66,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { NavigationGuard } from "@/components/shared/NavigationGuard";
 type UrlParams = {
   id: string;
   variant: string;
@@ -165,6 +166,7 @@ export const Pipelines = () => {
   const detailsPanelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
+  const startedToastJobIdRef = useRef<string | null>(null);
 
   const {
     currentNodes,
@@ -197,6 +199,7 @@ export const Pipelines = () => {
   const {
     execute: runPipeline,
     isLoading: isPipelineRunning,
+    isPolling: isPipelinePolling,
     isJobCancelled,
     jobId,
     jobStatus,
@@ -206,6 +209,17 @@ export const Pipelines = () => {
   });
 
   useActiveJobSync(jobId);
+
+  useEffect(() => {
+    if (!jobId || startedToastJobIdRef.current === jobId) {
+      return;
+    }
+
+    startedToastJobIdRef.current = jobId;
+    toast.success("Pipeline run started", {
+      description: new Date().toISOString(),
+    });
+  }, [jobId]);
 
   // Reset editor state when variant changes
   useEffect(() => {
@@ -345,10 +359,6 @@ export const Pipelines = () => {
         (n) => n.type === "gvametapublish",
       );
 
-      toast.success("Pipeline run started", {
-        description: new Date().toISOString(),
-      });
-
       const status = await runPipeline({
         performanceTestSpec: {
           pipeline_performance_specs: [
@@ -363,8 +373,7 @@ export const Pipelines = () => {
           execution_config: {
             output_mode: outputMode,
             max_runtime: maxRuntimeSeconds,
-            metadata_mode:
-              hasMetadata && metadataEnabled ? "file" : "disabled",
+            metadata_mode: hasMetadata && metadataEnabled ? "file" : "disabled",
             enable_latency_metrics: latencyMetricsEnabled,
           },
         },
@@ -510,6 +519,11 @@ export const Pipelines = () => {
 
     return (
       <div className="flex flex-col h-full w-full">
+        <NavigationGuard
+          when={isPipelinePolling}
+          title="Pipeline run in progress"
+          description="This page is still polling the active pipeline run. Stop the run or wait for it to finish before leaving this page."
+        />
         <header className="flex h-[3.75rem] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
           <div className="flex flex-wrap items-center gap-2 px-2">
             <Link
@@ -914,9 +928,7 @@ export const Pipelines = () => {
                   defaultSize={runPanelSizeRef.current}
                   minSize={640}
                   onResize={(size) => {
-                    if (typeof size === "number") {
-                      runPanelSizeRef.current = size;
-                    }
+                    runPanelSizeRef.current = size.asPercentage;
                   }}
                 >
                   <div
@@ -958,9 +970,7 @@ export const Pipelines = () => {
                   defaultSize={nodeDetailsPanelSizeRef.current}
                   minSize={400}
                   onResize={(size) => {
-                    if (typeof size === "number") {
-                      nodeDetailsPanelSizeRef.current = size;
-                    }
+                    nodeDetailsPanelSizeRef.current = size.asPercentage;
                   }}
                 >
                   <div
