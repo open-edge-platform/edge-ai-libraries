@@ -35,8 +35,11 @@ spec:
           command: ["/bin/bash", "-c"]
           args:
             - |
-              # Check if model directory exists but is incomplete
-              if [ -d "${OD_MODEL_OUTPUT_DIR}" ] && ( [ ! -d "${OD_MODEL_OUTPUT_DIR}/FP32" ] || [ ! -d "${OD_MODEL_OUTPUT_DIR}/FP16" ] ); then
+              OD_MODEL_OUTPUT_DIR="/opt/models/object-detection/ultralytics/public/${MODEL_NAME}"
+              OD_MODEL_XML="${OD_MODEL_OUTPUT_DIR}/FP32/${MODEL_NAME}.xml"
+              OD_MODEL_BIN="${OD_MODEL_OUTPUT_DIR}/FP32/${MODEL_NAME}.bin"
+              # Video ingestion consumes FP32; remove incomplete output so it can be recreated.
+              if [ -d "${OD_MODEL_OUTPUT_DIR}" ] && ( [ ! -f "${OD_MODEL_XML}" ] || [ ! -f "${OD_MODEL_BIN}" ] ); then
                 echo "Model directory exists but appears incomplete. Removing it to trigger fresh conversion."
                 rm -rf "${OD_MODEL_OUTPUT_DIR}"
               fi
