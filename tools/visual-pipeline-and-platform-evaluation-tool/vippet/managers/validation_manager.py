@@ -145,7 +145,13 @@ class ValidationManager:
 
             thread = threading.Thread(
                 target=self._execute_validation,
-                args=(job_id, pipeline_description, max_runtime, hard_timeout, execution_lease),
+                args=(
+                    job_id,
+                    pipeline_description,
+                    max_runtime,
+                    hard_timeout,
+                    execution_lease,
+                ),
                 daemon=True,
             )
             thread.start()

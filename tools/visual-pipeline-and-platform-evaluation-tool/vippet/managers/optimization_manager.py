@@ -286,7 +286,13 @@ class OptimizationManager:
             # for the optimizer (only relevant for full OPTIMIZE jobs).
             thread = threading.Thread(
                 target=self._execute_optimization,
-                args=(job_id, pipeline_description, optimization_request, variant.name, execution_lease),
+                args=(
+                    job_id,
+                    pipeline_description,
+                    optimization_request,
+                    variant.name,
+                    execution_lease,
+                ),
                 daemon=True,
             )
             thread.start()

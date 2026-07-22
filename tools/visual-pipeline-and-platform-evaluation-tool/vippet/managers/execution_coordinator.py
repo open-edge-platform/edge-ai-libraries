@@ -68,7 +68,9 @@ class ExecutionCoordinator:
         """Acquire exclusive execution rights for the given resource groups."""
         normalized_groups = frozenset(groups)
         if not normalized_groups:
-            raise ValueError("ExecutionCoordinator.acquire requires at least one group.")
+            raise ValueError(
+                "ExecutionCoordinator.acquire requires at least one group."
+            )
 
         with self._state_lock:
             for group in normalized_groups:
