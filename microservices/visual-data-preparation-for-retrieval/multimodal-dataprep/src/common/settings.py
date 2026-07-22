@@ -62,6 +62,16 @@ class Settings(BaseSettings):
     METADATA_FILENAME: str = "metadata.json"
     CONFIG_FILEPATH: Path = Path(__file__).resolve().parent.parent / "config.yaml"
 
+    # When False, an upload whose byte content is identical to a previously
+    # ingested video is rejected with 409 Conflict. When True (default), such
+    # re-uploads are accepted (historical behavior). Read from env
+    # MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS.
+    ALLOW_DUPLICATE_UPLOADS: bool = Field(
+        default=True,
+        description="Allow re-uploading a file whose content already exists. "
+        "Set False to reject content-identical duplicate uploads with 409 Conflict.",
+    )
+
     # Minio connection settings
     MINIO_ENDPOINT: str = ""  # Format: "host:port"
     MINIO_ACCESS_KEY: str = ""

@@ -104,6 +104,9 @@ services:
             - MM_DATAPREP_BATCH_MAX_ITEMS=${MM_DATAPREP_BATCH_MAX_ITEMS:-100}
             - MM_DATAPREP_BATCH_JOB_RETENTION=${MM_DATAPREP_BATCH_JOB_RETENTION:-200}
 
+            # Duplicate-upload policy: set false to reject content-identical re-uploads (409)
+            - MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=${MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS:-true}
+
             # CORS settings
             - MM_DATAPREP_ALLOW_ORIGINS=${ALLOW_ORIGINS:-*}
             - MM_DATAPREP_ALLOW_METHODS=${ALLOW_METHODS:-*}

@@ -246,6 +246,16 @@ Upload an MP4 video file, store it in Minio, and generate frame-based embeddings
 
 - 413 Request Entity Too Large — file exceeds 500 MB limit.
 
+- 409 Conflict — a video with identical content already exists and
+  `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` is `false`:
+
+  ```json
+  {
+      "status": "error",
+      "message": "A video with identical content already exists (existing video_id: 'dp_video_1784697459')."
+  }
+  ```
+
 - 502 Bad Gateway — Minio storage error:
 
   ```json
@@ -283,6 +293,11 @@ sequentially with **per-item error isolation** — one failing video does not ab
 the rest of the batch. The maximum items per batch is `MM_DATAPREP_BATCH_MAX_ITEMS`
 (default 100). Batch ingestion works identically for both the MinIO and local
 storage backends.
+
+When `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` is `false`, `POST /videos/upload/batch`
+and `POST /videos/ingest-dir` reject the request with **`409 Conflict`** if any
+file's content is identical to an already-ingested video (content-based SHA-256
+detection).
 
 ### `POST /videos/upload/batch`
 

@@ -30,6 +30,9 @@ class FakeStorage:
     def bucket_exists(self, bucket_name):
         return self._bucket_ok
 
+    def object_exists_by_path(self, bucket_name, object_name):
+        return False
+
     def list_objects_in_directory(self, bucket_name, video_id):
         return [
             StorageObject(object_name=f"{video_id}/{name}")

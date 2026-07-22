@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Path
 
 from src.common import DataPrepException, Strings, logger, sanitize_for_log
 from src.common.schema import DataPrepResponse
+from src.core.dedup import remove_dedup_marker
 from src.core.utils.common_utils import get_minio_client
 from src.core.validation import validate_params
 from src.core.vectorstores.factory import get_vector_store
@@ -106,6 +107,10 @@ async def delete_video(
 
         # Vectors first: abort before touching storage if the vector delete fails.
         _delete_video_embeddings(bucket_name, video_id)
+
+        # Remove the dedup forward marker so identical content can be re-uploaded
+        # after this video is deleted (best-effort; never blocks the delete).
+        remove_dedup_marker(minio_client, bucket_name, video_id)
 
         for obj in objects:
             minio_client.delete_object(bucket_name, obj.object_name)

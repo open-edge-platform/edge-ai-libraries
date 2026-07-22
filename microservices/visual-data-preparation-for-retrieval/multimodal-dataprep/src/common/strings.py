@@ -32,3 +32,4 @@ class Strings:
     ingest_dir_not_found: str = "The requested ingest directory was not found."
     ingest_path_invalid: str = "The requested path is outside the configured ingest data root."
     vectordb_delete_error: str = "Error occurred while deleting embeddings from the vector DB."
+    duplicate_upload: str = "A video with identical content already exists"

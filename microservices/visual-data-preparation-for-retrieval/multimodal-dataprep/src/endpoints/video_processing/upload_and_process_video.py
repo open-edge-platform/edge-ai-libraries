@@ -16,6 +16,7 @@ from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 
 from src.common import DataPrepException, Strings, logger, sanitize_for_log, settings
 from src.common.schema import DataPrepResponse
+from src.core.dedup import check_and_register_upload
 from src.core.embedding import generate_video_embedding_from_content, generate_video_embedding_from_uri
 from src.core.utils.common_utils import get_minio_client
 from src.core.utils.config_utils import read_config
@@ -152,6 +153,18 @@ async def upload_and_process_video(
         except Exception as ex:
             logger.error(f"Error uploading video to Minio: {ex}")
             raise DataPrepException(status_code=HTTPStatus.BAD_GATEWAY, msg=Strings.minio_error)
+
+        # Enforce the duplicate-upload policy and register dedup markers. When
+        # duplicates are disallowed and this content already exists, a 409 is
+        # raised (the just-stored object is rolled back below before returning).
+        try:
+            check_and_register_upload(minio_client, bucket_name, video_id, content)
+        except DataPrepException:
+            try:
+                minio_client.delete_object(bucket_name, object_name)
+            except Exception as cleanup_ex:  # noqa: BLE001
+                logger.warning("Failed to roll back duplicate upload object: %s", cleanup_ex)
+            raise
 
         telemetry_context = {
             "request_id": str(uuid.uuid4()),

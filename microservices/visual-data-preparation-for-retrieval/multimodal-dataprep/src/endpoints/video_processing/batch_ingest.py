@@ -33,6 +33,7 @@ from src.common.schema import (
     BatchSubmitResponse,
     DirectoryIngestRequest,
 )
+from src.core.dedup import check_and_register_upload
 from src.core.jobs import BatchItem, cancel_job, get_job, process_stored_video, submit_job
 from src.core.jobs.batch_jobs import BatchJob
 from src.core.utils.common_utils import get_minio_client
@@ -82,7 +83,12 @@ def _new_video_id(index: int) -> str:
 
 
 def _stash_bytes(bucket_name: str, video_id: str, filename: str, content: bytes) -> None:
-    """Persist raw upload bytes to storage under ``<video_id>/<filename>``."""
+    """Persist raw upload bytes to storage under ``<video_id>/<filename>``.
+
+    After storing, the duplicate-upload policy is enforced: when duplicates are
+    disallowed and this content already exists, the just-stored object is removed
+    and a 409 conflict is raised; otherwise the dedup markers are registered.
+    """
     minio_client = get_minio_client()
     minio_client.ensure_bucket_exists(bucket_name)
     object_name = f"{video_id}/{filename}"
@@ -93,6 +99,14 @@ def _stash_bytes(bucket_name: str, video_id: str, filename: str, content: bytes)
         sanitize_for_log(bucket_name, max_length=128),
         sanitize_for_log(object_name, max_length=256),
     )
+    try:
+        check_and_register_upload(minio_client, bucket_name, video_id, content)
+    except DataPrepException:
+        try:
+            minio_client.delete_object(bucket_name, object_name)
+        except Exception as cleanup_ex:  # noqa: BLE001
+            logger.warning("Failed to roll back duplicate batch object: %s", cleanup_ex)
+        raise
 
 
 def _job_to_status(job: BatchJob) -> BatchJobStatus:
