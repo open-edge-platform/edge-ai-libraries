@@ -20,7 +20,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
 
 - `<start|stop|install|remove|profile>`: The `profile` function works similarly to a profile, which specifies the component dependencies, and the `install/remove/start/stop` functions perform their corresponding functions. At least one of thoses functions must be defined for the compoenent. Others are optional.
 
-> For simple system-level packages, for example, `curl`, it is ok to define only an installation function with an uninstaller. The assumption is that `curl` can reside on the system for future use, while uninstalling it everytime is a bit overkill and may cause potentially unintended consequence. For other non-system components, there usually should define bothe a `install` function and a corresponding `remove` function. 
+> For simple system-level packages, for example, `curl`, it is ok to define only an installation function without an uninstaller. The assumption is that `curl` can reside on the system for future use, while uninstalling it everytime is a bit overkill and may cause potentially unintended consequence. For other non-system components, there usually should define both an `install` function and a corresponding `remove` function. 
 
 ### Name Convention
 
