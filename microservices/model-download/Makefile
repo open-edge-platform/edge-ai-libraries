@@ -22,6 +22,9 @@
 #   make gitleaks-scan - Run Gitleaks secrets scan
 #   make codeql-scan   - Run CodeQL security analysis (Python)
 #   make clean         - Remove caches and coverage artifacts
+# Example: override TAG, ENABLED_PLUGINS and MODEL_PATH at runtime (these take
+# priority over the same values in .env):
+#   make deploy TAG=v1.2 ENABLED_PLUGINS=huggingface,ollama MODEL_PATH=~/models/
 #
 # ==============================================================================
 
