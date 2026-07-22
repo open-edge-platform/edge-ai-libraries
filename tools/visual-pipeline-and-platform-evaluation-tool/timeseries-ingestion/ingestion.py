@@ -95,7 +95,6 @@ def send_data(filepath):
                 payload = {"topic": topic, "fields": fields}
                 try:
                     response = requests.post(url, json=payload, headers=headers, timeout=10)
-                    print("Sending payload:", json.dumps(payload))
                     print(f"Sent: {fields} | Status: {response.status_code}")
                     write_metadata(fields, response.status_code)
                     if response.status_code in (200, 204):
