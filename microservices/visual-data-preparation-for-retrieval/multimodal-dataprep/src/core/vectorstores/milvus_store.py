@@ -25,6 +25,7 @@ dependency/PoC spike and MUST be preserved:
 from __future__ import annotations
 
 import os
+import re
 import threading
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -37,6 +38,12 @@ from src.core.vectorstores.factory import register_backend
 from src.core.vectorstores.metadata import project_to_canonical
 
 _BATCH_SIZE = 200
+
+# Milvus boolean-expression filters are built as strings, so identifiers
+# interpolated into them (video_id, bucket_name) are restricted to a strict
+# allowlist to eliminate any expression-injection surface. Storage bucket names
+# and generated video ids only ever contain these characters.
+_SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 class _DummyEmbedding(Embeddings):
@@ -202,6 +209,36 @@ class MilvusVectorStore(BaseVectorStore):
     def update_index(self) -> None:
         """No-op: Milvus indexes eagerly; nothing to flush at teardown."""
         logger.debug("Milvus update_index() is a no-op (eager indexing).")
+
+    def delete_embeddings(self, bucket_name: str, video_id: str) -> int:
+        """Delete all Milvus vectors for a video via a boolean-expression filter.
+
+        Both identifiers are validated against a strict allowlist before being
+        interpolated into the Milvus ``expr`` string, so there is no
+        expression-injection surface. ``langchain_milvus``' ``delete`` returns a
+        boolean rather than a count, so this returns ``-1`` on success (and ``0``
+        when the delete call reports failure/no-op).
+        """
+        for name, value in (("bucket_name", bucket_name), ("video_id", video_id)):
+            if not value or not _SAFE_IDENTIFIER.match(value):
+                raise ValueError(f"Unsafe {name} for Milvus delete: {value!r}")
+
+        self.connect()
+        expr = f'video_id == "{video_id}" and bucket_name == "{bucket_name}"'
+        try:
+            deleted = self.store.delete(expr=expr)
+        except Exception as exc:
+            logger.error(
+                "Milvus delete failed for %s/%s: %s", bucket_name, video_id, exc
+            )
+            raise
+        logger.info(
+            "Deleted Milvus vectors for video %s in bucket %s (ok=%s)",
+            video_id,
+            bucket_name,
+            deleted,
+        )
+        return -1 if deleted else 0
 
     def health(self) -> dict:
         status = {"backend": "milvus", "collection": self.collection_name}

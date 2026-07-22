@@ -89,12 +89,6 @@ class VideoRequest(BaseModel):
     video_id: Annotated[
         Optional[str], Field(description="The video ID (directory) containing the video")
     ] = None
-    video_name: Annotated[
-        Optional[str],
-        Field(
-            description="The video filename within the video_id directory (if omitted, first video found is used)"
-        ),
-    ] = None
     frame_interval: Annotated[
         Optional[int],
         Field(

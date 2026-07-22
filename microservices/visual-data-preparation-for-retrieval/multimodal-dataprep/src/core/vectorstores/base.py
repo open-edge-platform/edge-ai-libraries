@@ -12,11 +12,14 @@ actually performs today:
   representation the backend accepts.
 * ``update_index``   - flush/refresh the index (no-op for backends that index
   eagerly, e.g. Milvus).
+* ``delete_embeddings`` - remove all vectors belonging to a single stored video
+  (``bucket_name`` + ``video_id``), keeping the vector DB in sync when a video is
+  deleted from storage.
 * ``health``         - report backend connectivity / status.
 
-Vector *deletion* and *querying* are deliberately omitted: no current endpoint
-deletes or queries vectors from the store (``delete_video`` only removes objects
-from storage). Add those methods here only when an endpoint requires them.
+Vector *querying* is deliberately omitted: no current endpoint queries vectors
+from the store (search is the retriever service's responsibility). Add query
+methods here only when an endpoint requires them.
 """
 
 from __future__ import annotations
@@ -60,6 +63,30 @@ class BaseVectorStore(ABC):
     @abstractmethod
     def update_index(self) -> None:
         """Flush/refresh the index. No-op for backends that index eagerly."""
+
+    @abstractmethod
+    def delete_embeddings(self, bucket_name: str, video_id: str) -> int:
+        """Delete every vector belonging to one stored video.
+
+        A video is uniquely identified by its ``bucket_name`` + ``video_id``, both
+        of which are persisted on every embedding (full frame, detected crop, and
+        text/summary). Implementations MUST remove all matching vectors so the
+        vector DB stays consistent with storage when a video is deleted.
+
+        The operation is idempotent: deleting a video that has no vectors (already
+        removed, or never embedded) is not an error and returns ``0``.
+
+        Args:
+            bucket_name: The storage bucket the video was ingested under.
+            video_id: The video directory / identifier whose vectors to remove.
+
+        Returns:
+            int: The number of vectors deleted, or ``-1`` when the backend cannot
+            report an exact count but the delete succeeded.
+
+        Raises:
+            Exception: If the backend delete operation fails.
+        """
 
     @abstractmethod
     def health(self) -> dict:

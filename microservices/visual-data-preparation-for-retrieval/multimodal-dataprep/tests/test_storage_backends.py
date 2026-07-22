@@ -35,7 +35,6 @@ def test_upload_download_roundtrip(local_storage):
     assert name == "vid1/clip.mp4"
     local_storage.upload_video("b1", name, io.BytesIO(b"hello"), 5)
     assert local_storage.object_exists_by_path("b1", name) is True
-    assert local_storage.object_exists("b1", "vid1", "clip.mp4") is True
     assert local_storage.get_object_size("b1", name) == 5
     data = local_storage.download_video_stream("b1", name)
     assert data.read() == b"hello"
@@ -98,12 +97,6 @@ def test_path_traversal_is_blocked(local_storage):
         local_storage.compose_object_name("../etc", "passwd")
     with pytest.raises(ValueError):
         local_storage._resolve_object_path("b1", "../../escape.mp4")
-
-
-def test_validate_object_name(local_storage):
-    assert local_storage.validate_object_name("vid1", "clip.mp4") is True
-    assert local_storage.validate_object_name("vid1", "clip.txt") is False
-    assert local_storage.validate_object_name("", "clip.mp4") is False
 
 
 def test_factory_selects_local(monkeypatch, tmp_path):

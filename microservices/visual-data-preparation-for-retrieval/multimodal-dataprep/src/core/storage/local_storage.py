@@ -84,35 +84,12 @@ class LocalStorage(BaseStorage):
         safe_object_name = self._validate_component(object_name, "Object name")
         return f"{safe_video_id}/{safe_object_name}"
 
-    def validate_object_name(self, video_id: str, video_name: str) -> bool:
-        """Implements :meth:`BaseStorage.validate_object_name`."""
-        try:
-            if not video_id or not video_name:
-                return False
-            if not video_name.lower().endswith(".mp4"):
-                return False
-            object_name = self.compose_object_name(video_id, video_name)
-            if len(object_name) > 1024:
-                return False
-            return True
-        except Exception as exc:
-            logger.error(f"Error validating object name: {exc}")
-            return False
-
     def object_exists_by_path(self, bucket_name: str, object_name: str) -> bool:
         """Implements :meth:`BaseStorage.object_exists_by_path`."""
         try:
             return os.path.isfile(self._resolve_object_path(bucket_name, object_name))
         except ValueError:
             return False
-
-    def object_exists(self, bucket_name: str, video_id: str, video_name: str) -> bool:
-        """Implements :meth:`BaseStorage.object_exists`."""
-        try:
-            object_name = self.compose_object_name(video_id, video_name)
-        except ValueError:
-            return False
-        return self.object_exists_by_path(bucket_name, object_name)
 
     # --- listing ------------------------------------------------------------
     def list_objects_in_directory(

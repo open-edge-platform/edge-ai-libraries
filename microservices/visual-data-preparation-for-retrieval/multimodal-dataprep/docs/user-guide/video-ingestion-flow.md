@@ -58,7 +58,7 @@ flowchart TD
     ENTRY -->|MinIO Reference| MINIO[POST /videos/minio<br/>Params: bucket_name, video_id]
 
     UPLOAD --> VALIDATE1[Validate File<br/>- Check MP4 format<br/>- Check size limit 500MB<br/>- Validate parameters]
-    MINIO --> VALIDATE2[Validate MinIO Path<br/>- Check bucket exists<br/>- Verify video_id directory<br/>- Validate video_name]
+    MINIO --> VALIDATE2[Validate MinIO Path<br/>- Check bucket exists<br/>- Verify video_id directory<br/>- Resolve stored video]
 
     VALIDATE1 --> STORE[Store Video to MinIO<br/>Path: bucket/video_id/filename.mp4]
     VALIDATE2 --> DOWNLOAD[Download from MinIO<br/>Get video content]
@@ -73,10 +73,12 @@ flowchart TD
 ```
 
 **Key Decisions:**
+
 - **Entry Point Selection**: Direct upload saves to MinIO first; MinIO processing retrieves from existing storage
 - **Configuration Priority**: Request params → Config file defaults → Service defaults
 
 **Performance Factors:**
+
 - File validation is minimal overhead (~ms)
 - MinIO upload/download depends on video size and network
 - In-process embedding eliminates network latency
@@ -118,11 +120,13 @@ flowchart TD
 ```
 
 **Optimization Highlights:**
+
 1. **Decord Library**: GPU-capable video reading (though currently using CPU context for reliability)
 2. **Memory Efficiency**: Frames stored as numpy arrays, not written to disk between stages
 3. **Metadata Richness**: Comprehensive frame metadata for search/retrieval
 
 **Performance Metrics:**
+
 - **Frame Extraction Time**: Typically 0.5-2s for 60 frames from 30s video
 - **Memory Usage**: ~4MB per 1080p frame (uncompressed)
 - **Extraction Rate**: ~30-100 frames/second depending on video resolution
@@ -188,6 +192,7 @@ flowchart TD
 **Object Detection Details:**
 
 **Model Specifications:**
+
 - **Architecture**: YOLOX-S (small variant)
 - **Framework**: OpenVINO IR format
 - **Input Resolution**: 640x640 (preprocessed)
@@ -195,18 +200,21 @@ flowchart TD
 - **Download**: Auto-downloaded from GitHub on first use
 
 **Detection Process:**
+
 1. **Preprocessing**: Image resized to 640x640, normalized
 2. **Inference**: OpenVINO execution on CPU/GPU
 3. **Postprocessing**: NMS filtering with threshold 0.45
 4. **Crop Extraction**: Bounding boxes validated and extracted
 
 **Performance Characteristics:**
+
 - **Detection Speed**: ~50-100ms per frame (CPU), ~10-20ms (GPU)
 - **Parallel Batches**: 2-4 detection workers typical
 - **Expansion Factor**: 1.5x to 5x (avg 3 objects/frame)
 - **Memory Impact**: +20-50% for crop storage
 
 **Optimization Strategy:**
+
 - Batched detection reduces overhead
 - Parallel processing utilizes multi-core CPUs
 - Global detector instance reused (no reload per request)
@@ -279,6 +287,7 @@ batch_size = 32  # Fixed optimal size
 | 96 cores  | 24 workers    | 6 workers    |
 
 **Batch Size Considerations:**
+
 - **32 items per batch**: Optimal balance for embedding models
 - **Smaller batches**: Lower memory, higher overhead
 - **Larger batches**: Higher memory, better throughput
@@ -356,6 +365,7 @@ flowchart TD
 **Parallel Processing Characteristics:**
 
 **Thread Pool Execution:**
+
 - **Dynamic Work Distribution**: Batches processed as workers become available
 - **True Parallelism**: Multiple batches processed simultaneously
 - **Completion Order**: Batches complete in any order (not sequential)
@@ -375,12 +385,14 @@ flowchart TD
 **Vector DB Storage Strategy:**
 
 **Why Immediate Batch Storage:**
+
 - **Prevents Memory Overflow**: Storing after each batch prevents accumulation
 - **Protects Against Failures**: Partial results saved even if pipeline fails
 - **Avoids VDMS Issues**: Prevents OutOfJournalSpace errors
 - **Progress Tracking**: Stored IDs returned incrementally
 
 **Bulk Insert Benefits:**
+
 - **Reduced Overhead**: Single VDMS transaction per batch
 - **Index Efficiency**: VDMS can optimize index updates
 - **Faster Than Individual**: ~10x faster than per-item inserts
@@ -486,6 +498,7 @@ flowchart TD
 **Frame Flow Tracking:**
 
 The system tracks three critical counts:
+
 1. **Extracted Frames**: Original frames from video (e.g., 60)
 2. **Post-Detection Items**: After adding crops (e.g., 240 = 60 + 180 crops)
 3. **Stored Embeddings**: Successfully stored in vector DB (e.g., 240)
@@ -617,6 +630,7 @@ graph TB
 | interval=30, detection=ON, in-process | 30 | 120 | 4.8s | 3.8x |
 
 **Timing Breakdown (Detection ON)**:
+
 - Frame Extraction: 1.2s (14%)
 - Object Detection: 2.4s (28%)
 - Embedding Generation: 4.2s (49%)
@@ -762,4 +776,3 @@ The VDMS DataPrep video ingestion pipeline is a highly optimized system that eff
 - **Video Utils**: `src/core/utils/video_utils.py`
 
 ---
-

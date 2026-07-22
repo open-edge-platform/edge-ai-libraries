@@ -75,10 +75,6 @@ class MinioStorage(BaseStorage):
         """Implements :meth:`BaseStorage.compose_object_name`."""
         return self._client.compose_object_name(video_id, object_name)
 
-    def validate_object_name(self, video_id: str, video_name: str) -> bool:
-        """Implements :meth:`BaseStorage.validate_object_name`."""
-        return self._client.validate_object_name(video_id, video_name)
-
     def object_exists_by_path(self, bucket_name: str, object_name: str) -> bool:
         """Implements :meth:`BaseStorage.object_exists_by_path`."""
         try:
@@ -89,10 +85,6 @@ class MinioStorage(BaseStorage):
         except Exception as exc:  # pragma: no cover - defensive
             logger.error(f"Error checking if object exists: {exc}")
             return False
-
-    def object_exists(self, bucket_name: str, video_id: str, video_name: str) -> bool:
-        """Implements :meth:`BaseStorage.object_exists`."""
-        return self._client.object_exists(bucket_name, video_id, video_name)
 
     # --- listing ------------------------------------------------------------
     def list_objects_in_directory(

@@ -381,58 +381,6 @@ class MinioClient:
             )
             raise Exception(f"Error listing videos in bucket {bucket_name}: {ex}")
 
-    def validate_object_name(self, video_id: str, video_name: str) -> bool:
-        """Validate video_id and video_name based on Minio object naming rules.
-
-        Args:
-            video_id (str): The video ID (directory part)
-            video_name (str): The video filename
-
-        Returns:
-            bool: True if valid, False otherwise
-        """
-        try:
-            logger.debug(f"Validating object name: video_id={video_id}, video_name={video_name}")
-
-            # Check for empty strings
-            if not video_id or not video_name:
-                return False
-
-            # Check if video_name has a valid video extension (.mp4)
-            if not video_name.lower().endswith(".mp4"):
-                return False
-
-            # Check total length (Minio has a 1024 character limit for object names)
-            object_name = self.compose_object_name(video_id, video_name)
-            if len(object_name) > 1024:
-                return False
-
-            return True
-        except Exception as ex:
-            logger.error(f"Error validating object name: {ex}")
-            return False
-
-    def object_exists(self, bucket_name: str, video_id: str, video_name: str) -> bool:
-        """Check if an object exists in the bucket.
-
-        Args:
-            bucket_name (str): The bucket to check in
-            video_id (str): The video ID (directory part)
-            video_name (str): The video filename
-
-        Returns:
-            bool: True if the object exists, False otherwise
-        """
-        try:
-            object_name = self.compose_object_name(video_id, video_name)
-            self.client.stat_object(bucket_name, object_name)
-            return True
-        except S3Error:
-            return False
-        except Exception as ex:
-            logger.error(f"Error checking if object exists: {ex}")
-            return False
-
     def bucket_exists(self, bucket_name: str) -> bool:
         """Check if the specified bucket exists.
 

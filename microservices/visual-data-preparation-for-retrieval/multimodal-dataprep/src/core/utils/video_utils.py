@@ -42,30 +42,26 @@ from .file_utils import create_temp_directory
 toPIL = ToPILImage()
 
 
-def resolve_video_object(
-    bucket_name: str, video_id: str, video_name: Optional[str] = None
-) -> Tuple[str, str]:
+def resolve_video_object(bucket_name: str, video_id: str) -> Tuple[str, str]:
     """Resolve a stored video's object key and filename without downloading it.
+
+    Each ``video_id`` directory holds exactly one video file, so resolution is
+    unambiguous: the single object under the directory is returned.
 
     Args:
         bucket_name (str): The bucket containing the video.
         video_id (str): The directory (video_id) containing the video.
-        video_name (Optional[str]): Specific video filename. If None, the first
-            video found in the directory is used.
 
     Returns:
         Tuple[str, str]: ``(object_name, filename)`` where ``object_name`` is the
         fully composed ``<video_id>/<filename>`` storage key.
 
     Raises:
-        DataPrepException: If no matching video object can be found.
+        DataPrepException: If no video object can be found in the directory.
     """
     minio_client = get_minio_client()
 
-    if video_name:
-        object_name = minio_client.compose_object_name(video_id, video_name)
-    else:
-        object_name = minio_client.get_video_in_directory(bucket_name, video_id)
+    object_name = minio_client.get_video_in_directory(bucket_name, video_id)
 
     if not object_name:
         logger.error(
@@ -78,15 +74,12 @@ def resolve_video_object(
     return object_name, filename
 
 
-def get_video_from_minio(
-    bucket_name: str, video_id: str, video_name: Optional[str] = None
-) -> Tuple[io.BytesIO, str]:
+def get_video_from_minio(bucket_name: str, video_id: str) -> Tuple[io.BytesIO, str]:
     """Get video data from Minio storage.
 
     Args:
         bucket_name (str): The bucket containing the video
-        video_id (str): The directory (video_id) containing the video
-        video_name (Optional[str], optional): Specific video filename. If None, first video found is used.
+        video_id (str): The directory (video_id) containing the single video
 
     Returns:
         Tuple[io.BytesIO, str]: Tuple containing the video data and the video filename
@@ -98,7 +91,7 @@ def get_video_from_minio(
         minio_client = get_minio_client()
 
         # Resolve the object key + filename (no download yet)
-        object_name, filename = resolve_video_object(bucket_name, video_id, video_name)
+        object_name, filename = resolve_video_object(bucket_name, video_id)
 
         # Get the video data
         data = minio_client.download_video_stream(bucket_name, object_name)

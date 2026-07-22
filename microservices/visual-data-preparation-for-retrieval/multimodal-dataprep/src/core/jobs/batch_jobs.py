@@ -39,7 +39,6 @@ class BatchItem:
     identifier: str
     bucket_name: Optional[str] = None
     video_id: Optional[str] = None
-    video_name: Optional[str] = None
     frame_interval: int = 15
     enable_object_detection: bool = True
     detection_confidence: float = 0.85

@@ -82,21 +82,19 @@ paths:
         \ :** Contains processing parameters:\n   - **bucket_name (str) :** The bucket\
         \ name where the video is stored (If not provided, a default bucket name will\
         \ be used based on application config.)\n   - **video_id (str) :** The video\
-        \ ID (directory) containing the video (required)\n   - **video_name (str,\
-        \ optional) :** The video filename within the video_id directory (if omitted,\
-        \ the first MP4 video found in the directory will be used automatically)\n\
-        \   - **frame_interval (int) :** Extract every Nth frame for processing (default:\
-        \ 15, range: 1-60)\n   - **enable_object_detection (bool) :** Enable object\
-        \ detection and crop extraction (default: True)\n   - **detection_confidence\
-        \ (float) :** Confidence threshold for object detection (default: 0.85, range:\
-        \ 0.1-1.0)\n   - **tags (list(str), optional) :** A list of tags to be associated\
-        \ with the video. Useful for filtering the search.\n\n#### Raises:\n- **400\
-        \ Bad Request :** If required parameters are missing or invalid.\n- **404\
-        \ Not Found :** If the specified video cannot be found in Minio or no videos\
-        \ exist in the specified directory.\n- **502 Bad Gateway :** When something\
-        \ unpleasant happens at Minio storage.\n- **500 Internal Server Error :**\
-        \ When some internal error occurs at DataPrep API server.\n\nReturns:\n- **response\
-        \ (json) :** A response JSON containing status and message."
+        \ ID (directory) containing the video (required)\n   - **frame_interval (int)\
+        \ :** Extract every Nth frame for processing (default: 15, range: 1-60)\n\
+        \   - **enable_object_detection (bool) :** Enable object detection and crop\
+        \ extraction (default: True)\n   - **detection_confidence (float) :** Confidence\
+        \ threshold for object detection (default: 0.85, range: 0.1-1.0)\n   - **tags\
+        \ (list(str), optional) :** A list of tags to be associated with the video.\
+        \ Useful for filtering the search.\n\n#### Raises:\n- **400 Bad Request :**\
+        \ If required parameters are missing or invalid.\n- **404 Not Found :** If\
+        \ the specified video cannot be found in Minio or no videos exist in the specified\
+        \ directory.\n- **502 Bad Gateway :** When something unpleasant happens at\
+        \ Minio storage.\n- **500 Internal Server Error :** When some internal error\
+        \ occurs at DataPrep API server.\n\nReturns:\n- **response (json) :** A response\
+        \ JSON containing status and message."
       operationId: processVideoFromMinio
       requestBody:
         content:
@@ -557,6 +555,8 @@ paths:
       tags:
       - Batch Ingestion APIs
       summary: Get the status and per-item results of a batch job.
+      description: Return the current state and per-item results of a batch job (404
+        if unknown).
       operationId: getBatchJobStatus
       parameters:
       - name: job_id
@@ -582,6 +582,7 @@ paths:
       tags:
       - Batch Ingestion APIs
       summary: Request cancellation of a pending/running batch job.
+      description: Request cooperative cancellation of a batch job (404 if unknown).
       operationId: cancelBatchJob
       parameters:
       - name: job_id
@@ -724,9 +725,6 @@ paths:
         - **bucket_name (str, optional) :** The bucket where the video is stored.
         Defaults to the configured bucket.
 
-        - **video_name (str, optional) :** The video filename. If omitted, the first
-        video in the directory is used.
-
         - **download (bool, optional) :** Set to true to force a file download (``attachment``)
         instead of inline streaming.
 
@@ -768,18 +766,6 @@ paths:
           title: Bucket Name
         description: The bucket name where the video is stored. If not provided, default
           bucket will be used.
-      - name: video_name
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: The video filename to download. If not provided, the first
-            video in the directory will be used.
-          title: Video Name
-        description: The video filename to download. If not provided, the first video
-          in the directory will be used.
       - name: download
         in: query
         required: false
@@ -816,11 +802,18 @@ paths:
     delete:
       tags:
       - Video Management APIs
-      summary: Delete a video from Minio storage.
-      description: '### Delete a video from Minio storage.
+      summary: Delete a video from storage and its embeddings from the vector DB.
+      description: '### Delete a video from storage and its embeddings from the vector
+        DB.
 
 
-        This endpoint deletes a video or all videos in a directory from Minio storage.
+        This endpoint deletes a video (the single file under a ``video_id`` directory)
+
+        from the active storage backend AND removes the corresponding embeddings from
+
+        the active vector DB, keeping both stores consistent. Embeddings are removed
+
+        first so a failure never leaves orphaned vectors behind.
 
 
         #### Path Params:
@@ -831,20 +824,14 @@ paths:
         to delete
 
 
-        #### Query Params:
-
-        - **video_name (str, optional) :** The video filename to delete. If not provided,
-        all videos in the directory will be deleted.
-
-
         #### Raises:
 
         - **400 Bad Request :** If required parameters are missing or invalid.
 
-        - **404 Not Found :** If the specified video cannot be found in Minio or no
-        videos exist in the specified directory.
+        - **404 Not Found :** If no video exists in the specified directory.
 
-        - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
+        - **502 Bad Gateway :** When something unpleasant happens at the storage backend
+        or vector DB.
 
         - **500 Internal Server Error :** When some internal error occurs at DataPrep
         API server.
@@ -871,18 +858,6 @@ paths:
           description: The video ID (directory) containing the video to delete
           title: Video Id
         description: The video ID (directory) containing the video to delete
-      - name: video_name
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: The video filename to delete. If not provided, all videos in
-            the directory will be deleted.
-          title: Video Name
-        description: The video filename to delete. If not provided, all videos in
-          the directory will be deleted.
       responses:
         '200':
           description: Successful Response
@@ -1279,6 +1254,7 @@ components:
       - success
       - error
       title: StatusEnum
+      description: Generic success/error status returned in API responses.
     TelemetryBatchDetail:
       properties:
         stream_id:
@@ -1580,13 +1556,6 @@ components:
           - type: 'null'
           title: Video Id
           description: The video ID (directory) containing the video
-        video_name:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Video Name
-          description: The video filename within the video_id directory (if omitted,
-            first video found is used)
         frame_interval:
           anyOf:
           - type: integer

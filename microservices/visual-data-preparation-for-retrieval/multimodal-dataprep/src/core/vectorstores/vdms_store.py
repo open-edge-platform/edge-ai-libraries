@@ -182,6 +182,30 @@ class VDMSVectorStore(BaseVectorStore):
         except Exception as exc:
             logger.error("Error updating VDMS index: %s", exc)
 
+    def delete_embeddings(self, bucket_name: str, video_id: str) -> int:
+        """Delete all VDMS vectors for a video via a metadata constraint.
+
+        Uses ``langchain_vdms``' constraint-based delete: descriptors whose
+        ``video_id`` and ``bucket_name`` properties match are removed. VDMS does
+        not report an exact deleted count, so this returns ``-1`` on success.
+        """
+        self.connect()
+        constraints = {
+            "video_id": ["==", video_id],
+            "bucket_name": ["==", bucket_name],
+        }
+        try:
+            self.video_db.delete(constraints=constraints)
+        except Exception as exc:
+            logger.error(
+                "VDMS delete failed for %s/%s: %s", bucket_name, video_id, exc
+            )
+            raise
+        logger.info(
+            "Deleted VDMS vectors for video %s in bucket %s", video_id, bucket_name
+        )
+        return -1
+
     def health(self) -> dict:
         status = {"backend": "vdms", "collection": self.collection_name}
         try:

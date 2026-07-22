@@ -22,17 +22,12 @@ from src.core.validation import sanitize_model
 router = APIRouter(tags=["Video Processing APIs"])
 
 
-def _validate_and_get_video_name(
-    bucket_name: str,
-    video_id: str,
-    video_name: str = None,
-) -> str:
-    """
-    Validate the parameters and get the video name from the specified bucket and video ID.
-    If video_name is provided, it checks if the video exists in the specified bucket and directory.
-    If video_name is not provided, it attempts to find the first MP4 video in the specified directory.
+def _resolve_stored_video_name(bucket_name: str, video_id: str) -> str:
+    """Resolve the single stored video's filename for a ``video_id`` directory.
 
-    Raises DataPrepException if the video does not exist or parameter verification fails.
+    Each ``video_id`` directory holds exactly one video file, so the lookup is
+    unambiguous. Raises :class:`DataPrepException` if parameters are missing or
+    no video exists in the directory.
     """
 
     # Validate required parameters
@@ -46,32 +41,14 @@ def _validate_and_get_video_name(
     minio_client = get_minio_client()
     minio_client.ensure_bucket_exists(bucket_name)
 
-    # If video_name is not provided, try to get it from the directory
-    if not video_name:
-        logger.info(f"Video name not provided, attempting to find video in directory {video_id}")
-        object_name = minio_client.get_video_in_directory(bucket_name, video_id)
-        if not object_name:
-            raise DataPrepException(
-                status_code=HTTPStatus.NOT_FOUND,
-                msg=f"No video found in directory '{video_id}' in bucket '{bucket_name}'",
-            )
-        # Extract just the filename part
-        video_name = pathlib.Path(object_name).name
-        logger.debug(f"Found video: {video_name} in directory {video_id}")
-
-    else:
-        if not minio_client.object_exists(bucket_name, video_id, video_name):
-            raise DataPrepException(
-                status_code=HTTPStatus.NOT_FOUND,
-                msg=f"Video '{video_id}/{video_name}' not found in bucket '{bucket_name}'",
-            )
-
-        if not minio_client.validate_object_name(video_id, video_name):
-            raise DataPrepException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                msg=f"Invalid video name '{video_name}' in directory '{video_id}'",
-            )
-
+    object_name = minio_client.get_video_in_directory(bucket_name, video_id)
+    if not object_name:
+        raise DataPrepException(
+            status_code=HTTPStatus.NOT_FOUND,
+            msg=f"No video found in directory '{video_id}' in bucket '{bucket_name}'",
+        )
+    video_name = pathlib.Path(object_name).name
+    logger.debug(f"Found video: {video_name} in directory {video_id}")
     return video_name
 
 
@@ -102,7 +79,6 @@ async def process_minio_video(
     - **video_request (VideoRequest) :** Contains processing parameters:
        - **bucket_name (str) :** The bucket name where the video is stored (If not provided, a default bucket name will be used based on application config.)
        - **video_id (str) :** The video ID (directory) containing the video (required)
-       - **video_name (str, optional) :** The video filename within the video_id directory (if omitted, the first MP4 video found in the directory will be used automatically)
        - **frame_interval (int) :** Extract every Nth frame for processing (default: 15, range: 1-60)
        - **enable_object_detection (bool) :** Enable object detection and crop extraction (default: True)
        - **detection_confidence (float) :** Confidence threshold for object detection (default: 0.85, range: 0.1-1.0)
@@ -143,7 +119,6 @@ async def process_minio_video(
         # Get parameters from video_request, fall back to config for some, if not specified
         bucket_name = video_request.bucket_name
         video_id = video_request.video_id
-        video_name = video_request.video_name
         frame_interval = video_request.frame_interval or effective_config.get("frame_interval", 15)
         if video_request.enable_object_detection is not None:
             enable_object_detection = bool(video_request.enable_object_detection)
@@ -157,11 +132,10 @@ async def process_minio_video(
         )
         tags: List[str] = video_request.tags or []
 
-        # Validate the provided minio parameters and get the video name, if not provided
-        video_name = _validate_and_get_video_name(
+        # Validate the provided minio parameters and resolve the stored video name
+        video_name = _resolve_stored_video_name(
             bucket_name=bucket_name,
             video_id=video_id,
-            video_name=video_name,
         )
 
         # Create a unique subdirectory for this request using video_id to avoid conflicts
@@ -179,7 +153,7 @@ async def process_minio_video(
             logger.info(
                 f"Retrieving video from Minio at bucket: {bucket_name}, video_id: {video_id}"
             )
-            video_data, filename = get_video_from_minio(bucket_name, video_id, video_name)
+            video_data, filename = get_video_from_minio(bucket_name, video_id)
 
             # Save video to temporary location for processing
             temp_video_path = videos_temp_dir / filename

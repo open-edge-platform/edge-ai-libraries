@@ -54,16 +54,8 @@ class BaseStorage(ABC):
         """Build a safe ``<video_id>/<object_name>`` key, rejecting unsafe input."""
 
     @abstractmethod
-    def validate_object_name(self, video_id: str, video_name: str) -> bool:
-        """Validate a (video_id, video_name) pair against backend naming rules."""
-
-    @abstractmethod
     def object_exists_by_path(self, bucket_name: str, object_name: str) -> bool:
         """Return True if an object exists at the fully composed path."""
-
-    @abstractmethod
-    def object_exists(self, bucket_name: str, video_id: str, video_name: str) -> bool:
-        """Return True if ``<video_id>/<video_name>`` exists in the bucket."""
 
     # --- listing ------------------------------------------------------------
     @abstractmethod

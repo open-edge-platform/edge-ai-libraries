@@ -115,12 +115,6 @@ async def download_video(
             description="The bucket name where the video is stored. If not provided, default bucket will be used."
         ),
     ] = None,
-    video_name: Annotated[
-        Optional[str],
-        Query(
-            description="The video filename to download. If not provided, the first video in the directory will be used."
-        ),
-    ] = None,
     download: Annotated[
         bool,
         Query(description="Set to true to download the file instead of streaming it"),
@@ -141,7 +135,6 @@ async def download_video(
     #### Query Params:
     - **video_id (str, required) :** The video ID (directory) containing the video to download.
     - **bucket_name (str, optional) :** The bucket where the video is stored. Defaults to the configured bucket.
-    - **video_name (str, optional) :** The video filename. If omitted, the first video in the directory is used.
     - **download (bool, optional) :** Set to true to force a file download (``attachment``) instead of inline streaming.
 
     #### Raises:
@@ -161,7 +154,7 @@ async def download_video(
         storage = get_minio_client()
 
         # Resolve the concrete object + size without downloading it.
-        object_name, filename = resolve_video_object(bucket_name, video_id, video_name)
+        object_name, filename = resolve_video_object(bucket_name, video_id)
         file_size = storage.get_object_size(bucket_name, object_name)
 
         content_disposition = (

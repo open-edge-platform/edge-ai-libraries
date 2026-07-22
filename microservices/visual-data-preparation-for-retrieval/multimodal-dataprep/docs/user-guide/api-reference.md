@@ -130,7 +130,6 @@ Process a video already stored in Minio by extracting frames and generating embe
 {
     "bucket_name": "my-bucket",
     "video_id": "video-dir-001",
-    "video_name": "clip.mp4",
     "frame_interval": 15,
     "enable_object_detection": true,
     "detection_confidence": 0.85,
@@ -141,8 +140,7 @@ Process a video already stored in Minio by extracting frames and generating embe
 | Field                    | Type           | Required | Default | Description                                                                                         |
 | ------------------------ | -------------- | -------- | ------- | --------------------------------------------------------------------------------------------------- |
 | `bucket_name`            | string         | No       | config  | Minio bucket where the video is stored. Falls back to the application default bucket.               |
-| `video_id`               | string         | Yes      | —       | Video directory (ID) inside the bucket.                                                             |
-| `video_name`             | string         | No       | —       | Specific video filename within `video_id`. If omitted, the first MP4 found in the directory is used. |
+| `video_id`               | string         | Yes      | —       | Video directory (ID) inside the bucket. The single video in this directory is processed.            |
 | `frame_interval`         | integer (1–60) | No       | `15`    | Extract every Nth frame for processing.                                                             |
 | `enable_object_detection`| boolean        | No       | `true`  | Run object detection and embed detected object crops separately.                                    |
 | `detection_confidence`   | float (0.1–1.0)| No       | `0.85`  | Confidence threshold for filtering object detections.                                               |
@@ -426,7 +424,6 @@ fully buffered in memory.
 | ------------- | ------- | -------- | ------- | ------------------------------------------------------------------------------------ |
 | `video_id`    | string  | Yes      | —       | Video directory (ID) containing the video to download.                               |
 | `bucket_name` | string  | No       | config  | Storage bucket. Falls back to the application default bucket.                        |
-| `video_name`  | string  | No       | —       | Specific filename to download. If omitted, the first video in the directory is used. |
 | `download`    | boolean | No       | `false` | Set to `true` to send `Content-Disposition: attachment` (force download).            |
 
 **Request Headers:**
@@ -456,58 +453,47 @@ fully buffered in memory.
 
 ```bash
 # Stream inline
-curl "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001&video_name=clip.mp4"
+curl "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001"
 
 # Force download
-curl -O "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001&video_name=clip.mp4&download=true"
+curl -O "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001&download=true"
 
 # Request a byte range (seek) — returns 206 Partial Content
 curl -H "Range: bytes=0-1023" \
-  "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001&video_name=clip.mp4"
+  "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001"
 ```
 
 ---
 
 ## `DELETE /videos/{bucket_name}/{video_id}`
 
-Delete a specific video or all videos in a directory from Minio storage.
+Delete a video from the active storage backend **and** remove the corresponding
+embeddings from the active vector DB, keeping both stores consistent. Each
+`video_id` directory holds exactly one video, so this always removes the whole
+video (its stored object(s) and all of its embeddings). Embeddings are removed
+first, so a failure never leaves orphaned vectors behind.
 
 **Path Parameters:**
 
 | Parameter     | Type   | Required | Description                                        |
 | ------------- | ------ | -------- | -------------------------------------------------- |
-| `bucket_name` | string | Yes      | Minio bucket containing the video(s) to delete.    |
-| `video_id`    | string | Yes      | Video directory (ID) to delete from.               |
-
-**Query Parameters:**
-
-| Parameter    | Type   | Required | Description                                                                                 |
-| ------------ | ------ | -------- | ------------------------------------------------------------------------------------------- |
-| `video_name` | string | No       | Specific filename to delete. If omitted, **all** videos in the directory are deleted.       |
+| `bucket_name` | string | Yes      | Bucket containing the video to delete.             |
+| `video_id`    | string | Yes      | Video directory (ID) to delete.                    |
 
 **Responses:**
 
-- 200 OK — single file deleted:
+- 200 OK — video deleted:
 
   ```json
   {
       "status": "success",
-      "message": "Video clip.mp4 deleted successfully"
-  }
-  ```
-
-- 200 OK — all files in directory deleted:
-
-  ```json
-  {
-      "status": "success",
-      "message": "All videos in directory video-dir-001 deleted successfully"
+      "message": "Video video-dir-001 deleted successfully"
   }
   ```
 
 - 400 Bad Request — invalid parameters.
 
-- 404 Not Found — bucket, video, or directory not found:
+- 404 Not Found — bucket or video not found:
 
   ```json
   {
@@ -516,15 +502,14 @@ Delete a specific video or all videos in a directory from Minio storage.
   }
   ```
 
+- 502 Bad Gateway — the storage backend or vector DB failed to delete.
+
 - 500 Internal Server Error.
 
 **Example:**
 
 ```bash
-# Delete a specific video
-curl -X DELETE "http://localhost:8000/v1/dataprep/videos/my-bucket/video-dir-001?video_name=clip.mp4"
-
-# Delete all videos in directory
+# Delete the video (removes storage object(s) + vector embeddings)
 curl -X DELETE "http://localhost:8000/v1/dataprep/videos/my-bucket/video-dir-001"
 ```
 

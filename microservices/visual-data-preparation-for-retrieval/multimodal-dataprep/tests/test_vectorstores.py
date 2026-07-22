@@ -217,3 +217,86 @@ def test_milvus_uri_resolution(monkeypatch):
 
     s2 = MilvusVectorStore(uri="http://explicit:9999")
     assert s2.uri == "http://explicit:9999"
+
+
+# --------------------------- delete contract (mocked) ----------------------
+def test_vdms_delete_embeddings_uses_constraints(monkeypatch):
+    from src.core.vectorstores.vdms_store import VDMSVectorStore
+
+    store = VDMSVectorStore(host="h", port="1", collection_name="c")
+    captured = {}
+
+    class FakeVideoDB:
+        def delete(self, constraints=None, **kwargs):
+            captured["constraints"] = constraints
+            return True
+
+    store.video_db = FakeVideoDB()
+    monkeypatch.setattr(store, "connect", lambda: None)
+
+    result = store.delete_embeddings("bucket-a", "video-1")
+    # VDMS cannot report an exact count -> -1 on success.
+    assert result == -1
+    assert captured["constraints"] == {
+        "video_id": ["==", "video-1"],
+        "bucket_name": ["==", "bucket-a"],
+    }
+
+
+def test_milvus_delete_embeddings_builds_safe_expr(monkeypatch):
+    from src.core.vectorstores.milvus_store import MilvusVectorStore
+
+    store = MilvusVectorStore(uri="http://localhost:19530", collection_name="c")
+    captured = {}
+
+    class FakeStore:
+        def delete(self, expr=None, **kwargs):
+            captured["expr"] = expr
+            return True
+
+    store.store = FakeStore()
+    monkeypatch.setattr(store, "connect", lambda: None)
+
+    result = store.delete_embeddings("bucket-a", "video-1")
+    assert result == -1
+    assert captured["expr"] == 'video_id == "video-1" and bucket_name == "bucket-a"'
+
+
+def test_milvus_delete_embeddings_reports_zero_on_failure(monkeypatch):
+    from src.core.vectorstores.milvus_store import MilvusVectorStore
+
+    store = MilvusVectorStore(uri="http://localhost:19530", collection_name="c")
+
+    class FakeStore:
+        def delete(self, expr=None, **kwargs):
+            return False  # langchain_milvus signals failure/no-op via False
+
+    store.store = FakeStore()
+    monkeypatch.setattr(store, "connect", lambda: None)
+
+    assert store.delete_embeddings("bucket-a", "video-1") == 0
+
+
+@pytest.mark.parametrize(
+    "bucket, vid",
+    [
+        ('b"; drop', "v1"),
+        ("b", 'v" or "1"=="1'),
+        ("b", "v id"),  # space is not allowed
+        ("", "v1"),
+    ],
+)
+def test_milvus_delete_embeddings_rejects_unsafe_identifiers(monkeypatch, bucket, vid):
+    from src.core.vectorstores.milvus_store import MilvusVectorStore
+
+    store = MilvusVectorStore(uri="http://localhost:19530", collection_name="c")
+
+    class FakeStore:
+        def delete(self, expr=None, **kwargs):  # pragma: no cover - must not run
+            raise AssertionError("delete must not be called for unsafe identifiers")
+
+    store.store = FakeStore()
+    monkeypatch.setattr(store, "connect", lambda: None)
+
+    with pytest.raises(ValueError):
+        store.delete_embeddings(bucket, vid)

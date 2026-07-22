@@ -259,10 +259,10 @@ You can use the following commands to discover, download, and delete content:
 curl "http://localhost:6007/v1/dataprep/videos"
 
 # Download a processed clip (stream or attachment)
-curl -L "http://localhost:6007/v1/dataprep/videos/download?video_id=traffic_cam_2024_10_21&video_name=clip_0003.mp4" -o clip_0003.mp4
+curl -L "http://localhost:6007/v1/dataprep/videos/download?video_id=traffic_cam_2024_10_21" -o clip.mp4
 
-# Delete everything under a video_id (omit video_name to remove one file)
-curl -X DELETE "http://localhost:6007/v1/dataprep/videos?video_id=traffic_cam_2024_10_21"
+# Delete a video (removes its storage object(s) + vector embeddings)
+curl -X DELETE "http://localhost:6007/v1/dataprep/videos/my-bucket/traffic_cam_2024_10_21"
 ```
 
 ### Review processing telemetry

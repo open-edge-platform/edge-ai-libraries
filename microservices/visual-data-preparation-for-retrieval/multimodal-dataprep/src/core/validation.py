@@ -267,8 +267,6 @@ def validate_params(func):
                     sanitized_kwargs[key] = sanitize_bucket_name(value)
                 elif key == "video_id":
                     sanitized_kwargs[key] = sanitize_video_id(value)
-                elif key == "video_name":
-                    sanitized_kwargs[key] = sanitize_video_name(value)
                 elif key == "file":
                     # Use the wrapper function to validate the file with default settings
                     validate_file(value, required=True)
@@ -325,10 +323,6 @@ def sanitize_model(model: Any) -> Any:
                 model_dict[field_name] = sanitize_bucket_name(value)
             elif field_name == "video_id":
                 model_dict[field_name] = sanitize_video_id(value)
-            elif field_name == "video_name":
-                sanitized = sanitize_video_name(value)
-                if sanitized:
-                    model_dict[field_name] = sanitized
             else:
                 # Apply basic string sanitization to other string fields
                 sanitized = sanitize_string(value)
