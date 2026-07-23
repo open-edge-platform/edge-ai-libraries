@@ -1,13 +1,13 @@
 # Multimodal Data Preparation Microservice
 
-The Multimodal DataPrep microservice efficiently ingests and manages multimodal data—such as images, text, and audio—by converting them into embeddings and storing them with metadata in a vector database. Source video files are stored directly in MinIO object storage.
+The Multimodal DataPrep microservice efficiently ingests and manages multimodal data—videos, images, and text summaries—by converting them into embeddings and storing them with metadata in a vector database. The original media assets are stored in the configured object storage. Images can be supplied as a binary upload, inline base64, or a remote URL.
 
 The microservice is **vector-database and storage agnostic**: the vector store
 (`vdms`, `milvus`) and object storage (`minio`, `local`) are each selected at
 startup behind a factory, using [VDMS](https://github.com/IntelLabs/vdms) and
 Milvus LangChain integrations. See [Pluggable Backends](docs/user-guide/pluggable-backends.md).
 
-_Note_: Only MP4 video file format is supported for creating embeddings currently.
+_Note_: Videos must be MP4. Supported image formats are JPG/JPEG, PNG, WEBP, BMP, and GIF.
 
 Below, you'll find links to detailed documentation to help you get started, configure, and deploy the microservice.
 

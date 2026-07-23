@@ -1,6 +1,6 @@
 # Telemetry Metrics
 
-This note explains what the `/telemetry` endpoint returns, how each metric is computed, and how to interpret the numbers when tuning the VDMS DataPrep microservice.
+This note explains what the `/telemetry` endpoint returns, how each metric is computed, and how to interpret the numbers when tuning the Multimodal DataPrep microservice.
 
 ## Endpoint recap
 

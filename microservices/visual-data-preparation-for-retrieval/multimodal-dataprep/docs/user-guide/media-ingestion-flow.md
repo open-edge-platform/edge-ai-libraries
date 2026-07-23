@@ -1,8 +1,13 @@
-# Video Ingestion Flow: From Upload to Vector Database Storage
+# Media Ingestion Flow: From Upload to Vector Database Storage
 
 ## Overview
 
-This document provides a comprehensive visual flow of the video ingestion process in the VDMS DataPrep microservice, from initial upload through frame extraction, embedding generation, and final storage in the vector database. The process has been optimized for performance with parallel processing, batch operations, and the in-process embedding pipeline.
+This document provides a comprehensive visual flow of the media ingestion process in the Multimodal DataPrep microservice, from initial upload through enrichment, embedding generation, and final storage in the vector database. It covers two media kinds:
+
+- **Video** — the deep-dive that follows (frame extraction → object detection → parallel batch embedding → storage), optimized for performance with parallel processing, batch operations, and the in-process embedding pipeline. See [Detailed Video Ingestion Flow](#detailed-video-ingestion-flow).
+- **Image** — a simpler, frame-less path that embeds the image directly (plus optional object-detection crops). See [Image Ingestion Flow](#image-ingestion-flow).
+
+Both kinds converge on the **same** embedding model, the **same** shared vector collection, and the **same** storage/deduplication/metadata handling; records are distinguished by a `content_type` field (`video` / `image`). Storage and vector backends are pluggable (MinIO/local, VDMS/Milvus); the diagrams below label VDMS/MinIO as the default example.
 
 ---
 
@@ -525,6 +530,91 @@ Efficiency = (Theoretical Sequential / Workers) / Actual
 
 ---
 
+## Image Ingestion Flow
+
+Images take a deliberately **frame-less** path: there is no decode loop and no
+frame sampling. A single image is embedded once, optionally augmented with
+object-detection crops, and stored in the same shared vector collection as video
+records — tagged with `content_type="image"`.
+
+### Entry points and transports
+
+| Endpoint | Content type | Image source |
+|----------|--------------|--------------|
+| `POST /media/upload` | `multipart/form-data` | binary file bytes |
+| `POST /media/ingest` | `application/json` | inline base64 (`type=image_base64`) or remote URL (`type=image_url`) |
+| `POST /media/ingest/batch` | `application/json` | list of base64/URL image sources (async job) |
+| `POST /media/process` | `application/json` | image already stored in object storage |
+
+For base64/URL inputs the **decoded bytes are the trust boundary**: the real
+format is sniffed from the bytes to derive the stored extension (the
+client-declared `type` is never trusted for the stored file), and the size is
+capped before any processing.
+
+### Stage flow
+
+```mermaid
+graph TB
+    subgraph "Entry"
+        U1[POST /media/upload<br/>multipart bytes]
+        U2[POST /media/ingest<br/>base64 / URL]
+    end
+
+    subgraph "Resolve & Validate"
+        R1[Decode base64 / download URL]
+        R2[Sniff real format<br/>derive extension]
+        R3[Enforce size cap]
+        R4{Dedup enabled?}
+        R5[SHA-256 + hash marker<br/>409 on duplicate]
+    end
+
+    subgraph "Persist Asset"
+        S1[(Object Storage<br/>MinIO / local)]
+    end
+
+    subgraph "Embed"
+        E1[Full-image embed<br/>frame_type=full_frame]
+        E2{Object detection?}
+        E3[Per-crop embed]
+    end
+
+    subgraph "Store Vectors"
+        V1[Attach metadata:<br/>content_type=image,<br/>download URL, tags]
+        V2[(Vector DB<br/>VDMS / Milvus)]
+    end
+
+    U1 --> R2
+    U2 --> R1 --> R2
+    R2 --> R3 --> R4
+    R4 -- yes --> R5 --> S1
+    R4 -- no --> S1
+    S1 --> E1
+    E1 --> E2
+    E2 -- enabled --> E3 --> V1
+    E2 -- disabled --> V1
+    E1 --> V1
+    V1 --> V2
+```
+
+### How it differs from the video flow
+
+| Aspect | Video | Image |
+|--------|-------|-------|
+| Decode / frame sampling | Yes — every Nth frame (`MM_DATAPREP_FRAME_INTERVAL`) | **None** — single image |
+| Records produced | 1 full frame + N crops **per sampled frame** | 1 full image + optional crops |
+| Timestamp metadata | Per-frame timestamp | Single (upload-time) reference |
+| `content_type` | `video` | `image` |
+| Base64 / URL transport | No | Yes (`/media/ingest`) |
+| Parallel batch pipeline | Per-frame fan-out | Batched across images in a job |
+| Object detection | Optional, per frame | Optional, per image |
+| Storage / dedup / download | Shared | Shared (identical) |
+
+Because images reuse the same embedding model and vector contract as video
+frames, image and video records are directly comparable in a single similarity
+search, enabling cross-modal retrieval.
+
+---
+
 ## Complete End-to-End Flow Visualization
 
 ```mermaid
@@ -645,7 +735,7 @@ graph TB
 
 ```mermaid
 graph LR
-    subgraph "VDMS DataPrep Microservice"
+    subgraph "Multimodal DataPrep Microservice"
         A[FastAPI Endpoints] --> B[Video Processing]
         B --> C[Frame Extraction]
         C --> D[Object Detection<br/>YOLOX]
@@ -751,7 +841,7 @@ graph LR
 
 ## Conclusion
 
-The VDMS DataPrep video ingestion pipeline is a highly optimized system that efficiently processes videos for semantic search. Key achievements:
+The Multimodal DataPrep ingestion pipeline is a highly optimized system that efficiently processes both **video and images** for semantic search. The video path (detailed above) applies frame extraction and parallel batch embedding; the image path embeds directly. Both converge on the same embedding model and shared vector collection. Key achievements:
 
 ✅ **Parallel Processing**: 3-4x speedup through multi-threaded execution
 ✅ **Batch Storage**: Prevents memory overflow with incremental saves

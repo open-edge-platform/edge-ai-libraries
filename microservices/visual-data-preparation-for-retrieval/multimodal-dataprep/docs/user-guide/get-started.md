@@ -1,10 +1,10 @@
 # Get Started
 
-The **VDMS DataPrep microservice** builds and stores frame-level and text embeddings in VDMS while preserving the raw assets in MinIO. This guide explains how to launch the service, configure runtime options, and exercise the primary APIs.
+The **Multimodal DataPrep microservice** builds and stores frame-level, image, and text embeddings in the configured vector database — VDMS by default, or Milvus — while preserving the raw assets in the configured object storage — MinIO by default, or the local filesystem. This guide explains how to launch the service, configure runtime options, and exercise the primary APIs. Backend selection is covered in [Pluggable Backends](pluggable-backends.md); this walkthrough uses the default VDMS + MinIO stack.
 
 ## Configuration and Setup
 
-VDMS DataPrep ships with Docker Compose manifests (`docker/compose*.yaml`) that provision MinIO, VDMS Vector DB, and the DataPrep container. Always `source` the accompanying `setup.sh` script so the exported environment variables remain in your shell.
+Multimodal DataPrep ships with Docker Compose manifests (`docker/compose*.yaml`) for different backends — for example `docker/compose.yaml` provisions the default MinIO + VDMS Vector DB + DataPrep stack, while `docker/compose-milvus.yaml` runs against Milvus. Always `source` the accompanying `setup.sh` script so the exported environment variables remain in your shell.
 
 ## Prerequisites
 
@@ -17,15 +17,22 @@ This guide assumes basic familiarity with Docker commands and terminal usage. If
 
 ## Environment Variables
 
-The table below lists the core configuration knobs. `setup.sh` seeds defaults, but you can override them before sourcing the script.
+The table below lists the core configuration knobs. `setup.sh` seeds defaults, but you can override them before sourcing the script. The defaults below assume the **VDMS + MinIO** backends; to run against **Milvus** or **local filesystem** storage, set the backend selectors below and see [Pluggable Backends](pluggable-backends.md) for the full backend-specific reference.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | ✅ | _(none)_ | Credentials used to bootstrap MinIO. |
-| `MM_DATAPREP_MINIO_ENDPOINT` | ✅ | `minio-server:9000` | Host:port string DataPrep uses to communicate with MinIO from inside the container. |
-| `MM_DATAPREP_DEFAULT_BUCKET_NAME` | ✅ | `vdms-bucket` (via `setup.sh`) | Destination bucket for uploaded videos and generated manifests. Override with `MM_DATAPREP_PM_MINIO_BUCKET` when running alongside pipeline-manager. |
-| `MM_DATAPREP_VDMS_VDB_HOST` / `MM_DATAPREP_VDMS_VDB_PORT` | ✅ | `vdms-vector-db` / `55555` | Connection information for VDMS Vector DB. |
-| `MM_DATAPREP_DB_COLLECTION` | ✅ | `video-rag` | VDMS collection that stores embeddings and metadata. |
+| `MM_DATAPREP_VECTORDB_BACKEND` | Optional | `vdms` | Active vector-database backend: `vdms` or `milvus`. |
+| `MM_DATAPREP_STORAGE_BACKEND` | Optional | `minio` | Active object-storage backend: `minio` or `local`. |
+| `MM_DATAPREP_MILVUS_URI` | Optional | _(none)_ | Full Milvus URI (e.g. `http://milvus:19530`). Overrides `MILVUS_HOST`/`MILVUS_PORT`. Used only when `VECTORDB_BACKEND=milvus`. |
+| `MM_DATAPREP_MILVUS_HOST` / `MM_DATAPREP_MILVUS_PORT` | Optional | _(none)_ / `19530` | Milvus host and port when `MILVUS_URI` is not set. Used only when `VECTORDB_BACKEND=milvus`. |
+| `MM_DATAPREP_VDB_METRIC_TYPE` | Optional | `IP` | Vector similarity metric applied to both VDMS and Milvus (e.g. `IP`, `L2`). |
+| `MM_DATAPREP_VDB_INDEX_TYPE` | Optional | `FLAT` | Vector index type for backends that require it (e.g. Milvus `FLAT`). |
+| `MM_DATAPREP_LOCAL_STORAGE_PATH` | Optional | `/tmp/dataprep/storage` | Root directory for the `local` storage backend; each bucket maps to a subdirectory. Used only when `STORAGE_BACKEND=local`. |
+| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | ✅ | _(none)_ | Credentials used to bootstrap MinIO. Required only when `STORAGE_BACKEND=minio`. |
+| `MM_DATAPREP_MINIO_ENDPOINT` | ✅ | `minio-server:9000` | Host:port string DataPrep uses to communicate with MinIO from inside the container. Required only when `STORAGE_BACKEND=minio`. |
+| `MM_DATAPREP_DEFAULT_BUCKET_NAME` | ✅ | `vdms-bucket` (via `setup.sh`) | Destination bucket for uploaded media and generated manifests. Override with `MM_DATAPREP_PM_MINIO_BUCKET` when running alongside pipeline-manager. |
+| `MM_DATAPREP_VDMS_VDB_HOST` / `MM_DATAPREP_VDMS_VDB_PORT` | ✅ | `vdms-vector-db` / `55555` | Connection information for VDMS Vector DB. Used only when `VECTORDB_BACKEND=vdms`. |
+| `MM_DATAPREP_DB_COLLECTION` | ✅ | `video-rag-test` | Vector-database collection/index that stores embeddings and metadata (applies to both VDMS and Milvus). |
 | `MM_DATAPREP_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by the in-process embedding pipeline (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
 | `MM_DATAPREP_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration for embedding generation. Set `false` to stay on PyTorch. |
 | `MM_DATAPREP_EMBEDDING_DEVICE` | Optional | `CPU` | Device for the in-process embedding pipeline (`CPU`, `GPU`, or `NPU`). |
@@ -142,18 +149,18 @@ Use `source ./setup.sh --conf` to print the resolved Docker Compose configuratio
 
 - [Overview](Overview.md)
 - [Architecture Overview](./overview-architecture.md)
-- [Video Ingestion Flow](./video-ingestion-flow.md) - Detailed flow diagrams of the video processing pipeline
+- [Media Ingestion Flow](./media-ingestion-flow.md) - Detailed flow diagrams of the video and image processing pipelines
 - [API Reference](api-reference.md)
 - [System Requirements](system-requirements.md)
 
 ## Quick Start with Docker
 
-> **Important:** Do not run `docker build` directly against `docker/Dockerfile` from the `vdms` directory. Always execute `./build.sh` so the build uses the `microservices/` context and includes the local `multimodal-embedding-serving` source dependency.
+> **Important:** Do not run `docker build` directly against `docker/Dockerfile` from the `multimodal-dataprep` directory. Always execute `./build.sh` so the build uses the `microservices/` context and includes the local `multimodal-embedding-serving` source dependency.
 
 The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
 
 **Configure the registry**:
-   The VDMS DataPrep microservice uses the registry URL and tag to pull the required image.
+   The Multimodal DataPrep microservice uses the registry URL and tag to pull the required image.
 
     ```bash
     export REGISTRY_URL=intel
@@ -183,12 +190,12 @@ The user has an option to either [build the docker images](./how-to-build-from-s
 
 3. **Start the stack.**
 
-   Run `source ./setup.sh` to export the environment variables, then start MinIO, VDMS, and DataPrep with `docker compose -f docker/compose.yaml up -d --build`.
+   Run `source ./setup.sh` to export the environment variables, then start the default stack (MinIO, VDMS, and DataPrep) with `docker compose -f docker/compose.yaml up -d --build`. To run against Milvus instead, use `docker compose -f docker/compose-milvus.yaml up -d --build`.
 
 4. **Confirm the stack is healthy.**
 
    ```bash
-   docker ps --filter "name=vdms" --format "table {{.Names}}\t{{.Status}}"
+   docker ps --format "table {{.Names}}\t{{.Status}}"
    ```
 
 5. **Open the interactive docs.** Navigate to `http://localhost:6007/docs` (adjust if you changed `MM_DATAPREP_HOST_PORT`) to view the OpenAPI schema.
@@ -218,7 +225,7 @@ curl -X POST "http://localhost:6007/v1/dataprep/media/upload" \
   -F "tags=intersection" -F "tags=night"
 ```
 
-The service streams the asset to MinIO, extracts frames (and crops), generates embeddings, and persists metadata in VDMS.
+The service streams the asset to the configured object storage, extracts frames (and crops), generates embeddings, and persists metadata in the configured vector database.
 
 ### Upload and process an image
 
@@ -307,7 +314,7 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
    - The response payload reports `success`.
    - `GET /v1/dataprep/media` lists the generated `video_id` and manifests.
    - The MinIO console (`http://localhost:6011`) shows the raw asset, thumbnails, and crops.
-3. Inspect VDMS (via `vdms_cli` or a custom client) to verify entries in the `video-rag` collection.
+3. Inspect the vector database to verify entries in the `video-rag-test` collection (for the default VDMS backend, use `vdms_cli` or a custom client; for Milvus, use a Milvus client such as `pymilvus` or Attu).
 
 ## Troubleshooting
 

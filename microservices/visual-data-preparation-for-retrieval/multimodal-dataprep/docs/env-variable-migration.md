@@ -82,7 +82,7 @@ All variables below are read as `MM_DATAPREP_<NAME>`.
 |---|---|---|
 | `MM_DATAPREP_VECTORDB_BACKEND` | `vdms` | Active vector DB: `vdms` or `milvus`. |
 | `MM_DATAPREP_STORAGE_BACKEND` | `minio` | Media/artifact storage: `minio` or `local`. |
-| `MM_DATAPREP_DB_COLLECTION` | `video-rag` | Collection/index name. |
+| `MM_DATAPREP_DB_COLLECTION` | `video-rag-test` | Collection/index name. |
 | `MM_DATAPREP_VDB_METRIC_TYPE` | `IP` | Similarity metric (`IP`, `L2`). |
 | `MM_DATAPREP_VDB_INDEX_TYPE` | `FLAT` | Vector index type (Milvus). |
 | `MM_DATAPREP_LOCAL_STORAGE_PATH` | `/tmp/dataprep/storage` | Root dir for the `local` storage backend. |

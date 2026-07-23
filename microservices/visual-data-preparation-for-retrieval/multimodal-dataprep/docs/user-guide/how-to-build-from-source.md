@@ -44,7 +44,7 @@ Following options are provided to build the microservice.
 
    Refer to the [environmental variable](./get-started.md#environment-variables) setup section and configure the required variables.
 
-3. Build the VDMS DataPrep Docker image. This uses the `microservices/` build context so the local `multimodal-embedding-serving` source dependency is available during image build.
+3. Build the Multimodal DataPrep Docker image. This uses the `microservices/` build context so the local `multimodal-embedding-serving` source dependency is available during image build.
 
    ```bash
    ./build.sh

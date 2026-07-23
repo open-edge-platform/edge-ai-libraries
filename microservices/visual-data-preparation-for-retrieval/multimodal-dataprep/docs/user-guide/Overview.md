@@ -1,44 +1,48 @@
+# Multimodal Data Preparation Microservice
+Multimodal DataPrep is the ingestion and embedding service that powers the Video Search and Summarization (VSS) and Visual Search & Question-Answering (VSQA) flows. It accepts raw media — **videos and images** — orchestrates enrichment (frame sampling for video, direct embedding for images, optional object detection for both), generates embeddings in-process, and stores both the derived embeddings and the original assets in a vector database and object storage. The service is **vector-database agnostic** (VDMS, Milvus) and **storage agnostic** (MinIO, local filesystem); backends are selected at startup with no code changes.
 
-# Visual Data Management System (VDMS) based Data Preparation Microservice
-VDMS DataPrep is the ingestion and embedding service that powers the Video Search and Summarization (VSS) flow. It accepts raw media, orchestrates frame-level enrichment (including object detection), generates embeddings in-process, and stores both the derived embeddings and the original assets in VDMS Vector DB and MinIO respectively.
-
-The FastAPI application is mounted under the `/v1/dataprep` root path and exposes endpoints to ingest videos, process existing MinIO content, attach human-authored summaries, and manage stored media.
+The FastAPI application is mounted under the `/v1/dataprep` root path and exposes endpoints to ingest videos and images (binary upload, base64, or remote URL), process existing stored content, ingest in batches, attach human-authored summaries, and manage stored media.
 
 ## Overview
 
-The microservice focuses on video-first pipelines while still supporting downstream text enrichment:
+The microservice handles multimodal ingestion with a unified media pipeline:
 
-1. **Source ingestion:** Videos can be uploaded directly or referenced from MinIO buckets that the service has access to.
-2. **Frame extraction and detection:** Every Nth frame (configurable via `MM_DATAPREP_FRAME_INTERVAL`) is sampled. When object detection is enabled, the detector generates cropped regions of interest that are embedded separately from the full frame.
-3. **Embedding generation:** Embeddings are generated through the in-process pipeline, which is memory-first, multi-threaded, and OpenVINO-aware.
-4. **Metadata enrichment:** Each frame or crop is annotated with timestamps, download URLs (`/v1/dataprep/media/download`), detection confidences, and tags.
-5. **Persistent storage:** Embeddings and metadata are stored in VDMS while the raw assets remain in MinIO for later retrieval.
+1. **Source ingestion:** Videos and images can be uploaded directly (multipart), referenced from storage, or — for images — supplied inline as base64 or as a remote URL that the service downloads. Batch variants run as asynchronous jobs.
+2. **Frame extraction and detection (video):** Every Nth frame (configurable via `MM_DATAPREP_FRAME_INTERVAL`) is sampled. When object detection is enabled, the detector generates cropped regions of interest that are embedded separately from the full frame.
+3. **Direct embedding (image):** Images skip frame extraction and are embedded as a whole; when object detection is enabled, each detected crop is embedded separately — mirroring the per-frame crop contract used for video.
+4. **Embedding generation:** Embeddings are generated through the in-process pipeline, which is memory-first, multi-threaded, and OpenVINO-aware. CLIP-style models embed video frames, images, and text summaries into one shared space, enabling cross-modal search.
+5. **Metadata enrichment:** Each record is annotated with a `content_type` (`video`/`image`/`text`), timestamps, download URLs (`/v1/dataprep/media/download`), detection confidences, and tags.
+6. **Persistent storage:** Embeddings and metadata are stored in the selected vector database while the raw assets remain in the selected object storage for later retrieval.
 
 ## Key Benefits
 
-- **Video-aware ingest:** Frame-level sampling, optional YOLOX-based object detection, and manifest-based storage tailored for downstream aggregation in Search-MS.
+- **Multimodal ingest:** Video frame-level sampling and image direct-embedding in one API, with optional YOLOX-based object detection for both.
+- **Backend agnostic:** Swap the vector database (`MM_DATAPREP_VECTORDB_BACKEND`: `vdms`/`milvus`) or the object storage (`MM_DATAPREP_STORAGE_BACKEND`: `minio`/`local`) without code changes. See [Pluggable Backends](pluggable-backends.md).
 - **Flexible runtime:** Runtime toggles for OpenVINO acceleration and device offload (`MM_DATAPREP_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`) without code changes.
-- **Consistent metadata model:** Each stored record always references the canonical download URL and includes timestamps, tag lists, and bucket identifiers for frictionless recall.
-- **Operational efficiency:** Cached embedding clients, preloading at startup, parallel embedding pipelines, and MinIO-aware utilities reduce cold-start latency and I/O overhead.
+- **Content deduplication:** Optional content-hash dedup (`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS`) rejects byte-identical re-uploads across all transports (multipart, base64, URL).
+- **Consistent metadata model:** Each stored record always references the canonical download URL and includes timestamps, tag lists, `content_type`, and bucket identifiers for frictionless recall.
+- **Operational efficiency:** Preloaded embedding client, parallel embedding pipelines, batched image inference, and range/seek-aware downloads reduce latency and I/O overhead.
 - **End-to-end observability:** Structured logging, health reporting, and schema-validated requests provide clear insight during development and production operations.
 
 ## Feature Highlights
 
-- **REST API surface mounted at `/v1/dataprep`** with endpoints for health, media ingest (`/media/upload`, `/media/process`), metadata retrieval (`/media`), bulk download, deletion, and summary ingestion (`/summary`).
-- **Object detection first-class support** with per-request overrides (`enable_object_detection`, `detection_confidence`) and automatic fallback when a model is unavailable.
+- **REST API surface mounted at `/v1/dataprep`** with endpoints for health, media ingest (`/media/upload`, `/media/ingest`, `/media/process`), batch ingest (`/media/upload/batch`, `/media/ingest/batch`, `/media/process/batch`, `/media/ingest-dir`) with async job polling (`/media/jobs/{job_id}`), metadata retrieval (`/media`), range-aware download (`/media/download`), deletion, RTSP ingest (`/media/rtsp`), and summary ingestion (`/summary`).
+- **Three image transports** — multipart binary (`/media/upload`), inline base64 and remote URL (`/media/ingest`, typed on a `type` discriminator).
+- **Object detection first-class support** for both video and images with per-request overrides (`enable_object_detection`, `detection_confidence`) and automatic fallback when a model is unavailable.
 - **Tags and summaries** that link curated text back to the precise video segment, enabling multi-modal search.
-- **Configuration-driven behavior** through `config.yaml` and environment overrides for frame strategies, fallback transports, and detector settings.
-- **Containerized deployment** via Docker Compose with companion services for MinIO and VDMS Vector DB.
+- **Complete CRUD** — upload, list, range-aware download, and delete (which removes both the stored object and its vectors).
+- **Containerized deployment** via Docker Compose with companion services for the chosen storage and vector-database backends.
 
 ## Example Use Cases
 
-- **Semantic video search:** Populate VDMS with frame and crop embeddings to power temporal aggregation and ranking in Search-MS.
-- **Operations review:** Store clips and timestamped human summaries that can be replayed directly using generated download URLs.
-- **Hybrid analytics:** Combine frame embeddings with detector metadata to filter results by objects, tags, or time ranges.
-- **Content auditing:** Automatically surface clips containing specific objects or scenes based on the detector-enhanced embeddings.
+- **Semantic media search:** Populate the vector database with frame, image, and crop embeddings to power temporal aggregation and ranking in Search-MS / VSQA.
+- **Operations review:** Store clips, images, and timestamped human summaries that can be replayed directly using generated download URLs.
+- **Hybrid analytics:** Combine embeddings with detector metadata to filter results by objects, tags, `content_type`, or time ranges.
+- **Content auditing:** Automatically surface media containing specific objects or scenes based on the detector-enhanced embeddings.
 
 ## Supporting Resources
 
 - [Get Started Guide](get-started.md)
+- [Pluggable Backends](pluggable-backends.md)
 - [API Reference](api-reference.md)
 - [System Requirements](system-requirements.md)

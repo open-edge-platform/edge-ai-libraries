@@ -1,4 +1,25 @@
-# Release Notes: Visual Data Preparation for Retrieval (VDMS)
+# Release Notes: Multimodal Data Preparation for Retrieval
+
+## Version 2026.3.0
+
+**New**
+
+- **Multimodal ingestion:** the service now ingests **images** alongside video. Images are embedded directly (no frame extraction) into the same shared vector space as video frames and text summaries, discriminated by a `content_type` (`video`/`image`/`text`) metadata field, enabling cross-modal search.
+- **Three image transports:** multipart binary (`POST /media/upload`), inline base64 and remote URL (`POST /media/ingest`, typed on a `type` discriminator; batch via `POST /media/ingest/batch`).
+- **Async batch ingestion:** `POST /media/upload/batch`, `/media/ingest/batch`, `/media/process/batch`, and `/media/ingest-dir` return `202 Accepted` with a `job_id` polled at `GET /media/jobs/{job_id}` (cancellable via `DELETE`). Per-item error isolation keeps one bad item from failing the whole job.
+- **Content deduplication:** optional content-hash (SHA-256) dedup gated by `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` (default `true`); byte-identical re-uploads are rejected `409 Conflict` across all transports.
+- **HTTP Range / seek** support on `GET /media/download` (`206 Partial Content`).
+- **Complete delete CRUD:** `DELETE /media/{bucket}/{video_id}` now removes both the stored object and its embeddings from the vector database.
+
+**Improved**
+
+- **Endpoints renamed `/videos/*` → `/media/*`** to reflect multimodal functionality (for example `/videos/upload` → `/media/upload`, `/videos/minio` → `/media/process`, `/videos/batch/{job_id}` → `/media/jobs/{job_id}`). Request/response field names (`video_id`, `video_name`, `video_url`) are unchanged for retriever compatibility.
+- **Backend-agnostic:** vector database (`vdms`/`milvus`) and object storage (`minio`/`local`) are each selected at startup behind a factory via `MM_DATAPREP_VECTORDB_BACKEND` / `MM_DATAPREP_STORAGE_BACKEND` — no code changes to switch. See [Pluggable Backends](pluggable-backends.md).
+- Object detection now applies to both video frames and images via the shared `MM_DATAPREP_ENABLE_OBJECT_DETECTION` toggle.
+
+**Upgrade Notes**
+
+- Consumers of the old `/videos/*` paths must migrate to `/media/*`.
 
 ## Version 2026.2.0-rc1
 

@@ -184,10 +184,13 @@ by a separate `retriever-milvus` service.
 ### Blockers / changes required to repoint a milvus consumer at this dataprep
 
 1. **Ingestion model.** Legacy milvus-dataprep ingests from a local mounted
-   directory (`file_dir`) or `file_path`; this service ingests via MinIO
-   (`bucket_name`/`video_id`) or the new local-FS storage backend. There is no
-   `file_dir`-style batch ingest endpoint here. Consumers must switch to the
-   storage-based ingest flow (or a `file_dir` endpoint would need to be added).
+   directory (`file_dir`) or `file_path`; this service ingests via object storage
+   (`bucket_name`/`video_id`) or the local-FS storage backend. A
+   backward-compatible directory ingest is now available at
+   `POST /media/ingest-dir` (ingests a mounted directory as an async batch job),
+   in addition to per-file upload/ingest. Consumers that used `file_dir` can map
+   onto `/media/ingest-dir`; a `file_path` single-file flow maps onto
+   `/media/upload` or `/media/process`.
 2. **Retriever schema coupling.** The legacy `retriever-milvus` expects a `meta`
    JSON shape (`file_path`, `video_pin_second`, `timestamp`, `type`, `label`;
    collection `default`, IP metric). This dataprep writes the **canonical**
@@ -202,15 +205,16 @@ by a separate `retriever-milvus` service.
    | `label`                | `label` (detection crops)     |
    | `type`                 | `frame_type`                  |
 
-3. **No vector-database delete.** This dataprep has no endpoint that deletes
-   vector records (`delete_video` only removes objects from storage), whereas the
-   legacy milvus-dataprep exposed `delete`/`delete_all`/`get`. If a
-   delete-from-vectordb capability is required, a new endpoint plus a `delete`
-   method on `BaseVectorStore` must be added (intentionally out of scope today).
+3. **Vector-database delete.** This dataprep now supports deleting vector
+   records: `BaseVectorStore.delete_embeddings(bucket_name, video_id)` is
+   implemented for both VDMS and Milvus, and `DELETE /media/{bucket}/{video_id}`
+   removes the embeddings from the vector database (vectors first) and then the
+   object from storage. This reaches parity with the legacy
+   `delete`/`delete_all` behavior at the per-item level.
 
-4. **Image ingestion — FEATURE GAP.** The legacy milvus-dataprep ingests **images
-   and videos** (`.jpg/.png/.jpeg` via `process_image`). This dataprep supports
-   **video + text/summary only** — there are no image endpoints. If a consumer
-   that relies on image ingestion is repointed here, image ingestion would
-   regress. This is documented as an out-of-scope downstream gap; adding an image
-   ingestion path is a separate feature decision.
+4. **Image ingestion.** This dataprep now ingests **images** in addition to
+   video and text/summary. Images can be supplied as a multipart binary
+   (`POST /media/upload`), inline base64 or remote URL (`POST /media/ingest`), or
+   from stored objects (`POST /media/process`), reaching parity with the legacy
+   milvus-dataprep image support (`.jpg/.jpeg/.png` and more). Images are embedded
+   directly into the same shared collection with `content_type="image"`.
