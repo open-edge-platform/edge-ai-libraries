@@ -118,6 +118,7 @@ class ModelDownloadPlugin(ABC):
                 if env_value is not None:
                     resolved[key.name] = env_value
         return resolved
+
     def plugin_supported_hubs(self) -> List[str]:
         """Return the list of hub names this plugin handles.
 

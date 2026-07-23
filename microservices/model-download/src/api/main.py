@@ -249,6 +249,22 @@ async def download_models(
             # variables for this request only. Never logged (may hold secrets).
             request_credentials = extra_kwargs.get("override_credentials") or {}
             loggable_kwargs = {k: v for k, v in extra_kwargs.items() if k != "override_credentials"}
+
+            # Validate override_credentials keys eagerly so unsupported keys for the hub
+            # fail with 400 immediately.
+            hub_name = model.hub.value if hasattr(model.hub, "value") else model.hub
+            plugin = plugin_registry.get_plugin("downloader", hub_name)
+            if plugin is None:
+                plugin = plugin_registry.find_plugin_for_model("downloader", "", hub_name)
+            if model.is_ovms and not plugin:
+                plugin = plugin_registry.get_plugin("converter", "openvino")
+
+            if request_credentials and plugin:
+                try:
+                    plugin.resolve_config(request_credentials)
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc))
+
             logger.info(f"Model '{model.name}' download initiated using hub '{model.hub}' with parameters: {loggable_kwargs}")
 
             needs_conversion = model.is_ovms

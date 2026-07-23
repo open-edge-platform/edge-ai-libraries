@@ -1194,28 +1194,33 @@ class TestUploadModel:
         assert response.status_code == 500
 
 
-class TestOverrideCredentials:
-    """override_credentials accepts plaintext strings and rejects non-string values."""
+class TestOverrideCredentialsBase64:
+    """override_credentials values must be Base64-encoded and are decoded at the API boundary."""
 
-    def test_model_request_accepts_plaintext_credentials(self):
+    @staticmethod
+    def _b64(value: str) -> str:
+        import base64
+        return base64.b64encode(value.encode("utf-8")).decode("ascii")
+
+    def test_model_request_decodes_base64_values(self):
         from src.api.models import ModelRequest
 
         req = ModelRequest(
             name="some-model",
             hub="huggingface",
-            override_credentials={"HF_TOKEN": "hf_secret_token"},
+            override_credentials={"HF_TOKEN": self._b64("hf_secret_token")},
         )
         assert req.override_credentials == {"HF_TOKEN": "hf_secret_token"}
 
-    def test_model_request_accepts_multiple_credentials(self):
+    def test_model_request_decodes_multiple_base64_values(self):
         from src.api.models import ModelRequest
 
         req = ModelRequest(
             name="some-model",
             hub="geti",
             override_credentials={
-                "GETI_HOST": "https://geti.example.com",
-                "GETI_TOKEN": "geti_secret",
+                "GETI_HOST": self._b64("https://geti.example.com"),
+                "GETI_TOKEN": self._b64("geti_secret"),
             },
         )
         assert req.override_credentials == {
@@ -1229,11 +1234,22 @@ class TestOverrideCredentials:
         req = ModelRequest(name="some-model", hub="huggingface")
         assert req.override_credentials is None
 
+    def test_invalid_base64_is_rejected(self):
+        from pydantic import ValidationError
+        from src.api.models import ModelRequest
+
+        with pytest.raises(ValidationError, match="Base64"):
+            ModelRequest(
+                name="some-model",
+                hub="huggingface",
+                override_credentials={"HF_TOKEN": "not valid base64 !!!"},
+            )
+
     def test_non_string_value_is_rejected(self):
         from pydantic import ValidationError
         from src.api.models import ModelRequest
 
-        with pytest.raises(ValidationError, match="must be a string"):
+        with pytest.raises(ValidationError, match="Base64-encoded string"):
             ModelRequest(
                 name="some-model",
                 hub="huggingface",

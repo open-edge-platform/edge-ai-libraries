@@ -546,10 +546,15 @@ Volumes:
 
 Instead of restarting the service to change credentials, you can override plugin connection
 settings per request using the `override_credentials` field in `POST /api/v1/models/download`.
+Each value must be **Base64-encoded**. The server decodes them before forwarding to the plugin.
 Values take precedence over environment variables for that single request only and are never
 stored or logged.
 
 ```bash
+# Encode your token first:
+#   echo -n "hf_myRealToken123" | base64
+#   => aGZfbXlSZWFsVG9rZW4xMjM=
+
 curl -X POST "https://<host-ip>:8200/api/v1/models/download?download_path=hf_model" \
   -H "Content-Type: application/json" \
   -d '{
@@ -559,7 +564,7 @@ curl -X POST "https://<host-ip>:8200/api/v1/models/download?download_path=hf_mod
         "hub": "huggingface",
         "type": "llm",
         "override_credentials": {
-          "HF_TOKEN": "hf_myRealToken123"
+          "HF_TOKEN": "aGZfbXlSZWFsVG9rZW4xMjM="
         }
       }
     ],
@@ -569,10 +574,10 @@ curl -X POST "https://<host-ip>:8200/api/v1/models/download?download_path=hf_mod
 
 Call `GET /api/v1/plugins` to discover which `config_keys` each plugin accepts.
 
-> **Security: TLS required.** Credentials are sent as plaintext strings in the request body.
-> You **must** deploy the service behind HTTPS termination (reverse proxy, ingress, or
-> uvicorn `--ssl-keyfile`/`--ssl-certfile`) before using `override_credentials` with real
-> secrets. Without TLS, credentials are visible to any observer on the network path.
+> **Security: TLS required.** Base64 is an encoding, not encryption. You **must** deploy the
+> service behind HTTPS termination (reverse proxy, ingress, or uvicorn
+> `--ssl-keyfile`/`--ssl-certfile`) before using `override_credentials` with real secrets.
+> Without TLS, credentials are visible to any observer on the network path.
 
 ## Troubleshooting
 

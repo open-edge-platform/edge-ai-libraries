@@ -155,7 +155,6 @@ class HuggingFacePlugin(ModelDownloadPlugin):
 
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         return hub.lower() == "huggingface"
-    
 
     def download(self, model_name: str, output_dir: str, **kwargs) -> dict:
         # Per-request override wins; env HF_TOKEN is the fallback (applied by
