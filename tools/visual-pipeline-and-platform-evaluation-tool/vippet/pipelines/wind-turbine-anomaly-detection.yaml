@@ -3,6 +3,7 @@ definition: >
   Time-series anomaly detection pipeline that ingests wind turbine sensor data (grid active power, wind speed),
   processes it through the Time Series Analytics Microservice (TSAM) using a trained anomaly detection model,
   and outputs anomaly classification results. Uses Intel Edge AI time-series analytics for real-time inference on CPU.
+type: time_series
 tags:
   - Industrial
   - Time Series

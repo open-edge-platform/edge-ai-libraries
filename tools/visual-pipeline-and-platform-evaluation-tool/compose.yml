@@ -49,7 +49,7 @@ x-vippet: &vippet
     UPLOAD_ALLOWED_CODECS: "h264,h265"
     UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
     METADATA_DIR: /metadata
-    SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source,tsam-udf"
+    SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
@@ -73,8 +73,6 @@ x-vippet: &vippet
     # venv so the legacy 2024.x ``openvino`` package never collides
     # with the OpenVINO 2026.x runtime used for inference.
     OMZ_VIRTUAL_ENV: ${OMZ_VIRTUAL_ENV:-/home/dlstreamer/.omz-venv}
-    TSAM_HOST: ${TSAM_HOST:-ia-time-series-analytics-microservice}
-    TSAM_KAPACITOR_PORT: ${TSAM_KAPACITOR_PORT:-9092}
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download"
@@ -264,81 +262,5 @@ services:
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
 
-  ia-timeseries-ingestion:
-    build:
-      context: ./timeseries-ingestion
-      dockerfile: ./Dockerfile
-      args:
-        TIMESERIES_USER_NAME: ${TIMESERIES_USER_NAME}
-        TIMESERIES_UID: ${TIMESERIES_UID}
-    container_name: ia-timeseries-ingestion
-    image: ${DOCKER_REGISTRY}intel/ia-timeseries-ingestion:${IMAGE_SUFFIX:-latest}${WEEKLY_BUILD_DATE:+-${WEEKLY_BUILD_DATE}}${WEEKLY_BUILD_DATE:+-weekly}
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      HOST: ia-time-series-analytics-microservice
-      PORT: 5000
-      TOPIC: wind-turbine-data
-      METADATA_DIR: /metadata
-      no_proxy: "ia-time-series-analytics-microservice,${no_proxy}"
-      NO_PROXY: "ia-time-series-analytics-microservice,${no_proxy}"
-      INPUT_FILE: "wind-turbine-anomaly-detection.csv"
-      PYTHONUNBUFFERED: 1
-    volumes:
-      - ./timeseries-ingestion/input:/app/input:ro
-      - ./shared/metadata/:/metadata
-  ia-time-series-analytics-microservice:
-    container_name: ia-time-series-analytics-microservice
-    hostname: ia-time-series-analytics-microservice
-    image: ${DOCKER_REGISTRY}intel/ia-time-series-analytics-microservice:${IMAGE_SUFFIX:-latest}${WEEKLY_BUILD_DATE:+-${WEEKLY_BUILD_DATE}}${WEEKLY_BUILD_DATE:+-weekly}
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9092/kapacitor/v1/ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-    environment:
-      no_proxy: "ia-time-series-analytics-microservice,localhost"
-      NO_PROXY: "ia-time-series-analytics-microservice,localhost"
-      KAPACITOR_PORT: 9092
-      INFLUX_SERVER: ""
-      KAPACITOR_INFLUXDB_0_USERNAME: ""
-      KAPACITOR_INFLUXDB_0_PASSWORD: ""
-      PROFILING_MODE: "false"
-      KAPACITOR_URL: http://ia-time-series-analytics-microservice:9092
-      KAPACITOR_UNSAFE_SSL: "true"
-      KAPACITOR_INFLUXDB_0_URLS_0: ""
-      INFLUXDB_PORT: 
-      KAPACITOR_LOGGING_LEVEL: INFO
-      INFLUXDB_DBNAME: ""
-      PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
-      UDF_MAX_FILE_SIZE_MB: 100
-      SAMPLE_APP: "wind-turbine-anomaly-detection"
-    ports:
-      - 5000:5000
-    volumes:
-      - "vol_temp_time_series_analytics_microservice:/tmp/"
-      - /dev/dri:/dev/dri:ro
-      - "/run/udev:/run/udev:ro"
-    devices:
-      # Following devices under /dev filesystem will be needed based on usecase
-      # dri - GPU
-      - "/dev/dri:/dev/dri"
-    group_add:
-      # render group ID for ubuntu 20.04 host OS
-      - "109"
-      # render group ID for ubuntu 22.04 host OS
-      - "110"
-      # render group ID for ubuntu 24.04 host OS
-      - "992"
+volumes: {}
 
-volumes:
-  vol_temp_time_series_analytics_microservice:
-    driver: local
-    driver_opts:
-      type: tmpfs
-      device: tmpfs
