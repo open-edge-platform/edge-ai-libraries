@@ -42,7 +42,7 @@ class TestAPIMain:
             }
         }
         mock_registry.get_plugin_names.return_value = ["huggingface", "ollama", "ultralytics", "pipeline-zoo-models", "openvino"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
         return mock_registry
 
     @pytest.fixture
@@ -74,7 +74,7 @@ class TestAPIMain:
         
         mock_registry.plugins = {"downloader": {"huggingface": MagicMock()}}
         mock_registry.get_plugin_names.return_value = ["huggingface"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
         mock_manager.register_job.return_value = "job-123"
         mock_manager.process_download = AsyncMock()
 
@@ -109,7 +109,7 @@ class TestAPIMain:
         
         mock_registry.plugins = {"downloader": {"ollama": MagicMock()}}
         mock_registry.get_plugin_names.return_value = ["ollama"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
         mock_manager.register_job.return_value = "job-456"
         mock_manager.process_download = AsyncMock()
 
@@ -143,7 +143,7 @@ class TestAPIMain:
         
         mock_registry.plugins = {"downloader": {"ultralytics": MagicMock()}}
         mock_registry.get_plugin_names.return_value = ["ultralytics"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
         mock_manager.register_job.return_value = "job-789"
         mock_manager.process_download = AsyncMock()
 
@@ -176,7 +176,7 @@ class TestAPIMain:
 
         mock_registry.plugins = {"downloader": {"pipeline-zoo-models": MagicMock()}}
         mock_registry.get_plugin_names.return_value = ["pipeline-zoo-models"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
         mock_manager.register_job.return_value = "job-pz-001"
         mock_manager.process_download = AsyncMock()
 
@@ -209,7 +209,7 @@ class TestAPIMain:
 
         mock_registry.plugins = {"downloader": {"ultralytics": MagicMock()}}
         mock_registry.get_plugin_names.return_value = ["ultralytics"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
         mock_manager.register_job.return_value = "job-quantize"
         mock_manager.process_download = AsyncMock()
 
@@ -244,7 +244,7 @@ class TestAPIMain:
 
         mock_registry.plugins = {"downloader": {"huggingface": MagicMock()}}
         mock_registry.get_plugin_names.return_value = ["huggingface"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
         mock_manager.register_job.return_value = "job-hf"
         mock_manager.process_download = AsyncMock()
 
@@ -283,7 +283,7 @@ class TestAPIMain:
             "converter": {"openvino": MagicMock()}
         }
         mock_registry.get_plugin_names.return_value = ["huggingface", "openvino"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
         mock_manager.register_job.return_value = "job-conversion"
         mock_manager.process_conversion = AsyncMock()
 
@@ -326,7 +326,7 @@ class TestAPIMain:
             "converter": {"openvino": MagicMock()}
         }
         mock_registry.get_plugin_names.return_value = ["huggingface", "ollama", "openvino"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
         mock_manager.register_job.side_effect = ["job-1", "job-2", "job-3"]
         mock_manager.process_download = AsyncMock()
         mock_manager.process_conversion = AsyncMock()
@@ -397,7 +397,7 @@ class TestAPIMain:
         """Test download when plugin is unavailable"""
         mock_registry.plugins = {"downloader": {"huggingface": MagicMock()}}
         mock_registry.get_plugin_names.return_value = ["huggingface"]
-        mock_registry.check_plugin_dependencies.return_value = (False, "Missing huggingface_hub dependency")
+        mock_registry.hub_is_available.return_value = (False, "Missing huggingface_hub dependency")
 
         request_data = {
             "models": [
@@ -414,7 +414,6 @@ class TestAPIMain:
         
         assert response.status_code == 400
         detail = response.json()["detail"]
-        assert f"Plugin '{ModelHub.HUGGINGFACE}' is not available" in detail
         assert "Missing huggingface_hub dependency" in detail
 
     @patch('src.api.main.model_manager')
@@ -425,14 +424,14 @@ class TestAPIMain:
         mock_registry.get_plugin_names.return_value = ["huggingface"]
         
         # Mock different responses for different plugins
-        def mock_check_dependencies(plugin_name):
-            if plugin_name == "huggingface":
+        def mock_hub_is_available(hub):
+            if hub == "huggingface":
                 return (True, None)
-            elif plugin_name == "openvino":
+            elif hub == "openvino":
                 return (False, "OpenVINO not installed")
-            return (False, "Unknown plugin")
+            return (False, "Unknown hub")
         
-        mock_registry.check_plugin_dependencies.side_effect = mock_check_dependencies
+        mock_registry.hub_is_available.side_effect = mock_hub_is_available
 
         request_data = {
             "models": [
@@ -595,10 +594,17 @@ class TestAPIMain:
         # Setup mocks
         mock_hf_plugin = MagicMock()
         mock_hf_plugin.__doc__ = "HuggingFace plugin for model downloads"
+        mock_hf_plugin.supports_listing = True
+        mock_hf_plugin.listing_filter_fields = ["author", "search"]
+        mock_hf_plugin.plugin_supported_hubs.return_value = ["huggingface"]
         mock_ollama_plugin = MagicMock()
         mock_ollama_plugin.__doc__ = "Ollama plugin for local models"
+        mock_ollama_plugin.supports_listing = False
+        mock_ollama_plugin.listing_filter_fields = []
+        mock_ollama_plugin.plugin_supported_hubs.return_value = ["ollama"]
         mock_openvino_plugin = MagicMock()
         mock_openvino_plugin.__doc__ = "OpenVINO converter plugin"
+        mock_openvino_plugin.plugin_supported_hubs.return_value = ["openvino"]
 
         mock_registry.plugins = {
             "downloader": {
@@ -610,16 +616,16 @@ class TestAPIMain:
             }
         }
         
-        def mock_check_dependencies(plugin_name):
-            if plugin_name == "huggingface":
+        def mock_hub_is_available(hub):
+            if hub == "huggingface":
                 return (True, None)
-            elif plugin_name == "ollama":
+            elif hub == "ollama":
                 return (False, "Ollama not installed")
-            elif plugin_name == "openvino":
+            elif hub == "openvino":
                 return (True, None)
-            return (False, "Unknown plugin")
+            return (False, "Unknown hub")
         
-        mock_registry.check_plugin_dependencies.side_effect = mock_check_dependencies
+        mock_registry.hub_is_available.side_effect = mock_hub_is_available
 
         response = client.get("/plugins")
         
@@ -631,6 +637,78 @@ class TestAPIMain:
         assert "converter" in data["available_plugins"]
         assert data["total_count"] == 3
         assert data["available_count"] == 2  # huggingface and openvino are available
+        hf_capabilities = data["available_plugins"]["downloader"][0]["capabilities"]
+        assert hf_capabilities["supports_listing"] is True
+        assert hf_capabilities["listing_filter_fields"] == ["author", "search"]
+
+    @patch('src.api.main.plugin_registry')
+    def test_list_hub_models_resolves_external_source_hub(self, mock_registry, client):
+        """Test listing can resolve a hub served by a multi-hub plugin"""
+        mock_plugin = MagicMock()
+        mock_plugin.supports_listing = True
+        mock_plugin.list_models.return_value = {"items": [{"name": "dbnet"}], "total": 1}
+        mock_registry.get_plugin.return_value = None
+        mock_registry.find_plugin_for_model.return_value = mock_plugin
+        mock_registry.hub_is_available.return_value = (True, None)
+
+        response = client.post(
+            "/models/list",
+            json={"hub": "pipeline-zoo-models", "filters": {"owner": "dlstreamer"}, "search": "db", "limit": 25, "offset": 0},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["items"][0] == {"name": "dbnet"}
+        assert data["count"] == 1
+        assert data["total"] == 1
+        assert data["has_more"] is False
+        assert "next_offset" not in data
+        mock_registry.find_plugin_for_model.assert_called_once_with(
+            "downloader", "", "pipeline-zoo-models"
+        )
+        mock_plugin.list_models.assert_called_once_with(
+            filters={"owner": "dlstreamer", "search": "db"},
+            limit=25,
+            offset=0,
+            hub="pipeline-zoo-models",
+        )
+
+    @patch('src.api.main.plugin_registry')
+    def test_list_hub_models_sets_next_offset_only_when_more_results_exist(self, mock_registry, client):
+        """Test API trims extra listing items and exposes next_offset only when has_more is true."""
+        mock_plugin = MagicMock()
+        mock_plugin.supports_listing = True
+        mock_plugin.list_models.return_value = {
+            "items": [{"name": "m0"}, {"name": "m1"}],
+            "total": None,
+        }
+        mock_registry.get_plugin.return_value = mock_plugin
+        mock_registry.hub_is_available.return_value = (True, None)
+
+        response = client.post(
+            "/models/list",
+            json={"hub": "huggingface", "limit": 1, "offset": 0},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["items"] == [{"name": "m0"}]
+        assert data["count"] == 1
+        assert data["has_more"] is True
+        assert data["next_offset"] == 1
+        assert "total" not in data
+
+    @patch('src.api.main.plugin_registry')
+    def test_list_hub_models_unsupported(self, mock_registry, client):
+        """Test that hubs without listing support return 501"""
+        mock_plugin = MagicMock()
+        mock_plugin.supports_listing = False
+        mock_registry.get_plugin.return_value = mock_plugin
+
+        response = client.post("/models/list", json={"hub": "geti"})
+
+        assert response.status_code == 501
+        assert response.json()["detail"] == "Hub 'geti' does not support listing models"
 
     def test_invalid_request_format(self, client):
         """Test API with invalid request format"""
@@ -646,6 +724,36 @@ class TestAPIMain:
         response = client.post("/models/download?download_path=test", json=invalid_request)
         
         assert response.status_code == 422
+
+    @patch('src.api.main.model_manager')
+    @patch('src.api.main.plugin_registry')
+    @patch('os.getenv')
+    def test_hub_name_normalizes_case_and_separator(self, mock_getenv, mock_registry, mock_manager, client):
+        """Test hub names are canonicalized before download processing."""
+        mock_getenv.return_value = "/opt/models"
+        mock_registry.plugins = {"downloader": {"pipeline-zoo-models": MagicMock()}}
+        mock_registry.supported_hubs.return_value = ["pipeline-zoo-models"]
+        mock_registry.get_plugin_names.return_value = ["pipeline-zoo-models"]
+        mock_registry.hub_is_available.return_value = (True, None)
+        mock_manager.register_job.return_value = "job-pz-normalized"
+        mock_manager.process_download = AsyncMock()
+
+        request_data = {
+            "models": [
+                {
+                    "name": "yolov5m-416_INT8",
+                    "hub": "Pipeline_Zoo_Models",
+                    "is_ovms": False
+                }
+            ]
+        }
+
+        response = client.post("/models/download?download_path=pipeline_zoo_models", json=request_data)
+
+        assert response.status_code == 200
+        call_kwargs = mock_manager.process_download.call_args.kwargs
+        assert call_kwargs["hub"] == "pipeline-zoo-models"
+        assert call_kwargs["downloader"] == "pipeline-zoo-models"
 
     @pytest.mark.parametrize("model_data,expected_status", [
         # Valid requests
@@ -667,7 +775,7 @@ class TestAPIMain:
             mock_getenv.return_value = "/opt/models"
             mock_registry.plugins = {"downloader": {"huggingface": MagicMock(), "ollama": MagicMock(), "ultralytics": MagicMock()}}
             mock_registry.get_plugin_names.return_value = ["huggingface", "ollama", "ultralytics"]
-            mock_registry.check_plugin_dependencies.return_value = (True, None)
+            mock_registry.hub_is_available.return_value = (True, None)
             mock_manager.register_job.return_value = "test-job"
             mock_manager.process_download = AsyncMock()
 
@@ -692,7 +800,7 @@ class TestAPIMain:
             "converter": {"openvino": MagicMock()}
         }
         mock_registry.get_plugin_names.return_value = ["huggingface", "openvino"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
         mock_manager.register_job.return_value = "job-vlm"
         mock_manager.process_conversion = AsyncMock()
 
@@ -735,7 +843,7 @@ class TestAPIMain:
             "converter": {"openvino": MagicMock()}
         }
         mock_registry.get_plugin_names.return_value = ["huggingface", "ollama", "openvino"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
         mock_manager.register_job.side_effect = ["job-download", "job-convert"]
         mock_manager.process_download = AsyncMock()
         mock_manager.process_conversion = AsyncMock()

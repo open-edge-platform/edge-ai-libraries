@@ -1,0 +1,103 @@
+{
+  "skill_name": "vss-observability",
+  "evals": [
+    {
+      "id": 1,
+      "prompt_file": "example-prompts/01-enable-telemetry-overlay.md",
+      "prompt": "I want to see live CPU, memory, and GPU metrics in the VSS UI while it processes videos. I'm about to deploy in search mode locally. How do I turn on the telemetry stack, and what container(s) will actually get added to my Compose deployment?",
+      "expected_output": "Explains how to enable the optional VSS telemetry overlay, names the compose overlay and added collector service, and distinguishes live UI metrics from Pipeline Manager tracing.",
+      "files": [],
+      "expectations": [
+        "Mentions setting ENABLE_VSS_COLLECTOR=true before sourcing setup.sh, with a supported mode such as source setup.sh --search or source setup.sh --summary --search.",
+        "Names the optional compose overlay file docker/compose.telemetry.yaml.",
+        "Identifies the added service/container as vss-collector and notes it uses the docker.io/intel/vippet-collector:2026.0.0 image.",
+        "References the collector outputs on port 9273 (/metrics) and/or its websocket relay to ws://pipeline-manager:3000/metrics/ws/collector.",
+        "Explains that traces come from Pipeline Manager via OTLP_TRACE_URL with service name videoSummary, and that the overlay does not deploy an in-repo OTel collector or trace UI/backend."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt_file": "example-prompts/02-configure-otel-trace-export.md",
+      "prompt": "I have an OTLP HTTP trace collector running at `http://otel-collector.mycorp.local:4318/v1/traces` and I want VSS's Pipeline Manager to send its traces there instead of just logging spans to the console. What do I need to set, and what will the traces be named/tagged as?",
+      "expected_output": "Explains how to configure Pipeline Manager OpenTelemetry trace export to an external OTLP HTTP endpoint, including the service name, fallback behavior, and current limitations.",
+      "files": [],
+      "expectations": [
+        "Mentions setting OTLP_TRACE_URL to the external OTLP HTTP traces endpoint before sourcing setup.sh, for example OTLP_TRACE_URL=http://otel-collector.mycorp.local:4318/v1/traces source setup.sh --summary --search.",
+        "States that pipeline-manager/src/tracing.ts initializes NodeSDK with service name videoSummary and Node auto-instrumentations.",
+        "Explains that OTLPTraceExporter is used only when OTLP_TRACE_URL is set; otherwise spans are emitted with ConsoleSpanExporter in pipeline-manager logs.",
+        "Clarifies that VSS does not deploy its own OpenTelemetry Collector, trace backend, trace UI, or auth/header configuration for the exporter.",
+        "Notes that search-ms currently has no app-level OpenTelemetry trace wiring."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt_file": "example-prompts/03-trace-video-end-to-end.md",
+      "prompt": "I just uploaded a video via `POST /manager/videos` and kicked off summarization with `POST /manager/summary`. I have both response payloads saved. Traces are exporting to my OTLP backend already. Walk me through finding the exact trace for this request and what spans I should expect to see from upload through final summary.",
+      "expected_output": "Describes how to correlate one request using VSS IDs, the videoSummary service, and the Pipeline Manager state endpoints, then lists the main trace/span patterns for upload, EVAM chunking, VLM captioning, LLM summarization, and dataprep embeddings.",
+      "files": [],
+      "expectations": [
+        "Says to capture videoId from POST /manager/videos and summaryPipelineId (stateId) from POST /manager/summary.",
+        "Says to filter traces by the OpenTelemetry service name videoSummary and the time window around the upload/start request.",
+        "Mentions that if OTLP_TRACE_URL is unset, spans fall back to ConsoleSpanExporter output in pipeline-manager logs; otherwise use a real OTLP HTTP /v1/traces backend URL.",
+        "Calls out EVAM HTTP span patterns such as POST http://<EVAM_HOST>:8080/pipelines/user_defined_pipelines/<pipeline> and GET http://<EVAM_HOST>:8080/pipelines/<pipelineId>.",
+        "Calls out downstream span patterns for VlmService.imageInference to VLM_CAPTIONING_API, LlmService.summarizeMapReduce/getChatCompletions to LLM_SUMMARIZATION_API, and/or DataPrepShimService calls to SEARCH_DATAPREP_ENDPOINT, plus state checks like /summary/<stateId>/raw, /pipeline/evam, or /pipeline/frames."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt_file": "example-prompts/04-diagnose-slow-processing.md",
+      "prompt": "Summarizing a 10-minute video is taking way longer than usual today in my VSS deployment \u2014 usually it's done in a few minutes, now it's been running over 20. I have traces enabled but no idea where to look first. Can you help me figure out whether it's stuck in chunking, captioning, final summarization, or something else?",
+      "expected_output": "Gives a bottleneck-hunting workflow that prioritizes the main Pipeline Manager trace segments, explains what each slow span usually means, and cross-checks traces with VSS state and collector metrics.",
+      "files": [],
+      "expectations": [
+        "Points to long or repeated EVAM request/poll spans as chunking or ingestion bottlenecks.",
+        "Points to long outbound OpenAI-compatible spans from VlmService.imageInference as VLM captioning bottlenecks and long LLM summarization spans from LlmService.summarizeMapReduce/getChatCompletions as final summary bottlenecks.",
+        "Points to long dataprep spans and/or low dataprep_embeddings_per_second as embedding or indexing bottlenecks.",
+        "Tells the reader to cross-check trace timing with Pipeline Manager state such as status.videoChunking, status.chunking, frameSummaries IN_PROGRESS, status.summarizing, or embeddingsCreated.",
+        "Mentions comparing against collector signals like /metrics/status and port 9273 metrics, and accurately notes current instrumentation limits such as search-ms lacking app-level OTel traces."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt_file": "example-prompts/05-check-collector-health-and-metrics.md",
+      "prompt": "The metrics panel in the VSS UI looks empty \u2014 no CPU or GPU readings are showing up even though I deployed with `ENABLE_VSS_COLLECTOR=true`. How do I check whether the collector is actually connected, and where do the raw numbers come from if I want to look at them directly?",
+      "expected_output": "Explains how to verify the optional vss-collector connection, where to inspect raw metrics, and how to distinguish collector/UI metrics problems from OpenTelemetry tracing problems.",
+      "files": [],
+      "expectations": [
+        "Uses GET /metrics/status on Pipeline Manager, such as curl http://localhost:3001/metrics/status or the nginx route http://localhost:12345/manager/metrics/status.",
+        "Explains that the status response includes collectorConnected, clientsConnected, and a message such as Collector connected or Collector unavailable; telemetry disabled.",
+        "Suggests checking vss-collector logs and the websocket relay ws://pipeline-manager:3000/metrics/ws/collector if the collector is disconnected.",
+        "Shows reading raw Prometheus-compatible metrics from curl http://localhost:9273/metrics | head.",
+        "Lists grounded metric signals such as CPU usage_user, memory used_percent, CPU frequency, coretemp_package_id_* temperature, QMassa/GPU readings, and dataprep_embeddings_per_second when dataprep throughput exists."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt_file": "example-prompts/06-clarify-telemetry-scope.md",
+      "prompt": "Does the video-search-and-summarization sample come with Jaeger or a Prometheus server built in? I assumed there'd be a trace UI I could just open after deploying, and I want to know what I actually get out of the box versus what I'd have to bring myself.",
+      "expected_output": "Clarifies what observability components VSS ships out of the box and what the developer must provide, without inventing bundled Jaeger, Prometheus, OpenTelemetry Collector, or trace UI services.",
+      "files": [],
+      "expectations": [
+        "States that VSS Compose does not ship Jaeger, Tempo, a Prometheus server, an OpenTelemetry Collector, or a trace UI/backend.",
+        "Describes the optional vss-collector from docker/compose.telemetry.yaml, gated by ENABLE_VSS_COLLECTOR=true, with image docker.io/intel/vippet-collector:2026.0.0.",
+        "Explains that vss-collector exposes a Prometheus-compatible endpoint on port 9273 and relays JSON metrics to Pipeline Manager websocket paths for the UI.",
+        "Explains that Pipeline Manager traces use service name videoSummary and export to OTLP_TRACE_URL when set, otherwise ConsoleSpanExporter logs are used.",
+        "Notes that a trace viewer/backend must be provided externally and that search-ms currently has no app-level OTel instrumentation."
+      ]
+    },
+    {
+      "id": 90,
+      "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
+      "prompt": "I ran a batch of videos through VSS summarization yesterday with tracing enabled, and I want to compare how long chunking, captioning, and final summarization each took across those runs. What's the best way to pull per-stage span durations out of my OTLP backend so I can see which stage is actually the bottleneck?",
+      "expected_output": "Before answering the trace-duration question, the response unconditionally runs the skill's bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at the official VSS repo or a fork of it and reuses that checkout if so, otherwise performs a shallow single-branch sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before pulling span durations.",
+      "files": [],
+      "expectations": [
+        "The response runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) as a first step before addressing the per-stage span-duration question, even though the prompt never asked about setup, location, or cloning.",
+        "The bootstrap check determines whether the current location is already a valid VSS checkout by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, origin/upstream URL) to see if it points at the official open-edge-platform/edge-ai-libraries repo or a fork of it, not merely by checking for local marker files or directory names.",
+        "If that remote check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the response states it is reused as-is and NO re-clone is performed.",
+        "If no valid checkout or matching remote is found, the response performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the main branch, rather than a full-history/all-branches clone.",
+        "The response changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's actual tracing/telemetry commands used to answer the span-duration question."
+      ]
+    }
+  ]
+}

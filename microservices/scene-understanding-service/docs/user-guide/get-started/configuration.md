@@ -4,7 +4,7 @@
 
 The service reads its configuration from two YAML files in a single directory:
 
-1. `scene-config.yaml` — SceneScape connection, scenes, cameras, zones.
+1. `scene-config.yaml` — Scenescape connection, scenes, cameras, zones.
 2. `rules.yaml` — rule definitions, thresholds, session flags, services.
 
 The directory is `/app/configs` by default and can be changed with the
@@ -17,20 +17,20 @@ credentials (see below).
 
 The image bakes in **sample** copies of both files under `configs/`, so the
 service runs out-of-the-box. Every consuming application supplies its own
-files via a read-only volume mount (e.g. `./configs:/app/configs:ro`), which
+files via a read-only volume mount (e.g., `./configs:/app/configs:ro`), which
 overrides the bundled samples.
 
 ### `scene-config.yaml`
 
-| Section          | Required | Description                                                                 |
-| ---------------- | -------- | --------------------------------------------------------------------------- |
-| `scenescape_api` | Yes      | SceneScape REST base URL and paths, used for zone auto-discovery.           |
-| `scenes`         | Yes      | List of scenes; each has a `scene_name`, `cameras`, and a `zones` mapping.  |
-| `mqtt`           | Yes      | Broker host/port, TLS settings, and SceneScape topic patterns.             |
+| Section          | Required | Description                                                                |
+| ---------------- | -------- | -------------------------------------------------------------------------- |
+| `scenescape_api` | Yes      | Scenescape REST base URL and paths, used for zone auto-discovery.          |
+| `scenes`         | Yes      | List of scenes; each has a `scene_name`, `cameras`, and a `zones` mapping. |
+| `mqtt`           | Yes      | Broker host/port, TLS settings, and Scenescape topic patterns.             |
 | `seaweedfs`      | No       | S3-compatible frame storage; required only when behavioral analysis is on. |
 | `alert_service`  | No       | Downstream alert-service endpoint and enablement.                          |
 
-Each `scenes[]` entry maps zone **names** (which must match the SceneScape
+Each `scenes[]` entry maps zone **names** (which must match the Scenescape
 region names) to zone **types**: `HIGH_VALUE`, `CHECKOUT`, `EXIT`,
 `RESTRICTED`. Rules trigger on the zone *type*.
 
@@ -58,13 +58,13 @@ mqtt:
 
 ### `rules.yaml`
 
-| Section          | Description                                                            |
-| ---------------- | --------------------------------------------------------------------- |
-| `settings`       | Non-rule knobs (session timeout, frame-capture cadence).              |
-| `variables`      | Default values for `${var:default}` substitution in rules.            |
-| `session_flags`  | Boolean flags auto-set on the person session (zone-visit or external).|
-| `services`       | Named escalation services rules can invoke (e.g. `behavioral_analysis`). |
-| `rules`          | The rule list: each with a `trigger`, `conditions`, and `actions`.    |
+| Section         | Description                                                               |
+| --------------- | ------------------------------------------------------------------------- |
+| `settings`      | Non-rule knobs (session timeout, frame-capture cadence).                  |
+| `variables`     | Default values for `${var:default}` substitution in rules.                |
+| `session_flags` | Boolean flags auto-set on the person session (zone-visit or external).    |
+| `services`      | Named escalation services rules can invoke (e.g., `behavioral_analysis`). |
+| `rules`         | The rule list: each with a `trigger`, `conditions`, and `actions`.        |
 
 Rule actions are either `alert` (produce an alert) or `escalate` (invoke a
 named service such as behavioral analysis). Thresholds and rules can change
@@ -74,20 +74,20 @@ without code edits.
 
 These are the only environment variables the service reads directly:
 
-| Variable                 | Default              | Description                                              |
-| ------------------------ | -------------------- | -------------------------------------------------------- |
-| `CONFIG_DIR`             | `/app/configs`       | Directory containing `scene-config.yaml` and `rules.yaml`.|
-| `STORE_ID`               | `store_001`          | Identifier included in all alert payloads.               |
-| `SCENESCAPE_API_USER`    | _(empty)_            | SceneScape REST username for zone auto-discovery.        |
-| `SCENESCAPE_API_PASSWORD`| _(empty)_            | SceneScape REST password.                                |
-| `ENABLE_UI`              | `true`               | Enable the Gradio UI integration endpoints.              |
-| `ALERT_SERVICE_URL`      | from `alert_service` | Overrides the downstream alert-service endpoint.         |
-| `MQTT_HOST`              | `mqtt.host`          | MQTT broker host. Overrides `mqtt.host` in `scene-config.yaml`. |
-| `MQTT_PORT`              | `mqtt.port`          | MQTT broker port. Overrides `mqtt.port` in `scene-config.yaml`. |
-| `BA_REQUEST_TOPIC`       | `ba/requests`        | MQTT topic the service **publishes** BA frame-arrival requests to. Overrides `mqtt.ba_request_topic`. |
-| `BA_RESULT_TOPIC`        | `ba/results`         | MQTT topic the service **subscribes** to for BA verdicts. Overrides `mqtt.ba_result_topic`. |
+| Variable                  | Default              | Description                                                                                           |
+| ------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------- |
+| `CONFIG_DIR`              | `/app/configs`       | Directory containing `scene-config.yaml` and `rules.yaml`.                                            |
+| `STORE_ID`                | `store_001`          | Identifier included in all alert payloads.                                                            |
+| `SCENESCAPE_API_USER`     | _(empty)_            | Scenescape REST username for zone auto-discovery.                                                     |
+| `SCENESCAPE_API_PASSWORD` | _(empty)_            | Scenescape REST password.                                                                             |
+| `ENABLE_UI`               | `true`               | Enable the Gradio UI integration endpoints.                                                           |
+| `ALERT_SERVICE_URL`       | from `alert_service` | Overrides the downstream alert-service endpoint.                                                      |
+| `MQTT_HOST`               | `mqtt.host`          | MQTT broker host. Overrides `mqtt.host` in `scene-config.yaml`.                                       |
+| `MQTT_PORT`               | `mqtt.port`          | MQTT broker port. Overrides `mqtt.port` in `scene-config.yaml`.                                       |
+| `BA_REQUEST_TOPIC`        | `ba/requests`        | MQTT topic the service **publishes** BA frame-arrival requests to. Overrides `mqtt.ba_request_topic`. |
+| `BA_RESULT_TOPIC`         | `ba/results`         | MQTT topic the service **subscribes** to for BA verdicts. Overrides `mqtt.ba_result_topic`.           |
 
-> The SceneScape API URL is configured in `scene-config.yaml`. MQTT broker
+> The Scenescape API URL is configured in `scene-config.yaml`. MQTT broker
 > host/port can be set either in `scene-config.yaml` (`mqtt.host` / `mqtt.port`)
 > or overridden with the `MQTT_HOST` / `MQTT_PORT` environment variables.
 
@@ -127,7 +127,7 @@ or the built-in defaults:
 export CONFIG_DIR=/app/configs
 export STORE_ID=store_001
 
-# SceneScape REST API (zone auto-discovery)
+# Scenescape REST API (zone auto-discovery)
 export SCENESCAPE_API_USER=admin
 export SCENESCAPE_API_PASSWORD=changeme
 

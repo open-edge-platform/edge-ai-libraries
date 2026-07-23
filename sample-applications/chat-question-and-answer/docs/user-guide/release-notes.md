@@ -1,15 +1,18 @@
 # Release Notes: Chat Q&A
 
+<!--## Version 2026.2.0-->
+
+<!--date TBD-->
 
 ## Version 2026.1.0
 
-**June 17, 2026**
+**Release Date:** June 17, 2026
 
-**Deprecated**
+**Deprecated:**
 
 - TEI as an embedding model server is no longer supported and will be removed in the next release. Use OVMS for embeddings.
 
-**Known Issues**
+**Known Issues:**
 
 - The upload button is temporarily disabled during chat response generation to prevent delays. File or link uploads trigger embedding generation, which runs on the same OVMS server as the LLM, potentially slowing response streaming if both run together.
 - Chat data is stored in `localStorage` for session continuity. After container restarts, old chats may reappear — clear the `localStorage` of your browser to start fresh.
@@ -17,17 +20,17 @@
 - DeepSeek/Phi Models are observed, at times, to continue generating responses in an endless loop. Close the browser and restart in such cases.
 - When multiple applications use the model download service concurrently, downloads may take longer than usual. In such cases, retry with increased `SLEEP_SECS` in the `download_ovms_model` function in `setup.sh`.
 
-## Previous Releases
-
 ## Version 2.1.0
 
-**April 1, 2026**
+**Release Date:** April 1, 2026
 
-**New**
+**New:**
 
 - Integrated Model Download functionality with the sample application for Helm and Docker deployments
 
-[Release Notes 2025](./release-notes/release-notes-2025.md)
+## Previous Releases
+
+- [Release Notes 2025](./release-notes/release-notes-2025.md)
 
 <!--hide_directive
 :::{toctree}
