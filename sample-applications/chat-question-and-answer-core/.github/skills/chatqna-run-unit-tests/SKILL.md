@@ -1,11 +1,14 @@
 ---
 name: chatqna-run-unit-tests
-description: 'Run ChatQnA Core unit tests for backend (pytest via uv) and frontend UI (vitest), including runtime selection (openvino or ollama), coverage options, and concise pass/fail evidence. Use when the user says "run unit tests", "run backend tests", "run UI tests", "pytest", or "vitest".'
-license: Apache-2.0
+description: >
+  Run ChatQnA Core unit tests for backend (pytest via uv) and frontend UI (vitest),
+  including runtime selection (openvino or ollama), coverage options, and concise pass/fail evidence.
+  Use this skill when the user says "run unit tests", "run backend tests", "run UI tests", "pytest", or "vitest".
 metadata:
   version: "1.0.0"
   tags: "chatqna tests unit-tests pytest vitest backend frontend openvino ollama"
-argument-hint: Describe what to test and scope, for example "run backend openvino tests", "run UI tests with coverage", or "run all unit tests".
+argument-hint: >
+  Describe what to test and scope, for example "run backend openvino tests", "run UI tests with coverage", or "run all unit tests".
 ---
 
 <!--

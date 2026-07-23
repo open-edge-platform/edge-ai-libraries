@@ -1,11 +1,14 @@
 ---
 name: chatqna-build
-description: Build Chat Question and Answer Core Docker images from source using direct Docker or Docker Compose build commands (backend CPU, backend GPU, backend Ollama, and UI). Use when the user says "build chatqna", "rebuild images", "build from source", or "prepare images for deployment". Dockerfiles and docker/compose.yaml are the source of truth for builds, not the Makefile.
-license: Apache-2.0
+description: >
+  Build Chat Question and Answer Core Docker images from source using direct Docker or Docker Compose build commands (backend CPU, backend GPU, backend Ollama, and UI).
+  Use this skill when the user says "build chatqna", "rebuild images", "build from source", or "prepare images for deployment".
+  Dockerfiles and docker/compose.yaml are the source of truth for builds, not the Makefile.
 metadata:
   version: "1.0.0"
   tags: "chatqna build development docker compose"
-argument-hint: Describe what images to build and for which runtime (for example "build openvino cpu + ui" or "build ollama backend and ui with tag dev").
+argument-hint: >
+  Describe what images to build and for which runtime (for example "build openvino cpu + ui" or "build ollama backend and ui with tag dev").
 ---
 
 <!--

@@ -1,11 +1,14 @@
 ---
 name: chatqna-docker-deploy
-description: Deploy Chat Question-and-Answer Core with Docker Compose (OpenVINO CPU, OpenVINO GPU, or Ollama CPU), including env setup, profile selection, startup verification, health checks, and teardown. Use when the user says "deploy chatqna core", "start chatqna container", "run compose", "openvino gpu deploy", or "ollama deploy".
-license: Apache-2.0
+description: >
+  Deploy Chat Question-and-Answer Core with Docker Compose (OpenVINO CPU, OpenVINO GPU, or Ollama CPU),
+  including env setup, profile selection, startup verification, health checks, and teardown.
+  Use this skill when the user says "deploy chatqna core", "start chatqna container", "run compose", "openvino gpu deploy", or "ollama deploy".
 metadata:
   version: "1.0.0"
   tags: "chatqna deploy docker compose openvino ollama gpu cpu"
-argument-hint: Describe runtime and image source, for example "deploy openvino cpu from prebuilt intel images" or "deploy ollama from local builds with custom model config".
+argument-hint: >
+  Describe runtime and image source, for example "deploy openvino cpu from prebuilt intel images" or "deploy ollama from local builds with custom model config".
 ---
 
 <!--

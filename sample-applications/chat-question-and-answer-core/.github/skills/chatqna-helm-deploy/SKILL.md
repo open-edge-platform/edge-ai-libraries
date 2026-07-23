@@ -1,11 +1,16 @@
 ---
 name: chatqna-helm-deploy
-description: Deploy Chat Question-and-Answer Core to Kubernetes using Helm (OpenVINO CPU, OpenVINO GPU, or Ollama), including values.yaml configuration, helm install/upgrade, deployment verification, uninstall, and translation from Docker Compose setup_env.sh variables into Helm override values. Use when the user says "deploy chatqna core to kubernetes", "helm install chatqna-core", "configure values.yaml", "convert compose config to helm", or "translate setup_env.sh to chart values".
-license: Apache-2.0
+description: >
+  Deploy Chat Question-and-Answer Core to Kubernetes using Helm (OpenVINO CPU, OpenVINO GPU, or Ollama),
+  including values.yaml configuration, helm install/upgrade, deployment verification, uninstall,
+  and translation from Docker Compose setup_env.sh variables into Helm override values.
+  Use this skill  when the user says "deploy chatqna core to kubernetes", "helm install chatqna-core",
+  "configure values.yaml", "convert compose config to helm", or "translate setup_env.sh to chart values".
 metadata:
   version: "1.0.0"
   tags: "chatqna kubernetes helm values yaml openvino ollama gpu cpu deploy"
-argument-hint: Describe runtime, namespace, chart source, and configuration intent, for example "install openvino gpu in namespace ai with custom models" or "convert compose env to helm overrides and deploy ollama".
+argument-hint: >
+  Describe runtime, namespace, chart source, and configuration intent, for example "install openvino gpu in namespace ai with custom models" or "convert compose env to helm overrides and deploy ollama".
 ---
 
 <!--

@@ -1,11 +1,14 @@
 ---
 name: chatqna-api-smoke-test
-description: 'Validate ChatQnA Core REST APIs from docs/user-guide/api-reference.md using repeatable curl-based smoke tests, runtime-specific endpoint checks (OpenVINO or Ollama), and concise pass/fail evidence. Use when the user says "test APIs", "verify endpoint health", "check /chat", "validate docs endpoint", or "smoke test deployment".'
-license: Apache-2.0
+description: >
+  Validate ChatQnA Core REST APIs from docs/user-guide/api-reference.md using repeatable curl-based smoke tests,
+  runtime-specific endpoint checks (OpenVINO or Ollama), and concise pass/fail evidence.
+  Use this skill  when the user says "test APIs", "verify endpoint health", "check /chat", "validate docs endpoint", or "smoke test deployment".
 metadata:
   version: "1.0.0"
   tags: "chatqna api smoke-test curl openapi health chat documents openvino ollama"
-argument-hint: Describe runtime and scope, for example "smoke test all APIs for openvino", "validate /chat and /documents", or "check ollama model endpoints".
+argument-hint: >
+  Describe runtime and scope, for example "smoke test all APIs for openvino", "validate /chat and /documents", or "check ollama model endpoints".
 ---
 
 <!--
