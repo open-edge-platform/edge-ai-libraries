@@ -22,16 +22,16 @@
     ]
   },
   "dependencies": {
-    "@carbon/react": "^1.89.0",
+    "@carbon/react": "^1.112.0",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@reduxjs/toolkit": "^2.8.2",
     "axios": "^1.16.0",
     "chart.js": "^4.5.1",
     "date-fns": "^4.1.0",
-    "i18next": "^25.3.6",
+    "i18next": "^26.3.6",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "react-i18next": "^15.6.1",
+    "react-i18next": "^17.0.10",
     "react-markdown": "^10.1.0",
     "react-redux": "^9.2.0",
     "reselect": "^5.1.1",
@@ -51,7 +51,7 @@
     "socket.io-parser": "^4.2.6"
   },
   "devDependencies": {
-    "@eslint/js": "^9.33.0",
+    "@eslint/js": "^10.0.1",
     "@jest/types": "^30.0.5",
     "@testing-library/jest-dom": "^6.7.0",
     "@testing-library/react": "^16.3.0",
@@ -59,7 +59,7 @@
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@types/react-i18next": "^8.1.0",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-istanbul": "^4.1.8",
     "@vitest/ui": "^4.1.8",
     "eslint-plugin-prettier": "^5.5.5",
@@ -68,13 +68,13 @@
     "flatted": "^3.4.2",
     "globals": "^17.6.0",
     "husky": "^9.1.7",
-    "jsdom": "^26.1.0",
-    "lint-staged": "^16.1.5",
-    "prettier": "^3.8.3",
+    "jsdom": "^29.1.1",
+    "lint-staged": "^17.0.8",
+    "prettier": "^3.9.5",
     "sass": "^1.90.0",
-    "typescript": "^5.9.2",
-    "typescript-eslint": "^8.56.1",
-    "vite": "^7.3.2",
+    "typescript": "^7.0.2",
+    "typescript-eslint": "^8.64.0",
+    "vite": "^8.1.4",
     "vitest": "^4.1.8"
   }
 }
