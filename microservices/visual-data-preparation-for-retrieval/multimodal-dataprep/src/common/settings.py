@@ -114,7 +114,7 @@ class Settings(BaseSettings):
     # prevent path traversal. Parity with the EOL milvus-dataprep host-dir ingest.
     INGEST_DATA_ROOT: str = Field(
         default="/tmp/dataprep/ingest",
-        description="Root directory for POST /videos/ingest-dir; requested paths "
+        description="Root directory for POST /media/ingest-dir; requested paths "
         "are constrained to this root (no traversal outside it).",
     )
     BATCH_MAX_ITEMS: int = Field(

@@ -43,7 +43,7 @@ export MM_DATAPREP_FRAMES_TEMP_DIR=${MM_DATAPREP_FRAMES_TEMP_DIR:-"/tmp/dataprep
 export MM_DATAPREP_LOG_LEVEL=${MM_DATAPREP_LOG_LEVEL:-INFO}
 
 # Batch ingestion settings
-# Container-side root for POST /videos/ingest-dir (paths are constrained to it).
+# Container-side root for POST /media/ingest-dir (paths are constrained to it).
 export MM_DATAPREP_INGEST_DATA_ROOT=${MM_DATAPREP_INGEST_DATA_ROOT:-"/tmp/dataprep/ingest"}
 # Host directory bind-mounted to MM_DATAPREP_INGEST_DATA_ROOT for directory ingest.
 export MM_DATAPREP_INGEST_DATA_ROOT_HOST=${MM_DATAPREP_INGEST_DATA_ROOT_HOST:-"./ingest-data"}

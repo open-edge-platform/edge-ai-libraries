@@ -11,13 +11,13 @@ from src.common.schema import BucketVideoListResponse, VideoInfo
 from src.core.utils.common_utils import get_minio_client
 from src.core.validation import validate_params
 
-router = APIRouter(tags=["Video Management APIs"])
+router = APIRouter(tags=["Media Management APIs"])
 
 
 @router.get(
-    "/videos",
-    summary="Get list of videos from Minio storage.",
-    operation_id="listVideos",
+    "/media",
+    summary="List stored media (videos and images) in a bucket.",
+    operation_id="listMedia",
     response_model=BucketVideoListResponse,
     response_model_exclude_none=True,
 )

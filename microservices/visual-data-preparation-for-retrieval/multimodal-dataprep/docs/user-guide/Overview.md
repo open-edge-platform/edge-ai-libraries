@@ -11,7 +11,7 @@ The microservice focuses on video-first pipelines while still supporting downstr
 1. **Source ingestion:** Videos can be uploaded directly or referenced from MinIO buckets that the service has access to.
 2. **Frame extraction and detection:** Every Nth frame (configurable via `MM_DATAPREP_FRAME_INTERVAL`) is sampled. When object detection is enabled, the detector generates cropped regions of interest that are embedded separately from the full frame.
 3. **Embedding generation:** Embeddings are generated through the in-process pipeline, which is memory-first, multi-threaded, and OpenVINO-aware.
-4. **Metadata enrichment:** Each frame or crop is annotated with timestamps, download URLs (`/v1/dataprep/videos/download`), detection confidences, and tags.
+4. **Metadata enrichment:** Each frame or crop is annotated with timestamps, download URLs (`/v1/dataprep/media/download`), detection confidences, and tags.
 5. **Persistent storage:** Embeddings and metadata are stored in VDMS while the raw assets remain in MinIO for later retrieval.
 
 ## Key Benefits
@@ -24,7 +24,7 @@ The microservice focuses on video-first pipelines while still supporting downstr
 
 ## Feature Highlights
 
-- **REST API surface mounted at `/v1/dataprep`** with endpoints for health, media ingest (`/videos/upload`, `/videos/minio`), metadata retrieval (`/videos`), bulk download, deletion, and summary ingestion (`/summary`).
+- **REST API surface mounted at `/v1/dataprep`** with endpoints for health, media ingest (`/media/upload`, `/media/process`), metadata retrieval (`/media`), bulk download, deletion, and summary ingestion (`/summary`).
 - **Object detection first-class support** with per-request overrides (`enable_object_detection`, `detection_confidence`) and automatic fallback when a model is unavailable.
 - **Tags and summaries** that link curated text back to the precise video segment, enabling multi-modal search.
 - **Configuration-driven behavior** through `config.yaml` and environment overrides for frame strategies, fallback transports, and detector settings.

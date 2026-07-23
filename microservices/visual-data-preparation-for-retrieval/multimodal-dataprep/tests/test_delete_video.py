@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Endpoint tests for ``DELETE /videos/{bucket}/{video_id}``.
+"""Endpoint tests for ``DELETE /media/{bucket}/{video_id}``.
 
 Each ``video_id`` directory holds exactly one video, so deletion is always a
 whole-directory operation: it removes the object(s) from the active storage
@@ -73,7 +73,7 @@ def test_delete_removes_storage_and_vectors(test_client, wire):
     vs = FakeVectorStore()
     wire(storage, vs)
 
-    resp = test_client.delete("/videos/bucket1/vid1")
+    resp = test_client.delete("/media/bucket1/vid1")
     assert resp.status_code == HTTPStatus.OK
     # Vectors deleted first, keyed by (bucket, video_id).
     assert vs.calls == [("bucket1", "vid1")]
@@ -85,7 +85,7 @@ def test_delete_missing_bucket_returns_404_no_vector_delete(test_client, wire):
     vs = FakeVectorStore()
     wire(storage, vs)
 
-    resp = test_client.delete("/videos/bucket1/vid1")
+    resp = test_client.delete("/media/bucket1/vid1")
     assert resp.status_code == HTTPStatus.NOT_FOUND
     assert vs.calls == []
 
@@ -95,7 +95,7 @@ def test_delete_empty_directory_returns_404(test_client, wire):
     vs = FakeVectorStore()
     wire(storage, vs)
 
-    resp = test_client.delete("/videos/bucket1/vid1")
+    resp = test_client.delete("/media/bucket1/vid1")
     assert resp.status_code == HTTPStatus.NOT_FOUND
     assert vs.calls == []
 
@@ -105,7 +105,7 @@ def test_delete_aborts_storage_when_vector_delete_fails(test_client, wire):
     vs = FakeVectorStore(fail=True)
     wire(storage, vs)
 
-    resp = test_client.delete("/videos/bucket1/vid1")
+    resp = test_client.delete("/media/bucket1/vid1")
     # Vector delete failure -> 502 and storage left untouched (no orphaned vectors).
     assert resp.status_code == HTTPStatus.BAD_GATEWAY
     assert storage.deleted == []

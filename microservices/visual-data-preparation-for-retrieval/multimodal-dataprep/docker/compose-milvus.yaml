@@ -181,7 +181,7 @@ services:
         volumes:
             - '${YOLOX_MODELS_VOLUME_NAME:-dataprep-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
             - data-prep:/tmp/dataprep
-            # Optional bind mount for POST /videos/ingest-dir (directory ingest).
+            # Optional bind mount for POST /media/ingest-dir (directory ingest).
             - '${MM_DATAPREP_INGEST_DATA_ROOT_HOST:-./ingest-data}:${MM_DATAPREP_INGEST_DATA_ROOT:-/tmp/dataprep/ingest}'
             - ov-models:/home/appuser/.cache/huggingface
             - ov-models:${OV_MODELS_DIR:-/app/ov_models}

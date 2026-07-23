@@ -7,7 +7,7 @@ This note explains what the `/telemetry` endpoint returns, how each metric is co
 - **Path:** `GET /telemetry`
 - **Query parameters:**
   - `limit` (default `10`, max `100`) – number of most recent records to return (capped by the server-side retention window).
-  - `source` – optional filter that matches the request path that produced the entry (for example `/videos/upload`).
+  - `source` – optional filter that matches the request path that produced the entry (for example `/media/upload`).
 - **Response shape:**
 
 Sample response:
@@ -18,7 +18,7 @@ Sample response:
     "items": [
         {
             "request_id": "1dc48f8c-6ee1-4a5c-8d92-032b5bc5591d",
-            "source": "/videos/upload",
+            "source": "/media/upload",
             "timestamps": {
                 "requested_at": "2026-04-06T08:05:51.111006Z",
                 "completed_at": "2026-04-06T08:08:00.346370Z",
@@ -33,8 +33,8 @@ Sample response:
                 "total_frames": 12552,
                 "video_duration_seconds": 418.4,
                 "tags": ["intersection", "night"],
-                "video_url": "http://:8000/v1/dataprep/videos/download?video_id=dp_video_1775462750&bucket_name=vdms-bucket",
-                "video_rel_url": "/v1/dataprep/videos/download?video_id=dp_video_1775462750&bucket_name=vdms-bucket"
+                "video_url": "http://:8000/v1/dataprep/media/download?video_id=dp_video_1775462750&bucket_name=vdms-bucket",
+                "video_rel_url": "/v1/dataprep/media/download?video_id=dp_video_1775462750&bucket_name=vdms-bucket"
             },
             "config": {
                 "object_detection_enabled": true,

@@ -120,9 +120,11 @@ curl -X POST http://localhost:8000/v1/dataprep/summary \
 
 ---
 
-## `POST /videos/minio`
+## `POST /media/process`
 
-Process a video already stored in Minio by extracting frames and generating embeddings. When object detection is enabled, detected object crops are embedded as separate entries.
+Process a media file (video or image) already stored in Minio. Videos are
+processed by extracting frames; images are embedded directly. When object
+detection is enabled, detected object crops are embedded as separate entries.
 
 **Request Body (JSON):**
 
@@ -196,7 +198,7 @@ Process a video already stored in Minio by extracting frames and generating embe
 **Example:**
 
 ```bash
-curl -X POST http://localhost:8000/v1/dataprep/videos/minio \
+curl -X POST http://localhost:8000/v1/dataprep/media/process \
   -H "Content-Type: application/json" \
   -d '{
     "bucket_name": "my-bucket",
@@ -209,20 +211,24 @@ curl -X POST http://localhost:8000/v1/dataprep/videos/minio \
 
 ---
 
-## `POST /videos/upload`
+## `POST /media/upload`
 
-Upload an MP4 video file, store it in Minio, and generate frame-based embeddings.
+Upload a media file (an MP4 video **or** an image), store it, and generate
+embeddings. The media type is detected from the file extension / content type:
+videos are processed frame-by-frame; images are embedded directly (full image
+plus optional detected-object crops). Supported image formats: `.jpg`, `.jpeg`,
+`.png`, `.webp`, `.bmp`, `.gif`.
 
 **Request:** `multipart/form-data`
 
 | Parameter                | Location | Type           | Required | Default | Description                                                                |
 | ------------------------ | -------- | -------------- | -------- | ------- | -------------------------------------------------------------------------- |
-| `file`                   | form     | file (MP4)     | Yes      | —       | Video file to upload. MP4 format only, maximum 500 MB.                     |
+| `file`                   | form     | file           | Yes      | —       | Media file to upload — an MP4 video (max 500 MB) or an image.              |
 | `bucket_name`            | query    | string         | No       | config  | Destination bucket in Minio. Falls back to the application default bucket. |
-| `frame_interval`         | query    | integer (1–60) | No       | `15`    | Extract every Nth frame for processing.                                    |
+| `frame_interval`         | query    | integer (1–60) | No       | `15`    | Extract every Nth frame for processing. Ignored for images.                |
 | `enable_object_detection`| query    | boolean        | No       | `true`  | Run object detection and embed detected object crops separately.           |
 | `detection_confidence`   | query    | float (0.1–1.0)| No       | `0.85`  | Confidence threshold for filtering object detections.                      |
-| `tags`                   | query    | list of string | No       | `[]`    | Tags associated with the video for filtering searches.                     |
+| `tags`                   | query    | list of string | No       | `[]`    | Tags associated with the media for filtering searches.                     |
 
 **Responses:**
 
@@ -235,7 +241,7 @@ Upload an MP4 video file, store it in Minio, and generate frame-based embeddings
   }
   ```
 
-- 400 Bad Request — file is not MP4 or fails validation:
+- 400 Bad Request — file is not a supported media type or fails validation:
 
   ```json
   {
@@ -244,9 +250,9 @@ Upload an MP4 video file, store it in Minio, and generate frame-based embeddings
   }
   ```
 
-- 413 Request Entity Too Large — file exceeds 500 MB limit.
+- 413 Request Entity Too Large — file exceeds its size limit.
 
-- 409 Conflict — a video with identical content already exists and
+- 409 Conflict — media with identical content already exists and
   `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` is `false`:
 
   ```json
@@ -277,29 +283,103 @@ Upload an MP4 video file, store it in Minio, and generate frame-based embeddings
 **Example:**
 
 ```bash
-curl -X POST "http://localhost:8000/v1/dataprep/videos/upload?frame_interval=15&enable_object_detection=true" \
+# Upload a video
+curl -X POST "http://localhost:8000/v1/dataprep/media/upload?frame_interval=15&enable_object_detection=true" \
   -F "file=@/path/to/video.mp4"
+
+# Upload an image
+curl -X POST "http://localhost:8000/v1/dataprep/media/upload?enable_object_detection=true" \
+  -F "file=@/path/to/image.jpg"
 ```
 
 ---
+
+## Image ingestion by base64 or URL (JSON)
+
+Images can also be ingested without a multipart upload, via a typed JSON body.
+The `type` field selects the transport:
+
+- `image_base64` — inline base64 (a bare base64 string **or** a
+  `data:image/...;base64,...` data URL).
+- `image_url` — a remote `http`/`https` URL the server downloads.
+
+The real image format is sniffed from the decoded bytes (the client-declared
+content type / filename is never trusted); the stored extension and content type
+are derived from the sniffed format. Downloads and decodes are size-capped
+(a fixed 50 MB cap) and, for URLs, time-bounded.
+
+### `POST /media/ingest`
+
+Ingest a single image from a typed source (synchronous, `201 Created`).
+
+**Request:** `application/json`
+
+| Field                     | Type    | Required | Default | Description                                              |
+| ------------------------- | ------- | -------- | ------- | -------------------------------------------------------- |
+| `type`                    | string  | Yes      | —       | `image_base64` or `image_url`.                           |
+| `image_base64`            | string  | cond.    | —       | Required when `type=image_base64`. Base64 or data URL.   |
+| `image_url`               | string  | cond.    | —       | Required when `type=image_url`. `http`/`https` only.     |
+| `bucket_name`             | string  | No       | config  | Destination bucket.                                      |
+| `filename`                | string  | No       | derived | Optional filename; extension is corrected to the sniffed format. |
+| `enable_object_detection` | boolean | No       | `true`  | Embed detected-object crops separately.                  |
+| `detection_confidence`    | float   | No       | `0.85`  | Detection confidence threshold.                          |
+| `tags`                    | list    | No       | `[]`    | Tags for filtering searches.                             |
+
+**Responses:** `201 Created` (embeddings created), `400` (bad/undecodable
+source, unsupported format), `409` (duplicate content when duplicates
+disallowed), `413` (image exceeds size cap), `502`/`500`.
+
+**Examples:**
+
+```bash
+# Base64 (data URL accepted)
+curl -X POST "http://localhost:8000/v1/dataprep/media/ingest" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "image_base64", "image_base64": "data:image/png;base64,iVBORw0KGgo..."}'
+
+# Remote URL
+curl -X POST "http://localhost:8000/v1/dataprep/media/ingest" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "image_url", "image_url": "https://example.com/cat.jpg", "tags": ["demo"]}'
+```
+
+### `POST /media/ingest/batch`
+
+Ingest a list of typed image sources as a single asynchronous job
+(`202 Accepted` + `job_id`); poll `GET /media/jobs/{job_id}` for per-item
+results. Per-item error isolation applies.
+
+**Request:** `application/json`
+
+```json
+{
+  "images": [
+    {"type": "image_url", "image_url": "https://example.com/a.jpg"},
+    {"type": "image_base64", "image_base64": "iVBORw0KGgo..."}
+  ]
+}
+```
+
+---
+
 
 ## Batch Ingestion (asynchronous)
 
 Batch ingestion processes many videos with a single request. All batch endpoints
 return **`202 Accepted`** immediately with a `job_id`; the heavy processing runs
 in the background so the service stays responsive. Poll
-`GET /videos/batch/{job_id}` for per-item results. Batches are processed
+`GET /media/jobs/{job_id}` for per-item results. Batches are processed
 sequentially with **per-item error isolation** — one failing video does not abort
 the rest of the batch. The maximum items per batch is `MM_DATAPREP_BATCH_MAX_ITEMS`
 (default 100). Batch ingestion works identically for both the MinIO and local
 storage backends.
 
-When `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` is `false`, `POST /videos/upload/batch`
-and `POST /videos/ingest-dir` reject the request with **`409 Conflict`** if any
+When `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` is `false`, `POST /media/upload/batch`
+and `POST /media/ingest-dir` reject the request with **`409 Conflict`** if any
 file's content is identical to an already-ingested video (content-based SHA-256
 detection).
 
-### `POST /videos/upload/batch`
+### `POST /media/upload/batch`
 
 Upload multiple MP4 files in one multipart request.
 
@@ -308,7 +388,7 @@ Query params (`bucket_name`, `frame_interval`, `enable_object_detection`,
 `detection_confidence`, `tags`) apply to every file in the batch.
 
 ```bash
-curl -X POST "http://localhost:8000/v1/dataprep/videos/upload/batch?frame_interval=15" \
+curl -X POST "http://localhost:8000/v1/dataprep/media/upload/batch?frame_interval=15" \
   -F "files=@/path/to/video1.mp4" \
   -F "files=@/path/to/video2.mp4"
 ```
@@ -319,24 +399,24 @@ curl -X POST "http://localhost:8000/v1/dataprep/videos/upload/batch?frame_interv
 { "status": "success", "message": "Batch ingestion job accepted and is being processed.", "job_id": "…", "accepted": 2 }
 ```
 
-### `POST /videos/batch`
+### `POST /media/process/batch`
 
 Process videos that already exist in storage. Provide **either** an explicit
 `items` list **or** a `bucket_name` selector (optionally narrowed by `prefix`).
 
 ```bash
 # Explicit list
-curl -X POST http://localhost:8000/v1/dataprep/videos/batch \
+curl -X POST http://localhost:8000/v1/dataprep/media/process/batch \
   -H "Content-Type: application/json" \
   -d '{"items":[{"video_id":"dp_video_1"},{"video_id":"dp_video_2"}]}'
 
 # Selector: every video in a bucket whose video_id starts with "dp_"
-curl -X POST http://localhost:8000/v1/dataprep/videos/batch \
+curl -X POST http://localhost:8000/v1/dataprep/media/process/batch \
   -H "Content-Type: application/json" \
   -d '{"bucket_name":"video-summary","prefix":"dp_","frame_interval":15}'
 ```
 
-### `POST /videos/ingest-dir`
+### `POST /media/ingest-dir`
 
 Backward-compatible directory ingest. Walks `dir_path` (resolved against the
 mounted `MM_DATAPREP_INGEST_DATA_ROOT`; paths are constrained to that root to
@@ -346,12 +426,12 @@ directory ingest). Mount a host directory to `MM_DATAPREP_INGEST_DATA_ROOT` via
 `MM_DATAPREP_INGEST_DATA_ROOT_HOST` in Docker Compose.
 
 ```bash
-curl -X POST http://localhost:8000/v1/dataprep/videos/ingest-dir \
+curl -X POST http://localhost:8000/v1/dataprep/media/ingest-dir \
   -H "Content-Type: application/json" \
   -d '{"dir_path":"clips","recursive":true,"tags":["batch-1"]}'
 ```
 
-### `GET /videos/batch/{job_id}`
+### `GET /media/jobs/{job_id}`
 
 Poll a batch job. Returns overall `state`
 (`pending` | `running` | `completed` | `completed_with_errors` | `failed` |
@@ -375,16 +455,16 @@ array (`identifier`, `video_id`, `status`, `message`, `embeddings_count`).
 
 - 404 Not Found — unknown `job_id`.
 
-### `DELETE /videos/batch/{job_id}`
+### `DELETE /media/jobs/{job_id}`
 
 Request cooperative cancellation of a pending/running job. Items not yet started
 are marked `skipped`. Returns the current job status.
 
 ---
 
-## `GET /videos`
+## `GET /media`
 
-List all videos stored in a Minio bucket.
+List all stored media (videos and images) in a Minio bucket.
 
 **Query Parameters:**
 
@@ -416,12 +496,12 @@ List all videos stored in a Minio bucket.
 **Example:**
 
 ```bash
-curl "http://localhost:8000/v1/dataprep/videos?bucket_name=my-bucket"
+curl "http://localhost:8000/v1/dataprep/media?bucket_name=my-bucket"
 ```
 
 ---
 
-## `GET /videos/download`
+## `GET /media/download`
 
 Download or stream a video file from the active storage backend (MinIO or local
 filesystem).
@@ -468,19 +548,19 @@ fully buffered in memory.
 
 ```bash
 # Stream inline
-curl "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001"
+curl "http://localhost:8000/v1/dataprep/media/download?video_id=video-dir-001"
 
 # Force download
-curl -O "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001&download=true"
+curl -O "http://localhost:8000/v1/dataprep/media/download?video_id=video-dir-001&download=true"
 
 # Request a byte range (seek) — returns 206 Partial Content
 curl -H "Range: bytes=0-1023" \
-  "http://localhost:8000/v1/dataprep/videos/download?video_id=video-dir-001"
+  "http://localhost:8000/v1/dataprep/media/download?video_id=video-dir-001"
 ```
 
 ---
 
-## `DELETE /videos/{bucket_name}/{video_id}`
+## `DELETE /media/{bucket_name}/{video_id}`
 
 Delete a video from the active storage backend **and** remove the corresponding
 embeddings from the active vector DB, keeping both stores consistent. Each
@@ -525,7 +605,7 @@ first, so a failure never leaves orphaned vectors behind.
 
 ```bash
 # Delete the video (removes storage object(s) + vector embeddings)
-curl -X DELETE "http://localhost:8000/v1/dataprep/videos/my-bucket/video-dir-001"
+curl -X DELETE "http://localhost:8000/v1/dataprep/media/my-bucket/video-dir-001"
 ```
 
 ---
@@ -550,7 +630,7 @@ Return the most recent video-processing telemetry records, newest first.
       "items": [
           {
               "request_id": "a1b2c3d4-...",
-              "source": "/videos/upload",
+              "source": "/media/upload",
               "timestamps": {
                   "requested_at": "2025-06-01T12:00:00Z",
                   "completed_at": "2025-06-01T12:00:45Z",

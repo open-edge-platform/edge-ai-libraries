@@ -26,6 +26,7 @@ from src.endpoints import (
     check_health_router,
     delete_video_router,
     download_video_router,
+    ingest_image_router,
     list_videos_router,
     process_document_router,
     process_minio_video_router,
@@ -201,6 +202,7 @@ app.include_router(process_document_router)
 app.include_router(process_minio_video_router)
 app.include_router(upload_and_process_video_router)
 app.include_router(batch_ingest_router)
+app.include_router(ingest_image_router)
 
 # Telemetry endpoints
 app.include_router(telemetry_router)

@@ -17,8 +17,8 @@ VDMS DataPrep turns raw video content and associated summaries into searchable e
 
 ### Inputs
 
-- **Direct uploads** through `POST /v1/dataprep/videos/upload` where the service streams the bytes into MinIO and keeps them in memory for processing.
-- **MinIO references** through `POST /v1/dataprep/videos/minio` for content already present in MinIO. The request only needs the bucket name, directory (`video_id`), and optionally a specific filename.
+- **Direct uploads** through `POST /v1/dataprep/media/upload` where the service streams the bytes into MinIO and keeps them in memory for processing.
+- **MinIO references** through `POST /v1/dataprep/media/process` for content already present in MinIO. The request only needs the bucket name, directory (`video_id`), and optionally a specific filename.
 - **Video summaries** through `POST /v1/dataprep/summary`. These requests reference an existing video and enrich it with timestamp-aligned text metadata and tags.
 
 ### Processing Pipeline
@@ -32,7 +32,7 @@ VDMS DataPrep turns raw video content and associated summaries into searchable e
 ### Outputs
 
 - **Embeddings & metadata** persisted in VDMS with references back to the originating video, frame numbers, crop details, and optional tags.
-- **Raw media** stored in MinIO under `{video_id}/{filename}` with download links exposed via `GET /v1/dataprep/videos/download`.
+- **Raw media** stored in MinIO under `{video_id}/{filename}` with download links exposed via `GET /v1/dataprep/media/download`.
 - **Operational responses** that report the number of embeddings stored and success/error status for clients.
 
 ## Supporting Resources

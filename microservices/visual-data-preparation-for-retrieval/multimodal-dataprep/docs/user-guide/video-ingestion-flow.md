@@ -11,8 +11,8 @@ This document provides a comprehensive visual flow of the video ingestion proces
 ```mermaid
 graph TB
     subgraph "Entry Points"
-        A1[POST /videos/upload<br/>Direct File Upload]
-        A2[POST /videos/minio<br/>Process from MinIO]
+        A1[POST /media/upload<br/>Direct File Upload]
+        A2[POST /media/process<br/>Process from MinIO]
     end
 
     subgraph "Core Processing Pipeline"
@@ -54,8 +54,8 @@ graph TB
 flowchart TD
     START([Video Upload Request]) --> ENTRY{Entry Point?}
 
-    ENTRY -->|Direct Upload| UPLOAD[POST /videos/upload<br/>File: video.mp4<br/>Params: frame_interval, enable_detection]
-    ENTRY -->|MinIO Reference| MINIO[POST /videos/minio<br/>Params: bucket_name, video_id]
+    ENTRY -->|Direct Upload| UPLOAD[POST /media/upload<br/>File: video.mp4<br/>Params: frame_interval, enable_detection]
+    ENTRY -->|MinIO Reference| MINIO[POST /media/process<br/>Params: bucket_name, video_id]
 
     UPLOAD --> VALIDATE1[Validate File<br/>- Check MP4 format<br/>- Check size limit 500MB<br/>- Validate parameters]
     MINIO --> VALIDATE2[Validate MinIO Path<br/>- Check bucket exists<br/>- Verify video_id directory<br/>- Resolve stored video]
@@ -530,7 +530,7 @@ Efficiency = (Theoretical Sequential / Workers) / Actual
 ```mermaid
 graph TB
     subgraph "Stage 1: Video Upload"
-        A[Video Upload<br/>POST /videos/upload or /videos/minio] --> C[Memory Processing]
+        A[Video Upload<br/>POST /media/upload or /media/process] --> C[Memory Processing]
     end
 
     subgraph "Stage 2: Frame Extraction"

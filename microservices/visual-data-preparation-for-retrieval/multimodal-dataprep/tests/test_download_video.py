@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for the seekable ``/videos/download`` endpoint.
+"""Tests for the seekable ``/media/download`` endpoint.
 
 These exercise the endpoint end-to-end against the real local filesystem
 storage backend so HTTP Range (206), full download (200), and unsatisfiable
@@ -43,7 +43,7 @@ def client(monkeypatch, tmp_path):
 
 
 def test_full_download_advertises_ranges(client):
-    resp = client.get(f"/videos/download?video_id={_VIDEO_ID}")
+    resp = client.get(f"/media/download?video_id={_VIDEO_ID}")
     assert resp.status_code == HTTPStatus.OK
     assert resp.headers["accept-ranges"] == "bytes"
     assert resp.headers["content-length"] == str(len(_CONTENT))
@@ -52,7 +52,7 @@ def test_full_download_advertises_ranges(client):
 
 def test_range_returns_partial_content(client):
     resp = client.get(
-        f"/videos/download?video_id={_VIDEO_ID}",
+        f"/media/download?video_id={_VIDEO_ID}",
         headers={"Range": "bytes=100-199"},
     )
     assert resp.status_code == HTTPStatus.PARTIAL_CONTENT
@@ -65,7 +65,7 @@ def test_range_returns_partial_content(client):
 def test_open_ended_range(client):
     start = len(_CONTENT) - 10
     resp = client.get(
-        f"/videos/download?video_id={_VIDEO_ID}",
+        f"/media/download?video_id={_VIDEO_ID}",
         headers={"Range": f"bytes={start}-"},
     )
     assert resp.status_code == HTTPStatus.PARTIAL_CONTENT
@@ -75,7 +75,7 @@ def test_open_ended_range(client):
 
 def test_suffix_range(client):
     resp = client.get(
-        f"/videos/download?video_id={_VIDEO_ID}",
+        f"/media/download?video_id={_VIDEO_ID}",
         headers={"Range": "bytes=-50"},
     )
     assert resp.status_code == HTTPStatus.PARTIAL_CONTENT
@@ -84,7 +84,7 @@ def test_suffix_range(client):
 
 def test_unsatisfiable_range_returns_416(client):
     resp = client.get(
-        f"/videos/download?video_id={_VIDEO_ID}",
+        f"/media/download?video_id={_VIDEO_ID}",
         headers={"Range": f"bytes={len(_CONTENT) + 10}-"},
     )
     assert resp.status_code == HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE
@@ -93,7 +93,7 @@ def test_unsatisfiable_range_returns_416(client):
 
 def test_invalid_range_header_serves_full_body(client):
     resp = client.get(
-        f"/videos/download?video_id={_VIDEO_ID}",
+        f"/media/download?video_id={_VIDEO_ID}",
         headers={"Range": "rows=0-10"},
     )
     assert resp.status_code == HTTPStatus.OK
@@ -101,11 +101,11 @@ def test_invalid_range_header_serves_full_body(client):
 
 
 def test_download_flag_sets_attachment(client):
-    resp = client.get(f"/videos/download?video_id={_VIDEO_ID}&download=true")
+    resp = client.get(f"/media/download?video_id={_VIDEO_ID}&download=true")
     assert resp.status_code == HTTPStatus.OK
     assert resp.headers["content-disposition"].startswith("attachment;")
 
 
 def test_download_not_found_returns_404(client):
-    resp = client.get("/videos/download?video_id=does-not-exist")
+    resp = client.get("/media/download?video_id=does-not-exist")
     assert resp.status_code == HTTPStatus.NOT_FOUND

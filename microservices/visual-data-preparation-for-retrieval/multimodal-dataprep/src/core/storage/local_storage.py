@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from typing import Iterator, List, Optional
 
 from src.common import logger, sanitize_for_log, settings
+from src.core.media import is_media_file
 from src.core.storage.base import BaseStorage, StorageObject
 from src.core.storage.factory import register_backend
 
@@ -126,7 +127,7 @@ class LocalStorage(BaseStorage):
             return result
         for current_root, _dirs, files in os.walk(bucket_dir):
             for filename in files:
-                if not filename.lower().endswith(".mp4"):
+                if not is_media_file(filename):
                     continue
                 abs_path = os.path.join(current_root, filename)
                 rel_path = os.path.relpath(abs_path, bucket_dir)
@@ -157,7 +158,7 @@ class LocalStorage(BaseStorage):
             return None
         for current_root, _dirs, files in os.walk(dir_path):
             for filename in sorted(files):
-                if filename.lower().endswith(".mp4"):
+                if is_media_file(filename):
                     if return_prefix:
                         abs_path = os.path.join(current_root, filename)
                         rel = os.path.relpath(abs_path, self._bucket_dir(bucket_name))

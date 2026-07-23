@@ -5,12 +5,12 @@
 
 Three submit surfaces, one async job engine:
 
-* ``POST /videos/upload/batch``  — multipart ``List[UploadFile]``.
-* ``POST /videos/batch``         — process videos already in storage.
-* ``POST /videos/ingest-dir``    — backward-compatible directory ingest.
+* ``POST /media/upload/batch``  — multipart ``List[UploadFile]``.
+* ``POST /media/process/batch``         — process videos already in storage.
+* ``POST /media/ingest-dir``    — backward-compatible directory ingest.
 
 Each returns ``202 Accepted`` with a ``job_id``; results are polled via
-``GET /videos/batch/{job_id}`` (``DELETE`` requests cooperative cancellation).
+``GET /media/jobs/{job_id}`` (``DELETE`` requests cooperative cancellation).
 Heavy processing runs off the request path on the job engine's background thread,
 so the event loop / ``/health`` stay responsive during a batch.
 """
@@ -36,6 +36,7 @@ from src.common.schema import (
 from src.core.dedup import check_and_register_upload
 from src.core.jobs import BatchItem, cancel_job, get_job, process_stored_video, submit_job
 from src.core.jobs.batch_jobs import BatchJob
+from src.core.media import SUPPORTED_MEDIA_EXTENSIONS, detect_media_kind
 from src.core.utils.common_utils import get_minio_client
 from src.core.utils.config_utils import read_config
 from src.core.validation import (
@@ -46,7 +47,9 @@ from src.core.validation import (
 
 router = APIRouter(tags=["Batch Ingestion APIs"])
 
-_SUPPORTED_EXTENSIONS = {".mp4"}
+# Directory-ingest accepts any supported media file (video or image); the
+# per-item processor picks the embedding path from the stored filename.
+_SUPPORTED_EXTENSIONS = set(SUPPORTED_MEDIA_EXTENSIONS)
 
 
 def _resolve_defaults(
@@ -77,9 +80,10 @@ def _check_batch_size(count: int) -> None:
         )
 
 
-def _new_video_id(index: int) -> str:
-    """Generate a unique ``video_id`` for a newly stashed batch upload."""
-    return f"dp_video_{int(datetime.datetime.now().timestamp())}_{index}_{uuid.uuid4().hex[:6]}"
+def _new_video_id(index: int, filename: str = "") -> str:
+    """Generate a unique ``video_id`` for a newly stashed batch item (media-aware prefix)."""
+    prefix = "dp_image" if detect_media_kind(filename) == "image" else "dp_video"
+    return f"{prefix}_{int(datetime.datetime.now().timestamp())}_{index}_{uuid.uuid4().hex[:6]}"
 
 
 def _stash_bytes(bucket_name: str, video_id: str, filename: str, content: bytes) -> None:
@@ -137,15 +141,15 @@ def _job_to_status(job: BatchJob) -> BatchJobStatus:
 
 
 @router.post(
-    "/videos/upload/batch",
-    summary="Upload and process multiple video files (async batch job).",
-    operation_id="uploadAndProcessVideoBatch",
+    "/media/upload/batch",
+    summary="Upload and process multiple media files (videos and/or images) as an async batch job.",
+    operation_id="uploadAndProcessMediaBatch",
     status_code=HTTPStatus.ACCEPTED,
     response_model=BatchSubmitResponse,
     response_model_exclude_none=True,
 )
 async def upload_and_process_video_batch(
-    files: Annotated[List[UploadFile], File(description="Video files to upload (MP4 only)")],
+    files: Annotated[List[UploadFile], File(description="Media files to upload (MP4 videos or images)")],
     bucket_name: Annotated[Optional[str], Query(description="Target bucket (default if unset).")] = None,
     frame_interval: Annotated[
         Optional[int], Query(ge=1, le=60, description="Extract every Nth frame (default: 15).")
@@ -158,7 +162,7 @@ async def upload_and_process_video_batch(
     ] = None,
     tags: Annotated[Optional[List[str]], Query(description="Tags for all uploaded videos.")] = None,
 ) -> BatchSubmitResponse:
-    """Accept multiple MP4 uploads, stash them to storage, and submit one async job."""
+    """Accept multiple media uploads (videos and/or images), stash them to storage, and submit one async job."""
     try:
         _check_batch_size(len(files or []))
         fi, od, dc = _resolve_defaults(frame_interval, enable_object_detection, detection_confidence)
@@ -170,7 +174,7 @@ async def upload_and_process_video_batch(
             validate_file(upload, required=True)
             content = await upload.read()
             filename = pathlib.Path(upload.filename).name
-            video_id = _new_video_id(index)
+            video_id = _new_video_id(index, filename)
             _stash_bytes(bucket, video_id, filename, content)
             items.append(
                 BatchItem(
@@ -197,9 +201,9 @@ async def upload_and_process_video_batch(
 
 
 @router.post(
-    "/videos/batch",
-    summary="Batch-process videos already present in storage (async batch job).",
-    operation_id="processVideoBatchExisting",
+    "/media/process/batch",
+    summary="Batch-process media (videos/images) already present in storage (async batch job).",
+    operation_id="processMediaBatchExisting",
     status_code=HTTPStatus.ACCEPTED,
     response_model=BatchSubmitResponse,
     response_model_exclude_none=True,
@@ -313,8 +317,8 @@ def _read_sidecar_tags(media_file: pathlib.Path) -> List[str]:
 
 
 @router.post(
-    "/videos/ingest-dir",
-    summary="Ingest all supported videos from a mounted directory (async batch job).",
+    "/media/ingest-dir",
+    summary="Ingest all supported media (videos and images) from a mounted directory (async batch job).",
     operation_id="ingestDirectory",
     status_code=HTTPStatus.ACCEPTED,
     response_model=BatchSubmitResponse,
@@ -323,7 +327,7 @@ def _read_sidecar_tags(media_file: pathlib.Path) -> List[str]:
 async def ingest_directory(
     request: Annotated[DirectoryIngestRequest, Body(description="Directory ingest parameters")],
 ) -> BatchSubmitResponse:
-    """Walk a mounted directory, stash each MP4 into storage, and submit one async job."""
+    """Walk a mounted directory, stash each supported media file into storage, and submit one async job."""
     try:
         target = _resolve_ingest_dir(request.dir_path)
         fi, od, dc = _resolve_defaults(
@@ -349,7 +353,7 @@ async def ingest_directory(
         items: List[BatchItem] = []
         for index, media_file in enumerate(media_files):
             filename = media_file.name
-            video_id = _new_video_id(index)
+            video_id = _new_video_id(index, filename)
             _stash_bytes(bucket, video_id, filename, media_file.read_bytes())
             tags = (_read_sidecar_tags(media_file) or []) + req_tags
             items.append(
@@ -377,7 +381,7 @@ async def ingest_directory(
 
 
 @router.get(
-    "/videos/batch/{job_id}",
+    "/media/jobs/{job_id}",
     summary="Get the status and per-item results of a batch job.",
     operation_id="getBatchJobStatus",
     response_model=BatchJobStatus,
@@ -392,7 +396,7 @@ async def get_batch_job_status(job_id: str) -> BatchJobStatus:
 
 
 @router.delete(
-    "/videos/batch/{job_id}",
+    "/media/jobs/{job_id}",
     summary="Request cancellation of a pending/running batch job.",
     operation_id="cancelBatchJob",
     response_model=BatchJobStatus,

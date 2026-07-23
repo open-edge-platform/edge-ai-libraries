@@ -13,13 +13,14 @@ from fastapi import APIRouter, Body, HTTPException
 
 from src.common import DataPrepException, Strings, logger, settings
 from src.common.schema import DataPrepResponse, VideoRequest
-from src.core.embedding import generate_video_embedding
+from src.core.embedding import generate_image_embedding_from_content, generate_video_embedding
+from src.core.media import detect_media_kind
 from src.core.utils.common_utils import get_minio_client
 from src.core.utils.video_utils import get_video_from_minio
 from src.core.utils.config_utils import get_config, read_config
 from src.core.validation import sanitize_model
 
-router = APIRouter(tags=["Video Processing APIs"])
+router = APIRouter(tags=["Media Processing APIs"])
 
 
 def _resolve_stored_video_name(bucket_name: str, video_id: str) -> str:
@@ -53,9 +54,9 @@ def _resolve_stored_video_name(bucket_name: str, video_id: str) -> str:
 
 
 @router.post(
-    "/videos/minio",
-    summary="Process video from Minio storage for embedding generation.",
-    operation_id="processVideoFromMinio",
+    "/media/process",
+    summary="Process media (video or image) already stored in object storage for embedding generation.",
+    operation_id="processStoredMedia",
     status_code=HTTPStatus.CREATED,
     response_model=DataPrepResponse,
     response_model_exclude_none=True,
@@ -155,39 +156,52 @@ async def process_minio_video(
             )
             video_data, filename = get_video_from_minio(bucket_name, video_id)
 
+            # Keep the raw bytes in memory: the image path embeds directly from
+            # bytes, while the video path additionally needs a temp file.
+            media_content = video_data.read()
+
             # Save video to temporary location for processing
             temp_video_path = videos_temp_dir / filename
             with open(temp_video_path, "wb") as f:
-                f.write(video_data.read())
+                f.write(media_content)
 
-            # Reset video_data for potential reuse
-            video_data.seek(0)
-
-            logger.info(f"Retrieved video {filename} from {bucket_name}/{video_id}")
+            logger.info(f"Retrieved media {filename} from {bucket_name}/{video_id}")
 
         except Exception as ex:
             logger.error(f"Error retrieving video from Minio: {ex}")
             raise DataPrepException(status_code=HTTPStatus.BAD_GATEWAY, msg=Strings.minio_error)
 
-        # Process video metadata and generate frame-based embeddings
+        # Process media and generate embeddings
         telemetry_context = {
             "request_id": str(uuid.uuid4()),
-            "source": "/videos/minio",
+            "source": "/media/process",
             "requested_at": time.time(),
         }
 
-        ids = await generate_video_embedding(
-            bucket_name=bucket_name,
-            video_id=video_id,
-            filename=filename,
-            temp_video_path=temp_video_path,
-            metadata_temp_path=metadata_temp_dir,
-            frame_interval=frame_interval,
-            enable_object_detection=enable_object_detection,
-            detection_confidence=detection_confidence,
-            tags=tags,
-            telemetry_context=telemetry_context,
-        )
+        if detect_media_kind(filename) == "image":
+            ids = await generate_image_embedding_from_content(
+                image_content=media_content,
+                bucket_name=bucket_name,
+                video_id=video_id,
+                filename=filename,
+                enable_object_detection=enable_object_detection,
+                detection_confidence=detection_confidence,
+                tags=tags,
+                telemetry_context=telemetry_context,
+            )
+        else:
+            ids = await generate_video_embedding(
+                bucket_name=bucket_name,
+                video_id=video_id,
+                filename=filename,
+                temp_video_path=temp_video_path,
+                metadata_temp_path=metadata_temp_dir,
+                frame_interval=frame_interval,
+                enable_object_detection=enable_object_detection,
+                detection_confidence=detection_confidence,
+                tags=tags,
+                telemetry_context=telemetry_context,
+            )
 
         # logger.debug(f"Frame-based embeddings created for videos: {ids}")
         return DataPrepResponse(message=Strings.embedding_success)

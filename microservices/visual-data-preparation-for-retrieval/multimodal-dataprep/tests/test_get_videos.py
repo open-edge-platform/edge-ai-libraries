@@ -19,7 +19,7 @@ def test_getvideos_list(test_client, mocker):
     mocker.patch("src.core.utils.common_utils.get_minio_client", return_value=mock_minio)
 
     # Test API endpoint
-    response = test_client.get("/videos")
+    response = test_client.get("/media")
     assert response.status_code == HTTPStatus.OK
 
     # Verify response content
@@ -44,7 +44,7 @@ def test_getvideos_minio_error(test_client, mocker):
     mocker.patch("src.core.utils.common_utils.get_minio_client", return_value=mock_minio)
 
     # Test API endpoint
-    response = test_client.get("/videos")
+    response = test_client.get("/media")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -59,7 +59,7 @@ def test_getvideos_empty_bucket(test_client, mocker):
     mocker.patch("src.core.utils.common_utils.get_minio_client", return_value=mock_minio)
 
     # Test API endpoint
-    response = test_client.get("/videos")
+    response = test_client.get("/media")
     assert response.status_code == HTTPStatus.OK
 
     # Verify response content shows empty video collections
@@ -81,7 +81,7 @@ def test_getvideos_with_bucket_param(test_client, mocker):
 
     # Test API endpoint with custom bucket
     custom_bucket = "custom-bucket"
-    response = test_client.get(f"/videos?bucket_name={custom_bucket}")
+    response = test_client.get(f"/media?bucket_name={custom_bucket}")
     assert response.status_code == HTTPStatus.OK
 
     # Verify bucket was passed correctly

@@ -17,25 +17,30 @@ from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from src.common import DataPrepException, Strings, logger, sanitize_for_log, settings
 from src.common.schema import DataPrepResponse
 from src.core.dedup import check_and_register_upload
-from src.core.embedding import generate_video_embedding_from_content, generate_video_embedding_from_uri
+from src.core.embedding import (
+    generate_image_embedding_from_content,
+    generate_video_embedding_from_content,
+    generate_video_embedding_from_uri,
+)
+from src.core.media import detect_media_kind
 from src.core.utils.common_utils import get_minio_client
 from src.core.utils.config_utils import read_config
 from src.core.validation import validate_params
 
-router = APIRouter(tags=["Video Processing APIs"])
+router = APIRouter(tags=["Media Processing APIs"])
 
 
 @router.post(
-    "/videos/upload",
-    summary="Upload and process a video file for embedding generation.",
-    operation_id="uploadAndProcessVideo",
+    "/media/upload",
+    summary="Upload and process a video or image file for embedding generation.",
+    operation_id="uploadAndProcessMedia",
     status_code=HTTPStatus.CREATED,
     response_model=DataPrepResponse,
     response_model_exclude_none=True,
 )
 @validate_params
 async def upload_and_process_video(
-    file: Annotated[UploadFile, File(description="Video file to upload (MP4 format only)")],
+    file: Annotated[UploadFile, File(description="Media file to upload (MP4 video or JPG/PNG/WEBP/BMP/GIF image)")],
     bucket_name: Annotated[
         Optional[str],
         Query(
@@ -62,10 +67,14 @@ async def upload_and_process_video(
     ] = None,
 ) -> DataPrepResponse:
     """
-    ### Upload and process a video file for frame-based embedding generation.
+    ### Upload and process a video or image file for embedding generation.
 
-    This endpoint accepts an MP4 video file upload, stores it in Minio, and generates embeddings
-    using frame-based processing with optional object detection.
+    This endpoint accepts a media file upload (MP4 video or a supported image
+    format), stores it, and generates embeddings. Videos are processed with
+    frame-based extraction; images are embedded directly (whole image plus, when
+    object detection is enabled, one embedding per detected object crop). Both
+    paths share the same storage, duplicate-detection and metadata contract; the
+    embedding is discriminated by the ``content_type`` metadata field.
 
     Video is processed by extracting individual frames at regular intervals (every Nth frame).
     Each frame generates its own embedding. When object detection is enabled, detected objects
@@ -120,8 +129,14 @@ async def upload_and_process_video(
             config.get("metadata_local_temp_dir", "/tmp/dataprep/metadata")
         )
 
-        # Generate a video_id based on the filename and timestamp
-        video_id = f"dp_video_{int(datetime.datetime.now().timestamp())}"
+        # Detect the media kind from the uploaded filename so images and videos
+        # can share this endpoint. Unknown extensions are rejected earlier by
+        # validate_file; default to "video" defensively.
+        media_kind = detect_media_kind(file.filename) or "video"
+
+        # Generate a media id based on the kind and timestamp
+        id_prefix = "dp_image" if media_kind == "image" else "dp_video"
+        video_id = f"{id_prefix}_{int(datetime.datetime.now().timestamp())}_{uuid.uuid4().hex[:6]}"
 
         # Create temp directories to store the video and metadata
         videos_temp_dir = videos_temp_dir / video_id
@@ -168,28 +183,42 @@ async def upload_and_process_video(
 
         telemetry_context = {
             "request_id": str(uuid.uuid4()),
-            "source": "/videos/upload",
+            "source": "/media/upload",
             "requested_at": time.time(),
         }
 
-        # Process video content directly from memory (most efficient)
-        logger.info("Processing video directly from memory for optimal performance")
-        ids = await generate_video_embedding_from_content(
-            video_content=content,  # Use in-memory content directly
-            bucket_name=bucket_name,
-            video_id=video_id,
-            filename=filename,
-            metadata_temp_path=metadata_temp_dir,
-            frame_interval=frame_interval,
-            enable_object_detection=enable_object_detection,
-            detection_confidence=detection_confidence,
-            tags=tags or [],
-            telemetry_context=telemetry_context,
-        )
+        # Process media content directly from memory (most efficient). Images
+        # and videos take different embedding paths but share storage + dedup.
+        if media_kind == "image":
+            logger.info("Processing image directly from memory")
+            ids = await generate_image_embedding_from_content(
+                image_content=content,
+                bucket_name=bucket_name,
+                video_id=video_id,
+                filename=filename,
+                enable_object_detection=enable_object_detection,
+                detection_confidence=detection_confidence,
+                tags=tags or [],
+                telemetry_context=telemetry_context,
+            )
+        else:
+            logger.info("Processing video directly from memory for optimal performance")
+            ids = await generate_video_embedding_from_content(
+                video_content=content,  # Use in-memory content directly
+                bucket_name=bucket_name,
+                video_id=video_id,
+                filename=filename,
+                metadata_temp_path=metadata_temp_dir,
+                frame_interval=frame_interval,
+                enable_object_detection=enable_object_detection,
+                detection_confidence=detection_confidence,
+                tags=tags or [],
+                telemetry_context=telemetry_context,
+            )
         logger.info(f"{len(ids)} embeddings created with optimized memory usage")
 
         logger.info(
-            "Frame-based embeddings created for video: %s",
+            "Frame-based embeddings created for media: %s",
             sanitize_for_log(ids, max_length=512),
         )
         return DataPrepResponse(
@@ -222,7 +251,7 @@ async def upload_and_process_video(
 
 
 @router.post(
-    "/videos/rtsp",
+    "/media/rtsp",
     summary="Provide list of RTSP Stream URLs to process and generate embeddings.",
     operation_id="processRtspStreams",
     status_code=HTTPStatus.OK,
@@ -323,7 +352,7 @@ async def process_rtsp_streams(
     logger.info("ID of shutdown_event in process_rtsp_streams: %s", id(shutdown_event))
     telemetry_context = {
             "request_id": str(uuid.uuid4()),
-            "source": "/videos/rtsp",
+            "source": "/media/rtsp",
             "requested_at": time.time(),
         }
 

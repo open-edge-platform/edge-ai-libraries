@@ -44,7 +44,7 @@ def _poll(client, job_id, timeout=5.0):
     deadline = time.time() + timeout
     terminal = {"completed", "completed_with_errors", "failed", "cancelled"}
     while time.time() < deadline:
-        resp = client.get(f"/videos/batch/{job_id}")
+        resp = client.get(f"/media/jobs/{job_id}")
         assert resp.status_code == 200
         body = resp.json()
         if body["state"] in terminal:
@@ -55,7 +55,7 @@ def _poll(client, job_id, timeout=5.0):
 
 def test_batch_existing_explicit_items(client):
     resp = client.post(
-        "/videos/batch",
+        "/media/process/batch",
         json={"items": [{"video_id": "vid_a"}, {"video_id": "vid_b"}]},
     )
     assert resp.status_code == 202
@@ -68,7 +68,7 @@ def test_batch_existing_explicit_items(client):
 
 
 def test_batch_existing_bucket_selector_with_prefix(client):
-    resp = client.post("/videos/batch", json={"bucket_name": "test-bucket", "prefix": "vid_"})
+    resp = client.post("/media/process/batch", json={"bucket_name": "test-bucket", "prefix": "vid_"})
     assert resp.status_code == 202
     body = resp.json()
     # Selector should match vid_a and vid_b, not "other".
@@ -78,7 +78,7 @@ def test_batch_existing_bucket_selector_with_prefix(client):
 
 
 def test_batch_existing_requires_items_or_selector(client):
-    resp = client.post("/videos/batch", json={})
+    resp = client.post("/media/process/batch", json={})
     assert resp.status_code == 400
 
 
@@ -87,7 +87,7 @@ def test_batch_too_large_rejected(client, monkeypatch):
 
     monkeypatch.setattr(settings, "BATCH_MAX_ITEMS", 1)
     resp = client.post(
-        "/videos/batch",
+        "/media/process/batch",
         json={"items": [{"video_id": "vid_a"}, {"video_id": "vid_b"}]},
     )
     assert resp.status_code == 400
@@ -98,7 +98,7 @@ def test_upload_batch_flow(client):
         ("files", ("one.mp4", b"data-one", "video/mp4")),
         ("files", ("two.mp4", b"data-two", "video/mp4")),
     ]
-    resp = client.post("/videos/upload/batch", files=files)
+    resp = client.post("/media/upload/batch", files=files)
     assert resp.status_code == 202
     body = resp.json()
     assert body["accepted"] == 2
@@ -109,15 +109,15 @@ def test_upload_batch_flow(client):
 
 def test_upload_batch_rejects_non_mp4(client):
     files = [("files", ("bad.txt", b"nope", "text/plain"))]
-    resp = client.post("/videos/upload/batch", files=files)
+    resp = client.post("/media/upload/batch", files=files)
     assert resp.status_code == 400
 
 
 def test_status_unknown_job_404(client):
-    resp = client.get("/videos/batch/nonexistent")
+    resp = client.get("/media/jobs/nonexistent")
     assert resp.status_code == 404
 
 
 def test_cancel_unknown_job_404(client):
-    resp = client.delete("/videos/batch/nonexistent")
+    resp = client.delete("/media/jobs/nonexistent")
     assert resp.status_code == 404

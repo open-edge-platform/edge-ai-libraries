@@ -7,7 +7,7 @@ The engine is source-agnostic: every batch surface first persists its media into
 storage (multipart upload stashes bytes; directory ingest copies files in), so a
 batch item always refers to a video that already lives in the storage backend.
 :func:`process_stored_video` is therefore the single unit of work shared by all
-surfaces. It mirrors the ``POST /videos/minio`` flow: resolve/validate the stored
+surfaces. It mirrors the ``POST /media/process`` flow: resolve/validate the stored
 object, download it, and run the in-process embedding pipeline.
 
 The heavy pipeline call is ``async`` but ultimately synchronous/CPU-bound; it is
@@ -25,7 +25,11 @@ import time
 import uuid
 
 from src.common import Strings, logger, settings
-from src.core.embedding import generate_video_embedding_from_content
+from src.core.embedding import (
+    generate_image_embedding_from_content,
+    generate_video_embedding_from_content,
+)
+from src.core.media import detect_media_kind
 from src.core.utils.config_utils import read_config
 from src.core.utils.video_utils import get_video_from_minio
 
@@ -33,9 +37,11 @@ from .batch_jobs import BatchItem
 
 
 def process_stored_video(item: BatchItem) -> int:
-    """Process a single already-stored video and return the embedding count.
+    """Process a single already-stored media file and return the embedding count.
 
-    Raises on any failure so the engine can isolate it to this item.
+    The stored filename's extension selects the embedding path (image vs video),
+    so a single job can mix images and videos. Raises on any failure so the
+    engine can isolate it to this item.
     """
     config = read_config(settings.CONFIG_FILEPATH, type="yaml")
     if config is None:
@@ -61,20 +67,34 @@ def process_stored_video(item: BatchItem) -> int:
             "requested_at": time.time(),
         }
 
-        ids = asyncio.run(
-            generate_video_embedding_from_content(
-                video_content=content,
-                bucket_name=bucket_name,
-                video_id=video_id,
-                filename=filename,
-                metadata_temp_path=metadata_temp_dir,
-                frame_interval=item.frame_interval,
-                enable_object_detection=item.enable_object_detection,
-                detection_confidence=item.detection_confidence,
-                tags=item.tags or [],
-                telemetry_context=telemetry_context,
+        if detect_media_kind(filename) == "image":
+            ids = asyncio.run(
+                generate_image_embedding_from_content(
+                    image_content=content,
+                    bucket_name=bucket_name,
+                    video_id=video_id,
+                    filename=filename,
+                    enable_object_detection=item.enable_object_detection,
+                    detection_confidence=item.detection_confidence,
+                    tags=item.tags or [],
+                    telemetry_context=telemetry_context,
+                )
             )
-        )
+        else:
+            ids = asyncio.run(
+                generate_video_embedding_from_content(
+                    video_content=content,
+                    bucket_name=bucket_name,
+                    video_id=video_id,
+                    filename=filename,
+                    metadata_temp_path=metadata_temp_dir,
+                    frame_interval=item.frame_interval,
+                    enable_object_detection=item.enable_object_detection,
+                    detection_confidence=item.detection_confidence,
+                    tags=item.tags or [],
+                    telemetry_context=telemetry_context,
+                )
+            )
         return len(ids)
     finally:
         try:

@@ -17,6 +17,7 @@ from minio import Minio
 from minio.error import S3Error
 
 from src.common import DataPrepException, Strings, logger, sanitize_for_log
+from src.core.media import content_type_for_filename, is_media_file
 
 
 class MinioClient:
@@ -124,10 +125,10 @@ class MinioClient:
             # List all objects in the bucket with the given prefix
             objects = self.client.list_objects(bucket_name, prefix=prefix, recursive=True)
 
-            # Filter for .mp4 files only
+            # Filter for supported media files (video or image) only
             video_files = []
             for obj in objects:
-                if obj.object_name.lower().endswith(".mp4"):
+                if is_media_file(obj.object_name):
                     # Return only the filename part without the prefix
                     path = pathlib.Path(obj.object_name)
                     video_files.append(path.name)
@@ -168,7 +169,7 @@ class MinioClient:
                 for obj in all_objects:
                     if obj.object_name.startswith(
                         f"{directory}/"
-                    ) and obj.object_name.lower().endswith(".mp4"):
+                    ) and is_media_file(obj.object_name):
                         videos.append(pathlib.Path(obj.object_name).name)
 
                 if videos:  # Only include directories that have videos
@@ -202,10 +203,10 @@ class MinioClient:
             # List all objects in the directory
             objects = self.client.list_objects(bucket_name, prefix=prefix, recursive=True)
 
-            # Find the first .mp4 file
+            # Find the first media file (video or image)
             for obj in objects:
                 obj_name = obj.object_name
-                if obj_name.lower().endswith(".mp4"):
+                if is_media_file(obj_name):
 
                     if not return_prefix:
                         # return the object name without the prefix
@@ -349,8 +350,8 @@ class MinioClient:
             # Find video files (expecting one video per directory)
             result = []
             for obj in all_objects:
-                # Check if it's a video file (.mp4)
-                if obj.object_name.lower().endswith(".mp4"):
+                # Check if it's a supported media file (video or image)
+                if is_media_file(obj.object_name):
                     # Parse the path to get video_id and video_name
                     path = pathlib.Path(obj.object_name)
 
@@ -494,13 +495,14 @@ class MinioClient:
             # Check if the bucket exists
             self.ensure_bucket_exists(bucket_name)
 
-            # Upload the file
+            # Upload the file. Derive the MIME type from the object's extension
+            # so images are stored with their real content_type (not video/mp4).
             self.client.put_object(
                 bucket_name=bucket_name,
                 object_name=object_name,
                 data=data,
                 length=file_size,
-                content_type="video/mp4",
+                content_type=content_type_for_filename(object_name),
             )
 
             logger.info(

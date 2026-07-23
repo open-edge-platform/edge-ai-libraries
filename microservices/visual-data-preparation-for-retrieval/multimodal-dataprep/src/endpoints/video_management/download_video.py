@@ -1,12 +1,12 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Video download / streaming endpoint.
+"""Media download / streaming endpoint.
 
-Serves ``GET /videos/download`` from the active storage backend (MinIO or local
+Serves ``GET /media/download`` from the active storage backend (MinIO or local
 filesystem) with HTTP Range support, so media players can seek without fetching
 the whole file. Ranges are read directly from storage (server-side range read on
-MinIO, seek/read on local), keeping large videos out of memory.
+MinIO, seek/read on local), keeping large media out of memory.
 """
 
 from http import HTTPStatus
@@ -16,11 +16,12 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 
 from src.common import DataPrepException, Strings, logger, settings
+from src.core.media import content_type_for_filename
 from src.core.utils.common_utils import get_minio_client
 from src.core.utils.video_utils import resolve_video_object
 from src.core.validation import validate_params
 
-router = APIRouter(tags=["Video Management APIs"])
+router = APIRouter(tags=["Media Management APIs"])
 
 
 class _RangeNotSatisfiable(Exception):
@@ -83,9 +84,9 @@ def _parse_byte_range(range_header: str, file_size: int) -> Optional[Tuple[int, 
 
 
 @router.get(
-    "/videos/download",
-    summary="Download or stream a video (supports HTTP Range/seek).",
-    operation_id="downloadVideo",
+    "/media/download",
+    summary="Download or stream stored media, video or image (supports HTTP Range/seek).",
+    operation_id="downloadMedia",
     response_class=StreamingResponse,
     responses={
         HTTPStatus.OK: {
@@ -156,6 +157,9 @@ async def download_video(
         # Resolve the concrete object + size without downloading it.
         object_name, filename = resolve_video_object(bucket_name, video_id)
         file_size = storage.get_object_size(bucket_name, object_name)
+        # Serve the object with its real MIME type (video/mp4, image/png, ...)
+        # derived from the stored filename extension.
+        media_type = content_type_for_filename(filename)
 
         content_disposition = (
             f"attachment; filename={filename}" if download else f"inline; filename={filename}"
@@ -173,7 +177,7 @@ async def download_video(
             base_headers["Content-Length"] = str(file_size)
             return StreamingResponse(
                 content=storage.stream_object_range(bucket_name, object_name),
-                media_type="video/mp4",
+                media_type=media_type,
                 headers=base_headers,
             )
 
@@ -186,7 +190,7 @@ async def download_video(
                 bucket_name, object_name, offset=start, length=length
             ),
             status_code=HTTPStatus.PARTIAL_CONTENT,
-            media_type="video/mp4",
+            media_type=media_type,
             headers=base_headers,
         )
 

@@ -4,6 +4,7 @@
 from .embedding_orchestrator import (
     generate_video_embedding,
     generate_video_embedding_from_content,
+    generate_image_embedding_from_content,
     generate_text_embedding,
     generate_video_embedding_from_uri
 )
@@ -14,6 +15,7 @@ __all__ = [
     "generate_text_embedding",
     "generate_video_embedding", 
     "generate_video_embedding_from_content",
+    "generate_image_embedding_from_content",
     "generate_video_embedding_pipeline",
     "generate_video_embedding_from_uri",
     "EmbeddingClient",

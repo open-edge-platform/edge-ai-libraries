@@ -4,9 +4,9 @@
 """Pydantic request/response schemas and enums for the DataPrep REST API."""
 
 from enum import Enum
-from typing import Annotated, Any, Dict, List, Optional, Tuple
+from typing import Annotated, Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class StatusEnum(str, Enum):
@@ -120,6 +120,95 @@ class VideoRequest(BaseModel):
             default_factory=list,
             description="List of tags to be associated with the video. Useful for filtering the search.",
         ),
+    ]
+
+
+class ImageSourceTypeEnum(str, Enum):
+    """Discriminator for a JSON image source (mirrors MME's typed input)."""
+
+    image_base64 = "image_base64"
+    image_url = "image_url"
+
+
+class ImageIngestItem(BaseModel):
+    """A single typed image source for JSON ingestion.
+
+    Exactly one payload field must be set, matching ``type``:
+    ``image_base64`` (inline base64 / data URL) or ``image_url`` (remote http(s)
+    URL). The stored filename/extension is derived from the sniffed bytes, so
+    ``filename`` is an optional hint only.
+    """
+
+    type: Annotated[
+        ImageSourceTypeEnum,
+        Field(description="Source discriminator: 'image_base64' or 'image_url'."),
+    ]
+    image_base64: Annotated[
+        Optional[str],
+        Field(default=None, description="Base64-encoded image (bare or 'data:' URL) when type=image_base64."),
+    ] = None
+    image_url: Annotated[
+        Optional[str],
+        Field(default=None, description="Absolute http(s) image URL when type=image_url."),
+    ] = None
+    filename: Annotated[
+        Optional[str],
+        Field(default=None, description="Optional filename hint; extension is derived from the real bytes."),
+    ] = None
+    tags: Annotated[
+        Optional[List[str]],
+        Field(default=None, description="Optional per-image tags (merged with request-level tags)."),
+    ] = None
+
+    @model_validator(mode="after")
+    def _check_payload(self) -> "ImageIngestItem":
+        """Ensure the payload field matching ``type`` is present and non-empty."""
+        if self.type == ImageSourceTypeEnum.image_base64 and not self.image_base64:
+            raise ValueError("image_base64 is required when type='image_base64'.")
+        if self.type == ImageSourceTypeEnum.image_url and not self.image_url:
+            raise ValueError("image_url is required when type='image_url'.")
+        return self
+
+
+class ImageIngestRequest(ImageIngestItem):
+    """Single-image JSON ingestion request (one typed source + storage params)."""
+
+    bucket_name: Annotated[
+        Optional[str],
+        Field(default=None, description="Target bucket for the stored image (default bucket if unset)."),
+    ] = None
+    enable_object_detection: Annotated[
+        Optional[bool],
+        Field(default=None, description="Enable object detection and crop extraction (default: True)."),
+    ] = None
+    detection_confidence: Annotated[
+        Optional[float],
+        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold (default: 0.85)."),
+    ] = None
+
+
+class ImageBatchIngestRequest(BaseModel):
+    """Batch JSON ingestion request: many typed image sources -> one async job."""
+
+    images: Annotated[
+        List[ImageIngestItem],
+        Field(description="List of typed image sources (base64 or URL)."),
+    ]
+    bucket_name: Annotated[
+        Optional[str],
+        Field(default=None, description="Target bucket for all stored images (default bucket if unset)."),
+    ] = None
+    enable_object_detection: Annotated[
+        Optional[bool],
+        Field(default=None, description="Enable object detection and crop extraction for every image."),
+    ] = None
+    detection_confidence: Annotated[
+        Optional[float],
+        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold."),
+    ] = None
+    tags: Annotated[
+        Optional[List[str]],
+        Field(default_factory=list, description="Tags applied to every image in the batch."),
     ]
 
 

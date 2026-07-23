@@ -10,6 +10,18 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from src.common import DataPrepException, logger
+from src.core.media import (
+    SUPPORTED_MEDIA_EXTENSIONS,
+    content_type_for_filename,
+)
+
+# Allowed upload MIME types = the MIME type of every supported media extension
+# (video/mp4 + the image types). Derived from the single media registry so the
+# accepted set stays in sync with what the pipeline can actually decode.
+_ALLOWED_MEDIA_CONTENT_TYPES = sorted(
+    {content_type_for_filename("x" + ext) for ext in SUPPORTED_MEDIA_EXTENSIONS}
+)
+_ALLOWED_MEDIA_EXTENSIONS = list(SUPPORTED_MEDIA_EXTENSIONS)
 
 T = TypeVar("T")
 
@@ -170,13 +182,14 @@ def validate_file_content_type(file, allowed_content_types=None):
 
     Args:
         file: The uploaded file to validate
-        allowed_content_types (list, optional): List of allowed content types. Defaults to ["video/mp4"].
+        allowed_content_types (list, optional): List of allowed content types.
+            Defaults to the supported media types (video/mp4 + image types).
 
     Raises:
         DataPrepException: If the content type is not allowed
     """
 
-    allowed_content_types = allowed_content_types or ["video/mp4"]
+    allowed_content_types = allowed_content_types or _ALLOWED_MEDIA_CONTENT_TYPES
 
     if not file:
         return
@@ -196,13 +209,14 @@ def validate_file_extension(file, allowed_extensions=None):
 
     Args:
         file: The uploaded file to validate
-        allowed_extensions (list, optional): List of allowed file extensions. Defaults to [".mp4"]
+        allowed_extensions (list, optional): List of allowed file extensions.
+            Defaults to the supported media extensions (video + image).
 
     Raises:
         DataPrepException: If the file extension is not allowed
     """
 
-    allowed_extensions = allowed_extensions or [".mp4"]
+    allowed_extensions = allowed_extensions or _ALLOWED_MEDIA_EXTENSIONS
 
     if not file:
         return

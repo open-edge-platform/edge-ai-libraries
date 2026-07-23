@@ -13,7 +13,7 @@ from src.core.utils.common_utils import get_minio_client
 from src.core.validation import validate_params
 from src.core.vectorstores.factory import get_vector_store
 
-router = APIRouter(tags=["Video Management APIs"])
+router = APIRouter(tags=["Media Management APIs"])
 
 
 def _delete_video_embeddings(bucket_name: str, video_id: str) -> None:
@@ -49,9 +49,9 @@ def _delete_video_embeddings(bucket_name: str, video_id: str) -> None:
 
 
 @router.delete(
-    "/videos/{bucket_name}/{video_id}",
-    summary="Delete a video from storage and its embeddings from the vector DB.",
-    operation_id="deleteVideo",
+    "/media/{bucket_name}/{video_id}",
+    summary="Delete a media item (video or image) from storage and its embeddings from the vector DB.",
+    operation_id="deleteMedia",
     response_model=DataPrepResponse,
     response_model_exclude_none=True,
 )

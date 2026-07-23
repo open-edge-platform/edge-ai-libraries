@@ -11,6 +11,9 @@ functions exposed here (via ``src.core.embedding``); they should not call the
 pipeline engine directly.
 """
 
+import asyncio
+import datetime
+import io
 import pathlib
 import threading
 import time
@@ -26,6 +29,7 @@ from .embedding_helper import (
     generate_rtsp_video_embedding_pipeline,
     generate_video_embedding_pipeline,
     get_embedding_client,
+    get_global_detector,
 )
 
 
@@ -366,7 +370,7 @@ async def generate_video_embedding_from_content(
 
         # Create metadata for video (including video URLs for search-ms compatibility)
         video_rel_url = (
-            f"/v1/dataprep/videos/download?video_id={video_id}&bucket_name={bucket_name}"
+            f"/v1/dataprep/media/download?video_id={video_id}&bucket_name={bucket_name}"
         )
         video_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}{video_rel_url}"
 
@@ -518,7 +522,7 @@ async def _generate_video_embedding(
     logger.info(f"Loaded video content: {len(video_content)} bytes")
 
     # Create video URL paths for search-ms compatibility
-    video_rel_url = f"/v1/dataprep/videos/download?video_id={video_id}&bucket_name={bucket_name}"
+    video_rel_url = f"/v1/dataprep/media/download?video_id={video_id}&bucket_name={bucket_name}"
     app_host = settings.APP_HOST or "localhost"
     video_url = f"http://{app_host}:{settings.APP_PORT}{video_rel_url}"
 
@@ -615,3 +619,209 @@ async def generate_text_embedding(
     except Exception as ex:
         logger.error(f"Error in smart text embedding generation: {ex}")
         raise
+
+
+def _build_image_base_metadata(
+    *,
+    bucket_name: str,
+    video_id: str,
+    filename: str,
+    tags: List[str],
+) -> Dict[str, Any]:
+    """Assemble the canonical metadata shared by an image and all its crops.
+
+    Mirrors the video full-frame metadata contract so image embeddings are
+    indistinguishable to a retriever except for ``content_type="image"``. The
+    generic media id (``video_id``) and ``video_name``/``filename`` fields are
+    reused verbatim for backward compatibility with existing retrievers.
+    """
+    video_rel_url = (
+        f"/v1/dataprep/media/download?video_id={video_id}&bucket_name={bucket_name}"
+    )
+    video_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}{video_rel_url}"
+    return {
+        "video_id": video_id,
+        "bucket_name": bucket_name,
+        "filename": filename,
+        "video_name": filename,
+        "video_index": 0,
+        "frame_number": 0,
+        "timestamp": 0.0,
+        "content_type": "image",
+        "tags": _normalize_tags(tags),
+        "video_url": video_url,
+        "video_rel_url": video_rel_url,
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+
+
+def _decode_image(image_content: bytes) -> "Any":
+    """Decode raw image bytes into an RGB PIL image, raising on invalid input.
+
+    The bytes are the trust boundary: Pillow parses untrusted content, so any
+    decode failure is surfaced as a ``ValueError`` for the caller to map to a
+    400. Conversion to RGB normalizes palette/alpha/grayscale inputs so the CLIP
+    image encoder receives a consistent 3-channel array.
+    """
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        image = Image.open(io.BytesIO(image_content))
+        image.load()
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError(f"Provided bytes are not a valid/decodable image: {exc}")
+    return image.convert("RGB")
+
+
+def _embed_image_from_content_sync(
+    *,
+    image_content: bytes,
+    bucket_name: str,
+    video_id: str,
+    filename: str,
+    enable_object_detection: bool,
+    detection_confidence: float,
+    tags: List[str],
+) -> List[str]:
+    """Synchronous image embedding core (runs off the event loop via a thread).
+
+    Pipeline: decode PIL once -> optionally run YOLOX detection and crop each
+    detected object -> batched CLIP ``encode_image`` in sub-batches of
+    ``EMBEDDING_BATCH_SIZE`` -> ``store_frame_embeddings`` into the active vector
+    store. The full image is always embedded (``frame_type="full_frame"``); crops
+    add ``frame_type="detected_crop"`` entries with the same crop-metadata
+    contract as the video pipeline.
+    """
+    image = _decode_image(image_content)
+
+    embedding_client = get_embedding_client()
+    if not embedding_client.supports_image:
+        model_name = (settings.EMBEDDING_MODEL_NAME or "").strip() or "<unspecified>"
+        raise ValueError(
+            f"Configured model '{model_name}' does not support image embeddings. "
+            "Please verify your MM_DATAPREP_EMBEDDING_MODEL_NAME setting and ensure "
+            "the selected model supports image embedding."
+        )
+
+    base_metadata = _build_image_base_metadata(
+        bucket_name=bucket_name,
+        video_id=video_id,
+        filename=filename,
+        tags=tags,
+    )
+
+    # The full image is always the first item.
+    images: List[Any] = [image]
+    metadatas: List[Dict[str, Any]] = [{**base_metadata, "frame_type": "full_frame"}]
+
+    # Optional object detection -> one crop embedding per detected object.
+    if enable_object_detection:
+        detector = get_global_detector(True, detection_confidence)
+        if detector is not None:
+            try:
+                detections = detector.detect(image, return_metadata=True)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Image object detection failed; embedding full image only: %s", exc)
+                detections = []
+
+            width, height = image.size
+            crop_idx = 0
+            for det in detections:
+                bbox = det.get("bbox") or []
+                if len(bbox) != 4:
+                    continue
+                x1, y1, x2, y2 = bbox
+                x1 = max(0, min(int(x1), width - 1))
+                y1 = max(0, min(int(y1), height - 1))
+                x2 = max(x1 + 1, min(int(x2), width))
+                y2 = max(y1 + 1, min(int(y2), height))
+                if (x2 - x1) < 10 or (y2 - y1) < 10:
+                    continue
+
+                crop = image.crop((x1, y1, x2, y2))
+                crop_metadata = {
+                    **base_metadata,
+                    "frame_type": "detected_crop",
+                    "is_detected_crop": True,
+                    "crop_index": crop_idx,
+                    "detection_confidence": float(det.get("confidence", 0.0)),
+                    "crop_bbox": [x1, y1, x2, y2],
+                    "detected_class_id": int(det.get("class_id", -1)),
+                    "detected_label": det.get("class_name", "unknown"),
+                    "merged_boxes_count": det.get("merged_boxes_count"),
+                    "context_expansion_applied": det.get("context_expansion_applied"),
+                }
+                images.append(crop)
+                metadatas.append(crop_metadata)
+                crop_idx += 1
+
+    # Batched embedding + storage. Sub-batching bounds peak GPU/host memory while
+    # letting the CLIP image encoder amortize per-call overhead.
+    batch_size = max(1, int(settings.EMBEDDING_BATCH_SIZE or 32))
+    all_ids: List[str] = []
+    for start in range(0, len(images), batch_size):
+        sub_images = images[start : start + batch_size]
+        sub_metadatas = metadatas[start : start + batch_size]
+        embeddings = embedding_client.generate_embeddings_for_images(sub_images)
+
+        good_embeddings: List[List[float]] = []
+        good_metadatas: List[Dict[str, Any]] = []
+        for embedding, metadata in zip(embeddings, sub_metadatas):
+            if embedding is not None:
+                good_embeddings.append(embedding)
+                good_metadatas.append(metadata)
+
+        if good_embeddings:
+            all_ids.extend(
+                embedding_client.store_frame_embeddings(good_embeddings, good_metadatas)
+            )
+
+    logger.info(
+        "Stored %d image embeddings for %s/%s (%d crops)",
+        len(all_ids),
+        sanitize_for_log(bucket_name, max_length=128),
+        sanitize_for_log(video_id, max_length=128),
+        len(images) - 1,
+    )
+    return all_ids
+
+
+async def generate_image_embedding_from_content(
+    *,
+    image_content: bytes,
+    bucket_name: str,
+    video_id: str,
+    filename: str,
+    enable_object_detection: bool = True,
+    detection_confidence: float = 0.85,
+    tags: Optional[List[str]] = None,
+    telemetry_context: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """Generate and persist embeddings for a single image.
+
+    Async, endpoint-facing facade mirroring
+    :func:`generate_video_embedding_from_content`. The blocking decode/detect/
+    encode/store work runs in a worker thread so the single uvicorn worker stays
+    responsive. ``telemetry_context`` is accepted for signature parity with the
+    video path (image ingestion has no frame-pipeline telemetry to record).
+
+    Returns the list of stored embedding IDs (one for the full image plus one per
+    detected crop when object detection is enabled).
+    """
+    tags = _normalize_tags(tags)
+    logger.info(
+        "Processing image embedding for %s/%s (object_detection=%s)",
+        sanitize_for_log(bucket_name, max_length=128),
+        sanitize_for_log(video_id, max_length=128),
+        enable_object_detection,
+    )
+    return await asyncio.to_thread(
+        _embed_image_from_content_sync,
+        image_content=image_content,
+        bucket_name=bucket_name,
+        video_id=video_id,
+        filename=filename,
+        enable_object_detection=enable_object_detection,
+        detection_confidence=detection_confidence,
+        tags=tags,
+    )

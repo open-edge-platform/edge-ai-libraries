@@ -289,7 +289,7 @@ def extract_enhanced_video_metadata(
 
     # Construct the path to the video in Minio
     video_minio_path = f"{video_id}/{video_filename}"
-    video_rel_url = f"/v1/dataprep/videos/download?video_id={video_id}&bucket_name={bucket_name}"
+    video_rel_url = f"/v1/dataprep/media/download?video_id={video_id}&bucket_name={bucket_name}"
     video_url = f"http://{settings.APP_HOST}:{settings.APP_PORT}{video_rel_url}"
 
     # Import video utility functions locally to avoid circular imports

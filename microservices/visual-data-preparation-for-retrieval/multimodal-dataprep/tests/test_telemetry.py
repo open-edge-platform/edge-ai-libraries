@@ -15,7 +15,7 @@ def test_telemetry_store_retains_latest(tmp_path):
 def test_get_telemetry_endpoint_returns_data(mocker, test_client):
 	sample_record = {
 		"request_id": "req-1",
-		"source": "/videos/minio",
+		"source": "/media/process",
 		"timestamps": {
 			"requested_at": "2025-01-01T00:00:00Z",
 			"completed_at": "2025-01-01T00:00:01Z",

@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-# Helper stack to exercise POST /v1/dataprep/videos/rtsp.
+# Helper stack to exercise POST /v1/dataprep/media/rtsp.
 # Publishes a looping local video as an RTSP stream on the same network as the
 # multimodal-dataprep stack (docker_default) so the dataprep container can reach
 # rtsp://rtsp-server:8554/test.

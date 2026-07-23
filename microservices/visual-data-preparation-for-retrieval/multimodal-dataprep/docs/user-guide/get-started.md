@@ -32,7 +32,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_DETECTION_DEVICE` | Optional | `CPU` | Device override for object detection execution (`CPU`, `GPU`, or `NPU`). |
 | `MM_DATAPREP_EMBEDDING_BATCH_SIZE` | Optional | `32` | Number of items sent per embedding batch. |
 | `MM_DATAPREP_MAX_PARALLEL_WORKERS` | Optional | _(auto)_ | Hard cap for parallel workers when auto-scaling is too aggressive for the host. |
-| `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` | Optional | `true` | When `false`, an upload whose byte content is identical to an already-ingested video is rejected with `409 Conflict`. Detection is content-based (SHA-256) and applies to `/videos/upload`, `/videos/upload/batch`, and `/videos/ingest-dir`. |
+| `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` | Optional | `true` | When `false`, an upload whose byte content is identical to an already-ingested video is rejected with `409 Conflict`. Detection is content-based (SHA-256) and applies to `/media/upload`, `/media/upload/batch`, and `/media/ingest-dir`. |
 | `MM_DATAPREP_FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
 | `MM_DATAPREP_ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles YOLOX-based crop extraction. |
 | `MM_DATAPREP_DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |
@@ -210,7 +210,7 @@ Health responses include the embedding client preload status, model name, and de
 ### Upload and process a new video
 
 ```bash
-curl -X POST "http://localhost:6007/v1/dataprep/videos/upload" \
+curl -X POST "http://localhost:6007/v1/dataprep/media/upload" \
   -H "Content-Type: multipart/form-data" \
   -F "file=@/path/to/video.mp4" \
   -F "frame_interval=10" \
@@ -220,10 +220,34 @@ curl -X POST "http://localhost:6007/v1/dataprep/videos/upload" \
 
 The service streams the asset to MinIO, extracts frames (and crops), generates embeddings, and persists metadata in VDMS.
 
+### Upload and process an image
+
+The same endpoint accepts images (`.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`,
+`.gif`). Images are embedded directly (full image plus optional detected-object
+crops) into the same vector collection as video frames, enabling cross-modal
+search.
+
+```bash
+# Multipart file upload
+curl -X POST "http://localhost:6007/v1/dataprep/media/upload?enable_object_detection=true" \
+  -F "file=@/path/to/image.jpg" -F "tags=cat"
+
+# Inline base64 (data URL accepted) via the JSON typed-source endpoint
+curl -X POST "http://localhost:6007/v1/dataprep/media/ingest" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "image_base64", "image_base64": "data:image/png;base64,iVBORw0KGgo..."}'
+
+# Remote URL (server downloads, size-capped at 50 MB)
+curl -X POST "http://localhost:6007/v1/dataprep/media/ingest" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "image_url", "image_url": "https://example.com/cat.jpg"}'
+```
+
+
 ### Process an existing video in MinIO
 
 ```bash
-curl -X POST "http://localhost:6007/v1/dataprep/videos/minio" \
+curl -X POST "http://localhost:6007/v1/dataprep/media/process" \
   -H "Content-Type: application/json" \
   -d '{
         "bucket_name": "vdms-bucket",
@@ -257,13 +281,13 @@ You can use the following commands to discover, download, and delete content:
 
 ```bash
 # List processed videos (video_id + filenames)
-curl "http://localhost:6007/v1/dataprep/videos"
+curl "http://localhost:6007/v1/dataprep/media"
 
 # Download a processed clip (stream or attachment)
-curl -L "http://localhost:6007/v1/dataprep/videos/download?video_id=traffic_cam_2024_10_21" -o clip.mp4
+curl -L "http://localhost:6007/v1/dataprep/media/download?video_id=traffic_cam_2024_10_21" -o clip.mp4
 
 # Delete a video (removes its storage object(s) + vector embeddings)
-curl -X DELETE "http://localhost:6007/v1/dataprep/videos/my-bucket/traffic_cam_2024_10_21"
+curl -X DELETE "http://localhost:6007/v1/dataprep/media/my-bucket/traffic_cam_2024_10_21"
 ```
 
 ### Review processing telemetry
@@ -279,9 +303,9 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 ## Validate Services
 
 1. Call `GET /v1/dataprep/health` – expect `status: ok`, the embedding client status, model name, device, and OpenVINO flag.
-2. Upload a small MP4 via `/videos/upload` and confirm:
+2. Upload a small MP4 via `/media/upload` and confirm:
    - The response payload reports `success`.
-   - `GET /v1/dataprep/videos` lists the generated `video_id` and manifests.
+   - `GET /v1/dataprep/media` lists the generated `video_id` and manifests.
    - The MinIO console (`http://localhost:6011`) shows the raw asset, thumbnails, and crops.
 3. Inspect VDMS (via `vdms_cli` or a custom client) to verify entries in the `video-rag` collection.
 
@@ -289,7 +313,7 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 
 - **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before sourcing `setup.sh` or set `MM_DATAPREP_EMBEDDING_MODEL_NAME` in the container environment before launching Docker.
 - **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
-- **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/videos/minio` instead.
+- **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/media/process` instead.
 - **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `GPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`.
 - **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `NPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
 - **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `MM_DATAPREP_OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.

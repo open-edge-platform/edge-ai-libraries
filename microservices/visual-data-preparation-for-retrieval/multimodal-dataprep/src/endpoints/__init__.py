@@ -7,6 +7,7 @@ from .telemetry import telemetry_router
 from .video_management import delete_video_router, download_video_router, list_videos_router
 from .video_processing import (
     batch_ingest_router,
+    ingest_image_router,
     process_minio_video_router,
     upload_and_process_video_router,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "process_minio_video_router",
     "upload_and_process_video_router",
     "batch_ingest_router",
+    "ingest_image_router",
     "list_videos_router",
     "download_video_router",
     "delete_video_router",
