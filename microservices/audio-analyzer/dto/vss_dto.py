@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 """Request/response schemas for the VSS-compatibility endpoints.
 
 These mirror the API contract exposed by the previous Edge AI Libraries

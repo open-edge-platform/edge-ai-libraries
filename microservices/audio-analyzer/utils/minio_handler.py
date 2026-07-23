@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 """MinIO object-storage helper for the VSS-compatibility endpoints.
 
 This is only used by ``POST /transcriptions`` (see api/custom_endpoints.py)
@@ -10,6 +12,7 @@ No other endpoint depends on MinIO; if it is not configured (``minio.endpoint``
 empty), ``is_configured()`` returns False and callers should respond with a
 clear error instead of failing on a missing client.
 """
+import asyncio
 import logging
 import os
 import traceback
@@ -104,20 +107,27 @@ class MinioHandler:
         except RuntimeError as exc:
             return None, str(exc)
 
-        object_name = f"{video_id}/{video_name}" if video_id else video_name
-        download_dir = os.path.join(STORAGE_ROOT, "minio_downloads", video_id or "_")
+        safe_video_id = video_id.strip() if video_id else ""
+        safe_video_name = Path(video_name).name
+        if safe_video_id and (Path(safe_video_id).name != safe_video_id or safe_video_id in {".", ".."}):
+            return None, "Invalid video_id"
+        if safe_video_name != video_name or safe_video_name in {"", ".", ".."}:
+            return None, "Invalid video_name"
+
+        object_name = f"{safe_video_id}/{safe_video_name}" if safe_video_id else safe_video_name
+        download_dir = os.path.join(STORAGE_ROOT, "minio_downloads", safe_video_id or "_")
         os.makedirs(download_dir, exist_ok=True)
-        local_path = Path(download_dir) / video_name
+        local_path = Path(download_dir) / safe_video_name
 
         try:
             logger.info("Retrieving video %s from bucket %s", object_name, bucket_name)
 
-            if not client.bucket_exists(bucket_name):
+            if not await asyncio.to_thread(client.bucket_exists, bucket_name):
                 error_msg = f"Bucket {bucket_name} does not exist"
                 logger.error(error_msg)
                 return None, error_msg
 
-            client.fget_object(bucket_name, object_name, str(local_path))
+            await asyncio.to_thread(client.fget_object, bucket_name, object_name, str(local_path))
             logger.debug("Video downloaded successfully to %s", local_path)
             return local_path, None
         except Exception as exc:
