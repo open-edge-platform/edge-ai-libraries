@@ -11,7 +11,7 @@
 **New:**
 
 - Added a new Pipeline Zoo Models plugin for downloading models from the `dlstreamer/pipeline-zoo-models` repository.
-- Added external source hubs for OpenVINO Model Zoo (`omz`) and allowlisted runtime archive downloads (`remote-url`).
+- Added external source hubs for OpenVINO™ Model Zoo (`omz`) and allowlisted runtime archive downloads (`remote-url`).
 - Isolated Python virtual environments per plugin to prevent dependency conflicts.
 - Out-of-the-box support for the latest OpenVINO™ release (any version above 2025.4.1).
 - Enabled TTS, STT, and image generation model types in the OpenVINO™ plugin.
@@ -31,7 +31,7 @@
 
 - API hub names are now accepted case-insensitively (e.g. `Geti`, `GETI`, and `HuggingFace` all map to their canonical lowercase identifier).
 - `GET /api/v1/plugins` now reports model-listing capabilities and accepted listing filter fields.
-- `microsoft/Phi3.5-mini-instruct` model conversion requires the default OpenVINO version (`v2025.4.1`); newer versions with `transformers>4.55` are not yet compatible.
+- `microsoft/Phi3.5-mini-instruct` model conversion requires the default OpenVINO™ version (`v2025.4.1`); newer versions with `transformers>4.55` are not yet compatible.
 
 **Known Issues:**
 
