@@ -89,14 +89,14 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
             # System memory (CPU)
             return False, "System"
 
-    def _build_gvawatermark_stage(self, overlay, gvawatermark):
+    def _build_gvawatermark_stage(self, overlay, overlay_properties):
         if overlay is False:
             return ""
-        if not isinstance(gvawatermark, dict) or not gvawatermark:
+        if not isinstance(overlay_properties, dict) or not overlay_properties:
             return " ! gvawatermark"
         properties = [
             "{}={}".format(key, str(value).lower() if isinstance(value, bool) else value)
-            for key, value in gvawatermark.items()
+            for key, value in overlay_properties.items()
             if value is not None
         ]
         return " ! gvawatermark" if not properties else " ! gvawatermark displ-cfg={}".format(",".join(properties))
@@ -114,8 +114,8 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
         source = stream.source
         caps = stream.caps
         overlay = stream.overlay
-        gvawatermark = stream.gvawatermark
-        watermark_stage = self._build_gvawatermark_stage(overlay, gvawatermark)
+        overlay_properties = stream.overlay_properties
+        watermark_stage = self._build_gvawatermark_stage(overlay, overlay_properties)
         new_caps = self._select_caps(caps.to_string())
         s_src = "{} caps=\"{}\"".format(GStreamerRtspFactory._source, ','.join(new_caps))
         

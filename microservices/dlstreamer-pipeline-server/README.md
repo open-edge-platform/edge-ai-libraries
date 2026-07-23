@@ -94,14 +94,14 @@ Open another terminal and send the following curl request
 }'
 ```
 
-> **Note:** Frame destinations support `overlay` and optional `gvawatermark` configuration for both RTSP and WebRTC outputs.
+> **Note:** Frame destinations support `overlay` and optional `overlay-properties`.
 >
 > - If `"overlay": true`, frames are streamed with `gvawatermark` applied.
-> - If `"overlay": false`, frames are streamed without `gvawatermark`, and any `frame.gvawatermark` values are ignored.
-> - If your main pipeline already contains `gvawatermark`, set `"overlay": false` to avoid applying it twice.
-> - `frame.gvawatermark` can include any `gvawatermark` option supported by DL Streamer. The examples below show only a few common properties.
+> - If `"overlay": false`, frames are streamed without `gvawatermark`, and `frame.overlay-properties` is ignored.
+> - If your pipeline already includes custom `gvawatermark` settings (for example, `displ-cfg=show-roi=...` or `displ-cfg=hide-roi=...`), set `"overlay": false` to avoid applying a second default watermark.
+> - `frame.overlay-properties` accepts any `gvawatermark` options supported by DL Streamer.
 >
-> When using a custom `gvawatermark` configuration (e.g., `displ-cfg=show-roi=...` or `displ-cfg=hide-roi=...`) in your pipeline, set `"overlay": false` in the frame destination to prevent the RTSP stream from adding a second `gvawatermark` with default settings that overrides your filtering configuration:
+> Example with overlay disabled:
 > ```json
 > "frame": {
 >     "type": "rtsp",
@@ -110,13 +110,13 @@ Open another terminal and send the following curl request
 > }
 > ```
 >
-> Example RTSP frame destination with `gvawatermark`:
+> Example RTSP frame destination with `overlay-properties`:
 > ```json
 > "frame": {
 >     "type": "rtsp",
 >     "path": "pallet-defect-detection",
 >     "overlay": true,
->     "gvawatermark": {
+>     "overlay-properties": {
 >         "font-scale": 1.5,
 >         "draw-txt-bg": false,
 >         "thickness": 3

@@ -55,10 +55,10 @@ class GStreamerWebRTCManager:
             return True
         return False
 
-    def add_stream(self, peer_id, frame_caps, destination_instance, overlay, gvawatermark=None):
+    def add_stream(self, peer_id, frame_caps, destination_instance, overlay, overlay_properties=None):
         stream_caps = self._select_caps(frame_caps.to_string())
         if not self._peerid_in_use(peer_id):
-            launch_string = self._get_launch_string(stream_caps, peer_id, overlay, gvawatermark)
+            launch_string = self._get_launch_string(stream_caps, peer_id, overlay, overlay_properties)
             self._streams[peer_id] = GStreamerWebRTCStream(
                 peer_id,
                 stream_caps,
@@ -101,22 +101,22 @@ class GStreamerWebRTCManager:
             return True, "VAMemory"
         return False, None
 
-    def _build_gvawatermark_stage(self, overlay, gvawatermark):
+    def _build_gvawatermark_stage(self, overlay, overlay_properties):
         if overlay is False:
             return ""
-        if not isinstance(gvawatermark, dict) or not gvawatermark:
+        if not isinstance(overlay_properties, dict) or not overlay_properties:
             return "! gvawatermark"
         properties = [
             "{}={}".format(key, str(value).lower() if isinstance(value, bool) else value)
-            for key, value in gvawatermark.items()
+            for key, value in overlay_properties.items()
             if value is not None
         ]
         return "! gvawatermark" if not properties else "! gvawatermark displ-cfg={}".format(",".join(properties))
 
-    def _get_launch_string(self, stream_caps, peer_id, overlay, gvawatermark=None):
+    def _get_launch_string(self, stream_caps, peer_id, overlay, overlay_properties=None):
         # pylint: disable=consider-using-f-string, too-many-branches
         s_src = '{} caps="{}"'.format(self._source_mediamtx, ",".join(stream_caps))
-        watermark_stage = self._build_gvawatermark_stage(overlay, gvawatermark)
+        watermark_stage = self._build_gvawatermark_stage(overlay, overlay_properties)
 
         is_gpu, buffer_type = self._is_gpu_buffer(stream_caps)
 

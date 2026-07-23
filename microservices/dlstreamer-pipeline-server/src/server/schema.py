@@ -301,7 +301,7 @@ destination = {
                 "type": "boolean",
                 "default": True
               },
-              "gvawatermark": {
+              "overlay-properties": {
                 "type": "object",
                 "default": {}
               }
@@ -339,7 +339,7 @@ destination = {
                 "type": "boolean",
                 "default": True
               },
-              "gvawatermark": {
+              "overlay-properties": {
                 "type": "object",
                 "default": {}
               }
@@ -390,7 +390,7 @@ destination = {
                   "type": "boolean",
                   "default": True
                 },
-                "gvawatermark": {
+                "overlay-properties": {
                   "type": "object",
                   "default": {}
                 }
@@ -427,7 +427,7 @@ destination = {
                 "overlay": {
                   "type": "boolean"
                 },
-                "gvawatermark": {
+                "overlay-properties": {
                   "type": "object",
                   "default": {}
                 }
