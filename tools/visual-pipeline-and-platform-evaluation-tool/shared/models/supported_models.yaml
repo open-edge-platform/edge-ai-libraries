@@ -9,7 +9,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: ultralytics
     name: ch_PP-OCRv4_rec_infer
@@ -26,7 +25,6 @@
   extra_model_procs:
     - /home/dlstreamer/dlstreamer/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json
   unsupported_devices: ""
-  default: true
   download_request:
     hub: pipeline-zoo-models
     name: efficientnet-b0_INT8
@@ -42,7 +40,6 @@
       model_proc: omz/mobilenet-v2-pytorch/mobilenet-v2.json
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: omz
     name: mobilenet-v2-pytorch
@@ -61,7 +58,6 @@
       model_proc: omz/age-gender-recognition-retail-0013/age-gender-recognition-retail-0013.json
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: omz
     name: age-gender-recognition-retail-0013
@@ -77,7 +73,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: ultralytics
     name: colorcls2
@@ -93,7 +88,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: "NPU"
-  default: true
   download_request:
     hub: ultralytics
     name: yolov8_license_plate_detector
@@ -115,7 +109,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: ultralytics
     name: yolov8n
@@ -136,7 +129,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: ultralytics
     name: yolo11n
@@ -157,7 +149,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: ultralytics
     name: yolo11s
@@ -178,7 +169,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: ultralytics
     name: yolo11s-pose
@@ -197,7 +187,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: ultralytics
     name: yolo11n-pose
@@ -216,7 +205,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: ultralytics
     name: yolo11s-seg
@@ -235,7 +223,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: ultralytics
     name: yolo11n-seg
@@ -254,7 +241,6 @@
       model_proc: omz/face-detection-retail-0004/face-detection-retail-0004.json
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: omz
     name: face-detection-retail-0004
@@ -270,7 +256,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: ultralytics
     name: pallet_defect_detection
@@ -286,7 +271,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: "NPU"
-  default: false
   download_request:
     hub: openvino
     name: google/gemma-3-4b-it
@@ -308,7 +292,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: "NPU"
-  default: false
   download_request:
     hub: openvino
     name: openbmb/MiniCPM-V-2_6
@@ -333,7 +316,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: false
   download_request:
     hub: ultralytics
     name: yolo26s
@@ -352,7 +334,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: false
   download_request:
     hub: ultralytics
     name: yolo26n
@@ -371,7 +352,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: false
   download_request:
     hub: ultralytics
     name: yolo26s-pose
@@ -390,7 +370,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: true
   download_request:
     hub: ultralytics
     name: yolo26n-pose
@@ -409,7 +388,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: false
   download_request:
     hub: ultralytics
     name: yolo26s-seg
@@ -428,7 +406,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: false
   download_request:
     hub: ultralytics
     name: yolo26n-seg
