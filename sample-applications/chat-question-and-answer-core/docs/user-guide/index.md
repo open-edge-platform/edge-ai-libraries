@@ -1,4 +1,4 @@
-# Chat Question-and-Answer Core Sample Application
+# Chat Q&A Core Sample Application
 
 <!--hide_directive
 <div class="component_card_widget">
@@ -15,8 +15,8 @@ The Chat Question & Answer (Chat Q&A) sample application is a foundational Retri
 enabling users to ask questions and receive answers including on their own private data
 corpus. The sample application demonstrates how to build RAG pipelines.
 Compared to the
-[Chat Question-and-Answer](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer)
-implementation, this implementation of Chat Question-and-Answer Core is optimized for
+[Chat Q&A](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer)
+implementation, this implementation of Chat Q&A Core is optimized for
 memory footprint, as it is built as a single monolithic application with the entire RAG
 pipeline bundled in a single microservice. The microservice supports a bare metal
 deployment through docker compose installation to emphasize on the monolithic objective.
@@ -29,7 +29,7 @@ deployment through docker compose installation to emphasize on the monolithic ob
 
 Key features include:
 
-- **Optimized RAG pipeline on Intel Tiber AI Systems hardware**: The application
+- **Optimized RAG pipeline on Intel® Tiber AI Systems hardware**: The application
   is [optimized](./benchmarks.md) to run efficiently on Intel® hardware, ensuring high
   performance and reliability. Given the memory optimization, this version is also
   able to address the Core portfolio.
@@ -49,10 +49,10 @@ Key features include:
 
 ### Technical Architecture
 
-The Chat Question-and-Answer Core sample application is implemented as a LangChain
+The Chat Q&A Core sample application is implemented as a LangChain
 based RAG pipeline with all the inference models (i.e. LLM, Embedding, and reranker)
 executed in the context of a single OpenVINO™ runtime. The approach is documented
-in the OpenVINO toolkit
+in the OpenVINO™ toolkit
 [documentation](https://blog.openvino.ai/blog-posts/accelerate-inference-of-hugging-face-transformer-models-with-optimum-intel-and-openvino).
 Readers are requested to refer to this documentation for the technical details.
 
@@ -64,16 +64,16 @@ more information on the Ollama framework, visit its
 
 ## How to Use the Application
 
-The Chat Question-and-Answer Core sample application consists of two main parts:
+The Chat Q&A Core sample application consists of two main parts:
 
-1. **Data Ingestion [Knowledge Building]**: This part is responsible for adding
+1. **Data Ingestion (Knowledge Building)**: This part is responsible for adding
    documents to the Chat Q&A instance. The data ingestion step allows ingestion of
    common document formats like pdf and doc. The ingestion process cleans and formats
    the input document, creates embeddings of the documents using embedding microservice,
    and stores them in the preferred vector database. CPU version of
    [FAISS](https://faiss.ai/index.html) is used as VectorDB.
 
-2. **Generation [Q&A]**: This part allows the user to query the document database
+2. **Generation (Q&A)**: This part allows the user to query the document database
    and generate responses. The LLM model, embedding model, and reranking model work
    together to provide accurate and efficient answers to user queries. When a user
    submits a question, the query is converted to an embedding enabling semantic
@@ -96,7 +96,7 @@ build-from-source
 deploy-with-helm
 benchmarks
 api-reference
-release-notes
+Release Notes <./release-notes.md>
 
 :::
 hide_directive-->

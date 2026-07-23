@@ -1,18 +1,20 @@
 # How to Build from Source
 
-This guide provides step-by-step instructions for building the Chat Question-and-Answer Core Sample Application from source.
+This guide provides step-by-step instructions for building the Chat Q&A Core Sample Application from source.
 
-If you want to build the microservices image locally, you can optionally refer to the steps in the [Building the Backend Image](#building-the-backend-image) and [Building the UI Image](#building-the-ui-image) sections. These sections provide detailed instructions on how to build the Docker images for both the backend and UI components of the `Chat Question-and-Answer Core` application separately.
+If you want to build the microservices image locally, you can optionally refer to the steps in the [Building the Backend Image](#building-the-backend-image) and [Building the UI Image](#building-the-ui-image) sections. These sections provide detailed instructions on how to build the Docker images for both the backend and UI components of the `Chat Q&A Core` application separately.
 
 If you want to build the images via `docker compose`, please refer to the section [Build the Images via Docker Compose](#build-the-images-via-docker-compose).
 
 Once all the images are built, you can proceed to start the service using the `docker compose` command as described in the [Get Started](./get-started.md) page.
 
 > **Note:**
-> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). Intel recommends using prebuilt images on Edge Microvisor Toolkit.
+>
+> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). This guide recommends using prebuilt images on Edge Microvisor Toolkit.
 
 ## Building the Backend Image
-To build the Docker image for the `Chat Question-and-Answer Core` application, follow these steps:
+
+To build the Docker image for the `Chat Q&A Core` application, follow these steps:
 
 1. Ensure you are in the project directory:
 
@@ -61,6 +63,7 @@ To build the Docker image for the `Chat Question-and-Answer Core` application, f
    You should see an entry for `chatqna` with the `latest` tag.
 
 ## Building the UI image
+
 To build the Docker image for the `chatqna-ui` application, follow these steps:
 
 1. Ensure you are in the `ui/` project directory:
@@ -90,6 +93,7 @@ To build the Docker image for the `chatqna-ui` application, follow these steps:
    ```
 
 ## Build the Images via Docker Compose
+
 This guide explains how to build the images using the `compose.yaml` file via the `docker compose` command. It also outlines how to enable GPU support during the build process.
 
 1. Ensure you are in the project directory:
@@ -135,6 +139,7 @@ This guide explains how to build the images using the `compose.yaml` file via th
    ```
 
 4. Verify that the Docker images have been built successfully:
+
    ```bash
    docker images | grep chatqna
    ```
@@ -142,7 +147,8 @@ This guide explains how to build the images using the `compose.yaml` file via th
    You should see entries for both `chatqna` and `chatqna-ui`.
 
 ## Running the Application Container
-After building the images for the `Chat Question-and-Answer Core` application, you can run the application container using `docker compose` by following these steps:
+
+After building the images for the `Chat Q&A Core` application, you can run the application container using `docker compose` by following these steps:
 
 1. **Set Up Environment Variables**:
 
@@ -176,8 +182,7 @@ After building the images for the `Chat Question-and-Answer Core` application, y
 
    Configure the models to be used (LLM, Embeddings, Rerankers) through a YAML configuration file, as outlined in the [Get-Started: Running The Application using Docker Compose](./get-started.md#running-the-application-using-docker-compose) section.
 
-   Refer to and use the same list of models for OpenVINO toolkit framework as documented in [Chat Question-and-Answer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/get-started.html#supported-models).
-
+   Refer to and use the same list of models for OpenVINO toolkit framework as documented in [Chat Q&A](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/get-started.html#supported-models).
 
 2. Start the Docker containers with the previously built images:
 

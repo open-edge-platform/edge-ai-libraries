@@ -8,10 +8,10 @@ Use this path to run the service in a container. The API is exposed on port
 
 - Prepare your `scene-config.yaml` and `rules.yaml` in a local `./configs`
   directory. For configuration details, see [configuration.md](configuration.md).
-- Make sure a SceneScape deployment (MQTT broker + REST API) is reachable from
+- Make sure a Scenescape deployment (MQTT broker + REST API) is reachable from
   the container, and that the `mqtt` / `scenescape_api` blocks in
   `scene-config.yaml` point at it.
-- If `mqtt.use_tls: true`, mount your SceneScape CA cert at `/app/secrets`.
+- If `mqtt.use_tls: true`, mount your Scenescape CA cert at `/app/secrets`.
 
 ## Minimal Compose Service
 
@@ -99,7 +99,7 @@ For endpoint details and examples, see the [API Reference](../api-reference.md).
 - The service reads `scene-config.yaml` and `rules.yaml` from `/app/configs`
   (override with `CONFIG_DIR`). A mounted `./configs` volume overrides the
   bundled samples.
-- There is no hard startup dependency on SceneScape — the service starts and
+- There is no hard startup dependency on Scenescape — the service starts and
   retries the MQTT connection in the background.
 - Use `GET /api/v1/lp/status` (or `GET /health`) for readiness gating in
   `depends_on`.
