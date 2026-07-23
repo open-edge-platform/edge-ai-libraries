@@ -1,19 +1,14 @@
-import io
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 import os
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
 import main
 from utils.config_loader import config
-
-
-class DummyUploadFile:
-    def __init__(self, filename: str, content: bytes):
-        self.filename = filename
-        self.file = io.BytesIO(content)
 
 
 class VssModelsEndpointTests(unittest.TestCase):

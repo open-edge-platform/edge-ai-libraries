@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from dto.audiosource import AudioSource
@@ -153,8 +154,14 @@ async def vss_transcribe(
                        "(minio.endpoint is empty) — coordinate with the VSS/infra team to "
                        "provision MinIO connection details.",
             )
+        safe_video_id = os.path.basename(request.video_id)
+        safe_video_name = os.path.basename(request.video_name)
+        if safe_video_id != request.video_id or safe_video_id in {"", ".", ".."}:
+            raise HTTPException(status_code=400, detail="Invalid video_id")
+        if safe_video_name != request.video_name or safe_video_name in {"", ".", ".."}:
+            raise HTTPException(status_code=400, detail="Invalid video_name")
         video_path, error = await MinioHandler.get_video_from_minio(
-            request.minio_bucket, request.video_id, request.video_name
+            request.minio_bucket, safe_video_id, safe_video_name
         )
         if error or not video_path:
             raise HTTPException(
@@ -164,10 +171,10 @@ async def vss_transcribe(
         filename = request.video_name
         filepath = str(video_path)
     else:
-        _, filepath = save_audio_file(request.file, session_id=job_id)
+        filename, filepath = save_audio_file(request.file, session_id=job_id)
         if not os.path.isfile(filepath):
-            raise HTTPException(status_code=400, detail=f"Uploaded file not found: {filepath}")
-        filename = request.file.filename
+            logger.error("Uploaded file was not persisted at expected path: %s", filepath)
+            raise HTTPException(status_code=400, detail="Uploaded file could not be saved")
 
     if request.model_name and request.model_name != config.models.asr.name:
         logger.warning(
@@ -178,15 +185,16 @@ async def vss_transcribe(
 
     try:
         pipeline = Pipeline(session_id=job_id, append_to_session=False)
-        result = pipeline.transcribe(
+        result = await run_in_threadpool(
+            pipeline.transcribe,
             SimpleNamespace(audio_filename=filepath, source_type=AudioSource.AUDIO_FILE),
             language=language,
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("VSS transcription failed for job %s", job_id)
         return VssTranscriptionResponse(
             status=TranscriptionStatus.FAILED,
-            message=f"Transcription failed: {exc}",
+            message="Transcription failed",
             job_id=job_id,
             video_name=filename,
         )
@@ -194,9 +202,12 @@ async def vss_transcribe(
     transcript_path = os.path.join(get_session_dir(job_id), "transcription.txt")
 
     if has_minio_source:
-        object_name = f"{request.video_id}/{Path(filename).stem}.txt"
-        uploaded, upload_error = MinioHandler.save_transcript_to_minio(
-            Path(transcript_path), request.minio_bucket, object_name
+        object_name = f"{safe_video_id}/{Path(filename).stem}.txt"
+        uploaded, upload_error = await run_in_threadpool(
+            MinioHandler.save_transcript_to_minio,
+            Path(transcript_path),
+            request.minio_bucket,
+            object_name,
         )
         if not uploaded:
             raise HTTPException(
@@ -204,6 +215,10 @@ async def vss_transcribe(
                 detail=f"Transcription succeeded but failed to store transcript in MinIO: {upload_error}",
             )
         transcript_path = f"minio://{request.minio_bucket}/{object_name}"
+        try:
+            os.remove(filepath)
+        except OSError:
+            logger.warning("Failed to remove downloaded MinIO file %s", filepath, exc_info=True)
 
     return VssTranscriptionResponse(
         status=TranscriptionStatus.COMPLETED,
