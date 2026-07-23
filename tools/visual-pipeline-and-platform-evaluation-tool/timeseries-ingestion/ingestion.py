@@ -13,7 +13,8 @@ import socket
 
 host = os.getenv("HOST", "ia-time-series-analytics-microservice")
 port = os.getenv("PORT", "5000")
-topic = os.getenv("TOPIC", "point_data")
+topic = os.getenv("TOPIC", "wind-turbine-data")
+input_file = os.getenv("INPUT_FILE", "wind-turbine-anomaly-detection.csv")
 metadata_dir = os.getenv("METADATA_DIR", "/metadata")
 metadata_file = os.path.join(metadata_dir, "timeseries-ingestion.jsonl")
 
@@ -66,7 +67,7 @@ headers = {
         "Accept": "application/json",
 }
 
-csv_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "input", "input.csv")
+csv_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "input", input_file)
 
 
 def write_metadata(fields, status_code):
