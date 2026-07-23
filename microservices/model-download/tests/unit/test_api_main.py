@@ -1029,7 +1029,7 @@ class TestUploadModel:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
-        assert data["model_name"] == "my_test_model"  # sanitized
+        assert data["model_name"] == "My_Test_Model"  # sanitized (spaces to underscores, case preserved)
         assert "model_path" in data
         assert data["job_id"] == "upload-job-1"
 
@@ -1118,34 +1118,18 @@ class TestUploadModel:
         assert response.status_code == 409
         assert "already exists" in response.json()["detail"]
 
-    @patch("src.api.main.model_manager")
-    @patch("os.path.exists", return_value=False)
-    @patch("os.makedirs")
-    @patch("zipfile.ZipFile.extractall")
     def test_upload_model_name_sanitization(
-        self, mock_extractall, mock_makedirs, mock_exists, mock_manager, client
+        self, client
     ):
-        """model_name is lowercased, spaces replaced with underscores, special chars stripped."""
-        mock_manager.register_job.return_value = "upload-job-2"
-        mock_manager._jobs = {}
-
-        def fake_register(**kwargs):
-            mock_manager._jobs["upload-job-2"] = {
-                "id": "upload-job-2",
-                "status": "queued",
-            }
-            return "upload-job-2"
-
-        mock_manager.register_job.side_effect = fake_register
-
+        """model_name with invalid chars (!) is rejected with 400."""
         response = client.post(
             "/models/upload",
             data={"model_name": "  My Model!! v2.0 "},
             files={"file": ("model.zip", self._make_valid_zip(), "application/zip")},
         )
 
-        assert response.status_code == 200
-        assert response.json()["model_name"] == "my_model_v20"
+        assert response.status_code == 400
+        assert "may contain only" in response.json()["detail"]
 
     @patch("src.api.main.model_manager")
     @patch("os.path.exists", return_value=False)
@@ -1175,6 +1159,7 @@ class TestUploadModel:
         )
 
         assert response.status_code == 200
+        # precision is preserved as-is (no lowercasing)
         assert "FP32" in response.json()["model_path"]
 
     @patch("src.api.main.model_manager")

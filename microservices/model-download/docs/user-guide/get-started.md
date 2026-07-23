@@ -492,6 +492,11 @@ curl -X GET "http://<host-ip>:8200/api/v1/jobs/<job_id>"
 Use this endpoint when user (or another client app) needs to upload a local model directly to model-download.
 The ZIP must contain at least one `.xml` and one `.bin` file.
 
+**Naming rules:**
+
+- `model_name` allows letters, numbers, periods, underscores, hyphens, and spaces. Spaces are converted to underscores. Names must not start or end with a period or contain consecutive periods (`..`).
+- `provider`, `framework`, and `precision` allow only letters, numbers, underscores, and hyphens, and must start with a letter or digit.
+
 ```bash
 curl -X POST "http://<host-ip>:8200/api/v1/models/upload" \
   -F "file=@/path/to/my_model.zip" \
