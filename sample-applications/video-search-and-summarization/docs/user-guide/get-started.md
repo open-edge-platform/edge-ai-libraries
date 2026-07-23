@@ -421,6 +421,7 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 > 4) In `EMBEDDING_PROCESSING_MODE=api`, embedding execution runs in `multimodal-embedding-serving` and follows `MME_EMBEDDING_DEVICE`.
 > 5) **NPU Support:** Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU`.
 > 6) `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut for embedding: `sdk` mode sets `DATAPREP_EMBEDDING_DEVICE=GPU`, `api` mode sets `MME_EMBEDDING_DEVICE=GPU`. For NPU, use explicit device variables.
+> 7) **4K/8K videos:** In `sdk` embedding mode the default shared-memory block size is sized for 1080p frames, so ingesting 4K/8K video can stall the DataPrep worker. Before ingesting high-resolution content, raise `SDK_VIDEO_SHM_BLOCK_SIZE` as described in [Troubleshooting](./troubleshooting.md#4k8k-video-ingestion-stalls-with-a-worker-timeout).
 
 ## Using Edge Microvisor Toolkit
 
