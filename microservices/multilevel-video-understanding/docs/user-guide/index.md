@@ -92,7 +92,7 @@ For the on-device deployment a single `Qwen3.5-35B-A3B` endpoint fills both the 
 
 get-started
 api-reference
-release-notes
+Release Notes <./release-notes.md>
 
 :::
 hide_directive-->

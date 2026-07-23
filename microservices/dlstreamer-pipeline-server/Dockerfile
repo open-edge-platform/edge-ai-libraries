@@ -153,6 +153,7 @@ RUN . /etc/os-release && \
         libopencv-core4.5d \
         libopencv-imgcodecs4.5d \
         libcjson1 \
+        libssl3=3.0.2-0ubuntu1.25 \
         libxtst6 && \
         ln -sf /usr/lib/x86_64-linux-gnu/libpython3.10.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.10.so; \
     fi && \
@@ -320,7 +321,7 @@ RUN apt update && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
     
-RUN pip3 install --no-cache-dir --upgrade openvino==2026.0.0 openvino-telemetry==2025.2.0
+RUN pip3 install --no-cache-dir --upgrade openvino==2026.0.0 openvino-telemetry==2025.2.0 cryptography==48.0.1
 
 RUN . /etc/os-release && \
     if [ "$VERSION_ID" = "22.04" ]; then \
