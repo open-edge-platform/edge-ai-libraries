@@ -1,0 +1,118 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Behavioral Analysis — Pattern Configuration
+#
+# Define activity patterns using declarative pose rules.
+# No code changes required — add new patterns here and restart.
+#
+# See config/README.md for the full authoring guide.
+
+# ── VLM Settings ──────────────────────────────────────────────────────────────
+# Tune these without rebuilding the container — just restart the service.
+vlm_settings:
+  endpoint: "http://ovms-vlm:8001"
+  model_name: "Qwen/Qwen2.5-VL-7B-Instruct"
+  enabled: true
+  timeout: 30.0
+  max_tokens: 50
+  temperature: 0.1
+  max_image_size: 256
+  max_concurrency: 1
+
+patterns:
+  shelf_to_waist:
+    description: "Hand takes item from shelf and conceals it against body"
+    enabled: true
+    alert_type: CONCEALMENT
+
+    pose:
+      per_side: true
+      min_pose_confidence: 0.3
+      # Single phase: arm bent AND wrist near waist simultaneously.
+      # Concealment = arm actively handling item close to body for sustained period.
+      # Normal shopping has arms extended or straight more often → lower match ratio.
+      # Confidence = matched_frames / total_frames (discriminator).
+      min_confidence_for_alert: 0.30
+      phases:
+        - name: arm_handling_near_body
+          min_frames: 20
+          conditions:
+            # Arm bent or slightly extended (concealment holds item flat against body).
+            # Concealment posture: 155-165° → matches.
+            # Active handling: 90-155° → matches.
+            # Normal walking arm-at-side: 166-180° → rejected.
+            - subject: elbow
+              relation: bent
+              reference: [shoulder, wrist]
+              min_angle: 20
+              max_angle: 165
+            # Wrist must be very close to waist (item pressed against body)
+            - subject: wrist
+              relation: near
+              reference: waist_midpoint
+              threshold: 0.40
+
+    vlm:
+      enabled: true
+      num_frames: 4
+      confidence_threshold: 0.7
+      prompt: |
+        You are a loss-prevention analyst. These cropped frames show one person whose hand was detected moving from shelf height to waist level. The pose system already confirmed the hand motion.
+
+        Your task: determine if the hand appears to be CONCEALING an item against the body.
+
+        Look for:
+        - Hand closed/cupped near waist, pocket, or waistband (holding something)
+        - Item shape visible in hand or being tucked into clothing
+        - Hand pressing something against body
+
+        NOT suspicious:
+        - Open/relaxed hand at side
+        - Hand adjusting clothing, using phone, or scratching
+        - Empty hand just resting at waist
+
+        Output JSON only (reasoning FIRST, then verdict):
+        {"reasoning":"one sentence describing what you see","suspicious":true|false,"confidence":0.0-1.0}
+      response_fields:
+        - reasoning
+        - suspicious
+        - confidence
+
+  loitering:
+    description: "Person remains stationary in a restricted area for too long"
+    enabled: false
+    alert_type: LOITERING
+
+    pose:
+      per_side: false
+      window_size: 15
+      phases:
+        - name: stationary
+          min_frames: 15
+          conditions:
+            - subject: left_hip
+              relation: stationary
+              threshold: 0.05
+
+    vlm:
+      enabled: true
+      num_frames: 4
+      prompt: |
+        Analyze these sequential frames of a person in a store.
+
+        Determine if the person appears to be loitering:
+        - Are they standing idle in one place for an extended period?
+        - Do they appear to be waiting without a clear purpose?
+        - Are they near high-value merchandise or restricted areas?
+
+        Respond ONLY with valid JSON in this exact format:
+        {
+          "suspicious": true or false,
+          "confidence": 0.0 to 1.0,
+          "reasoning": "brief description of what you observe"
+        }
+      response_fields:
+        - suspicious
+        - confidence
+        - reasoning

@@ -24,7 +24,7 @@ This creates a virtual environment and installs the dependencies declared in
 - When running on the host (no `/app/configs`), the service automatically
   falls back to the `configs/` directory next to the source. Set `CONFIG_DIR`
   to point elsewhere if needed.
-- Supply SceneScape credentials via environment variables:
+- Supply Scenescape credentials via environment variables:
 
   ```bash
   export SCENESCAPE_API_USER=admin
@@ -69,9 +69,9 @@ For endpoint details and examples, see the [API Reference](../api-reference.md).
 
 ## Notes
 
-- The service performs SceneScape zone discovery at startup and then
+- The service performs Scenescape zone discovery at startup and then
   subscribes to the configured MQTT topics.
-- There is no hard startup dependency on SceneScape — the MQTT connection is
+- There is no hard startup dependency on Scenescape — the MQTT connection is
   retried in the background.
 - Behavioral analysis and evidence capture require the optional `seaweedfs`
   block and a reachable behavioral-analysis worker; otherwise leave them out.

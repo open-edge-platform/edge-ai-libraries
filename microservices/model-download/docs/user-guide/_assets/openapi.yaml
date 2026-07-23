@@ -39,10 +39,15 @@ components:
         - ollama
         - ultralytics
         - pipeline-zoo-models
+        - omz
         - openvino
         - geti
         - hls
-      description: The model hub source to download from
+        - remote-url
+      description: |
+        The model hub source to download from. Each hub maps to a
+        download mechanism (HuggingFace API, OpenVINO export, tarball
+        fetch, etc.) configured via YAML profiles shipped with the image.
 
     ModelType:
       type: string
@@ -88,6 +93,11 @@ components:
           nullable: true
           description: Ultralytics quantization dataset used to enable INT8 export
           example: coco128
+        post_processing:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Optional post-processing overrides for omz model-specific workflows
       description: Configuration for OVMS model conversion
 
     ModelRequest:
@@ -98,7 +108,7 @@ components:
       properties:
         name:
           type: string
-          description: The name/ID of the model (e.g., microsoft/Phi-3.5-mini-instruct)
+          description: Model name/ID. Valid formats are hub-specific; see `POST /models/download` description for details.
           example: microsoft/Phi-3.5-mini-instruct
         hub:
           $ref: "#/components/schemas/ModelHub"
@@ -162,9 +172,6 @@ components:
         output_dir:
           type: string
           description: Output directory for the operation
-        plugin_name:
-          type: string
-          description: Plugin handling the operation
         creation_time:
           type: string
           format: date-time
@@ -293,6 +300,14 @@ components:
           properties:
             supports_parallel_downloads:
               type: boolean
+            supports_listing:
+              type: boolean
+              description: Whether the plugin can list models available on one or more hubs
+            listing_filter_fields:
+              type: array
+              items:
+                type: string
+              description: Hub-specific filter fields accepted by the listing endpoint
         available:
           type: boolean
           description: Whether the plugin is available
@@ -328,6 +343,115 @@ components:
           enum: [ok]
           description: Health status of the service
 
+    ModelListItem:
+      type: object
+      description: A single model entry returned by the hub listing endpoint.
+      additionalProperties: true
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Model name to pass as `name` in POST /api/v1/models/download
+          example: microsoft/Phi-3.5-mini-instruct
+        owner:
+          type: string
+          nullable: true
+          description: Owner, organization, or project that publishes the model
+        precisions:
+          type: array
+          items:
+            type: string
+          description: Weight precisions reported by the hub, when available
+        tags:
+          type: array
+          items:
+            type: string
+          description: Hub tags associated with the model
+        model_type:
+          type: string
+          nullable: true
+          description: >-
+            Model task/type as reported by the hub. For Geti, this is the task
+            type (for example, DETECTION or CLASSIFICATION).
+        license:
+          type: string
+          nullable: true
+          description: License identifier reported by the hub (HuggingFace), when available
+        gated:
+          nullable: true
+          description: >-
+            HuggingFace gating status: false (open), or "auto"/"manual" for gated
+            models. Absent for hubs that do not report gating.
+          oneOf:
+            - type: boolean
+            - type: string
+              enum: [auto, manual]
+        requires_token:
+          type: boolean
+          nullable: true
+          description: True when the model is gated and requires an HF token to download
+        last_modified:
+          type: string
+          nullable: true
+          description: ISO 8601 timestamp of the model's last modification, when available
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Hub-specific extra metadata
+
+    ModelListRequest:
+      type: object
+      description: Request body for listing models from a hub using hub-specific filters.
+      additionalProperties: true
+      required:
+        - hub
+      properties:
+        hub:
+          type: string
+          description: The hub to list models from
+          example: huggingface
+        filters:
+          type: object
+          additionalProperties: true
+          description: Hub-specific listing filters such as author, search, and tags
+          example:
+            author: microsoft
+            search: phi
+        limit:
+          type: integer
+          default: 50
+          minimum: 1
+          maximum: 200
+          description: Maximum number of items to return
+        offset:
+          type: integer
+          default: 0
+          minimum: 0
+          description: Number of items to skip for pagination
+
+    ModelListResponse:
+      type: object
+      properties:
+        hub:
+          type: string
+          description: The hub the models were listed from
+          example: huggingface
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelListItem"
+        total:
+          type: integer
+          nullable: true
+          description: Total number of models available, when the hub reports it
+        limit:
+          type: integer
+          description: Maximum number of items requested
+        offset:
+          type: integer
+          description: Number of items skipped for pagination
+
 paths:
   /health:
     get:
@@ -343,6 +467,94 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+
+  /models/list:
+    post:
+      summary: List models available on a hub using filters
+      description: |
+        Lists models available on a hub using a JSON request body containing the
+        target `hub`, hub-specific filters, and pagination. Listing is currently
+        supported for `huggingface`, `ultralytics`, `pipeline-zoo-models`, and
+        `geti`.
+
+        Supported filters:
+        - `huggingface`: `author`, `search`, `tags`
+        - `ultralytics`: `search`
+        - `pipeline-zoo-models`: `search`
+        - `geti`: `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_name`, `export_type`, `precision`, `model_format`
+
+        For `huggingface`, `author` is the repository namespace and accepts a
+        user, owner, or organization name (for example, `microsoft` or
+        `meta-llama`).
+
+        For `geti`, listing requires `GETI_HOST`, `GETI_TOKEN`, and
+        `GETI_WORKSPACE_ID` to be configured.
+
+        Use `GET /api/v1/plugins` to discover each plugin's `listing_filter_fields`.
+
+        This endpoint should move to HTTP QUERY once FastAPI, OpenAPI tooling,
+        and deployment proxies support QUERY consistently for safe requests with bodies.
+      operationId: listHubModels
+      tags:
+        - Models
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelListRequest"
+            examples:
+              huggingface_models:
+                summary: List Hugging Face models
+                value:
+                  hub: huggingface
+                  filters:
+                    author: microsoft
+                    search: phi
+                  limit: 10
+                  offset: 0
+              ultralytics_models:
+                summary: List Ultralytics models
+                value:
+                  hub: ultralytics
+                  filters:
+                    search: yolov8
+                  limit: 10
+                  offset: 0
+              pipeline_zoo_models:
+                summary: List Pipeline Zoo Models
+                value:
+                  hub: pipeline-zoo-models
+                  filters:
+                    search: yolo
+                  limit: 10
+                  offset: 0
+              geti_models:
+                summary: List Geti™ models
+                value:
+                  hub: geti
+                  filters:
+                    project_name: detection
+                    precision: FP16
+                  limit: 10
+                  offset: 0
+      responses:
+        "200":
+          description: Models listed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelListResponse"
+        "400":
+          description: Invalid pagination parameters, unknown hub, or hub not activated
+        "401":
+          description: Authentication failed for the hub
+        "422":
+          description: Validation error (for example, missing required `hub` field)
+        "501":
+          description: Hub does not support listing models
+        "502":
+          description: Upstream hub request failed
 
   /models/download:
     post:
@@ -360,6 +572,19 @@ paths:
         - HUGGINGFACEHUB_API_TOKEN is optional for public HuggingFace models
         - HUGGINGFACEHUB_API_TOKEN is required for gated/private HuggingFace models and for conversion
         - No authentication needed for Ollama, Ultralytics, Pipeline Zoo Models, Geti™, or HLS models
+
+        **URL Source (`remote-url` hub):**
+        - Downloads a per-model archive from a runtime-provided `config.url`, validated against an allowlist of trusted host/path prefixes.
+        - The URL must point to a tar archive (ex: `.tar`, `.tar.gz`) containing a single model's files — not a shared archive bundling multiple models.
+        - Use the optional `{name}` placeholder in `config.url`; it is replaced with the model's `name` field before download.
+        - Set `EXTERNAL_SOURCES_URL_ALLOWLIST` (comma-separated) to override the default allowed prefixes.
+
+        **`models[].name` format by hub:**
+        - `huggingface`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name.
+        - `ultralytics`: single name, comma-separated names, or `all`.
+        - `pipeline-zoo-models`: single name, comma-separated names, or `all`.
+        - `omz`: single name or comma-separated names (`all` is not supported).
+        - For `hls`, valid names also depend on the selected `type`.
 
         **Job Processing:**
         - Each model download creates a separate job
@@ -421,6 +646,20 @@ paths:
                   models:
                     - name: dbnet
                       hub: pipeline-zoo-models
+              remote_url_download:
+                summary: Download Remote-URL model
+                value:
+                  models:
+                    - name: wind-turbine-anomaly-detection
+                      hub: remote-url
+                      config:
+                        url: "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{name}.tar"
+              omz_download:
+                summary: Download OMZ model
+                value:
+                  models:
+                    - name: mobilenet-v2-pytorch
+                      hub: omz
               geti_download:
                 summary: Download Geti™ model
                 value:
@@ -468,7 +707,7 @@ paths:
                 unsupported_hub:
                   summary: Unsupported model hub
                   value:
-                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'pipeline-zoo-models', 'openvino', 'geti', 'hls'}."
+                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'pipeline-zoo-models', 'omz', 'openvino', 'geti', 'hls', 'remote-url'}."
                 plugin_unavailable:
                   summary: Plugin dependencies not installed
                   value:

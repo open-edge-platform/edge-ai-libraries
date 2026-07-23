@@ -1,0 +1,46 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "schemaVersion": "1.0",
+  "description": "Harness-neutral discovery catalog for VDMS DataPrep workflow skills. Paths are relative to the microservice root.",
+  "skillsRoot": ".github/skills",
+  "skills": [
+    {
+      "name": "vdms-dataprep-user",
+      "path": ".github/skills/vdms-dataprep-user/SKILL.md",
+      "description": "Deploy and consume the VDMS DataPrep video-ingestion stack (dataprep + VDMS vector DB + MinIO): bring it up from a repo clone (setup.sh) or standalone via the skill's compose file with prebuilt images, then upload/ingest videos, add text summaries, and list/download/delete videos through the REST API on port 6007. Ingestion only — this service does not answer search queries. Not for modifying its source (use vdms-dataprep-dev).",
+      "triggers": [
+        "ingest videos for retrieval",
+        "video rag ingestion",
+        "run vdms dataprep",
+        "upload video for embedding",
+        "store video embeddings in vdms",
+        "add video summary embedding",
+        "list ingested videos",
+        "delete ingested video"
+      ],
+      "requires": [
+        "docker",
+        "curl"
+      ]
+    },
+    {
+      "name": "vdms-dataprep-dev",
+      "path": ".github/skills/vdms-dataprep-dev/SKILL.md",
+      "description": "Develop the VDMS DataPrep microservice itself: build images the sanctioned way (./build.sh, context three levels up), run the pytest suite with coverage, lint, and navigate the SDK/API embedding pipeline code. Not for merely deploying or ingesting videos (use vdms-dataprep-user).",
+      "triggers": [
+        "run the dataprep tests",
+        "dataprep coverage",
+        "lint dataprep",
+        "build vdms-dataprep from source",
+        "docker build fails on embedding path dependency",
+        "modify the ingestion pipeline"
+      ],
+      "requires": [
+        "repo clone",
+        "docker",
+        "poetry"
+      ]
+    }
+  ]
+}

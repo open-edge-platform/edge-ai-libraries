@@ -1,0 +1,56 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "skill_name": "vlm-openvino-serving-user",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bringup-and-health",
+      "prompt": "Give me an exact runbook for Intel's VLM OpenVINO serving microservice with Qwen2.5-VL-3B on CPU using prebuilt images. I don't have edge-ai-libraries checked out, and you must not pull the model or launch containers in this environment.",
+      "expected_output": "Fetches setup.sh and docker/compose.yaml without a full clone, explicitly exports VLM_MODEL_NAME, VLM_DEVICE=CPU, and REGISTRY_URL=intel, uses --no-build/prebuilt image with the ov-models volume, and polls /health while explaining first-start download/conversion.",
+      "expectations": [
+        "Uses the prebuilt intel/vlm-openvino-serving image (e.g. REGISTRY_URL=intel with docker compose --no-build, or docker run) without building the image from source or requiring a full repo clone",
+        "Sets VLM_MODEL_NAME to Qwen/Qwen2.5-VL-3B-Instruct via environment variable",
+        "Explicitly sets VLM_DEVICE=CPU rather than relying on an ambient/default device",
+        "Persists model caches via the ov-models volume (through setup.sh/compose or explicit volume mounts)",
+        "Verifies readiness by polling the /health endpoint on port 9764 (or an explicitly overridden port) and explains the first start is slow due to model download/conversion"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "image-caption-curl",
+      "prompt": "The VLM serving container is already running on localhost:9764 with Qwen/Qwen2.5-VL-3B-Instruct. Give me a curl command that sends this image https://example.com/loading-dock.jpg and asks for a one-sentence caption, then show the same call in Python.",
+      "expected_output": "A correct POST /v1/chat/completions curl with a content list containing a text block and an image_url block, model matching the loaded model name, plus an equivalent Python snippet using the openai client with base_url http://localhost:9764/v1.",
+      "expectations": [
+        "The curl targets POST /v1/chat/completions on localhost:9764 with Content-Type application/json",
+        "The messages content is a list with a {type: text} block and a {type: image_url, image_url: {url: ...}} block (not a bare string with the URL pasted in)",
+        "The model field is exactly Qwen/Qwen2.5-VL-3B-Instruct",
+        "The Python example uses an OpenAI-compatible client pointed at http://localhost:9764/v1 (api_key can be any dummy value)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "gpu-oom-diagnosis",
+      "prompt": "Our VLM serving instance runs on an Intel Arc GPU. Under load, responses fail with 'error code: -5' and then the service seems to restart itself. What is going on and what should we change?",
+      "expected_output": "Diagnosis: error code -5 is GPU OOM and os.execv recovery is intentional. Checks the effective VLM_DEVICE/compression/worker settings because setup.sh forces int4 and one worker only for exact VLM_DEVICE=GPU; then recommends smaller model or lower concurrency if already optimized.",
+      "expectations": [
+        "Identifies error code -5 as GPU out-of-memory",
+        "Explains the self-restart is intentional recovery behavior of the service, not a crash loop to be 'fixed' by restart policies",
+        "Checks effective device/compression/worker settings and notes the setup.sh enforcement applies to exact VLM_DEVICE=GPU",
+        "Recommends a smaller model or fewer concurrent requests if int4 and one worker are already effective",
+        "Does not recommend rebuilding the image or editing service source code as the primary fix"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "model-mismatch-404",
+      "prompt": "My VLM service is healthy on localhost:9764, but POST /v1/chat/completions returns 404 saying the requested model is not available. How do I diagnose and fix the request?",
+      "expected_output": "Queries GET /v1/models, copies the returned configured model id exactly into the chat request, and does not treat the healthy service as needing a rebuild/restart.",
+      "expectations": [
+        "Queries GET http://localhost:9764/v1/models to discover the configured model id",
+        "Uses the exact returned model id in POST /v1/chat/completions",
+        "Does not recommend rebuilding or restarting a healthy service as the primary fix"
+      ]
+    }
+  ]
+}

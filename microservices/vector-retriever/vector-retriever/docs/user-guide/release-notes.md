@@ -1,4 +1,4 @@
-# Release Notes
+# Release Notes: Vector Retriever
 
 ## Release 1.0.0
 
