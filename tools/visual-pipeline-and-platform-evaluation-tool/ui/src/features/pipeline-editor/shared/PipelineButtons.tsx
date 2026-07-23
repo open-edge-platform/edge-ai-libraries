@@ -35,7 +35,7 @@ export const PipelineToolbarButton = ({
     type="button"
     variant={variant}
     className={cn(
-      "px-3 py-2 h-auto shadow-lg gap-2 font-medium text-[0.9375rem]",
+      "px-3 py-2 h-auto shadow-lg gap-2 font-medium text-[1.025rem]",
       widthClassName,
       className,
     )}
@@ -67,7 +67,7 @@ export const PipelineMenuOptionButton = ({
     disabled={disabled}
     type="button"
     className={cn(
-      "w-full h-auto text-left px-3 py-2 rounded hover:bg-muted transition-colors text-[0.9375rem] flex items-start gap-2",
+      "w-full h-auto text-left px-3 py-2 rounded hover:bg-muted transition-colors text-[1.025rem] flex items-start gap-2",
       className,
     )}
   >
@@ -107,7 +107,7 @@ export const PipelineDialogButton = ({
     disabled={disabled}
     type="button"
     className={cn(
-      "px-4 py-2 h-auto text-[0.9375rem] font-medium transition-colors disabled:cursor-not-allowed",
+      "px-4 py-2 h-auto text-[1.025rem] font-medium transition-colors disabled:cursor-not-allowed",
       DIALOG_VARIANT_CLASSES[variant],
       className,
     )}
