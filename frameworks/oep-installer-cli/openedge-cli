@@ -3,7 +3,6 @@
 # common variable: ID_LIKE
 . /etc/os-release
 trap "main $*" EXIT
-set -e
 
 main () {
   trap - EXIT
@@ -135,14 +134,12 @@ act_helpper () {
         echo "Invoke $handler with $(act_extract_args $act_name $name $*)" > >(logecho $name)
       else
         local start_c=$SECONDS
-        set +e
         (
           set -e
           $handler $(act_extract_args $act_name $name $*)
         ) > >(logecho $name) 2> >(logecho $name)
         local rc=$?
         reports+=("$name:rc=$rc:$(( SECONDS - start_c )) seconds")
-        set -e
         [[ $rc -eq 0 || " $* " = *" --continue "* ]] || break
       fi
     done
