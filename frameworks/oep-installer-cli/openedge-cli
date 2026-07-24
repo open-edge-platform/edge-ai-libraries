@@ -41,13 +41,14 @@ main () {
 
 act_extract_modules () {
   local act_name=$1
-  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${act_name}_" | cut -f4- -d_))
+  local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_) profile)
+  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f4- -d_))
   local all_module_args=" ${all_modules[*]/#/--} "
   local -A modules=()
   local v
   for v in ${*:2}; do
     [[ " ${all_module_args} " != *" $v "* ]] || break
-    [[ "$v" = "--"* ]] || modules[$v]=1
+    [[ " ${all_module_args} " != *" --$v "* ]] || modules[$v]=1
   done
   echo "${!modules[*]}"
 }
@@ -55,7 +56,7 @@ act_extract_modules () {
 act_extract_args () {
   local act_name=$1
   local module_name=$2
-  local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_))
+  local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_) profile)
   local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f4- -d_))
   local all_module_args=" ${all_modules[*]/#/--} "
   local args1=() args2=() i j
@@ -130,7 +131,6 @@ act_helpper () {
     local reports=()
     for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
       name=$(echo $handler | cut -f4- -d_)
-      echo "==== ${act_name} $name ====" > >(logecho $name)
       if [[ " $* " = *" --dry-run "* ]]; then
         echo "Invoke $handler with $(act_extract_args $act_name $name $*)" > >(logecho $name)
       else
