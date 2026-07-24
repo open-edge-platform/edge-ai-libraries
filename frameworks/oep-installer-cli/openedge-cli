@@ -66,7 +66,7 @@ act_extract_args () {
       done
       [ "${*:$((i-1)):1}" != "--${module_name}" ] || args2+=(${*:$i:$((j-i))})
       i=$((j-1))
-    elif [[ " ${all_module_args} " != " --${*:$i:1} " ]]; then
+    elif [[ " ${all_module_args} " != *" --${*:$i:1} "* ]]; then
       args1+=(${*:$i:1})
     fi
   done
@@ -126,8 +126,7 @@ act_helpper () {
     logecho () {
       awk -v n=$1 '{print strftime("%s"),n,$0;fflush()}'
     }
-    local start_t=$SECONDS
-    local reports=()
+    local start_t=$SECONDS reports=() rc=0
     for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
       name=$(echo $handler | cut -f4- -d_)
       if [[ " $* " = *" --dry-run "* ]]; then
@@ -138,9 +137,12 @@ act_helpper () {
           set -e
           $handler $(act_extract_args $act_name $name $*)
         ) > >(logecho $name) 2> >(logecho $name)
-        local rc=$?
-        reports+=("$name:rc=$rc:$(( SECONDS - start_c )) seconds")
-        [[ $rc -eq 0 || " $* " = *" --continue "* ]] || break
+        local rc1=$?
+        reports+=("$name:rc=$rc1:$(( SECONDS - start_c )) seconds")
+        if [ $rc1 -ne 0 ]; then
+          rc=$rc1
+          [[ " $* " = *" --continue "* ]] || break
+        fi
       fi
     done
     # wait for background processes
@@ -150,17 +152,16 @@ act_helpper () {
     if [ ${#reports[@]} -gt 0 ]; then
       echo
       echo "======== ${act_name^^} REPORT ========"
-      (
-        for line in "${reports[@]}"; do
-          if [[ "$line" = *":rc=0:"* ]]; then
-            echo "$line"
-          else
-            echo -e "\033[31m$line\033[0m"
-          fi
-        done
-      ) | column -s: -t
+      for line in "${reports[@]}"; do
+        if [[ "$line" = *":rc=0:"* ]]; then
+          echo "$line"
+        else
+          echo -e "\033[31m$line\033[0m"
+        fi
+      done | column -s: -t
       echo "Total duration: $(( end_t - start_t )) seconds"
     fi
+    return $rc
   else
     echo "Component not found" 1>&2
     exit 3
