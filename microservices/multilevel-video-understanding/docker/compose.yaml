@@ -1,7 +1,56 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 services:
+  # On-device model serving: a single vLLM-IPEX instance serving one multimodal
+  # model (Qwen3.5-35B-A3B) for BOTH the VLM and LLM roles. Runs on the Intel
+  # integrated GPU (/dev/dri) with shared system RAM.
+  vllm-ipex-serving:
+    container_name: vllm-ipex-serving
+    image: ${VLLM_IMAGE:-intel/llm-scaler-vllm:0.14.0-b7.1}
+    # image: ${VLLM_IMAGE:-intel/llm-scaler-vllm:0.14.0-b8.3.2}
+    privileged: true
+    restart: always
+    ports:
+      - ${VLLM_SERVICE_PORT:-41091}:8000
+    group_add:
+      - ${VIDEO_GROUP_ID}
+      - ${RENDER_GROUP_ID}
+    volumes:
+      - ${HF_HOME}:/llm/.cache/huggingface
+      # Repo-local serving launcher + Intel XPU vLLM patches.
+      - ./vllm-serving:/llm/test_resources:ro
+    devices:
+      - /dev/dri
+    environment:
+      no_proxy: ${no_proxy}
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      HF_HOME: /llm/.cache/huggingface
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+      MODEL_PATH: ${LLM_MODEL}
+      SERVED_MODEL_NAME: ${LLM_MODEL}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-61440}
+      LOAD_QUANTIZATION: ${LOAD_QUANTIZATION:-fp8}
+      TENSOR_PARALLEL_SIZE: ${TENSOR_PARALLEL_SIZE:-1}
+      GPU_MEM_UTIL: ${GPU_MEM_UTIL:-0.7}
+    shm_size: '16g'
+    entrypoint: /bin/bash -c "\
+      source /opt/intel/oneapi/setvars.sh --force && \
+      cd /llm/test_resources && \
+      bash start_server_enable_cache.sh"
+    networks:
+      - app-network
+    healthcheck:
+      # First launch downloads + compiles the model (3-20+ min); give it room.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/v1/models >/dev/null || exit 1"]
+      start_period: 1800s
+      start_interval: 10s
+      interval: 24h
+      timeout: 5s
+      retries: 3
+
   multilevel-video-understanding:
     build:
       context: ..
@@ -16,22 +65,39 @@ services:
       - ${SERVICE_PORT:-8192}:8000
     networks:
       - app-network
+    depends_on:
+      vllm-ipex-serving:
+        condition: service_healthy
+    group_add:
+      - ${USER_GROUP_ID:-1000}
     cap_drop:
       - NET_RAW
     read_only: true  # Mount root filesystem as read-only
     volumes:
       - tmp_volume:/tmp:rw  # Mount container /tmp as read-write
+      # Runtime prompt registry cache on the host. Export VIDEO_SUMMARY_CACHE_HOST
+      # to a user-owned directory before `docker compose up`; e.g.
+      #   export VIDEO_SUMMARY_CACHE_HOST=~/.cache/.multilevel-video-understanding
+      #   mkdir -p "$VIDEO_SUMMARY_CACHE_HOST/tasks"
+      - ${VIDEO_SUMMARY_CACHE_HOST}:/home/appuser/.cache/.multilevel-video-understanding:rw
     environment:
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
       - no_proxy=$no_proxy
       - DEBUG=${DEBUG:-false}
-      - VLM_MODEL_NAME=$VLM_MODEL_NAME
-      - VLM_BASE_URL=$VLM_BASE_URL
+      # Both roles are served by the on-device vllm-ipex-serving on app-network.
+      - VLM_MODEL_NAME=${VLM_MODEL_NAME:-${LLM_MODEL}}
+      - VLM_BASE_URL=${VLM_BASE_URL:-http://vllm-ipex-serving:8000/v1}
       - VLM_API_KEY=${VLM_API_KEY:-EMPTY}
-      - LLM_MODEL_NAME=$LLM_MODEL_NAME
-      - LLM_BASE_URL=$LLM_BASE_URL
-      - LLM_API_KEY=${VLM_API_KEY:-EMPTY}
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-${LLM_MODEL}}
+      - LLM_BASE_URL=${LLM_BASE_URL:-http://vllm-ipex-serving:8000/v1}
+      - LLM_API_KEY=${LLM_API_KEY:-EMPTY}
+      - MAX_CONCURRENT_REQUESTS=${MAX_CONCURRENT_REQUESTS:-6}
+      - DEFAULT_MAX_TOKENS=${DEFAULT_MAX_TOKENS:-512}
+      - ENABLE_THINKING=${ENABLE_THINKING:-false}
+      - VIDEO_FRAME_HEIGHT=${VIDEO_FRAME_HEIGHT:-270}
+      - VIDEO_FRAME_WIDTH=${VIDEO_FRAME_WIDTH:-480}
+      - DEFAULT_TEMPERATURE=${DEFAULT_TEMPERATURE:-0.2}
     restart: unless-stopped
     security_opt:
       - apparmor=docker-default
@@ -45,10 +111,11 @@ services:
           memory: 1G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
-      interval: 30s
-      timeout: 10s
+      start_period: 600s
+      start_interval: 10s
+      interval: 24h
+      timeout: 5s
       retries: 3
-      start_period: 15s
 
 networks:
   app-network:

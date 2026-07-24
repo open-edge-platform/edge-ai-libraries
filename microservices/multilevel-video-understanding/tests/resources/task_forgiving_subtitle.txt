@@ -1,0 +1,23 @@
+# Forgiving-registration case: the LOCAL prompt references the optional
+# {chunk_subtitle} placeholder. It is accepted at registration and rendered
+# only when subtitle text is supplied at request time (empty -> the line is
+# stripped), so it never breaks summarization runs that carry no subtitles.
+
+GLOBAL_PROMPT = '''
+##Task:
+Summarize the whole session into a short, human-readable report.
+User prompt: {question}
+
+##Content to Summarize:
+The following period summaries are separated by ">|<".
+'''
+
+
+LOCAL_PROMPT = '''
+##Task:
+Describe what happens in this short clip in one or two sentences.
+Start time: {st_tm} seconds
+End time: {end_tm} seconds
+##Subtitles:
+{chunk_subtitle}
+'''

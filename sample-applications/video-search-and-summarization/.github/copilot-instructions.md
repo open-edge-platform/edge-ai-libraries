@@ -33,7 +33,7 @@ not executed, because it exports env vars into the shell):
 | Unified UI | `source setup.sh --summary-and-search` (`--unified`) | Search over summary text in one UI |
 
 Other `setup.sh` verbs: `config` (render config without starting), `--stop`
-(`--down`), `--clean-data`, `--help`. Use the `vss-up` skill to drive these.
+(`--down`), `--clean-data`, `--help`. Use the `vss-deploy` skill to drive these.
 
 ## Architecture at a Glance
 
@@ -94,11 +94,11 @@ relevant skill, then read that skill's `SKILL.md`.
 
 | User intent | Skill |
 |---|---|
-| Deploy, start, stop, dry-run, or clean VSS | `vss-up` |
-| Check health, detect running mode, or debug containers | `vss-doctor` |
+| Deploy, start, stop, dry-run, or clean VSS | `vss-deploy` |
+| Check health, detect running mode, or debug containers | `vss-troubleshoot` |
 | Build or push VSS Docker images | `vss-build` |
-| Summarize videos through Pipeline Manager | `vss-summarize` |
-| Upload, index, or search videos | `vss-search` |
+| Summarize videos through Pipeline Manager | `vss-summarize-video` |
+| Upload, index, or search videos | `vss-search-index` |
 
 ## Skill Loading Rules
 
@@ -108,7 +108,7 @@ relevant skill, then read that skill's `SKILL.md`.
   and the Pipeline Manager API at `/manager/...`.
 - Run commands yourself when the harness permits it and relay the result.
 - Probe `GET /manager/health` before API workflows. If the backend is not
-  healthy, use `vss-doctor` or `vss-up`.
+  healthy, use `vss-troubleshoot` or `vss-deploy`.
 
 ## Path Conventions
 

@@ -15,8 +15,6 @@ DOCKERFILE="$SCRIPT_DIR/docker/Dockerfile"
 
 # Common env vars ---------------------------------------------------
 export PROJECT_NAME=${PROJECT_NAME}
-export COVERAGE_REQ=80
-export PROJ_TEST_DIR=./tests
 host_ip=$(ip route get 1 | awk '{print $7}')
 export HOST_IP=${HOST_IP:-$host_ip}
 export TAG=${TAG:-latest}
@@ -33,6 +31,7 @@ export VDMS_DATAPREP_DEVICE=${VDMS_DATAPREP_DEVICE:-"CPU"}
 export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
 export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-$OV_MODELS_DIR}
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
+export DETECTION_DEVICE=${DETECTION_DEVICE:-$VDMS_DATAPREP_DEVICE}
 export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
 export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
 export ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
@@ -74,6 +73,20 @@ export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 
+# Set DRI_MOUNT_PATH based on whether /dev/dri exists and is not empty
+if [ -d /dev/dri ] && [ "$(ls -A /dev/dri)" ]; then
+    export DRI_MOUNT_PATH="/dev/dri"
+else
+    export DRI_MOUNT_PATH="/dev/null"
+fi
+
+# Set ACCEL_MOUNT_PATH based on whether /dev/accel/accel0 exists
+if [ -e /dev/accel/accel0 ]; then
+    export ACCEL_MOUNT_PATH="/dev/accel/accel0"
+else
+    export ACCEL_MOUNT_PATH="/dev/null"
+fi
+
 # Model storage configuration for object detection
 export YOLOX_MODELS_VOLUME_NAME="vdms-yolox-models"
 export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
@@ -82,9 +95,9 @@ export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
 # Env vars for minio service ---------------------------
 export MINIO_HOST="minio-server"
 # Port on which we want to access API service outside container i.e. on host.
-export MINIO_API_HOST_PORT=6010
+export MINIO_API_HOST_PORT=${MINIO_API_HOST_PORT:-6010}
 # Port on which we want to access Minio Console outside container i.e. on host.
-export MINIO_CONSOLE_HOST_PORT=6011
+export MINIO_CONSOLE_HOST_PORT=${MINIO_CONSOLE_HOST_PORT:-6011}
 # Mount point for Minio objects storage. This helps persist objects stored on minio server.
 export MINIO_MOUNT_PATH="/mnt/miniodata"
 
@@ -118,7 +131,7 @@ echo "Using Registry : ${REGISTRY}"
 
 # Check if MINIO credentials are set
 # Only check MinIO credentials if we're not just stopping containers or building images
-if [ "$1" != "--down" ] && [ "$1" != "--build" ] && [ "$1" != "--build-dev" ] && [ "$1" != "--build-test" ] && [ "$1" != "--build-lint" ]; then
+if [ "$1" != "--down" ] && [ "$1" != "--build" ]; then
     if [ -z "$MINIO_ROOT_USER" ]; then
         echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in environment.${NC}"
         return
@@ -166,29 +179,14 @@ add_no_proxy_host "${MINIO_HOST}"
 add_no_proxy_host "multimodal-embedding-serving"
 export no_proxy_env=${no_proxy}
 
-# Run linter
-if [ "$1" = "lint" ] && [ $# -ge 1 ] && [ $# -le 2 ]; then
-    if ! [ "$2" = "" ] && ! [ "$2" = "-a" ] && ! [ "$2" = "--apply" ]; then
-        echo "Invalid flag provided!"
-        return
-    fi
-    . ./scripts/linter.sh "$2"
-
-# Run tests
-elif [ "$1" = "test" ] && [ $# -ge 1 ] && [ $# -le 2 ]; then
-    . ./scripts/tester.sh "$2"
-
 # Set environment variables on shell without spinning up any container
-elif [ "$1" = "--nosetup" ] && [ "$#" -eq 1 ]; then
+if [ "$1" = "--nosetup" ] && [ "$#" -eq 1 ]; then
     echo "All environment variables set successfully!"
     return
 
 # Check configuration values for docker compose
 elif [ "$1" = "--conf" ] && [ "$#" -eq 1 ]; then
     docker compose -f docker/compose.yaml config
-
-elif [ "$1" = "--conf-dev" ] && [ "$#" -eq 1 ]; then
-    docker compose -f docker/compose.yaml -f docker/compose-dev.yaml config
 
 # Teardown Everything
 elif [ "$1" = "--down" ] && [ "$#" -eq 1 ]; then
@@ -217,73 +215,11 @@ elif [ "$1" = "--build" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
         echo -e "${RED}ERROR: build.sh failed. Please check the build logs for details.${NC}"
     fi
 
-# Build dataprep dev image
-elif [ "$1" = "--build-dev" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
-    tag=${2:-intelgai/vdms-dataprep:dev}
-    docker build -t "$tag" -f "$DOCKERFILE" --target dev "$MICROSERVICES_DIR"
-    if [ $? = 0 ]; then
-        docker images | grep "$tag"
-        echo "Dev Image ${tag} was successfully built."
-    fi
-
-# Build the dataprep image after linting checks.
-elif [ "$1" = "--build-lint" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
-    tag=${2:-intelgai/vdms-dataprep:dev}
-
-    # Build the image targeting the lint stage
-    docker build -t "$tag" -f "$DOCKERFILE" --target lint "$MICROSERVICES_DIR"
-    
-    if [ $? = 0 ]; then
-        docker images | grep "$tag"
-        echo "Linter image ${tag} was successfully built."
-    fi
-
-
-# Build the image after running and passing tests
-elif [ "$1" = "--build-test" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
-    tag=${2:-intelgai/vdms-dataprep:final-dev}
-
-    # Build the image targeting the test stage
-    docker build --build-arg COVERAGE_REQ -t "$tag" -f "$DOCKERFILE" --target final-dev "$MICROSERVICES_DIR"
-
-    if [ $? = 0 ]; then
-        docker images | grep "$tag"
-        echo "Final-dev image ${tag} was successfully built."
-    fi
-
-# Build, generates and serve coverage report
-elif [ "$1" = "--build-report" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
-    tag=${2:-intelgai/vdms-dataprep:covreport}
-    reporter_container=intelgai-vdms-dataprep-report
-
-    # Build the image targeting the test stage
-    docker build --build-arg COVERAGE_REQ -t "$tag" -f "$DOCKERFILE" --target report "$MICROSERVICES_DIR"
-
-    # Run the report server
-    if [ $? = 0 ]; then
-        docker images | grep "$tag"
-        echo "Reporter image ${tag} was successfully built."
-        docker run --rm -p "8899:8899" --name "$reporter_container" "$tag"
-        docker stop "$reporter_container"
-    fi
-
-# Spin-up all services with dev env in daemon mode
-elif [ "$1" = "--dev" ] && [ "$#" -eq 1 ]; then
-    docker compose -f docker/compose.yaml -f docker/compose-dev.yaml up -d --build
-    if [ $? = 0 ]; then
-        docker ps | grep "${PROJECT_NAME}"
-        echo "Dev environment is up!"
-    fi
-
-# Spin-up all services with dev env with logs showing on STDOUT
-elif [ "$1" = "--dev" ] && [ "$2" = "--nd" ] && [ "$#" -eq 2 ]; then
-    docker compose -f docker/compose.yaml -f docker/compose-dev.yaml up --build
-
-# Spin-up prod version of all services in non-daemon mode
+# Spin-up all services in non-daemon mode (logs on STDOUT)
 elif [ "$1" = "--nd" ] && [ "$#" -eq 1 ]; then
     docker compose -f docker/compose.yaml up --build
 
-# Spin-up prod version of all services in daemon mode
+# Spin-up all services in daemon mode
 elif [ "$#" -eq 0 ]; then
     if ! ./build.sh; then
         echo -e "${RED}ERROR: build.sh failed. Please inspect the build logs.${NC}"
@@ -293,7 +229,7 @@ elif [ "$#" -eq 0 ]; then
     docker compose -f docker/compose.yaml up -d --no-build
     if [ $? = 0 ]; then
         docker ps | grep "${PROJECT_NAME}"
-        echo "Prod environment is up!"
+        echo "All services are up!"
     fi
 
 else

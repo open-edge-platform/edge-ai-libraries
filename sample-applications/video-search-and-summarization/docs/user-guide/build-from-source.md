@@ -9,10 +9,10 @@ This section shows how to build the Video Search and Summary sample application 
 
 ## Prerequisites
 
-1. Follow the instructions given in the [Get Started](./get-started.md) section.
-2. Address all [prerequisites](./get-started.md#prerequisites).
-3. Configure the required [environment variables](./get-started.md#set-required-environment-variables).
-4. If the setup is behind a proxy, ensure `http_proxy`, `https_proxy`, and `no_proxy` are properly set on the shell.
+1. Address all [prerequisites](./get-started.md#prerequisites).
+2. Configure the required [environment variables](./get-started.md#set-required-environment-variables).
+3. If the setup is behind a proxy, ensure `http_proxy`, `https_proxy`, and `no_proxy` are properly set on the shell.
+4. Ensure `make` is installed on the system.
 
 ## Steps to Build from Source
 
@@ -29,19 +29,19 @@ This section shows how to build the Video Search and Summary sample application 
 
 2. **Navigate to the Directory**:
 
-   Go to the directory where the Dockerfile is located:
+   Go to VSS sample application directory:
 
    ```bash
    cd edge-ai-libraries/sample-applications/video-search-and-summarization
    ```
 
-3. **Build the Docker Image**:
+3. **Build the Docker Images**:
 
-   If you need to customize the application or build your own images, you can use the `build.sh` script included in the repository.
+   If you need to customize the application or build your own images, you can use the `make build` command in the repository.
 
    **3.1 Customizing Build Configuration**
 
-   The application uses registry URL, project name, and tag to build the images.
+   The Makefile constructs image names from registry URL, project name, and tag.
 
      ```bash
      export REGISTRY_URL=<your-container-registry-url>    # e.g. "docker.io/username/"
@@ -49,22 +49,24 @@ This section shows how to build the Video Search and Summary sample application 
      export TAG=<your-tag>                                # e.g. "rc4" or "latest"
      ```
 
-   > **_IMPORTANT:_** These variables control how image names are constructed. If `REGISTRY_URL` is **docker.io/username/** and `PROJECT_NAME` is **video-search-and-summarization**, an image would be pulled or built as **docker.io/username/video-search-and-summarization/\<application-name>:tag**. The `<application-name>` is hardcoded in _image_ field of each service in all docker compose files. If `REGISTRY_URL` or `PROJECT_NAME` are not set, blank string will be used to construct the image name. If `TAG` is not set, **latest** will be used by default.
+   > **_IMPORTANT:_** Each image is named as **\<REGISTRY_URL>\<PROJECT_NAME>/\<microservice-name>:\<TAG>**. For example, with `REGISTRY_URL=docker.io/username/` and `PROJECT_NAME=video-search-and-summarization`, an image is built as **docker.io/username/video-search-and-summarization/\<microservice-name>:\<TAG>**. If `REGISTRY_URL` or `PROJECT_NAME` are unset, the corresponding part is omitted. If `TAG` is unset, **latest** is used.
 
    **3.2 Building Images**
 
-   The build script provides options to build and push the images. Build script provides option to build only the application microservices or build together with all the dependent microservices. The following microservices are dependent: [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html), [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html), and [VDMS based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/vdms). VLM captioning and LLM summarization are handled by [OpenVINO™ Model Server](https://docs.openvino.ai/nightly/model-server/ovms_what_is_openvino_model_server.html) (OVMS) or [vLLM](https://docs.vllm.ai/en/latest/usage/).
+   The Makefile provides targets to build and push images. Use make commands to build the dependent microservices and application microservices.
+
+   The application microservices are: `pipeline-manager`, `vss-ui`, `video-search`, and `video-ingestion`. The dependent microservices are: [Multimodal Embedding Serving](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/multimodal-embedding-serving/) and [VDMS based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/vdms).
 
    ```bash
 
    # Build the sample applications services
-   ./build.sh
+   make build
 
    # Build the sample applications dependencies
-   ./build.sh --dependencies
+   make build-deps
 
    # Push all built images to the configured registry
-   ./build.sh --push
+   make push
    ```
 
    After building, you can verify the created images with:
@@ -73,55 +75,11 @@ This section shows how to build the Video Search and Summary sample application 
    docker images | grep <your-project-name>
    ```
 
-4. **Run the Docker Container**:
+4. **Run the Application**:
 
-    The Video Search and Summary application provides multiple deployment scenarios. To verify the newly created images, run any of these:
-
-    ```bash
-    source setup.sh --summary              # Brings up Video Summarization application
-    source setup.sh --search               # Brings up Video Search application
-    source setup.sh --summary --search     # Brings up both Summarization and Search with separate UIs
-    source setup.sh --summary-and-search   # Brings up unified single UI for Video Summarization and Search
-    ```
-
-5. Accessing the Application
-
-    #### `--summary` mode
-
-   | UI | URL |
-   |----|-----|
-   | Video Summarization | `http://<host-ip>:12345/` |
-
-   #### `--search` mode
-
-   | UI | URL |
-   |----|-----|
-   | Video Search | `http://<host-ip>:12345/` |
-
-   #### `--summary --search` mode
-
-   | UI | URL |
-   |----|-----|
-   | Video Summarization | `http://<host-ip>:12345/summary/` |
-   | Video Search       | `http://<host-ip>:12345/search/` |
-
-   Visiting the root URL `http://<host-ip>:12345/` redirects to the Video Summarization UI.
-
-   #### `--summary-and-search` mode
-
-   | UI | URL |
-   |----|-----|
-   | Unified Summary/Search | `http://<host-ip>:12345/` |
-
-## Verification
-
-- Ensure that the application is running by checking the Docker container status:
-
-  ```bash
-  docker ps
-  ```
-
-- Access the application dashboard and verify that it is functioning as expected.
+   Building from source only produces the images. To run and access the
+   application, follow the deployment steps in the
+   [Get Started](./get-started.md) guide.
 
 ## Building with Copyleft Sources
 

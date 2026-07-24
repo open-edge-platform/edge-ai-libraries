@@ -382,7 +382,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             config: Configuration parameters from the request
         """
         try:
-            target_device = str(config.get("device", config.get("target_device", "CPU"))).upper()
+            target_device = self._convert_value_to_string(config.get("device", config.get("target_device", "CPU"))).upper()
             cache_size = config.get("cache_size", config.get("cache", 0)) or 0
             num_streams = config.get("num_streams", 1) or 1
             # Use full model name preserving "/" for nested directory structure and config naming
@@ -594,6 +594,61 @@ class OpenVINOConverter(ModelDownloadPlugin):
         # resolve_config).
         resolved_config = kwargs.get("resolved_config") or {}
         huggingface_token = resolved_config.get("HF_TOKEN") or hf_token
+        model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
+        version = kwargs.get("version", "")
+
+        # --- Pull Mode: Try to find and download a pre-converted model first ---
+        logger.info(f"Attempting pull mode for model: {model_name}, precision: {weight_format}, device: {target_device}")
+        pull_result = self._try_pull_preconverted(
+            model_name=model_name,
+            weight_format=weight_format or "int8",
+            output_dir=output_dir,
+            hf_token=huggingface_token,
+            target_device=target_device,
+        )
+
+        if pull_result is not None:
+            logger.info(f"Pull mode succeeded for {model_name} from {pull_result['repo_id']}")
+
+            # Generate serving config files (graph.pbtxt, config_all.json)
+            self._generate_serving_configs(
+                model_name=model_name,
+                output_dir=output_dir,
+                model_type=model_type,
+                config=kwargs,
+            )
+
+            host_path = output_dir
+            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                host_prefix = os.getenv("MODEL_PATH", "models")
+                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+
+            response_config = {}
+            if "precision" in kwargs:
+                response_config["precision"] = weight_format
+            if "device" in kwargs:
+                response_config["device"] = target_device
+            if ("cache_size" in kwargs or "cache" in kwargs) and cache_size is not None:
+                response_config["cache"] = cache_size
+
+            return {
+                "model_name": model_name,
+                "source": "openvino",
+                "type": model_type,
+                "conversion_path": host_path,
+                "is_ovms": True,
+                "config": response_config,
+                "success": True,
+                "mode": "pull",
+                "pulled_from": pull_result["repo_id"],
+                "message": f"Model successfully pulled from pre-converted repo: {pull_result['repo_id']}."
+            }
+
+        logger.info(f"Pull mode did not find a match. Proceeding with conversion for {model_name}.")
+        # --- End Pull Mode ---
+        
+        # Extract model metadata
+        huggingface_token = hf_token
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         version = kwargs.get("version", "")
 

@@ -33,8 +33,40 @@ export class SearchStateService {
     selection: TimeFilterSelection | null;
     range: { start: string; end: string } | null;
   } {
+    if (!timeFilter) {
+      return { selection: null, range: null };
+    }
+
+    if (timeFilter.start || timeFilter.end) {
+      if (!timeFilter.start || !timeFilter.end) {
+        return { selection: null, range: null };
+      }
+
+      const startDate = new Date(timeFilter.start);
+      const endDate = new Date(timeFilter.end);
+      if (
+        Number.isNaN(startDate.getTime()) ||
+        Number.isNaN(endDate.getTime()) ||
+        startDate > endDate
+      ) {
+        return { selection: null, range: null };
+      }
+
+      const startIso = startDate.toISOString();
+      const endIso = endDate.toISOString();
+
+      return {
+        selection: {
+          ...timeFilter,
+          start: startIso,
+          end: endIso,
+          source: timeFilter.source || 'absolute',
+        },
+        range: { start: startIso, end: endIso },
+      };
+    }
+
     if (
-      !timeFilter ||
       timeFilter.value === undefined ||
       timeFilter.value === null ||
       !timeFilter.unit
@@ -105,7 +137,7 @@ export class SearchStateService {
       unit: (entity.timeFilterUnit as TimeFilterUnit) ?? undefined,
       start: entity.timeFilterStart ?? undefined,
       end: entity.timeFilterEnd ?? undefined,
-      source: hasRange ? 'relative' : undefined,
+      source: hasSelection ? 'relative' : hasRange ? 'absolute' : undefined,
     };
   }
 

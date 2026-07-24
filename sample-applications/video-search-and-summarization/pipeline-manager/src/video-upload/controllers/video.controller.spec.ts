@@ -224,7 +224,31 @@ describe('VideoController', () => {
 
       const result = await controller.createSearchEmbeddings({ videoId });
 
-      expect(videoService.createSearchEmbeddings).toHaveBeenCalledWith(videoId);
+      expect(videoService.createSearchEmbeddings).toHaveBeenCalledWith(videoId, []);
+      expect(result).toBe(mockResponseData);
+    });
+
+    it('should merge request tags before creating embeddings', async () => {
+      const mockResponseData = { status: 'success', message: 'Embeddings created' };
+      const mockResponse = {
+        data: mockResponseData,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: { headers: {} }
+      } as any;
+      videoService.createSearchEmbeddings.mockResolvedValueOnce(mockResponse);
+      const videoId = 'test-video-123';
+
+      const result = await controller.createSearchEmbeddings(
+        { videoId },
+        { tags: 'new-tag,  another-tag ' },
+      );
+
+      expect(videoService.createSearchEmbeddings).toHaveBeenCalledWith(
+        videoId,
+        ['new-tag', 'another-tag'],
+      );
       expect(result).toBe(mockResponseData);
     });
 

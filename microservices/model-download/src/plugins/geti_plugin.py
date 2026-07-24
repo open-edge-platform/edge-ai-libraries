@@ -200,6 +200,123 @@ class GetiPlugin(ModelDownloadPlugin):
     def list_models(self, filters: Optional[Dict[str, Any]] = None, limit: int = 50,
                     offset: int = 0, **kwargs: Any) -> Dict[str, Any]:
         """List models available on the configured Geti server."""
+        return asyncio.run(self._list_models_async(filters=filters, limit=limit, offset=offset))
+
+    async def _list_models_async(self, filters: Optional[Dict[str, Any]] = None,
+                                 limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+        filters = filters or {}
+        self._validate_listing_filters(filters)
+        await self._ensure_initialized()
+
+        if not self.geti.workspace_id:
+            raise ValueError("Missing GETI_WORKSPACE_ID environment variable.")
+
+        project_id = str(filters.get("project_id")) if filters.get("project_id") is not None else None
+        project_name = str(filters.get("project_name")).lower() if filters.get("project_name") is not None else None
+        model_group_id = str(filters.get("model_group_id")) if filters.get("model_group_id") is not None else None
+        model_group_name = str(filters.get("model_group_name")).lower() if filters.get("model_group_name") is not None else None
+        model_name = str(filters.get("model_name")).lower() if filters.get("model_name") is not None else None
+        export_type = str(filters.get("export_type") or DEFAULT_EXPORT_TYPE).lower()
+        precision = str(filters.get("precision")).lower() if filters.get("precision") is not None else None
+        model_format = filters.get("model_format")
+
+        projects = await self.get_projects(project_id=project_id)
+        if project_name and not project_id:
+            projects = [p for p in projects if project_name in str(p.get("name", "")).lower()]
+
+        items = []
+        for project_info in projects:
+            project = project_info["project"]
+            model_client = await self._get_or_create_model_client(project_info["id"], project)
+            model_groups, latest_models = await asyncio.to_thread(self._get_model_groups_and_latest_models, model_client)
+            groups_by_id = {mg.id: mg for mg in model_groups}
+
+            for model in latest_models:
+                group = groups_by_id.get(model.model_group_id)
+                if model_group_id and model.model_group_id != model_group_id:
+                    continue
+                if model_group_name and not model_group_id and (group is None or model_group_name not in str(group.name).lower()):
+                    continue
+                if model_name and model_name not in str(model.name).lower():
+                    continue
+
+                optimized_models = list(getattr(model, "optimized_models", []) or [])
+                if export_type == "optimized":
+                    matched_optimized_models, _ = self._filter_optimized_models(
+                        optimized_models, model_format, precision
+                    )
+                    # if none matched, skip the model
+                    if not matched_optimized_models:
+                        continue
+                else:
+                    matched_optimized_models = optimized_models
+
+                creation_time = getattr(model, "creation_time", None)
+                last_modified = getattr(model, "last_updated", None) or getattr(model, "update_time", None) or creation_time
+                metadata = {
+                    "workspace_id": getattr(self.geti, "workspace_id", None),
+                    "project_id": project_info.get("id"),
+                    "project_name": project_info.get("name"),
+                    "model_group_id": getattr(model, "model_group_id", None),
+                    "model_group_name": getattr(group, "name", None),
+                    "model_id": getattr(model, "id", None),
+                    "optimized_model_ids": [getattr(om, "id", None) for om in matched_optimized_models],
+                }
+
+                items.append({
+                    "name": getattr(model, "name", None) or getattr(model, "id", ""),
+                    "owner": project_info.get("name"), # Project name is owner
+                    "precisions": self._collect_model_precisions(matched_optimized_models),
+                    "model_type": self._get_task_type_for_group(project, group),
+                    "last_modified": last_modified.isoformat() if hasattr(last_modified, "isoformat") else last_modified,
+                    "metadata": metadata,
+                })
+
+        total = len(items)
+        page = items[offset: offset + limit]
+        return {"items": page, "total": total}
+
+    @staticmethod
+    def _get_model_groups_and_latest_models(model_client: ModelClient) -> Tuple[List[Any], List[Any]]:
+        return model_client.get_all_model_groups(), model_client.get_latest_model_for_all_model_groups()
+
+    @staticmethod
+    def _collect_model_precisions(models: List[Any]) -> List[str]:
+        precisions = set()
+        for model in models:
+            model_precision = getattr(model, "precision", None)
+            model_precisions = model_precision if isinstance(model_precision, list) else [model_precision]
+            precisions.update(str(precision) for precision in model_precisions if precision is not None)
+        return sorted(precisions)
+
+    @staticmethod
+    def _get_task_type_for_group(project: Any, model_group: Any) -> Optional[str]:
+        if model_group is None:
+            return None
+
+        group_task_id = getattr(model_group, "task_id", None)
+        for task in project.get_trainable_tasks():
+            if getattr(task, "id", None) == group_task_id:
+                return str(getattr(task, "task_type", None))
+        return None
+
+    def can_handle(self, model_name: str, hub: str, **kwargs: Any) -> bool:
+        """Check if plugin can handle the given model.
+        
+        Returns True if hub is 'geti' and required credentials are set.
+        """
+        if hub.lower() != "geti":
+            return False
+
+        required_vars = [self._server_url, self._server_api_token]
+
+    @property
+    def listing_filter_fields(self) -> List[str]:
+        return GETI_LISTING_FILTER_FIELDS
+
+    def list_models(self, filters: Optional[Dict[str, Any]] = None, limit: int = 50,
+                    offset: int = 0, **kwargs: Any) -> Dict[str, Any]:
+        """List models available on the configured Geti server."""
         session = self._session_from_kwargs(kwargs)
         return asyncio.run(self._list_models_async(session, filters=filters, limit=limit, offset=offset))
 

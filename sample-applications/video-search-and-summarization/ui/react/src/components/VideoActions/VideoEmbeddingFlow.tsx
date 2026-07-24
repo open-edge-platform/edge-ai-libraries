@@ -16,7 +16,7 @@ import {
 import { Information } from '@carbon/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../../redux/store';
-import { SearchSelector } from '../../redux/search/searchSlice';
+import { LoadTags, SearchSelector } from '../../redux/search/searchSlice';
 import { videosLoad, videosSelector } from '../../redux/video/videoSlice';
 import { Video } from '../../redux/video/video';
 import axios from 'axios';
@@ -147,6 +147,7 @@ const SettingsPanel = styled.div`
   width: 100%;
   padding-bottom: 1rem;
   overflow-y: auto;
+  overflow-x: visible;
   max-height: 50vh;
 `;
 
@@ -301,6 +302,18 @@ type VideoUploadPayload = {
 export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps) {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
+
+  const createLabelWithTooltip = (label: string, tooltipContent: string) => (
+    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      {label}
+      <Toggletip autoAlign>
+        <ToggletipButton label={t('info')}>
+          <Information />
+        </ToggletipButton>
+        <ToggletipContent>{tooltipContent}</ToggletipContent>
+      </Toggletip>
+    </span>
+  );
 
   // API endpoints
   const videoUploadAPi = `${APP_URL}/videos`;
@@ -572,10 +585,11 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
     }
   };
 
-  const triggerEmbeddings = async (videoId: string) => {
+  const triggerEmbeddings = async (videoId: string, tags?: string) => {
     const api = [videoUploadAPi, 'search-embeddings', videoId].join('/');
+    const body = tags && tags.trim().length > 0 ? { tags } : undefined;
     try {
-      const res = await axios.post<{ status: string; message: string }>(api);
+      const res = await axios.post<{ status: string; message: string }>(api, body);
       return res.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -583,10 +597,11 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
         const status = error.response?.status;
         const timeoutHit =
           error.code === 'ECONNABORTED' ||
+          status === 408 ||
           status === 504 ||
           /timeout/i.test(responseMessage || error.message || '');
 
-        if (timeoutHit || responseMessage === 'Internal server error') {
+        if (timeoutHit) {
           throw new Error(t('timeoutError'));
         }
 
@@ -639,11 +654,13 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       }
 
       setProgressText(t('CreatingEmbeddings'));
-      const embeddingRes = await triggerEmbeddings(videoIdToUse);
+      const embeddingRes = await triggerEmbeddings(videoIdToUse, videoData.tags);
 
       if (embeddingRes.status === 'success') {
         setProgressText(t('allDone'));
         setUploading(false);
+        dispatch(videosLoad());
+        dispatch(LoadTags());
         resetForm();
         notify(t('CreatingEmbeddings') + ' ' + t('success'), NotificationSeverity.SUCCESS);
         if (onClose) {
@@ -664,10 +681,11 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
         const status = error.response?.status;
         const timeoutHit =
           error.code === 'ECONNABORTED' ||
+          status === 408 ||
           status === 504 ||
           /timeout/i.test(responseMessage || error.message || '');
 
-        if (timeoutHit || responseMessage === 'Internal server error') {
+        if (timeoutHit) {
           errorMessage = t('timeoutError');
         } else if (responseMessage) {
           errorMessage = responseMessage;
@@ -675,11 +693,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
           errorMessage = error.message;
         }
       } else if (error instanceof Error) {
-        if (/Embedding creation failed: Internal server error/i.test(error.message)) {
-          errorMessage = t('timeoutError');
-        } else {
         errorMessage = error.message;
-        }
       }
 
       setUploadErrorMessage(errorMessage);
@@ -879,19 +893,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                   />
                 )}
                 <TextInput
-                  labelText={
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {t('customVideoTags')}
-                      <Toggletip>
-                        <ToggletipButton>
-                          <Information />
-                        </ToggletipButton>
-                        <ToggletipContent>
-                          {t('videoTagsinfo')}
-                        </ToggletipContent>
-                      </Toggletip>
-                    </span>
-                  }
+                  labelText={createLabelWithTooltip(t('customVideoTags'), t('videoTagsinfo'))}
                   onChange={(ev) => {
                     setVideoTags(ev.currentTarget.value);
                   }}

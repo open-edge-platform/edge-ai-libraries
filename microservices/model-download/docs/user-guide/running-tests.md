@@ -31,7 +31,7 @@ uv pip install -e ".[dev]"
 
 The test suite is organized as follows:
 
-```
+```text
 tests/
 ├── conftest.py              # Test configuration and fixtures
 ├── unit/

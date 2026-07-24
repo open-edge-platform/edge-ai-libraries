@@ -133,7 +133,7 @@ install_dependencies() {
             ;;
         ollama)
             echo -e "${BLUE}INFO:${NC} Installing Ollama binary..."
-            OLLAMA_VERSION="v0.17.4"
+            OLLAMA_VERSION="v0.32.0"
             OLLAMA_ARCHIVE="${PARALLEL_TMP_DIR}/ollama-linux-amd64.tar.zst"
             OLLAMA_URL="https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst"
 
@@ -169,8 +169,9 @@ install_dependencies() {
             ;;
         ultralytics)
             echo -e "${BLUE}INFO:${NC} Downloading Ultralytics public models script from GitHub"
-            mkdir -p /opt/scripts
-            if curl -fsSL -o /opt/scripts/download_public_models.sh https://raw.githubusercontent.com/open-edge-platform/dlstreamer/v2026.1.0/samples/download_public_models.sh; then
+            DLSTREAMER_SAMPLES_URL="https://raw.githubusercontent.com/open-edge-platform/dlstreamer/v2026.1.0/samples"
+            mkdir -p /opt/scripts/models
+            if curl -fsSL -o /opt/scripts/download_public_models.sh "${DLSTREAMER_SAMPLES_URL}/download_public_models.sh"; then
                 chmod +x /opt/scripts/download_public_models.sh
                 echo -e "${GREEN} SUCCESS:${NC} Ultralytics public models script downloaded to /opt/scripts/download_public_models.sh"
             else
@@ -178,6 +179,21 @@ install_dependencies() {
                 echo "1" > "${status_file}"
                 return 1
             fi
+
+            # mars-small128 relies on a companion converter (models/convert_mars_deepsort.py)
+            # and shared_utils.py; the script expects them alongside itself under /opt/scripts.
+            if ! curl -fsSL -o /opt/scripts/shared_utils.py "${DLSTREAMER_SAMPLES_URL}/shared_utils.py"; then
+                echo -e "${RED} ERROR:${NC} Failed to download shared_utils.py"
+                echo "1" > "${status_file}"
+                return 1
+            fi
+            if ! curl -fsSL -o /opt/scripts/models/convert_mars_deepsort.py "${DLSTREAMER_SAMPLES_URL}/models/convert_mars_deepsort.py"; then
+                echo -e "${RED} ERROR:${NC} Failed to download convert_mars_deepsort.py"
+                echo "1" > "${status_file}"
+                return 1
+            fi
+            echo -e "${GREEN} SUCCESS:${NC} Mars-Small128 converter and shared_utils.py downloaded"
+
             echo -e "${BLUE}INFO:${NC} Ultralytics dependencies will be installed via uv sync"
             echo "0" > "${status_file}"
             ;;

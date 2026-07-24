@@ -89,7 +89,11 @@ WORKDIR /app
 # Copy the application code for production
 COPY . /app/
 
-RUN chown -R appuser:appuser /app 
+# Pre-create the runtime prompt-registry cache mountpoint. The container runs
+# with a read-only root filesystem, so the bind mount target must already
+# exist inside the image as an empty directory.
+RUN mkdir -p /home/appuser/.cache/.multilevel-video-understanding \
+    && chown -R appuser:appuser /app /home/appuser/.cache
 
 USER appuser
 

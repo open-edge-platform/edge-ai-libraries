@@ -1,5 +1,9 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
+jest.mock('uuid', () => ({
+  v4: jest.fn(() => 'mock-uuid'),
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { AudioQueueService } from './audio-queue.service';
 import { StateService } from '../services/state.service';
@@ -26,6 +30,7 @@ describe('AudioQueueService', () => {
       audioModel: 'whisper-large-v3',
     },
     video: {
+      url: 'test-state-id/source.mp4',
       dataStore: {
         objectName: 'test-state-id',
         fileName: 'test-video.mp4',
@@ -147,7 +152,7 @@ describe('AudioQueueService', () => {
         minio_bucket: 'test-bucket',
         model_name: 'whisper-large-v3',
         video_id: stateId,
-        video_name: 'test-video.mp4',
+        video_name: 'source.mp4',
       };
 
       service.startAudioProcessing(stateId);
@@ -158,6 +163,31 @@ describe('AudioQueueService', () => {
       );
       expect(audioService.generateTranscript).toHaveBeenCalledWith(
         expectedTranscriptDTO,
+      );
+    });
+
+    it('should fallback to display filename when object path is missing', () => {
+      const stateId = 'test-state-id';
+      stateService.fetch.mockReturnValue({
+        ...mockState,
+        video: {
+          ...mockState.video,
+          url: '',
+        },
+      });
+      audioService.generateTranscript.mockReturnValue(
+        of({
+          status: 200,
+          data: { transcript_path: 'test/transcript.srt' },
+        } as any),
+      );
+
+      service.startAudioProcessing(stateId);
+
+      expect(audioService.generateTranscript).toHaveBeenCalledWith(
+        expect.objectContaining({
+          video_name: 'test-video.mp4',
+        }),
       );
     });
 
