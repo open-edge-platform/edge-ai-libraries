@@ -334,8 +334,10 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
             "description": "Model status check completed",
             "model": schemas.ModelCheckStatusResponse,
         },
-        400: {
-            "description": "Invalid request body",
+        422: {
+            "description": (
+                "Request body validation failed (e.g. empty list, duplicate names)."
+            ),
             "model": schemas.MessageResponse,
         },
         500: {"description": "Unexpected error", "model": schemas.MessageResponse},
@@ -365,11 +367,14 @@ async def check_models_status(body: schemas.ModelCheckStatusRequest):
 
     ## Response Codes
 
-    | Code | Description |
-    |------|-------------|
-    | 200  | Status check completed; see `models` list for results |
-    | 400  | Request body validation failed (empty list, etc.) |
-    | 500  | Unexpected error |
+    Validation is handled by FastAPI/Pydantic before route logic runs,
+    so malformed bodies return `422` automatically.
+
+    | Code | When |
+    |------|------|
+    | 200  | Request is valid and status check completed. `models` contains one entry per matched display name. |
+    | 422  | Body validation failed (for example: `display_names` is empty, missing, or contains duplicates). |
+    | 500  | Unexpected server-side error while loading or mapping model data. |
 
     ## Examples
 
