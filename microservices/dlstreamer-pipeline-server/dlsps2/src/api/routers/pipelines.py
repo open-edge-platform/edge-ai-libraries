@@ -6,7 +6,9 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Path
 
 from api.schema import (
+    PipelineDefinitionResponse,
     PipelineStatusResponse,
+    PipelineSummaryResponse,
     StartNamedPipelineRequest,
     StartPipelineRequest,
     StartPipelineResponse,
@@ -43,10 +45,27 @@ def _get_manager() -> PipelineManager:
 # Routes
 # ---------------------------------------------------------------------------
 
-@router.get("", response_model=list[PipelineStatusResponse])
+@router.get("", response_model=list[PipelineDefinitionResponse])
 async def list_pipelines():
-    """Return all pipeline instances and their current state."""
-    return [i.to_dict() for i in _get_manager().list_all()]
+    """Return the loaded pipeline definitions from config.json (legacy API parity).
+
+    This is the pipeline "catalog" — the named pipelines available to start via
+    ``POST /pipelines/{name}/{version}`` — NOT running instances. See
+    ``GET /pipelines/status`` for the list of pipeline instances and their state.
+    """
+    if _legacy_config is None:
+        return []
+    return [
+        {
+            "name": "user_defined_pipelines",
+            "version": pipeline_cfg.name,
+            "type": "gstreamer",
+            "parameters": (
+                pipeline_cfg.parameters.model_dump() if pipeline_cfg.parameters else None
+            ),
+        }
+        for pipeline_cfg in _legacy_config.pipelines
+    ]
 
 
 @router.post("", status_code=200, response_model=StartPipelineResponse)
@@ -61,12 +80,12 @@ async def run_pipeline(request: StartPipelineRequest):
 @router.get("/status", response_model=list[PipelineStatusResponse])
 async def list_pipelines_status():
     """Return status of all pipeline instances."""
-    return [i.to_dict() for i in _get_manager().list_all()]
+    return [i.to_status_dict() for i in _get_manager().list_all()]
 
 
-@router.get("/{instance_id}", response_model=PipelineStatusResponse)
+@router.get("/{instance_id}", response_model=PipelineSummaryResponse)
 async def get_pipeline(instance_id: str = Path(..., description="Pipeline instance identifier")):
-    """Return details for a specific pipeline instance."""
+    """Return details (status + pipeline config) for a specific pipeline instance."""
     instance = _get_manager().get(instance_id)
     if not instance:
         raise HTTPException(status_code=404, detail=f"Instance {instance_id!r} not found")
@@ -75,11 +94,11 @@ async def get_pipeline(instance_id: str = Path(..., description="Pipeline instan
 
 @router.get("/{instance_id}/status", response_model=PipelineStatusResponse)
 async def get_pipeline_status(instance_id: str = Path(..., description="Pipeline instance identifier")):
-    """Return status for a specific pipeline instance."""
+    """Return status only (no pipeline config) for a specific pipeline instance."""
     instance = _get_manager().get(instance_id)
     if not instance:
         raise HTTPException(status_code=404, detail=f"Instance {instance_id!r} not found")
-    return instance.to_dict()
+    return instance.to_status_dict()
 
 
 @router.delete("/{instance_id}", response_model=StopPipelineResponse)
@@ -128,7 +147,12 @@ async def run_named_pipeline(
     pipeline_str = build_pipeline_string(pipeline_cfg, parameters=request.parameters)
     pipeline_str = apply_source(pipeline_str, request.source)
     pipeline_str = apply_destination(pipeline_str, request.destination)
-    instance_id = _get_manager().start(pipeline_str)
+    instance_id = _get_manager().start(
+        pipeline_str,
+        name=name,
+        version=version,
+        request=request.model_dump(exclude_none=True),
+    )
     return {"instance_id": instance_id}
 
 

@@ -93,13 +93,26 @@ class PipelineInstance:
     start_time: Optional[float] = None
     stop_time: Optional[float] = None
 
+    # Optional request metadata, populated when the instance was started via
+    # the legacy named-pipeline API (POST /pipelines/{name}/{version}). Mirrors
+    # the "params" summary (name/version/request body) that legacy API exposes
+    # on GET /pipelines/{instance_id}. Left as None for instances started via
+    # the raw inline POST /pipelines endpoint, since there is no request body
+    # to echo back in that case.
+    name: Optional[str] = None
+    version: Optional[str] = None
+    request: Optional[dict] = None
+
     def elapsed_time(self) -> Optional[float]:
         if self.start_time is None:
             return None
         end = self.stop_time if self.stop_time is not None else time.time()
         return max(0.0, end - self.start_time)
 
-    def to_dict(self) -> dict:
+    def to_status_dict(self) -> dict:
+        """Pure runtime-status view, matching legacy API GET /pipelines/{id}/status
+        and GET /pipelines/status (no pipeline config/request data included).
+        """
         return {
             "id": self.instance_id,
             "state": self.state.value,
@@ -109,6 +122,26 @@ class PipelineInstance:
             "elapsed_time": self.elapsed_time(),
             "message": self.error or "",
         }
+
+    def to_dict(self) -> dict:
+        """Full summary view (status + pipeline config), matching legacy API
+        GET /pipelines/{instance_id}.
+        """
+        summary = self.to_status_dict()
+        summary.update(
+            {
+                # Legacy API parity fields (see GET /pipelines/{instance_id} in
+                # the original REST API): pipeline "type" is always a raw
+                # GStreamer launch string in dlsps2, so "type" is fixed at
+                # "gstreamer".
+                "type": "gstreamer",
+                "launch_command": self.pipeline_description,
+                "name": self.name,
+                "version": self.version,
+                "request": self.request,
+            }
+        )
+        return summary
 
 
 class PipelineManager:
@@ -147,7 +180,14 @@ class PipelineManager:
     # Public API
     # ------------------------------------------------------------------
 
-    def start(self, pipeline_description: str) -> str:
+    def start(
+        self,
+        pipeline_description: str,
+        *,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+        request: Optional[dict] = None,
+    ) -> str:
         """Validate and submit a new pipeline instance.
 
         Returns immediately with an instance_id in QUEUED state; validation
@@ -155,6 +195,12 @@ class PipelineManager:
 
         Args:
             pipeline_description: GStreamer pipeline string.
+            name: Legacy pipeline "name" segment (e.g. "user_defined_pipelines"),
+                if this instance was started via the named-pipeline API.
+            version: Legacy pipeline "version" segment (the config pipeline name),
+                if this instance was started via the named-pipeline API.
+            request: The original request body (source/destination/parameters/tags),
+                if this instance was started via the named-pipeline API.
 
         Returns:
             instance_id (UUID string) assigned to this instance.
@@ -163,6 +209,9 @@ class PipelineManager:
         instance = PipelineInstance(
             instance_id=instance_id,
             pipeline_description=pipeline_description,
+            name=name,
+            version=version,
+            request=request,
         )
 
         with self._lock:

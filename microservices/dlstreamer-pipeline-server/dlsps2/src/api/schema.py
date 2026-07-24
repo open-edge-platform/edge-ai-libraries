@@ -78,6 +78,33 @@ class PipelineStatusResponse(BaseModel):
     message: str
 
 
+class PipelineSummaryResponse(PipelineStatusResponse):
+    """GET /pipelines/{instance_id} (legacy API parity): status fields PLUS the
+    pipeline config/request data ("summary"). See
+    PipelineStatusResponse for the status-only shape used by
+    GET /pipelines/status and GET /pipelines/{instance_id}/status.
+    """
+
+    type: str = "gstreamer"
+    launch_command: Optional[str] = None
+    name: Optional[str] = None
+    version: Optional[str] = None
+    request: Optional[dict] = None
+
+
+class PipelineDefinitionResponse(BaseModel):
+    """One entry of GET /pipelines (legacy API parity: the loaded pipeline
+    "catalog" from config.json, NOT running instances — see GET /pipelines/status
+    for the list of instances).
+    """
+
+    name: str
+    version: str
+    type: str = "gstreamer"
+    description: Optional[str] = None
+    parameters: Optional[dict] = None
+
+
 class StartPipelineResponse(BaseModel):
     instance_id: str
 
