@@ -1,11 +1,5 @@
-import type { ModelInstallStatus } from "@/api/api.generated";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useModelInstall } from "@/features/models/useModelInstall";
-import { Download, Loader2 } from "lucide-react";
-import { useMemo } from "react";
-import { useAppSelector } from "@/store/hooks";
-import { selectModels } from "@/store/reducers/models";
+import type { ModelInstallStatus } from "@/api/api.generated.ts";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +7,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog.tsx";
+import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
+import { ModelInstallButtonSlot } from "@/features/models/ModelInstallButtonSlot";
+import { useModelInstall } from "@/features/models/useModelInstall.ts";
+import { useAppSelector } from "@/store/hooks.ts";
+import { selectModels } from "@/store/reducers/models.ts";
+import { useMemo } from "react";
 
 type PipelineModelsRequiredDialogProps = {
   open: boolean;
@@ -25,21 +25,6 @@ type PipelineModelsRequiredDialogProps = {
 export type PipelineModelStatusItem = {
   model: string;
   installStatus: ModelInstallStatus;
-};
-
-const formatInstallStatus = (status: ModelInstallStatus): string =>
-  status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-
-const statusBadgeVariant = (
-  status: ModelInstallStatus,
-): "default" | "secondary" | "destructive" | "outline" => {
-  if (status === "installed") return "default";
-  if (status === "installing") return "secondary";
-  if (status === "failed") return "destructive";
-  return "outline";
 };
 
 const toModelLabel = (value: string): string => value.split("/").pop() || value;
@@ -84,6 +69,7 @@ export const PipelineModelsRequiredDialog = ({
                 item.installStatus !== "installing" &&
                 Boolean(installableModelName);
               const pending = isPending(installableModelName);
+              const showInstallButton = canInstall && !pending;
 
               return (
                 <div
@@ -97,31 +83,23 @@ export const PipelineModelsRequiredDialog = ({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Badge variant={statusBadgeVariant(item.installStatus)}>
-                      {formatInstallStatus(item.installStatus)}
-                    </Badge>
-                    {!isInstalled && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!canInstall || pending}
-                        onClick={async () => {
-                          if (!installableModelName) {
-                            return;
-                          }
+                    <ModelInstallStatusIndicator
+                      status={item.installStatus}
+                      showInstalling={pending}
+                    />
 
-                          await installModel(installableModelName);
-                          await onModelsChanged?.();
-                        }}
-                      >
-                        {pending ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Download className="size-4" />
-                        )}
-                        Download
-                      </Button>
-                    )}
+                    <ModelInstallButtonSlot
+                      showButton={showInstallButton}
+                      disabled={!canInstall}
+                      onInstall={async () => {
+                        if (!installableModelName) {
+                          return;
+                        }
+
+                        await installModel(installableModelName);
+                        await onModelsChanged?.();
+                      }}
+                    />
                   </div>
                 </div>
               );
