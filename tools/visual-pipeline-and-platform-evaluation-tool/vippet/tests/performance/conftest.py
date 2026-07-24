@@ -4,6 +4,7 @@
 """Shared fixtures for VIPPET performance benchmark tests."""
 
 import logging
+import os
 import time
 from collections.abc import Generator
 from datetime import datetime
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import requests
+import httpx
 
 from helpers.api_helpers import fetch_devices
 from helpers.pipeline_case_helpers import (
@@ -19,26 +20,40 @@ from helpers.pipeline_case_helpers import (
     discover_pipeline_cases_for_pytest,
 )
 from perf_helpers.config import (
+    BASE_URL,
     CREATE_LATEST_LINK,
     METRICS_SAMPLE_INTERVAL,
     METRICS_URL,
     PERF_RESULTS_DIR,
+    PIPELINE_FILTER,
+    POLL_INTERVAL,
+    POLL_TIMEOUT,
+    REQUEST_TIMEOUT,
     RESULT_FORMATS,
+    SKIP_PIPELINES,
+    SKIP_VARIANTS,
     STREAM_COUNTS,
+    VARIANT_FILTER,
 )
 from perf_helpers.hw_monitor import HardwareMonitor
 from perf_helpers.reporters import ResultExporter, generate_html_report
 
 logger = logging.getLogger(__name__)
 
+# Propagate perf YAML config to env vars consumed by functional helpers.
+# Only set if not already overridden by the environment.
+os.environ.setdefault("VIPPET_BASE_URL", BASE_URL)
+os.environ.setdefault("VIPPET_JOB_TIMEOUT_SECONDS", str(int(POLL_TIMEOUT)))
+os.environ.setdefault("VIPPET_JOB_POLL_INTERVAL", str(POLL_INTERVAL))
 
-def _collect_system_info(session: requests.Session | None = None) -> dict[str, Any]:
+
+def _collect_system_info(session: httpx.Client | None = None) -> dict[str, Any]:
     """Collect system details from VIPPET APIs for the benchmark report."""
 
     devices_info: dict[str, str] = {}
     if session is not None:
         try:
-            devices = fetch_devices(session)
+            devices = fetch_devices(session)  # type: ignore[arg-type]
             for device in devices:
                 family = device.get("device_family", "").upper()
                 full_name = device.get("full_device_name", "")
@@ -75,6 +90,10 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     params = []
     ids = []
 
+    _allowed_variants = {v.upper() for v in VARIANT_FILTER}
+    _skip_pipelines = {p.lower() for p in SKIP_PIPELINES}
+    _skip_variants = {v.upper() for v in SKIP_VARIANTS}
+
     for case_param, case_id in zip(_PIPELINE_CASES, _CASE_IDS):
         actual_case: PipelineCase | None = None
         is_skipped = False
@@ -88,6 +107,31 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             actual_case = wrapped.values[0]
             skip_marks = list(wrapped.marks)
             is_skipped = any(m.name == "skip" for m in skip_marks)
+
+        if not is_skipped and actual_case is not None:
+            # Apply pipeline filter from config
+            if PIPELINE_FILTER != "*":
+                allowed_ids = (
+                    PIPELINE_FILTER
+                    if isinstance(PIPELINE_FILTER, list)
+                    else [PIPELINE_FILTER]
+                )
+                if actual_case.pipeline_id not in allowed_ids:
+                    continue
+
+            # Apply skip lists
+            if actual_case.pipeline_id.lower() in _skip_pipelines:
+                continue
+
+            device_family = actual_case.device_family.upper()
+            variant_parts = set(device_family.split("_"))
+
+            if device_family in _skip_variants:
+                continue
+
+            # Apply variant filter — all parts must be in allowed variants
+            if not variant_parts <= _allowed_variants:
+                continue
 
         for streams in STREAM_COUNTS:
             marks: list[Any] = [pytest.mark.perf]
@@ -111,12 +155,14 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 
 @pytest.fixture(scope="session")
-def http_client() -> Generator[requests.Session, None, None]:
-    """Reusable HTTP session for all performance tests."""
-    session = requests.Session()
-    session.headers.update({"Accept": "application/json"})
-    yield session
-    session.close()
+def http_client() -> Generator[httpx.Client, None, None]:
+    """Reusable HTTP client for all performance tests."""
+    client = httpx.Client(
+        headers={"Accept": "application/json"},
+        timeout=REQUEST_TIMEOUT,
+    )
+    yield client
+    client.close()
 
 
 @pytest.fixture
@@ -127,7 +173,7 @@ def hw_monitor() -> HardwareMonitor:
 
 @pytest.fixture(scope="session")
 def results_collector(
-    request: pytest.FixtureRequest, http_client: requests.Session
+    request: pytest.FixtureRequest, http_client: httpx.Client
 ) -> list[dict[str, Any]]:
     """Session-scoped accumulator that exports results on teardown."""
     results: list[dict[str, Any]] = []

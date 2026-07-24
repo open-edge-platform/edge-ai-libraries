@@ -13,17 +13,21 @@ import time
 from typing import Any
 
 import pytest
-import requests
+import httpx
 
 from helpers.api_helpers import (
-    run_job_with_retry,
     start_performance_job,
     wait_for_job_completion,
 )
-from helpers.config import BASE_URL
 from helpers.pipeline_case_helpers import PipelineCase
 
-from perf_helpers.config import MAX_RUNTIME, OUTPUT_MODE, RETRY_DELAY_SECONDS
+from perf_helpers.config import (
+    BASE_URL,
+    MAX_RETRIES,
+    MAX_RUNTIME,
+    OUTPUT_MODE,
+    RETRY_DELAY_SECONDS,
+)
 from perf_helpers.hw_monitor import HardwareMonitor
 
 logger = logging.getLogger(__name__)
@@ -50,17 +54,17 @@ def _build_performance_payload(case: PipelineCase, streams: int) -> dict[str, An
 
 
 def _attempt_performance_job(
-    session: requests.Session, payload: dict[str, Any]
+    session: httpx.Client, payload: dict[str, Any]
 ) -> dict[str, Any]:
     """Submit a performance job and wait for it to finish."""
-    job_id = start_performance_job(session, payload)
+    job_id = start_performance_job(session, payload)  # type: ignore[arg-type]
     status_url = f"{BASE_URL}/jobs/tests/performance/{job_id}/status"
-    return wait_for_job_completion(session, status_url)
+    return wait_for_job_completion(session, status_url)  # type: ignore[arg-type]
 
 
 @pytest.mark.perf
 def test_pipeline_performance(
-    http_client: requests.Session,
+    http_client: httpx.Client,
     pipeline_case: PipelineCase | None,
     stream_count: int,
     hw_monitor: HardwareMonitor,
@@ -81,10 +85,20 @@ def test_pipeline_performance(
     hw_monitor.start()
 
     try:
-        final_status = run_job_with_retry(
-            lambda: _attempt_performance_job(http_client, payload),
-            retry_delay_seconds=RETRY_DELAY_SECONDS,
-        )
+        final_status = _attempt_performance_job(http_client, payload)
+        retries = 0
+        while final_status.get("state") != "COMPLETED" and retries < MAX_RETRIES:
+            retries += 1
+            logger.warning(
+                "Attempt %d/%d failed (state=%s, error=%s) – retrying after %.1fs",
+                retries,
+                MAX_RETRIES + 1,
+                final_status.get("state"),
+                final_status.get("error_message"),
+                RETRY_DELAY_SECONDS,
+            )
+            time.sleep(RETRY_DELAY_SECONDS)
+            final_status = _attempt_performance_job(http_client, payload)
     finally:
         hw_stats = hw_monitor.stop()
 

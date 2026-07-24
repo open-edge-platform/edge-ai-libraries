@@ -13,7 +13,7 @@ import threading
 import time
 from typing import Any
 
-import requests
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +32,12 @@ def _fetch_metrics_manager(url: str) -> dict[str, float]:
     try:
         raw = ""
         for attempt in range(3):
-            resp = requests.get(url, timeout=5, stream=True)
-            resp.raise_for_status()
-            for line in resp.iter_lines(decode_unicode=True):
-                if isinstance(line, str) and line.startswith("data: "):
-                    raw = line[6:]
-                    break
-            resp.close()
+            with httpx.stream("GET", url, timeout=5) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if line.startswith("data: "):
+                        raw = line[6:]
+                        break
             if raw:
                 break
             time.sleep(1)
