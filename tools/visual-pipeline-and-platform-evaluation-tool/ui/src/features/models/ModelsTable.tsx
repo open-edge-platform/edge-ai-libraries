@@ -7,31 +7,15 @@ import {
   TableRow,
 } from "@/components/ui/table.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { Badge } from "@/components/ui/badge.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import { selectPipelinesMap } from "@/store/reducers/pipelines";
-import { type ModelInstallStatus } from "@/api/api.generated.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { useModelInstall } from "@/features/models/useModelInstall";
-
-const formatInstallStatus = (status: ModelInstallStatus): string =>
-  status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-
-const STATUS_BADGE_VARIANT: Record<
-  ModelInstallStatus,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
-  installed: "default",
-  installing: "secondary",
-  not_installed: "outline",
-  failed: "destructive",
-};
+import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
+import { ModelInstallButtonSlot } from "@/features/models/ModelInstallButtonSlot";
 
 export const ModelsTable = () => {
   const models = useAppSelector(selectModels);
@@ -201,16 +185,7 @@ export const ModelsTable = () => {
                 <TableCell>{model.category ?? "-"}</TableCell>
                 <TableCell>{model.source}</TableCell>
                 <TableCell>
-                  {model.install_status === "installing" ? (
-                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Loader2 className="size-3.5 animate-spin" />
-                      Installing
-                    </span>
-                  ) : (
-                    <Badge variant={STATUS_BADGE_VARIANT[model.install_status]}>
-                      {formatInstallStatus(model.install_status)}
-                    </Badge>
-                  )}
+                  <ModelInstallStatusIndicator status={model.install_status} />
                 </TableCell>
                 <TableCell>
                   {Array.from(
@@ -230,21 +205,10 @@ export const ModelsTable = () => {
                     .join("\n") || "-"}
                 </TableCell>
                 <TableCell className="text-right">
-                  {canInstall && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={isPending}
-                      onClick={() => handleInstall(model.name)}
-                    >
-                      {isPending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Download className="size-4" />
-                      )}
-                      Install
-                    </Button>
-                  )}
+                  <ModelInstallButtonSlot
+                    showButton={canInstall && !isPending}
+                    onInstall={() => handleInstall(model.name)}
+                  />
                 </TableCell>
               </TableRow>
             );

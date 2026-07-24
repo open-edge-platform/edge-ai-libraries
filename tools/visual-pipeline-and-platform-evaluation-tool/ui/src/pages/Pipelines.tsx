@@ -70,7 +70,7 @@ import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import {
   PipelineModelsRequiredDialog,
   type PipelineModelStatusItem,
-} from "@/features/pipelines/PipelineModelsRequiredDialog.tsx";
+} from "@/features/models/PipelineModelsRequiredDialog.tsx";
 type UrlParams = {
   id: string;
   variant: string;
