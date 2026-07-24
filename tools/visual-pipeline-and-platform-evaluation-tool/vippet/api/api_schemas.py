@@ -2394,7 +2394,7 @@ class ModelCheckStatusRequest(BaseModel):
 
     display_names: list[str] = Field(
         ...,
-        min_items=1,
+        min_length=1,
         description="Non-empty list of model display names to check.",
     )
 
