@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
   pull_request:
     branches:
-      - main
+      - Vss-health
     paths:
       - 'sample-applications/video-search-and-summarization/**'
       - 'microservices/visual-data-preparation-for-retrieval/**'
