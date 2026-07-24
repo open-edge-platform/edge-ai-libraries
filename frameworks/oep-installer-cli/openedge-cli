@@ -55,7 +55,8 @@ act_extract_modules () {
 act_extract_args () {
   local act_name=$1
   local module_name=$2
-  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${act_name}_" | cut -f4- -d_))
+  local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_))
+  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f4- -d_))
   local all_module_args=" ${all_modules[*]/#/--} "
   local args1=() args2=() i j
   for ((i=3;i<=${#*};i++)); do
@@ -65,7 +66,7 @@ act_extract_args () {
       done
       [ "${*:$((i-1)):1}" != "--${module_name}" ] || args2+=(${*:$i:$((j-i))})
       i=$((j-1))
-    elif [[ "${*:$i:1}" = "--"* ]]; then
+    elif [[ " ${all_module_args} " != " --${*:$i:1} " ]]; then
       args1+=(${*:$i:1})
     fi
   done
@@ -82,8 +83,6 @@ act_find_deps () {
     local handler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_${act_name}_${modules[$i]}$" | cut -f3 -d' ')
     if [ -n "$handler" ]; then
       handlers[$handler]=1
-    elif [ -z "$profiler" ]; then
-      echo "Skipping unknown component or profile: ${modules[$i]}" 1>&2
     fi
     i=$((i+1))
   done
@@ -101,6 +100,7 @@ act_helpper () {
     if [ ${#components[*]} -gt 0 ]; then
       echo "${act_name} options:"
       echo "  --dry-run       dry-run the ${act_name} sequence."
+      echo "  --continue      continue execution upon errors."
       if [ "${act_name}" = "install" ]; then
         echo "  --reset-<name>  force reinstallation of the component if exit."
       fi
@@ -127,31 +127,43 @@ act_helpper () {
       awk -v n=$1 '{print strftime("%s"),n,$0;fflush()}'
     }
     local start_t=$SECONDS
-    local -A timings=()
+    local reports=()
     for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
       name=$(echo $handler | cut -f4- -d_)
       echo "==== ${act_name} $name ====" > >(logecho $name)
-      local start_c=$SECONDS
-      if [[ "$*" = *"--dry-run"* ]]; then
+      if [[ " $* " = *" --dry-run "* ]]; then
         echo "Invoke $handler with $(act_extract_args $act_name $name $*)" > >(logecho $name)
       else
-        ($handler $(act_extract_args $act_name $name $*)) > >(logecho $name) 2> >(logecho $name)
+        local start_c=$SECONDS
+        set +e
+        (
+          set -e
+          $handler $(act_extract_args $act_name $name $*)
+        ) > >(logecho $name) 2> >(logecho $name)
+        local rc=$?
+        reports+=("$name:rc=$rc:$(( SECONDS - start_c )) seconds")
+        set -e
+        [[ $rc -eq 0 || " $* " = *" --continue "* ]] || break
       fi
-      timings[$name]=$(( SECONDS - start_c ))
-      echo "==== ${act_name} $name completed: ${timings[$name]} seconds ====" > >(logecho $name)
     done
     # wait for background processes
     wait
     local end_t=$SECONDS
 
-    echo
-    echo "==== Timing Report ===="
-    (
-      for name in ${!timings[@]}; do
-        echo "$name: ${timings[$name]} seconds"
-      done
+    if [ ${#reports[@]} -gt 0 ]; then
+      echo
+      echo "======== ${act_name^^} REPORT ========"
+      (
+        for line in "${reports[@]}"; do
+          if [[ "$line" = *":rc=0:"* ]]; then
+            echo "$line"
+          else
+            echo -e "\033[31m$line\033[0m"
+          fi
+        done
+      ) | column -s: -t
       echo "Total duration: $(( end_t - start_t )) seconds"
-    ) | column -s: -t
+    fi
   else
     echo "Component not found" 1>&2
     exit 3
