@@ -185,9 +185,9 @@ subcommand_bootstrap () {
     echo "  --install=<name>       set default installation component|profile."
     echo "  --start=<name>         set default start component|profile."
     echo
-    local profiles=($(ls -1 "$mydir/profile" | grep -E "^${ID_LIKE}_" | cut -f2- -d_))
+    local profiles=($(cd "$mydir";find profile -name "$ID_LIKE" | cut -f2 -d/))
     [ ${#profiles[*]} -eq 0 ] || echo "  list of bootstrap profiles: ${profiles[*]}"
-    local modules=($(ls -1 "$mydir/module" | grep -E "^${ID_LIKE}_" | cut -f2- -d_))
+    local modules=($(cd "$mydir";find module -name "$ID_LIKE" | cut -f2 -d/))
     [ ${#modules[*]} -eq 0 ] || echo "  list of bootstrap components: ${modules[*]}"
     [ "${#profiles[*]}${#modules[*]}" = "00" ] || echo
     return 0
@@ -198,8 +198,8 @@ subcommand_bootstrap () {
   local -A scripts=()
   local i=0 script
   while [ $i -lt ${#modules[*]} ]; do
-    local script="$mydir"/profile/${ID_LIKE}_${modules[$i]}
-    [ -r "$script" ] || script="$mydir"/module/${ID_LIKE}_${modules[$i]}
+    local script="$mydir"/profile/${modules[$i]}/${ID_LIKE}
+    [ -r "$script" ] || script="$mydir"/module/${modules[$i]}/${ID_LIKE}
     if [ -r "$script" ]; then
       scripts["$script"]=1
       . "$script"

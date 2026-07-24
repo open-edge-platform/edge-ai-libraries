@@ -1,7 +1,7 @@
 
 ### Introduction
 
-Components are installable modules within the OEP installer. Their filenames are in the pattern of `<OS_LIKE>_<component-name>`, where `<OS_LIKE>` is the OS family identifier (from `/etc/os-release`.) 
+Components are installable modules within the OEP installer. Their filenames are in the pattern of `<component-name>/<OS_LIKE>`, where `<OS_LIKE>` is the OS family identifier (from `/etc/os-release`.) 
 The component name should contain no whitespace or special character except '_'.  
 
 ### Develop a component

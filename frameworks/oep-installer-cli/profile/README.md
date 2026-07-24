@@ -1,7 +1,7 @@
 
 ### Introduction
 
-Profiles are virtual groups of installer components. The profile filenames use this pattern: `<OS_LIKE>_<profile-name>`, where `<OS_LIKE>` is the OS family identifier obtained from `/etc/os-release`, 
+Profiles are virtual groups of installer components. The profile filenames use this pattern: `<profile-name>/<OS_LIKE>`, where `<OS_LIKE>` is the OS family identifier obtained from `/etc/os-release`, 
 and the profile name should contain no space or special character except `_`.  
 
 ### Develop a Profile
