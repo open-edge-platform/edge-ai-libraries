@@ -610,7 +610,9 @@ class TestListModels(unittest.TestCase):
         # Verify that default is set to True when model is used by pipelines
         self.assertTrue(models[0].default)
 
-    def test_list_models_default_ignores_yaml_default_without_pipeline_usage(self) -> None:
+    def test_list_models_default_ignores_yaml_default_without_pipeline_usage(
+        self,
+    ) -> None:
         entry = _make_supported_model(
             name="yolo11n",
             canonical_name="yolo11n",
