@@ -69,6 +69,19 @@ services:
       - METRICS_RETENTION_SECONDS=${METRICS_RETENTION_SECONDS:-300}
       - MAX_METRICS_BATCH_SIZE=${MAX_METRICS_BATCH_SIZE:-1000}
 
+      # Hardware-telemetry collector toggles (gate telegraf.d/*.conf in
+      # entrypoint.sh). Every collector idles gracefully on hardware that
+      # lacks its source, so these only decide which plugins load — never
+      # whether the deploy succeeds. See docs/TCMI-INTEGRATION-PROPOSAL.md §6.
+      - ENABLE_RAPL_POWER=${ENABLE_RAPL_POWER:-true}
+      - ENABLE_DRAM_BW=${ENABLE_DRAM_BW:-auto}
+      - ENABLE_DISK_IO=${ENABLE_DISK_IO:-true}
+      - ENABLE_NET_IO=${ENABLE_NET_IO:-true}
+      - ENABLE_INTERRUPTS=${ENABLE_INTERRUPTS:-true}
+      - ENABLE_PSYS_POWER=${ENABLE_PSYS_POWER:-true}
+      - ENABLE_TURBOSTAT=${ENABLE_TURBOSTAT:-false}
+      - TURBOSTAT_INTERVAL=${TURBOSTAT_INTERVAL:-5}
+
     # Port mappings (external:internal - internal ports are fixed)
     ports:
       - "${HOST_METRICS_PORT:-9090}:9090"      # Metrics Manager API

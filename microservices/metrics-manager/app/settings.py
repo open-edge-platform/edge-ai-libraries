@@ -142,6 +142,42 @@ class Settings(BaseSettings):
     )
     enable_gzip_compression: bool = Field(default=True, description="Enable response compression")
 
+    # Hardware Telemetry Collectors (TCMI integration)
+    # -------------------------------------------------
+    # These gate which telegraf.d/*.conf drop-ins entrypoint.sh activates at
+    # startup. They are consumed by the shell entrypoint (which reads the env
+    # vars directly); mirrored here so the toggles are type-validated and the
+    # app can report the active collector set via diagnostics. Every collector
+    # idles gracefully on hardware lacking its source, so a toggle only decides
+    # whether to load the plugin — never whether the deploy succeeds.
+    # See docs/TCMI-INTEGRATION-PROPOSAL.md §6.
+    enable_rapl_power: bool = Field(
+        default=True,
+        description="Load 10-power.conf (intel_powerstat: CPU/DRAM RAPL power, per-core freq/temp)",
+    )
+    # Tri-state string, not bool: 'auto' loads the perf-stat IMC reader and lets
+    # it self-probe; 'off' disables; 'pcm' is reserved for the PCM fallback path.
+    enable_dram_bw: Literal["auto", "off", "pcm"] = Field(
+        default="auto", description="DRAM bandwidth collector mode (20-dram-bw.conf)"
+    )
+    enable_disk_io: bool = Field(
+        default=True, description="Load 30-disk.conf (diskio: util%, read/write MB/s)"
+    )
+    enable_net_io: bool = Field(
+        default=True, description="Load 40-net.conf (net + ethtool)"
+    )
+    enable_interrupts: bool = Field(
+        default=True, description="Load 50-interrupts.conf (device IRQ rates)"
+    )
+    enable_psys_power: bool = Field(
+        default=True,
+        description="Load 90-tcmi-execd.conf (RAPL psys/platform power execd reader)",
+    )
+    enable_turbostat: bool = Field(
+        default=False,
+        description="Activate 60-turbostat.conf (R-dimension: IPC/SMI/per-core diagnostics, opt-in)",
+    )
+
     @field_validator("log_level", mode="before")
     @classmethod
     def normalize_log_level(cls, v: Any) -> str:

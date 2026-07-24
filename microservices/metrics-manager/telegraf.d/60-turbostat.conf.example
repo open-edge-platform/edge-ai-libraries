@@ -1,0 +1,40 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# ============================================================================
+# TURBOSTAT — ADVANCED REAL-TIME DIAGNOSTICS. Disabled by default (.conf.example).
+# ============================================================================
+# intel_powerstat (10-power.conf) is the *production* power/thermal source.
+# Turbostat is the *engineering microscope* — enable it for real-time tuning,
+# platform validation, and certification, where per-core detail matters.
+#
+# It exposes what powerstat cannot:
+#   IPC      — instructions/cycle: distinguishes "busy" from "stalled on memory"
+#   SMI      — System Management Interrupts: BIOS/firmware CPU pauses, the #1
+#              hidden cause of latency spikes in real-time ROS2 (determinism / D)
+#   IRQ/NMI  — per-core hardware interrupt counts
+#   CoreTmp  — PER-CORE temperature (powerstat is package-level) -> exposes an
+#              RT executor pinned to a hot core
+#   Busy% / Bzy_MHz per core, C-state residency (Pkg%pc6/pc10, CPU%c1/c6/c7)
+#
+# This maps to a proposed 5th TCMI dimension: R = Real-Time Determinism.
+#
+# Enable:  cp 60-turbostat.conf.example 60-turbostat.conf
+# Requires: turbostat binary (apt: linux-tools-$(uname -r)), MSR access
+#           (--privileged + msr module; -v /dev/cpu). Run at a LOWER cadence
+#           than the 1s production inputs to keep the MSR read overhead low and
+#           avoid flooding Grafana with redundant per-core series (tune via the
+#           TURBOSTAT_INTERVAL env var; default 5s).
+#
+# scripts/turbostat_reader.py wraps turbostat: it spawns it once with --interval,
+# parses each whitespace-table block, and emits InfluxDB line protocol —
+#   turbostat,host=..,scope=package Busy%=..,IPC=..,SMI=..i,IRQ=..i,CoreTmp=..
+#   turbostat,host=..,scope=core,core=3,cpu=6 Busy%=..,IPC=..,SMI=..i,..
+# It idles quietly if turbostat is missing or MSRs are unreadable (npu_reader.py
+# contract), so enabling it can never break a deploy.
+
+# [[inputs.execd]]
+#   command = ["python3", "/app/scripts/turbostat_reader.py"]
+#   signal = "none"
+#   restart_delay = "10s"
+#   data_format = "influx"
