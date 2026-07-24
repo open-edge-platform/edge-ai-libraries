@@ -1,12 +1,12 @@
 # Get Started
 
-The Model Download is a microservice that downloads models from multiple hubs as follows: Hugging Face, Ollama, Geti™ software, Ultralytics, and Pipeline Zoo Models. It supports conversion to OpenVINO™ model server format for Hugging Face models, supports uploading custom model ZIP artifacts, and exposes a RESTful API for managing model downloads, uploads, and conversions.
+The Model Download is a microservice that downloads models from multiple hubs as follows: Hugging Face, Ollama, Geti™ software, Ultralytics, Pipeline Zoo Models, Open Model Zoo (OMZ), remote URL, and HLS. It supports conversion to OpenVINO™ model server format for Hugging Face models, supports uploading custom model ZIP artifacts, and exposes a RESTful API for managing model downloads, uploads, and conversions.
 
 > **Note:** Model Download replaces Model Registry, which will be deprecated soon. See [Migrate from Model Registry to Model Download](./get-started/migration.md) for the migration guidelines.
 
 ## Features
 
-- Downloads models from Hugging Face, Ollama, Geti software, Ultralytics, and Pipeline Zoo Models hubs
+- Downloads models from Hugging Face, Ollama, Geti software, Ultralytics, Pipeline Zoo Models, Open Model Zoo (OMZ), remote URL, and HLS hubs
 - Lists available models from supported hubs before download
 - Converts Hugging Face models to OpenVINO model server format
 - Supports multiple model precisions (INT4, INT8, FP16, and FP32)
@@ -542,43 +542,6 @@ Volumes:
 
 - `~/models:/app/models`: Persist downloaded models
 
-## Per-Request Credential Overrides
-
-Instead of restarting the service to change credentials, you can override plugin connection
-settings per request using the `override_credentials` field in `POST /api/v1/models/download`.
-Each value must be **Base64-encoded**. The server decodes them before forwarding to the plugin.
-Values take precedence over environment variables for that single request only and are never
-stored or logged.
-
-```bash
-# Encode your token first:
-#   echo -n "hf_myRealToken123" | base64
-#   => aGZfbXlSZWFsVG9rZW4xMjM=
-
-curl -X POST "https://<host-ip>:8200/api/v1/models/download?download_path=hf_model" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "models": [
-      {
-        "name": "microsoft/Phi-3.5-mini-instruct",
-        "hub": "huggingface",
-        "type": "llm",
-        "override_credentials": {
-          "HF_TOKEN": "aGZfbXlSZWFsVG9rZW4xMjM="
-        }
-      }
-    ],
-    "parallel_downloads": false
-  }'
-```
-
-Call `GET /api/v1/plugins` to discover which `config_keys` each plugin accepts.
-
-> **Security: TLS required.** Base64 is an encoding, not encryption. You **must** deploy the
-> service behind HTTPS termination (reverse proxy, ingress, or uvicorn
-> `--ssl-keyfile`/`--ssl-certfile`) before using `override_credentials` with real secrets.
-> Without TLS, credentials are visible to any observer on the network path.
-
 ## Troubleshooting
 
 - If you encounter any issues during the build or run process, check the Docker logs for errors:
@@ -621,6 +584,15 @@ Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metric
 3. Select model precision according to your performance requirements.
 4. Use appropriate model types and configurations for OpenVINO model server conversion.
 5. For Ultralytics INT8 exports, submit one model per request and verify `config.quantize` is provided only when INT8 is intended.
+
+## Security Note
+
+When using `override_credentials`, the service relies on Base64 encoding to
+obfuscate credential values in the request body and on log redaction to prevent
+credentials from appearing in service logs. Credentials are request-scoped
+(in-memory only) and never persisted. For deployments where the API is exposed
+beyond the local device or Docker network, place the service behind a
+TLS-terminating reverse proxy to encrypt credentials in transit.
 
 ## Run in Kubernetes Cluster
 
