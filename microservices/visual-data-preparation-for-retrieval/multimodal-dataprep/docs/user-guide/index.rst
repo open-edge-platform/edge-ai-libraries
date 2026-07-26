@@ -9,6 +9,7 @@
    pluggable-backends
    system-requirements
    get-started
+   troubleshooting
 
 .. toctree::
    :caption: How to

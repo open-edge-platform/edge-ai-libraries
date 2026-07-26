@@ -17,9 +17,9 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-# Topic constants
-BA_REQUEST_TOPIC = "ba/requests"
-BA_RESULT_TOPIC = "ba/results"
+# Default topics (overridable via the `mqtt` config block).
+DEFAULT_BA_REQUEST_TOPIC = "ba/requests"
+DEFAULT_BA_RESULT_TOPIC = "ba/results"
 
 
 class BAQueuePublisher:
@@ -34,8 +34,9 @@ class BAQueuePublisher:
     is no start/exit lifecycle and no polling loop on the BA side.
     """
 
-    def __init__(self, mqtt_service) -> None:
+    def __init__(self, mqtt_service, request_topic: str = DEFAULT_BA_REQUEST_TOPIC) -> None:
         self._mqtt = mqtt_service
+        self._request_topic = request_topic
 
     def publish_request(
         self, person_id: str, region_id: str, entry_timestamp: str,
@@ -49,7 +50,7 @@ class BAQueuePublisher:
             "scene_id": scene_id,
             "last_frame_ts": last_frame_ts,
         }
-        self._mqtt.publish(BA_REQUEST_TOPIC, payload)
+        self._mqtt.publish(self._request_topic, payload)
         logger.debug(
             "Published BA request",
             person_id=person_id,
@@ -67,8 +68,9 @@ class BAQueueConsumer:
     same broker connection — no second MQTT client needed.
     """
 
-    def __init__(self, mqtt_service) -> None:
+    def __init__(self, mqtt_service, result_topic: str = DEFAULT_BA_RESULT_TOPIC) -> None:
         self._mqtt = mqtt_service
+        self._result_topic = result_topic
         self._handler: Optional[Callable[[dict], Awaitable[None]]] = None
 
     def register_result_handler(
@@ -84,11 +86,11 @@ class BAQueueConsumer:
         Must be called AFTER MQTTService has connected (on_connect fired).
         """
         if self._mqtt.client and self._mqtt.connected:
-            self._mqtt.client.subscribe(BA_RESULT_TOPIC, qos=1)
+            self._mqtt.client.subscribe(self._result_topic, qos=1)
             self._mqtt.client.message_callback_add(
-                BA_RESULT_TOPIC, self._on_message
+                self._result_topic, self._on_message
             )
-            logger.info("Subscribed to BA results topic", topic=BA_RESULT_TOPIC)
+            logger.info("Subscribed to BA results topic", topic=self._result_topic)
         else:
             # If not connected yet, hook into the existing on_connect
             original_on_connect = self._mqtt.client.on_connect
@@ -96,19 +98,19 @@ class BAQueueConsumer:
             def _patched_on_connect(client, userdata, flags, rc):
                 original_on_connect(client, userdata, flags, rc)
                 if rc == 0:
-                    client.subscribe(BA_RESULT_TOPIC, qos=1)
+                    client.subscribe(self._result_topic, qos=1)
                     client.message_callback_add(
-                        BA_RESULT_TOPIC, self._on_message
+                        self._result_topic, self._on_message
                     )
                     logger.info(
                         "Subscribed to BA results topic (on connect)",
-                        topic=BA_RESULT_TOPIC,
+                        topic=self._result_topic,
                     )
 
             self._mqtt.client.on_connect = _patched_on_connect
             logger.info(
                 "Will subscribe to BA results on MQTT connect",
-                topic=BA_RESULT_TOPIC,
+                topic=self._result_topic,
             )
 
     def _on_message(self, client, userdata, msg) -> None:

@@ -1,64 +1,47 @@
-# Release Notes
+# Release Notes: Document Summarization Sample Application
 
-## Current Release
+<!--## Version 2026.2.0-->
 
-**Version**: 2026.1.0
-**Release Date**: June 17, 2026
+<!--date TBD-->
 
-**Fixed**
+## Version 2026.1.0
+
+**Release Date:** June 17, 2026
+
+**Fixed:**
 
 - Fixed the LlamaIndex import issue by replacing the deprecated BaseLlamaPack dependency with an updated import structure.
 
-**Known Issues**
+**Known Issues:**
 
 - EMF Deployment package is not supported.
 - Summary time depends on the size and complexity (image, tables, cross references) of the document.
 
-## Previous Releases
+## Version 1.0.5
 
-**Version**: 1.0.5
-**Release Date**: 25 Mar 2026
+**Release Date:** 25 Mar 2026
+
+**Fixed:**
 
 - Fix security vulnerabilities by updating several package versions.
 
-**Version**: 1.0.4
-**Release Date**: 17 Feb 2026
+## Version 1.0.4
 
-- Updated default CHUNK_SIZE to 4096 to support larger files and updated supporting documents
+**Release Date:** 17 Feb 2026
 
-## Known Issues/Behaviour (Consolidated):
+**Improved:**
 
-- Application running into Model Type issue on EMT 3.1 - Closed
-- EMF Deployment package is not supported. - Open
-- Summary time depends on the size and complexity (image, tables, cross references) of the document - Open
+- Updated default `CHUNK_SIZE` to 4096 to support larger files and updated supporting documents
 
-**Version**: 1.0.3
-**Release Date**: 07 Nov 2025
+## Previous Releases
 
-- Update nginxinc/nginx-unprivileged to 1.29.2 version
-- Update few package version to fix vulnerabilities
-- Update openvino/model_server to 2025.3 version
+- [Release Notes 2025](./release-notes/release-notes-2025.md)
 
-**Version**: 1.0.2
-**Release Date**: 09 Sep 2025
+<!--hide_directive
+:::{toctree}
+:hidden:
 
-- Fix issue where summary generation timed-out for huge text files. Now text file chunking is done and then summary is generated.
-- Update openvino/model_server to 2025.2 version
-- Update nginxinc/nginx-unprivileged to 1.29.1 version
+Release Notes 2025 <release-notes/release-notes-2025.md>
 
-**Version**: 1.0.1
-**Release Date**: 19 Aug 2025
-
-- Fix issue where document summary fails due to missing `nltk` package
-
-**Version**: 1.0.0
-**Release Date**: 25 July 2025
-
-**Key Features and Improvements:**
-
-- **Document Summary Use Case:** The sample application provides capability to generate document summary using LlamaIndex Document Summary Index. It supports different file formats such as txt, pdf, docs.
-- **Nginx Support:** The app uses Nginx to expose the services and internal communication b/w the services happen over docker network.
-- **Helm:**  Helm chart integration is done to simplify the deployment and management of applications on Kubernetes clusters
-- **Telemetry:** OpenTelemetry instrumentation provides the application insights and API traces
-- **Streamlined Build, Deployment and Documentation:** Added setup script to simplify service build and deployment processes and several other [user guide](../user-guide)  All supporting documents have been added.
-- **Deployment:** Helm and docker compose deployment has been validated on EMT 3.0.
+:::
+hide_directive-->

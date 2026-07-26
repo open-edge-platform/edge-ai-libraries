@@ -1,0 +1,39 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Profile for ExternalSourcesPlugin. Each top-level key is a `hub` value
+# and `kind` picks the fetch branch in external_sources_plugin.py.
+
+sources:
+
+  # Single archive containing every model under storage/<name>/.
+  pipeline-zoo-models:
+    kind: tarball
+    description: Downloader for DL Streamer Pipeline Zoo models.
+    supports_listing: true
+    listing_filter_fields:
+      - search
+    shared_archive_url: https://github.com/dlstreamer/pipeline-zoo-models/archive/refs/heads/main.tar.gz
+    shared_archive_root: pipeline-zoo-models-main
+    shared_model_subpath: storage/{model_name}
+
+  # OpenVINO Model Zoo downloads via omz_downloader/omz_converter.
+  # Downloads to external-sources/omz/{model_name}/ with .xml + .bin artefacts.
+  omz:
+    kind: omz
+    description: Downloader for Open Model Zoo (OMZ) models.
+
+  # Generic runtime tarball hub. The archive URL is supplied per-request in
+  # `config.url` (an optional `{name}` placeholder is substituted), then
+  # validated against the allowlist below before download.
+  #
+  # The allowlist is matched as `host + path-prefix` on the parsed URL
+  # (scheme is forced to https). `EXTERNAL_SOURCES_URL_ALLOWLIST` (comma
+  # separated), if set, REPLACES `allowed_prefixes`. An empty allowlist
+  # rejects all runtime URLs (secure by default).
+  remote-url:
+    kind: tarball
+    description: Downloader for models packaged as a remote tarball archive (tarball per model).
+    allowed_prefixes:
+      - github.com/open-edge-platform/edge-ai-resources/
+      - github.com/vkb1/edge-ai-resources/
