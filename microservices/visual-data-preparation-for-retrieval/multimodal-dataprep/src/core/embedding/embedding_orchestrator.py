@@ -395,8 +395,11 @@ async def generate_video_embedding_from_content(
             sanitize_for_log(video_rel_url, max_length=512),
         )
 
-        # Process video directly from memory
-        results = generate_video_embedding_pipeline(
+        # Process video directly from memory. Offload the synchronous pipeline
+        # engine to a worker thread so the single uvicorn worker's event loop
+        # stays responsive and concurrent requests are not serialized.
+        results = await asyncio.to_thread(
+            generate_video_embedding_pipeline,
             video_content=video_content,
             metadata_dict=metadata_dict,
             frame_interval=frame_interval,
@@ -478,7 +481,11 @@ async def generate_video_embedding_from_uri(
 
     # Create metadata for video (including video URLs for search-ms compatibility)
 
-    result = generate_rtsp_video_embedding_pipeline(
+    # Offload the blocking RTSP pipeline engine to a worker thread so the event
+    # loop stays responsive (the engine skips SIGINT registration off the main
+    # thread; graceful shutdown is driven by shutdown_event).
+    result = await asyncio.to_thread(
+        generate_rtsp_video_embedding_pipeline,
         video_uris=video_uris,
         metadata_dict={
             "bucket_name": "RTSP_BUCKET",
@@ -542,8 +549,10 @@ async def _generate_video_embedding(
         sanitize_for_log(metadata_dict, max_length=1024),
     )
 
-    # Process video
-    results = generate_video_embedding_pipeline(
+    # Process video. Offload the synchronous pipeline engine to a worker thread
+    # so the event loop stays responsive under concurrent requests.
+    results = await asyncio.to_thread(
+        generate_video_embedding_pipeline,
         video_content=video_content,
         metadata_dict=metadata_dict,
         frame_interval=frame_interval,
