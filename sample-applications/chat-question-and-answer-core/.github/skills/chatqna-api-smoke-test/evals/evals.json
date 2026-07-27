@@ -1,0 +1,124 @@
+{
+    "skill_name": "chatqna-api-smoke-test",
+    "evals": [
+        {
+            "id": 1,
+            "prompt": "Smoke test ChatQnA core APIs with default settings.",
+            "expected_output": "Runs core API checks against default base URL and reports HTTP status evidence for each endpoint.",
+            "files": [],
+            "expectations": [
+                "Uses default HOST_IP 127.0.0.1 and port 8102 when not provided.",
+                "Builds BASE_URL as http://<HOST_IP>:8102/v1/chatqna.",
+                "Checks /health and /model endpoints.",
+                "Checks docs and openapi endpoints.",
+                "Reports HTTP_STATUS evidence for each check."
+            ]
+        },
+        {
+            "id": 2,
+            "prompt": "Service might be down. Start deployment if needed, then run API smoke tests.",
+            "expected_output": "Includes container startup prerequisite before endpoint checks when deployment is not already running.",
+            "files": [],
+            "expectations": [
+                "Includes runtime profile selection via source scripts/setup_env.sh or supported variants.",
+                "Includes docker compose -f docker/compose.yaml up -d.",
+                "Includes docker compose -f docker/compose.yaml ps readiness check.",
+                "Proceeds with API smoke checks after deployment readiness."
+            ]
+        },
+        {
+            "id": 3,
+            "prompt": "Validate /chat endpoint with non-stream response mode.",
+            "expected_output": "Executes POST /chat with stream=false and reports HTTP status plus response evidence.",
+            "files": [],
+            "expectations": [
+                "Uses POST ${BASE_URL}/chat with Content-Type application/json.",
+                "Sends request body with non-empty input and stream false.",
+                "Reports HTTP_STATUS from the curl command.",
+                "Includes response body snippet or summary."
+            ]
+        },
+        {
+            "id": 4,
+            "prompt": "Run runtime API checks for OpenVINO deployment.",
+            "expected_output": "Runs OpenVINO-specific endpoint checks and avoids Ollama-only paths unless requested.",
+            "files": [],
+            "expectations": [
+                "Includes /devices endpoint check.",
+                "Includes optional or explicit /devices/CPU check.",
+                "Does not depend on /ollama-models for OpenVINO runtime path.",
+                "Reports HTTP statuses for runtime endpoints."
+            ]
+        },
+        {
+            "id": 5,
+            "prompt": "Run runtime API checks for Ollama deployment.",
+            "expected_output": "Runs Ollama-specific endpoint checks and avoids OpenVINO-only device endpoints unless requested.",
+            "files": [],
+            "expectations": [
+                "Includes /ollama-models endpoint check.",
+                "Includes optional /ollama-model?model_id=... probe.",
+                "Avoids requiring /devices checks for Ollama path.",
+                "Reports HTTP statuses for runtime endpoints."
+            ]
+        },
+        {
+            "id": 6,
+            "prompt": "Do a non-destructive API validation only.",
+            "expected_output": "Runs safe checks and excludes document upload or delete operations.",
+            "files": [],
+            "expectations": [
+                "Includes GET checks such as /health, /model, /documents, docs, and openapi where requested.",
+                "Avoids POST /documents in non-destructive mode.",
+                "Avoids DELETE /documents in non-destructive mode.",
+                "Reports endpoint-by-endpoint pass or fail evidence."
+            ]
+        },
+        {
+            "id": 7,
+            "prompt": "Validate document ingestion APIs including upload and cleanup.",
+            "expected_output": "Runs document API lifecycle checks including listing, ingestion request, and cleanup when explicitly requested.",
+            "files": [],
+            "expectations": [
+                "Includes GET /documents.",
+                "Includes POST /documents multipart request when ingestion testing is explicitly requested.",
+                "Includes DELETE /documents?delete_all=true cleanup step.",
+                "Reports HTTP status and response snippets for each document operation."
+            ]
+        },
+        {
+            "id": 8,
+            "prompt": "My /devices endpoint fails on an Ollama deployment. Explain and continue smoke test.",
+            "expected_output": "Identifies runtime endpoint mismatch and adjusts checks to runtime-appropriate APIs.",
+            "files": [],
+            "expectations": [
+                "Explains that /devices endpoints are OpenVINO-only.",
+                "Switches to Ollama endpoints like /ollama-models for Ollama runtime.",
+                "Continues requested validation with runtime-appropriate checks."
+            ]
+        },
+        {
+            "id": 9,
+            "prompt": "Swagger docs endpoint returns non-200. Provide troubleshooting output.",
+            "expected_output": "Reports non-2xx evidence for docs/openapi and recommends actionable next checks.",
+            "files": [],
+            "expectations": [
+                "Captures endpoint, HTTP status code, and response body snippet.",
+                "Checks base gateway reachability via /health.",
+                "Provides one actionable next debugging step."
+            ]
+        },
+        {
+            "id": 10,
+            "prompt": "Run all API checks and return concise pass/fail summary.",
+            "expected_output": "Executes full scope checks and returns endpoint-level pass or fail summary with evidence.",
+            "files": [],
+            "expectations": [
+                "Runs core, chat, runtime, and requested document checks under all scope.",
+                "Includes raw command evidence with HTTP statuses.",
+                "Summarizes pass/fail by endpoint clearly.",
+                "Includes actionable next step for each failing endpoint if any failures occur."
+            ]
+        }
+    ]
+}

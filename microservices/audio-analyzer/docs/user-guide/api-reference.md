@@ -83,6 +83,74 @@ A session is identified by `session_id` and corresponds to the directory
 append transcript state and (when sentiment is enabled) update the
 session-level sentiment summary.
 
+## VSS (Video Search & Summarization) compatibility
+
+These endpoints match the contract used by VSS's `pipeline-manager`
+(`sample-applications/video-search-and-summarization` in a previous Edge AI
+Libraries release) and are not OpenAI-compatible.
+
+### `GET /models`
+
+Lists ASR model(s) available for `POST /transcriptions`. This service
+currently transcribes with a single configured model (`models.asr.name` in
+`config.yaml`), so the response always contains exactly one entry.
+
+```json
+{
+  "models": [{"model_id": "whisper-base", "display_name": "whisper-base", "description": "openai provider on CPU"}],
+  "default_model": "whisper-base"
+}
+```
+
+### `POST /transcriptions`
+
+Accepts either a direct file upload **or** a MinIO source, but not both.
+
+Form fields:
+
+| Field                 | Required                        | Description                                                        |
+| --------------------- | -------------------------------- | ------------------------------------------------------------------- |
+| `file`                | If not using MinIO source        | Video/audio upload.                                                 |
+| `minio_bucket`        | If not uploading a file          | MinIO bucket containing the source video.                           |
+| `video_id`            | If not uploading a file          | Prefix/ID of the video object within the bucket.                    |
+| `video_name`          | If not uploading a file          | Name of the video object within the bucket.                         |
+| `device`              | No                               | Accepted for request-shape parity; currently informational only.    |
+| `model_name`          | No                               | Accepted for request-shape parity; currently informational only.    |
+| `include_timestamps`  | No                               | Accepted for request-shape parity.                                  |
+| `language`            | No (query param)                 | Language hint passed to the ASR backend.                            |
+
+When a MinIO source is used, the service downloads the video from that
+bucket, transcribes it, and uploads the resulting transcript back into the
+**same bucket** at `{video_id}/{video_name-stem}.txt` — this mirrors how VSS
+reads the transcript directly from MinIO rather than through this API.
+MinIO connection details are configured via `minio.endpoint` /
+`minio.access_key` / `minio.secret_key` / `minio.secure` in `config.yaml`
+(or `AUDIO_ANALYZER__MINIO__*` env vars). If `minio.endpoint` is empty and a
+MinIO source is requested, the endpoint returns `503`.
+
+Response:
+
+```json
+{
+  "status": "completed",
+  "message": "Transcription completed successfully",
+  "job_id": "20260720-123456-ab12",
+  "transcript_path": "minio://my-bucket/video-1/clip.txt",
+  "video_name": "clip.mp4",
+  "video_duration": 45.2
+}
+```
+
+Example (MinIO source):
+
+```bash
+curl --noproxy '*' \
+  -F minio_bucket=my-bucket \
+  -F video_id=video-1 \
+  -F video_name=clip.mp4 \
+  http://127.0.0.1:8010/transcriptions
+```
+
 ## Supporting Resources
 
 - Startup and deployment guides:
