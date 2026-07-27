@@ -91,6 +91,7 @@ class GetiPlugin(ModelDownloadPlugin):
             PluginConfigKey(
                 name="GETI_HOST",
                 description="Geti server URL.",
+                sensitive=True,
                 required=True,
                 group="geti",
             ),

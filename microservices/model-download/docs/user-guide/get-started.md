@@ -505,8 +505,10 @@ beyond the local device or Docker network, place the service behind a
 TLS-terminating reverse proxy to encrypt credentials in transit.
 
 The `override_credentials` field lets you pass per-request credentials without
-changing environment variables. Each value must be Base64-encoded. Use
-`GET /api/v1/plugins` to discover the keys each plugin accepts.
+changing environment variables. All values must be Base64-encoded, regardless of
+whether the key is marked as sensitive. The `sensitive` flag only controls
+whether the value is redacted in service logs — Base64 encoding is required for
+every key. Use `GET /api/v1/plugins` to discover the keys each plugin accepts.
 
 **Encode credentials:**
 
@@ -561,6 +563,34 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_ov
 ```
 
 > **Note:** When overriding a grouped set of keys (for example the `geti` group), all required keys in that group must be provided together. Use `GET /api/v1/plugins` to see which keys belong to each group.
+
+**Download a remote-url model with per-request allowlist override (`EXTERNAL_SOURCES_URL_ALLOWLIST`):**
+
+```bash
+# Base64-encode the full comma-separated allowlist as a single value
+echo -n 'github.com/open-edge-platform/edge-ai-resources/raw/main,example.com/models' | base64
+# Output: Z2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1yZXNvdXJjZXMvcmF3L21haW4sZXhhbXBsZS5jb20vbW9kZWxz
+```
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=remote_override" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "wind-turbine-anomaly-detection",
+        "hub": "remote-url",
+        "override_credentials": {
+          "EXTERNAL_SOURCES_URL_ALLOWLIST": "<base64_comma_separated_prefixes>"
+        },
+        "config": {
+          "url": "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{name}.tar"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
 
 > **Note:** The response format for downloads with `override_credentials` is the same as shown in the response section above for the corresponding hub plugin.
 
