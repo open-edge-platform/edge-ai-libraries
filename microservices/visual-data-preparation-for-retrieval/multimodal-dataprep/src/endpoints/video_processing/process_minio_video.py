@@ -13,6 +13,7 @@ from fastapi import APIRouter, Body, HTTPException
 
 from src.common import DataPrepException, Strings, logger, settings
 from src.common.schema import DataPrepResponse, VideoRequest
+from src.core.dedup import check_and_register_upload, compute_content_hash, find_duplicate_video_id
 from src.core.embedding import generate_image_embedding_from_content, generate_video_embedding
 from src.core.media import detect_media_kind
 from src.core.utils.common_utils import get_minio_client
@@ -139,6 +140,8 @@ async def process_minio_video(
             bucket_name=bucket_name,
             video_id=video_id,
         )
+        object_name = f"{video_id}/{video_name}"
+        minio_client = get_minio_client()
 
         # Create a unique subdirectory for this request using video_id to avoid conflicts
         request_timestamp = int(datetime.datetime.now().timestamp())
@@ -171,6 +174,28 @@ async def process_minio_video(
         except Exception as ex:
             logger.error(f"Error retrieving video from Minio: {ex}")
             raise DataPrepException(status_code=HTTPStatus.BAD_GATEWAY, msg=Strings.minio_error)
+
+        # /media/process works on media that is already stored in object
+        # storage. For strict duplicate-upload mode, reject duplicate content
+        # here too. If the duplicate owner is the same video_id, do not delete
+        # that existing object.
+        existing_owner = None
+        if not settings.ALLOW_DUPLICATE_UPLOADS:
+            content_hash = compute_content_hash(media_content)
+            existing_owner = find_duplicate_video_id(minio_client, bucket_name, content_hash)
+            if existing_owner is not None:
+                if existing_owner != video_id:
+                    try:
+                        minio_client.delete_object(bucket_name, object_name)
+                    except Exception as cleanup_ex:  # noqa: BLE001
+                        logger.warning("Failed to roll back duplicate stored object: %s", cleanup_ex)
+                raise DataPrepException(
+                    status_code=HTTPStatus.CONFLICT,
+                    msg=f"{Strings.duplicate_upload} (existing video_id: '{existing_owner}').",
+                )
+
+        # Register dedup markers after passing strict duplicate checks.
+        check_and_register_upload(minio_client, bucket_name, video_id, media_content)
 
         # Process media and generate embeddings
         telemetry_context = {

@@ -115,6 +115,7 @@ describe('VideoService', () => {
     const datastoreServiceMock = {
       uploadFile: jest.fn(),
       deleteFile: jest.fn(),
+      deleteObject: jest.fn(),
       getFile: jest.fn(),
       getObjectName: jest.fn(),
       bucket: 'test-bucket',

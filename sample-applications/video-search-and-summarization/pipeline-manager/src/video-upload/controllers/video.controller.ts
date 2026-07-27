@@ -3,6 +3,7 @@
 import {
   BadGatewayException,
   Body,
+  ConflictException,
   Controller,
   Get,
   Logger,
@@ -160,6 +161,14 @@ export class VideoController {
         const upstreamMessage =
           (error.response?.data as { message?: string } | undefined)?.message ||
           error.message;
+        const duplicateContentConflict =
+          error.response?.status === 409 &&
+          /identical content|duplicate/i.test(upstreamMessage || '');
+
+        if (duplicateContentConflict) {
+          await this.$video.cleanupFailedDuplicateVideo(params.videoId);
+          throw new ConflictException(upstreamMessage);
+        }
 
         Logger.error(
           `Data-prep embedding request failed for video ${params.videoId}: ${upstreamMessage}`,

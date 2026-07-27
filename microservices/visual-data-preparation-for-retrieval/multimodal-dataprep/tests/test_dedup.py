@@ -93,6 +93,16 @@ def test_check_rejects_duplicate_when_flag_false(storage, monkeypatch):
     assert "vid1" in exc.value.message
 
 
+def test_check_rejects_same_video_id_when_flag_false(storage, monkeypatch):
+    monkeypatch.setattr(dedup.settings, "ALLOW_DUPLICATE_UPLOADS", False)
+    content = b"same-owner-reprocess"
+    dedup.check_and_register_upload(storage, "bucket1", "vid1", content)
+    with pytest.raises(DataPrepException) as exc:
+        dedup.check_and_register_upload(storage, "bucket1", "vid1", content)
+    assert exc.value.status_code == HTTPStatus.CONFLICT
+    assert "vid1" in exc.value.message
+
+
 def test_check_allows_distinct_content_when_flag_false(storage, monkeypatch):
     monkeypatch.setattr(dedup.settings, "ALLOW_DUPLICATE_UPLOADS", False)
     dedup.check_and_register_upload(storage, "bucket1", "vid1", b"content-a")

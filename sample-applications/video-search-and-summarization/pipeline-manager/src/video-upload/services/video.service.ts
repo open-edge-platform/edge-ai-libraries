@@ -99,6 +99,34 @@ export class VideoService {
     return await lastValueFrom(this.$dataprep.createEmbeddings(videoData));
   }
 
+  // Remove a video row/object that was just uploaded but failed embedding due to
+  // duplicate-content rejection in data-prep. Best-effort cleanup.
+  async cleanupFailedDuplicateVideo(videoId: string): Promise<void> {
+    const video = await this.getVideo(videoId);
+    if (!video) {
+      return;
+    }
+
+    if (video.dataStore?.objectName) {
+      try {
+        await this.$datastore.deleteObject(video.dataStore.objectName);
+      } catch (error) {
+        Logger.warn(
+          `Best-effort object cleanup failed for duplicate video ${videoId}: ${String(error)}`,
+        );
+      }
+    }
+
+    try {
+      await this.$videoDb.remove(videoId);
+      this.videoMap.delete(videoId);
+    } catch (error) {
+      Logger.warn(
+        `Best-effort DB cleanup failed for duplicate video ${videoId}: ${String(error)}`,
+      );
+    }
+  }
+
   // Submit an async batch job to create search embeddings for several videos in
   // a single data-prep request. Returns { job_id, accepted } immediately; the
   // caller polls getSearchEmbeddingsJobStatus() until the job reaches a terminal
