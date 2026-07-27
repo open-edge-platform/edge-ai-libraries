@@ -319,6 +319,57 @@ The updated cache size is applied to the existing model configuration on the nex
 
 > **Note:** On integrated GPUs (iGPU), memory is shared with the system. Setting a very large cache size may leave insufficient memory for model weights and cause `CL_OUT_OF_RESOURCES` errors. Start with modest increases (e.g., 4 → 6 → 8 GB) and monitor both cache usage and GPU memory utilization.
 
+## 4K/8K Video Ingestion Stalls with a Worker Timeout
+
+**Problem**: Ingesting a high-resolution (4K/8K) video in `--search`, `--dual`, or `--unified` mode never completes. Search never returns results for that video, and the `vdms-dataprep` container reboots its worker mid-ingestion.
+
+**Cause**: In SDK embedding mode the DataPrep decoder moves each frame between pipeline stages through a pool of fixed-size shared-memory blocks. Each decoded frame is written into a single block as a raw RGB buffer of exactly `width × height × 3` bytes. The block size is `SDK_VIDEO_SHM_BLOCK_SIZE`, which defaults to `6220800 = 1920 × 1080 × 3` (1080p). A 4K or 8K frame is several times larger than the default block, so the write fails, the frame is never enqueued, and every downstream stage (detection → embed → store → result) starves until the worker hits the Gunicorn timeout and is force-killed.
+
+**Symptoms**:
+
+- Every pipeline stage logs an empty queue, then the worker aborts with signal `134` (SIGABRT) and leaks shared-memory objects. Inspect with `docker logs vdms-dataprep`:
+
+  ```text
+  WARNING: | detection_worker | [DETECTION QUEUE EMPTY] WAITING...
+  WARNING: | store_worker      | [STORE_WORKER] Queue empty, waiting...
+  WARNING: | embed_worker      | [EMBED_WORKER] Queue empty, waiting...
+  WARNING: | process_result_worker | [RESULT WORKER] Queue empty, waiting...
+  [CRITICAL] WORKER TIMEOUT (pid:8)
+  [ERROR] Worker (pid:8) was sent code 134!
+  UserWarning: resource_tracker: There appear to be 1024 leaked shared_memory objects to clean up at shutdown
+  ```
+
+- Only lower-resolution (1080p or smaller) videos index successfully.
+
+**Solution**:
+
+1. Set `SDK_VIDEO_SHM_BLOCK_SIZE` to at least `width × height × 3` for your highest-resolution source. Use the table below:
+
+   | Source resolution | Pixels (W × H) | Minimum `SDK_VIDEO_SHM_BLOCK_SIZE` (`W × H × 3`) |
+   | ----------------- | -------------- | ------------------------------------------------ |
+   | 1080p (default)   | 1920 × 1080    | `6220800`                                        |
+   | 4K UHD            | 3840 × 2160    | `24883200`                                       |
+   | DCI 4K            | 4096 × 2160    | `26542080`                                       |
+   | 8K UHD            | 7680 × 4320    | `99532800`                                       |
+
+2. Export the value (or set it in your `.env`) **before** re-running your deployment mode:
+
+   ```bash
+   # Example: enable 4K ingestion (3840 x 2160 x 3 = 24883200 bytes per block)
+   export SDK_VIDEO_SHM_BLOCK_SIZE=24883200
+   source setup.sh --search   # re-run your mode so the new value applies
+   ```
+
+3. **Budget the total shared memory.** The pool pre-allocates `SDK_VIDEO_SHM_MAX_BLOCKS × SDK_VIDEO_SHM_BLOCK_SIZE` bytes in the host `/dev/shm`. With the default `512` blocks this is ≈ `12.7 GB` for 4K and ≈ `51 GB` for 8K. If the host cannot spare that much (check with `df -h /dev/shm`), lower `SDK_VIDEO_SHM_MAX_BLOCKS` so the product fits:
+
+   ```bash
+   export SDK_VIDEO_SHM_BLOCK_SIZE=24883200   # 4K frame size
+   export SDK_VIDEO_SHM_MAX_BLOCKS=128        # 128 x 24883200 ≈ 3.2 GB of /dev/shm
+   source setup.sh --search
+   ```
+
+> **Note:** Always size the block from the **largest** resolution you will ingest — an oversized block only wastes memory, while an undersized one triggers the failure above. For the full explanation, see the DataPrep [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/vdms/docs/user-guide/get-started.md#4k8k-frames-overflow-the-shared-memory-block-worker-timeout).
+
 ## Accuracy of search results
 
 The accuracy of search results vary based on the embedding model used, configuration on frame sampling, object detection enabled or disabled, and the diversity of the video contents. The user is encouraged to check on these aspects in case the accuracy of the search results is not found to be satisfactory. Note that higher accuracy is normally a tradeoff with performance. Some specific pointers are provided below:

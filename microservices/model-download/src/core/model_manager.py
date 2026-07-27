@@ -17,6 +17,18 @@ from .interfaces import ModelDownloadPlugin, DownloadTask
 from src.utils.logging import logger
 
 
+# Kwarg keys that may carry secrets (tokens, raw overrides) and must never be logged.
+_SENSITIVE_KWARG_KEYS = {"override_credentials", "resolved_config", "token", "hf_token"}
+
+
+def _redact_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a shallow copy of ``kwargs`` with sensitive values masked for logging."""
+    return {
+        key: ("***" if key in _SENSITIVE_KWARG_KEYS else value)
+        for key, value in kwargs.items()
+    }
+
+
 class ModelManager:
     """
     Core orchestration component that manages model operations.
@@ -80,7 +92,7 @@ class ModelManager:
         with self._jobs_lock:
             self._jobs[job_id] = {
                 "id": job_id,
-                "operation_type": operation_type,  # Store operation type
+                "operation_type": operation_type,
                 "model_name": model_name,
                 "hub": hub,
                 "output_dir": output_dir,
@@ -151,6 +163,7 @@ class ModelManager:
         try:
             # Update job status
             self._set_job_status(job_id, "downloading")
+            request_credentials = kwargs.pop("override_credentials", None) or {}
             logger.info(
                 "download_processing_started",
                 model_name=model_name,
@@ -160,8 +173,11 @@ class ModelManager:
             # Find appropriate downloader plugin
             download_plugin = None
             if downloader:
-                # User specifically requested a downloader
                 download_plugin = self.registry.get_plugin("downloader", downloader)
+                if not download_plugin:
+                    download_plugin = self.registry.find_plugin_for_model(
+                        "downloader", model_name, downloader, **kwargs
+                    )
                 if not download_plugin:
                     err_msg = f"Requested downloader '{downloader}' not found"
                     logger.error("downloader_not_found", downloader=downloader)
@@ -177,8 +193,9 @@ class ModelManager:
                 logger.error("no_suitable_downloader", model_name=model_name)
                 raise ValueError(err_msg)
 
-            # Update job with selected plugin
-            self._jobs[job_id]["plugin"] = download_plugin.plugin_name
+            # Resolve per-request overrides for the selected plugin and expose
+            # them via 'resolved_config'. Values are scoped to this call only.
+            kwargs["resolved_config"] = download_plugin.resolve_config(request_credentials)
 
             # Check if the plugin supports parallel downloading via tasks
             use_parallel = kwargs.pop("parallel_downloads", True)
@@ -220,6 +237,9 @@ class ModelManager:
                 plugin=download_plugin.plugin_name,
                 model_name=model_name,
             )
+
+            # Expose hub to multi-hub plugins; single-hub plugins ignore it.
+            kwargs.setdefault("hub", hub)
 
             # Check if the download method is async
             if inspect.iscoroutinefunction(download_plugin.download):
@@ -326,28 +346,34 @@ class ModelManager:
             # Update job status
             self._set_job_status(job_id, "converting")
 
+            # Per-request connection overrides for the converter.
+            request_credentials = kwargs.pop("override_credentials", None) or {}
+
             # Find appropriate converter plugin
             convert_plugin = None
             if converter:
-                # User specifically requested a converter
                 convert_plugin = self.registry.get_plugin("converter", converter)
-            if not convert_plugin:
-                err_msg = f"Requested converter '{converter}' not found"
-                logger.error("converter_not_found", converter=converter)
-                raise ValueError(err_msg)
+                if convert_plugin is None:
+                    err_msg = f"Requested converter '{converter}' not found"
+                    logger.error("converter_not_found", converter=converter)
+                    raise ValueError(err_msg)
             else:
-                # Auto-detect appropriate converter based on model path and kwargs
                 convert_plugin = self.registry.find_plugin_for_model(
-                    "converter", hub=hub, model_name=model_name, **kwargs
+                    "converter",
+                    hub=hub,
+                    model_name=model_name,
+                    is_ovms=True,
+                    **kwargs,
                 )
 
-            if not convert_plugin:
+            if convert_plugin is None:
                 err_msg = f"No suitable converter found for model at '{model_path}'"
                 logger.error("no_suitable_converter", model_path=model_path)
                 raise ValueError(err_msg)
 
-            # Update job with selected plugin
-            self._jobs[job_id]["plugin"] = convert_plugin.plugin_name
+            # Resolve per-request overrides for the converter (override wins,
+            # env fallback); scoped to this call only.
+            kwargs["resolved_config"] = convert_plugin.resolve_config(request_credentials)
 
             # Execute the conversion
             logger.info(
@@ -356,6 +382,7 @@ class ModelManager:
                 model_path=model_path,
             )
 
+            logger.info(f"Request details: {model_path}, {hub}, {_redact_kwargs(kwargs)}")
             result = await asyncio.to_thread(
                 convert_plugin.convert,
                 model_name, output_dir, hf_token=hf_token, **kwargs
@@ -553,7 +580,7 @@ class ModelManager:
         Returns:
             Dictionary with job details and status
         """
-        job_id = self.register_job("download", model_name, hub, output_dir, downloader)
+        job_id = self.register_job("download", model_name, hub, output_dir)
         return asyncio.run(self.process_download(
             job_id, model_name, hub, output_dir, downloader, **kwargs
         ))
@@ -581,7 +608,7 @@ class ModelManager:
         """
         # Extract model name from path for job registration
         model_name = os.path.basename(model_path)
-        job_id = self.register_job("convert", model_name, "openvino", output_dir, converter)
+        job_id = self.register_job("convert", model_name, "openvino", output_dir)
         return asyncio.run(self.process_conversion(
             job_id=job_id, model_path=model_path, model_name=model_name, hub="openvino", hf_token=kwargs.get("hf_token", ""), output_dir=output_dir, converter=converter, **kwargs
         ))

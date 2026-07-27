@@ -85,11 +85,11 @@ async def submit_models(
 ) -> list[str]:
     """Validate, register, and asynchronously schedule model jobs."""
 
-    supported_hubs = {
-        name.lower()
-        for plugin_type in plugin_registry.plugins
-        for name in plugin_registry.get_plugin_names(plugin_type)
-    }
+    supported_hubs = set(plugin_registry.supported_hubs())
+    for plugin_type in plugin_registry.plugins:
+        supported_hubs.update(
+            name.lower() for name in plugin_registry.get_plugin_names(plugin_type)
+        )
     for model in request.models:
         logger.info(f"Requested Model Hub: {model.hub}")
         if model.hub.lower() not in supported_hubs:
@@ -103,13 +103,30 @@ async def submit_models(
     job_ids = []
 
     for model in request.models:
-        is_plugin_available, error_reason = plugin_registry.check_plugin_dependencies(model.hub)
+        hub_name = model.hub.value
+        is_plugin_available, error_reason = plugin_registry.hub_is_available(hub_name)
         if not is_plugin_available:
             raise ModelSubmissionError(
                 f"Plugin '{model.hub}' is not available: {error_reason}"
             )
 
         extra_kwargs = model.model_dump().copy()
+        request_credentials = extra_kwargs.get("override_credentials") or {}
+        plugin = plugin_registry.get_plugin("downloader", hub_name)
+        if plugin is None:
+            plugin = plugin_registry.find_plugin_for_model(
+                "downloader",
+                model.name,
+                hub_name,
+            )
+        if model.is_ovms and plugin is None:
+            plugin = plugin_registry.get_plugin("converter", "openvino")
+        if request_credentials and plugin is not None:
+            try:
+                plugin.resolve_config(request_credentials)
+            except ValueError as error:
+                raise ModelSubmissionError(str(error)) from error
+
         logger.info(
             "model_submission_started",
             model_name=model.name,
@@ -153,9 +170,7 @@ async def submit_models(
             )
 
         if needs_conversion:
-            is_openvino_available, openvino_error = plugin_registry.check_plugin_dependencies(
-                "openvino"
-            )
+            is_openvino_available, openvino_error = plugin_registry.hub_is_available("openvino")
             if not is_openvino_available:
                 raise ModelSubmissionError(
                     "OpenVINO conversion requested but plugin is not available: "
@@ -208,6 +223,7 @@ async def submit_models(
                     model_name=model.name,
                     model_type=model.type,
                     hf_token=extra_kwargs["token"],
+                    override_credentials=request_credentials,
                     **config,
                 ),
                 background_tasks,

@@ -19,7 +19,9 @@ def registry():
     plugin_registry = MagicMock()
     plugin_registry.plugins = {"downloader": {"huggingface": MagicMock()}}
     plugin_registry.get_plugin_names.return_value = ["huggingface"]
-    plugin_registry.check_plugin_dependencies.return_value = (True, "")
+    plugin_registry.supported_hubs.return_value = ["huggingface"]
+    plugin_registry.hub_is_available.return_value = (True, "")
+    plugin_registry.get_plugin.return_value = plugin_registry.plugins["downloader"]["huggingface"]
     return plugin_registry
 
 
@@ -66,7 +68,7 @@ async def test_submit_models_registers_and_schedules_download(registry, manager)
 
 
 async def test_submit_models_rejects_unavailable_plugin(registry, manager):
-    registry.check_plugin_dependencies.return_value = (False, "not activated")
+    registry.hub_is_available.return_value = (False, "not activated")
     request = ModelDownloadRequest.model_validate(
         {"models": [{"name": "org/model", "hub": "huggingface"}]}
     )

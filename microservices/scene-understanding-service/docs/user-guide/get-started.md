@@ -7,8 +7,8 @@ Pick one of the two deployment paths and follow the linked guide.
 
 - Confirm that your machine meets the
   [System Requirements](./get-started/system-requirements.md).
-- Make sure you have a reachable **SceneScape** deployment (MQTT broker + REST
-  API). The service is an event consumer — it needs SceneScape to produce
+- Make sure you have a reachable **Scenescape** deployment (MQTT broker + REST
+  API). The service is an event consumer — it needs Scenescape to produce
   meaningful output.
 - Prepare your two config files (`scene-config.yaml` and `rules.yaml`). The
   service ships with samples under `configs/`; review the
@@ -22,14 +22,14 @@ samples so it starts out-of-the-box; supply your own files via a read-only
 volume mount (e.g. `-v ./configs:/app/configs:ro`) to override them — **no code
 changes required**.
 
-1. **`scene-config.yaml`** — how the service connects to SceneScape and what it
+1. **`scene-config.yaml`** — how the service connects to Scenescape and what it
    watches:
 
-   - `scenescape_api` — SceneScape REST base URL (used for zone auto-discovery).
-   - `mqtt` — broker host/port, TLS, and the SceneScape topic patterns to
+   - `scenescape_api` — Scenescape REST base URL (used for zone auto-discovery).
+   - `mqtt` — broker host/port, TLS, and the Scenescape topic patterns to
      subscribe to.
    - `scenes` — the scenes/cameras to track, and a mapping of zone **names**
-     (must match SceneScape region names) to zone **types**
+     (must match Scenescape region names) to zone **types**
      (`HIGH_VALUE`, `CHECKOUT`, `EXIT`, `RESTRICTED`).
    - `seaweedfs` / `alert_service` *(optional)* — evidence-frame storage and
      the downstream alert endpoint.
@@ -67,7 +67,7 @@ mqtt:
 
 A few identity/credential settings are supplied via environment variables
 (`STORE_ID`, `SCENESCAPE_API_USER`, `SCENESCAPE_API_PASSWORD`, `ALERT_SERVICE_URL`).
-MQTT and the SceneScape API URL are configured in `scene-config.yaml`, **not**
+MQTT and the Scenescape API URL are configured in `scene-config.yaml`, **not**
 through environment variables.
 
 See the [Configuration Guide](./get-started/configuration.md) for the full

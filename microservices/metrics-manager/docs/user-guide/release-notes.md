@@ -1,10 +1,14 @@
 # Release Notes: Metrics Manager
 
+<!--## Version 2026.2.0-->
+
+<!--date TBD-->
+
 ## Version 2026.1.0
 
-**Release Date**: May 11, 2026
+**Release Date:** May 11, 2026
 
-**New**
+**New:**
 
 - **Server-Sent Events (SSE) Streaming** — New `/metrics/stream` endpoint streams all metrics (system + custom) in real-time via SSE. Each connected client polls the Telegraf Prometheus endpoint independently. Browser requests receive a live HTML table; SSE clients receive raw event stream
   - **Impact**: Dashboards can now consume metrics without polling, enabling real-time visualizations. Replaces the old WebSocket relay model
@@ -37,7 +41,7 @@
   - Service statistics (`GET /api/v1/stats`)
   - **Impact**: Easy to integrate into monitoring systems and dashboards
 
-**Improved**
+**Improved:**
 
 - **Debounced Persistence** — Custom metrics are persisted to Telegraf with configurable debounce (default 100ms). Prevents HTTP bottleneck when ingesting high-frequency metrics
   - **Impact**: Support for 1000+ metrics per second without API latency spikes
@@ -57,7 +61,7 @@
 - **GZIP Compression** — Automatic compression for HTTP responses >1 KB
   - **Impact**: Reduced bandwidth for metrics streaming (especially important for SSE)
 
-**Known Issues**
+**Known Issues:**
 
 None at this release. See GitHub issues for feature requests and discussions.
 
@@ -65,9 +69,9 @@ None at this release. See GitHub issues for feature requests and discussions.
 
 ## Version 2026.0.1
 
-**Release Date**: May 5, 2026
+**Release Date:** May 5, 2026
 
-**Fixed**
+**Fixed:**
 
 - **SSE Stream HTML UI** — Browser requests to `/metrics/stream` now receive an HTML page with an in-place updated metrics table (previously showed raw SSE stream)
   - **Impact**: Live dashboard experience in browser without client-side framework
@@ -81,9 +85,9 @@ None at this release. See GitHub issues for feature requests and discussions.
 
 ## Version 2026.0.0
 
-**Release Date**: April 1, 2026
+**Release Date:** April 1, 2026
 
-**New**
+**New:**
 
 - **Initial Release** — Metrics Manager with:
   - Telegraf-based system metrics collection (CPU, RAM, temperature, GPU, NPU)
