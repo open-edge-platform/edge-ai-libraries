@@ -99,22 +99,33 @@ class TestGetiGroupedKeyValidation:
         with pytest.raises(ValueError, match="GETI_TOKEN"):
             plugin.resolve_config({
                 "GETI_HOST": "https://new-host.com",
-                "GETI_WORKSPACE_ID": "new-ws",
             })
 
     def test_partial_geti_override_missing_host_rejected(self, plugin):
         with pytest.raises(ValueError, match="GETI_HOST"):
             plugin.resolve_config({
                 "GETI_TOKEN": "new-token",
-                "GETI_WORKSPACE_ID": "new-ws",
             })
 
-    def test_partial_geti_override_missing_workspace_rejected(self, plugin):
-        with pytest.raises(ValueError, match="GETI_WORKSPACE_ID"):
-            plugin.resolve_config({
-                "GETI_HOST": "https://new-host.com",
-                "GETI_TOKEN": "new-token",
-            })
+    def test_workspace_id_override_alone_succeeds(self, plugin):
+        """User can switch workspace without re-supplying host+token."""
+        result = plugin.resolve_config({
+            "GETI_WORKSPACE_ID": "new-ws",
+        })
+        assert result["GETI_WORKSPACE_ID"] == "new-ws"
+        # host and token fall back to env
+        assert result["GETI_HOST"] == "https://env-host.com"
+        assert result["GETI_TOKEN"] == "env-token"
+
+    def test_host_token_override_without_workspace_uses_env_workspace(self, plugin):
+        """Overriding host+token still uses env workspace_id (not grouped)."""
+        result = plugin.resolve_config({
+            "GETI_HOST": "https://new-host.com",
+            "GETI_TOKEN": "new-token",
+        })
+        assert result["GETI_HOST"] == "https://new-host.com"
+        assert result["GETI_TOKEN"] == "new-token"
+        assert result["GETI_WORKSPACE_ID"] == "env-ws"
 
     def test_no_override_uses_env(self, plugin):
         result = plugin.resolve_config({})
