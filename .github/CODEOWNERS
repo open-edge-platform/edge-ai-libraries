@@ -65,9 +65,9 @@ README.md           @xwu2intel
 /microservices/audio-analyzer/docs/                    @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
 /microservices/audio-analyzer/README.md                @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/dlstreamer-pipeline-server/             @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat
-/microservices/dlstreamer-pipeline-server/docs/        @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
-/microservices/dlstreamer-pipeline-server/README.md    @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
+/microservices/dlstreamer-pipeline-server/             @tbujewsk @OskarFiedot @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @walidbarakat
+/microservices/dlstreamer-pipeline-server/docs/        @tbujewsk @OskarFiedot @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
+/microservices/dlstreamer-pipeline-server/README.md    @tbujewsk @OskarFiedot @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/document-ingestion/pgvector/            @bharagha @krish918 @madhuri-rai07 @yogeshmpandey
 /microservices/document-ingestion/pgvector/docs/       @bharagha @krish918 @madhuri-rai07 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
@@ -128,9 +128,9 @@ README.md           @xwu2intel
 /sample-applications/chat-question-and-answer-core/docs/      @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
 /sample-applications/chat-question-and-answer-core/README.md  @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
         
-/sample-applications/document-summarization /                 @bharagha @hteeyeoh @madhuri-rai07
-/sample-applications/document-summarization /docs/            @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
-/sample-applications/document-summarization /README.md        @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/document-summarization/                 @bharagha @hteeyeoh @madhuri-rai07
+/sample-applications/document-summarization/docs/            @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/document-summarization/README.md        @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
 
 /sample-applications/plcopen-benchmark/                       @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
 /sample-applications/plcopen-benchmark/README.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel  @open-edge-platform/open-edge-platform-docs-write
