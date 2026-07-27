@@ -19,6 +19,15 @@ gpu_execution_prerequisites() {
 gpu_execution_prerequisites
 
 # ---------------------------------------------------------------------------
+# Append any additional GStreamer plugin path supplied at runtime (e.g. via
+# the .env file / docker compose `environment:`) to the one baked into the
+# base image.
+# ---------------------------------------------------------------------------
+if [ -n "${ADDITIONAL_GST_PLUGIN_PATH:-}" ]; then
+    export GST_PLUGIN_PATH="${GST_PLUGIN_PATH}:${ADDITIONAL_GST_PLUGIN_PATH}"
+fi
+
+# ---------------------------------------------------------------------------
 # Start the FastAPI server
 # ---------------------------------------------------------------------------
 PORT=${REST_SERVER_PORT:-8080}
