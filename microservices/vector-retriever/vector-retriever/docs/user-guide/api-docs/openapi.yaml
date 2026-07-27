@@ -1,0 +1,664 @@
+openapi: 3.1.0
+info:
+  title: Vector Retriever Microservice
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Return service liveness status.
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /ready:
+    get:
+      summary: Readiness Check
+      description: Validate runtime dependencies and return readiness status.
+      operationId: readiness_check_ready_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /query:
+    post:
+      summary: Query Endpoint
+      description: Execute a batch of semantic retrieval queries.
+      operationId: query_endpoint_query_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              items:
+                $ref: '#/components/schemas/QueryRequest'
+              type: array
+              title: Payload
+            examples:
+              textQuery:
+                summary: Text query with filter
+                value:
+                - query_id: q1
+                  query: red car at intersection
+                  where:
+                    field: tags
+                    op: contains_any
+                    value:
+                    - traffic
+                  top_k: 10
+              imageQuery:
+                summary: Image query (base64)
+                value:
+                - query_id: img1
+                  image:
+                    type: image_base64
+                    image_base64: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==
+                  top_k: 5
+              imageUrlQuery:
+                summary: Image query (URL)
+                value:
+                - query_id: img2
+                  image:
+                    type: image_url
+                    image_url: https://example.com/photo.jpg
+                  top_k: 5
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchQueryResponse'
+        '400':
+          description: Empty payload — the request body must contain at least one query object. Send `[]` to trigger.
+          content:
+            application/json:
+              example:
+                detail: Request body must contain at least one query
+        '422':
+          description: 'Request validation failed. Common causes: missing both query and image, providing both at once, empty
+            query string, invalid where clause.'
+          content:
+            application/json:
+              examples:
+                missingQueryAndImage:
+                  summary: Neither query nor image provided
+                  description: Send [{"query_id":"q1","top_k":10}] to trigger.
+                  value:
+                    detail:
+                    - loc:
+                      - body
+                      - 0
+                      msg: Value error, either query (text) or image must be provided
+                      type: value_error
+                bothQueryAndImage:
+                  summary: Both query and image provided
+                  description: Send [{"query_id":"q1","query":"hello","image":{"type":"image_base64","image_base64":"abc"}}]
+                    to trigger.
+                  value:
+                    detail:
+                    - loc:
+                      - body
+                      - 0
+                      msg: Value error, query and image are mutually exclusive; provide exactly one
+                      type: value_error
+                invalidWhereClause:
+                  summary: Where clause missing op
+                  description: Send [{"query_id":"q1","query":"test","where":{"field":"tags"}}] to trigger.
+                  value:
+                    detail:
+                    - loc:
+                      - body
+                      - 0
+                      - where
+                      msg: Value error, where predicate must include op
+                      type: value_error
+  /capabilities/filters:
+    get:
+      summary: Filter Capabilities Endpoint
+      description: Return filter grammar capabilities for supported backends.
+      operationId: filter_capabilities_endpoint_capabilities_filters_get
+      parameters:
+      - name: backend
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Backend
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilterCapabilitiesResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    AppliedFilters:
+      properties:
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+        time_filter:
+          anyOf:
+          - $ref: '#/components/schemas/TimeRange'
+          - type: 'null'
+        filters:
+          anyOf:
+          - additionalProperties:
+              $ref: '#/components/schemas/FilterCondition'
+            type: object
+          - type: 'null'
+          title: Filters
+        normalized_where:
+          anyOf:
+          - $ref: '#/components/schemas/WhereClause-Output'
+          - type: 'null'
+        warnings:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Warnings
+        compiled_backend_filter:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: string
+          - type: 'null'
+          title: Compiled Backend Filter
+        dropped_or_rewritten_clauses:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Dropped Or Rewritten Clauses
+      type: object
+      title: AppliedFilters
+      description: 'Echo of filters applied while serving a query.
+
+
+        - `normalized_where`: primary interpreted filter tree.
+
+        - `warnings`: normalization or pushdown notes.
+
+        - `compiled_backend_filter`: backend-native payload when explain is enabled.
+
+        - `dropped_or_rewritten_clauses`: transparency for rewritten or fallback-only clauses.'
+    BackendFilterCapabilities:
+      properties:
+        backend:
+          type: string
+          title: Backend
+        top_level_fields:
+          items:
+            type: string
+          type: array
+          title: Top Level Fields
+        logical_blocks:
+          items:
+            type: string
+          type: array
+          title: Logical Blocks
+        supported_operators:
+          items:
+            type: string
+          type: array
+          title: Supported Operators
+        pushdown_operators:
+          items:
+            type: string
+          type: array
+          title: Pushdown Operators
+        known_fields:
+          additionalProperties:
+            type: string
+          type: object
+          title: Known Fields
+        max_where_depth:
+          type: integer
+          title: Max Where Depth
+        max_where_clauses:
+          type: integer
+          title: Max Where Clauses
+        max_where_list_size:
+          type: integer
+          title: Max Where List Size
+      type: object
+      required:
+      - backend
+      - top_level_fields
+      - logical_blocks
+      - supported_operators
+      - pushdown_operators
+      - known_fields
+      - max_where_depth
+      - max_where_clauses
+      - max_where_list_size
+      title: BackendFilterCapabilities
+      description: Per-backend filter capabilities for UI discovery and validation.
+    BatchQueryResponse:
+      properties:
+        request_id:
+          type: string
+          title: Request Id
+        results:
+          items:
+            $ref: '#/components/schemas/QueryResultBlock'
+          type: array
+          title: Results
+        errors:
+          items:
+            $ref: '#/components/schemas/QueryError'
+          type: array
+          title: Errors
+      type: object
+      required:
+      - request_id
+      - results
+      - errors
+      title: BatchQueryResponse
+      description: Top-level response payload for a batch query request.
+    FilterCapabilitiesResponse:
+      properties:
+        active_backend:
+          type: string
+          title: Active Backend
+        backends:
+          items:
+            $ref: '#/components/schemas/BackendFilterCapabilities'
+          type: array
+          title: Backends
+      type: object
+      required:
+      - active_backend
+      - backends
+      title: FilterCapabilitiesResponse
+      description: Top-level response model for filter capability discovery endpoint.
+    FilterCondition:
+      properties:
+        op:
+          type: string
+          enum:
+          - eq
+          - in
+          - gte
+          - lte
+          - between
+          title: Op
+        value:
+          title: Value
+      type: object
+      required:
+      - op
+      - value
+      title: FilterCondition
+      description: 'Typed operator/value representation for legacy `filters` map.
+
+
+        This model remains to support backward compatibility while `where`
+
+        is the preferred request shape.'
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HealthResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        timestamp:
+          type: string
+          title: Timestamp
+      type: object
+      required:
+      - status
+      - timestamp
+      title: HealthResponse
+      description: Simple health/readiness response model.
+    ImageBase64Input:
+      properties:
+        type:
+          type: string
+          const: image_base64
+          title: Type
+        image_base64:
+          type: string
+          minLength: 1
+          title: Image Base64
+      type: object
+      required:
+      - type
+      - image_base64
+      title: ImageBase64Input
+      description: Image query input provided as base64-encoded data.
+    ImageUrlInput:
+      properties:
+        type:
+          type: string
+          const: image_url
+          title: Type
+        image_url:
+          type: string
+          minLength: 1
+          title: Image Url
+      type: object
+      required:
+      - type
+      - image_url
+      title: ImageUrlInput
+      description: Image query input provided as a URL.
+    QueryError:
+      properties:
+        query_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Query Id
+        code:
+          type: string
+          title: Code
+        message:
+          type: string
+          title: Message
+      type: object
+      required:
+      - code
+      - message
+      title: QueryError
+      description: Per-query error information for partial failures in a batch.
+    QueryRequest:
+      properties:
+        query_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Query Id
+        query:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Query
+        image:
+          anyOf:
+          - oneOf:
+            - $ref: '#/components/schemas/ImageUrlInput'
+            - $ref: '#/components/schemas/ImageBase64Input'
+            discriminator:
+              propertyName: type
+              mapping:
+                image_base64: '#/components/schemas/ImageBase64Input'
+                image_url: '#/components/schemas/ImageUrlInput'
+          - type: 'null'
+          title: Image
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+        time_filter:
+          anyOf:
+          - $ref: '#/components/schemas/TimeRange'
+          - type: 'null'
+        filters:
+          anyOf:
+          - additionalProperties:
+              $ref: '#/components/schemas/FilterCondition'
+            type: object
+          - type: 'null'
+          title: Filters
+        where:
+          anyOf:
+          - $ref: '#/components/schemas/WhereClause-Input'
+          - type: 'null'
+        top_k:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Top K
+        explain_filters:
+          type: boolean
+          title: Explain Filters
+          default: false
+      type: object
+      title: QueryRequest
+      description: 'Single retrieval query payload accepted by the batch API.
+
+
+        Exactly one of ``query`` (text) or ``image`` must be provided.'
+    QueryResultBlock:
+      properties:
+        query_id:
+          type: string
+          title: Query Id
+        query:
+          type: string
+          title: Query
+        count:
+          type: integer
+          title: Count
+        items:
+          items:
+            $ref: '#/components/schemas/QueryResultItem'
+          type: array
+          title: Items
+        applied_filters:
+          $ref: '#/components/schemas/AppliedFilters'
+      type: object
+      required:
+      - query_id
+      - query
+      - count
+      - items
+      - applied_filters
+      title: QueryResultBlock
+      description: Per-query result block included in batch responses.
+    QueryResultItem:
+      properties:
+        score:
+          type: number
+          title: Score
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        page_content:
+          type: string
+          title: Page Content
+      type: object
+      required:
+      - score
+      - metadata
+      - page_content
+      title: QueryResultItem
+      description: Single scored document returned by vector similarity search.
+    TimeRange:
+      properties:
+        start:
+          type: string
+          format: date-time
+          title: Start
+        end:
+          type: string
+          format: date-time
+          title: End
+      type: object
+      required:
+      - start
+      - end
+      title: TimeRange
+      description: Inclusive timestamp window used by time-based filtering.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    WhereClause-Input:
+      properties:
+        field:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Field
+        op:
+          anyOf:
+          - type: string
+            enum:
+            - eq
+            - in
+            - contains
+            - starts_with
+            - gt
+            - gte
+            - lt
+            - lte
+            - between
+            - contains_any
+            - contains_all
+            - exists
+            - missing
+          - type: 'null'
+          title: Op
+        value:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Value
+        all:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/WhereClause-Input'
+            type: array
+          - type: 'null'
+          title: All
+        any:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/WhereClause-Input'
+            type: array
+          - type: 'null'
+          title: Any
+        not:
+          anyOf:
+          - $ref: '#/components/schemas/WhereClause-Input'
+          - type: 'null'
+      type: object
+      title: WhereClause
+      description: 'Primary recursive filter grammar used across all backends.
+
+
+        A clause is either:
+
+        1) an atomic predicate: `field` + `op` + `value`, or
+
+        2) one logical block: `all`, `any`, or `not`.'
+    WhereClause-Output:
+      properties:
+        field:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Field
+        op:
+          anyOf:
+          - type: string
+            enum:
+            - eq
+            - in
+            - contains
+            - starts_with
+            - gt
+            - gte
+            - lt
+            - lte
+            - between
+            - contains_any
+            - contains_all
+            - exists
+            - missing
+          - type: 'null'
+          title: Op
+        value:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Value
+        all:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/WhereClause-Output'
+            type: array
+          - type: 'null'
+          title: All
+        any:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/WhereClause-Output'
+            type: array
+          - type: 'null'
+          title: Any
+        not:
+          anyOf:
+          - $ref: '#/components/schemas/WhereClause-Output'
+          - type: 'null'
+      type: object
+      title: WhereClause
+      description: 'Primary recursive filter grammar used across all backends.
+
+
+        A clause is either:
+
+        1) an atomic predicate: `field` + `op` + `value`, or
+
+        2) one logical block: `all`, `any`, or `not`.'

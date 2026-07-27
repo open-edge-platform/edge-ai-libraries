@@ -43,7 +43,7 @@ Use the Developer Guide when you want to:
 - prepare a contribution that follows the repository's development workflow.
 
 For installation, first-run setup, and end-user workflows, refer to the
-[Getting Started](getting-started.md) and [User Guide](user-guide.md) sections.
+[Get Started](./get-started.md) and [User Guide](./user-guide.md) sections.
 
 <!--hide_directive
 :::{toctree}

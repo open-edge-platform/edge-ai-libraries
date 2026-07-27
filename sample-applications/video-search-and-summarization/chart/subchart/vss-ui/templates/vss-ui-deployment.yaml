@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: {{ .Chart.Name }}
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: {{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.image.repository "tag" (.Values.global.tag | default .Values.image.tag)) }}
+          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.image.pullPolicy }}
           ports:
             - containerPort: 8080
               name: {{ .Values.containerPortName }}

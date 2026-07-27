@@ -64,6 +64,66 @@ curl http://localhost:9090/api/v1/stats
 
 ---
 
+## Platform and Device Capabilities
+
+### Get Capabilities (Minimal Profile)
+
+```bash
+curl -s "http://localhost:9090/api/v1/capabilities?profile=minimal" | jq
+```
+
+Use `minimal` for a compact platform and device summary suitable for quick validation.
+
+### Get Capabilities (Expanded Profile)
+
+```bash
+curl -s "http://localhost:9090/api/v1/capabilities?profile=expanded" | jq
+```
+
+Use `expanded` for full technical inventory.
+
+### Endpoint and Query Parameter
+
+- Endpoint: `GET /api/v1/capabilities`
+- Query parameter: `profile`
+  - `minimal` (default)
+  - `expanded`
+
+### Example Response Shape
+
+```json
+{
+  "generated_at": 1782833792,
+  "profile": "minimal",
+  "categories": {},
+  "platform": {
+    "hostname": "example-host",
+    "system_memory": {
+      "installed_gib": 30.91,
+      "type": "DDR5"
+    },
+    "system_storage": {
+      "total_capacity_gib": 931.51,
+      "available_gib": 225.14
+    },
+    "device_summary": {
+      "cpu": 1,
+      "igpu": 1,
+      "dgpu": 1,
+      "npu": 0
+    }
+  },
+  "devices": []
+}
+```
+
+### Notes
+
+- Hardware-enriched values are best-effort and depend on host visibility of `/sys`, `/proc`, and `/dev/dri` (when GPU devices are present).
+- PCI branding/model naming uses `lspci` (`pciutils`) when available.
+
+---
+
 ## Push Metrics
 
 Four input formats are supported. All return `{"accepted": N, "message": "..."}`.

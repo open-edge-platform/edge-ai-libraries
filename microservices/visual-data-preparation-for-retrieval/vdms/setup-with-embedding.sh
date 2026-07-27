@@ -13,8 +13,6 @@ NC='\033[0m' # No Color
 
 # Common env vars ---------------------------------------------------
 export PROJECT_NAME=${PROJECT_NAME}
-export COVERAGE_REQ=80
-export PROJ_TEST_DIR=./tests
 host_ip=$(ip route get 1 | awk '{print $7}')
 export HOST_IP=$host_ip
 export TAG=${TAG:-latest}
@@ -27,8 +25,8 @@ export no_proxy=${no_proxy},multimodal-embedding-serving,minio-server,vdms-vecto
 export no_proxy_env=${no_proxy}
 # Env vars for minio service ---------------------------
 export MINIO_HOST="minio-server"
-export MINIO_API_HOST_PORT=6010
-export MINIO_CONSOLE_HOST_PORT=6011
+export MINIO_API_HOST_PORT=${MINIO_API_HOST_PORT:-6010}
+export MINIO_CONSOLE_HOST_PORT=${MINIO_CONSOLE_HOST_PORT:-6011}
 export MINIO_MOUNT_PATH="/mnt/miniodata"
 export MINIO_ROOT_USER=${MINIO_ROOT_USER}
 export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
@@ -61,8 +59,8 @@ export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
 configure_device() {
     local device=${1:-"CPU"}
     
-    echo -e "${BLUE}Configuring device for all processing components: ${YELLOW}${device}${NC}"
-    echo -e "${BLUE}   This affects: decord video processing, embedding model, and object detection${NC}"
+    echo -e "${BLUE}Configuring baseline processing device: ${YELLOW}${device}${NC}"
+    echo -e "${BLUE}   VDMS_DATAPREP_DEVICE is the single source of truth unless EMBEDDING_DEVICE or DETECTION_DEVICE is explicitly set${NC}"
     
     if [[ "${device}" == "GPU" ]]; then
         echo -e "${YELLOW}⚙️  Setting up GPU configuration...${NC}"
@@ -85,13 +83,13 @@ configure_device() {
         export VDMS_DATAPREP_DEVICE="GPU"
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
         
-        echo -e "${GREEN}GPU mode configured for all components:${NC}"
+        echo -e "${GREEN}GPU baseline mode configured:${NC}"
         echo -e "   • OpenVINO: ${YELLOW}enabled${NC} (required for GPU)"
-        echo -e "   • Processing Device: ${YELLOW}GPU${NC} (decord, embedding, detection)"
+        echo -e "   • Baseline Processing Device: ${YELLOW}GPU${NC} (used unless embedding/detection overrides are set)"
         echo -e "   • Video decoding: ${YELLOW}GPU-accelerated${NC}"
         
     else
-        echo -e "${BLUE} CPU mode configured for all components${NC}"
+        echo -e "${BLUE} CPU baseline mode configured${NC}"
         export VDMS_DATAPREP_DEVICE="CPU"
     fi
 }
@@ -103,8 +101,13 @@ else
     configure_device "CPU"
 fi
 
-# Align EMBEDDING_DEVICE with resolved device for SDK runtime configuration
+# VDMS_DATAPREP_DEVICE remains the single source of truth unless explicitly overridden below.
+# Capture whether each component device was explicitly provided (before applying the fallback)
+# so the summary can show whether the baseline device is actually used by anything.
+_embedding_device_explicit=${EMBEDDING_DEVICE:+yes}
+_detection_device_explicit=${DETECTION_DEVICE:+yes}
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
+export DETECTION_DEVICE=${DETECTION_DEVICE:-$VDMS_DATAPREP_DEVICE}
 
 # Frame processing settings
 export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
@@ -148,6 +151,20 @@ export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 
+# Set DRI_MOUNT_PATH based on whether /dev/dri exists and is not empty
+if [ -d /dev/dri ] && [ "$(ls -A /dev/dri)" ]; then
+    export DRI_MOUNT_PATH="/dev/dri"
+else
+    export DRI_MOUNT_PATH="/dev/null"
+fi
+
+# Set ACCEL_MOUNT_PATH based on whether /dev/accel/accel0 exists
+if [ -e /dev/accel/accel0 ]; then
+    export ACCEL_MOUNT_PATH="/dev/accel/accel0"
+else
+    export ACCEL_MOUNT_PATH="/dev/null"
+fi
+
 # Model path configuration
 # Note: All OpenVINO models use the same directory for consistency
 
@@ -171,7 +188,24 @@ echo -e "${BLUE}Current Configuration:${NC}"
 echo -e "   Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC}"
 echo -e "   Registry: ${YELLOW}${REGISTRY}${NC}"
 echo -e "   Model: ${YELLOW}${EMBEDDING_MODEL_NAME}${NC}"
-echo -e "   Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC}"
+
+# The baseline device (VDMS_DATAPREP_DEVICE) is only a fallback: it is applied to a
+# component when that component's device is not explicitly set. If both embedding and
+# detection are overridden, nothing actually runs on the baseline device.
+if [[ -n "${_embedding_device_explicit}" && -n "${_detection_device_explicit}" ]]; then
+    _baseline_note="not used — embedding and detection are both explicitly set"
+else
+    _baseline_components=""
+    [[ -z "${_embedding_device_explicit}" ]] && _baseline_components="embedding"
+    [[ -z "${_detection_device_explicit}" ]] && _baseline_components="${_baseline_components:+${_baseline_components}, }detection"
+    _baseline_note="used by: ${_baseline_components}"
+fi
+[[ -n "${_embedding_device_explicit}" ]] && _embedding_src="explicit override" || _embedding_src="inherited from baseline"
+[[ -n "${_detection_device_explicit}" ]] && _detection_src="explicit override" || _detection_src="inherited from baseline"
+
+echo -e "   Baseline Device (VDMS_DATAPREP_DEVICE): ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${_baseline_note})"
+echo -e "   Embedding Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (${_embedding_src})"
+echo -e "   Detection Device: ${YELLOW}${DETECTION_DEVICE}${NC} (${_detection_src})"
 echo -e "   OpenVINO: ${YELLOW}${SDK_USE_OPENVINO}${NC}"
 echo -e "   OpenVINO Performance Mode: ${YELLOW}${OV_PERFORMANCE_MODE}${NC}"
 echo -e "   DataPrep Log Level: ${YELLOW}${VDMS_DATAPREP_LOG_LEVEL}${NC}"
@@ -181,6 +215,8 @@ echo -e "   • To use SDK mode (optimized memory usage, default): ${YELLOW}expo
 echo -e "   • To use API mode: ${YELLOW}export EMBEDDING_PROCESSING_MODE=api${NC}"
 echo -e "   • For GPU acceleration: ${YELLOW}export VDMS_DATAPREP_DEVICE=GPU${NC} (requires Intel GPU)"
 echo -e "   • For CPU processing: ${YELLOW}export VDMS_DATAPREP_DEVICE=CPU${NC}"
+echo -e "   • To offload embedding independently: ${YELLOW}export EMBEDDING_DEVICE=GPU${NC}"
+echo -e "   • To offload detection independently: ${YELLOW}export DETECTION_DEVICE=GPU${NC}"
 echo -e "   • For OpenVINO optimization: ${YELLOW}export SDK_USE_OPENVINO=true${NC} (default)"
 echo -e "   • To set DataPrep log level: ${YELLOW}export VDMS_DATAPREP_LOG_LEVEL=DEBUG${NC}"
 

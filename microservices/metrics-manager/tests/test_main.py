@@ -44,6 +44,7 @@ class TestRootAndStatsEndpoints:
         assert data["service"] == "Metrics Manager"
         assert "version" in data
         assert "endpoints" in data
+        assert "capabilities" in data["endpoints"]["metrics_api"]
 
     def test_get_stats_endpoint_returns_metrics(self, client):
         response = client.get("/api/v1/stats")

@@ -1,0 +1,23 @@
+[
+  {"query": "Add a new NestJS module to pipeline-manager for video transcription with a controller, service, and DTOs", "should_trigger": true},
+  {"query": "Scaffold a clip-extraction feature module in the VSS pipeline-manager following the repo conventions", "should_trigger": true},
+  {"query": "I need to wire a background queue processor in pipeline-manager for a new tagging pipeline - how do I do that the VSS way?", "should_trigger": true},
+  {"query": "extend the VSS orchestrator with an analytics module that exposes a REST endpoint and uses DI to get AppConfigService", "should_trigger": true},
+  {"query": "add notifications module to pipeline-manager - needs controller, service, TypeORM entity, and socket event", "should_trigger": true},
+  {"query": "how do i scaffold a nestjs module inside pipeline-manager that listens on AppEvents.FAST_TICK and enqueues items?", "should_trigger": true},
+  {"query": "Create a recommendations module for pipeline-manager with request/response DTOs, Swagger decorators, and a BullMQ-style queue service", "should_trigger": true},
+  {"query": "I want to add a new /manager/clips endpoint - scaffold the NestJS module, thin controller, and service layer for it", "should_trigger": true},
+  {"query": "Wire up a new pipeline-manager feature that imports VideoUploadModule and StateManagerModule via NestJS DI", "should_trigger": true},
+  {"query": "Add a keyframe-extraction module to the VSS pipeline-manager backend with a queue service that emits PipelineEvents on completion", "should_trigger": true},
+
+  {"query": "Add a new Python endpoint to the search-ms microservice for querying videos by tag", "should_trigger": false},
+  {"query": "How do I create a generic NestJS module with BullMQ in a standalone Express-backed project?", "should_trigger": false},
+  {"query": "Update the nginx routing config to proxy a new /clips path to an internal service", "should_trigger": false},
+  {"query": "Add a new React component to the VSS UI that shows transcription status in real time", "should_trigger": false},
+  {"query": "Add a new TypeORM column to the existing SearchEntity in pipeline-manager", "should_trigger": false},
+  {"query": "Write a Jest unit test for the existing SummaryService in pipeline-manager", "should_trigger": false},
+  {"query": "Add a new event constant to Pipeline.events.ts so SummaryService can emit it", "should_trigger": false},
+  {"query": "Add a new Docker Compose service for a Redis cache used by the VSS stack", "should_trigger": false},
+  {"query": "How do I extend the video-ingestion Python service with a new frame-sampling strategy?", "should_trigger": false},
+  {"query": "Register a new configuration key in pipeline-manager's configuration.ts and read it from an existing service", "should_trigger": false}
+]

@@ -1,6 +1,31 @@
 # DO NOT COMMIT/PUSH THIS FILE TO ANY REPO WITH UPDATED VALUES. IT CAN LEAD TO CREDENTIAL LEAKS.
 # RESET ALL THE VALUES HERE TO DEFAULT, BEFORE COMMITING/PUSHING.
 global:
+  # Single source of override for image registry and tag across VSS service images
+  # (pipeline-manager, video-ingestion, video-search, vss-ui, vdms-dataprep,
+  # multimodal-embedding-serving). Leave empty to keep each subchart's own defaults.
+  #   registry: pull the VSS images from this registry (bare image name is kept).
+  #   tag: override the tag for the VSS images above.
+  # Example:
+  #   registry: "docker.io/intel"
+  #   tag: "latest"
+  registry: ""
+  tag: ""
+  # pullPolicy overrides imagePullPolicy for the VSS service images above.
+  # Leave empty to keep the default (IfNotPresent); set "Always" to force a pull on every start.
+  pullPolicy: ""
+
+  # accelGroupIds are the host group ids owning the accelerator device nodes
+  # (/dev/dri for GPU, /dev/accel for NPU). They are added to the pod
+  # supplementalGroups for any service configured to use a GPU or NPU, so the
+  # non-root container user can open the device. This mirrors the compose
+  # `group_add` (render + video groups). The gids are host-specific, so set them to
+  # match the device-node owners on the target node:
+  #   ls -ln /dev/accel   # NPU  (gid in the 3rd column)
+  #   ls -ln /dev/dri     # GPU  (render/video gids)
+  accelGroupIds:
+    - 992
+
   # usePvc should be set to true to use a new PVC for storage required by any of the subchart.
   usePvc: true
 
@@ -41,19 +66,23 @@ global:
   embeddingModelName: ""
 
   # Per-service device configuration
-  # Each service can independently specify its device (CPU | GPU) and K8s resource key.
+  # Each service can independently specify its device (CPU | GPU | NPU) and K8s resource key.
   # For OVMS, each model (vlm/llm) can have different device settings.
   # NOTE: 'key' is REQUIRED when device is not CPU (GPU, NPU, or HETERO).
   devices:
     # Multimodal Embedding Microservice
     multimodalEmbedding:
-      device: CPU # CPU | GPU
-      key: "" # Required when device=GPU (e.g., gpu.intel.com/i915)
+      device: CPU # CPU | GPU | NPU
+      key: "" # Required when device=GPU/NPU (e.g., gpu.intel.com/i915, npu.intel.com/accel)
 
     # VDMS Dataprep
     vdmsDataprep:
-      device: CPU # CPU | GPU
-      key: "" # Required when device=GPU
+      embedding:
+        device: CPU # CPU | GPU | NPU
+        key: "" # Required when device=GPU/NPU (e.g., gpu.intel.com/i915, npu.intel.com/accel)
+      detection:
+        device: CPU # CPU | GPU | NPU
+        key: "" # Required when device=GPU/NPU (e.g., gpu.intel.com/i915, npu.intel.com/accel)
 
     # OVMS - per-model device selection
     ovms:

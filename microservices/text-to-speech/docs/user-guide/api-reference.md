@@ -97,6 +97,6 @@ corresponding WAV and metadata are written under
 - Startup and deployment guides:
   - [Get Started](./get-started.md)
   - [Run with Docker](./get-started/run-container.md)
-  - [Run on the Host](./get-started/run-standalone.md)
+  - [Run on the Host](./how-to-guides/run-standalone.md)
 - Configuration of ASR and sentiment backends:
   - [Configuration Guide](./get-started/configuration.md)

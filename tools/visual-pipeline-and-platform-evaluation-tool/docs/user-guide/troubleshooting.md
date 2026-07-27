@@ -1,33 +1,33 @@
 # Troubleshooting
 
-## 1. DLSOptimizer takes a long time or causes the application to restart
+## 1. DL Streamer Optimizer takes a long time or causes the application to restart
 
-When using DLSOptimizer from within ViPPET, optimization runs can be **long‑running**:
+When using DL Streamer Optimizer from within ViPPET, optimization runs can be **long‑running**:
 
-- It may take **5–6 minutes** (or more, depending on pipeline complexity and hardware) for DLSOptimizer to explore
+- It may take **5–6 minutes** (or more, depending on pipeline complexity and hardware) for DL Streamer Optimizer to explore
   variants and return an optimized pipeline.
 
-In the current implementation, it can also happen that while DLSOptimizer is searching for an optimized pipeline,
+In the current implementation, it can also happen that while DL Streamer Optimizer is searching for an optimized pipeline,
 the ViPPET application is **restarted**.
 
-For more information about DLSOptimizer behavior and limitations, see the DLSOptimizer limitations section in the
-DL Streamer repository:
-[DLSOptimizer limitations](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/optimizer.md#limitations).
+For more information about DL Streamer Optimizer behavior and limitations, see the DL Streamer
+Optimizer limitations section in the DL Streamer documentation:
+[DL Streamer Optimizer limitations](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/optimizer.html#limitations).
 
-**If ViPPET is restarted while DLSOptimizer is running:**
+**If ViPPET is restarted while DL Streamer Optimizer is running:**
 
 - Any **in‑progress optimization job** is interrupted and its results are lost.
 - In the current release, an application restart **removes all user‑created pipelines and all types of jobs**
   (tests, optimization runs, validation runs). Only predefined pipelines remain available after restart.
 - You may need to **recreate or reimport** your custom pipelines and re‑run your jobs after the application comes back.
 
-### Workaround for the DLSOptimizer issue
+### Workaround for the DL Streamer Optimizer issue
 
 If this behavior is problematic in your environment (for example, it disrupts interactive work or automated
   workflows), avoid using pipeline optimization and instead:
 
 - Use baseline, hand‑tuned pipelines.
-- Adjust parameters manually rather than relying on DLSOptimizer.
+- Adjust parameters manually rather than relying on DL Streamer Optimizer.
 
 ---
 
@@ -63,8 +63,9 @@ In the current release, restarting the ViPPET application removes:
 - All types of **jobs** (tests, optimization runs, validation runs, and similar).
 
 After a restart, only **predefined pipelines** remain available.
-If a restart happens during a long‑running operation (for example, during DLSOptimizer runs), the in‑progress job is
-lost, and you need to recreate or reimport your custom pipelines and rerun the jobs.
+If a restart happens during a long‑running operation (for example, during DL Streamer Optimizer
+runs), the in‑progress job is lost, and you need to recreate or reimport your custom pipelines
+and rerun the jobs.
 
 ---
 
@@ -73,7 +74,7 @@ lost, and you need to recreate or reimport your custom pipelines and rerun the j
 ViPPET currently supports only pipelines and models that are supported by **DL Streamer 2026.0.0**.
 
 For the full list of supported models, elements, and other details, see the DL Streamer release notes:
-[DL Streamer release notes](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/release-notes.md)
+[DL Streamer release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/release-notes.html)
 
 If a custom pipeline works correctly with DL Streamer 2026.0.0, it is expected to also work
 in ViPPET (see also the “Limited validation scope” limitation below).
@@ -178,7 +179,7 @@ default configuration:
 
 If the `vippet-ui` service cannot be accessed in the browser, it may be caused by a port
 conflict on the host. If that is the case, restart the stack and access ViPPET using the new
-port, e.g. `http://localhost:8081`:
+port, e.g., `http://localhost:8081`:
 
 - In the Compose file (`compose.yml`), find the `vippet-ui` service and its `ports` section:
 

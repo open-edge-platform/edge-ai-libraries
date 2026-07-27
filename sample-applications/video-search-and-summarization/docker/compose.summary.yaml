@@ -41,7 +41,12 @@ services:
       MULTI_FRAME_COUNT: ${PM_MULTI_FRAME_COUNT}
       AUDIO_HOST: ${AUDIO_ENDPOINT}
       AUDIO_DEVICE: CPU
-      SUMMARY_FEATURE: "FEATURE_ON"
+      SEARCH_ENDPOINT: ""
+      SEARCH_DATAPREP_ENDPOINT: ""
+      SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_ON}
+      SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_OFF}
+      USE_OVMS: "${USE_OVMS_CONFIG:-CONFIG_OFF}"
+      WORKERS: ${WORKERS:-1}
 
   ovms-service:
     image: openvino/model_server:2026.1
@@ -161,6 +166,10 @@ services:
     depends_on:
       minio-service:
         condition: service_healthy
+    group_add:
+      - ${USER_GROUP_ID:-1000}
+      - ${VIDEO_GROUP_ID:-44}
+      - ${RENDER_GROUP_ID:-1002}
     devices:
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     restart: unless-stopped

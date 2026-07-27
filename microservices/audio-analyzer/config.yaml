@@ -48,6 +48,24 @@ models:
     word_timestamps: false
     threads: 0
 
+  diarization: # Only applicable when models.asr.diarization is set to True
+    provider: "huggingface"
+    name: "pyannote/speaker-diarization-community-1"
+    device: CPU  # CPU or GPU
+    models_base_path: "models"
+    min_speakers: 1   # kiosk scenario: at most 1 customer + 1 staff member per chunk
+    max_speakers: 2
+
+    # Cross-chunk primary-speaker identity resolution. Reuses the speaker
+    # embeddings already computed by the diarization pipeline during
+    # clustering (pyannote DiarizeOutput.speaker_embeddings) — no extra
+    # model is loaded. See components/asr/diarization/speaker_identity.py
+    identity:
+      enabled: true
+      similarity_threshold: 0.75   # cosine similarity to match stored primary
+      lock_min_duration_sec: 0.75  # min turn duration before it can be locked as primary
+      session_ttl_seconds: 1800    # evict idle session identity state after 30 min
+
 audio_preprocessing:
   chunk_duration_sec: 15
   silence_threshold: -35  # in dB
@@ -63,7 +81,22 @@ audio_util:
     - .wav
     - .mp3
     - .m4a
+    - .mp4    # video containers accepted for VSS transcription requests;
+    - .mkv    # ffmpeg-based chunking extracts the audio track automatically,
+    - .mov    # no separate audio-extraction step is required.
+    - .avi
   chunk_size: 52428800   # 1024 * 1024 * 50 = 50MB
+
+# MinIO object storage — used only by the VSS-compatibility endpoint
+# (POST /transcriptions) to retrieve source videos and store transcripts
+# back into the same bucket the caller (VSS pipeline-manager) reads from.
+# Not used by any other endpoint. All values overridable via
+# AUDIO_ANALYZER__MINIO__<KEY> env vars.
+minio:
+  endpoint: ""       # e.g. "minio-server:9000"; empty disables MinIO support
+  access_key: ""
+  secret_key: ""
+  secure: false
 
 pipeline:
   delete_chunks_after_use: true

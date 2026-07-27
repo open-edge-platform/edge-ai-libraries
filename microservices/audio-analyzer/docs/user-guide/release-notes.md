@@ -9,9 +9,9 @@ First release of the Audio Analyzer as a self-contained,
 OpenAI API-compatible speech-to-text microservice with optional voice
 sentiment analysis, built for edge deployment on Intel hardware.
 
-**June 17, 2026**
+**Release Date:** June 17, 2026
 
-**New**
+**New:**
 
 - OpenAI-compatible transcription API (`POST /v1/audio/transcriptions`)
   and a streaming NDJSON variant (`/stream`).
@@ -26,7 +26,7 @@ sentiment analysis, built for edge deployment on Intel hardware.
 - Health (`/health`) and ALSA device listing (`/devices`) endpoints.
 - New User Guide doc set, including: overview, get-started, how-it-works  configuration, api-reference, and troubleshooting Markdown files, plus an architecture diagram and a restructured README.md.
 
-**Improved**
+**Improved:**
 
 - OpenVINO CPU/GPU acceleration on Intel hardware; models warm-loaded
   once per process.
@@ -34,14 +34,18 @@ sentiment analysis, built for edge deployment on Intel hardware.
   `AUDIO_ANALYZER__...`) and Docker Compose deployment on port `8010`.
 - Container now runs as a non-root user (UID 1000).
 
-**Known issues**
+**Known issues:**
 
 - The `prompt` form field is accepted for API compatibility but
   currently ignored.
 - Compatibility with the Video Search and Summarization sample
   application will be added in a subsequent release.
 
-## v1.3.1
+## Version 1.3.1
+
+**Release Date:** April 2026
+
+**New:**
 
 - Released as part of `release-2026.0.0`.
 - Supported features based on the requirements of the Video Search and

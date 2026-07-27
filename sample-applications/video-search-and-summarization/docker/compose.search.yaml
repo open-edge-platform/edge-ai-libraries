@@ -111,11 +111,23 @@ services:
             # Embedding processing mode settings (SDK vs API)
             EMBEDDING_PROCESSING_MODE: ${EMBEDDING_PROCESSING_MODE:-sdk}
             SDK_USE_OPENVINO: ${SDK_USE_OPENVINO:-true}
-            VDMS_DATAPREP_DEVICE: ${VDMS_DATAPREP_DEVICE:-CPU}
+            EMBEDDING_DEVICE: ${DATAPREP_EMBEDDING_DEVICE:-CPU}
             OV_MODELS_DIR: ${OV_MODELS_DIR:-/app/ov_models}
             EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
             MAX_PARALLEL_WORKERS: ${MAX_PARALLEL_WORKERS:-}
             OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
+            SDK_VIDEO_SHM_MAX_BLOCKS: ${SDK_VIDEO_SHM_MAX_BLOCKS:-512}
+            SDK_VIDEO_SHM_BLOCK_SIZE: ${SDK_VIDEO_SHM_BLOCK_SIZE:-6220800}
+            SDK_VIDEO_EXTRACTION_BATCH_SIZE: ${SDK_VIDEO_EXTRACTION_BATCH_SIZE:-256}
+            SDK_PIPELINE_QUEUE_MAXSIZE: ${SDK_PIPELINE_QUEUE_MAXSIZE:-16}
+            SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE: ${SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE:-1}
+            SDK_DETECTION_WORKER_THREADS: ${SDK_DETECTION_WORKER_THREADS:-2}
+            SDK_EMBED_WORKER_THREADS: ${SDK_EMBED_WORKER_THREADS:-2}
+            SDK_PIPELINE_QUEUE_GET_TIMEOUT_S: ${SDK_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
+            SAVE_RUNTIME_PIPELINE_STATS: ${SAVE_RUNTIME_PIPELINE_STATS:-false}
+            SDK_ENABLE_TRACING: ${SDK_ENABLE_TRACING:-false}
+            VIDEO_FRAME_DECODER_WORKERS: ${VIDEO_FRAME_DECODER_WORKERS:-2}
+            VIDEO_FRAME_LOG_LEVEL: ${VIDEO_FRAME_LOG_LEVEL:-INFO}
 
             # Frame processing settings
             FRAME_INTERVAL: ${FRAME_INTERVAL:-15}
@@ -125,6 +137,7 @@ services:
 
             # Object detection model directory
             DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH}
+            DETECTION_DEVICE: ${DATAPREP_DETECTION_DEVICE:-CPU}
 
             # ROI consolidation settings
             ROI_CONSOLIDATION_ENABLED: ${ROI_CONSOLIDATION_ENABLED:-false}
@@ -156,8 +169,10 @@ services:
         healthcheck:
             test:
                 [
-                    'CMD-SHELL',
-                    'curl -f http://localhost:8000/v1/dataprep/health || exit 1',
+                    'CMD',
+                    'python',
+                    '-c',
+                    "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/v1/dataprep/health').getcode()==200 else 1)",
                 ]
             interval: 10s
             timeout: 10s
@@ -170,6 +185,7 @@ services:
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
         devices:
             - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
+            - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
         group_add:
             - ${USER_GROUP_ID:-1000}
             - ${VIDEO_GROUP_ID:-44}
@@ -189,15 +205,24 @@ services:
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
-            EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
+            EMBEDDING_DEVICE: ${MME_EMBEDDING_DEVICE:-CPU}
             EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
             EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
             DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC}
             DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION:--1}
             DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES}
             OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
+            INFER_BATCH_SIZE: ${INFER_BATCH_SIZE:-32}
+            PREPROCESS_WORKERS: ${PREPROCESS_WORKERS:-8}
+            VIDEO_FRAME_BATCH_SIZE: ${VIDEO_FRAME_BATCH_SIZE:-64}
+            VIDEO_FRAME_DECODER_WORKERS: ${VIDEO_FRAME_DECODER_WORKERS:-2}
+            VIDEO_FRAME_QUEUE_SIZE: ${VIDEO_FRAME_QUEUE_SIZE:-32}
+            VIDEO_FRAME_SHM_POOL_BLOCK_SIZE: ${VIDEO_FRAME_SHM_POOL_BLOCK_SIZE:-6220800}
+            VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER: ${VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER:-2}
+            VIDEO_FRAME_LOG_LEVEL: ${VIDEO_FRAME_LOG_LEVEL:-INFO}
         devices:
             - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
+            - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
         group_add:
             - ${USER_GROUP_ID:-1000}
             - ${VIDEO_GROUP_ID:-44}
@@ -205,7 +230,12 @@ services:
         restart: unless-stopped
         healthcheck:
             test:
-                ['CMD-SHELL', 'curl -f http://localhost:8000/health || exit 1']
+                [
+                    'CMD',
+                    'python',
+                    '-c',
+                    "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)",
+                ]
             interval: 10s
             timeout: 10s
             retries: 40
