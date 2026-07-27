@@ -225,7 +225,7 @@ Pipelines are defined in a `config.json` file mounted into the container at
 ### CPU Decode + CPU Inference
 
 ```
-{auto_source} ! decodebin3 ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink
+{auto_source} ! parsebin ! avdec_h264 ! videoconvert ! video/x-raw ! queue ! gvadetect name=detection model-instance-id=inst0 device=CPU pre-process-backend=opencv ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink
 ```
 
 ### GPU Decode + GPU Inference
@@ -242,12 +242,3 @@ Pipelines are defined in a `config.json` file mounted into the container at
 ```
 {auto_source} ! parsebin ! vah264dec ! vapostproc ! video/x-raw(memory:VAMemory) ! gvadetect name=detection model-instance-id=inst0 device=GPU pre-process-backend=va-surface-sharing ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! vapostproc ! video/x-raw ! appsink name=appsink
 ```
-
-### UDF Pipeline
-
-```
-{auto_source} ! decodebin3 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! videoconvert ! video/x-raw, format=(string)NV12 ! appsink name=appsink
-```
-
-> **Note:** UDF pipelines with RGB/BGR output need `videoconvert ! video/x-raw, format=(string)NV12`
-> before `appsink` for RTSP compatibility.
