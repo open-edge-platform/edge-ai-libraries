@@ -183,7 +183,9 @@ Pipelines are defined in a `config.json` file mounted into the container at
 
 | Element | Device | Description |
 |---------|--------|-------------|
-| `decodebin3` | CPU | Auto-select CPU decoder |
+| `decodebin3` | CPU or GPU | Auto-select CPU or GPU decoder |
+| `avdec_h264` | CPU | CPU H.264 software decode |
+| `jpegdec` |	CPU	| CPU JPEG software decode |
 | `vah264dec`  | GPU | VA-API H.264 hardware decode |
 | `vajpegdec`  | GPU | VA-API JPEG hardware decode |
 
