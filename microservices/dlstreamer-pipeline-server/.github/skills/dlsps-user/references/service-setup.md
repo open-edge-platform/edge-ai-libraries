@@ -104,7 +104,6 @@ volumes:
 | Variable | Purpose |
 |----------|---------|
 | `RENDER_GID` | Render group ID for GPU/NPU device access |
-| `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so` | Required for NPU inference |
 | `GST_DEBUG=1` | GStreamer debug logging |
 
 ### MQTT
