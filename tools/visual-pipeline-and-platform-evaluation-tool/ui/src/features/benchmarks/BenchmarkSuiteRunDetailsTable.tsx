@@ -12,6 +12,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Table,
   TableBody,
   TableCell,
@@ -26,6 +31,7 @@ import {
   FileText,
   Loader2,
   MoreVertical,
+  MoveRight,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -334,30 +340,30 @@ export const BenchmarkSuiteRunDetailsTable = ({
                                   className="text-center"
                                   data-export-ignore
                                 >
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        aria-label={`Open actions for test case ${testCaseRun.id}`}
-                                      >
-                                        <MoreVertical className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="start">
-                                      <DropdownMenuItem
-                                        onClick={() =>
-                                          navigate(
-                                            `/benchmarks/${suiteSlug}/run/${runDetails.id}/test/${testCaseRun.id}${sourceSuffix}`,
-                                          )
-                                        }
-                                      >
-                                        <FileText className="mr-2 h-4 w-4" />
-                                        View details
-                                      </DropdownMenuItem>
-                                      {testCaseRun.status === "running" && (
+                                  {testCaseRun.status === "running" ? (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          aria-label={`Open actions for test case ${testCaseRun.id}`}
+                                        >
+                                          <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start">
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            navigate(
+                                              `/benchmarks/${suiteSlug}/run/${runDetails.id}/test/${testCaseRun.id}${sourceSuffix}`,
+                                            )
+                                          }
+                                        >
+                                          <FileText className="mr-2 h-4 w-4" />
+                                          View details
+                                        </DropdownMenuItem>
                                         <DropdownMenuItem
                                           onClick={() =>
                                             handleCancelTest(testCaseRun.job_id)
@@ -365,9 +371,31 @@ export const BenchmarkSuiteRunDetailsTable = ({
                                         >
                                           Cancel test
                                         </DropdownMenuItem>
-                                      )}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  ) : (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          aria-label={`View details for test case ${testCaseRun.id}`}
+                                          onClick={() =>
+                                            navigate(
+                                              `/benchmarks/${suiteSlug}/run/${runDetails.id}/test/${testCaseRun.id}${sourceSuffix}`,
+                                            )
+                                          }
+                                        >
+                                          <MoveRight className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        View details
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             );

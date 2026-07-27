@@ -20,7 +20,13 @@ import {
 } from "@/components/ui/table";
 import { formatElapsedTimeMillis, formatTimestamp } from "@/lib/timeUtils";
 import { toast } from "@/lib/toast";
-import { FileDigit, FileText, Loader2, MoreVertical } from "lucide-react";
+import {
+  FileDigit,
+  FileText,
+  Loader2,
+  MoreVertical,
+  MoveRight,
+} from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import {
@@ -29,6 +35,11 @@ import {
   formatBenchmarkExportFilename,
   renderBenchmarkStatus,
 } from "@/features/benchmarks/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type BenchmarkSuiteResultsTableProps = {
   source?: string | null;
@@ -134,28 +145,28 @@ export const BenchmarkSuiteRunsTable = ({
                   </TableCell>
                   <TableCell>{renderBenchmarkStatus(run.status)}</TableCell>
                   <TableCell className="text-center">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          aria-label={`Open actions for run ${run.id}`}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuItem asChild>
-                          <Link
-                            to={`/benchmarks/${run.suite_slug}/run/${run.id}${sourceSuffix}`}
+                    {run.status === "passed" ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            aria-label={`Open actions for run ${run.id}`}
                           >
-                            <FileText className="mr-2 h-4 w-4" />
-                            View details
-                          </Link>
-                        </DropdownMenuItem>
-                        {run.status === "passed" ? (
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem asChild>
+                            <Link
+                              to={`/benchmarks/${run.suite_slug}/run/${run.id}${sourceSuffix}`}
+                            >
+                              <FileText className="mr-2 h-4 w-4" />
+                              View details
+                            </Link>
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             disabled={isExportingCsv}
                             onSelect={() => {
@@ -165,9 +176,29 @@ export const BenchmarkSuiteRunsTable = ({
                             <FileDigit className="mr-2 h-4 w-4" />
                             {isExportingCsv ? "Exporting CSV..." : "Export CSV"}
                           </DropdownMenuItem>
-                        ) : null}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            asChild
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                          >
+                            <Link
+                              to={`/benchmarks/${run.suite_slug}/run/${run.id}${sourceSuffix}`}
+                              aria-label={`View details for run ${run.id}`}
+                            >
+                              <MoveRight className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>View details</TooltipContent>
+                      </Tooltip>
+                    )}
                   </TableCell>
                 </TableRow>
               );
