@@ -2,11 +2,23 @@ import type {
   BenchmarkSuite,
   BenchmarkSuiteRunDetails,
 } from "@/api/api.generated.ts";
+import {
+  type ExportBenchmarkSuiteRunCsvDownload,
+  useLazyExportBenchmarkSuiteRunCsvQuery,
+} from "@/api/apiEnhancements";
 import { Button } from "@/components/ui/button";
-import { exportNodeToPdf, formatFilenameTimestamp } from "@/lib/pdfUtils";
-import { FileUp } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { exportNodeToPdf } from "@/lib/pdfUtils";
+import { toast } from "@/lib/toast";
+import { BookOpenText, FileDigit } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState } from "react";
+import { exportBenchmarkRunCsv, formatBenchmarkExportFilename } from "./utils";
 
 type BenchmarkExportButtonProps = {
   benchmark: BenchmarkSuite;
@@ -21,9 +33,12 @@ export const BenchmarkExportButton = ({
   runDetails,
   isDisabled = false,
 }: BenchmarkExportButtonProps) => {
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
 
   const { theme } = useTheme();
+  const [triggerExportCsv] = useLazyExportBenchmarkSuiteRunCsvQuery();
+  const isExporting = isExportingPdf || isExportingCsv;
 
   const handleExportPdf = async () => {
     const node = document.getElementById(EXPORT_NODE_ID);
@@ -32,15 +47,39 @@ export const BenchmarkExportButton = ({
     }
 
     try {
-      setIsExporting(true);
-      const startTimeLabel = formatFilenameTimestamp(runDetails.start_time);
+      setIsExportingPdf(true);
       await exportNodeToPdf({
-        filename: `${benchmark.slug}-results-${startTimeLabel}.pdf`,
+        filename: formatBenchmarkExportFilename(
+          benchmark.slug,
+          runDetails.start_time,
+          "pdf",
+        ),
         node,
         isDarkMode: theme === "dark",
       });
     } finally {
-      setIsExporting(false);
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handleCsvExport = async () => {
+    try {
+      setIsExportingCsv(true);
+      const filename = formatBenchmarkExportFilename(
+        runDetails.suite_slug,
+        runDetails.start_time,
+        "csv",
+      );
+      const response: ExportBenchmarkSuiteRunCsvDownload =
+        await triggerExportCsv({
+          suiteSlug: runDetails.suite_slug,
+          runId: runDetails.id,
+        }).unwrap();
+      await exportBenchmarkRunCsv(response, filename);
+    } catch {
+      toast.error("Failed to export CSV for this run.");
+    } finally {
+      setIsExportingCsv(false);
     }
   };
 
@@ -49,15 +88,37 @@ export const BenchmarkExportButton = ({
   }
 
   return (
-    <Button
-      type="button"
-      className="gap-2"
-      onClick={handleExportPdf}
-      disabled={isDisabled || isExporting}
-      data-export-ignore
-    >
-      <FileUp className="h-4 w-4" />
-      {isExporting ? "Exporting..." : "Export Results"}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          className="gap-2"
+          disabled={isDisabled || isExporting}
+          data-export-ignore
+        >
+          {isExporting ? "Exporting..." : "Export Results"}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" data-export-ignore>
+        <DropdownMenuItem
+          disabled={isExporting}
+          onSelect={() => {
+            void handleExportPdf();
+          }}
+        >
+          <BookOpenText className="mr-2 h-4 w-4" />
+          {isExportingPdf ? "Exporting PDF..." : "Export to PDF"}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={isExporting}
+          onSelect={() => {
+            void handleCsvExport();
+          }}
+        >
+          <FileDigit className="mr-2 h-4 w-4" />
+          {isExportingCsv ? "Exporting CSV..." : "Export to CSV"}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };

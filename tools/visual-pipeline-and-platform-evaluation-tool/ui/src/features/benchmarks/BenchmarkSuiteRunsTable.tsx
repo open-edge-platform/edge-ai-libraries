@@ -1,4 +1,8 @@
 import type { BenchmarkSuiteRun } from "@/api/api.generated.ts";
+import {
+  type ExportBenchmarkSuiteRunCsvDownload,
+  useLazyExportBenchmarkSuiteRunCsvQuery,
+} from "@/api/apiEnhancements";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,10 +19,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatElapsedTimeMillis, formatTimestamp } from "@/lib/timeUtils";
-import { Loader2, MoreVertical } from "lucide-react";
+import { toast } from "@/lib/toast";
+import { FileDigit, FileText, Loader2, MoreVertical } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router";
 import {
   formatBenchmarkScore,
+  exportBenchmarkRunCsv,
+  formatBenchmarkExportFilename,
   renderBenchmarkStatus,
 } from "@/features/benchmarks/utils";
 
@@ -33,8 +41,31 @@ export const BenchmarkSuiteRunsTable = ({
   suiteRuns,
   showNameColumn = false,
 }: BenchmarkSuiteResultsTableProps) => {
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [triggerExportCsv] = useLazyExportBenchmarkSuiteRunCsvQuery();
   const sourceSuffix = source ? `?source=${encodeURIComponent(source)}` : "";
   const emptyStateColSpan = showNameColumn ? 10 : 9;
+
+  const handleExportCsvForRun = async (run: BenchmarkSuiteRun) => {
+    setIsExportingCsv(true);
+    try {
+      const filename = formatBenchmarkExportFilename(
+        run.suite_slug,
+        run.start_time,
+        "csv",
+      );
+      const response: ExportBenchmarkSuiteRunCsvDownload =
+        await triggerExportCsv({
+          suiteSlug: run.suite_slug,
+          runId: run.id,
+        }).unwrap();
+      await exportBenchmarkRunCsv(response, filename);
+    } catch {
+      toast.error("Failed to export CSV for this run.");
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
 
   return (
     <Table className="border rounded-lg">
@@ -120,9 +151,21 @@ export const BenchmarkSuiteRunsTable = ({
                           <Link
                             to={`/benchmarks/${run.suite_slug}/run/${run.id}${sourceSuffix}`}
                           >
+                            <FileText className="mr-2 h-4 w-4" />
                             View details
                           </Link>
                         </DropdownMenuItem>
+                        {run.status === "passed" ? (
+                          <DropdownMenuItem
+                            disabled={isExportingCsv}
+                            onSelect={() => {
+                              void handleExportCsvForRun(run);
+                            }}
+                          >
+                            <FileDigit className="mr-2 h-4 w-4" />
+                            {isExportingCsv ? "Exporting CSV..." : "Export CSV"}
+                          </DropdownMenuItem>
+                        ) : null}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
