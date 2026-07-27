@@ -48,7 +48,7 @@ Pipeline Manager (lifecycle: start / stop / status)
     ▼
 GStreamer Engine + DL Streamer Plugins
     │
-    ├── Decode: CPU (decodebin) │ GPU (vah264dec) │ NPU
+    ├── Decode: CPU or GPU (decodebin3) │ GPU (vah264dec) │ CPU (avdec_h264)
     ├── Inference: gvadetect / gvaclassify (CPU, GPU, NPU)
     └── Publish: MQTT │ OPC UA │ S3 │ InfluxDB │ ROS2 │ File
     │
@@ -129,7 +129,7 @@ Pipeline definitions live in a `config.json` mounted into the container:
         "name": "my_pipeline",
         "source": "gstreamer",
         "queue_maxsize": 50,
-        "pipeline": "{auto_source} ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+        "pipeline": "{auto_source} ! decodebin3 ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
         "parameters": {
           "type": "object",
           "properties": {
@@ -153,7 +153,7 @@ Pipeline definitions live in a `config.json` mounted into the container:
 | Element | Purpose |
 |---------|---------|
 | `{auto_source}` | Auto-detect source (file, RTSP, camera) |
-| `decodebin` | CPU decode |
+| `decodebin3` | System available decoder (CPU/GPU) |
 | `vah264dec` | GPU VA-API H.264 decode |
 | `vapostproc` | GPU VA-API post-processing |
 | `gvadetect` | Object detection inference |
@@ -172,7 +172,7 @@ Pipeline definitions live in a `config.json` mounted into the container:
 | Forgetting `RENDER_GID` for GPU/NPU | Export `RENDER_GID=$(stat -c "%g" /dev/dri/render* \| head -1)` before compose |
 | Using wrong port | REST API is on port **8080**, RTSP on **8554** |
 | Not volume-mounting custom config | Mount via `-v ../configs/my_config/config.json:/home/pipeline-server/config.json` |
-| Assuming NPU requires different container | Same container — set `device=NPU` and `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so` |
+| Assuming NPU requires different container | Same container — set `device=NPU` |
 
 ---
 
