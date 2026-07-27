@@ -1,6 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import base64
 import os
 import pytest
 import tempfile
@@ -841,6 +842,40 @@ class TestAPIMain:
         assert data["has_more"] is True
         assert data["next_offset"] == 1
         assert "total" not in data
+
+    @patch('src.api.main.plugin_registry')
+    def test_list_hub_models_refreshes_credentials_for_each_request(self, mock_registry, client):
+        mock_plugin = MagicMock()
+        mock_plugin.supports_listing = True
+        mock_plugin.resolve_config.side_effect = lambda overrides: overrides.copy()
+        mock_plugin.list_models.return_value = {"items": [], "total": 0}
+        mock_registry.get_plugin.return_value = mock_plugin
+        mock_registry.hub_is_available.return_value = (True, None)
+
+        def encoded(value):
+            return base64.b64encode(value.encode()).decode()
+
+        for token in ("first-token", "second-token"):
+            response = client.post(
+                "/models/list",
+                json={
+                    "hub": "huggingface",
+                    "override_credentials": {"HF_TOKEN": encoded(token)},
+                },
+            )
+            assert response.status_code == 200
+
+        assert [call.args[0] for call in mock_plugin.resolve_config.call_args_list] == [
+            {"HF_TOKEN": "first-token"},
+            {"HF_TOKEN": "second-token"},
+        ]
+        assert [
+            call.kwargs["resolved_config"]
+            for call in mock_plugin.list_models.call_args_list
+        ] == [
+            {"HF_TOKEN": "first-token"},
+            {"HF_TOKEN": "second-token"},
+        ]
 
     @patch('src.api.main.plugin_registry')
     def test_list_hub_models_unsupported(self, mock_registry, client):

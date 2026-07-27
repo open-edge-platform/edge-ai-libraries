@@ -467,6 +467,15 @@ components:
           default: 0
           minimum: 0
           description: Number of items to skip for pagination
+        override_credentials:
+          type: object
+          additionalProperties:
+            type: string
+            format: byte
+          description: >
+            Optional Base64-encoded connection overrides for this request.
+            Values take precedence over the selected plugin's environment
+            configuration and are not retained after the request.
 
     ModelListResponse:
       type: object

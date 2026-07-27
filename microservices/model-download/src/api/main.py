@@ -172,6 +172,7 @@ async def _list_hub_models(
     filters: Optional[Dict[str, Any]] = None,
     limit: int = 50,
     offset: int = 0,
+    override_credentials: Optional[Dict[str, str]] = None,
 ) -> ModelListResponse:
     if limit < 1 or limit > 200:
         raise HTTPException(status_code=400, detail="limit must be between 1 and 200")
@@ -197,10 +198,8 @@ async def _list_hub_models(
     if not is_available:
         raise HTTPException(status_code=400, detail=reason)
 
-    # Listing uses the service's environment credentials only; per-request
-    # credential overrides are supported on the download endpoint, not here.
     try:
-        resolved_config = plugin.resolve_config({})
+        resolved_config = plugin.resolve_config(override_credentials or {})
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -265,6 +264,7 @@ async def list_hub_models_with_body(request: ModelListRequest) -> ModelListRespo
         filters=filters,
         limit=request.limit,
         offset=request.offset,
+        override_credentials=request.override_credentials,
     )
 
 
