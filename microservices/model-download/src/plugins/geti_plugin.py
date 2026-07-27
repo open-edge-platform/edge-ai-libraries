@@ -105,6 +105,7 @@ class GetiPlugin(ModelDownloadPlugin):
             PluginConfigKey(
                 name="GETI_WORKSPACE_ID",
                 description="Geti workspace ID.",
+                required=True,
                 group="geti",
             ),
         ]
