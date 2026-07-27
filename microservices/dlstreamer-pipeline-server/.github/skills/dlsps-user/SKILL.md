@@ -182,8 +182,8 @@ Read the matching example file — it contains the exact compact response format
 
 | File | Covers |
 |------|--------|
-| [examples/detect-on-video-file.md](./examples/detect-on-video-file.md) | Run object detection on a local video file with CPU, stream results via RTSP |
-| [examples/gpu-inference-mqtt.md](./examples/gpu-inference-mqtt.md) | GPU-accelerated inference with MQTT metadata publishing |
+| [examples/detect-on-video-file.md](./example-prompts/detect-on-video-file.md) | Run object detection on a local video file with CPU, stream results via RTSP |
+| [examples/gpu-inference-mqtt.md](./example-prompts/gpu-inference-mqtt.md) | GPU-accelerated inference with MQTT metadata publishing |
 
 ---
 
