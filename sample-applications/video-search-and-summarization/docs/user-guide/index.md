@@ -56,6 +56,7 @@ directory-watcher-guide
 api-reference
 mcp-server
 troubleshooting
-release-notes
+Release Notes <./release-notes.md>
+
 :::
 hide_directive-->

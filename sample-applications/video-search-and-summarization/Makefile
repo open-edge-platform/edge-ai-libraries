@@ -255,7 +255,7 @@ push: check-docker
 #   deploy-clean    → stop all containers and wipe user-data volumes
 # ==============================================================================
 
-WAIT_HEALTH_SCRIPT := .github/skills/vss-up/scripts/wait-health.sh
+WAIT_HEALTH_SCRIPT := .github/skills/vss-deploy/scripts/wait-health.sh
 
 # Load .env into the shell before calling setup.sh.
 # Rules:
