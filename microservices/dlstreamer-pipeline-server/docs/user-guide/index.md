@@ -79,6 +79,7 @@ how-to-guides
 advanced-guide
 api-reference
 troubleshooting
-release-notes
+Release Notes <./release-notes.md>
+
 :::
 hide_directive-->

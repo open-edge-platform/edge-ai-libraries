@@ -12,12 +12,12 @@
 - **GPU**: Not required by this service. The optional behavioral-analysis
   worker (pose + VLM) is a separate microservice that may use a GPU.
 
-| Device          | Minimum    | Recommended                              |
-| --------------- | ---------- | ---------------------------------------- |
-| CPU             | x86_64     | Intel Core Ultra (Meteor Lake) or newer  |
-| Memory          | 4 GB RAM   | 8 GB RAM or more                         |
-| Disk            | 5 GB free  | SSD/NVMe                                 |
-| GPU             | Not needed | Used only by the separate BA worker      |
+| Device | Minimum    | Recommended                             |
+| ------ | ---------- | --------------------------------------- |
+| CPU    | x86_64     | Intel Core Ultra (Meteor Lake) or newer |
+| Memory | 4 GB RAM   | 8 GB RAM or more                        |
+| Disk   | 5 GB free  | SSD/NVMe                                |
+| GPU    | Not needed | Used only by the separate BA worker     |
 
 ## Software Requirements
 
@@ -37,22 +37,22 @@
 The service is an event consumer/producer and depends on external
 infrastructure at runtime:
 
-| Dependency               | Required?              | Purpose                                            |
-| ------------------------ | ---------------------- | -------------------------------------------------- |
-| SceneScape MQTT broker   | Yes (functional)       | Source of all person and zone events.              |
-| SceneScape REST API      | Yes (functional)       | Zone auto-discovery (zone name → UUID).            |
-| SeaweedFS                | Only if BA rules used  | Evidence frame storage for escalation.             |
-| behavioral-analysis      | Only if BA rules used  | Pose + VLM analysis over MQTT.                     |
-| alert-service            | Optional               | Routes/delivers generated alerts.                  |
+| Dependency             | Required?             | Purpose                                 |
+| ---------------------- | --------------------- | --------------------------------------- |
+| Scenescape MQTT broker | Yes (functional)      | Source of all person and zone events.   |
+| Scenescape REST API    | Yes (functional)      | Zone auto-discovery (zone name → UUID). |
+| SeaweedFS              | Only if BA rules used | Evidence frame storage for escalation.  |
+| behavioral-analysis    | Only if BA rules used | Pose + VLM analysis over MQTT.          |
+| alert-service          | Optional              | Routes/delivers generated alerts.       |
 
 The service starts and serves its API even when these are unavailable; it
 retries the MQTT connection in the background. It only produces meaningful
-output once a SceneScape deployment is reachable.
+output once a Scenescape deployment is reachable.
 
 ## Network Requirements
 
-- Outbound access to the SceneScape MQTT broker (default TCP `1883`, or `8883`
-  with TLS) and the SceneScape REST API (HTTPS).
+- Outbound access to the Scenescape MQTT broker (default TCP `1883`, or `8883`
+  with TLS) and the Scenescape REST API (HTTPS).
 - Inbound access to TCP port `8082` (default) for API clients.
 - When the optional features are enabled, network reachability to SeaweedFS,
   the behavioral-analysis worker (shared MQTT broker), and the alert-service.
