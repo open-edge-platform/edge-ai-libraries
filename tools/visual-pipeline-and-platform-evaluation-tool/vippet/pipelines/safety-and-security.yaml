@@ -6,7 +6,7 @@ tags:
   - Safety
   - Security
   - GenAi
-thumbnail: images/smart-nvr.png
+thumbnail: images/safety-and-security.png
 variants:
   - name: NPU
     pipeline_description: >-
