@@ -4274,6 +4274,39 @@
             ],
             "title": "Power Usage"
           },
+          "score_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Total"
+          },
+          "score_performance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Performance"
+          },
+          "score_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Efficiency"
+          },
           "metrics": {
             "anyOf": [
               {
@@ -4310,6 +4343,9 @@
           "media_usage",
           "memory_usage",
           "power_usage",
+          "score_total",
+          "score_performance",
+          "score_efficiency",
           "metrics",
           "job_id",
           "status"
@@ -4449,6 +4485,39 @@
             ],
             "title": "Power Usage"
           },
+          "score_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Total"
+          },
+          "score_performance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Performance"
+          },
+          "score_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Efficiency"
+          },
           "metrics": {
             "anyOf": [
               {
@@ -4503,6 +4572,9 @@
           "media_usage",
           "memory_usage",
           "power_usage",
+          "score_total",
+          "score_performance",
+          "score_efficiency",
           "metrics",
           "job_id",
           "status",
