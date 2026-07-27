@@ -141,6 +141,8 @@ vdbIndexType: "FLAT"
 multimodalEmbeddingEndpoint: "http://multimodal-embedding-ms:8000/embeddings"
 defaultBucketName: "video-summary"
 logLevel: "INFO"
+uploadPolicy:
+  allowDuplicateUploads: true
 cors:
   allowOrigins: "*"
   allowMethods: "*"

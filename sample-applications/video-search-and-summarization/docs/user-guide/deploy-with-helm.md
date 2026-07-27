@@ -97,6 +97,7 @@ Update or edit the values in YAML file as follows:
 | `global.env.RABBITMQ_DEFAULT_PASS` | RabbitMQ password | `<your-rabbitmq-password>` |
 | `global.env.OTLP_ENDPOINT` | OTLP endpoint | Leave empty if not using telemetry |
 | `global.env.OTLP_ENDPOINT_TRACE` | OTLP trace endpoint | Leave empty if not using telemetry |
+| `global.env.MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` | Duplicate-upload policy for `multimodal-dataprep`. `true` keeps historical behavior (accept content-identical re-uploads). `false` rejects duplicate-content uploads with HTTP `409`. | `true` (default) or `false` |
 | `global.embeddingModelName` | Embedding model used by Multimodal Embedding MS, DataPrep, and Video Search. Use a multimodal model for search-only and dual mode (e.g., `CLIP/clip-vit-b-32`) or a text embedding model for unified mode (e.g., `QwenText/qwen3-embedding-0.6b`). | `CLIP/clip-vit-b-32` or `QwenText/qwen3-embedding-0.6b` |
 | `global.vectordbBackend` | Active vector database backend used by `multimodal-dataprep` and `vector-retriever`. | `vdms` (default) or `milvus` |
 | `global.devices.multimodalEmbedding.device` | Device for multimodal-embedding service | `CPU`, `GPU`, or `NPU` |
@@ -124,6 +125,13 @@ Update or edit the values in YAML file as follows:
 | `vsscollector.enabled` | Enable the telemetry collector sidecar (telegraf-based) | `true` or `false` |
 | `vsscollector.websocketUrl` | Override the telemetry websocket URL (defaults to `ws://pipeline-manager:80/metrics/ws/collector`) | `ws://pipeline-manager:80/metrics/ws/collector` |
 | `vsscollector.signalVolume.subPath` | Subpath under the shared volume for telemetry signal files | `collector-signals` |
+
+> **`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` override:** You do **not** need to put this in `user_values_override.yaml`. You can set it directly at install/upgrade time with `--set`, for example:
+>
+> ```bash
+> helm install vss . -f search_override.yaml -f user_values_override.yaml \
+>   --set global.env.MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false -n $my_namespace
+> ```
 
 > **Tip:** Set `global.embeddingModelName` to pick the embedding model for all services. For search-only and dual UI mode, use a multimodal model (e.g., `CLIP/clip-vit-b-32`). For unified mode, use a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`). Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 

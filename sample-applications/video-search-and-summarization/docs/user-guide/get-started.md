@@ -194,7 +194,19 @@ Before running the application, you need to set several environment variables:
 
    In the example above, DataPrep processes every fifteenth frame: each selected frame (optionally after object detection) is converted into embeddings and stored in the vector database. Lower values improve recall at the cost of higher compute and storage usage, while higher values reduce processing load but may skip important frames. If you do not set this variable, the service falls back to its configured default.
 
-7. **Enable ROI consolidation (Search and Dual UI mode)**:
+7. **Control duplicate-upload behavior in DataPrep (Search and Dual UI mode)**:
+
+   This setting controls whether DataPrep accepts repeated uploads of the same video content:
+
+   ```bash
+   # Default true: allow content-identical re-uploads (historical behavior)
+   # Set false to reject duplicate-content uploads with HTTP 409.
+   export MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=true
+   ```
+
+   Duplicate detection is **content-based** (SHA-256 of uploaded bytes), not filename-based. A renamed copy of the same video is still detected as duplicate content, while two different videos that share the same filename are treated as different uploads.
+
+8. **Enable ROI consolidation (Search and Dual UI mode)**:
 
    ROI consolidation groups overlapping object detections into merged regions of interest (ROIs) before cropping for embeddings. Enable this feature and tune it with the following environment variables:
 
@@ -220,7 +232,7 @@ Before running the application, you need to set several environment variables:
 
    > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
 
-8. **(Optional) Telemetry collection (Search and Dual UI mode)**:
+9. **(Optional) Telemetry collection (Search and Dual UI mode)**:
 
    The deployment can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI. Telemetry is only applicable in `--search` and `--summary --search` modes.
 
@@ -232,7 +244,7 @@ Before running the application, you need to set several environment variables:
    export ENABLE_VSS_COLLECTOR=true
    ```
 
-9. **Tune Inference Concurrency (Summary and Dual UI mode)**:
+10. **Tune Inference Concurrency (Summary and Dual UI mode)**:
 
    Control how many concurrent inference requests the pipeline manager sends to OVMS or vLLM. These values affect throughput and resource utilization:
 
@@ -246,7 +258,7 @@ Before running the application, you need to set several environment variables:
 
    > **Note**: For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
 
-10. **Override OVMS Model Weight Compression Format (Summary and Dual UI mode)**:
+11. **Override OVMS Model Weight Compression Format (Summary and Dual UI mode)**:
 
     When using OVMS for inference, the setup script auto-selects the model weight compression format based on the target device (`int8` for CPU, `int4` for GPU/NPU). You can override this auto-detection by setting these variables before running the setup script:
 
@@ -260,7 +272,7 @@ Before running the application, you need to set several environment variables:
 
     > **Note**: Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
 
-11. **Configure Embedding Execution (Search and Dual UI mode)**:
+12. **Configure Embedding Execution (Search and Dual UI mode)**:
 
     The `multimodal-dataprep` service loads the embedding model in-process and generates
     embeddings during video search indexing. Enable OpenVINO optimization for the
@@ -274,7 +286,7 @@ Before running the application, you need to set several environment variables:
 
     > **Note**: `multimodal-dataprep` embeds in-process (no separate embedding service is required for indexing). The standalone `multimodal-embedding-serving` service is used by `vector-retriever` to embed queries at search time.
 
-12. **Select devices per processing component (Search and Unified UI mode)**:
+13. **Select devices per processing component (Search and Unified UI mode)**:
 
     Each processing component picks its device independently. All default to `CPU`; set any to `GPU` or `NPU` as needed.
 
@@ -291,7 +303,7 @@ Before running the application, you need to set several environment variables:
 
     > **Device note:** `DATAPREP_EMBEDDING_DEVICE` controls in-process embedding execution in `multimodal-dataprep`. `DATAPREP_DETECTION_DEVICE` controls YOLOX object detection in `multimodal-dataprep`. `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving`, which `vector-retriever` uses to embed queries at search time. `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
 
-13. **🧪 EXPERIMENTAL: Configure vLLM Intel Arc Pro B-series GPU/XPU Backend**:
+14. **🧪 EXPERIMENTAL: Configure vLLM Intel Arc Pro B-series GPU/XPU Backend**:
 
     > **⚠️ Experimental Feature:** Intel Arc Pro B-series GPU (XPU) support with vLLM is in early development stages and may have stability issues. Not recommended for production use.
 

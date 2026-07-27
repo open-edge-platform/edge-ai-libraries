@@ -156,6 +156,9 @@ services:
 
             # Application configuration
             MM_DATAPREP_LOG_LEVEL: ${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+            # Duplicate-upload policy (true keeps historical behavior; false returns 409
+            # when the uploaded content already exists).
+            MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS: ${MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS:-true}
 
             # CORS settings
             MM_DATAPREP_ALLOW_ORIGINS: ${ALLOW_ORIGINS:-*}

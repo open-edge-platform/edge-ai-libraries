@@ -97,6 +97,7 @@ global:
     OV_MODELS_DIR: "/app/ov_models"
     OV_PERFORMANCE_MODE: "THROUGHPUT"
     VDMS_DATAPREP_LOG_LEVEL: "INFO"
+    MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS: true
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart
 
 # sharedClaimSize is the storage size for the shared collector-signals PVC
