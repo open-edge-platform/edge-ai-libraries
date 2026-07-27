@@ -17,7 +17,7 @@ modeldownload:
   startupConfig:
     enabled: true
     config:
-      download_path: /opt/models
+      download_path: models
       parallel_downloads: false
       models:
         - name: <Model-name>

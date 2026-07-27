@@ -31,7 +31,7 @@ cp startup-models.example.yaml startup-models.yaml
 For example:
 
 ```yaml
-download_path: /opt/models/preloaded
+download_path: preloaded
 parallel_downloads: false
 models:
   - name: <Model-Name>
@@ -40,7 +40,7 @@ models:
   - name: <Model-Name>
     hub: ultralytics
     type: vision
-    download_path: /opt/models/vision
+    download_path: vision
 ```
 
 The file must be a regular UTF-8 `.yaml`, `.yml` file no larger than 1 MiB.
@@ -99,16 +99,16 @@ modeldownload:
   startupConfig:
     enabled: true
     config:
-      download_path: /opt/models/preloaded
+      download_path: preloaded
       parallel_downloads: false
       models:
-        - name: BAAI/bge-small-en-v1.5
+        - name: <Model-Name>
           hub: huggingface
           type: embeddings
-        - name: yolov8n
+        - name: <Model-Name>
           hub: ultralytics
           type: vision
-          download_path: /opt/models/vision
+          download_path: vision
 ```
 
 Enable every plugin referenced by the model entries in

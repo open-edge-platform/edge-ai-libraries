@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-download_path: opt/models/loadup/
+download_path: loadup/
 parallel_downloads: false
 models:
   - name: <Model-name>
@@ -10,7 +10,7 @@ models:
   - name: <Model-name>
     hub: ultralytics
     type: vision
-    download_path: /opt/models/vision
+    download_path: vision
   - name: <Model-name>
     hub: openvino
     type: llm
