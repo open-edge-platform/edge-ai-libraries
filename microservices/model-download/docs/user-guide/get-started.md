@@ -114,99 +114,10 @@ down                   Stop the services
 
 ## Download Models at Startup
 
-The service can schedule model downloads and conversions automatically from a user-mounted YAML
-or JSON file. Startup downloads use the same validation, enabled plugins, job manager, and model
-volume as requests submitted to `POST /models/download`. `STARTUP_MODELS_CONFIG` selects the
-configuration by its path inside the service container; the Compose and Helm workflows below set
-that variable for their mounted configuration.
+The service can schedule model downloads and conversions automatically from a configuration file
 
-Copy and edit the shipped example:
-
-```bash
-cp docker/startup-models.example.yaml startup-models.yaml
-```
-
-The configuration schema is:
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `download_path` | Yes | Default destination for models that do not define their own `download_path`. It must resolve under the service's model directory (`/opt/models` in the container). |
-| `parallel_downloads` | No | Enables plugin-supported parallel file downloads. Default: `false`. |
-| `models` | Yes | One to 100 model entries. |
-| `models[].name` | Yes | Model identifier. |
-| `models[].hub` | Yes | `huggingface`, `ollama`, `ultralytics`, `pipeline-zoo-models`, `openvino`, `geti`, or `hls`. The corresponding plugin must be enabled. |
-| `models[].type` | No | `llm`, `vlm`, `embeddings`, `rerank`, `image_generation`, `text2speech`, `speech2text`, `vision`, `3d-pose`, `rppg`, or `ai-ecg`. |
-| `models[].is_ovms` | No | Whether to create an OpenVINO conversion job. Default: `false`. |
-| `models[].revision` | No | Model revision, version, or tag. |
-| `models[].config` | No | The same plugin or conversion configuration accepted by `ModelRequest`, such as `precision`, `device`, `cache_size`, or `quantize`. |
-| `models[].download_path` | No | Destination override for this model. It must resolve under the service's model directory. |
-
-For example:
-
-```yaml
-download_path: /opt/models/preloaded
-parallel_downloads: false
-models:
-  - name: BAAI/bge-small-en-v1.5
-    hub: huggingface
-    type: embeddings
-  - name: yolov8n
-    hub: ultralytics
-    type: vision
-    download_path: /opt/models/vision
-```
-
-The file must be a regular UTF-8 `.yaml`, `.yml`, or `.json` file no larger than 1 MiB.
-Unknown fields, an empty model list, and malformed or unsupported values make the whole file
-invalid. If `STARTUP_MODELS_CONFIG` is unset, startup downloads are disabled. If it names a
-missing, unreadable, or invalid file, the service logs an actionable
-`startup_models_config_unusable` error, schedules no models from that file, and continues serving.
-For a valid file, a model that cannot be submitted logs `startup_model_submission_failed` without
-preventing later entries from being scheduled.
-
-Do not store credentials in this file. Supply credentials through the existing environment
-variables, including `HUGGINGFACEHUB_API_TOKEN` for gated Hugging Face models and
-`GETI_HOST`, `GETI_TOKEN`, and `GETI_WORKSPACE_ID` for Geti software.
-
-### Docker Compose
-
-Set `STARTUP_MODELS_CONFIG_HOST_PATH` to the absolute host path of the configuration. Docker
-Compose mounts it read-only and sets the container's `STARTUP_MODELS_CONFIG` automatically:
-
-```bash
-export STARTUP_MODELS_CONFIG_HOST_PATH="$PWD/startup-models.yaml"
-source scripts/run_service.sh up \
-  --plugins huggingface,ultralytics \
-  --model-path "$PWD/models"
-```
-
-The host file must exist before Compose starts. Unset `STARTUP_MODELS_CONFIG_HOST_PATH` to disable
-the mount and startup downloads.
-
-### Readiness, Progress, and Restarts
-
-Configuration is validated and its jobs are queued during application startup, but model transfer
-and conversion run asynchronously. Consequently, a successful `/health` response means the API is
-ready; it does not mean the configured models are complete.
-
-Startup-created jobs appear in the existing endpoints:
-
-```bash
-curl "http://<host-ip>:8200/api/v1/jobs"
-curl "http://<host-ip>:8200/api/v1/jobs/<job_id>"
-curl "http://<host-ip>:8200/api/v1/models/jobs?model_name=<model-name>"
-```
-
-Each job contains `progress.current`, `progress.total`, and `progress.percentage`. Progress is
-best-effort: plugins that expose bytes or files report granular progress, while other plugins use
-lifecycle progress and reach 100 percent on completion. Container logs also emit throttled
-`job_progress` records with these values and a readable `progress_bar`, for example
-`[##########----------]  50%`.
-
-Job records are in memory and are not restored after a service restart. Downloaded artifacts remain
-on the mounted model volume. Restarting with the configuration schedules new jobs; existing
-artifact reuse, caching, or overwrite behavior remains specific to each plugin and its
-configuration (for example, OpenVINO's `config.overwrite_models`).
+See [Download Models at Startup](./get-started/startup-models.md) for the full configuration
+schema.
 
 ## Verification
 
@@ -455,11 +366,6 @@ curl -X GET "http://<host-ip>:8200/api/v1/jobs/<job_id>"
   "plugin_name": "ultralytics",
   "model_type": "vision",
   "plugin": "ultralytics",
-  "progress": {
-    "current": 1,
-    "total": 1,
-    "percentage": 100
-  },
   "completion_time": "2025-10-27T08:30:14.443898",
   "result": {
     "model_name": "yolov8s",
@@ -576,6 +482,7 @@ See [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md) for detail
 
 For alternative ways to set up the sample application, see:
 
+- [Download Models at Startup](./get-started/startup-models.md)
 - [Quick start](./get-started/quickstart.md)
 - [How to Build from Source](./get-started/build-from-source.md)
 
@@ -585,6 +492,7 @@ For alternative ways to set up the sample application, see:
 
 Migrate from Model Registry <./get-started/migration.md>
 ./get-started/system-requirements
+Startup<./get-started/startup-models.md>
 Ephemeral Container <./get-started/quickstart.md>
 ./get-started/build-from-source
 ./get-started/deploy-with-helm-chart

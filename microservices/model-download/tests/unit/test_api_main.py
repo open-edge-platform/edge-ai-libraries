@@ -158,7 +158,6 @@ class TestAPIMain:
                 "id": "startup-job",
                 "model_name": kwargs["model_name"],
                 "status": "queued",
-                "progress": {"current": 0, "total": 0, "percentage": 0},
             }
             return "startup-job"
 

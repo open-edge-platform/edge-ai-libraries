@@ -1,8 +1,8 @@
 global:
   proxy:
-    no_proxy: ""
-    http_proxy: ""
-    https_proxy: ""
+    no_proxy: ".intel.com,localhost"
+    http_proxy: "http://proxy-dmz.intel.com:911"
+    https_proxy: "http://proxy-dmz.intel.com:911"
   keeppvc: false
 
 replicaCount: 1
@@ -11,11 +11,11 @@ modeldownload:
   name: model-download
   image:
     registry: "intel/"
-    tag: latest
+    tag: 2026.2.0-ww31
     pullPolicy: IfNotPresent
 
   startupConfig:
-    enabled: false
+    enabled: true
     config:
       download_path: /opt/models
       parallel_downloads: false
@@ -23,6 +23,14 @@ modeldownload:
         - name: BAAI/bge-small-en-v1.5
           hub: huggingface
           type: embeddings
+        - name: Qwen/Qwen3-4B
+          hub: openvino
+          type: llm
+          is_ovms: true
+          config:
+            precision: int8
+            device: CPU
+            cache_size: 10
 
   readinessProbe:
       httpGet:
@@ -40,7 +48,7 @@ modeldownload:
     GETI_TOKEN: ""
     GETI_SERVER_API_VERSION: "v1"
     GETI_SERVER_SSL_VERIFY: "False"
-    ENABLED_PLUGINS: "all"   #Comma separated list of plugins to enable, or "all"
+    ENABLED_PLUGINS: "huggingface"   #Comma separated list of plugins to enable, or "all"
     OVMS_RELEASE_TAG: "v2025.4.1"
     #HLS pre-configured parameters
     HLS_3D_POSE_CHECKPOINT_URL: "https://storage.openvinotoolkit.org/repositories/open_model_zoo/public/2022.1/human-pose-estimation-3d-0001/human-pose-estimation-3d.tar.gz"

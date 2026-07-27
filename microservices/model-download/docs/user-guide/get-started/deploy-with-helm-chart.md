@@ -114,9 +114,9 @@ ConfigMap path. Keep tokens out of `startupConfig.config`; provide credentials t
 existing environment values or your deployment's secret-injection mechanism.
 
 Model work continues after the readiness probe succeeds. Use the existing jobs endpoints or
-`kubectl logs` to monitor progress. The PVC preserves downloaded artifacts across pod restarts,
+`kubectl logs` to monitor jobs. The PVC preserves downloaded artifacts across pod restarts,
 but in-memory job records are not restored and configured entries are scheduled again. For the
-full schema and behavior, see [Download Models at Startup](../get-started.md#download-models-at-startup).
+full schema and behavior, see [Download Models at Startup](./startup-models.md).
 
 ## Deploy the Helm Chart
 

@@ -408,7 +408,6 @@ async def upload_model(
     )
     model_manager._jobs[job_id]["status"] = "completed"
     model_manager._jobs[job_id]["completion_time"] = datetime.now().isoformat()
-    model_manager.update_progress(job_id, 1, 1, force_log=True)
 
     logger.info(f"Model '{sanitized_model_name}' uploaded successfully to '{target_dir}' (job_id={job_id})")
 

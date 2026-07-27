@@ -154,31 +154,6 @@ components:
         - canceled
       description: Status of a job
 
-    JobProgress:
-      type: object
-      required:
-        - current
-        - total
-        - percentage
-      properties:
-        current:
-          type: integer
-          minimum: 0
-          description: Completed bytes, files, or lifecycle units
-          example: 5
-        total:
-          type: integer
-          minimum: 0
-          description: Total bytes, files, or lifecycle units; zero when not yet known
-          example: 10
-        percentage:
-          type: integer
-          minimum: 0
-          maximum: 100
-          description: Bounded completion percentage
-          example: 50
-      description: Best-effort granular progress with lifecycle progress as a fallback
-
     Job:
       type: object
       required:
@@ -189,7 +164,6 @@ components:
         - status
         - output_dir
         - start_time
-        - progress
       properties:
         id:
           type: string
@@ -225,8 +199,6 @@ components:
           type: string
           format: date-time
           description: When the job was created
-        progress:
-          $ref: "#/components/schemas/JobProgress"
         completion_time:
           type: string
           format: date-time
@@ -395,7 +367,7 @@ paths:
   /health:
     get:
       summary: Health check endpoint
-      description: Verify the API is ready. Startup-configured model work can still be in progress.
+      description: Verify the API is ready. Startup-configured model work can still be running.
       operationId: healthCheck
       tags:
         - Health
@@ -427,7 +399,7 @@ paths:
         **Job Processing:**
         - Each model download creates a separate job
         - If conversion is requested, an additional conversion job is created
-        - Use the returned job IDs to track progress via `/jobs/{job_id}` endpoint
+        - Use the returned job IDs to track status via `/jobs/{job_id}` endpoint
       operationId: downloadModels
       parameters:
         - in: query
@@ -569,7 +541,7 @@ paths:
   /jobs/{job_id}:
     get:
       summary: Get job status
-      description: Retrieve the status, best-effort progress, and details of a specific in-memory job by its ID
+      description: Retrieve the status and details of a specific in-memory job by its ID
       operationId: getJobStatus
       tags:
         - Jobs
@@ -598,10 +570,6 @@ paths:
                 start_time: "2026-07-16T08:30:00.000000"
                 plugin_name: huggingface
                 model_type: embeddings
-                progress:
-                  current: 52428800
-                  total: 104857600
-                  percentage: 50
         "404":
           description: Job not found
           content:
@@ -616,7 +584,7 @@ paths:
   /jobs:
     get:
       summary: List all jobs
-      description: Retrieve all in-memory jobs, including their best-effort progress
+      description: Retrieve all in-memory jobs
       operationId: listJobs
       tags:
         - Jobs
@@ -639,10 +607,6 @@ paths:
                     completion_time: "2026-07-16T08:31:10.000000"
                     plugin_name: huggingface
                     model_type: embeddings
-                    progress:
-                      current: 1
-                      total: 1
-                      percentage: 100
 
   /models/jobs:
     get:

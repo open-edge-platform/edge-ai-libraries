@@ -7,7 +7,6 @@ import asyncio
 import inspect
 import concurrent.futures
 import threading
-import time
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
@@ -28,9 +27,6 @@ class ModelManager:
     - Coordinate parallel operations
     """
 
-    _PROGRESS_LOG_INTERVAL_SECONDS = 5.0
-    _PROGRESS_BAR_WIDTH = 20
-
     def __init__(self, plugin_registry: PluginRegistry, default_dir: str = "./models"):
         """
         Initialize the ModelManager.
@@ -44,7 +40,6 @@ class ModelManager:
         self._jobs = {}  # In-memory job storage
         self._executors = {}  # Active executor pools by job
         self._jobs_lock = threading.RLock()
-        self._last_progress_log = {}
         os.makedirs(self.default_dir, exist_ok=True)
         logger.info("model_manager_initialized", default_dir=self.default_dir)
 
@@ -93,7 +88,6 @@ class ModelManager:
                 "start_time": datetime.now().isoformat(),
                 "plugin_name": plugin_name,
                 "model_type": model_type,
-                "progress": {"current": 0, "total": 0, "percentage": 0},
             }
 
         logger.info(
@@ -103,88 +97,15 @@ class ModelManager:
             model_name=model_name,
             hub=hub
         )
-        self._emit_progress(job_id, force=True)
         return job_id
 
-    @staticmethod
-    def _progress_value(value: Any) -> int:
-        try:
-            return max(0, int(value))
-        except (TypeError, ValueError, OverflowError):
-            return 0
-
-    def update_progress(
-        self,
-        job_id: str,
-        current: int,
-        total: int,
-        *,
-        force_log: bool = False,
-    ) -> None:
-        """Safely update a job's bounded, monotonic progress."""
-        current_value = self._progress_value(current)
-        total_value = self._progress_value(total)
-        if total_value == 0:
-            current_value = 0
-        else:
-            current_value = min(current_value, total_value)
-
-        with self._jobs_lock:
-            job = self._jobs.get(job_id)
-            if job is None:
-                return
-
-            percentage = (
-                min(100, int(current_value * 100 / total_value))
-                if total_value
-                else 0
-            )
-            job["progress"] = {
-                "current": current_value,
-                "total": total_value,
-                "percentage": percentage,
-            }
-
-        self._emit_progress(job_id, force=force_log)
-
-    def _emit_progress(self, job_id: str, *, force: bool = False) -> None:
-        now = time.monotonic()
-        with self._jobs_lock:
-            job = self._jobs.get(job_id)
-            if job is None:
-                return
-
-            last_log = self._last_progress_log.get(job_id)
-            if not force and last_log is not None:
-                if now - last_log < self._PROGRESS_LOG_INTERVAL_SECONDS:
-                    return
-            self._last_progress_log[job_id] = now
-            progress = job["progress"].copy()
-            status = job["status"]
-
-        percentage = progress["percentage"]
-        filled = min(
-            self._PROGRESS_BAR_WIDTH,
-            int(percentage * self._PROGRESS_BAR_WIDTH / 100),
-        )
-        progress_bar = (
-            f"[{'#' * filled}{'-' * (self._PROGRESS_BAR_WIDTH - filled)}] "
-            f"{percentage:3d}%"
-        )
-        logger.info(
-            "job_progress",
-            job_id=job_id,
-            status=status,
-            current=progress["current"],
-            total=progress["total"],
-            percentage=percentage,
-            progress_bar=progress_bar,
-        )
+    def update_progress(self, job_id: str, current: int, total: int) -> None:
+        """Update the progress of a job."""
+        pass
 
     def _set_job_status(self, job_id: str, status: str) -> None:
         with self._jobs_lock:
             self._jobs[job_id]["status"] = status
-        self._emit_progress(job_id, force=True)
 
     def _mark_job_completed(self, job_id: str, result: Any) -> None:
         with self._jobs_lock:
@@ -192,8 +113,6 @@ class ModelManager:
             job["status"] = "completed"
             job["completion_time"] = datetime.now().isoformat()
             job["result"] = result
-            total = job["progress"]["total"] or 1
-        self.update_progress(job_id, total, total, force_log=True)
 
     def _mark_job_failed(
         self, job_id: str, error: Any, result: Any = None
@@ -205,31 +124,6 @@ class ModelManager:
             job["completion_time"] = datetime.now().isoformat()
             if result is not None:
                 job["result"] = result
-        self._emit_progress(job_id, force=True)
-
-    def _progress_callback(self, job_id: str):
-        def report(
-            current: Any = 0, total: Any = 0, *_: Any, **values: Any
-        ) -> None:
-            if isinstance(current, dict):
-                values = {**current, **values}
-                current = values.get(
-                    "current", values.get("completed", values.get("downloaded", 0))
-                )
-                total = values.get("total", 0)
-            else:
-                current = values.get("current", values.get("completed", current))
-                total = values.get("total", total)
-            self.update_progress(job_id, current, total)
-
-        return report
-
-    @staticmethod
-    def _accepts_progress_callback(download_method: Any) -> bool:
-        try:
-            return "progress_callback" in inspect.signature(download_method).parameters
-        except (TypeError, ValueError):
-            return False
 
     async def process_download(
         self,
@@ -327,21 +221,14 @@ class ModelManager:
                 model_name=model_name,
             )
 
-            download_kwargs = kwargs
-            if self._accepts_progress_callback(download_plugin.download):
-                download_kwargs = {
-                    **kwargs,
-                    "progress_callback": self._progress_callback(job_id),
-                }
-
             # Check if the download method is async
             if inspect.iscoroutinefunction(download_plugin.download):
                 result = await download_plugin.download(
-                    model_name, output_dir, **download_kwargs
+                    model_name, output_dir, **kwargs
                 )
             else:
                 result = await asyncio.to_thread(
-                    download_plugin.download, model_name, output_dir, **download_kwargs
+                    download_plugin.download, model_name, output_dir, **kwargs
                 )
 
             # Check if the download was successful
@@ -542,7 +429,6 @@ class ModelManager:
         )
 
         downloaded_paths = []
-        self.update_progress(job_id, 0, len(tasks), force_log=True)
 
         # Use context manager to ensure proper cleanup of executor
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -580,9 +466,6 @@ class ModelManager:
                     try:
                         path = future.result()
                         downloaded_paths.append(path)
-                        self.update_progress(
-                            job_id, len(downloaded_paths), len(tasks)
-                        )
                         logger.debug("task_downloaded", file=task.destination, path=path)
                     except Exception as e:
                         # If any task fails, we cancel pending tasks and fail the job
@@ -708,9 +591,7 @@ class ModelManager:
         with self._jobs_lock:
             if job_id not in self._jobs:
                 return None
-            job = self._jobs[job_id].copy()
-            job["progress"] = job["progress"].copy()
-            return job
+            return self._jobs[job_id].copy()
 
     def list_jobs(
         self, limit: int = 100, offset: int = 0, operation_type: Optional[str] = None
@@ -727,10 +608,7 @@ class ModelManager:
             List of job details
         """
         with self._jobs_lock:
-            all_jobs = [
-                {**job, "progress": job["progress"].copy()}
-                for job in self._jobs.values()
-            ]
+            all_jobs = [job.copy() for job in self._jobs.values()]
 
         # Filter by operation type if specified
         if operation_type:
@@ -783,6 +661,5 @@ class ModelManager:
             self._executors[job_id].shutdown(wait=False, cancel_futures=True)
             del self._executors[job_id]
 
-        self._emit_progress(job_id, force=True)
         logger.info("job_canceled", job_id=job_id)
         return True
