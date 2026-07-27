@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.etcd.service.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.etcd.service.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.etcd.service.name }}
+    spec:
+      containers:
+        - name: etcd
+          image: "{{ .Values.etcd.image.repository }}:{{ .Values.etcd.image.tag }}"
+          imagePullPolicy: {{ .Values.etcd.image.pullPolicy }}
+          command:
+            - etcd
+            - -advertise-client-urls=http://127.0.0.1:2379
+            - -listen-client-urls
+            - http://0.0.0.0:2379
+            - --data-dir
+            - /etcd
+          ports:
+            - containerPort: 2379
+          volumeMounts:
+            - name: etcd-data
+              mountPath: /etcd
+          {{- with .Values.etcd.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: etcd-data
+          emptyDir: {}

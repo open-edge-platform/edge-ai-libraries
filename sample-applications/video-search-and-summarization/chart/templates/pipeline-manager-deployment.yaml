@@ -111,7 +111,7 @@ spec:
           {{- end }}
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,summary-ui,search-ui,unified-ui,{{ .Values.vllm.service.name }},{{ .Values.vllm.service.name }}.{{ .Release.Namespace }}.svc.cluster.local,"
+              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,multimodal-embedding-ms,multimodal-dataprep,vdms-vectordb,vector-retriever,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,summary-ui,search-ui,unified-ui,{{ .Values.vllm.service.name }},{{ .Values.vllm.service.name }}.{{ .Release.Namespace }}.svc.cluster.local,"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
@@ -202,11 +202,11 @@ spec:
               value: "{{ .Values.pipelinemanager.env.PRODUCE_FINAL_SUMMARY }}"
             - name: OTLP_TRACE_URL
               value: "{{ .Values.global.env.OTLP_ENDPOINT_TRACE }}"
-            {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
+            {{- if and .Values.multimodaldataprep.enabled .Values.vsscollector.enabled }}
             - name: DATAPREP_TELEMETRY_URL
-              value: "http://{{ .Values.vdmsdataprep.name }}:{{ .Values.vdmsdataprep.service.port }}/v1/dataprep/telemetry?limit=1"
+              value: "http://{{ .Values.multimodaldataprep.name }}:{{ .Values.multimodaldataprep.service.port }}/v1/dataprep/telemetry?limit=1"
             {{- end }}
-            {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
+            {{- if and .Values.multimodaldataprep.enabled .Values.vsscollector.enabled }}
             - name: TELEMETRY_SIGNAL_DIR
               value: "/app/.collector-signals"
             {{- end }}
@@ -218,13 +218,13 @@ spec:
             - name: SEARCH_ENDPOINT
               value: "http://{{ .Values.videosearch.name }}:{{ .Values.videosearch.service.port }}"
             - name: SEARCH_DATAPREP_ENDPOINT
-              value: "http://{{ .Values.vdmsdataprep.name }}:{{ .Values.vdmsdataprep.service.port }}"
+              value: "http://{{ .Values.multimodaldataprep.name }}:{{ .Values.multimodaldataprep.service.port }}"
             - name: SEARCH_DATAPREP_TIMEOUT_MS
               value: "{{ .Values.pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS }}"
             {{- end }}
             - name: USE_VLLM
               value: "{{ .Values.pipelinemanager.env.USE_VLLM }}"
-          {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
+          {{- if and .Values.multimodaldataprep.enabled .Values.vsscollector.enabled }}
           volumeMounts:
             - name: collector-signals
               mountPath: /app/.collector-signals
@@ -238,7 +238,7 @@ spec:
       {{- end }}
       tolerations:
         {{- toYaml .Values.pipelinemanager.tolerations | nindent 8 }}
-      {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
+      {{- if and .Values.multimodaldataprep.enabled .Values.vsscollector.enabled }}
       volumes:
         - name: collector-signals
           {{- if .Values.global.usePvc }}

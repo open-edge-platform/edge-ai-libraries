@@ -38,7 +38,7 @@ global:
 replicaCount: 1
 
 image:
-  repository: intel/vdms-dataprep
+  repository: intel/multimodal-dataprep
   # This sets the pull policy for images.
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
@@ -91,14 +91,14 @@ ovCacheDir: "/app/ov_models/ov_cache"
 
 livenessProbe:
   httpGet:
-    path: /health
+    path: /v1/dataprep/health
     port: dataprep-port
   initialDelaySeconds: 20
   periodSeconds: 20
   failureThreshold: 6
 readinessProbe:
   httpGet:
-    path: /health
+    path: /v1/dataprep/health
     port: dataprep-port
   initialDelaySeconds: 10
   periodSeconds: 10
@@ -108,7 +108,7 @@ readinessProbe:
 # unaffected. failureThreshold * periodSeconds = max startup time before restart.
 startupProbe:
   httpGet:
-    path: /health
+    path: /v1/dataprep/health
     port: dataprep-port
   initialDelaySeconds: 10
   periodSeconds: 10
@@ -127,13 +127,17 @@ podAffinity:
           - key: app.kubernetes.io/name
             operator: In
             values:
-              - vdmsdataprep
+              - multimodaldataprep
       topologyKey: "kubernetes.io/hostname"
 
 # Values required to configure DataPrep service
 indexName: "videosearch-index"
+vectorDbBackend: "vdms"
 vdmsVectorDbHost: "vdms-vectordb"
 vdmsVectorDbPort: 55555
+milvusUri: "http://milvus-standalone:19530"
+vdbMetricType: "IP"
+vdbIndexType: "FLAT"
 multimodalEmbeddingEndpoint: "http://multimodal-embedding-ms:8000/embeddings"
 defaultBucketName: "video-summary"
 logLevel: "INFO"

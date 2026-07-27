@@ -9,18 +9,19 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `compose.base.yaml` common services | Always installed main chart plus `minioserver`, `postgresql`, `pipelinemanager`, `nginx` | Nginx NodePort reverse proxy, pipeline-manager, MinIO, Postgres |
 | `setup.sh --summary` / `compose.summary.yaml` | `summary_override.yaml`; `rabbitmq.enabled=true`, `ovms.enabled=true`, `videoingestion.enabled=true`, `audioanalyzer.enabled=true`, `summaryui.enabled=true`, `pipelinemanager.env.SUMMARY_FEATURE=FEATURE_ON` | Summary stack with OVMS backend and singleton Summary UI |
 | `ENABLE_VLLM=true` / `compose.vllm.yaml` | Add `xeon_vllm_values.yaml`; `vllm.enabled=true`, `ovms.enabled=false`, `pipelinemanager.env.USE_VLLM=CONFIG_ON` | vLLM CPU backend replaces OVMS; vLLM service is `cpu-vllm-service` on port 80/target 8000 |
-| `setup.sh --search` / `compose.search.yaml` | `search_override.yaml`; `multimodalembeddingms.enabled=true`, `vdmsdataprep.enabled=true`, `vdmsvectordb.enabled=true`, `videosearch.enabled=true`, `searchui.enabled=true`, `global.vdmsIndexName=video_frame_embeddings` | Search-only stack with singleton Search UI |
+| `setup.sh --search` / `compose.search.yaml` | `search_override.yaml`; `multimodalembeddingms.enabled=true`, `multimodaldataprep.enabled=true`, `vdmsvectordb.enabled=true`, `vectorretriever.enabled=true`, `videosearch.enabled=true`, `searchui.enabled=true`, `global.vdmsIndexName=video_frame_embeddings` | Search-only stack with singleton Search UI |
+| `VECTORDB_BACKEND=milvus` + `setup.sh --search` / `compose.search.milvus.yaml` | add `search_milvus_override.yaml`; `global.vectordbBackend=milvus`, `milvusstandalone.enabled=true`, `vdmsvectordb.enabled=false` | Search stack on Milvus backend with the same `multimodaldataprep` + `vectorretriever` query path |
 | `setup.sh --summary-and-search`, `--all`, `--unified` | `unified_summary_search.yaml`; enables summary+search services and `summaryui.name=unified-ui`, `summaryui.feature.mux=SUMMARY_SEARCH`, `searchui.enabled=false`, `global.vdmsIndexName=video_summary_embeddings` | One UI for summarization and search over summary text embeddings |
 | `setup.sh --dual` | `summary_override.yaml` + `search_override.yaml`; both `summaryui.enabled` and `searchui.enabled` | Two UI services; nginx routes `/summary/` and `/search/` |
 | `NGINX_UI_CONFIG=dual_ui.conf` | No direct key; chart infers dual UI from `summaryui.enabled && searchui.enabled` in `templates/nginx-deployment.yaml` | Enables path-based routing to separate UIs |
 | `APP_SUMMARY_FEATURE`, `APP_SEARCH_FEATURE`, `APP_FEATURE_MUX` | `summaryui.feature.summary`, `summaryui.feature.search`, `summaryui.feature.mux`; `searchui.feature.*`; `pipelinemanager.env.SUMMARY_FEATURE`, `pipelinemanager.env.SEARCH_FEATURE` | Controls UI feature switches and backend feature switches |
 | `VLM_MODEL_NAME` | `global.vlmName` | Required for summary/unified; passed to OVMS init or vLLM `--model` |
 | `OVMS_LLM_MODEL_NAME` / split-model mode | `global.llmName` | Optional separate OVMS LLM for final summarization; empty reuses `global.vlmName` |
-| `MULTIMODAL_EMBEDDING_MODEL` | `global.embeddingModelName` with search/dual | Model used by `multimodalembeddingms`, `vdmsdataprep`, `videosearch`; use multimodal model such as `CLIP/clip-vit-b-32` |
+| `MULTIMODAL_EMBEDDING_MODEL` | `global.embeddingModelName` with search/dual | Model used by `multimodalembeddingms`, `multimodaldataprep`, `videosearch`, and `vectorretriever`; use multimodal model such as `CLIP/clip-vit-b-32` |
 | `TEXT_EMBEDDING_MODEL` | `global.embeddingModelName` with unified mode | Use text embedding model such as `QwenText/qwen3-embedding-0.6b` |
 | `VS_INDEX_NAME=video_frame_embeddings` | `global.vdmsIndexName` from `search_override.yaml` | VDMS DB collection/index for frame embeddings |
 | `VS_INDEX_NAME=video_summary_embeddings` | `global.vdmsIndexName` from `unified_summary_search.yaml` | VDMS DB collection/index for summary text embeddings |
-| `ENABLE_EMBEDDING_GPU=true`, `VDMS_DATAPREP_DEVICE=GPU` | `global.devices.multimodalEmbedding.device=GPU`, `.key`, `global.devices.vdmsDataprep.device=GPU`, `.key` | Adds GPU resource requests/limits and `/dev/dri`; chart requires both devices to match when both subcharts are enabled |
+| `ENABLE_EMBEDDING_GPU=true`, `DATAPREP_EMBEDDING_DEVICE=GPU` | `global.devices.multimodalEmbedding.device=GPU`, `.key`, `global.devices.multimodalDataprep.embedding.device=GPU`, `.key` | Adds GPU resource requests/limits and `/dev/dri`; chart requires both devices to match when both subcharts are enabled |
 | `VLM_TARGET_DEVICE`, `LLM_TARGET_DEVICE` | `global.devices.ovms.vlm.device`, `global.devices.ovms.llm.device` | OVMS target device per model: `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` |
 | Intel device plugin resource | `global.devices.*.key` | Required when a device is GPU/NPU/HETERO; examples: `gpu.intel.com/i915`, `gpu.intel.com/xe`, `npu.intel.com/accel` |
 | `VLM_COMPRESSION_WEIGHT_FORMAT`, `LLM_COMPRESSION_WEIGHT_FORMAT` | `ovms.env.VLM_WEIGHT_FORMAT`, `ovms.env.LLM_WEIGHT_FORMAT` | Overrides auto weight format; default is CPU `int8`, GPU/NPU `int4` |
@@ -39,7 +40,7 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `SEARCH_DATAPREP_TIMEOUT_MS` | `pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS`; `videosearch.env.SEARCH_DATAPREP_TIMEOUT_MS` | Timeout for search dataprep |
 | `OD_MODEL_NAME`, `OD_MODEL_TYPE` | `videoingestion.odModelName`, `videoingestion.odModelType` | Object detection model config for video ingestion |
 | Docker named volumes | `global.usePvc`, `global.keepPvc`, `sharedClaimSize`, `*.claimSize`, `*.modelPvc.size`, `vllm.pvc.size` | Kubernetes persistent storage sizes and retention |
-| `ENABLE_VSS_COLLECTOR=true` / `compose.telemetry.yaml` | `vsscollector.enabled=true`, `vsscollector.websocketUrl`, `vsscollector.signalVolume.subPath` | Deploys `vss-collector`; only useful when search or unified enables `vdmsdataprep` |
+| `ENABLE_VSS_COLLECTOR=true` / `compose.telemetry.yaml` | `vsscollector.enabled=true`, `vsscollector.websocketUrl`, `vsscollector.signalVolume.subPath` | Deploys `vss-collector`; only useful when search or unified enables `multimodaldataprep` |
 
 ## Important actual values.yaml keys
 
@@ -56,7 +57,8 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `global.embeddingModelName` | empty | Required for search/unified; drives embedding service, dataprep, video search. |
 | `global.vdmsIndexName` | empty | Set by search/unified override files to choose VDMS collection. |
 | `global.devices.multimodalEmbedding.device/key` | `CPU` / empty | GPU scheduling for multimodal embedding service. |
-| `global.devices.vdmsDataprep.device/key` | `CPU` / empty | GPU scheduling for dataprep. Must match multimodal embedding device when both are enabled. |
+| `global.devices.multimodalDataprep.embedding.device/key` | `CPU` / empty | GPU/NPU scheduling for dataprep embedding. |
+| `global.devices.multimodalDataprep.detection.device/key` | `CPU` / empty | GPU/NPU scheduling for dataprep object detection. |
 | `global.devices.ovms.vlm.device/key` | `CPU` / empty | OVMS VLM device and K8s resource key. |
 | `global.devices.ovms.llm.device/key` | `CPU` / empty | OVMS LLM device and K8s resource key. |
 | `global.env.POSTGRES_DB` | `video_summary_db` | DB name used by Postgres/pipeline-manager. |
@@ -83,7 +85,8 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `audioanalyzer.enabled` | `false` | Enabled by summary/unified. Image `intel/audio-analyzer:1.3.3`. |
 | `videoingestion.enabled` | `false` | Enabled by summary/unified. Image `intel/video-ingestion:2026.1.0-rc1`. |
 | `multimodalembeddingms.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-embedding-serving:2026.1.0-rc1`. |
-| `vdmsdataprep.enabled` | `false` | Enabled by search/unified. Image `intel/vdms-dataprep:2026.1.0-rc1`. |
+| `multimodaldataprep.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-dataprep:2026.1.0-rc1`. |
+| `vectorretriever.enabled` | `false` | Enabled by search/unified. Image `intel/vector-retriever-<backend>:<tag>`. |
 | `vdmsvectordb.enabled` | `false` | Enabled by search/unified. Image `intellabs/vdms:v2.12.0`. |
 | `videosearch.enabled` | `false` | Enabled by search/unified. Image `intel/video-search:2026.1.0-rc1`. |
 | `summaryui.enabled`, `searchui.enabled` | `false` | UI aliases. `summaryui` becomes summary or unified UI; `searchui` is separate Search UI in search/dual. |
@@ -103,6 +106,7 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | RabbitMQ service | `rabbitmq` |
 | Video ingestion service | `videoingestion` |
 | Video search service | `videosearch` |
-| VDMS dataprep service | `vdms-dataprep` |
+| Multimodal dataprep service | `multimodal-dataprep` |
+| Vector retriever service | `vector-retriever` |
 | VDMS vector DB service | `vdms-vectordb` |
 | Multimodal embedding service | `multimodal-embedding-ms` |

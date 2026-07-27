@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: "vdms-dataprep"
+  name: "multimodal-dataprep"
   labels:
     {{ include "vdms-dataprep.labels" . | nindent 4 }}
 spec:

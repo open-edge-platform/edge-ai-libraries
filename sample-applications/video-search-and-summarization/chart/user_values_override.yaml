@@ -2,7 +2,7 @@
 # RESET ALL THE VALUES HERE TO DEFAULT, BEFORE COMMITING/PUSHING.
 global:
   # Single source of override for image registry and tag across VSS service images
-  # (pipeline-manager, video-ingestion, video-search, vss-ui, vdms-dataprep,
+  # (pipeline-manager, video-ingestion, video-search, vss-ui, multimodal-dataprep,
   # multimodal-embedding-serving). Leave empty to keep each subchart's own defaults.
   #   registry: pull the VSS images from this registry (bare image name is kept).
   #   tag: override the tag for the VSS images above.
@@ -75,8 +75,8 @@ global:
       device: CPU # CPU | GPU | NPU
       key: "" # Required when device=GPU/NPU (e.g., gpu.intel.com/i915, npu.intel.com/accel)
 
-    # VDMS Dataprep
-    vdmsDataprep:
+    # Multimodal Dataprep
+    multimodalDataprep:
       embedding:
         device: CPU # CPU | GPU | NPU
         key: "" # Required when device=GPU/NPU (e.g., gpu.intel.com/i915, npu.intel.com/accel)

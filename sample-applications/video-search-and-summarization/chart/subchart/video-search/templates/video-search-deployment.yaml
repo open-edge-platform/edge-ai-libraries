@@ -15,18 +15,18 @@ spec:
         app: {{ include "videosearch.name" . }}
     spec:
       initContainers:
-        - name: wait-for-vdms
-          image: busybox:latest
+        - name: wait-for-vector-retriever
+          image: curlimages/curl:latest
           command: 
             - sh
             - -c
             - |
-              echo "Waiting for VDMS VectorDB service to be ready..."
-              until nc -z {{ .Values.videosearch.env.VDMS_VDB_HOST }} {{ .Values.videosearch.env.VDMS_VDB_PORT }}; do
-                echo "VDMS VectorDB service is not ready yet, waiting..."
+              echo "Waiting for vector-retriever service to be ready..."
+              until curl -s -f http://{{ .Values.vectorRetriever.name }}:{{ .Values.vectorRetriever.service.port }}/ready; do
+                echo "vector-retriever service is not ready yet, waiting..."
                 sleep 10
               done
-              echo "VDMS VectorDB service is ready!"
+              echo "vector-retriever service is ready!"
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.videosearch.image.repository "tag" (.Values.global.tag | default .Values.videosearch.image.tag)) }}"
@@ -46,27 +46,21 @@ spec:
           {{- end }}
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,multimodal-embedding-ms,multimodal-dataprep,vdms-vectordb,vector-retriever,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
             - name: no_proxy_env
-              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,multimodal-embedding-ms,multimodal-dataprep,vdms-vectordb,vector-retriever,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
               value: "{{ .Values.global.proxy.https_proxy }}"
-            - name: VDMS_VDB_HOST
-              value: "{{ .Values.videosearch.env.VDMS_VDB_HOST }}"
-            - name: VDMS_VDB_PORT
-              value: "{{ .Values.videosearch.env.VDMS_VDB_PORT }}"
             - name: INDEX_NAME
               value: {{ .Values.global.vdmsIndexName | quote }}
             - name: EMBEDDINGS_ENDPOINT
               value: {{ .Values.videosearch.env.EMBEDDINGS_ENDPOINT | default .Values.global.env.MULTIMODAL_EMBEDDING_ENDPOINT | quote }}
             - name: EMBEDDINGS_MODEL_NAME
               value: {{ required "global.embeddingModelName is required" .Values.global.embeddingModelName | quote }}
-            - name: SEARCH_ENGINE
-              value: {{ .Values.videosearch.env.SEARCH_ENGINE | quote }}
-            - name: DISTANCE_STRATEGY
-              value: {{ .Values.videosearch.env.DISTANCE_STRATEGY | quote }}
+            - name: RETRIEVER_ENDPOINT
+              value: {{ .Values.videosearch.env.RETRIEVER_ENDPOINT | quote }}
             - name: WATCH_DIRECTORY
               value: {{ .Values.videosearch.env.VS_WATCHER_DIR | quote }}
             - name: WATCH_DIRECTORY_CONTAINER_PATH
@@ -93,6 +87,10 @@ spec:
               value: {{ .Values.videosearch.env.AGGREGATION_INITIAL_K | quote }}
             - name: AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS
               value: {{ .Values.videosearch.env.AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS | quote }}
+            - name: AGGREGATION_PREFER_FULL_FRAME_SEEK
+              value: {{ .Values.videosearch.env.AGGREGATION_PREFER_FULL_FRAME_SEEK | quote }}
+            - name: AGGREGATION_FULL_FRAME_SEEK_BAND
+              value: {{ .Values.videosearch.env.AGGREGATION_FULL_FRAME_SEEK_BAND | quote }}
             - name: SEARCH_DATAPREP_TIMEOUT_MS
               value: {{ .Values.videosearch.env.SEARCH_DATAPREP_TIMEOUT_MS | quote }}
             - name: AGGREGATION_QUAL_MAX_WEIGHT

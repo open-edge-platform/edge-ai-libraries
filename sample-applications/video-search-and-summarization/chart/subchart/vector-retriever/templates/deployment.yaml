@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+{{- $backend := (.Values.global.vectordbBackend | default .Values.retriever.backend) | lower }}
+{{- $repo := .Values.image.repository }}
+{{- if not $repo }}
+{{- $repo = printf "intel/vector-retriever-%s" $backend }}
+{{- end }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vector-retriever.fullname" . }}
+  labels:
+    {{- include "vector-retriever.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "vector-retriever.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "vector-retriever.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: vector-retriever
+          image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" $repo "tag" (.Values.global.tag | default .Values.image.tag)) }}"
+          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,multimodal-embedding-ms,multimodal-dataprep,vdms-vectordb,milvus-standalone,vector-retriever,videosearch,.svc.cluster.local"
+            - name: NO_PROXY
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,multimodal-embedding-ms,multimodal-dataprep,vdms-vectordb,milvus-standalone,vector-retriever,videosearch,.svc.cluster.local"
+            - name: http_proxy
+              value: "{{ .Values.global.proxy.http_proxy }}"
+            - name: https_proxy
+              value: "{{ .Values.global.proxy.https_proxy }}"
+            - name: RETRIEVER_BACKEND
+              value: {{ $backend | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.retriever.logLevel | quote }}
+            - name: INDEX_NAME
+              value: {{ .Values.global.vdmsIndexName | quote }}
+            - name: EMBEDDINGS_ENDPOINT
+              value: {{ .Values.global.env.MULTIMODAL_EMBEDDING_ENDPOINT | quote }}
+            - name: EMBEDDING_MODEL_NAME
+              value: {{ required "global.embeddingModelName is required" .Values.global.embeddingModelName | quote }}
+            - name: DEFAULT_TOP_K
+              value: {{ .Values.retriever.defaultTopK | quote }}
+            - name: MAX_TOP_K
+              value: {{ .Values.retriever.maxTopK | quote }}
+            - name: VDMS_VDB_HOST
+              value: {{ .Values.retriever.vdmsHost | quote }}
+            - name: VDMS_VDB_PORT
+              value: {{ .Values.retriever.vdmsPort | quote }}
+            - name: SEARCH_ENGINE
+              value: {{ .Values.retriever.searchEngine | quote }}
+            - name: DISTANCE_STRATEGY
+              value: {{ .Values.retriever.distanceStrategy | quote }}
+            - name: MILVUS_URI
+              value: {{ .Values.retriever.milvusUri | quote }}
+            - name: MILVUS_METRIC_TYPE
+              value: {{ .Values.retriever.milvusMetricType | quote }}
+            - name: MILVUS_INDEX_TYPE
+              value: {{ .Values.retriever.milvusIndexType | quote }}
+            - name: MILVUS_TEXT_FIELD
+              value: {{ .Values.retriever.milvusTextField | quote }}
+            - name: MILVUS_METADATA_FIELD
+              value: {{ .Values.retriever.milvusMetadataField | quote }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

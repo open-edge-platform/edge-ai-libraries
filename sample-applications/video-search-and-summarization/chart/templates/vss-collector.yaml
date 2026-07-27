@@ -1,4 +1,4 @@
-{{- if and .Values.vsscollector.enabled .Values.vdmsdataprep.enabled }}
+{{- if and .Values.vsscollector.enabled .Values.multimodaldataprep.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,7 +40,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchLabels:
-                  app.kubernetes.io/app: {{ include "vdms-dataprep.fullname" .Subcharts.vdmsdataprep }}
+                  app.kubernetes.io/app: {{ include "vdms-dataprep.fullname" .Subcharts.multimodaldataprep }}
               topologyKey: kubernetes.io/hostname
       {{- end }}
       {{- with .Values.vsscollector.nodeSelector }}

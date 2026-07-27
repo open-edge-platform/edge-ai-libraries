@@ -52,7 +52,7 @@
       "expectations": [
         "Identifies `search_override.yaml` as the Helm override file for `setup.sh --search` / search-only mode.",
         "Gives the search install command `helm install vss . -f search_override.yaml -f user_values_override.yaml -n \"$NAMESPACE\"` or the same command targeting `vss-deployment`.",
-        "States that search-only enables real search components such as `multimodalembeddingms`, `vdmsdataprep`, `vdmsvectordb`, `videosearch`, and `searchui`.",
+        "States that search-only enables real search components such as `multimodalembeddingms`, `multimodaldataprep`, `vdmsvectordb`, `vectorretriever`, `videosearch`, and `searchui`.",
         "Recommends a multimodal embedding model for search-only, for example `global.embeddingModelName: \"CLIP/clip-vit-b-32\"`.",
         "Explains that `global.vdmsIndexName` is set by `search_override.yaml` to `video_frame_embeddings` and should match the mode."
       ]

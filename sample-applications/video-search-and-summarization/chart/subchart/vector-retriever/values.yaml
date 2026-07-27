@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+replicaCount: 1
+
+image:
+  # Leave repository empty to auto-select `intel/vector-retriever-<backend>`
+  # from `retriever.backend`.
+  repository: ""
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+retriever:
+  backend: "vdms" # vdms | milvus
+  logLevel: "INFO"
+  maxTopK: "1000"
+  defaultTopK: "20"
+  # VDMS backend settings
+  vdmsHost: "vdms-vectordb"
+  vdmsPort: "55555"
+  searchEngine: "FaissFlat"
+  distanceStrategy: "IP"
+  # Milvus backend settings
+  milvusUri: "http://milvus-standalone:19530"
+  milvusMetricType: "IP"
+  milvusIndexType: "FLAT"
+  milvusTextField: "text"
+  milvusMetadataField: ""
+
+service:
+  type: ClusterIP
+  port: 8000
+  portName: http
+
+resources: {}
+
+livenessProbe:
+  httpGet:
+    path: /ready
+    port: 8000
+  initialDelaySeconds: 20
+  periodSeconds: 20
+  failureThreshold: 6
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  failureThreshold: 12
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+global:
+  registry: ""
+  tag: ""
+  pullPolicy: ""
+  proxy:
+    no_proxy: ""
+    http_proxy: ""
+    https_proxy: ""
+  vdmsIndexName: ""
+  embeddingModelName: ""
+  env:
+    MULTIMODAL_EMBEDDING_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"

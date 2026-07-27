@@ -1,5 +1,5 @@
-{{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.devices.vdmsDataprep.embedding.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
-{{- $detectionDevice := .Values.frameProcessing.dataprepDetectionDevice | default .Values.global.devices.vdmsDataprep.detection.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
+{{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.devices.multimodalDataprep.embedding.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
+{{- $detectionDevice := .Values.frameProcessing.dataprepDetectionDevice | default .Values.global.devices.multimodalDataprep.detection.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
 {{- $embeddingUsesGpu := eq $embeddingDevice "GPU" -}}
 {{- $embeddingUsesNpu := eq $embeddingDevice "NPU" -}}
 {{- $embeddingUsesAccelerator := or $embeddingUsesGpu $embeddingUsesNpu -}}
@@ -9,14 +9,14 @@
 {{- $dpUsesGpu := or $embeddingUsesGpu $detectionUsesGpu -}}
 {{- $dpUsesNpu := or $embeddingUsesNpu $detectionUsesNpu -}}
 {{- $dpUsesAccelerator := or $dpUsesGpu $dpUsesNpu -}}
-{{- $embeddingKey := .Values.global.devices.vdmsDataprep.embedding.key -}}
-{{- $detectionKey := .Values.global.devices.vdmsDataprep.detection.key -}}
+{{- $embeddingKey := .Values.global.devices.multimodalDataprep.embedding.key -}}
+{{- $detectionKey := .Values.global.devices.multimodalDataprep.detection.key -}}
 {{- /* Validate: per-component key required when its device is GPU/NPU */ -}}
 {{- if and $embeddingUsesAccelerator (not $embeddingKey) -}}
-{{- fail "global.devices.vdmsDataprep.embedding.key is required when global.devices.vdmsDataprep.embedding.device is GPU or NPU" -}}
+{{- fail "global.devices.multimodalDataprep.embedding.key is required when global.devices.multimodalDataprep.embedding.device is GPU or NPU" -}}
 {{- end -}}
 {{- if and $detectionUsesAccelerator (not $detectionKey) -}}
-{{- fail "global.devices.vdmsDataprep.detection.key is required when global.devices.vdmsDataprep.detection.device is GPU or NPU" -}}
+{{- fail "global.devices.multimodalDataprep.detection.key is required when global.devices.multimodalDataprep.detection.device is GPU or NPU" -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -69,9 +69,7 @@ spec:
         - name: {{ .Chart.Name }}
           env:
             - name: APP_HOST
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.labels['app.kubernetes.io/app']
+              value: "multimodal-dataprep"
           envFrom:
             - configMapRef:
                 name: {{ include "vdms-dataprep.fullname" . }}-config

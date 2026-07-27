@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v2
+name: milvusstandalone
+description: A Helm chart for deploying Milvus standalone with etcd
+type: application
+version: 1.3.2
+appVersion: "2.6.14"

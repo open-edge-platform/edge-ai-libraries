@@ -5,7 +5,7 @@ description: Use this skill whenever a developer needs to deploy VSS to Kubernet
 
 # VSS Helm deploy
 
-Use this workflow for the VSS sample app Helm chart at `sample-applications/video-search-and-summarization/chart`. The chart’s real dependencies are `ovms`, `minioserver`, `audioanalyzer`, `postgresql`, `rabbitmq`, `videoingestion`, `videosearch`, `vdmsvectordb`, `vdmsdataprep`, `multimodalembeddingms`, `vllm` (alias of `vllm-server`), `summaryui`, and `searchui` (aliases of `vssui`).
+Use this workflow for the VSS sample app Helm chart at `sample-applications/video-search-and-summarization/chart`. The chart’s real dependencies are `ovms`, `minioserver`, `audioanalyzer`, `postgresql`, `rabbitmq`, `videoingestion`, `videosearch`, `vdmsvectordb`, `multimodaldataprep`, `multimodalembeddingms`, `vectorretriever`, `vllm` (alias of `vllm-server`), `summaryui`, and `searchui` (aliases of `vssui`).
 
 If the user asks to map Compose or `setup.sh` settings to Helm values, read `references/helm-values-map.md`.
 
@@ -87,7 +87,7 @@ global:
 ```
 
 Why these matter:
-- `global.usePvc` and `global.sharedPvcName` control shared model/cache storage for `vdmsdataprep`, `multimodalembeddingms`, pipeline-manager collector signals, and OVMS model storage paths.
+- `global.usePvc` and `global.sharedPvcName` control shared model/cache storage for `multimodaldataprep`, `multimodalembeddingms`, pipeline-manager collector signals, and OVMS model storage paths.
 - `global.keepPvc: true` avoids re-downloading/re-converting models after uninstall, but stale PVCs can also preserve incompatible old state.
 - `global.vlmName` is required for summary/unified modes and is used by OVMS or by vLLM.
 - `global.embeddingModelName` is required when search components are enabled.
@@ -100,7 +100,8 @@ Use exactly these chart override files:
 |---|---|---|
 | `source setup.sh --summary` | `-f summary_override.yaml -f user_values_override.yaml` | `rabbitmq`, `ovms`, `videoingestion`, `audioanalyzer`, `summaryui`; `pipelinemanager.env.SUMMARY_FEATURE=FEATURE_ON` |
 | `--summary` with `ENABLE_VLLM=true` | `-f summary_override.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml` | summary mode plus `vllm.enabled=true`, `ovms.enabled=false`, `pipelinemanager.env.USE_VLLM=CONFIG_ON` |
-| `source setup.sh --search` | `-f search_override.yaml -f user_values_override.yaml` | `multimodalembeddingms`, `vdmsdataprep`, `vdmsvectordb`, `videosearch`, `searchui`; `global.vdmsIndexName=video_frame_embeddings` |
+| `source setup.sh --search` | `-f search_override.yaml -f user_values_override.yaml` | `multimodalembeddingms`, `multimodaldataprep`, `vdmsvectordb`, `vectorretriever`, `videosearch`, `searchui`; `global.vdmsIndexName=video_frame_embeddings` |
+| `VECTORDB_BACKEND=milvus` + `source setup.sh --search` | `-f search_override.yaml -f search_milvus_override.yaml -f user_values_override.yaml` | switches search backend to Milvus (`global.vectordbBackend=milvus`), enables `milvusstandalone`, disables `vdmsvectordb`, keeps `multimodaldataprep` + `vectorretriever` + `videosearch` |
 | `--summary-and-search` / `--all` / `--unified` | `-f unified_summary_search.yaml -f user_values_override.yaml` | combined search+summary in one `summaryui` named `unified-ui`; `global.vdmsIndexName=video_summary_embeddings` |
 | unified with vLLM | `-f unified_summary_search.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml` | unified mode plus vLLM backend |
 | dual separate UIs | `-f summary_override.yaml -f search_override.yaml -f user_values_override.yaml` | both `summaryui` and `searchui`; nginx routes `/summary/` and `/search/` |
@@ -206,12 +207,12 @@ global:
     multimodalEmbedding:
       device: GPU
       key: "gpu.intel.com/i915"
-    vdmsDataprep:
+    multimodalDataprep:
       device: GPU
       key: "gpu.intel.com/i915"
 ```
 
-Why: the chart validates `global.devices.multimodalEmbedding.device` equals `global.devices.vdmsDataprep.device` when both subcharts are enabled, because they share storage and must schedule compatibly. Each GPU setting also requires its `key`.
+Why: the chart validates `global.devices.multimodalEmbedding.device` equals `global.devices.multimodalDataprep.embedding.device` when both subcharts are enabled, because they share storage and must schedule compatibly. Each GPU setting also requires its `key`.
 
 vLLM tuning keys from the actual `vllm` subchart:
 ```yaml
@@ -303,7 +304,7 @@ curl http://localhost:8081/ovms/metrics
 
 - Helm fails with missing credentials: fill `global.env.POSTGRES_USER`, `global.env.POSTGRES_PASSWORD`, `global.env.MINIO_ROOT_USER`, `global.env.MINIO_ROOT_PASSWORD`, `global.env.RABBITMQ_DEFAULT_USER`, `global.env.RABBITMQ_DEFAULT_PASS`.
 - Helm fails with GPU key errors: set `global.devices.*.key` for every non-CPU device.
-- Helm fails with embedding/dataprep pairing: set both `global.devices.multimodalEmbedding.device` and `global.devices.vdmsDataprep.device` to the same value.
+- Helm fails with embedding/dataprep pairing: set both `global.devices.multimodalEmbedding.device` and `global.devices.multimodalDataprep.embedding.device` to the same value.
 - Search returns bad/no results: confirm `global.embeddingModelName` matches the mode and `global.vdmsIndexName` came from the right override file.
 - Reinstall still broken with `global.keepPvc: true`: stale PVC contents may be incompatible. Delete the relevant PVC only if the user accepts losing cached models/data:
   ```bash

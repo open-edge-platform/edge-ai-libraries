@@ -7,11 +7,8 @@ videosearch:
     pullPolicy: IfNotPresent
   resources: {}
   env:
-    VDMS_VDB_HOST: "vdms-vectordb"
-    VDMS_VDB_PORT: "55555"
     EMBEDDINGS_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
-    SEARCH_ENGINE: "FaissFlat"
-    DISTANCE_STRATEGY: "IP"
+    RETRIEVER_ENDPOINT: "http://vector-retriever:8000/query"
     VS_WATCHER_DIR: "/tmp/watcher-dir"
     WATCH_DIRECTORY_CONTAINER_PATH: "/tmp/watcher-dir"
     WATCH_DIRECTORY_RECURSIVE: "false"
@@ -25,6 +22,8 @@ videosearch:
     AGGREGATION_MAX_RESULTS: "20"
     AGGREGATION_INITIAL_K: "1000"
     AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: "0.0"
+    AGGREGATION_PREFER_FULL_FRAME_SEEK: "true"
+    AGGREGATION_FULL_FRAME_SEEK_BAND: "0.06"
     AGGREGATION_QUAL_MAX_WEIGHT: "0.65"
     AGGREGATION_QUAL_TOP_WEIGHT: "0.35"
     AGGREGATION_QUAL_TOP_RATIO: "0.35"
@@ -58,6 +57,13 @@ global:
 mmEmbeddingingMs:
   enabled: true
   name: multimodal-embedding-ms
+  service:
+    type: ClusterIP
+    port: 8000
+
+vectorRetriever:
+  enabled: true
+  name: vector-retriever
   service:
     type: ClusterIP
     port: 8000
