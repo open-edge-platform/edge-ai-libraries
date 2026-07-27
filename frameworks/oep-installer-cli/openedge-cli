@@ -200,3 +200,56 @@ subcommand_bootstrap () {
     local modules=($(cd "$mydir";find module -name "$ID_LIKE" | cut -f2 -d/))
     [ ${#modules[*]} -eq 0 ] || echo "  list of bootstrap components: ${modules[*]}"
     [ "${#profiles[*]}${#modules[*]}" = "00" ] || echo
+    return 0
+  fi
+  
+  # scan for dependencies
+  local modules=(${*##-*})
+  local -A scripts=()
+  local i=0 script
+  while [ $i -lt ${#modules[*]} ]; do
+    local script="$mydir"/profile/${modules[$i]}/${ID_LIKE}
+    [ -r "$script" ] || script="$mydir"/module/${modules[$i]}/${ID_LIKE}
+    if [ -r "$script" ]; then
+      scripts["$script"]=1
+      . "$script"
+      local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
+      [ -z "$profiler" ] || modules+=($(for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do $profiler $cmd;done))
+    else
+      echo "Unknown component or profile: ${modules[$i]}" 1>&2
+      exit 3
+    fi
+    i=$((i+1))
+  done
+
+  # construct final installer
+  if [ ${#scripts[@]} -gt 0 ]; then
+    local install_modules=() start_modules=()
+    if [[ "$*" != *"--dry-run"* ]]; then
+      sed -i '/^#### COLLECTION OF MODULES ####/q' "$0"
+      for m in $*; do
+        case "$m" in
+        --install=*)
+          install_modules+=(${m#*=})
+          ;;
+        --start=*)
+          start_modules+=(${m#*=})
+          ;;
+        esac
+      done
+      cat "$mydir"/common/os-agnostic >> "$0"
+      if [ -r "$mydir"/common/${ID_LIKE} ]; then
+        cat "$mydir"/common/${ID_LIKE} >> "$0"
+      fi
+    fi
+    for script in "${!scripts[@]}"; do
+      echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
+      [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$0"
+    done
+    [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]}" >> "$0"
+    [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]}" >> "$0"
+  else
+    echo "No bootstrap component" 1>&2
+    exit 3
+  fi
+}
