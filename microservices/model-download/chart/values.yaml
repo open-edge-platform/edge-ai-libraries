@@ -1,8 +1,8 @@
 global:
   proxy:
-    no_proxy: ".intel.com,localhost"
-    http_proxy: "http://proxy-dmz.intel.com:911"
-    https_proxy: "http://proxy-dmz.intel.com:911"
+    no_proxy: ""
+    http_proxy: ""
+    https_proxy: ""
   keeppvc: false
 
 replicaCount: 1
