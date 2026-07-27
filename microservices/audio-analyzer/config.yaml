@@ -81,7 +81,22 @@ audio_util:
     - .wav
     - .mp3
     - .m4a
+    - .mp4    # video containers accepted for VSS transcription requests;
+    - .mkv    # ffmpeg-based chunking extracts the audio track automatically,
+    - .mov    # no separate audio-extraction step is required.
+    - .avi
   chunk_size: 52428800   # 1024 * 1024 * 50 = 50MB
+
+# MinIO object storage — used only by the VSS-compatibility endpoint
+# (POST /transcriptions) to retrieve source videos and store transcripts
+# back into the same bucket the caller (VSS pipeline-manager) reads from.
+# Not used by any other endpoint. All values overridable via
+# AUDIO_ANALYZER__MINIO__<KEY> env vars.
+minio:
+  endpoint: ""       # e.g. "minio-server:9000"; empty disables MinIO support
+  access_key: ""
+  secret_key: ""
+  secure: false
 
 pipeline:
   delete_chunks_after_use: true
