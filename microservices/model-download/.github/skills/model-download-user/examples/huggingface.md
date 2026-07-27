@@ -2,37 +2,48 @@
 
 ## Scenario
 
-Download `sentence-transformers/all-MiniLM-L6-v2` (public, no token required) and
-`meta-llama/Llama-3.2-1B` (gated, requires HF token and license agreement).
+Use the service for two common HuggingFace cases:
+
+- a **public** embeddings model: `sentence-transformers/all-MiniLM-L6-v2`
+- a **gated** Llama model: `meta-llama/Llama-3.2-1B`
+
+The request shape is the same for both. The main difference is whether you need a token.
 
 ---
 
-## Step 1 — Set Up Service
+## Step 1 — Start the Service
 
 ```bash
 cd edge-ai-libraries/microservices/model-download
 
-# Public model: no token needed
-# Gated model: token required
-export HUGGINGFACEHUB_API_TOKEN=hf_your_token_here
 export REGISTRY="intel/"
 export TAG=latest
+
+# Needed for gated models. Public models can omit this.
+export HUGGINGFACEHUB_API_TOKEN=hf_your_token_here
 
 source scripts/run_service.sh up --plugins huggingface --model-path $PWD/models
 ```
 
-Verify:
+Health check:
+
 ```bash
-curl http://localhost:8200/api/v1/health
-# {"status": "ok"}
+curl -s http://localhost:8200/api/v1/health
 ```
+
+**Token note:**
+
+- For the standard Docker Compose startup path, export `HUGGINGFACEHUB_API_TOKEN`
+- Docker maps that host variable into the container as `HF_TOKEN`
+- public models do **not** require a token
+- gated models like Llama require both a token and accepted license terms on Hugging Face
 
 ---
 
-## Step 2 — Download Public Model
+## Step 2 — Download a Public Model
 
 ```bash
-curl -s -X POST \
+JOB_RESPONSE=$(curl -s -X POST \
   "http://localhost:8200/api/v1/models/download?download_path=embeddings" \
   -H "Content-Type: application/json" \
   -d '{
@@ -42,22 +53,21 @@ curl -s -X POST \
         "hub": "huggingface"
       }
     ]
-  }'
-```
+  }')
 
-**Response:**
-```json
-{"job_ids": ["<uuid>"]}
+echo "$JOB_RESPONSE"
+JOB_ID=$(echo "$JOB_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin)[\"job_ids\"][0])")
 ```
 
 ---
 
-## Step 3 — Download Gated Model (Llama)
+## Step 3 — Download a Gated Model
 
-First, accept the license at https://huggingface.co/meta-llama/Llama-3.2-1B.
+First, accept the license at:
+`https://huggingface.co/meta-llama/Llama-3.2-1B`
 
 ```bash
-curl -s -X POST \
+JOB_RESPONSE=$(curl -s -X POST \
   "http://localhost:8200/api/v1/models/download?download_path=llm" \
   -H "Content-Type: application/json" \
   -d '{
@@ -67,27 +77,38 @@ curl -s -X POST \
         "hub": "huggingface"
       }
     ]
-  }'
+  }')
+
+echo "$JOB_RESPONSE"
+JOB_ID=$(echo "$JOB_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin)[\"job_ids\"][0])")
 ```
+
+If the token is missing or the license was not accepted, the job usually ends in `failed`
+with an auth-related error.
 
 ---
 
 ## Step 4 — Poll Job Status
 
 ```bash
-JOB_ID=<uuid-from-response>
-curl -s http://localhost:8200/api/v1/jobs/$JOB_ID | python3 -m json.tool
+curl -s "http://localhost:8200/api/v1/jobs/$JOB_ID" | python3 -m json.tool
 ```
 
-**Completed response:**
+Typical job flow:
+
+`queued` → `downloading` → `completed`
+
+Example completed result:
+
 ```json
 {
   "job_id": "<uuid>",
   "model_name": "sentence-transformers/all-MiniLM-L6-v2",
   "status": "completed",
   "result": {
+    "model_name": "sentence-transformers/all-MiniLM-L6-v2",
     "source": "huggingface",
-    "download_path": "models/huggingface/",
+    "download_path": "models/huggingface",
     "success": true
   }
 }
@@ -95,15 +116,18 @@ curl -s http://localhost:8200/api/v1/jobs/$JOB_ID | python3 -m json.tool
 
 ---
 
-## Result
+## Step 5 — Where the Files Land
 
-Model files are stored at:
+The returned `download_path` is the hub root. The actual model folder is created underneath it:
+
 - `$PWD/models/huggingface/sentence-transformers_all-MiniLM-L6-v2/`
 - `$PWD/models/huggingface/meta-llama_Llama-3.2-1B/`
 
 ---
 
-## Pinning a Specific Revision
+## Variant — Pin a Specific Revision
+
+Use `revision` when you want reproducible downloads in CI or automation:
 
 ```bash
 curl -s -X POST \

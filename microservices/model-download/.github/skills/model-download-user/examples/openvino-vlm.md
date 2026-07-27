@@ -33,6 +33,7 @@ curl -s -X POST \
         "name": "llava-hf/llava-1.5-7b-hf",
         "hub": "openvino",
         "type": "vlm",
+        "is_ovms": true,
         "config": {
           "precision": "int4",
           "device": "CPU",
@@ -88,6 +89,7 @@ curl -s -X POST \
         "name": "microsoft/Phi-3-vision-128k-instruct",
         "hub": "openvino",
         "type": "vlm",
+        "is_ovms": true,
         "config": {
           "precision": "int4",
           "device": "CPU"

@@ -1,0 +1,103 @@
+{
+  "skill_name": "vss-build",
+  "evals": [
+    {
+      "id": 1,
+      "prompt_file": "example-prompts/01-local-app-rebuild.md",
+      "prompt": "I just fixed a bug in pipeline-manager. Can you rebuild the VSS app images from source so I can redeploy and test the fix locally? I don't need a registry, just local tags.",
+      "expected_output": "Resolves the VSS app root with the bundled bootstrap helper, changes into it, runs the plain ./build.sh for application services only with local tags, verifies images with docker images grep, and notes redeploying is handled by vss-deploy/setup.sh using the just-built images.",
+      "files": [],
+      "expectations": [
+        "The answer runs scripts/vss-bootstrap.sh to resolve APP_ROOT and cd into the VSS app root before building.",
+        "The answer uses the plain ./build.sh command for application services and does not use --dependencies for a day-to-day app change.",
+        "The answer does not set REGISTRY_URL or PROJECT_NAME when local image tags are requested.",
+        "The answer verifies with docker images | grep -E 'pipeline-manager|search|video-ingestion|vss|embedding|dataprep'.",
+        "The answer points deploy follow-up to vss-deploy/setup.sh rather than driving deployment through build.sh."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt_file": "example-prompts/02-first-time-with-dependencies.md",
+      "prompt": "This is my first time building VSS from source on this machine. I want all the images built, including the dependency services like vdms-dataprep and the multimodal embedding service, not just the app ones. What do I need installed and what commands do I run?",
+      "expected_output": "Explains prerequisites, especially Docker for all builds and poetry for ./build.sh --dependencies, resolves and enters the app root, runs ./build.sh --dependencies before ./build.sh, and verifies both dependency and application images.",
+      "files": [],
+      "expectations": [
+        "The answer runs scripts/vss-bootstrap.sh and cd \"$APP_ROOT\" before invoking build.sh.",
+        "The answer states Docker is required for any build and poetry is required for --dependencies because it builds the multimodal-embedding wheel.",
+        "The answer runs ./build.sh --dependencies before the plain ./build.sh command.",
+        "The answer identifies --dependencies as building vdms-dataprep and multimodal-embedding-serving.",
+        "The answer verifies the result with docker images | grep -E 'pipeline-manager|search|video-ingestion|vss|embedding|dataprep'."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt_file": "example-prompts/03-registry-tag-push.md",
+      "prompt": "Build the VSS images and push them to our internal registry at `registry.internal.example.com` under the `vss-team` project, tagged `v0.9.2`. I need both the app images and the dependency images pushed so the k8s team can pull them.",
+      "expected_output": "Exports REGISTRY_URL=registry.internal.example.com, PROJECT_NAME=vss-team, and TAG=v0.9.2, builds dependencies then app images using build.sh, runs ./build.sh --push, verifies the local image list, and reminds the user to reuse matching registry/tag values for deployment.",
+      "files": [],
+      "expectations": [
+        "The answer resolves and enters the app root through scripts/vss-bootstrap.sh before building.",
+        "The answer exports REGISTRY_URL, PROJECT_NAME, and TAG with the values requested by the prompt.",
+        "The answer builds dependency images with ./build.sh --dependencies before building application images with ./build.sh.",
+        "The answer uses ./build.sh --push to push built images rather than inventing another push command.",
+        "The answer mentions matching REGISTRY_URL/TAG values when deploying with vss-deploy."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt_file": "example-prompts/04-corporate-proxy-build.md",
+      "prompt": "My builds keep failing to reach the internet because we're behind a corporate proxy. Our proxy is `http://proxy.corp.example.com:8080` for both http and https, and I need to bypass it for `localhost` and `.corp.example.com`. Can you build the VSS images with that proxy config applied?",
+      "expected_output": "Sets http_proxy, https_proxy, and no_proxy in the shell before invoking build.sh, because build.sh passes inherited proxy variables through as Docker build args, then runs the appropriate build and verifies images.",
+      "files": [],
+      "expectations": [
+        "The answer resolves APP_ROOT with scripts/vss-bootstrap.sh and changes into that directory first.",
+        "The answer exports http_proxy and https_proxy to http://proxy.corp.example.com:8080 before running build.sh.",
+        "The answer exports no_proxy including localhost, 127.0.0.1, and .corp.example.com before running build.sh.",
+        "The answer explains that build.sh reads inherited proxy env vars and passes them as Docker --build-arg values, not via custom proxy flags.",
+        "The answer runs ./build.sh for app images and only adds ./build.sh --dependencies first if dependency images are needed."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt_file": "example-prompts/05-fresh-checkout-bootstrap.md",
+      "prompt": "I only have this skills folder here, there's no video-search-and-summarization source checked out anywhere on this machine. Please get the source and build the VSS images from scratch for me.",
+      "expected_output": "Runs the bundled vss-bootstrap.sh from the skill directory to make the source available, explains that absent source triggers a shallow single-branch sparse checkout of only sample-applications/video-search-and-summarization from main, cd\u2019s into the resolved app root, runs ./build.sh, and verifies images.",
+      "files": [],
+      "expectations": [
+        "The answer runs the bundled scripts/vss-bootstrap.sh helper before any build command.",
+        "The answer states that when no checkout is found, the helper performs a shallow, single-branch sparse checkout from main.",
+        "The answer states the checkout is limited to sample-applications/video-search-and-summarization rather than the full repository.",
+        "The answer changes directory into the resolved APP_ROOT before running ./build.sh.",
+        "The answer mentions VSS_REPO_URL, VSS_REPO_BRANCH, or VSS_CLONE_DIR only as optional bootstrap overrides, not as required flags."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt_file": "example-prompts/06-copyleft-sources-build.md",
+      "prompt": "For our compliance-tagged release, I need the VSS images built with COPYLEFT_SOURCES enabled so the copyleft build-arg is set on every image. Build both the dependency and app images this way, tag them `compliance-2026-07`, and don't push anywhere yet - just confirm locally that they built.",
+      "expected_output": "Exports COPYLEFT_SOURCES=true and TAG=compliance-2026-07, builds dependency images first and then app images with build.sh so the copyleft build arg is applied, skips --push because the prompt asks for local confirmation only, and verifies local images show the requested tag.",
+      "files": [],
+      "expectations": [
+        "The answer resolves and cd\u2019s into the VSS app root using scripts/vss-bootstrap.sh before building.",
+        "The answer exports COPYLEFT_SOURCES=true so build.sh uses --build-arg COPYLEFT_SOURCES=true.",
+        "The answer exports TAG=compliance-2026-07 and does not require REGISTRY_URL or PROJECT_NAME for local confirmation.",
+        "The answer runs ./build.sh --dependencies before ./build.sh to build both dependency and application images.",
+        "The answer does not run ./build.sh --push because the prompt explicitly says not to push."
+      ]
+    },
+    {
+      "id": 90,
+      "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
+      "prompt": "I need to cut a new build of the VSS app images tagged `nightly-2026-07-21`. Just build the app services from source with the default settings, no need to push anywhere - I'll test locally first.",
+      "expected_output": "Before doing anything else, runs the bundled scripts/vss-bootstrap.sh to resolve the VSS app root, even though the prompt never mentioned setup or cloning. The check inspects the enclosing git repo's remote (origin/upstream) to see if it already points at the official VSS repo or a fork of it, reusing that checkout with no re-clone if so, or otherwise performing a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before building the requested images.",
+      "files": [],
+      "expectations": [
+        "The answer runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) as an unconditional first step, before building the requested images, even though the prompt never asked about setup, location, or cloning.",
+        "The bootstrap check determines whether the current location is already a valid VSS checkout by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, origin/upstream URL) to see if it points at the official open-edge-platform/edge-ai-libraries repo or a fork of it, not merely by checking for local marker files.",
+        "If that remote check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the answer reuses it and performs NO re-clone.",
+        "If no valid checkout/remote is found, the answer performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from the main branch (not a full-history, all-branches, or full-tree clone).",
+        "The answer changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's build.sh commands for the requested build."
+      ]
+    }
+  ]
+}

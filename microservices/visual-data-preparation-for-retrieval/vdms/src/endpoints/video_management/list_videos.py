@@ -17,6 +17,8 @@ router = APIRouter(tags=["Video Management APIs"])
 @router.get(
     "/videos",
     summary="Get list of videos from Minio storage.",
+    operation_id="listVideos",
+    response_model=BucketVideoListResponse,
     response_model_exclude_none=True,
 )
 @validate_params

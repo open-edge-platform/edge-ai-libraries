@@ -8,7 +8,7 @@ SHELL := bash -eu -o pipefail
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
 	build-videogenerator build-onvif-discovery docker-build env-setup build-test \
-	test-smoke test-full
+	test-smoke test-full test-performance
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -187,6 +187,10 @@ test-smoke: $(VENV_SENTINEL) ## Run smoke functional tests
 test-full: $(VENV_SENTINEL) ## Run full functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	python -m pytest --log-cli-level=INFO vippet/tests/functional/
+
+test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full)
+	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
+	PERF_CONFIG=$(or $(PERF_CONFIG),default) python -m pytest --log-cli-level=INFO -m perf vippet/tests/performance/
 
 shell: env-setup ## Open shell in specified container (i.e. make shell SERVICE=vippet)
 	docker exec -it $(SERVICE) bash

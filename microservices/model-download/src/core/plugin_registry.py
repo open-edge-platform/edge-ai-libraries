@@ -91,20 +91,40 @@ class PluginRegistry:
             if hasattr(plugin, "can_handle") and plugin.can_handle(model_name, hub, **kwargs):
                 return plugin
         return None
-        
-    def check_plugin_dependencies(self, plugin_name: str) -> Tuple[bool, str]:
+
+    def supported_hubs(self) -> List[str]:
+        """Return the union of every hub claimed by a registered plugin.
+
+        Every plugin exposes ``plugin_supported_hubs()`` (defined on the base
+        class). Single-hub plugins return ``[plugin_name]``; multi-hub plugins
+        (e.g. ``external-sources``) override it to return all hubs they serve.
         """
-        Check if a plugin was activated during container startup.
-        
-        Args:
-            plugin_name: Name of the plugin to check
-        
-        Returns:
-            tuple: (bool, str) indicating if the plugin is available and reason if not
+        hubs: set[str] = set()
+        for plugins_by_name in self.plugins.values():
+            for plugin in plugins_by_name.values():
+                hubs.update(str(h).lower() for h in plugin.plugin_supported_hubs())
+        return sorted(hubs)
+
+    def hub_is_available(self, hub: str) -> Tuple[bool, str]:
+        """Return whether ``hub`` is served by a registered, activated plugin.
+
+        Resolves the hub against every registered plugin, downloader and
+        converter alike, so converter-only hubs (e.g. ``openvino`` used for
+        is_ovms conversion) are recognised. ACTIVATED_PLUGINS is a list of
+        hub names (the entrypoint rejects plugin names like
+        'external-sources'), so this is a direct membership check.
         """
-        # Check if the plugin was activated during container startup
-        if self.activated_plugins:
-            if "all" not in self.activated_plugins and plugin_name.lower() not in self.activated_plugins:
-                return False, f"Plugin '{plugin_name}' was not activated during container startup. Active plugins: {', '.join(self.activated_plugins)}"
-        
-        return True, ""
+        hub_lower = hub.lower()
+        if hub_lower not in set(self.supported_hubs()):
+            return False, f"No plugin registered for hub '{hub}'"
+
+        if not self.activated_plugins or "all" in self.activated_plugins:
+            return True, ""
+
+        if hub_lower in self.activated_plugins:
+            return True, ""
+
+        return False, (
+            f"Hub '{hub}' was not activated during container startup. "
+            f"Active hubs: {', '.join(sorted(self.activated_plugins))}"
+        )

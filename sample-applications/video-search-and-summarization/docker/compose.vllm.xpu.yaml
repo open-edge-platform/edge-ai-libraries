@@ -1,0 +1,81 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Overlay file to enable vLLM (XPU/GPU) as the backend for both VLM captioning and LLM summarization.
+services:
+  vllm-xpu-service:
+    profiles:
+      - vllm-xpu
+    image: ${VLLM_XPU_IMAGE:-intel/vllm:0.14.1-xpu}
+    hostname: vllm-xpu-service
+    ports:
+      - "${VLLM_HOST_PORT:-8200}:8000"
+    ipc: "host"
+    environment:
+      no_proxy: ${no_proxy},${MINIO_HOST},localhost
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      HUGGING_FACE_HUB_TOKEN: ${HUGGINGFACE_TOKEN:-}
+      HF_HOME: /cache
+      VLLM_RPC_TIMEOUT: ${VLLM_RPC_TIMEOUT:-100000}
+      VLLM_ENGINE_ITERATION_TIMEOUT_S: ${VLLM_ENGINE_ITERATION_TIMEOUT_S:-120}
+      VLLM_LOGGING_LEVEL: ${VLLM_LOGGING_LEVEL:-INFO}
+    command:
+      - "--model"
+      - "${VLM_MODEL_NAME}"
+      - "--dtype"
+      - "${VLLM_DTYPE:-bfloat16}"
+      - "--distributed-executor-backend"
+      - "mp"
+      - "--trust-remote-code"
+      - "--enforce-eager"
+      - "--block-size"
+      - "${VLLM_BLOCK_SIZE:-128}"
+      - "--enable-chunked-prefill"
+      - "--max-num-batched-tokens"
+      - "${VLLM_MAX_NUM_BATCHED_TOKENS:-2048}"
+      - "--max-num-seqs"
+      - "${VLLM_MAX_NUM_SEQS:-256}"
+      - "--max_model_len"
+      - "${VLLM_MAX_MODEL_LEN:-32000}"
+      - "--tensor-parallel-size"
+      - "${VLLM_TENSOR_PARALLEL_SIZE:-1}"
+      - "--gpu-memory-utilization"
+      - "${VLLM_GPU_MEM:-0.8}"
+    volumes:
+      - vllm_model_cache:/cache
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${USER_GROUP_ID:-1000}
+      - ${VIDEO_GROUP_ID:-44}
+      - ${RENDER_GROUP_ID:-1002}
+    shm_size: "8gb"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 40
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - vs_network
+
+  nginx:
+    depends_on:
+      pipeline-manager:
+        condition: service_healthy
+
+  pipeline-manager:
+    depends_on:
+      vllm-xpu-service:
+        condition: service_healthy
+    environment:
+      no_proxy: ${no_proxy},${EVAM_HOST},${VLM_HOST},${AUDIO_HOST},${RABBITMQ_HOST},${MINIO_HOST},${POSTGRES_HOST},${OVMS_HOST},${VDMS_DATAPREP_HOST},${VS_HOST},${VLLM_HOST},localhost
+      LLM_SUMMARIZATION_API: ${VLLM_ENDPOINT}
+      VLM_CAPTIONING_API: ${VLLM_ENDPOINT}
+      USE_VLLM: "CONFIG_ON"
+
+volumes:
+  vllm_model_cache:
+    driver: local

@@ -14,6 +14,14 @@ class DownloadTask:
         self.url = url
         self.destination = destination
 
+
+class ListingNotSupportedError(NotImplementedError):
+    """Raised when a hub/plugin does not support listing models."""
+
+
+class ListingAuthError(Exception):
+    """Raised when listing fails because credentials are missing or invalid."""
+
 class ModelDownloadPlugin(ABC):
     @property
     def plugin_name(self) -> str:
@@ -31,6 +39,63 @@ class ModelDownloadPlugin(ABC):
         Plugins should override this to implement their specific logic.
         """
         return False
+
+    def plugin_supported_hubs(self) -> List[str]:
+        """Return the list of hub names this plugin handles.
+
+        Single-hub plugins return ``[self.plugin_name]`` (the default).
+        Multi-hub plugins (e.g. external-sources) override this to return
+        all the user-facing hub names they serve.
+        """
+        return [self.plugin_name]
+
+    @property
+    def supports_listing(self) -> bool:
+        """Whether this plugin can list models available on its hub."""
+        return False
+
+    @property
+    def listing_filter_fields(self) -> List[str]:
+        """Filter fields supported by ``list_models`` for this plugin."""
+        return []
+
+    def _validate_listing_filters(self, filters: Optional[Dict[str, Any]]) -> None:
+        """Reject any filter key not declared in ``listing_filter_fields``.
+
+        Plugins with a fixed set of supported filters should call this at the
+        start of ``list_models`` so unsupported keys fail loudly (raising
+        ValueError) instead of being silently ignored.
+        """
+        if not filters:
+            return
+        allowed = set(self.listing_filter_fields)
+        unknown = [key for key in filters if key not in allowed]
+        if unknown:
+            allowed_list = ", ".join(sorted(allowed)) or "(none)"
+            raise ValueError(
+                f"Unsupported filter(s): {', '.join(sorted(unknown))}. "
+                f"Allowed filter(s): {allowed_list}."
+            )
+
+    def list_models(self, filters: Optional[Dict[str, Any]] = None, limit: int = 50, offset: int = 0, **kwargs) -> Dict[str, Any]:
+        """
+        List models available on this hub.
+
+        Args:
+            filters: Hub-specific filters (e.g. author/owner, search).
+            limit: Maximum number of models to return.
+            offset: Number of models to skip (pagination).
+
+        Returns:
+            A dict with ``items`` (list of model dicts) and ``total`` (int or None).
+
+        Raises:
+            ListingNotSupportedError: If the plugin does not support listing.
+            ListingAuthError: If credentials are missing or invalid.
+        """
+        raise ListingNotSupportedError(
+            f"Plugin '{self.plugin_name}' does not support listing models"
+        )
         
     def get_download_tasks(self, model_name: str, **kwargs) -> List[DownloadTask]:
         """
