@@ -186,71 +186,236 @@ subcommand_stop () {
 
 #### COLLECTION OF MODULES ####
 
-subcommand_bootstrap () {
-  local mydir="$(dirname "$(readlink -f "$0")")"
+# perform sudo in automation or in tty
+ensure_sudo () {
+  if [ -n "$SUDO_PASSWORD" ]; then
+    echo "$SUDO_PASSWORD" | sudo -S "$@"
+  else
+    sudo "$@"
+  fi
+}
 
-  if [[ "$*" = "--help" ]]; then
-    echo "bootstrap options:"
-    echo "  --dry-run              dry-run the bootstrap sequence."
-    echo "  --install=<name>       set default installation component|profile."
-    echo "  --start=<name>         set default start component|profile."
-    echo
-    local profiles=($(cd "$mydir";find profile -name "$ID_LIKE" | cut -f2 -d/))
-    [ ${#profiles[*]} -eq 0 ] || echo "  list of bootstrap profiles: ${profiles[*]}"
-    local modules=($(cd "$mydir";find module -name "$ID_LIKE" | cut -f2 -d/))
-    [ ${#modules[*]} -eq 0 ] || echo "  list of bootstrap components: ${modules[*]}"
-    [ "${#profiles[*]}${#modules[*]}" = "00" ] || echo
+# create/destroy a tmpdir with trap to delete the folder on ERR
+ensure_tmpdir () {
+  # $1: op
+  # $2: varname in create or tmpdir in destroy
+  # $3: prefix in create
+  case "$1" in
+  create)
+    printf -v $2 "%s" $(mktemp -d /tmp/openedge-cli-${3:-}.XXXXXX)
+    trap "ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
+    ;;
+  destroy)
+    trap - ERR SIGINT EXIT
+    rm -rf "$2"
+    ;;
+  esac
+}
+
+# sparse or full git clone
+ensure_git_clone () {
+  local workspace="$1"
+  local version="$2"
+  local repository="$3"
+
+  ensure_rmdir "$workspace"
+  mkdir -p "$(dirname "$workspace")"
+  if [ ${#@} -ge 4 ]; then
+    # sparse checkout
+    mkdir -p "$workspace"
+    pushd "$workspace" > /dev/null
+    git clone --filter=blob:none --no-checkout $repository .
+    git sparse-checkout init --cone
+    git sparse-checkout set "${@:4}"
+    git checkout $version
+    popd > /dev/null
+  else
+    # full checkout
+    git clone -b $version --depth 1 $repository "$workspace"
+    pushd "$workspace" > /dev/null
+    [ ! -e .gitmodule ] || git submodule update --init --recurse
+    popd > /dev/null
+  fi
+}
+
+# return the current machine IP address
+ensure_ip () {
+  ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
+}
+
+# completely remove dir
+ensure_rmdir () {
+  rm -rf "$1" 2> /dev/null || ensure_sudo rm -rf "$1"
+}
+
+# idempotently pull an image and (re)create a detached named container.
+# generic helper for docker-image based ISV applications.
+# $1: container name  $2: image reference  ${@:3}: extra "docker run" args
+ensure_docker_container () {
+  local name="$1"
+  local image="$2"
+
+  # already running or stopped-but-present: leave as-is
+  if docker inspect "$name" > /dev/null 2>&1; then
+    echo "Container $name already exists. Skipping create..."
     return 0
   fi
-  
-  # scan for dependencies
-  local modules=(${*##-*})
-  local -A scripts=()
-  local i=0 script
-  while [ $i -lt ${#modules[*]} ]; do
-    local script="$mydir"/profile/${modules[$i]}/${ID_LIKE}
-    [ -r "$script" ] || script="$mydir"/module/${modules[$i]}/${ID_LIKE}
-    if [ -r "$script" ]; then
-      scripts["$script"]=1
-      . "$script"
-      local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
-      [ -z "$profiler" ] || modules+=($(for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do $profiler $cmd;done))
-    else
-      echo "Unknown component or profile: ${modules[$i]}" 1>&2
-      exit 3
-    fi
-    i=$((i+1))
-  done
 
-  # construct final installer
-  if [ ${#scripts[@]} -gt 0 ]; then
-    local install_modules=() start_modules=()
-    if [[ "$*" != *"--dry-run"* ]]; then
-      sed -i '/^#### COLLECTION OF MODULES ####/q' "$0"
-      for m in $*; do
-        case "$m" in
-        --install=*)
-          install_modules+=(${m#*=})
-          ;;
-        --start=*)
-          start_modules+=(${m#*=})
-          ;;
-        esac
-      done
-      cat "$mydir"/common/os-agnostic >> "$0"
-      if [ -r "$mydir"/common/${ID_LIKE} ]; then
-        cat "$mydir"/common/${ID_LIKE} >> "$0"
-      fi
-    fi
-    for script in "${!scripts[@]}"; do
-      echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
-      [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$0"
-    done
-    [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]}" >> "$0"
-    [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]}" >> "$0"
-  else
-    echo "No bootstrap component" 1>&2
-    exit 3
+  echo "Pulling image $image (this may take several minutes for large images)..."
+  docker pull "$image"
+  docker run -dt --name "$name" "${@:3}" "$image"
+}
+
+# apt with apt update executed only once
+ensure_apt () {
+  case "$1" in
+  update)
+    # apt-get update got executed only once unless -y is specified
+    [ ! -e /dev/shm/apt_update ] || [ "$*" != "-y" ] || return 0
+    ensure_sudo DEBIAN_FRONTEND=noninteractive apt-get "$@"
+    touch /dev/shm/apt_update
+    ;;
+  *)
+    ensure_sudo DEBIAN_FRONTEND=noninteractive apt-get "$@"
+    ;;
+  esac
+}
+
+
+# ISV applications category. Groups third-party (independent software vendor)
+# applications so they can be installed together with a single name:
+#   ./openedge-cli install isv
+# To add a new ISV application, create module/debian_<name> following the
+# module/debian_unstructured example and append its <name> to the list below.
+debian_95_profile_isv () {
+  echo "unstructured"
+}
+# ISV application example: Unstructured (https://github.com/Unstructured-IO/unstructured)
+# Open-source pre-processing tools for turning documents (PDF, HTML, DOCX, ...)
+# into structured data. Shipped and run as the upstream docker image so that all
+# system dependencies (poppler, tesseract, libreoffice, ...) are self-contained.
+configure_unstructured () {
+  container_name=unstructured
+  image=downloads.unstructured.io/unstructured-io/unstructured:latest
+  workspace="$(readlink -f ~)/openedge-catalog/unstructured"
+}
+
+debian_95_profile_unstructured () {
+  echo "docker curl"
+}
+
+debian_95_install_unstructured () {
+  configure_unstructured
+  if docker inspect "$container_name" > /dev/null 2>&1 && [[ "$*" != *"--reset-unstructured"* ]]; then
+    echo "Unstructured is already installed. Skipping..."
+    return 0
   fi
+
+  # drop any previous container when re-installing
+  [[ "$*" != *"--reset-unstructured"* ]] || docker rm -f "$container_name" 2> /dev/null || true
+
+  mkdir -p "$workspace"
+  ensure_docker_container "$container_name" "$image" -v "$workspace":/data
+}
+
+debian_95_start_unstructured () {
+  configure_unstructured
+  docker start "$container_name" > /dev/null
+
+  # prove the library works by partitioning one of the bundled example docs
+  echo "Running Unstructured partition demo..."
+  docker exec "$container_name" python3 -c '
+from unstructured.partition.auto import partition
+elements = partition(filename="example-docs/eml/fake-email.eml")
+print("\n\n".join(str(el) for el in elements))
+'
+  echo
+  echo "Unstructured is running in container \"$container_name\"."
+  echo "Open a shell with: docker exec -it $container_name bash"
+  echo "Host directory $workspace is mounted at /data inside the container."
+}
+
+debian_95_stop_unstructured () {
+  configure_unstructured
+  docker stop "$container_name" 2> /dev/null || true
+}
+
+debian_95_remove_unstructured () {
+  configure_unstructured
+  docker rm -f "$container_name" 2> /dev/null || true
+  ensure_rmdir "$workspace"
+}
+debian_10_install_curl () {
+  if dpkg-query -L curl > /dev/null 2>&1; then
+    echo "Curl is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y curl ca-certificates
+  fi
+}
+
+
+configure_docker_proxies () {
+  echo "Configure docker engine proxies..."
+  [ -z "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ] || \
+    grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
+      ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
+      cat | ensure_sudo tee /etc/systemd/system/docker.service.d/proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
+Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
+Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
+EOF
+      ensure_sudo systemctl daemon-reload
+      ensure_sudo systemctl restart docker
+    )
+
+  local CONFIG_JSON=~/.docker/config.json
+  echo "Configure docker client proxies..."
+  grep -q -F '"proxies"' $CONFIG_JSON 2> /dev/null || (
+    mkdir -p "$(dirname $CONFIG_JSON)"
+    python3 - "$CONFIG_JSON" <<'EOF'
+import json, os, sys
+p = sys.argv[1]
+cfg = json.load(open(p)) if os.path.exists(p) else {}
+cfg.setdefault("proxies", {})["default"] = {
+    "httpProxy":  os.environ.get("http_proxy",  os.environ.get("HTTP_PROXY", "")),
+    "httpsProxy": os.environ.get("https_proxy", os.environ.get("HTTPS_PROXY", "")),
+    "noProxy":    os.environ.get("no_proxy",    os.environ.get("NO_PROXY", "")),
+}
+json.dump(cfg, open(p, "w"), indent=2)
+EOF
+  )
+}
+
+debian_20_install_docker () {
+  if docker version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
+    echo "Docker is already installed. Skipping..."
+  else
+    echo "Remove legacy installation"
+    ensure_apt remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc
+
+    ensure_apt update
+    ensure_apt install -y docker.io docker-buildx-plugin docker-compose-plugin
+
+    DAEMON_JSON="/etc/docker/daemon.json"
+    if [ ! -f "$DAEMON_JSON" ]; then
+      ensure_sudo mkdir -p /etc/docker
+      cat | ensure_sudo tee $DAEMON_JSON <<EOF
+{
+   "exec-opts": [
+        "native.cgroupdriver=systemd"
+    ]
+}
+EOF
+    fi
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl restart docker
+
+    echo "Add $USER to the docker group"
+    ensure_sudo usermod -aG docker $USER || true
+    newgrp docker || true
+  fi
+  configure_docker_proxies
 }
 

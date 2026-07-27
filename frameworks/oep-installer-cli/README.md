@@ -12,6 +12,9 @@ By default, the base installer does not contain any installable components. They
 ```
 ./openedge-cli bootstrap vision 
 # ./openedge-cli bootstrap --install=vision vision  # install vision by default
+
+./openedge-cli bootstrap isv
+# bundle the isv profile (and its dependencies) into a self-contained installer
 ```
 
 After the bootstrap process, the `openedge-cli` shell script includes all the components specified by the `vision` profile and is ready to ship.  
