@@ -14,6 +14,7 @@ from src.utils.logging import logger
 
 # Default OVMS release tag for export_model.py script
 OVMS_RELEASE_TAG = os.getenv("OVMS_RELEASE_TAG", "v2026.0")
+INTERNAL_CONFIG_PARAMS = frozenset({"resolved_config"})
 
 # Graph templates for OVMS serving configuration (aligned with export_model.py)
 TEXT_GENERATION_GRAPH_TEMPLATE = """# OVMS_GRAPH_QUEUE_MAX_SIZE: AUTO
@@ -532,7 +533,13 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 continue  # Skip None values
 
             # Skip parameters that are already handled as base command arguments or metadata
-            if param_name in ("precision", "device", "source_model", "type", "model_type"):
+            if param_name in (
+                "precision",
+                "device",
+                "source_model",
+                "type",
+                "model_type",
+            ) or param_name in INTERNAL_CONFIG_PARAMS:
                 continue
 
             if param_name in OPENVINO_EXPORT_PARAMS:
@@ -579,14 +586,18 @@ class OpenVINOConverter(ModelDownloadPlugin):
         """
         Convert a model to OpenVINO Model Server (OVMS) format.
         This is the main conversion method expected by the model manager.
-        
+
         Pull Mode: Before converting, attempts to find and download a pre-converted
         model from the OpenVINO organization on HuggingFace. Falls back to conversion
         if no pre-converted model is found.
         """        
         # Extract core parameters using helper (supports multiple sources)
-        weight_format = kwargs.get("precision",kwargs.get("weight-format"))
-        target_device = kwargs.get("device",kwargs.get("target_device"))
+        weight_format = (
+            kwargs.get("precision") or kwargs.get("weight-format") or "int8"
+        )
+        target_device = (
+            kwargs.get("device") or kwargs.get("target_device") or "CPU"
+        )
         cache_size = kwargs.get("cache_size", kwargs.get("cache", None))
         
         # Extract model metadata. Per-request override wins over the env
@@ -647,70 +658,12 @@ class OpenVINOConverter(ModelDownloadPlugin):
         logger.info(f"Pull mode did not find a match. Proceeding with conversion for {model_name}.")
         # --- End Pull Mode ---
         
-        # Extract model metadata
-        huggingface_token = hf_token
-        model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
-        version = kwargs.get("version", "")
-
-        # --- Pull Mode: Try to find and download a pre-converted model first ---
-        logger.info(f"Attempting pull mode for model: {model_name}, precision: {weight_format}, device: {target_device}")
-        pull_result = self._try_pull_preconverted(
-            model_name=model_name,
-            weight_format=weight_format or "int8",
-            output_dir=output_dir,
-            hf_token=huggingface_token,
-            target_device=target_device,
-        )
-
-        if pull_result is not None:
-            logger.info(f"Pull mode succeeded for {model_name} from {pull_result['repo_id']}")
-
-            # Generate serving config files (graph.pbtxt, config_all.json)
-            self._generate_serving_configs(
-                model_name=model_name,
-                output_dir=output_dir,
-                model_type=model_type,
-                config=kwargs,
-            )
-
-            host_path = output_dir
-            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
-                host_prefix = os.getenv("MODEL_PATH", "models")
-                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
-
-            response_config = {}
-            if "precision" in kwargs:
-                response_config["precision"] = weight_format
-            if "device" in kwargs:
-                response_config["device"] = target_device
-            if ("cache_size" in kwargs or "cache" in kwargs) and cache_size is not None:
-                response_config["cache"] = cache_size
-
-            return {
-                "model_name": model_name,
-                "source": "openvino",
-                "type": model_type,
-                "conversion_path": host_path,
-                "is_ovms": True,
-                "config": response_config,
-                "success": True,
-                "mode": "pull",
-                "pulled_from": pull_result["repo_id"],
-                "message": f"Model successfully pulled from pre-converted repo: {pull_result['repo_id']}."
-            }
-
-        logger.info(f"Pull mode did not find a match. Proceeding with conversion for {model_name}.")
-        # --- End Pull Mode ---
-        
-        # Extract model metadata
-        huggingface_token = hf_token
-        model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
-        version = kwargs.get("version", "")
-        
         # Always use flat config structure for export, passthrough all config params
         config_for_export = kwargs.copy()
         config_for_export.pop("weight-format", None)
         config_for_export.pop("target_device", None)
+        for param_name in INTERNAL_CONFIG_PARAMS:
+            config_for_export.pop(param_name, None)
         logger.info(f"Using flat config structure: {list(config_for_export.keys())}")
         logger.info(f"Extracted parameters - precision: {weight_format}, device: {target_device}, cache_size: {cache_size}")
         

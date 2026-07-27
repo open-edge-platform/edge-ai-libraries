@@ -383,6 +383,19 @@ class ModelListRequest(BaseModel):
     )
     limit: int = Field(50, ge=1, le=200, description="Maximum models to return.")
     offset: int = Field(0, ge=0, description="Number of models to skip.")
+    override_credentials: Optional[Dict[str, str]] = Field(
+        default=None,
+        description=(
+            "Optional Base64-encoded per-request connection overrides for the "
+            "selected hub. Values take precedence over environment variables "
+            "for this request only."
+        ),
+    )
+
+    @field_validator("override_credentials", mode="before")
+    @classmethod
+    def _decode_credentials(cls, v):
+        return _decode_override_credentials(v)
 
 
 class ModelListItem(BaseModel):

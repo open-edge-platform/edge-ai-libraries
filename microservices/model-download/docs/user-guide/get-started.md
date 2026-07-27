@@ -15,6 +15,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
 - Models supported for health AI suites(AI-ECG, rPPG and 3D Pose) with HLS plugin.
 - Supports parallel download
 - Supports configurable model caching
+- Optionally schedules configured model downloads when the service starts
 - Supports custom model upload through `POST /models/upload`
 - Exposes a REST API with OpenAPI documentation
 
@@ -117,6 +118,13 @@ down                   Stop the services
 
 - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the
   Swagger documentation for the available APIs.
+
+## Download Models at Startup
+
+The service can schedule model downloads and conversions automatically from a configuration file
+
+See [Download Models at Startup](./get-started/startup-models.md) for the full configuration
+schema.
 
 ## Verification
 
@@ -662,6 +670,7 @@ See [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md) for detail
 
 For alternative ways to set up the sample application, see:
 
+- [Download Models at Startup](./get-started/startup-models.md)
 - [Quick start](./get-started/quickstart.md)
 - [How to Build from Source](./get-started/build-from-source.md)
 
@@ -671,6 +680,7 @@ For alternative ways to set up the sample application, see:
 
 Migrate from Model Registry <./get-started/migration.md>
 ./get-started/system-requirements
+Startup<./get-started/startup-models.md>
 Ephemeral Container <./get-started/quickstart.md>
 ./get-started/build-from-source
 ./get-started/deploy-with-helm-chart

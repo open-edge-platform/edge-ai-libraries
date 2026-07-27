@@ -6,6 +6,7 @@ import uuid
 import asyncio
 import inspect
 import concurrent.futures
+import threading
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
@@ -50,6 +51,7 @@ class ModelManager:
         self.default_dir = os.path.abspath(default_dir)
         self._jobs = {}  # In-memory job storage
         self._executors = {}  # Active executor pools by job
+        self._jobs_lock = threading.RLock()
         os.makedirs(self.default_dir, exist_ok=True)
         logger.info("model_manager_initialized", default_dir=self.default_dir)
 
@@ -59,6 +61,7 @@ class ModelManager:
         model_name: str,
         hub: str,
         output_dir: Optional[str] = None,
+        plugin_name: Optional[str] = None,
         model_type: Optional[str] = None,
     ) -> str:
         """
@@ -68,6 +71,7 @@ class ModelManager:
             operation_type: Type of operation ('download' or 'convert')
             model_name: Name of the model to process
             output_dir: Optional custom directory for output
+            plugin_name: Optional specific plugin to use
             model_type: Optional type of model (llm, embeddings, rerank, vlm, vision)
 
         Returns:
@@ -85,16 +89,18 @@ class ModelManager:
         os.makedirs(output_dir, exist_ok=True)
 
         # Track the job
-        self._jobs[job_id] = {
-            "id": job_id,
-            "operation_type": operation_type,  # Store operation type
-            "model_name": model_name,
-            "hub": hub,
-            "output_dir": output_dir,
-            "status": "queued",
-            "start_time": datetime.now().isoformat(),
-            "model_type": model_type,
-        }
+        with self._jobs_lock:
+            self._jobs[job_id] = {
+                "id": job_id,
+                "operation_type": operation_type,
+                "model_name": model_name,
+                "hub": hub,
+                "output_dir": output_dir,
+                "status": "queued",
+                "start_time": datetime.now().isoformat(),
+                "plugin_name": plugin_name,
+                "model_type": model_type,
+            }
 
         logger.info(
             "job_registered",
@@ -108,6 +114,28 @@ class ModelManager:
     def update_progress(self, job_id: str, current: int, total: int) -> None:
         """Update the progress of a job."""
         pass
+
+    def _set_job_status(self, job_id: str, status: str) -> None:
+        with self._jobs_lock:
+            self._jobs[job_id]["status"] = status
+
+    def _mark_job_completed(self, job_id: str, result: Any) -> None:
+        with self._jobs_lock:
+            job = self._jobs[job_id]
+            job["status"] = "completed"
+            job["completion_time"] = datetime.now().isoformat()
+            job["result"] = result
+
+    def _mark_job_failed(
+        self, job_id: str, error: Any, result: Any = None
+    ) -> None:
+        with self._jobs_lock:
+            job = self._jobs[job_id]
+            job["status"] = "failed"
+            job["error"] = str(error)
+            job["completion_time"] = datetime.now().isoformat()
+            if result is not None:
+                job["result"] = result
 
     async def process_download(
         self,
@@ -134,17 +162,17 @@ class ModelManager:
         """
         try:
             # Update job status
-            self._jobs[job_id]["status"] = "downloading"
-            # Per-request connection overrides. Held aside until the plugin is
-            # known, then resolved against its declared keys (override wins,
-            # env is the fallback). Scoped to this call; never stored globally.
+            self._set_job_status(job_id, "downloading")
             request_credentials = kwargs.pop("override_credentials", None) or {}
-            logger.info(f"Request details: {model_name}, {hub}, {_redact_kwargs(kwargs)}")
+            logger.info(
+                "download_processing_started",
+                model_name=model_name,
+                hub=hub,
+                downloader=downloader,
+            )
             # Find appropriate downloader plugin
             download_plugin = None
             if downloader:
-                logger.info(f"Request details: {downloader},{model_name}, {hub}, {_redact_kwargs(kwargs)}")
-                # Try as plugin name first, then fall back to hub lookup for multi-hub plugins.
                 download_plugin = self.registry.get_plugin("downloader", downloader)
                 if not download_plugin:
                     download_plugin = self.registry.find_plugin_for_model(
@@ -152,21 +180,16 @@ class ModelManager:
                     )
                 if not download_plugin:
                     err_msg = f"Requested downloader '{downloader}' not found"
-                    self._jobs[job_id]["status"] = "failed"
-                    self._jobs[job_id]["error"] = err_msg
                     logger.error("downloader_not_found", downloader=downloader)
                     raise ValueError(err_msg)
             else:
                 # Auto-detect appropriate downloader
-                logger.info(f"Request details: {model_name}, {hub}, {_redact_kwargs(kwargs)}")
                 download_plugin = self.registry.find_plugin_for_model(
                     "downloader", model_name, hub, **kwargs
                 )
 
             if not download_plugin:
                 err_msg = f"No suitable downloader found for model '{model_name}'"
-                self._jobs[job_id]["status"] = "failed"
-                self._jobs[job_id]["error"] = err_msg
                 logger.error("no_suitable_downloader", model_name=model_name)
                 raise ValueError(err_msg)
 
@@ -205,7 +228,7 @@ class ModelManager:
                     logger.warning(
                         "task_download_failed",
                         plugin=download_plugin.plugin_name,
-                        error=str(e),
+                        error_type=type(e).__name__,
                     )
 
             # Fall back to the plugin's standard download method
@@ -220,23 +243,26 @@ class ModelManager:
 
             # Check if the download method is async
             if inspect.iscoroutinefunction(download_plugin.download):
-                result = await download_plugin.download(model_name, output_dir, **kwargs)
+                result = await download_plugin.download(
+                    model_name, output_dir, **kwargs
+                )
             else:
                 result = await asyncio.to_thread(
-                    download_plugin.download,
-                    model_name, output_dir, **kwargs
+                    download_plugin.download, model_name, output_dir, **kwargs
                 )
 
             # Check if the download was successful
             if isinstance(result, dict) and result.get("success") is False:
                 # Download failed, update job status accordingly
                 error_msg = result.get("error", "Unknown error")
-                self._jobs[job_id]["status"] = "failed"
-                self._jobs[job_id]["error"] = error_msg
-                self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
-                self._jobs[job_id]["result"] = result
+                self._mark_job_failed(job_id, error_msg, result)
                 
-                logger.error("download_failed", job_id=job_id, model_name=model_name, error=error_msg)
+                logger.error(
+                    "download_failed",
+                    job_id=job_id,
+                    model_name=model_name,
+                    failure_reason="plugin_reported_failure",
+                )
                 return {
                     "job_id": job_id,
                     "status": "failed",
@@ -244,10 +270,7 @@ class ModelManager:
                     "error": error_msg,
                 }
 
-            # Update job status
-            self._jobs[job_id]["status"] = "completed"
-            self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
-            self._jobs[job_id]["result"] = result
+            self._mark_job_completed(job_id, result)
 
             logger.info("download_completed", job_id=job_id, model_name=model_name)
             
@@ -268,11 +291,12 @@ class ModelManager:
 
         except Exception as e:
             # Update job status with error
-            self._jobs[job_id]["status"] = "failed"
-            self._jobs[job_id]["error"] = str(e)
-            self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
+            self._mark_job_failed(job_id, e)
             logger.error(
-                "download_failed", job_id=job_id, model_name=model_name, error=str(e)
+                "download_failed",
+                job_id=job_id,
+                model_name=model_name,
+                error_type=type(e).__name__,
             )
             return {
                 "job_id": job_id,
@@ -310,9 +334,7 @@ class ModelManager:
             # Check if hub is 'openvino'
             if hub != "openvino":
                 err_msg = f"Conversion failed: incorrect hub '{hub}' provided. Only 'openvino' is supported for conversion."
-                self._jobs[job_id]["status"] = "failed"
-                self._jobs[job_id]["error"] = err_msg
-                self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
+                self._mark_job_failed(job_id, err_msg)
                 logger.error("conversion_failed_incorrect_hub", job_id=job_id, model_path=model_path, hub=hub)
                 return {
                     "job_id": job_id,
@@ -322,7 +344,7 @@ class ModelManager:
                 }
 
             # Update job status
-            self._jobs[job_id]["status"] = "converting"
+            self._set_job_status(job_id, "converting")
 
             # Per-request connection overrides for the converter.
             request_credentials = kwargs.pop("override_credentials", None) or {}
@@ -330,24 +352,22 @@ class ModelManager:
             # Find appropriate converter plugin
             convert_plugin = None
             if converter:
-                # User specifically requested a converter
                 convert_plugin = self.registry.get_plugin("converter", converter)
-            if not convert_plugin:
-                err_msg = f"Requested converter '{converter}' not found"
-                self._jobs[job_id]["status"] = "failed"
-                self._jobs[job_id]["error"] = err_msg
-                logger.error("converter_not_found", converter=converter)
-                raise ValueError(err_msg)
+                if convert_plugin is None:
+                    err_msg = f"Requested converter '{converter}' not found"
+                    logger.error("converter_not_found", converter=converter)
+                    raise ValueError(err_msg)
             else:
-                # Auto-detect appropriate converter based on model path and kwargs
                 convert_plugin = self.registry.find_plugin_for_model(
-                    "converter", hub=hub, model_name=model_name, **kwargs
+                    "converter",
+                    hub=hub,
+                    model_name=model_name,
+                    is_ovms=True,
+                    **kwargs,
                 )
 
-            if not convert_plugin:
+            if convert_plugin is None:
                 err_msg = f"No suitable converter found for model at '{model_path}'"
-                self._jobs[job_id]["status"] = "failed"
-                self._jobs[job_id]["error"] = err_msg
                 logger.error("no_suitable_converter", model_path=model_path)
                 raise ValueError(err_msg)
 
@@ -363,16 +383,12 @@ class ModelManager:
             )
 
             logger.info(f"Request details: {model_path}, {hub}, {_redact_kwargs(kwargs)}")
-
             result = await asyncio.to_thread(
                 convert_plugin.convert,
                 model_name, output_dir, hf_token=hf_token, **kwargs
             )
 
-            # Update job status
-            self._jobs[job_id]["status"] = "completed"
-            self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
-            self._jobs[job_id]["result"] = result
+            self._mark_job_completed(job_id, result)
 
             logger.info("conversion_completed", job_id=job_id, model_path=model_path)
             
@@ -393,11 +409,12 @@ class ModelManager:
 
         except Exception as e:
             # Update job status with error
-            self._jobs[job_id]["status"] = "failed"
-            self._jobs[job_id]["error"] = str(e)
-            self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
+            self._mark_job_failed(job_id, e)
             logger.error(
-                "conversion_failed", job_id=job_id, model_path=model_path, error=str(e)
+                "conversion_failed",
+                job_id=job_id,
+                model_path=model_path,
+                error_type=type(e).__name__,
             )
             return {
                 "job_id": job_id,
@@ -459,7 +476,9 @@ class ModelManager:
                         return path
                     except Exception as e:
                         logger.error(
-                            "task_download_error", task=task.destination, error=str(e)
+                            "task_download_error",
+                            task=task.destination,
+                            error_type=type(e).__name__,
                         )
                         raise
 
@@ -478,18 +497,21 @@ class ModelManager:
                     except Exception as e:
                         # If any task fails, we cancel pending tasks and fail the job
                         if self._jobs[job_id]["status"] != "canceled":
-                            logger.error("task_failure", task=task.destination, error=str(e))
+                            logger.error(
+                                "task_failure",
+                                task=task.destination,
+                                error_type=type(e).__name__,
+                            )
                             raise
 
                 # All tasks completed successfully, perform any post-processing
                 result = plugin.post_process(
                     model_name, model_path, downloaded_paths, **kwargs
                 )
+                if inspect.isawaitable(result):
+                    result = asyncio.run(result)
 
-                # Update job status
-                self._jobs[job_id]["status"] = "completed"
-                self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
-                self._jobs[job_id]["result"] = result
+                self._mark_job_completed(job_id, result)
 
                 logger.info(
                     "parallel_download_completed",
@@ -516,15 +538,13 @@ class ModelManager:
             except Exception as e:
                 # Update job status with error if not already canceled
                 if self._jobs[job_id]["status"] != "canceled":
-                    self._jobs[job_id]["status"] = "failed"
-                    self._jobs[job_id]["error"] = str(e)
-                    self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
+                    self._mark_job_failed(job_id, e)
 
                 logger.error(
                     "parallel_download_failed",
                     job_id=job_id,
                     model_name=model_name,
-                    error=str(e),
+                    error_type=type(e).__name__,
                 )
 
                 return {
@@ -595,10 +615,10 @@ class ModelManager:
 
     def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get the status of a specific job."""
-        if job_id not in self._jobs:
-            return None
-        job = self._jobs[job_id].copy()  # Return a copy to prevent modification
-        return job
+        with self._jobs_lock:
+            if job_id not in self._jobs:
+                return None
+            return self._jobs[job_id].copy()
 
     def list_jobs(
         self, limit: int = 100, offset: int = 0, operation_type: Optional[str] = None
@@ -614,7 +634,8 @@ class ModelManager:
         Returns:
             List of job details
         """
-        all_jobs = list(self._jobs.values())
+        with self._jobs_lock:
+            all_jobs = [job.copy() for job in self._jobs.values()]
 
         # Filter by operation type if specified
         if operation_type:
@@ -650,19 +671,22 @@ class ModelManager:
 
     def cancel_job(self, job_id: str) -> bool:
         """Cancel a job if possible."""
-        if job_id not in self._jobs:
-            return False
-
-        if self._jobs[job_id]["status"] in ["queued", "downloading", "converting"]:
+        with self._jobs_lock:
+            if job_id not in self._jobs:
+                return False
+            if self._jobs[job_id]["status"] not in [
+                "queued",
+                "downloading",
+                "converting",
+            ]:
+                return False
             self._jobs[job_id]["status"] = "canceled"
             self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
 
-            # If there's an active executor for this job, shut it down
-            if job_id in self._executors:
-                self._executors[job_id].shutdown(wait=False, cancel_futures=True)
-                del self._executors[job_id]
+        # If there's an active executor for this job, shut it down
+        if job_id in self._executors:
+            self._executors[job_id].shutdown(wait=False, cancel_futures=True)
+            del self._executors[job_id]
 
-            logger.info("job_canceled", job_id=job_id)
-            return True
-
-        return False
+        logger.info("job_canceled", job_id=job_id)
+        return True

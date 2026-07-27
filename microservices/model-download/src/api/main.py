@@ -7,6 +7,7 @@ import zipfile
 import shutil
 import yaml
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
@@ -15,16 +16,86 @@ from pydantic import ValidationError
 
 from ..core.plugin_registry import PluginRegistry
 from ..core.model_manager import ModelManager
+from ..core.model_submission import ModelSubmissionError, submit_models
+from ..core.startup_config import StartupModelsConfig, load_startup_models_config
 import importlib
-from .models import ModelDownloadRequest, ModelHub, ModelListItem, ModelListRequest, ModelListResponse
+from .models import (
+    ModelDownloadRequest,
+    ModelListItem,
+    ModelListRequest,
+    ModelListResponse,
+    ModelRequest,
+)
 from ..core.interfaces import ListingAuthError, ListingNotSupportedError
 from ..utils.logging import logger
 from ..utils.helper import validate_zip_contents_within_target, validate_zip_file, sanitize_path_part
+
+
+_background_tasks: set[asyncio.Task[Any]] = set()
+
+
+async def _submit_startup_models(config: StartupModelsConfig) -> None:
+    for startup_model in config.models:
+        try:
+            download_path = startup_model.download_path or config.download_path
+            model = ModelRequest.model_validate(
+                startup_model.model_dump(exclude={"download_path"})
+            )
+            request = ModelDownloadRequest(
+                models=[model],
+                parallel_downloads=config.parallel_downloads,
+            )
+            job_ids = await submit_models(
+                request,
+                download_path,
+                plugin_registry=plugin_registry,
+                model_manager=model_manager,
+                models_dir=models_dir,
+                background_tasks=_background_tasks,
+            )
+            logger.info(
+                "startup_model_scheduled",
+                model_name=model.name,
+                hub=model.hub,
+                download_path=download_path,
+                job_ids=job_ids,
+            )
+        except ModelSubmissionError as error:
+            logger.error(
+                "startup_model_submission_failed",
+                model_name=startup_model.name,
+                hub=startup_model.hub,
+                error=str(error),
+            )
+        except Exception as error:
+            logger.error(
+                "startup_model_submission_failed",
+                model_name=startup_model.name,
+                hub=startup_model.hub,
+                error_type=type(error).__name__,
+            )
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    startup_config = load_startup_models_config()
+    if startup_config is not None:
+        await _submit_startup_models(startup_config)
+
+    yield
+
+    active_tasks = list(_background_tasks)
+    for task in active_tasks:
+        task.cancel()
+    if active_tasks:
+        await asyncio.gather(*active_tasks, return_exceptions=True)
+
 
 app = FastAPI(
     root_path="/api/v1",
     title="Model Download Service",
     version="1.0.1",
+    lifespan=lifespan,
 )
 
 # Custom OpenAPI schema loader
@@ -101,6 +172,7 @@ async def _list_hub_models(
     filters: Optional[Dict[str, Any]] = None,
     limit: int = 50,
     offset: int = 0,
+    override_credentials: Optional[Dict[str, str]] = None,
 ) -> ModelListResponse:
     if limit < 1 or limit > 200:
         raise HTTPException(status_code=400, detail="limit must be between 1 and 200")
@@ -126,10 +198,8 @@ async def _list_hub_models(
     if not is_available:
         raise HTTPException(status_code=400, detail=reason)
 
-    # Listing uses the service's environment credentials only; per-request
-    # credential overrides are supported on the download endpoint, not here.
     try:
-        resolved_config = plugin.resolve_config({})
+        resolved_config = plugin.resolve_config(override_credentials or {})
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -194,6 +264,7 @@ async def list_hub_models_with_body(request: ModelListRequest) -> ModelListRespo
         filters=filters,
         limit=request.limit,
         offset=request.offset,
+        override_credentials=request.override_credentials,
     )
 
 
@@ -216,155 +287,14 @@ async def download_models(
     gated models from HuggingFace. Public models can be downloaded without authentication.
     """
     try:
-        supported_hubs = set(plugin_registry.supported_hubs())
-        # Converters (e.g. openvino) advertise hubs through plugin_name
-        # rather than supported_hubs(); keep them addressable for
-        # backward compatibility with is_ovms requests.
-        for plugin_type in plugin_registry.plugins:
-            supported_hubs.update(
-                name.lower() for name in plugin_registry.get_plugin_names(plugin_type)
-            )
-        for model in request.models:
-            logger.info(f"Requested Model Hub: {model.hub}")
-            if model.hub.lower() not in supported_hubs:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Hub '{model.hub.value}' was not activated during container startup. "
-                           f"Active hubs: {', '.join(sorted(plugin_registry.activated_plugins))}.",
-                )
-
-        # Get HuggingFace token from environment variable
-        hf_token = os.getenv("HF_TOKEN")
-
-        logger.info(f"Initiating model download for {len(request.models)} model(s)")
-        job_ids = []
-
-        for model in request.models:
-            # Check if the hub was activated during container startup.
-            is_hub_available, error_reason = plugin_registry.hub_is_available(model.hub.value)
-            if not is_hub_available:
-                raise HTTPException(status_code=400, detail=error_reason)
-
-            extra_kwargs = model.model_dump().copy()
-            # Per-request connection overrides. Forwarded to the plugin (via
-            # ModelManager) where they override the plugin's environment
-            # variables for this request only. Never logged (may hold secrets).
-            request_credentials = extra_kwargs.get("override_credentials") or {}
-            loggable_kwargs = {k: v for k, v in extra_kwargs.items() if k != "override_credentials"}
-
-            # Validate override_credentials keys eagerly so unsupported keys for the hub
-            # fail with 400 immediately.
-            hub_name = model.hub.value if hasattr(model.hub, "value") else model.hub
-            plugin = plugin_registry.get_plugin("downloader", hub_name)
-            if plugin is None:
-                plugin = plugin_registry.find_plugin_for_model("downloader", "", hub_name)
-            if model.is_ovms and not plugin:
-                plugin = plugin_registry.get_plugin("converter", "openvino")
-
-            if request_credentials and plugin:
-                try:
-                    plugin.resolve_config(request_credentials)
-                except ValueError as exc:
-                    raise HTTPException(status_code=400, detail=str(exc))
-
-            logger.info(f"Model '{model.name}' download initiated using hub '{model.hub}' with parameters: {loggable_kwargs}")
-
-            needs_conversion = model.is_ovms
-            model_download_path = os.path.join(models_dir, download_path)
-
-            if model.hub.lower() in [hub.value.lower() for hub in ModelHub] and not needs_conversion:
-                extra_kwargs["token"] = hf_token
-                # Remove fields that shouldn't be passed to plugins
-                extra_kwargs.pop("hub", None)
-                extra_kwargs.pop("is_ovms", None)
-
-                model_download_path = os.path.join(
-                    models_dir, download_path
-                )
-                # Register download job
-                download_job_id = model_manager.register_job(
-                    operation_type="download",
-                    model_name=model.name,
-                    hub=model.hub,
-                    output_dir=model_download_path,
-                    model_type=model.type,
-                )
-
-                # Add to job_ids for response
-                job_ids.append(download_job_id)
-
-                # Start download in background (async parallel execution)
-                asyncio.create_task(
-                    model_manager.process_download(
-                        job_id=download_job_id,
-                        model_name=model.name,
-                        hub=model.hub,
-                        output_dir=model_download_path,
-                        downloader=model.hub,
-                        **extra_kwargs
-                    )
-                )
-
-            if needs_conversion:
-                # Check if OpenVINO plugin is available for conversion
-                is_openvino_available, openvino_error = plugin_registry.hub_is_available("openvino")
-                if not is_openvino_available:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"OpenVINO conversion requested but plugin is not available: {openvino_error}"
-                    )
-
-                # Get configuration for conversion
-                extra_kwargs["token"] = hf_token
-                config = model.config.dict() if model.config else {}
-                config['device'] = (config.get("device") or config.get("target_device") or "CPU")
-                config["precision"] = (
-                    config.get("weight-format") or
-                    config.get("precision") or
-                    "int8"
-                ).lower()
-
-                if config['device'].upper() == "NPU":
-                    logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
-                    config['precision'] = "int4"
-
-
-                # Create a unique output directory for the converted model
-                convert_output_dir = os.path.join(
-                    models_dir,
-                    download_path,
-                    "openvino_models",
-                    config["device"],
-                    config["precision"]
-                ).lower()
-
-                # Register conversion job
-                convert_job_id = model_manager.register_job(
-                    operation_type="convert",
-                    model_name=model.name,
-                    hub=model.hub,
-                    output_dir=convert_output_dir,
-                    model_type=model.type,
-                )
-
-                # Add to job_ids for response
-                job_ids.append(convert_job_id)
-
-                # Start conversion in background (async parallel execution)
-                asyncio.create_task(
-                    model_manager.process_conversion(
-                        job_id=convert_job_id,
-                        model_path=download_path,
-                        hub=model.hub,
-                        output_dir=convert_output_dir,
-                        converter="openvino",
-                        model_name=model.name,
-                        model_type=model.type,
-                        hf_token=extra_kwargs["token"],
-                        override_credentials=request_credentials,
-                        **config
-                    )
-                )
+        job_ids = await submit_models(
+            request,
+            download_path,
+            plugin_registry=plugin_registry,
+            model_manager=model_manager,
+            models_dir=models_dir,
+            background_tasks=_background_tasks,
+        )
 
         # Return response immediately with job IDs
         return {
@@ -372,6 +302,8 @@ async def download_models(
             "job_ids": job_ids,
             "status": "processing"
         }
+    except ModelSubmissionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ValidationError as e:
         logger.error(f"Request validation failed: {str(e)}")
         raise HTTPException(
