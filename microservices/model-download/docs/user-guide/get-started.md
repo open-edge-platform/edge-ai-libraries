@@ -487,6 +487,75 @@ curl -X GET "http://<host-ip>:8200/api/v1/jobs/<job_id>"
 }
 ```
 
+**Download with Override Credentials:**
+
+When using `override_credentials`, the service relies on Base64 encoding to
+obfuscate credential values in the request body and on log redaction to prevent
+credentials from appearing in service logs. Credentials are request-scoped
+(in-memory only) and never persisted. For deployments where the API is exposed
+beyond the local device or Docker network, place the service behind a
+TLS-terminating reverse proxy to encrypt credentials in transit.
+
+The `override_credentials` field lets you pass per-request credentials without
+changing environment variables. Each value must be Base64-encoded. Use
+`GET /api/v1/plugins` to discover the keys each plugin accepts.
+
+**Encode credentials:**
+
+```bash
+echo -n 'my-secret-token' | base64
+# Output: bXktc2VjcmV0LXRva2Vu
+```
+
+**Download a gated Hugging Face model with per-request token override (`HF_TOKEN`):**
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=hf_gated" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "meta-llama/Llama-3.1-8B-Instruct",
+        "hub": "huggingface",
+        "type": "llm",
+        "override_credentials": {
+          "HF_TOKEN": "<base64_HF_token>"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+**Download a Geti™ model with per-request credentials override (`GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID`):**
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_override" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "yolox-tiny",
+        "hub": "geti",
+        "revision": "1",
+        "override_credentials": {
+          "GETI_HOST": "<base64_GETI_HOST>",
+          "GETI_TOKEN": "<base64_GETI_TOKEN>",
+          "GETI_WORKSPACE_ID": "<base64_GETI_WORKSPACE_ID>"
+        },
+        "config": {
+          "precision": "fp16"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+> **Note:** When overriding a grouped set of keys (for example the `geti` group), all required keys in that group must be provided together. Use `GET /api/v1/plugins` to see which keys belong to each group.
+
+> **Note:** The response format for downloads with `override_credentials` is the same as shown in the response section above for the corresponding hub plugin.
+
 **Upload a custom model ZIP:**
 
 Use this endpoint when user (or another client app) needs to upload a local model directly to model-download.
@@ -584,15 +653,6 @@ Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metric
 3. Select model precision according to your performance requirements.
 4. Use appropriate model types and configurations for OpenVINO model server conversion.
 5. For Ultralytics INT8 exports, submit one model per request and verify `config.quantize` is provided only when INT8 is intended.
-
-## Security Note
-
-When using `override_credentials`, the service relies on Base64 encoding to
-obfuscate credential values in the request body and on log redaction to prevent
-credentials from appearing in service logs. Credentials are request-scoped
-(in-memory only) and never persisted. For deployments where the API is exposed
-beyond the local device or Docker network, place the service behind a
-TLS-terminating reverse proxy to encrypt credentials in transit.
 
 ## Run in Kubernetes Cluster
 
