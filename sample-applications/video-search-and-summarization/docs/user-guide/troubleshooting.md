@@ -321,13 +321,13 @@ The updated cache size is applied to the existing model configuration on the nex
 
 ## 4K/8K Video Ingestion Stalls with a Worker Timeout
 
-**Problem**: Ingesting a high-resolution (4K/8K) video in `--search`, `--dual`, or `--unified` mode never completes. Search never returns results for that video, and the `vdms-dataprep` container reboots its worker mid-ingestion.
+**Problem**: Ingesting a high-resolution (4K/8K) video in `--search`, `--dual`, or `--unified` mode never completes. Search never returns results for that video, and the `multimodal-dataprep` container reboots its worker mid-ingestion.
 
-**Cause**: In SDK embedding mode the DataPrep decoder moves each frame between pipeline stages through a pool of fixed-size shared-memory blocks. Each decoded frame is written into a single block as a raw RGB buffer of exactly `width × height × 3` bytes. The block size is `SDK_VIDEO_SHM_BLOCK_SIZE`, which defaults to `6220800 = 1920 × 1080 × 3` (1080p). A 4K or 8K frame is several times larger than the default block, so the write fails, the frame is never enqueued, and every downstream stage (detection → embed → store → result) starves until the worker hits the Gunicorn timeout and is force-killed.
+**Cause**: The DataPrep decoder moves each frame between pipeline stages through a pool of fixed-size shared-memory blocks. Each decoded frame is written into a single block as a raw RGB buffer of exactly `width × height × 3` bytes. The block size is `SDK_VIDEO_SHM_BLOCK_SIZE`, which defaults to `6220800 = 1920 × 1080 × 3` (1080p). A 4K or 8K frame is several times larger than the default block, so the write fails, the frame is never enqueued, and every downstream stage (detection → embed → store → result) starves until the worker hits the Gunicorn timeout and is force-killed.
 
 **Symptoms**:
 
-- Every pipeline stage logs an empty queue, then the worker aborts with signal `134` (SIGABRT) and leaks shared-memory objects. Inspect with `docker logs vdms-dataprep`:
+- Every pipeline stage logs an empty queue, then the worker aborts with signal `134` (SIGABRT) and leaks shared-memory objects. Inspect with `docker logs multimodal-dataprep`:
 
   ```text
   WARNING: | detection_worker | [DETECTION QUEUE EMPTY] WAITING...
@@ -368,7 +368,7 @@ The updated cache size is applied to the existing model configuration on the nex
    source setup.sh --search
    ```
 
-> **Note:** Always size the block from the **largest** resolution you will ingest — an oversized block only wastes memory, while an undersized one triggers the failure above. For the full explanation, see the DataPrep [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/vdms/docs/user-guide/get-started.md#4k8k-frames-overflow-the-shared-memory-block-worker-timeout).
+> **Note:** Always size the block from the **largest** resolution you will ingest — an oversized block only wastes memory, while an undersized one triggers the failure above. For the full explanation, see the DataPrep [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/docs/user-guide/get-started.md#advanced-tuning).
 
 ## Accuracy of search results
 

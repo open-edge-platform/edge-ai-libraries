@@ -108,7 +108,7 @@ Correlated traces matter because the slow user-visible step is often not the end
 - **Chunking slow**: look for long EVAM `POST /pipelines/user_defined_pipelines/...` or repeated `GET /pipelines/<id>` spans, and check `video-ingestion` health/logs.
 - **VLM slow**: long outbound OpenAI-compatible chat completion spans from `VlmService.imageInference`; compare with `VLM_CONCURRENT`, model/device, and `vss-collector` CPU/GPU metrics.
 - **Final summary slow**: long LLM chat completion spans from `LlmService.summarizeMapReduce`; check `LLM_CONCURRENT`, `MAX_CONTEXT_LENGTH`, and token limits.
-- **Search embedding slow**: long calls to `vdms-dataprep` from `DataPrepShimService`, plus low `dataprep_embeddings_per_second` in collector metrics.
+- **Search embedding slow**: long calls to `multimodal-dataprep` from `DataPrepShimService`, plus low `dataprep_embeddings_per_second` in collector metrics.
 - **Search service traces missing**: expected today. `search-ms` does not contain app OTel wiring; grep only shows optional OTel extras in dependency lock data, not instrumentation.
 
 For more detail, read [references/telemetry-setup.md](references/telemetry-setup.md).

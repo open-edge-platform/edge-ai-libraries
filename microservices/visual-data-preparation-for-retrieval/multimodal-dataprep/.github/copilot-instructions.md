@@ -98,7 +98,7 @@ container; `docker/compose-with-embedding.yaml` + `setup-with-embedding.sh`).
   **silently disabled**.
 - `setup.sh` exports `INDEX_NAME=video-rag`; compose maps it to
   `DB_COLLECTION`.
-- Volumes `vdms-yolox-models`, `ov-models`, `data-prep` hold model/scratch
+- Volumes `dataprep-yolox-models`, `ov-models`, `data-prep` hold model/scratch
   state; MinIO persists to `MINIO_MOUNT_PATH` (default `/mnt/miniodata`).
 - A 413 may come from an upstream proxy/server; the source upload endpoint has
   no implemented size check and buffers the full body. Stage large files in

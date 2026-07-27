@@ -54,7 +54,8 @@ services=(
     rabbitmq-service
     video-search
     vdms-vector-db
-    vdms-dataprep
+    multimodal-dataprep
+    vector-retriever
     multimodal-embedding-serving
     vss-collector
 )
@@ -106,7 +107,8 @@ declare -a health_checks=(
     "vllm-cpu-service|http://localhost:${VLLM_HOST_PORT:-8200}/health"
     "video-ingestion|http://localhost:${EVAM_PIPELINE_HOST_PORT:-8090}/pipelines"
     "audio-analyzer|http://localhost:${AUDIO_HOST_PORT:-8999}/api/v1/health"
-    "vdms-dataprep|http://localhost:${VDMS_DATAPREP_HOST_PORT:-6016}/v1/dataprep/health"
+    "multimodal-dataprep|http://localhost:${VDMS_DATAPREP_HOST_PORT:-6016}/v1/dataprep/health"
+    "vector-retriever|http://localhost:${VECTOR_RETRIEVER_HOST_PORT:-6008}/ready"
     "multimodal-embedding-serving|http://localhost:${EMBEDDING_SERVER_PORT:-9777}/health"
 )
 
@@ -134,7 +136,8 @@ declare -a ports=(
     "4002|MinIO console"
     "5432|Postgres"
     "55555|VDMS vector DB"
-    "6016|vdms-dataprep"
+    "6016|multimodal-dataprep"
+    "6008|vector-retriever"
     "9777|multimodal-embedding-serving"
     "9273|vss-collector telemetry"
 )
@@ -184,7 +187,7 @@ for var in \
     ENABLED_WHISPER_MODELS OD_MODEL_NAME MULTIMODAL_EMBEDDING_MODEL \
     TEXT_EMBEDDING_MODEL ENABLE_VLLM VLM_TARGET_DEVICE LLM_TARGET_DEVICE \
     PM_SUMMARIZATION_MAX_COMPLETION_TOKENS OVMS_CACHE_SIZE_GB \
-    EMBEDDING_PROCESSING_MODE VDMS_DATAPREP_DEVICE; do
+    VECTORDB_BACKEND DATAPREP_EMBEDDING_DEVICE DATAPREP_DETECTION_DEVICE MME_EMBEDDING_DEVICE; do
     if [ -n "${!var+x}" ]; then
         if [[ "$var" == *PASSWORD* || "$var" == *TOKEN* ]]; then
             echo "${var}=<set>"

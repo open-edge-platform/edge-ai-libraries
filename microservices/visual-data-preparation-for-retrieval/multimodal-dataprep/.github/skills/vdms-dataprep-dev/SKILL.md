@@ -104,6 +104,6 @@ and `src/core/minio_client.py`. Full map:
 | Path dependency on `../../multimodal-embedding-serving` | its `EmbeddingModel` API is your contract; coordinate changes across both services |
 | `setup.sh` unconditionally exports `INDEX_NAME=video-rag` and compose maps it to `DB_COLLECTION` | `VS_INDEX_NAME` has no effect; change the source or override `INDEX_NAME` after sourcing `--nosetup` before Compose |
 | Compose sets `MINIO_ENDPOINT=${MINIO_HOST}:9000` | use the container port for service-to-service traffic; host access uses port 6010 |
-| YOLOX weights download at first startup into the `vdms-yolox-models` volume | offline first run silently disables detection — don't chase it as a code bug |
+| YOLOX weights download at first startup into the `dataprep-yolox-models` volume | offline first run silently disables detection — don't chase it as a code bug |
 | Reusing a VDMS collection after changing embedding model | `Dimensions mismatch` at insert; use a fresh collection in tests |
 | Every new file needs the SPDX header | CI/license scans fail otherwise |

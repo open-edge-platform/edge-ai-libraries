@@ -60,7 +60,7 @@ Important limitation: the VSS Docker Compose telemetry overlay does not deploy a
 | --- | --- | --- |
 | `ENABLE_VSS_COLLECTOR` | `setup.sh` lines around the telemetry toggle | Defaults to `false`; when `true`, setup adds `docker/compose.telemetry.yaml`. |
 | `OTLP_TRACE_URL` | `docker/compose.base.yaml` -> `pipeline-manager/src/tracing.ts` | OTLP HTTP trace export URL. Empty means console span exporter. |
-| `DATAPREP_TELEMETRY_URL` | `docker/compose.base.yaml` -> `DataprepTelemetryService` | Endpoint polled for dataprep throughput; default `http://vdms-dataprep:8000/v1/dataprep/telemetry?limit=1`. |
+| `DATAPREP_TELEMETRY_URL` | `docker/compose.base.yaml` -> `DataprepTelemetryService` | Endpoint polled for dataprep throughput; default `http://multimodal-dataprep:8000/v1/dataprep/telemetry?limit=1`. |
 | `DATAPREP_TELEMETRY_INTERVAL_MS` | `DataprepTelemetryService` | Poll interval, default `5000`. |
 | `DATAPREP_TELEMETRY_TIMEOUT_MS` | `DataprepTelemetryService` | Poll timeout, default `30000`. |
 | `TELEMETRY_SIGNAL_DIR` | `docker/compose.base.yaml` -> `DataprepTelemetryService` | Directory for `dataprep_embeddings_per_second.txt`; default `/app/.collector-signals`. |

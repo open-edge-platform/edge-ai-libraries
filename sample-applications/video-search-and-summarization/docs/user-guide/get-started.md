@@ -260,39 +260,36 @@ Before running the application, you need to set several environment variables:
 
     > **Note**: Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
 
-11. **Configure Embedding Processing Mode (Search and Dual UI mode)**:
+11. **Configure Embedding Execution (Search and Dual UI mode)**:
 
-    Control how the embedding model is loaded and invoked during video search indexing:
+    The `multimodal-dataprep` service loads the embedding model in-process and generates
+    embeddings during video search indexing. Enable OpenVINO optimization for the
+    in-process embedding path:
 
     ```bash
-    # Embedding processing mode: "sdk" (default) or "api"
-    #   - "sdk": Loads the embedding model directly within the vdms-dataprep container (optimized, lower memory overhead)
-    #   - "api": Routes embedding requests via HTTP to the multimodal-embedding-serving container
-    export EMBEDDING_PROCESSING_MODE=sdk
-
-    # Enable OpenVINO optimization for SDK-mode embedding (default: true)
-    # Automatically set to true when using GPU mode
+    # Enable OpenVINO optimization for in-process embedding (default: true)
+    # Automatically set to true when using GPU/NPU mode
     export SDK_USE_OPENVINO=true
     ```
 
-    > **Note**: SDK mode is recommended for most deployments as it avoids inter-container HTTP overhead. Set `EMBEDDING_PROCESSING_MODE=api` if you need the embedding model served as a standalone microservice.
+    > **Note**: `multimodal-dataprep` embeds in-process (no separate embedding service is required for indexing). The standalone `multimodal-embedding-serving` service is used by `vector-retriever` to embed queries at search time.
 
 12. **Select devices per processing component (Search and Unified UI mode)**:
 
     Each processing component picks its device independently. All default to `CPU`; set any to `GPU` or `NPU` as needed.
 
     ```bash
-    # Embedding in vdms-dataprep (EMBEDDING_PROCESSING_MODE=sdk)
+    # Embedding in multimodal-dataprep (in-process)
     export DATAPREP_EMBEDDING_DEVICE=GPU
-    # YOLOX object detection in vdms-dataprep
+    # YOLOX object detection in multimodal-dataprep
     export DATAPREP_DETECTION_DEVICE=CPU
-    # Embedding in multimodal-embedding-serving (EMBEDDING_PROCESSING_MODE=api)
+    # Embedding in multimodal-embedding-serving (used by vector-retriever at query time)
     export MME_EMBEDDING_DEVICE=GPU
     ```
 
     There is no "baseline" device — each component is configured directly, matching the Helm chart's per-component model.
 
-    > **Mode note:** `DATAPREP_EMBEDDING_DEVICE` controls embedding execution when `EMBEDDING_PROCESSING_MODE=sdk` (in-process DataPrep embedding). `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving` when `EMBEDDING_PROCESSING_MODE=api`. `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut: in `sdk` mode it sets `DATAPREP_EMBEDDING_DEVICE=GPU`; in `api` mode it sets `MME_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
+    > **Device note:** `DATAPREP_EMBEDDING_DEVICE` controls in-process embedding execution in `multimodal-dataprep`. `DATAPREP_DETECTION_DEVICE` controls YOLOX object detection in `multimodal-dataprep`. `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving`, which `vector-retriever` uses to embed queries at search time. `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
 
 13. **🧪 EXPERIMENTAL: Configure vLLM Intel Arc Pro B-series GPU/XPU Backend**:
 
@@ -403,25 +400,46 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 
 | **Deployment Option** | **Embedding Pipeline Configuration** | **Detection Configuration** | **Environment Variables to Set** | **Recommended Models** | **Recommended Usage Model** |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
-| SDK shared CPU | In-process embedding in `vdms-dataprep` on CPU | Detection on CPU | `EMBEDDING_PROCESSING_MODE=sdk` (default) | Search/Dual: `CLIP/clip-vit-b-32`<br>Unified: `QwenText/qwen3-embedding-0.6b` | Default CPU-only search flow. |
-| SDK shared GPU | In-process embedding in `vdms-dataprep` on GPU | Detection on GPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=GPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Run both detection and embedding execution on GPU. |
-| SDK shared NPU | In-process embedding in `vdms-dataprep` on NPU | Detection on NPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: NPU-supported multimodal model | Run both detection and embedding execution on NPU. |
-| SDK split CPU/NPU | In-process embedding in `vdms-dataprep` on NPU | Detection on CPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: NPU-supported multimodal model | Keep detection on CPU while offloading embedding to NPU. |
-| SDK split CPU/GPU | In-process embedding in `vdms-dataprep` on CPU | Detection on GPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection only while keeping embedding on CPU. |
-| SDK split CPU/NPU (Detection) | In-process embedding in `vdms-dataprep` on CPU | Detection on NPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection to NPU while keeping embedding on CPU. |
-| API embedding CPU | Embedding served by `multimodal-embedding-serving` on CPU | Detection on CPU (DataPrep) | `EMBEDDING_PROCESSING_MODE=api` + `MME_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: `CLIP/clip-vit-b-32`<br>Unified: `QwenText/qwen3-embedding-0.6b` | Separate embedding service endpoint with CPU-only execution. |
-| API embedding GPU | Embedding served by `multimodal-embedding-serving` on GPU | Detection on CPU (DataPrep) | `EMBEDDING_PROCESSING_MODE=api` + `MME_EMBEDDING_DEVICE=GPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: `CLIP/clip-vit-b-32` | Keep DataPrep on CPU and offload API embedding to GPU. |
-| API embedding NPU | Embedding served by `multimodal-embedding-serving` on NPU | Detection on CPU (DataPrep) | `EMBEDDING_PROCESSING_MODE=api` + `MME_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: NPU-supported multimodal model | Keep DataPrep on CPU and offload API embedding to NPU. |
+| Shared CPU | In-process embedding in `multimodal-dataprep` on CPU | Detection on CPU | (defaults — no device overrides) | Search/Dual: `CLIP/clip-vit-b-32`<br>Unified: `QwenText/qwen3-embedding-0.6b` | Default CPU-only search flow. |
+| Shared GPU | In-process embedding in `multimodal-dataprep` on GPU | Detection on GPU | `DATAPREP_EMBEDDING_DEVICE=GPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Run both detection and embedding execution on GPU. |
+| Shared NPU | In-process embedding in `multimodal-dataprep` on NPU | Detection on NPU | `DATAPREP_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: NPU-supported multimodal model | Run both detection and embedding execution on NPU. |
+| Split CPU/NPU | In-process embedding in `multimodal-dataprep` on NPU | Detection on CPU | `DATAPREP_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: NPU-supported multimodal model | Keep detection on CPU while offloading embedding to NPU. |
+| Split CPU/GPU | In-process embedding in `multimodal-dataprep` on CPU | Detection on GPU | `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection only while keeping embedding on CPU. |
+| Split CPU/NPU (Detection) | In-process embedding in `multimodal-dataprep` on CPU | Detection on NPU | `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection to NPU while keeping embedding on CPU. |
 
 > **Note:**
 >
 > 1) These options apply to modes where search is enabled: `--search`, `--summary --search`, and `--summary-and-search`.
 > 2) Each component device defaults to `CPU` and is set independently — there is no "baseline" device.
-> 3) In `EMBEDDING_PROCESSING_MODE=sdk`, embedding execution runs in `vdms-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`.
-> 4) In `EMBEDDING_PROCESSING_MODE=api`, embedding execution runs in `multimodal-embedding-serving` and follows `MME_EMBEDDING_DEVICE`.
+> 3) Embedding for indexing runs **in-process** in `multimodal-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`; object detection follows `DATAPREP_DETECTION_DEVICE`.
+> 4) `MME_EMBEDDING_DEVICE` controls `multimodal-embedding-serving`, which `video-search` uses to embed **queries at search time** — set it independently of the indexing devices above.
 > 5) **NPU Support:** Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU`.
-> 6) `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut for embedding: `sdk` mode sets `DATAPREP_EMBEDDING_DEVICE=GPU`, `api` mode sets `MME_EMBEDDING_DEVICE=GPU`. For NPU, use explicit device variables.
-> 7) **4K/8K videos:** In `sdk` embedding mode the default shared-memory block size is sized for 1080p frames, so ingesting 4K/8K video can stall the DataPrep worker. Before ingesting high-resolution content, raise `SDK_VIDEO_SHM_BLOCK_SIZE` as described in [Troubleshooting](./troubleshooting.md#4k8k-video-ingestion-stalls-with-a-worker-timeout).
+> 6) `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`. For NPU, use explicit device variables.
+> 7) **4K/8K videos:** By default the shared-memory block size is sized for 1080p frames, so ingesting 4K/8K video can stall the DataPrep worker. Before ingesting high-resolution content, raise `SDK_VIDEO_SHM_BLOCK_SIZE` as described in [Troubleshooting](./troubleshooting.md#4k8k-video-ingestion-stalls-with-a-worker-timeout).
+
+#### Vector Database Backend (VDMS or Milvus)
+
+The search path is vector-database agnostic. All vector similarity search is delegated to the standalone `vector-retriever` microservice — which is part of the search stack for every backend — while `video-search` keeps only query orchestration and frame-to-video aggregation. Select the backend with the `VECTORDB_BACKEND` environment variable before running `setup.sh` (object storage stays on MinIO for both):
+
+| `VECTORDB_BACKEND` | Vector database | Query path |
+|--------------------|-----------------|------------|
+| `vdms` (default)   | VDMS            | `video-search` delegates similarity search to the `vector-retriever-vdms` image, which reads the VDMS collection. |
+| `milvus`           | Milvus (standalone) | `video-search` delegates similarity search to the `vector-retriever-milvus` image, which reads the same Milvus collection. |
+
+```bash
+# Default — VDMS backend (no variable needed)
+source setup.sh --search
+
+# Milvus backend
+export VECTORDB_BACKEND=milvus
+source setup.sh --search
+```
+
+> **Note:**
+>
+> - For **both** backends, `video-search` delegates the raw vector search to the always-on `vector-retriever` microservice and never talks to a vector database directly. `VECTORDB_BACKEND` selects the backend-baked `vector-retriever` image (`vector-retriever-${VECTORDB_BACKEND}`, via the `RETRIEVER_BACKEND` build arg). The frame-to-video aggregation still runs in `video-search`, so search results are identical in shape across backends.
+> - When `VECTORDB_BACKEND=milvus`, `setup.sh` adds the `docker/compose.search.milvus.yaml` overlay, which starts a Milvus standalone stack (`milvus-etcd` + `milvus-standalone`). `multimodal-dataprep` writes embeddings to Milvus and `vector-retriever-milvus` reads them back.
+> - The similarity metric/index (`VDB_METRIC_TYPE=IP`, `VDB_INDEX_TYPE=FLAT`) is shared between `multimodal-dataprep` and `vector-retriever` and must match on both — the defaults already align.
 
 ## Using Edge Microvisor Toolkit
 
@@ -662,7 +680,7 @@ Follow these steps to run the application:
    LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Intel/neural-chat-7b-v3-3 source setup.sh --summary-and-search
    ```
 
-> **Note:** In `EMBEDDING_PROCESSING_MODE=sdk`, embedding execution follows `DATAPREP_EMBEDDING_DEVICE` in DataPrep. In `EMBEDDING_PROCESSING_MODE=api`, embedding execution is handled by the embedding microservice and follows `MME_EMBEDDING_DEVICE`. `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut for embedding (`sdk`→DataPrep, `api`→MME).
+> **Note:** Search-indexing embedding runs in-process in `multimodal-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`. `MME_EMBEDDING_DEVICE` controls `multimodal-embedding-serving`, which `video-search` uses for query-time embeddings. `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`.
 
 To offload only specific DataPrep components during search (for example, keep embedding on CPU and move detection to GPU):
 
@@ -685,7 +703,7 @@ To verify the configuration and resolved environment variables without running t
    LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary-and-search
    ```
 
-#### Use GPU acceleration for the multimodal embedding service used by search:
+#### Use GPU acceleration for search-indexing embedding:
 
    ```bash
    # for Search mode
@@ -696,8 +714,8 @@ To verify the configuration and resolved environment variables without running t
    ```
 
    ```bash
-   # for NPU (API embedding service execution)
-   EMBEDDING_PROCESSING_MODE=api MME_EMBEDDING_DEVICE=NPU source setup.sh --search
+   # to run the in-process embedding on NPU instead
+   DATAPREP_EMBEDDING_DEVICE=NPU source setup.sh --search
    ```
 
 #### Verify the configuration and resolved environment variables:
@@ -719,12 +737,12 @@ To verify the configuration and resolved environment variables without running t
    ```
 
    ```bash
-   # For embedding service on GPU
+   # For search-indexing embedding on GPU
    ENABLE_EMBEDDING_GPU=true source setup.sh config --search                  # for Search mode
    ENABLE_EMBEDDING_GPU=true source setup.sh config --search --summary        # for Dual UI mode
 
-   # For embedding service on NPU
-   EMBEDDING_PROCESSING_MODE=api MME_EMBEDDING_DEVICE=NPU source setup.sh config --search
+   # For search-indexing embedding on NPU
+   DATAPREP_EMBEDDING_DEVICE=NPU source setup.sh config --search
    ```
 
    ```bash
