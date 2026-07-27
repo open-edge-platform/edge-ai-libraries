@@ -206,7 +206,7 @@ Read the matching example file — it contains the exact compact response format
 
 **GPU/NPU rules:**
 - GPU: `vah264dec`, `vapostproc`, `device=GPU`, `pre-process-backend=va-surface-sharing`
-- NPU: `device=NPU` + env `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so`
+- NPU: `device=NPU`
 - RTSP/MQTT with GPU: add `vapostproc ! video/x-raw` before `appsink`
 
 Read reference files only when needed for advanced configuration details:
