@@ -15,7 +15,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { AxiosError } from 'axios';
-import { SearchEmbeddingsDTO, Video, VideoDTO, VideoRO } from '../models/video.model';
+import { SearchEmbeddingsBatchDTO, SearchEmbeddingsDTO, Video, VideoDTO, VideoRO } from '../models/video.model';
 import { VideoService } from '../services/video.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FeaturesService } from '../../features/features.service';
@@ -185,5 +185,103 @@ export class VideoController {
     }
 
     return embeddings.data;
+  }
+
+  @Post('search-embeddings-batch')
+  @ApiOperation({
+    summary: 'Create search embeddings for several videos in one batch job',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['videoIds'],
+      properties: {
+        videoIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'IDs of the videos to create search embeddings for',
+        },
+        tags: {
+          type: 'string',
+          example: 'outdoor,daytime',
+          description:
+            'Optional comma-separated tags to merge into every video before embedding',
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Batch embeddings job accepted' })
+  async createSearchEmbeddingsBatch(@Body() reqBody: SearchEmbeddingsBatchDTO) {
+    if (this.$feature.getFeatures().search === FEATURE_STATE.OFF) {
+      throw new NotFoundException('Search feature is disabled');
+    }
+
+    const videoIds = Array.isArray(reqBody?.videoIds)
+      ? reqBody.videoIds.filter((id) => typeof id === 'string' && id.length > 0)
+      : [];
+
+    if (videoIds.length === 0) {
+      throw new UnprocessableEntityException('No videos provided');
+    }
+
+    const tagsArray = reqBody.tags
+      ? reqBody.tags
+          .split(',')
+          .map((curr) => curr.trim())
+          .filter((curr) => curr.length > 0)
+      : [];
+
+    try {
+      return await this.$video.createSearchEmbeddingsBatch(videoIds, tagsArray);
+    } catch (error) {
+      throw this.mapDataPrepError(error, 'submit batch embeddings job');
+    }
+  }
+
+  @Get('search-embeddings-jobs/:jobId')
+  @ApiOperation({ summary: 'Get the status of a batch embeddings job' })
+  @ApiParam({
+    name: 'jobId',
+    type: String,
+    description: 'ID of the batch embeddings job to poll',
+  })
+  @ApiOkResponse({ description: 'Batch embeddings job status' })
+  async getSearchEmbeddingsJobStatus(@Param() params: { jobId: string }) {
+    if (this.$feature.getFeatures().search === FEATURE_STATE.OFF) {
+      throw new NotFoundException('Search feature is disabled');
+    }
+
+    try {
+      return await this.$video.getSearchEmbeddingsJobStatus(params.jobId);
+    } catch (error) {
+      throw this.mapDataPrepError(error, 'poll batch embeddings job');
+    }
+  }
+
+  // Translate a data-prep Axios failure into an appropriate HTTP error so the
+  // UI can distinguish a timeout from a backend failure.
+  private mapDataPrepError(error: unknown, action: string): Error {
+    if (error instanceof AxiosError) {
+      const isTimeout =
+        error.code === 'ECONNABORTED' || /timeout/i.test(error.message);
+      const upstreamMessage =
+        (error.response?.data as { message?: string; detail?: string } | undefined)
+          ?.message ||
+        (error.response?.data as { detail?: string } | undefined)?.detail ||
+        error.message;
+
+      if (error.response?.status === 404) {
+        return new NotFoundException(upstreamMessage);
+      }
+
+      Logger.error(`Data-prep request failed (${action}): ${upstreamMessage}`);
+
+      if (isTimeout) {
+        return new RequestTimeoutException(`Timed out while trying to ${action}`);
+      }
+
+      return new BadGatewayException(`Data-prep failed to ${action}: ${upstreamMessage}`);
+    }
+    return error instanceof Error ? error : new Error(String(error));
   }
 }

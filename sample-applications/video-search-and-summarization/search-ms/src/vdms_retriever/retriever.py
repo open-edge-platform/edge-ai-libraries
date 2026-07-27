@@ -4,10 +4,8 @@
 import math
 import time
 from typing import List, Dict, Any, Tuple, Optional
-from langchain_vdms.vectorstores import VDMS, VDMS_Client
 
 from src.utils.common import settings, logger
-from src.vdms_retriever.embedding_wrapper import EmbeddingAPI
 
 DEBUG = False
 
@@ -38,6 +36,12 @@ def get_aggregation_config():
             },
             "context_seek_offset_seconds": getattr(
                 settings, 'AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS', 0.0
+            ),
+            "prefer_full_frame_seek": getattr(
+                settings, 'AGGREGATION_PREFER_FULL_FRAME_SEEK', True
+            ),
+            "full_frame_seek_band": getattr(
+                settings, 'AGGREGATION_FULL_FRAME_SEEK_BAND', 0.06
             ),
         },
         "filtering": {
@@ -241,7 +245,79 @@ def calculate_segment_score(
     }
 
 
-def determine_seek_point(segment: Dict, context_offset: float = 1.5) -> Dict:
+def _frame_meta(frame: Any) -> Dict[str, Any]:
+    """Return a frame's metadata dict whether it is a Document-like object or a raw dict."""
+    meta = frame.metadata if hasattr(frame, 'metadata') else frame
+    return meta if isinstance(meta, dict) else {}
+
+
+def _is_full_frame(metadata: Dict[str, Any]) -> bool:
+    """True when a frame is a full frame rather than a YOLOX object crop."""
+    if not isinstance(metadata, dict):
+        return False
+    is_crop = metadata.get("is_detected_crop")
+    if is_crop is not None:
+        return not bool(is_crop)
+    return str(metadata.get("frame_type", "")).upper() == "FULL_FRAME"
+
+
+def select_anchor_frame(
+    frames: List[Any],
+    prefer_full_frame: bool = False,
+    full_frame_band: float = 0.0,
+) -> Optional[Any]:
+    """Pick the representative frame of a segment (drives seek point + displayed frame).
+
+    Default behavior returns the highest-relevance frame. When ``prefer_full_frame`` is
+    enabled and a full frame exists whose relevance is within ``full_frame_band`` (a
+    fraction of the segment peak score), the full frame *nearest in time* to the peak is
+    returned instead (tie-broken by higher score), so the UI anchors on a fully-visible
+    frame rather than an object crop. Segment ranking/scoring are unaffected.
+    """
+    if not frames:
+        return None
+
+    peak = max(frames, key=lambda f: _frame_meta(f).get('relevance_score', 0.0) or 0.0)
+    if not prefer_full_frame or full_frame_band <= 0:
+        return peak
+
+    peak_meta = _frame_meta(peak)
+    peak_score = float(peak_meta.get('relevance_score', 0.0) or 0.0)
+    # Already a full frame, or no usable score to band against -> nothing to swap.
+    if peak_score <= 0 or _is_full_frame(peak_meta):
+        return peak
+
+    threshold = peak_score * (1.0 - full_frame_band)
+    peak_ts = peak_meta.get('timestamp')
+
+    candidates = [
+        frame
+        for frame in frames
+        if _is_full_frame(_frame_meta(frame))
+        and float(_frame_meta(frame).get('relevance_score', 0.0) or 0.0) >= threshold
+    ]
+    if not candidates:
+        return peak
+
+    def _key(frame: Any):
+        meta = _frame_meta(frame)
+        ts = meta.get('timestamp')
+        time_gap = (
+            abs(float(ts) - float(peak_ts))
+            if ts is not None and peak_ts is not None
+            else float('inf')
+        )
+        return (time_gap, -(float(meta.get('relevance_score', 0.0) or 0.0)))
+
+    return min(candidates, key=_key)
+
+
+def determine_seek_point(
+    segment: Dict,
+    context_offset: float = 1.5,
+    prefer_full_frame: bool = False,
+    full_frame_band: float = 0.0,
+) -> Dict:
     """
     Determine optimal video seek point for UI playback.
     
@@ -250,23 +326,16 @@ def determine_seek_point(segment: Dict, context_offset: float = 1.5) -> Dict:
     Args:
         segment: Segment dictionary with frames
         context_offset: Seconds to seek before best frame for context
+        prefer_full_frame: Prefer a full frame over a near-equal crop as the anchor
+        full_frame_band: Fractional score band within the segment peak for that swap
         
     Returns:
         Dictionary with seek point information
     """
     frames = segment["frames"]
-    
-    # Find highest scoring frame
-    best_frame = None
-    best_score = -1
-    
-    for frame in frames:
-        frame_metadata = frame.metadata if hasattr(frame, 'metadata') else frame
-        score = frame_metadata.get('relevance_score', 0)
-        if score > best_score:
-            best_score = score
-            best_frame = frame
-    
+
+    best_frame = select_anchor_frame(frames, prefer_full_frame, full_frame_band)
+
     if not best_frame:
         best_frame = frames[0] if frames else None
     
@@ -423,6 +492,8 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
     scoring_start = time.perf_counter()
     scored_segments = []
     seek_offset = float(config["scoring"].get("context_seek_offset_seconds", 0.0))
+    prefer_full_frame_seek = bool(config["scoring"].get("prefer_full_frame_seek", False))
+    full_frame_seek_band = float(config["scoring"].get("full_frame_seek_band", 0.0) or 0.0)
 
     logger.debug(f"=== SCORING DEBUG: Scoring {len(segments)} segments ===")
     
@@ -441,18 +512,19 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             global_best_frame_metadata,
             config,
         )
-        seek_data = determine_seek_point(segment, context_offset=seek_offset)
-        
-        # Get best frame for metadata
-        best_frame = None
-        best_score = -1
-        for frame in segment["frames"]:
-            frame_metadata = frame.metadata if hasattr(frame, 'metadata') else frame
-            score = frame_metadata.get('relevance_score', 0)
-            if score > best_score:
-                best_score = score
-                best_frame = frame
-        
+        seek_data = determine_seek_point(
+            segment,
+            context_offset=seek_offset,
+            prefer_full_frame=prefer_full_frame_seek,
+            full_frame_band=full_frame_seek_band,
+        )
+
+        # Use the same anchor frame for the displayed metadata so the shown frame
+        # (frame_type, detected_label, ...) matches the seek/thumbnail timestamp.
+        best_frame = select_anchor_frame(
+            segment["frames"], prefer_full_frame_seek, full_frame_seek_band
+        )
+
         best_frame_metadata = best_frame.metadata if (best_frame and hasattr(best_frame, 'metadata')) else best_frame
         if not best_frame_metadata:
             best_frame_metadata = {}
@@ -573,6 +645,16 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             # VDMS can store datetime as an object with the actual value in _date
             created_at = best_frame_meta.get("date_time", {}).get("_date", "")
 
+        # Tags may be a native list (Milvus / multimodal-dataprep) or a legacy
+        # comma-separated string (older VDMS metadata); normalize both.
+        raw_tags = best_frame_meta.get("tags")
+        if isinstance(raw_tags, str):
+            tags_list = [t.strip() for t in raw_tags.split(",") if t.strip()]
+        elif isinstance(raw_tags, (list, tuple)):
+            tags_list = [str(t).strip() for t in raw_tags if str(t).strip()]
+        else:
+            tags_list = []
+
         formatted_result = {
             "video_id": result["video_id"],
             "video_url": video_url,
@@ -593,7 +675,7 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             "video_metadata": {
                 "duration": result["video_duration"],
                 "fps": best_frame_meta.get("fps", 30),
-                "tags": best_frame_meta.get("tags", "").split(",") if best_frame_meta.get("tags") else [],
+                "tags": tags_list,
                 "created_at": created_at,
                 "upload_timestamp": best_frame_meta.get("date_time", {}).get("_date", ""),
                 "bucket_name": best_frame_meta.get("bucket_name", "")
@@ -627,36 +709,3 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
         "filtering_time_ms": filtering_time_ms,
         "formatting_time_ms": formatting_time_ms,
     }
-
-
-def get_vectordb() -> VDMS:
-    """
-    Initializes and returns a vector database based on the specified configuration.
-    Depending on the configuration, it uses either CLIP embeddings, a HuggingFace endpoint for embeddings,
-    or a default HuggingFace BGE embeddings model.
-    Returns:
-        tuple: The vector database instance
-    """
-
-    try:
-        embeddings = EmbeddingAPI(
-            api_url=settings.EMBEDDINGS_ENDPOINT,
-            model_name=settings.EMBEDDINGS_MODEL_NAME,
-        )
-
-        vector_dimensions = embeddings.get_embedding_length()
-        client = VDMS_Client(settings.VDMS_VDB_HOST, settings.VDMS_VDB_PORT)
-
-        vector_db = VDMS(
-            client=client,
-            embedding=embeddings,
-            collection_name=settings.INDEX_NAME,
-            distance_strategy=settings.DISTANCE_STRATEGY,
-            embedding_dimensions=vector_dimensions,
-            engine=settings.SEARCH_ENGINE,
-        )
-
-        return vector_db
-    except Exception as exc:
-        logger.error(f"Failed to initialize VDMS vector DB client: {exc}")
-        raise

@@ -281,7 +281,7 @@ describe('VideoService', () => {
       expect(result.data).toEqual(mockEmbeddingsResponse);
     });
 
-    it('should use object-storage filename for embeddings payload when display name differs', async () => {
+    it('should use the original display filename for embeddings payload when it differs from the stored object name', async () => {
       const videoId = 'test-video-id';
       const videoWithDifferentDisplayName = {
         ...mockVideo,
@@ -307,7 +307,7 @@ describe('VideoService', () => {
       expect(dataPrepShimService.createEmbeddings).toHaveBeenCalledWith({
         bucket_name: videoWithDifferentDisplayName.dataStore!.bucket,
         video_id: videoWithDifferentDisplayName.dataStore!.objectName,
-        video_name: 'original_-_Copy.mp4',
+        video_name: 'original - Copy.mp4',
         tags: videoWithDifferentDisplayName.tags,
       } as DataPrepMinioDTO);
     });

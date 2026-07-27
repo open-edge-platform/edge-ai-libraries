@@ -15,7 +15,12 @@ import { VideoDbService } from './video-db.service';
 import { lastValueFrom } from 'rxjs';
 import { TagsService } from './tags.service';
 import { DataPrepShimService } from 'src/data-prep/services/data-prep-shim.service';
-import { DataPrepMinioDTO } from 'src/data-prep/models/data-prep.models';
+import {
+  DataPrepBatchJobStatusRO,
+  DataPrepBatchProcessDTO,
+  DataPrepBatchSubmitRO,
+  DataPrepMinioDTO,
+} from 'src/data-prep/models/data-prep.models';
 
 @Injectable()
 export class VideoService {
@@ -39,22 +44,17 @@ export class VideoService {
     );
   }
 
-  private getStorageObjectFileName(video: Video): string {
-    // Prefer persisted object path so downstream lookup uses the real object-store filename.
-    const objectPath = video.url || '';
-    const objectFileName = objectPath.split('/').pop()?.trim();
-    if (objectFileName) {
-      return objectFileName;
-    }
-
-    return video.dataStore?.fileName || '';
-  }
-
   isStreamable(videoPath: string) {
     return this.$validator.isStreamable(videoPath);
   }
 
-  async createSearchEmbeddings(videoId: string, tagsToMerge: string[] = []) {
+  // Resolve a video, merge any new tags, and build the data-prep request DTO.
+  // Shared by the single-video and batch embedding paths so tag-merge + DTO
+  // construction stays consistent.
+  private async prepareVideoForEmbedding(
+    videoId: string,
+    tagsToMerge: string[] = [],
+  ): Promise<DataPrepMinioDTO> {
     let video = await this.getVideo(videoId);
 
     if (!video) {
@@ -85,15 +85,47 @@ export class VideoService {
       await this.$tags.addTags(normalizedTagsToMerge);
     }
 
-    const storageFileName = this.getStorageObjectFileName(video);
-    const videoData: DataPrepMinioDTO = {
+    return {
       bucket_name: dataStore.bucket,
       video_id: dataStore.objectName,
-      video_name: storageFileName,
+      video_name: dataStore.fileName || video.name,
       tags: video.tags || [],
     };
+  }
+
+  async createSearchEmbeddings(videoId: string, tagsToMerge: string[] = []) {
+    const videoData = await this.prepareVideoForEmbedding(videoId, tagsToMerge);
 
     return await lastValueFrom(this.$dataprep.createEmbeddings(videoData));
+  }
+
+  // Submit an async batch job to create search embeddings for several videos in
+  // a single data-prep request. Returns { job_id, accepted } immediately; the
+  // caller polls getSearchEmbeddingsJobStatus() until the job reaches a terminal
+  // state.
+  async createSearchEmbeddingsBatch(
+    videoIds: string[],
+    tagsToMerge: string[] = [],
+  ): Promise<DataPrepBatchSubmitRO> {
+    const items: DataPrepMinioDTO[] = [];
+    for (const videoId of videoIds) {
+      items.push(await this.prepareVideoForEmbedding(videoId, tagsToMerge));
+    }
+
+    const payload: DataPrepBatchProcessDTO = { items };
+    const response = await lastValueFrom(
+      this.$dataprep.createEmbeddingsBatch(payload),
+    );
+    return response.data;
+  }
+
+  async getSearchEmbeddingsJobStatus(
+    jobId: string,
+  ): Promise<DataPrepBatchJobStatusRO> {
+    const response = await lastValueFrom(
+      this.$dataprep.getBatchJobStatus(jobId),
+    );
+    return response.data;
   }
 
   async uploadVideo(

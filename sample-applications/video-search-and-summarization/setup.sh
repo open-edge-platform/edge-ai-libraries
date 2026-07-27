@@ -54,6 +54,7 @@ stop_containers() {
         -f docker/compose.vllm.yaml \
         -f docker/compose.vllm.xpu.yaml \
         -f docker/compose.search.yaml \
+        -f docker/compose.search.milvus.yaml \
         -f docker/compose.ui.yaml \
         -f docker/compose.telemetry.yaml \
         --profile ovms --profile vlm-ov --profile vllm --profile vllm-xpu \
@@ -71,12 +72,48 @@ stop_containers() {
 
 remove_volumes() {
     echo -e "${YELLOW}Removing Docker volumes... ${NC}"
-    docker volume rm docker_minio_data docker_pg_data docker_vdms-db docker_audio_analyzer_data docker_data-prep docker_collector_signals 2>/dev/null
-    if [ $? -ne 0 ]; then
-        echo -e "${YELLOW}Note: Could not remove all volumes. Some volumes may not have existed, were already removed or currently in use. ${NC}"
+    # User-data volumes only. Model-cache volumes (docker_dataprep-yolox-models,
+    # docker_ov-models, docker_vllm_model_cache) are intentionally preserved so
+    # a --clean-data does not force a costly re-download of models.
+    # Milvus volumes are included because they hold vector data when the Milvus
+    # backend is used; they simply don't exist (and are skipped) otherwise.
+    local user_data_volumes="\
+docker_minio_data \
+docker_pg_data \
+docker_vdms-db \
+docker_milvus-db \
+docker_milvus-etcd \
+docker_audio_analyzer_data \
+docker_data-prep \
+docker_collector_signals"
+
+    local removed=""
+    local failed=""
+    for vol in $user_data_volumes; do
+        # Skip volumes that don't exist for the current mode: passing a missing
+        # volume name to `docker volume rm` makes it exit non-zero even when the
+        # volumes that do exist were removed successfully, which previously
+        # produced a misleading "Could not remove all volumes" note.
+        if ! docker volume inspect "$vol" >/dev/null 2>&1; then
+            continue
+        fi
+        if docker volume rm "$vol" >/dev/null 2>&1; then
+            removed="$removed $vol"
+        else
+            failed="$failed $vol"
+        fi
+    done
+
+    if [ -n "$failed" ]; then
+        echo -e "${YELLOW}Note: These volumes exist but could not be removed (likely still in use by a running container):${failed}${NC}"
+        echo -e "${YELLOW}Stop the containers first (source setup.sh --stop) and retry. ${NC}"
         return 0
     fi
-    echo -e "${GREEN}All volumes were successfully removed. ${NC}"
+    if [ -z "$removed" ]; then
+        echo -e "${GREEN}No user-data volumes present to remove. ${NC}"
+        return 0
+    fi
+    echo -e "${GREEN}All user-data volumes were successfully removed:${removed} ${NC}"
     return 0
 }
 
@@ -279,22 +316,47 @@ export OVMS_ALLOWED_MEDIA_DOMAINS=${OVMS_ALLOWED_MEDIA_DOMAINS:-${MINIO_HOST},lo
 export VDMS_VDB_HOST_PORT=55555
 export VDMS_VDB_HOST=vdms-vector-db
 
-# env for vdms-dataprep-ms
+# ---------------------------------------------------------------------------
+# Vector database backend selection (search path)
+#   VECTORDB_BACKEND=vdms   (default) — multimodal-dataprep writes to VDMS and
+#                                       the vector-retriever-vdms image reads it.
+#   VECTORDB_BACKEND=milvus           — multimodal-dataprep writes to Milvus and
+#                                       the vector-retriever-milvus image reads it.
+# For BOTH backends, video-search delegates ALL similarity search to the
+# always-on vector-retriever microservice; it holds no vector DB client itself.
+# Object storage stays on MinIO for both backends.
+# ---------------------------------------------------------------------------
+export VECTORDB_BACKEND=${VECTORDB_BACKEND:-vdms}
+if [ "$VECTORDB_BACKEND" != "vdms" ] && [ "$VECTORDB_BACKEND" != "milvus" ]; then
+    echo -e "${RED}ERROR: VECTORDB_BACKEND must be 'vdms' or 'milvus' (got '${VECTORDB_BACKEND}').${NC}" >&2
+    return 1
+fi
+# The vector-retriever image flavor is baked at build time from this value
+# (vector-retriever-${RETRIEVER_BACKEND}); it drives image + backend env in
+# docker/compose.search.yaml.
+export RETRIEVER_BACKEND=${VECTORDB_BACKEND}
+export VECTOR_RETRIEVER_HOST_PORT=${VECTOR_RETRIEVER_HOST_PORT:-6008}
+# Shared vector similarity metric/index; MUST match on dataprep + retriever.
+export VDB_METRIC_TYPE=${VDB_METRIC_TYPE:-IP}
+export VDB_INDEX_TYPE=${VDB_INDEX_TYPE:-FLAT}
+# video-search always delegates its similarity search to vector-retriever /query.
+export VS_RETRIEVER_ENDPOINT=${VS_RETRIEVER_ENDPOINT:-http://vector-retriever:8000/query}
+if [ "$VECTORDB_BACKEND" = "milvus" ]; then
+    export MILVUS_HOST_PORT=${MILVUS_HOST_PORT:-19530}
+    export MILVUS_METRICS_HOST_PORT=${MILVUS_METRICS_HOST_PORT:-9091}
+    export MILVUS_URI=${MILVUS_URI:-http://milvus-standalone:19530}
+fi
+
+# env for multimodal-dataprep-ms
 export VDMS_DATAPREP_HOST_PORT=6016
-export VDMS_DATAPREP_HOST=vdms-dataprep
+export VDMS_DATAPREP_HOST=multimodal-dataprep
 export VDMS_DATAPREP_ENDPOINT=http://$VDMS_DATAPREP_HOST:8000
 export VDMS_PIPELINE_MANAGER_UPLOAD=http://pipeline-manager:3000
 export DEFAULT_BUCKET_NAME="vdms-bucket"
 
 # YOLOX model volume configuration for object detection
-export YOLOX_MODELS_VOLUME_NAME="vdms-yolox-models"
+export YOLOX_MODELS_VOLUME_NAME="dataprep-yolox-models"
 export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
-
-# Embedding processing mode settings (SDK vs API)
-# EMBEDDING_PROCESSING_MODE options:
-#   - "sdk": Use multimodal embedding service directly as SDK (optimized approach with better memory usage, default)
-#   - "api": Use HTTP API calls to multimodal embedding service (existing approach)
-export EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-"sdk"}
 
 # Frame processing settings
 export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
@@ -326,9 +388,9 @@ export DEFAULT_NUM_FRAMES=64
 export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-$SDK_USE_OPENVINO}
 # Per-component device selection (CPU default | GPU | NPU). Each component is
 # independent — parity with the Helm charts. No "baseline" device.
-#   DATAPREP_EMBEDDING_DEVICE → embedding in vdms-dataprep (EMBEDDING_PROCESSING_MODE=sdk)
-#   DATAPREP_DETECTION_DEVICE → YOLOX object detection in vdms-dataprep
-#   MME_EMBEDDING_DEVICE      → embedding in multimodal-embedding-serving (EMBEDDING_PROCESSING_MODE=api)
+#   DATAPREP_EMBEDDING_DEVICE → embedding in multimodal-dataprep (in-process SDK)
+#   DATAPREP_DETECTION_DEVICE → YOLOX object detection in multimodal-dataprep
+#   MME_EMBEDDING_DEVICE      → embedding in multimodal-embedding-serving (used by video-search)
 export DATAPREP_EMBEDDING_DEVICE=${DATAPREP_EMBEDDING_DEVICE:-"CPU"}
 export DATAPREP_DETECTION_DEVICE=${DATAPREP_DETECTION_DEVICE:-"CPU"}
 export MME_EMBEDDING_DEVICE=${MME_EMBEDDING_DEVICE:-"CPU"}
@@ -343,14 +405,9 @@ echo -e "[multimodal-embedding-serving] ${GREEN}OpenVINO performance mode: ${YEL
 # Device Configuration
 export SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
 
-# Easy-button: put embedding on GPU. Mode-aware — targets the component that
-# actually runs embedding in the active EMBEDDING_PROCESSING_MODE.
+# Easy-button: put the in-process DataPrep embedding on GPU.
 if [ "$ENABLE_EMBEDDING_GPU" = true ]; then
-    if [ "${EMBEDDING_PROCESSING_MODE}" = "api" ]; then
-        export MME_EMBEDDING_DEVICE=GPU
-    else
-        export DATAPREP_EMBEDDING_DEVICE=GPU
-    fi
+    export DATAPREP_EMBEDDING_DEVICE=GPU
 fi
 
 
@@ -413,20 +470,10 @@ if [ $1 != "--summary" ]; then
 
     embedding_endpoint_display=${MULTIMODAL_EMBEDDING_ENDPOINT:-"(not configured)"}
 
-    if [[ "${EMBEDDING_PROCESSING_MODE}" == "sdk" ]]; then
-        embedding_mode_details="SDK mode keeps embeddings in-process within vdms-dataprep; no external HTTP calls are made."
-    else
-        embedding_mode_details="API mode routes embeddings to multimodal-embedding-serving at ${embedding_endpoint_display}."
-    fi
-
-    echo -e "[vdms-dataprep] ${BLUE}Runtime Summary (per-component devices, default CPU):${NC}"
-    if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
-        echo -e "  • [multimodal-embedding-serving] Embedding Device: ${YELLOW}${MME_EMBEDDING_DEVICE}${NC} (active in api mode)."
-    else
-        echo -e "  • [vdms-dataprep] Embedding Device: ${YELLOW}${DATAPREP_EMBEDDING_DEVICE}${NC} (active in sdk mode)."
-    fi
-    echo -e "  • [vdms-dataprep] Detection Device: ${YELLOW}${DATAPREP_DETECTION_DEVICE}${NC}"
-    echo -e "  • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC} — ${embedding_mode_details}"
+    echo -e "[multimodal-dataprep] ${BLUE}Runtime Summary (per-component devices, default CPU):${NC}"
+    echo -e "  • [multimodal-dataprep] Embedding Device: ${YELLOW}${DATAPREP_EMBEDDING_DEVICE}${NC} (in-process SDK embedding)."
+    echo -e "  • [multimodal-dataprep] Detection Device: ${YELLOW}${DATAPREP_DETECTION_DEVICE}${NC}"
+    echo -e "  • [multimodal-embedding-serving] Embedding Device: ${YELLOW}${MME_EMBEDDING_DEVICE}${NC} (used by video-search at ${embedding_endpoint_display})."
     echo -e "  • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
 fi
 
@@ -518,14 +565,7 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
     fi
     if { [ "$1" = "--search" ] || [ "$1" = "--dual" ]; } && [ -z "$MULTIMODAL_EMBEDDING_MODEL" ]; then
         echo -e "${RED}ERROR: MULTIMODAL_EMBEDDING_MODEL is not set in your shell environment.${NC}" >&2
-        echo -e "${YELLOW}This is required for both SDK and API embedding modes for Video Search.${NC}" >&2
-        return 1
-    fi
-    
-    # Validate embedding processing mode
-    if [[ "$EMBEDDING_PROCESSING_MODE" != "api" && "$EMBEDDING_PROCESSING_MODE" != "sdk" ]]; then
-        echo -e "${RED}Invalid EMBEDDING_PROCESSING_MODE: $EMBEDDING_PROCESSING_MODE${NC}" >&2
-        echo -e "${YELLOW}Valid options are: 'api' or 'sdk'${NC}" >&2
+        echo -e "${YELLOW}This is required for Video Search embedding.${NC}" >&2
         return 1
     fi
 
@@ -1140,11 +1180,28 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
     esac
 
     APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.ui.yaml"
+
+    # Milvus vector-DB backend overlay — applied only when the search path is
+    # active (adds the Milvus stack + vector-retriever). Default VDMS path is
+    # untouched.
+    if [ "$VECTORDB_BACKEND" = "milvus" ]; then
+        case "$APP_COMPOSE_FILE" in
+            *docker/compose.search.yaml*)
+                APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.search.milvus.yaml"
+                ;;
+        esac
+    fi
+
     mkdir -p ${VS_WATCHER_DIR}
 
     echo -e  "[pipeline-manager] ${GREEN}Setting up: ${DEPLOYMENT_LABEL}${NC}"
     if [ -n "${VS_INDEX_NAME}" ]; then
         echo -e  "[video-search] ${GREEN}Using vector-DB index: ${YELLOW}${VS_INDEX_NAME}${NC}"
+    fi
+    if [ "$VECTORDB_BACKEND" = "milvus" ]; then
+        echo -e  "[multimodal-dataprep] ${GREEN}Vector-DB backend: ${YELLOW}Milvus${GREEN} (video-search delegates search to vector-retriever at ${YELLOW}${VS_RETRIEVER_ENDPOINT}${GREEN}).${NC}"
+    else
+        echo -e  "[multimodal-dataprep] ${GREEN}Vector-DB backend: ${YELLOW}VDMS${GREEN} (video-search delegates search to vector-retriever at ${YELLOW}${VS_RETRIEVER_ENDPOINT}${GREEN}).${NC}"
     fi
     echo -e  "[nginx] ${GREEN}Using UI routing config: ${YELLOW}${NGINX_UI_CONFIG}${NC}"
     if [ "$ENABLE_VSS_COLLECTOR" = true ]; then
@@ -1159,11 +1216,11 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
     od_model_bin="${OD_MODEL_OUTPUT_DIR}/FP32/${OD_MODEL_NAME}.bin"
     if [ "$2" != "config" ]; then
         if [ ! -f "${od_model_xml}" ] || [ ! -f "${od_model_bin}" ]; then
-            echo -e  "[vdms-dataprep] ${YELLOW}Object detection model file not found at ${od_model_xml} or ${od_model_bin}. Running model conversion...${NC}"
+            echo -e  "[multimodal-dataprep] ${YELLOW}Object detection model file not found at ${od_model_xml} or ${od_model_bin}. Running model conversion...${NC}"
             mkdir -p "${OD_MODEL_OUTPUT_DIR}"
             convert_object_detection_models
         else
-            echo -e  "[vdms-dataprep] ${YELLOW}Object detection model file found at ${od_model_xml}. Skipping model setup...${NC}"
+            echo -e  "[multimodal-dataprep] ${YELLOW}Object detection model file found at ${od_model_xml}. Skipping model setup...${NC}"
         fi
     fi
 

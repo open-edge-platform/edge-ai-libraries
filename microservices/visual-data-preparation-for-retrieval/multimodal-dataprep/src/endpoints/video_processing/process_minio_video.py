@@ -132,6 +132,7 @@ async def process_minio_video(
             or effective_config.get("detection_confidence", 0.85)
         )
         tags: List[str] = video_request.tags or []
+        video_name = video_request.video_name
 
         # Validate the provided minio parameters and resolve the stored video name
         video_name = _resolve_stored_video_name(
@@ -184,6 +185,7 @@ async def process_minio_video(
                 bucket_name=bucket_name,
                 video_id=video_id,
                 filename=filename,
+                video_name=video_name,
                 enable_object_detection=enable_object_detection,
                 detection_confidence=detection_confidence,
                 tags=tags,
@@ -194,6 +196,7 @@ async def process_minio_video(
                 bucket_name=bucket_name,
                 video_id=video_id,
                 filename=filename,
+                video_name=video_name,
                 temp_video_path=temp_video_path,
                 metadata_temp_path=metadata_temp_dir,
                 frame_interval=frame_interval,

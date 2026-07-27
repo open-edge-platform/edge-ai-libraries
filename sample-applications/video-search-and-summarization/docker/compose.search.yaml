@@ -7,7 +7,7 @@ services:
         depends_on:
             vdms-vector-db:
                 condition: service_started
-            vdms-dataprep:
+            multimodal-dataprep:
                 condition: service_healthy
             multimodal-embedding-serving:
                 condition: service_healthy
@@ -24,27 +24,27 @@ services:
             context: ../search-ms
             dockerfile: docker/Dockerfile
         depends_on:
-            vdms-vector-db:
-                condition: service_started
             minio-service:
                 condition: service_healthy
-            vdms-dataprep:
+            multimodal-dataprep:
                 condition: service_started
-            multimodal-embedding-serving:
-                condition: service_healthy
+            vector-retriever:
+                condition: service_started
         ipc: host
         ports:
             - '${VS_HOST_PORT}:8000'
         environment:
-            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},pipeline-manager,localhost
-            no_proxy_env: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},pipeline-manager,localhost
+            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},vector-retriever,pipeline-manager,localhost
+            no_proxy_env: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},vector-retriever,pipeline-manager,localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
-            VDMS_VDB_HOST: ${VDMS_VDB_HOST}
-            VDMS_VDB_PORT: 55555
             EMBEDDINGS_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT}
             EMBEDDINGS_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
             INDEX_NAME: ${VS_INDEX_NAME}
+            # All vector similarity search is delegated to the standalone
+            # vector-retriever microservice (both VDMS and Milvus backends);
+            # search-ms itself holds no vector DB client logic.
+            RETRIEVER_ENDPOINT: ${VS_RETRIEVER_ENDPOINT:-http://vector-retriever:8000/query}
             WATCH_DIRECTORY: ${VS_WATCHER_DIR}
             DEBOUNCE_TIME: ${VS_DEBOUNCE_TIME}
             DELETE_PROCESSED_FILES: ${VS_DELETE_PROCESSED_FILES}
@@ -58,6 +58,8 @@ services:
             AGGREGATION_MAX_RESULTS: ${AGGREGATION_MAX_RESULTS}
             AGGREGATION_INITIAL_K: ${AGGREGATION_INITIAL_K}
             AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: ${AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS}
+            AGGREGATION_PREFER_FULL_FRAME_SEEK: ${AGGREGATION_PREFER_FULL_FRAME_SEEK:-true}
+            AGGREGATION_FULL_FRAME_SEEK_BAND: ${AGGREGATION_FULL_FRAME_SEEK_BAND:-0.06}
         restart: unless-stopped
         volumes:
             - '${VS_WATCHER_DIR:-/dev/null}:/tmp/watcher-dir'
@@ -80,78 +82,85 @@ services:
         networks:
             - vs_network
 
-    vdms-dataprep:
-        image: ${REGISTRY:-}vdms-dataprep:${TAG:-latest}
-        hostname: vdms-dataprep
+    multimodal-dataprep:
+        image: ${REGISTRY:-}multimodal-dataprep:${TAG:-latest}
+        hostname: multimodal-dataprep
         environment:
-            no_proxy: ${no_proxy},${VDMS_VDB_HOST},${MULTIMODAL_EMBEDDING_HOST},${MINIO_HOST},localhost
+            no_proxy: ${no_proxy},${VDMS_VDB_HOST},${MINIO_HOST},localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             # Basic app settings
-            APP_HOST: vdms-dataprep
+            MM_DATAPREP_APP_HOST: multimodal-dataprep
 
-            # VDMS Vector Database settings
-            VDMS_VDB_HOST: ${VDMS_VDB_HOST}
-            VDMS_VDB_PORT: 55555
+            # Pluggable backend selection (vector DB + object storage)
+            MM_DATAPREP_VECTORDB_BACKEND: ${VECTORDB_BACKEND:-vdms}
+            MM_DATAPREP_STORAGE_BACKEND: minio
+
+            # VDMS Vector Database settings (used when VECTORDB_BACKEND=vdms)
+            MM_DATAPREP_VDMS_VDB_HOST: ${VDMS_VDB_HOST}
+            MM_DATAPREP_VDMS_VDB_PORT: 55555
+
+            # Milvus Vector Database settings (used when VECTORDB_BACKEND=milvus)
+            MM_DATAPREP_MILVUS_URI: ${MILVUS_URI:-http://milvus-standalone:19530}
+            MM_DATAPREP_VDB_METRIC_TYPE: ${VDB_METRIC_TYPE:-IP}
+            MM_DATAPREP_VDB_INDEX_TYPE: ${VDB_INDEX_TYPE:-FLAT}
 
             # MinIO settings
-            MINIO_ENDPOINT: ${MINIO_HOST}:80
-            MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-            MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-            MINIO_SECURE: false
-            DEFAULT_BUCKET_NAME: ${DEFAULT_BUCKET_NAME}
+            MM_DATAPREP_MINIO_ENDPOINT: ${MINIO_HOST}:80
+            MM_DATAPREP_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+            MM_DATAPREP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+            MM_DATAPREP_MINIO_SECURE: false
+            MM_DATAPREP_DEFAULT_BUCKET_NAME: ${DEFAULT_BUCKET_NAME}
 
             # Database settings
-            DB_COLLECTION: ${VS_INDEX_NAME}
+            MM_DATAPREP_DB_COLLECTION: ${VS_INDEX_NAME}
 
-            # Embedding service settings
-            MULTIMODAL_EMBEDDING_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT}
-            MULTIMODAL_EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME} # Used for both SDK and API modes
+            # Embedding model selection (in-process SDK embedding)
+            MM_DATAPREP_EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
+            MM_DATAPREP_OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
 
-            # Embedding processing mode settings (SDK vs API)
-            EMBEDDING_PROCESSING_MODE: ${EMBEDDING_PROCESSING_MODE:-sdk}
-            SDK_USE_OPENVINO: ${SDK_USE_OPENVINO:-true}
-            EMBEDDING_DEVICE: ${DATAPREP_EMBEDDING_DEVICE:-CPU}
-            OV_MODELS_DIR: ${OV_MODELS_DIR:-/app/ov_models}
-            EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
-            MAX_PARALLEL_WORKERS: ${MAX_PARALLEL_WORKERS:-}
-            OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
-            SDK_VIDEO_SHM_MAX_BLOCKS: ${SDK_VIDEO_SHM_MAX_BLOCKS:-512}
-            SDK_VIDEO_SHM_BLOCK_SIZE: ${SDK_VIDEO_SHM_BLOCK_SIZE:-6220800}
-            SDK_VIDEO_EXTRACTION_BATCH_SIZE: ${SDK_VIDEO_EXTRACTION_BATCH_SIZE:-256}
-            SDK_PIPELINE_QUEUE_MAXSIZE: ${SDK_PIPELINE_QUEUE_MAXSIZE:-16}
-            SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE: ${SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE:-1}
-            SDK_DETECTION_WORKER_THREADS: ${SDK_DETECTION_WORKER_THREADS:-2}
-            SDK_EMBED_WORKER_THREADS: ${SDK_EMBED_WORKER_THREADS:-2}
-            SDK_PIPELINE_QUEUE_GET_TIMEOUT_S: ${SDK_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
-            SAVE_RUNTIME_PIPELINE_STATS: ${SAVE_RUNTIME_PIPELINE_STATS:-false}
-            SDK_ENABLE_TRACING: ${SDK_ENABLE_TRACING:-false}
-            VIDEO_FRAME_DECODER_WORKERS: ${VIDEO_FRAME_DECODER_WORKERS:-2}
-            VIDEO_FRAME_LOG_LEVEL: ${VIDEO_FRAME_LOG_LEVEL:-INFO}
+            # Embedding pipeline settings
+            MM_DATAPREP_USE_OPENVINO: ${SDK_USE_OPENVINO:-true}
+            MM_DATAPREP_EMBEDDING_DEVICE: ${DATAPREP_EMBEDDING_DEVICE:-CPU}
+            MM_DATAPREP_OV_MODELS_DIR: ${OV_MODELS_DIR:-/app/ov_models}
+            MM_DATAPREP_EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
+            MM_DATAPREP_MAX_PARALLEL_WORKERS: ${MAX_PARALLEL_WORKERS:-}
+            MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS: ${SDK_VIDEO_SHM_MAX_BLOCKS:-512}
+            MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE: ${SDK_VIDEO_SHM_BLOCK_SIZE:-6220800}
+            MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE: ${SDK_VIDEO_EXTRACTION_BATCH_SIZE:-256}
+            MM_DATAPREP_PIPELINE_QUEUE_MAXSIZE: ${SDK_PIPELINE_QUEUE_MAXSIZE:-16}
+            MM_DATAPREP_PIPELINE_COMPLETION_QUEUE_MAXSIZE: ${SDK_PIPELINE_COMPLETION_QUEUE_MAXSIZE:-1}
+            MM_DATAPREP_DETECTION_WORKER_THREADS: ${SDK_DETECTION_WORKER_THREADS:-2}
+            MM_DATAPREP_EMBED_WORKER_THREADS: ${SDK_EMBED_WORKER_THREADS:-2}
+            MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S: ${SDK_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
+            MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS: ${SAVE_RUNTIME_PIPELINE_STATS:-false}
+            MM_DATAPREP_ENABLE_TRACING: ${SDK_ENABLE_TRACING:-false}
+            MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS: ${VIDEO_FRAME_DECODER_WORKERS:-2}
+            MM_DATAPREP_VIDEO_FRAME_LOG_LEVEL: ${VIDEO_FRAME_LOG_LEVEL:-INFO}
 
             # Frame processing settings
-            FRAME_INTERVAL: ${FRAME_INTERVAL:-15}
-            ENABLE_OBJECT_DETECTION: ${ENABLE_OBJECT_DETECTION:-true}
-            DETECTION_CONFIDENCE: ${DETECTION_CONFIDENCE:-0.85}
-            FRAMES_TEMP_DIR: ${FRAMES_TEMP_DIR:-/tmp/dataprep}
+            MM_DATAPREP_FRAME_INTERVAL: ${FRAME_INTERVAL:-15}
+            MM_DATAPREP_ENABLE_OBJECT_DETECTION: ${ENABLE_OBJECT_DETECTION:-true}
+            MM_DATAPREP_DETECTION_CONFIDENCE: ${DETECTION_CONFIDENCE:-0.85}
+            MM_DATAPREP_FRAMES_TEMP_DIR: ${FRAMES_TEMP_DIR:-/tmp/dataprep}
 
             # Object detection model directory
-            DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH}
-            DETECTION_DEVICE: ${DATAPREP_DETECTION_DEVICE:-CPU}
+            MM_DATAPREP_DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH}
+            MM_DATAPREP_DETECTION_DEVICE: ${DATAPREP_DETECTION_DEVICE:-CPU}
 
             # ROI consolidation settings
-            ROI_CONSOLIDATION_ENABLED: ${ROI_CONSOLIDATION_ENABLED:-false}
-            ROI_CONSOLIDATION_IOU_THRESHOLD: ${ROI_CONSOLIDATION_IOU_THRESHOLD:-0.2}
-            ROI_CONSOLIDATION_CLASS_AWARE: ${ROI_CONSOLIDATION_CLASS_AWARE:-false}
-            ROI_CONSOLIDATION_CONTEXT_SCALE: ${ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
-            
+            MM_DATAPREP_ROI_CONSOLIDATION_ENABLED: ${ROI_CONSOLIDATION_ENABLED:-false}
+            MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD: ${ROI_CONSOLIDATION_IOU_THRESHOLD:-0.2}
+            MM_DATAPREP_ROI_CONSOLIDATION_CLASS_AWARE: ${ROI_CONSOLIDATION_CLASS_AWARE:-false}
+            MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE: ${ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
+
             # Application configuration
-            LOG_LEVEL: ${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+            MM_DATAPREP_LOG_LEVEL: ${VDMS_DATAPREP_LOG_LEVEL:-INFO}
 
             # CORS settings
-            ALLOW_ORIGINS: ${ALLOW_ORIGINS:-*}
-            ALLOW_METHODS: ${ALLOW_METHODS:-*}
-            ALLOW_HEADERS: ${ALLOW_HEADERS:-*}
+            MM_DATAPREP_ALLOW_ORIGINS: ${ALLOW_ORIGINS:-*}
+            MM_DATAPREP_ALLOW_METHODS: ${ALLOW_METHODS:-*}
+            MM_DATAPREP_ALLOW_HEADERS: ${ALLOW_HEADERS:-*}
         ulimits:
             nofile:
                 soft: 32768
@@ -162,8 +171,6 @@ services:
         depends_on:
             vdms-vector-db:
                 condition: service_started
-            multimodal-embedding-serving:
-                condition: service_healthy
             minio-service:
                 condition: service_healthy
         healthcheck:
@@ -179,7 +186,7 @@ services:
             retries: 40
             start_period: 5s
         volumes:
-            - '${YOLOX_MODELS_VOLUME_NAME:-vdms-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
+            - '${YOLOX_MODELS_VOLUME_NAME:-dataprep-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
             - data-prep:/tmp/dataprep
             - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
@@ -247,6 +254,65 @@ services:
             - data-prep:/tmp/dataprep
             - ov-models:${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
 
+    # Standalone vector similarity search service. search-ms delegates ALL
+    # retrieval here for both VDMS and Milvus backends. The backend flavor is
+    # baked into the image at build time via RETRIEVER_BACKEND (which setup.sh
+    # sets from VECTORDB_BACKEND): vdms -> vector-retriever-vdms reads
+    # vdms-vector-db; milvus -> vector-retriever-milvus reads milvus-standalone
+    # (milvus services + depends_on are added by compose.search.milvus.yaml).
+    vector-retriever:
+        image: ${REGISTRY:-}vector-retriever-${RETRIEVER_BACKEND:-vdms}:${TAG:-latest}
+        build:
+            context: ../../../microservices/vector-retriever/vector-retriever
+            dockerfile: docker/Dockerfile
+            args:
+                RETRIEVER_BACKEND: ${RETRIEVER_BACKEND:-vdms}
+        hostname: vector-retriever
+        ipc: host
+        ports:
+            - '${VECTOR_RETRIEVER_HOST_PORT:-6008}:8000'
+        environment:
+            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_VDB_HOST},milvus-standalone,localhost
+            NO_PROXY: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_VDB_HOST},milvus-standalone,localhost
+            http_proxy: ${http_proxy}
+            https_proxy: ${https_proxy}
+            RETRIEVER_BACKEND: ${RETRIEVER_BACKEND:-vdms}
+            LOG_LEVEL: ${VECTOR_RETRIEVER_LOG_LEVEL:-INFO}
+            INDEX_NAME: ${VS_INDEX_NAME}
+            EMBEDDINGS_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT}
+            EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
+            DEFAULT_TOP_K: ${AGGREGATION_INITIAL_K:-20}
+            MAX_TOP_K: ${VECTOR_RETRIEVER_MAX_TOP_K:-1000}
+            # VDMS backend settings
+            VDMS_VDB_HOST: ${VDMS_VDB_HOST}
+            VDMS_VDB_PORT: 55555
+            SEARCH_ENGINE: ${SEARCH_ENGINE:-FaissFlat}
+            DISTANCE_STRATEGY: ${DISTANCE_STRATEGY:-IP}
+            # Milvus backend settings (must match dataprep write-side metric/index)
+            MILVUS_URI: ${MILVUS_URI:-http://milvus-standalone:19530}
+            MILVUS_METRIC_TYPE: ${VDB_METRIC_TYPE:-IP}
+            MILVUS_INDEX_TYPE: ${VDB_INDEX_TYPE:-FLAT}
+            MILVUS_TEXT_FIELD: ${MILVUS_TEXT_FIELD:-text}
+            MILVUS_METADATA_FIELD: ${MILVUS_METADATA_FIELD:-}
+        depends_on:
+            multimodal-embedding-serving:
+                condition: service_healthy
+            vdms-vector-db:
+                condition: service_started
+        healthcheck:
+            test:
+                [
+                    'CMD-SHELL',
+                    "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')\"",
+                ]
+            interval: 15s
+            timeout: 10s
+            retries: 30
+            start_period: 20s
+        restart: unless-stopped
+        networks:
+            - vs_network
+
 volumes:
     vdms-db:
         driver: local
@@ -254,5 +320,5 @@ volumes:
         driver: local
     data-prep:
         driver: local
-    vdms-yolox-models:
+    dataprep-yolox-models:
         driver: local

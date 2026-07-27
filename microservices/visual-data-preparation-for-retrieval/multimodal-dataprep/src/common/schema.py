@@ -89,6 +89,13 @@ class VideoRequest(BaseModel):
     video_id: Annotated[
         Optional[str], Field(description="The video ID (directory) containing the video")
     ] = None
+    video_name: Annotated[
+        Optional[str],
+        Field(
+            description="Original media name to persist as searchable metadata. "
+            "Falls back to the stored filename when omitted.",
+        ),
+    ] = None
     frame_interval: Annotated[
         Optional[int],
         Field(

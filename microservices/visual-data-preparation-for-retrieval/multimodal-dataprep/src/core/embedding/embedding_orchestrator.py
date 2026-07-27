@@ -280,6 +280,7 @@ async def generate_video_embedding(
     frame_interval: int = 15,
     enable_object_detection: bool = True,
     detection_confidence: float = 0.85,
+    video_name: Optional[str] = None,
     tags: List[str] = None,
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
@@ -309,6 +310,7 @@ async def generate_video_embedding(
             bucket_name=bucket_name,
             video_id=video_id,
             filename=filename,
+            video_name=video_name,
             temp_video_path=temp_video_path,
             metadata_temp_path=metadata_temp_path,
             frame_interval=frame_interval,
@@ -332,6 +334,7 @@ async def generate_video_embedding_from_content(
     frame_interval: int = 15,
     enable_object_detection: bool = True,
     detection_confidence: float = 0.85,
+    video_name: Optional[str] = None,
     tags: List[str] = None,
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
@@ -379,6 +382,7 @@ async def generate_video_embedding_from_content(
             "bucket_name": bucket_name,
             "video_id": video_id,
             "filename": filename,
+            "video_name": video_name or filename,
             "tags": tags or [],
             "video_url": video_url,
             "video_rel_url": video_rel_url,
@@ -511,6 +515,7 @@ async def _generate_video_embedding(
     frame_interval: int = 15,
     enable_object_detection: bool = True,
     detection_confidence: float = 0.85,
+    video_name: Optional[str] = None,
     tags: List[str] = None,
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
@@ -538,6 +543,7 @@ async def _generate_video_embedding(
         "bucket_name": bucket_name,
         "video_id": video_id,
         "filename": filename,
+        "video_name": video_name or filename,
         "tags": tags or [],
         "video_url": video_url,
         "video_rel_url": video_rel_url,
@@ -635,6 +641,7 @@ def _build_image_base_metadata(
     bucket_name: str,
     video_id: str,
     filename: str,
+    video_name: Optional[str] = None,
     tags: List[str],
 ) -> Dict[str, Any]:
     """Assemble the canonical metadata shared by an image and all its crops.
@@ -652,7 +659,7 @@ def _build_image_base_metadata(
         "video_id": video_id,
         "bucket_name": bucket_name,
         "filename": filename,
-        "video_name": filename,
+        "video_name": video_name or filename,
         "video_index": 0,
         "frame_number": 0,
         "timestamp": 0.0,
@@ -688,6 +695,7 @@ def _embed_image_from_content_sync(
     bucket_name: str,
     video_id: str,
     filename: str,
+    video_name: Optional[str] = None,
     enable_object_detection: bool,
     detection_confidence: float,
     tags: List[str],
@@ -716,6 +724,7 @@ def _embed_image_from_content_sync(
         bucket_name=bucket_name,
         video_id=video_id,
         filename=filename,
+        video_name=video_name,
         tags=tags,
     )
 
@@ -803,6 +812,7 @@ async def generate_image_embedding_from_content(
     filename: str,
     enable_object_detection: bool = True,
     detection_confidence: float = 0.85,
+    video_name: Optional[str] = None,
     tags: Optional[List[str]] = None,
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
@@ -830,6 +840,7 @@ async def generate_image_embedding_from_content(
         bucket_name=bucket_name,
         video_id=video_id,
         filename=filename,
+        video_name=video_name,
         enable_object_detection=enable_object_detection,
         detection_confidence=detection_confidence,
         tags=tags,

@@ -93,16 +93,24 @@ video-ingestion_DOCKERFILE := ./video-ingestion/docker/Dockerfile
 video-ingestion_LANG := python
 
 # Dependency microservices (built via build-deps, pulled from registry or official images via compose)
-# vdms-dataprep, multimodal-embedding-serving, ovms-service, audio-analyzer
-DEP_COMPONENTS := vdms-dataprep multimodal-embedding-serving
+# multimodal-dataprep, multimodal-embedding-serving, vector-retriever, ovms-service, audio-analyzer
+DEP_COMPONENTS := multimodal-dataprep multimodal-embedding-serving
 
 # Path to the sibling microservices directory (used by build-deps)
 USERVICES_DIR := ../../microservices
 
+# vector-retriever backend flavors bundled into the search stack. The search
+# path always delegates similarity search to the vector-retriever microservice;
+# each backend produces its own image (vector-retriever-<backend>).
+VECTOR_RETRIEVER_DIR := $(USERVICES_DIR)/vector-retriever/vector-retriever
+VECTOR_RETRIEVER_BACKENDS := vdms milvus
+VECTOR_RETRIEVER_BUILD_ARGS := $(foreach b,$(VECTOR_RETRIEVER_BACKENDS),--backend $(b))
+
 # Build-dep source directories included in trivy-scan-fs
 DEP_SCAN_DIRS := \
     $(USERVICES_DIR)/visual-data-preparation-for-retrieval \
-    $(USERVICES_DIR)/multimodal-embedding-serving
+    $(USERVICES_DIR)/multimodal-embedding-serving \
+    $(USERVICES_DIR)/vector-retriever
 
 # ==============================================================================
 # Docker Build Arguments
@@ -117,7 +125,8 @@ DOCKER_BUILD_ARGS := \
   $(if $(filter true,$(ADD_COPYLEFT_SOURCES)),--build-arg COPYLEFT_SOURCES=true)
 
 # All images produced by this Makefile (app + dependency services)
-DEP_IMAGES  := $(REGISTRY)vdms-dataprep:$(TAG) $(REGISTRY)multimodal-embedding-serving:$(TAG)
+DEP_IMAGES  := $(REGISTRY)multimodal-dataprep:$(TAG) $(REGISTRY)multimodal-embedding-serving:$(TAG) \
+               $(foreach b,$(VECTOR_RETRIEVER_BACKENDS),$(REGISTRY)vector-retriever-$(b):$(TAG))
 APP_IMAGES  := $(foreach c,$(COMPONENTS),$(REGISTRY)$(c):$(TAG))
 ALL_IMAGES  := $(DEP_IMAGES) $(APP_IMAGES)
 
@@ -163,17 +172,17 @@ build: check-docker check-poetry
 	)
 	@echo "All application services built successfully."
 
-# Build external dependency microservices (vdms-dataprep, multimodal-embedding-serving).
+# Build external dependency microservices (multimodal-dataprep, multimodal-embedding-serving).
 # Requires poetry to build the multimodal-embedding wheel.
 build-deps: check-docker check-poetry
 	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
 	@echo "Building dependency microservices..."
-	@echo "  → Building vdms-dataprep via upstream build.sh..."
-	@if [ -x "$(USERVICES_DIR)/visual-data-preparation-for-retrieval/vdms/build.sh" ]; then \
-	  cd "$(USERVICES_DIR)/visual-data-preparation-for-retrieval/vdms" && \
+	@echo "  → Building multimodal-dataprep via upstream build.sh..."
+	@if [ -x "$(USERVICES_DIR)/visual-data-preparation-for-retrieval/multimodal-dataprep/build.sh" ]; then \
+	  cd "$(USERVICES_DIR)/visual-data-preparation-for-retrieval/multimodal-dataprep" && \
 	  REGISTRY_URL="$(REGISTRY_URL)" PROJECT_NAME="$(PROJECT_NAME)" TAG="$(TAG)" ./build.sh; \
 	else \
-	  echo "vdms build.sh not found or not executable: $(USERVICES_DIR)/visual-data-preparation-for-retrieval/vdms/build.sh"; \
+	  echo "multimodal-dataprep build.sh not found or not executable: $(USERVICES_DIR)/visual-data-preparation-for-retrieval/multimodal-dataprep/build.sh"; \
 	  exit 1; \
 	fi
 	@echo "  → Building multimodal-embedding-serving..."
@@ -184,6 +193,15 @@ build-deps: check-docker check-poetry
 	    -f docker/Dockerfile .; \
 	else \
 	  echo "Dockerfile/compose.yaml not found for multimodal-embedding-serving."; \
+	  exit 1; \
+	fi
+	@echo "  → Building vector-retriever ($(VECTOR_RETRIEVER_BACKENDS)) via upstream build.sh..."
+	@if [ -x "$(VECTOR_RETRIEVER_DIR)/build.sh" ]; then \
+	  cd "$(VECTOR_RETRIEVER_DIR)" && \
+	  REGISTRY_URL="$(REGISTRY_URL)" PROJECT_NAME="$(PROJECT_NAME)" TAG="$(TAG)" \
+	    ./build.sh $(VECTOR_RETRIEVER_BUILD_ARGS); \
+	else \
+	  echo "vector-retriever build.sh not found or not executable: $(VECTOR_RETRIEVER_DIR)/build.sh"; \
 	  exit 1; \
 	fi
 	@echo "All dependency microservices built successfully."
@@ -537,6 +555,27 @@ trivy-scan-image: build
 			fi; \
 		fi; \
 	done
+	@$(ENSURE_TRIVY_HTML_TPL); \
+	for backend in $(VECTOR_RETRIEVER_BACKENDS); do \
+		component="vector-retriever-$$backend"; \
+		echo "  → Scanning $$component image..."; \
+		if [ -z "$$(docker images -q $(REGISTRY)$$component:$(TAG) 2>/dev/null)" ]; then \
+			echo "Image '$(REGISTRY)$$component:$(TAG)' not found, skipping."; \
+		else \
+			trivy image --severity HIGH,CRITICAL --ignore-unfixed --format json \
+				--output security-results/trivy-image-$(SERVICE_NAME)-$$component.json \
+				$(REGISTRY)$$component:$(TAG); \
+			trivy image --format spdx-json \
+				--output security-results/trivy-image-$(SERVICE_NAME)-$$component.spdx.json \
+				$(REGISTRY)$$component:$(TAG); \
+			if [ -n "$$TRIVY_HTML_TPL" ] && [ -f "$$TRIVY_HTML_TPL" ]; then \
+				trivy image --severity HIGH,CRITICAL --ignore-unfixed --format template \
+					--template "@$$TRIVY_HTML_TPL" \
+					--output security-results/trivy-image-$(SERVICE_NAME)-$$component.html \
+					$(REGISTRY)$$component:$(TAG); \
+			fi; \
+		fi; \
+	done
 	@echo "Image scans complete: security-results/trivy-image-*.{json,spdx.json,html}"
 
 trivy-scan-config:
@@ -796,7 +835,7 @@ help:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "  build            Build application service images (video-ingestion,"
 	@echo "                   pipeline-manager, video-search, vss-ui)"
-	@echo "  build-deps       Build dependency images (vdms-dataprep,"
+	@echo "  build-deps       Build dependency images (multimodal-dataprep,"
 	@echo "                   multimodal-embedding-serving) — requires poetry"
 	@echo "  push             Push all built images to the registry"
 	@echo "  test             Run all unit tests"
