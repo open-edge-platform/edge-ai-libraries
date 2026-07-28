@@ -1,0 +1,148 @@
+{
+    "skill_name": "chatqna-helm-deploy",
+    "evals": [
+        {
+            "id": 1,
+            "prompt": "Deploy chatqna core to kubernetes with helm. I did not pick runtime or device.",
+            "expected_output": "Defaults runtime selection to OpenVINO CPU and provides a valid helm install or upgrade flow using the OpenVINO values files.",
+            "files": [],
+            "expectations": [
+                "Defaults to openvino plus cpu when runtime and device are not provided.",
+                "Uses the OpenVINO values stack with values.yaml and values-openvino.yaml and does not route to values-ollama.yaml.",
+                "Sets or states gpu.enabled=false for CPU deployment.",
+                "Includes a helm upgrade --install command targeting release chatqna-core and a namespace."
+            ]
+        },
+        {
+            "id": 2,
+            "prompt": "Install OpenVINO GPU profile with Helm in namespace ai.",
+            "expected_output": "Provides the OpenVINO GPU helm deployment path, including GPU key discovery and validation before install.",
+            "files": [],
+            "expectations": [
+                "Uses values-openvino.yaml and enables GPU mode with gpu.enabled=true.",
+                "Calls out that gpu.key must be provided from cluster resources.",
+                "Includes a GPU key discovery command such as kubectl get nodes -o json with jq filtering.",
+                "Runs or recommends helm template validation before helm upgrade --install.",
+                "Does not use values-ollama.yaml for this path."
+            ]
+        },
+        {
+            "id": 3,
+            "prompt": "Deploy chatqna with ollama runtime using helm and set device gpu.",
+            "expected_output": "Corrects conflicting inputs by selecting the Ollama deployment path and enforcing CPU-only behavior.",
+            "files": [],
+            "expectations": [
+                "Selects runtime ollama and the values-ollama.yaml base file.",
+                "Explains that Ollama is CPU-only in this skill workflow.",
+                "Disables GPU with gpu.enabled=false or equivalent correction.",
+                "Does not keep gpu.enabled=true in the final guidance."
+            ]
+        },
+        {
+            "id": 4,
+            "prompt": "Translate these compose vars to helm overrides and deploy: BACKEND=openvino DEVICE=cpu REGISTRY=intel/ BACKEND_TAG=core_1.3.3 UI_TAG=core_1.3.3 HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN} http_proxy=${http_proxy} https_proxy=${https_proxy} no_proxy=${no_proxy}",
+            "expected_output": "Produces a concrete values-override.yaml mapping Compose or setup_env inputs to Helm values keys without hardcoding secrets.",
+            "files": [],
+            "expectations": [
+                "Creates or describes values-override.yaml as the translation artifact.",
+                "Maps backend to global.MODEL_RUNTIME and registry to image.registry.",
+                "Maps BACKEND_TAG for OpenVINO CPU to image.tags.openvinoCPU.",
+                "Maps UI_TAG to subchart.chatqna-ui.image.tag.",
+                "Maps token to global.huggingface.apiToken while keeping secret handling safe.",
+                "Maps proxy values to global.http_proxy, global.https_proxy, and global.no_proxy."
+            ]
+        },
+        {
+            "id": 5,
+            "prompt": "Before deploy, run preflight and ensure namespace rag exists.",
+            "expected_output": "Lists Helm and kubectl preflight checks and includes a namespace creation command that is idempotent.",
+            "files": [],
+            "expectations": [
+                "Includes kubectl version --client.",
+                "Includes helm version.",
+                "Includes kubectl config current-context.",
+                "Includes namespace creation via kubectl create namespace rag --dry-run=client -o yaml | kubectl apply -f -."
+            ]
+        },
+        {
+            "id": 6,
+            "prompt": "Use OCI chart source version 1.3.3 for chatqna core and deploy to namespace ai.",
+            "expected_output": "Follows the OCI chart workflow before install, including pull, extract, dependency build, and install or upgrade.",
+            "files": [],
+            "expectations": [
+                "Uses helm pull oci://registry-1.docker.io/intel/chat-question-and-answer-core with version 1.3.3.",
+                "Extracts chart tarball and changes into chart directory.",
+                "Runs helm dependency build before deployment.",
+                "Provides helm upgrade --install command with namespace ai and values files."
+            ]
+        },
+        {
+            "id": 7,
+            "prompt": "After install, provide hard evidence that deployment is healthy.",
+            "expected_output": "Provides concrete verification commands and evidence requirements for pods, services, rollouts, and health endpoint status.",
+            "files": [],
+            "expectations": [
+                "Includes kubectl get pods -n <namespace> and kubectl get services -n <namespace>.",
+                "Includes rollout checks for deploy/chatqna-core and deploy/chatqna-core-nginx.",
+                "Includes health probe against /v1/chatqna/health using curl with HTTP status output.",
+                "Requires or references HTTP_STATUS:200 in readiness evidence."
+            ]
+        },
+        {
+            "id": 8,
+            "prompt": "Give me the access URLs and cleanup command after deployment.",
+            "expected_output": "Returns the UI URL, API docs URL, and uninstall command for the deployed Helm release.",
+            "files": [],
+            "expectations": [
+                "Provides UI access URL derived from host IP and NodePort.",
+                "Provides API docs URL ending with /v1/chatqna/docs.",
+                "Includes helm uninstall chatqna-core -n <namespace>."
+            ]
+        },
+        {
+            "id": 9,
+            "prompt": "helm template failed due to invalid gpu key. What should the skill do?",
+            "expected_output": "Returns actionable Helm validation failure guidance tied to the incorrect key and expected correction.",
+            "files": [],
+            "expectations": [
+                "Reports the exact key causing template validation failure.",
+                "Proposes corrected key or value based on chart expectations.",
+                "Instructs to rerun helm template after correction."
+            ]
+        },
+        {
+            "id": 10,
+            "prompt": "Pods are not Ready after helm install. Give me the failure workflow.",
+            "expected_output": "Provides a focused Kubernetes debugging sequence for failed ChatQnA Helm pods.",
+            "files": [],
+            "expectations": [
+                "Includes kubectl describe pod for failing pods in target namespace.",
+                "Includes kubectl logs for failing deployments or pods.",
+                "Includes recent events via kubectl get events -n <namespace> --sort-by=.lastTimestamp.",
+                "Connects diagnosis to failing service components."
+            ]
+        },
+        {
+            "id": 11,
+            "prompt": "Health endpoint is returning 503 after deploy.",
+            "expected_output": "Provides health-check failure troubleshooting aligned with startup timing and model initialization behavior.",
+            "files": [],
+            "expectations": [
+                "Checks chatqna-core logs for model download or config issues.",
+                "Mentions first startup can take longer due to model pull or conversion.",
+                "Validates endpoint path and response status at /v1/chatqna/health."
+            ]
+        },
+        {
+            "id": 12,
+            "prompt": "PVC is stuck pending and storage is too small.",
+            "expected_output": "Provides PVC troubleshooting and resize guidance that respects the skill's safety constraints.",
+            "files": [],
+            "expectations": [
+                "Includes PVC inspection guidance in the target namespace.",
+                "States stuck PVC deletion should happen only when explicitly requested.",
+                "Recommends increasing PVC size in values-override.yaml and re-running helm upgrade."
+            ]
+        }
+    ]
+}
