@@ -12,9 +12,6 @@ description: >
   access issues. Also trigger on phrases like "video analytics pipeline",
   "GStreamer inference", "DL Streamer", "DLSPS", "object detection on video",
   "RTSP streaming", "pipeline server".
-argument-hint: >
-  Describe your video analytics task (e.g. "run object detection on an RTSP
-  camera stream using GPU and publish results to MQTT")
 ---
 
 # DL Streamer Pipeline Server Agent
