@@ -133,8 +133,9 @@ class PipelineInstance:
                 # Legacy API parity fields (see GET /pipelines/{instance_id} in
                 # the original REST API): pipeline "type" is always a raw
                 # GStreamer launch string in dlsps2, so "type" is fixed at
-                # "gstreamer".
-                "type": "gstreamer",
+                # "GStreamer" (capitalized, matching the literal value DLSPS 1.0
+                # writes into its generated pipeline.json / echoes back).
+                "type": "GStreamer",
                 "launch_command": self.pipeline_description,
                 "name": self.name,
                 "version": self.version,

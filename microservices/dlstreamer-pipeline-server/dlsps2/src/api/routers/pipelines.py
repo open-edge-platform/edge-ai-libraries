@@ -117,9 +117,12 @@ async def list_pipelines():
         {
             "name": "user_defined_pipelines",
             "version": pipeline_cfg.name,
-            "type": "gstreamer",
+            "type": "GStreamer",
+            "description": "DL Streamer Pipeline Server pipeline",
             "parameters": (
-                pipeline_cfg.parameters.model_dump() if pipeline_cfg.parameters else None
+                pipeline_cfg.parameters.model_dump(exclude_none=True)
+                if pipeline_cfg.parameters
+                else None
             ),
         }
         for pipeline_cfg in _legacy_config.pipelines

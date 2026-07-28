@@ -85,7 +85,7 @@ class PipelineSummaryResponse(PipelineStatusResponse):
     GET /pipelines/status and GET /pipelines/{instance_id}/status.
     """
 
-    type: str = "gstreamer"
+    type: str = "GStreamer"
     launch_command: Optional[str] = None
     name: Optional[str] = None
     version: Optional[str] = None
@@ -96,12 +96,17 @@ class PipelineDefinitionResponse(BaseModel):
     """One entry of GET /pipelines (legacy API parity: the loaded pipeline
     "catalog" from config.json, NOT running instances — see GET /pipelines/status
     for the list of instances).
+
+    ``type``/``description`` match the literal values DLSPS 1.0 writes into each
+    pipeline's generated ``pipeline.json`` (``server/manager.py``'s ``Pipeline.__init__``) —
+    ``"GStreamer"`` (capitalized) and the fixed string "DL Streamer Pipeline Server
+    pipeline", respectively. These are NOT derived from config.json in 1.0 either.
     """
 
     name: str
     version: str
-    type: str = "gstreamer"
-    description: Optional[str] = None
+    type: str = "GStreamer"
+    description: Optional[str] = "DL Streamer Pipeline Server pipeline"
     parameters: Optional[dict] = None
 
 
