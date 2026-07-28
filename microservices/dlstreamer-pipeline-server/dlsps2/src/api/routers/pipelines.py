@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Path
@@ -18,6 +19,8 @@ from config.compat import apply_destination, apply_source
 from config.converter import build_pipeline_string
 from config.models import LegacyConfig
 from core.pipeline_manager import PipelineManager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
@@ -39,6 +42,61 @@ def _get_manager() -> PipelineManager:
     if _pipeline_manager is None:
         raise HTTPException(status_code=503, detail="Pipeline manager not initialized")
     return _pipeline_manager
+
+
+def start_named_pipeline(
+    pipeline_cfg,
+    *,
+    name: str,
+    version: str,
+    request: StartNamedPipelineRequest,
+) -> str:
+    """Build a concrete pipeline string from a config entry + request body and start it.
+
+    Shared by the ``POST /pipelines/{name}/{version}`` route and by
+    :func:`autostart_pipelines` (server-startup autostart), so both go through
+    the exact same source/destination/parameters translation.
+    """
+    pipeline_str = build_pipeline_string(pipeline_cfg, parameters=request.parameters)
+    pipeline_str = apply_source(pipeline_str, request.source)
+    pipeline_str = apply_destination(pipeline_str, request.destination)
+    return _get_manager().start(
+        pipeline_str,
+        name=name,
+        version=version,
+        request=request.model_dump(exclude_none=True),
+    )
+
+
+def autostart_pipelines() -> None:
+    """Start every config.json pipeline with ``auto_start: true`` (legacy parity).
+
+    Called once from the app's startup lifespan, after :func:`set_legacy_config`.
+    Each pipeline's optional ``payload`` field (source/destination/parameters/tags)
+    is used as the request body, exactly as if it had been POSTed to
+    ``/pipelines/{name}/{version}``. A pipeline that fails to start (e.g. bad
+    payload, validation failure) is logged and skipped rather than aborting
+    server startup or the remaining autostart pipelines.
+    """
+    if _legacy_config is None:
+        return
+
+    for pipeline_cfg in _legacy_config.pipelines:
+        if not pipeline_cfg.auto_start:
+            continue
+        try:
+            request = StartNamedPipelineRequest.model_validate(pipeline_cfg.payload or {})
+            instance_id = start_named_pipeline(
+                pipeline_cfg,
+                name="user_defined_pipelines",
+                version=pipeline_cfg.name,
+                request=request,
+            )
+            logger.info(
+                "Autostarted pipeline %r as instance %s", pipeline_cfg.name, instance_id
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to autostart pipeline %r", pipeline_cfg.name)
 
 
 # ---------------------------------------------------------------------------
@@ -144,15 +202,7 @@ async def run_named_pipeline(
             detail=f"Pipeline {version!r} not found in config (name={name!r})",
         )
 
-    pipeline_str = build_pipeline_string(pipeline_cfg, parameters=request.parameters)
-    pipeline_str = apply_source(pipeline_str, request.source)
-    pipeline_str = apply_destination(pipeline_str, request.destination)
-    instance_id = _get_manager().start(
-        pipeline_str,
-        name=name,
-        version=version,
-        request=request.model_dump(exclude_none=True),
-    )
+    instance_id = start_named_pipeline(pipeline_cfg, name=name, version=version, request=request)
     return {"instance_id": instance_id}
 
 

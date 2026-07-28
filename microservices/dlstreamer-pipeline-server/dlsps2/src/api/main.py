@@ -55,6 +55,7 @@ async def lifespan(app: FastAPI):
             "Loaded %d pipeline(s) from config",
             len(legacy_config.pipelines),
         )
+        pipelines.autostart_pipelines()
     except FileNotFoundError:
         logger.info("No config.json found — named pipeline API disabled")
 

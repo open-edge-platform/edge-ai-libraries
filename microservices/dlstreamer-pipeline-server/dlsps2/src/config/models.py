@@ -120,6 +120,12 @@ class PipelineConfig(BaseModel):
     pipeline: str  # GStreamer launch string (may contain {auto_source} placeholder)
     parameters: PipelineParameters | None = None
     auto_start: bool = False
+    # Default REST request body (source/destination/parameters/tags) used to
+    # start this pipeline when auto_start is true. Lets a pipeline template
+    # with placeholders (e.g. {auto_source}) still be auto-started, by
+    # supplying the same body that would otherwise be sent to
+    # POST /pipelines/{name}/{version}. Ignored if auto_start is false.
+    payload: dict[str, Any] | None = None
 
     # Optional publisher integrations
     mqtt_publisher: MqttPublisherConfig | None = None
