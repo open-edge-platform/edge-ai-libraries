@@ -9,7 +9,7 @@ thumbnail: images/people-detection-and-tracking.png
 variants:
   - name: GPU
     pipeline_description: >-
-      filesrc location=/videos/input/auto/people.mp4 !
+      filesrc location=/videos/input/auto/people-detection-and-tracking.mp4 !
       decodebin3 !
       gvadetect model=/models/output/ultralytics/public/yolo11s/INT8/yolo11s.xml device=GPU pre-process-backend=va-surface-sharing threshold=0.5 model-instance-id=detect0 !
       queue !
