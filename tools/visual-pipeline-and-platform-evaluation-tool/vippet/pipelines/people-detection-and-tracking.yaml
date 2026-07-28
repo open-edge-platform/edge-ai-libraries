@@ -1,0 +1,25 @@
+name: People Detection and Tracking
+definition: >
+  People detection and tracking pipeline with object detection, proximity trigger, VLM analysis, and dual outputs
+  (annotated video + JSON metadata and JPEG snapshots).
+tags:
+  - Safety and Security 
+  - GenAi
+thumbnail: images/people-detection-and-tracking.png
+variants:
+  - name: GPU
+    pipeline_description: >-
+      filesrc location=/videos/input/auto/people.mp4 !
+      decodebin3 !
+      gvadetect model=/models/output/ultralytics/public/yolo11s/INT8/yolo11s.xml device=GPU pre-process-backend=va-surface-sharing threshold=0.5 model-instance-id=detect0 !
+      queue !
+      gvainference model=/models/output/ultralytics/public/mars-small128/mars_small128_fp32.xml device=GPU pre-process-backend=va-surface-sharing inference-region=roi-list object-class=person model-instance-id=reid0 !
+      queue !
+      gvatrack tracking-type=deep-sort deepsort-trck-cfg="max_age=60,max_cosine_distance=0.3,object_class=person,reid_max_age=30" !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      gvametaconvert add-empty-results=true !
+      queue !
+      gvametapublish file-format=json-lines file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false

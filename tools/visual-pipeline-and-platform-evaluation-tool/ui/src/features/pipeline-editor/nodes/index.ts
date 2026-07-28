@@ -5,6 +5,9 @@ import FileSinkNode from "./FileSinkNode.tsx";
 import FileSrcNode, { FileSrcNodeWidth } from "./FileSrcNode.tsx";
 import GVAClassifyNode, { GVAClassifyNodeWidth } from "./GVAClassifyNode.tsx";
 import GVADetectNode, { GVADetectNodeWidth } from "./GVADetectNode.tsx";
+import GVAInferenceNode, {
+  GVAInferenceNodeWidth,
+} from "./GVAInferenceNode.tsx";
 import GVAFpsCounterNode, {
   GVAFpsCounterNodeWidth,
 } from "./GVAFpsCounterNode.tsx";
@@ -18,9 +21,6 @@ import GVAGenAINode, { GVAGenAINodeWidth } from "./GVAGenAINode.tsx";
 import GVAMotionDetectNode, {
   GVAMotionDetectNodeWidth,
 } from "./GVAMotionDetectNode.tsx";
-import GVAProximityTriggerPyNode, {
-  GVAProximityTriggerPyNodeWidth,
-} from "./GVAProximityTriggerPyNode.tsx";
 import GVATrackNode from "./GVATrackNode.tsx";
 import GVAWatermarkNode, {
   GVAWatermarkNodeWidth,
@@ -59,6 +59,7 @@ export const nodeTypes = {
   avdec_h264: AvDecH264Node,
   gvafpscounter: GVAFpsCounterNode,
   gvadetect: GVADetectNode,
+  gvainference: GVAInferenceNode,
   queue2: Queue2Node,
   gvatrack: GVATrackNode,
   gvawatermark: GVAWatermarkNode,
@@ -66,17 +67,13 @@ export const nodeTypes = {
   gvametapublish: GVAMetaPublishNode,
   gvagenai: GVAGenAINode,
   gvamotiondetect: GVAMotionDetectNode,
-  gvaproximitytrigger_py: GVAProximityTriggerPyNode,
   fakesink: FakeSinkNode,
   "video/x-raw(memory:VAMemory)": VideoXRawNode,
   vapostproc: VAPostProcNode,
   videoconvert: VideoConvertNode,
-  videoconvertscale: VideoConvertNode,
   "video/x-raw": VideoXRawWithDimensionsNode,
   mp4mux: Mp4MuxNode,
   filesink: FileSinkNode,
-  multifilesink: FileSinkNode,
-  jpegenc: QueueNode,
   vah264enc: VAH264EncNode,
   decodebin3: Decodebin3Node,
   parsebin: ParsebinNode,
@@ -100,12 +97,12 @@ export const nodeWidths: Record<string, number> = {
   "tsam-output": TsamOutputNodeWidth,
   filesrc: FileSrcNodeWidth,
   gvadetect: GVADetectNodeWidth,
+  gvainference: GVAInferenceNodeWidth,
   gvaclassify: GVAClassifyNodeWidth,
   gvametaconvert: GVAMetaConvertNodeWidth,
   gvametapublish: GVAMetaPublishNodeWidth,
   gvagenai: GVAGenAINodeWidth,
   gvamotiondetect: GVAMotionDetectNodeWidth,
-  gvaproximitytrigger_py: GVAProximityTriggerPyNodeWidth,
   gvafpscounter: GVAFpsCounterNodeWidth,
   gvawatermark: GVAWatermarkNodeWidth,
   videoconvert: VideoConvertNodeWidth,
