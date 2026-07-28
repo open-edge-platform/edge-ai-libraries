@@ -8,7 +8,8 @@ FROM python:3.11-slim AS builder
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    NLTK_DATA="/opt/share/nltk_data"
 
 RUN apt-get update && apt-get install -y --no-install-recommends python3-dev \
     && rm -rf /var/lib/apt/lists/* \
@@ -24,7 +25,7 @@ RUN poetry config virtualenvs.create false \
 
 # Download NLTK corpora (stopwords + punkt)
 RUN mkdir -p /opt/share/nltk_data \
- && python -m nltk.downloader -d /opt/share/nltk_data stopwords punkt
+ && python -m nltk.downloader --quiet --exit-on-error -d /opt/share/nltk_data stopwords punkt
 
 FROM python:3.11-slim AS runtime
 
