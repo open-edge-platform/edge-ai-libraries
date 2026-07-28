@@ -49,6 +49,7 @@ services:
       - NO_PROXY=$no_proxy,${RTSP_CAMERA_IP},otel-collector,mediamtx-server
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
+      - ADDITIONAL_GST_PLUGIN_PATH=${ADDITIONAL_GST_PLUGIN_PATH}
       - GST_DEBUG=1
       - LOG_LEVEL=${LOG_LEVEL}
       - ADD_UTCTIME_TO_METADATA=true
@@ -78,6 +79,8 @@ services:
       - "/dev:/dev"
       - "/tmp:/tmp"
       - "./mr_models:/home/pipeline-server/mr_models:rw"
+      # Additional GStreamer plugin path(s) (e.g. for custom plugins) can be mounted eg. as follows:
+      # - "./extra_plugins:${ADDITIONAL_GST_PLUGIN_PATH}:ro"
     group_add:
       # render group ID; this variable should be exported on host before running docker compose or added to .env
       - "${RENDER_GID}"

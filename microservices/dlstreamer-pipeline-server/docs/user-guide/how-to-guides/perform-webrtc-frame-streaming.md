@@ -56,6 +56,26 @@ After setting all the above information, we can start the WebRTC streaming:
 - Open `http://<HOST_IP>:8889/<peer-id>` in your browser to view the WebRTC stream:
     ![Stream output on browser using WebRTC](../_assets/sample_webrtc_mediamtx.png)
 
+> **Note:** You can control WebRTC frame overlays using `overlay` and `overlay-properties` in `destination.frame`.
+>
+> - If `"overlay": true`, `gvawatermark` is applied.
+> - If `"overlay": false`, `gvawatermark` is not applied and `overlay-properties` is ignored.
+> - If your pipeline in config.json already contains custom `gvawatermark` settings, use `"overlay": false` to avoid applying watermark twice.
+>
+> Example Webrtc frame destination with `overlay-properties`:
+> ```json
+> "frame": {
+>     "type": "webrtc",
+>     "peer-id": "pallet-defect-detection",
+>     "overlay": true,
+>     "overlay-properties": {
+>         "font-scale": 1.5,
+>         "draw-txt-bg": false,
+>         "thickness": 3
+>     }
+> }
+> ```
+
 > **Note:** If you are using 4K or high resolution video make sure to increase the bitrate to
 > avoid choppy video streaming. You can set the bitrate by adding `"bitrate" : 5000` with the
 > WebRTC configurations in your Curl command.
