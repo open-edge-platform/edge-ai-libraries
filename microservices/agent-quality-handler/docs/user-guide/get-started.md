@@ -50,6 +50,8 @@ The `llm` profile additionally starts `aqh-ovms` and `model-download`. Starting 
 | `LLM_MODEL_NAME` | Model name passed to the model-download service | `Phi-4-mini-instruct` |
 | `LLM_DEVICE` | Target inference device (`GPU`, `CPU`) | `GPU` |
 | `LLM_PRECISION` | Model quantization precision (`int8`, `int4`, `fp16`, …) | `int8` |
+| `USE_CASE_MODELS_DIR` | Optional host directory shared by model-download and OVMS | `aqh_model_cache` volume |
+| `MODEL_DOWNLOAD_TIMEOUT_SECONDS` | Maximum wait for model provisioning. Increase this for larger models | `3600` |
 
 ## Configure Batch Events
 
