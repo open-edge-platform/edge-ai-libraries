@@ -3,13 +3,21 @@
 """Configuration settings for BehavioralAnalysis Service."""
 
 import logging
+from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
 import yaml
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
+
+
+class DeploymentMode(str, Enum):
+    """Supported deployment modes."""
+    SEAWEEDFS_MQTT = "seaweedfs+mqtt"
+    STANDALONE_API = "standalone+api"
 
 
 class Settings(BaseSettings):
@@ -18,18 +26,19 @@ class Settings(BaseSettings):
     # Service settings
     debug: bool = False
     log_level: str = "INFO"
+    deployment_mode: DeploymentMode = DeploymentMode.STANDALONE_API
 
     # Pose confidence threshold
-    pose_confidence_threshold: float = 0.5
+    pose_confidence_threshold: float = Field(default=0.5, alias="BA_CONFIDENCE")
 
     # Pose model settings
     yolo_pose_model: str = "/models/yolo_models/yolo26n-pose/yolo26n-pose.xml"
-    gst_inference_device: str = "CPU"
+    gst_inference_device: str = Field(default="CPU", alias="BA_GST_DEVICE")
 
     # Frame analysis settings
-    min_frames_for_detection: int = 8
-    max_frames_to_fetch: int = 30
-    pose_frames_count: int = 20
+    min_frames_for_detection: int = Field(default=3, alias="BA_MIN_FRAMES")
+    max_frames_to_fetch: int = Field(default=20, alias="BA_MAX_FRAMES")
+    pose_frames_count: int = Field(default=15, alias="BA_POSE_FRAMES")
 
     # SeaweedFS settings
     seaweedfs_endpoint: str = "http://localhost:8333"
@@ -63,6 +72,17 @@ class Settings(BaseSettings):
     class Config:
         env_prefix = ""  # No prefix, use exact variable names
         case_sensitive = False
+        populate_by_name = True  # Allow both field name and alias
+    
+    @property
+    def use_seaweedfs(self) -> bool:
+        """Check if SeaweedFS is enabled in current deployment mode."""
+        return "seaweedfs" in self.deployment_mode.value
+    
+    @property
+    def use_mqtt(self) -> bool:
+        """Check if MQTT queue consumer is enabled in current deployment mode."""
+        return "mqtt" in self.deployment_mode.value
 
 
 def load_pattern_config(path: str) -> dict[str, Any]:
