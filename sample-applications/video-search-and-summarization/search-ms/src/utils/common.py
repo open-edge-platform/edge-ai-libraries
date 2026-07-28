@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     )
     DEBOUNCE_TIME: int = Field(default=5, env="DEBOUNCE_TIME")
     VIDEO_UPLOAD_ENDPOINT: str = Field(default="", env="VIDEO_UPLOAD_ENDPOINT")
+    WATCH_BATCH_SIZE: int = Field(default=10, ge=1, le=100, env="WATCH_BATCH_SIZE")
+    BATCH_JOB_POLL_INTERVAL_SECONDS: float = Field(
+        default=0.5, gt=0, env="BATCH_JOB_POLL_INTERVAL_SECONDS"
+    )
+    BATCH_JOB_TIMEOUT_SECONDS: float = Field(
+        default=3600.0, gt=0, env="BATCH_JOB_TIMEOUT_SECONDS"
+    )
     VS_INITIAL_DUMP: bool = Field(default=False, env="VS_INITIAL_DUMP")
     DELETE_PROCESSED_FILES: bool = Field(default=False, env="DELETE_PROCESSED_FILES")
     WATCH_DIRECTORY_RECURSIVE: bool = Field(default=False, env="WATCH_DIRECTORY_RECURSIVE")

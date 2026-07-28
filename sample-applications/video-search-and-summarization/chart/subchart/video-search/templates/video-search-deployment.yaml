@@ -75,6 +75,12 @@ spec:
               value: {{ .Values.videosearch.env.VS_INITIAL_DUMP | quote }}
             - name: VIDEO_UPLOAD_ENDPOINT
               value: {{ .Values.videosearch.env.VIDEO_UPLOAD_ENDPOINT | quote }}
+            - name: WATCH_BATCH_SIZE
+              value: {{ .Values.videosearch.env.WATCH_BATCH_SIZE | quote }}
+            - name: BATCH_JOB_POLL_INTERVAL_SECONDS
+              value: {{ .Values.videosearch.env.BATCH_JOB_POLL_INTERVAL_SECONDS | quote }}
+            - name: BATCH_JOB_TIMEOUT_SECONDS
+              value: {{ .Values.videosearch.env.BATCH_JOB_TIMEOUT_SECONDS | quote }}
             - name: AGGREGATION_ENABLED
               value: {{ .Values.videosearch.env.AGGREGATION_ENABLED | quote }}
             - name: AGGREGATION_SEGMENT_DURATION
