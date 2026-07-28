@@ -12,6 +12,9 @@ By default, the base installer does not contain any installable components. They
 ```
 ./openedge-cli bootstrap vision 
 # ./openedge-cli bootstrap --install=vision vision  # install vision by default
+
+./openedge-cli bootstrap isv
+# bundle the isv profile (and its dependencies) into a self-contained installer
 ```
 
 After the bootstrap process, the `openedge-cli` shell script includes all the components specified by the `vision` profile and is ready to ship.  
@@ -32,6 +35,13 @@ Start and stop a component as follows:
 ```
 ./openedge-cli start smart_parking
 ./openedge-cli stop smart_parking
+```
+
+For install a ISV application, you can use the following commands:
+
+```
+./openedge-cli install unstructured   # a single component
+./openedge-cli install isv             # every application in the isv profile
 ```
 
 > If components within a profile are not compatible with each other, you cannot start/stop a profile. You can always start/stop a component directly.  

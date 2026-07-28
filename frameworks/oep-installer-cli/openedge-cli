@@ -253,4 +253,3 @@ subcommand_bootstrap () {
     exit 3
   fi
 }
-
