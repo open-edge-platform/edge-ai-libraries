@@ -32,6 +32,7 @@ import {
   Loader2,
   MoreVertical,
   MoveRight,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -369,6 +370,7 @@ export const BenchmarkSuiteRunDetailsTable = ({
                                             handleCancelTest(testCaseRun.job_id)
                                           }
                                         >
+                                          <X className="mr-2 h-4 w-4" />
                                           Cancel test
                                         </DropdownMenuItem>
                                       </DropdownMenuContent>

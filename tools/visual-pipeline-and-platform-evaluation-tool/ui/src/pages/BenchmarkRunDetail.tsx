@@ -12,7 +12,10 @@ import { BenchmarkSuiteRunDetailsTable } from "@/features/benchmarks/BenchmarkSu
 import { BenchmarkSuiteRunDetailsSkeleton } from "@/features/benchmarks/BenchmarkSuiteRunDetailsSkeleton.tsx";
 import { RunBenchmarkButton } from "@/features/benchmarks/RunBenchmarkButton";
 import { BenchmarkExportButton } from "@/features/benchmarks/BenchmarkExportButton.tsx";
-import { renderBenchmarkStatus } from "@/features/benchmarks/utils";
+import {
+  formatBenchmarkScore,
+  renderBenchmarkStatus,
+} from "@/features/benchmarks/utils";
 import { formatTimestamp } from "@/lib/timeUtils";
 
 const TERMINAL_RUN_STATUSES = new Set(["passed", "failed", "cancelled"]);
@@ -96,11 +99,17 @@ export const BenchmarkRunDetail = () => {
                   : `${benchmark.name} Results | ${formatTimestamp(runDetails.start_time)} (#${runDetails.id})`}
               </h1>
             </div>
-            {runDetails.status === "passed" && (
-              <BenchmarkExportButton
-                benchmark={benchmark}
-                runDetails={runDetails}
-              />
+            {isActiveRun ? (
+              <div data-export-ignore>
+                <RunBenchmarkButton suiteSlug={benchmark.slug} />
+              </div>
+            ) : (
+              runDetails.status === "passed" && (
+                <BenchmarkExportButton
+                  benchmark={benchmark}
+                  runDetails={runDetails}
+                />
+              )
             )}
           </div>
           <div className="text-muted-foreground ml-14 flex items-center gap-2">
@@ -108,14 +117,32 @@ export const BenchmarkRunDetail = () => {
             {renderBenchmarkStatus(runDetails.status)}
           </div>
         </div>
-
-        <div className="mt-6 mb-4 flex items-center justify-between gap-4">
-          <h1 className="font-medium text-xl">Workloads</h1>
-          {isActiveRun && (
-            <div data-export-ignore>
-              <RunBenchmarkButton suiteSlug={benchmark.slug} />
+        <div className="mb-6 flex justify-center">
+          <div className="inline-flex items-center border bg-muted/25 px-4 py-3 text-xl">
+            <div className="px-4 text-center">
+              <p className="text-sm text-muted-foreground">Overall score</p>
+              <p className="font-semibold">
+                {formatBenchmarkScore(runDetails.score_total)}
+              </p>
             </div>
-          )}
+            <div className="h-8 w-px bg-border" />
+            <div className="px-4 text-center">
+              <p className="text-sm text-muted-foreground">Perf score</p>
+              <p className="font-semibold">
+                {formatBenchmarkScore(runDetails.score_performance)}
+              </p>
+            </div>
+            <div className="h-8 w-px bg-border" />
+            <div className="px-4 text-center">
+              <p className="text-sm text-muted-foreground">Efficiency score</p>
+              <p className="font-semibold">
+                {formatBenchmarkScore(runDetails.score_efficiency)}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="mt-6 mb-4 flex items-center gap-4">
+          <h1 className="font-medium text-xl">Workloads</h1>
         </div>
         <BenchmarkSuiteRunDetailsTable
           benchmark={benchmark}

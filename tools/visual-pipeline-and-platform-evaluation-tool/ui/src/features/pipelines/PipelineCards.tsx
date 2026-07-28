@@ -27,6 +27,7 @@ import { DuplicatePipelineDialog } from "./DuplicatePipelineDialog";
 import { CreatePipelineDialog } from "./CreatePipelineDialog.tsx";
 import { usePipelineTagColors } from "@/hooks/usePipelineTagColors";
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
+import { Button } from "@/components/ui/button";
 import { CARDS_GRID_CLASS, cn } from "@/lib/utils";
 
 const PIPELINE_SAMPLE_APP_LINKS: Record<string, string> = {
@@ -81,10 +82,13 @@ export const PipelineCards = ({
     <>
       <div className={CARDS_GRID_CLASS}>
         <CreatePipelineDialog>
-          <button className="w-full h-full min-h-[12.5rem] border-2 border-dashed border-border hover:border-brand-accent hover:bg-brand-accent/5 transition-all flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-brand-accent">
-            <Plus className="w-12 h-12" />
+          <Button
+            variant="ghost"
+            className="w-full h-full min-h-[12.5rem] border-2 border-dashed border-border hover:border-brand-accent hover:bg-brand-accent/5 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-brand-accent"
+          >
+            <Plus className="size-12" />
             <span className="text-lg font-medium">Create Pipeline</span>
-          </button>
+          </Button>
         </CreatePipelineDialog>
 
         {displayedPipelines.map((pipeline) => (

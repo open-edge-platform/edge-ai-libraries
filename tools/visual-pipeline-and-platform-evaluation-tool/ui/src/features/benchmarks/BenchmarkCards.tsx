@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 import { Link } from "react-router";
 import { CARDS_GRID_CLASS, cn } from "@/lib/utils";
-import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Play } from "lucide-react";
 
 const getBenchmarkTestCount = (benchmark: BenchmarkSuite): number => {
   return benchmark.workloads.reduce(
@@ -37,15 +38,15 @@ export const BenchmarkCards = ({
   return (
     <div className={CARDS_GRID_CLASS}>
       {showCreatePlaceholder && (
-        <button
-          type="button"
+        <Button
+          variant="outline"
           disabled
-          className="w-full h-full min-h-[12.5rem] border-2 border-dashed border-border transition-all flex flex-col items-center justify-center gap-3 text-muted-foreground/70 cursor-not-allowed"
+          className="w-full h-full min-h-[12.5rem] border-2 border-dashed flex flex-col items-center justify-center gap-3 text-muted-foreground/70"
         >
-          <Plus className="w-12 h-12" />
-          <span className="text-lg font-medium">Create Benchmark</span>
+          <Play className="size-12" />
+          <span className="text-lg font-medium">Run all benchmarks</span>
           <span className="text-sm">Coming soon</span>
-        </button>
+        </Button>
       )}
       {displayedBenchmarks.map((benchmark) => (
         <Card
