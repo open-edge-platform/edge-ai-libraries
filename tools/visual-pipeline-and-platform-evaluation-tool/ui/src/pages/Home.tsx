@@ -93,6 +93,26 @@ export const Home = () => {
         <div className="p-4 space-y-8" ref={cardsContainerRef}>
           <div>
             <div className="flex items-center justify-between mb-4">
+              <h1 className="font-medium text-xl">Pipelines</h1>
+              <Link
+                to="/pipelines"
+                className="text-sm text-primary hover:underline"
+              >
+                See all
+              </Link>
+            </div>
+            {isLoadingPipelines ? (
+              <PipelineCardsLoader count={(maxCards ?? 0) + 1} />
+            ) : (
+              <PipelineCards
+                pipelines={sortedPipelines}
+                maxCards={maxCards}
+                source="dashboard"
+              />
+            )}
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-4">
               <h1 className="font-medium text-xl">Benchmarks</h1>
               <Link
                 to="/benchmarks"
@@ -109,27 +129,6 @@ export const Home = () => {
                 maxCards={maxCards}
                 source="dashboard"
                 showCreatePlaceholder
-              />
-            )}
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="font-medium text-xl">Pipelines</h1>
-              <Link
-                to="/pipelines"
-                className="text-sm text-primary hover:underline"
-              >
-                See all
-              </Link>
-            </div>
-            {isLoadingPipelines ? (
-              <PipelineCardsLoader count={(maxCards ?? 0) + 1} />
-            ) : (
-              <PipelineCards
-                pipelines={sortedPipelines}
-                maxCards={maxCards}
-                source="dashboard"
               />
             )}
           </div>

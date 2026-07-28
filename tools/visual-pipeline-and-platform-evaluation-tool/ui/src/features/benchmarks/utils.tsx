@@ -17,6 +17,9 @@ export const renderBenchmarkStatus = (status: string) => {
   if (status === "created") {
     return <Badge variant="outline">Queued</Badge>;
   }
+  if (status === "skipped") {
+    return <Badge variant="outline">Skipped</Badge>;
+  }
   if (status === "failed") {
     return <Badge variant="destructive">Failed</Badge>;
   }
