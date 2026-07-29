@@ -1,15 +1,17 @@
 import asyncio
-import json
 import logging
 import threading
 import time
 import uuid
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import TypeVar
 
 from sqlalchemy import select
 
 from database import async_session_maker
+from device import DeviceDiscovery, DeviceFamily
 from internal_types import (
     InternalBenchmarkJobStatus,
     InternalBenchmarkJobSummary,
@@ -21,6 +23,8 @@ from internal_types import (
     InternalPipelinePerformanceSpec,
     InternalTestJobState,
 )
+from managers import benchmark_metrics as metrics
+from managers import benchmark_scoring as scoring
 from managers.pipeline_manager import PipelineManager
 from managers.tests_manager import TestsManager
 from orm_models import (
@@ -34,6 +38,9 @@ from orm_models import (
 
 
 logger = logging.getLogger("benchmark_manager")
+
+
+_T = TypeVar("_T")
 
 
 @dataclass
@@ -74,314 +81,45 @@ class BenchmarkManager:
         self.jobs: dict[str, InternalBenchmarkJobStatus] = {}
         self._cancel_requested: set[str] = set()
         self._jobs_lock = threading.Lock()
-        self.logger = logging.getLogger("BenchmarkManager")
 
     @staticmethod
     def _generate_job_id() -> str:
         return uuid.uuid1().hex
 
     @staticmethod
-    def _run_db(coro):
+    def _run_db(coro: Coroutine[object, object, _T]) -> _T:
         return asyncio.run(coro)
 
     @staticmethod
-    def _parse_metrics_text(metrics_text: str | None) -> list[dict]:
-        logger = logging.getLogger(__name__)
-        if not metrics_text:
-            logger.warning("_parse_metrics_text: metrics_text is None or empty")
-            return []
+    def _is_device_available(variant_name: str) -> bool:
+        """
+        Check if the device specified by variant name is available on this system.
 
+        Args:
+            variant_name: Variant name (e.g., "CPU", "GPU", "NPU")
+
+        Returns:
+            True if the device is available, False otherwise.
+        """
         try:
-            parsed = json.loads(metrics_text)
+            device_discovery = DeviceDiscovery()
+            available_devices = device_discovery.list_devices()
+            available_families = {device.device_family for device in available_devices}
+
+            # Map variant name to device family
+            variant_upper = variant_name.upper()
+            if variant_upper == "CPU":
+                return DeviceFamily.CPU in available_families
+            elif variant_upper == "GPU":
+                return DeviceFamily.GPU in available_families
+            elif variant_upper == "NPU":
+                return DeviceFamily.NPU in available_families
+            else:
+                logger.warning(f"Unknown variant name for device check: {variant_name}")
+                return True  # Default to allowing unknown variants
         except Exception as e:
-            logger.error(f"_parse_metrics_text: Failed to parse JSON: {e}")
-            return []
-
-        if not isinstance(parsed, list):
-            logger.warning(f"_parse_metrics_text: Expected list, got {type(parsed)}")
-            return []
-
-        result = [item for item in parsed if isinstance(item, dict)]
-        logger.debug(f"_parse_metrics_text: Parsed {len(result)} dict items from {len(parsed)} total items")
-        return result
-
-    @staticmethod
-    def _get_metric_values_from_parsed_metrics(
-        parsed_metrics: list[dict], metric_name: str
-    ) -> list[float]:
-        values: list[float] = []
-
-        for event in parsed_metrics:
-            metrics = event.get("metrics")
-            if not isinstance(metrics, list):
-                continue
-
-            for metric in metrics:
-                if not isinstance(metric, dict) or metric.get("name") != metric_name:
-                    continue
-
-                fields = metric.get("fields")
-                raw_value = None
-                if isinstance(fields, dict):
-                    if "value" in fields:
-                        raw_value = fields.get("value")
-                    elif metric_name in fields:
-                        raw_value = fields.get(metric_name)
-                    elif len(fields) == 1:
-                        raw_value = next(iter(fields.values()))
-                elif "value" in metric:
-                    raw_value = metric.get("value")
-
-                if isinstance(raw_value, (int, float)):
-                    values.append(float(raw_value))
-
-        return values
-
-    @staticmethod
-    def _trim_metric_edge_values(values: list[float]) -> list[float]:
-        logger = logging.getLogger(__name__)
-        if not values:
-            logger.debug("_trim_metric_edge_values: Empty values list")
-            return []
-
-        trim_count = int(len(values) * 0.1)
-        if trim_count == 0 or trim_count * 2 >= len(values):
-            logger.debug(f"_trim_metric_edge_values: Not trimming (len={len(values)}, trim_count={trim_count})")
-            return values
-
-        trimmed = values[trim_count:-trim_count]
-        logger.debug(f"_trim_metric_edge_values: Trimmed {trim_count} items from each end (before={len(values)}, after={len(trimmed)})")
-        return trimmed
-
-    @classmethod
-    def _get_average_metric_from_parsed_metrics(
-        cls, parsed_metrics: list[dict], metric_name: str
-    ) -> float | None:
-        values = cls._get_metric_values_from_parsed_metrics(
-            parsed_metrics, metric_name=metric_name
-        )
-        trimmed_values = cls._trim_metric_edge_values(values)
-        if not trimmed_values:
-            return None
-        return sum(trimmed_values) / len(trimmed_values)
-
-    # TODO: maybe better would be to iterate over metrics and process them based on their name, instead of haveing separate methods that iterate over metrics again.
-    @classmethod
-    def get_cpu_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
-        return cls._get_average_metric_from_parsed_metrics(
-            parsed_metrics, metric_name="cpu_usage_user"
-        )
-
-    @classmethod
-    def get_gpu_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
-        primary_values: list[float] = []
-        fallback_values: list[float] = []
-
-        for event in parsed_metrics:
-            metrics = event.get("metrics")
-            if isinstance(metrics, list):
-                metric_entries = metrics
-            elif event.get("name") == "gpu_engine_usage_usage":
-                metric_entries = [event]
-            else:
-                continue
-
-            for metric in metric_entries:
-                if (
-                    not isinstance(metric, dict)
-                    or metric.get("name") != "gpu_engine_usage_usage"
-                ):
-                    continue
-
-                labels = metric.get("labels")
-                engine = metric.get("engine")
-                engine_label = None
-
-                if isinstance(labels, dict):
-                    engine_label = labels.get("engine") or labels.get("engine.labels")
-
-                if engine_label is None and isinstance(engine, dict):
-                    engine_label = engine.get("labels")
-
-                fields = metric.get("fields")
-                raw_value = None
-                if isinstance(fields, dict):
-                    if "value" in fields:
-                        raw_value = fields.get("value")
-                    elif "gpu_engine_usage_usage" in fields:
-                        raw_value = fields.get("gpu_engine_usage_usage")
-                    elif len(fields) == 1:
-                        raw_value = next(iter(fields.values()))
-                elif "value" in metric:
-                    raw_value = metric.get("value")
-
-                if not isinstance(raw_value, (int, float)):
-                    continue
-
-                value = float(raw_value)
-                if engine_label in {"compute", "ccs"}:
-                    primary_values.append(value)
-                elif engine_label in {"render", "rcs"}:
-                    fallback_values.append(value)
-
-        # Phase 1: select the set with the most non-zero values.
-        # Break ties by preferring compute/ccs over render/rcs.
-        nonzero_primary_count = sum(1 for v in primary_values if v > 0)
-        nonzero_fallback_count = sum(1 for v in fallback_values if v > 0)
-        if nonzero_primary_count >= nonzero_fallback_count and nonzero_primary_count > 0:
-            selected_values = primary_values
-        elif nonzero_fallback_count > 0:
-            selected_values = fallback_values
-        else:
-            selected_values = primary_values or fallback_values
-
-        # Phase 2: calculate the average from the selected set.
-        trimmed_values = cls._trim_metric_edge_values(selected_values)
-        if not trimmed_values:
-            return None
-        return sum(trimmed_values) / len(trimmed_values)
-
-    @classmethod
-    def get_gpu_usage_from_metrics_text(cls, metrics_text: str | None) -> float | None:
-        parsed_metrics = cls._parse_metrics_text(metrics_text)
-        return cls.get_gpu_usage_from_parsed_metrics(parsed_metrics)
-
-    @classmethod
-    def get_mem_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
-        return cls._get_average_metric_from_parsed_metrics(
-            parsed_metrics, metric_name="mem_used_percent"
-        )
-
-    @classmethod
-    def get_npu_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
-        return cls._get_average_metric_from_parsed_metrics(
-            parsed_metrics, metric_name="npu_utilization"
-        )
-
-    @classmethod
-    def get_npu_usage_from_metrics_text(cls, metrics_text: str | None) -> float | None:
-        parsed_metrics = cls._parse_metrics_text(metrics_text)
-        return cls.get_npu_usage_from_parsed_metrics(parsed_metrics)
-
-    @classmethod
-    def get_media_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
-        # Media usage groups samples by supported media engine labels and returns
-        # the highest trimmed average because different platforms can report the
-        # same workload under different engine buckets.
-        video_values: list[float] = []
-        vcs_values: list[float] = []
-        video_enhance_values: list[float] = []
-        vecs_values: list[float] = []
-
-        for event in parsed_metrics:
-            if not isinstance(event, dict):
-                continue
-
-            metrics = event.get("metrics")
-            if isinstance(metrics, list):
-                metric_entries = metrics
-            elif event.get("name") == "gpu_engine_usage_usage":
-                metric_entries = [event]
-            else:
-                continue
-
-            for metric in metric_entries:
-                if (
-                    not isinstance(metric, dict)
-                    or metric.get("name") != "gpu_engine_usage_usage"
-                ):
-                    continue
-
-                labels = metric.get("labels")
-                engine = metric.get("engine")
-                engine_label = None
-
-                if isinstance(labels, dict):
-                    engine_label = labels.get("engine") or labels.get("engine.labels")
-
-                if engine_label is None and isinstance(engine, dict):
-                    engine_label = engine.get("labels")
-
-                fields = metric.get("fields")
-                raw_value = None
-                if isinstance(fields, dict):
-                    if "value" in fields:
-                        raw_value = fields.get("value")
-                    elif "gpu_engine_usage_usage" in fields:
-                        raw_value = fields.get("gpu_engine_usage_usage")
-                    elif len(fields) == 1:
-                        raw_value = next(iter(fields.values()))
-                elif "value" in metric:
-                    raw_value = metric.get("value")
-
-                if not isinstance(raw_value, (int, float)):
-                    continue
-
-                value = float(raw_value)
-
-                if engine_label == "video":
-                    video_values.append(value)
-                elif engine_label == "vcs":
-                    vcs_values.append(value)
-                elif engine_label == "video-enhance":
-                    video_enhance_values.append(value)
-                elif engine_label == "vecs":
-                    vecs_values.append(value)
-
-        def average(values: list[float]) -> float | None:
-            trimmed_values = cls._trim_metric_edge_values(values)
-            if not trimmed_values:
-                return None
-            avg = sum(trimmed_values) / len(trimmed_values)
-            return avg
-
-        video_avg = average(video_values)
-        vcs_avg = average(vcs_values)
-        video_enhance_avg = average(video_enhance_values)
-        vecs_avg = average(vecs_values)
-
-        averages = [avg for avg in [video_avg, vcs_avg, video_enhance_avg, vecs_avg] if avg is not None]
-        if not averages:
-            return None
-
-        return max(averages)
-
-    @classmethod
-    def get_power_usage_from_parsed_metrics(cls, parsed_metrics: list[dict]) -> float | None:
-        values: list[float] = []
-
-        for event in parsed_metrics:
-            metrics = event.get("metrics")
-            if not isinstance(metrics, list):
-                continue
-
-            for metric in metrics:
-                if not isinstance(metric, dict) or metric.get("name") != "gpu_power":
-                    continue
-
-                labels = metric.get("labels")
-                if not isinstance(labels, dict) or labels.get("type") != "pkg_cur_power":
-                    continue
-
-                fields = metric.get("fields")
-                raw_value = None
-                if isinstance(fields, dict):
-                    if "value" in fields:
-                        raw_value = fields.get("value")
-                    elif "gpu_power" in fields:
-                        raw_value = fields.get("gpu_power")
-                    elif len(fields) == 1:
-                        raw_value = next(iter(fields.values()))
-                elif "value" in metric:
-                    raw_value = metric.get("value")
-
-                if isinstance(raw_value, (int, float)):
-                    values.append(float(raw_value))
-
-        trimmed_values = cls._trim_metric_edge_values(values)
-        if not trimmed_values:
-            return None
-        return sum(trimmed_values) / len(trimmed_values)
+            logger.error(f"Error checking device availability for variant {variant_name}: {e}")
+            return True  # Default to allowing on error
 
     def start_suite(self, suite_slug: str) -> str:
         job_id = self._generate_job_id()
@@ -516,7 +254,30 @@ class BenchmarkManager:
                 select(BenchmarkSuiteRun).where(BenchmarkSuiteRun.id == suite_run_id)
             )
             if suite_run is not None:
-                suite_run.status = status
+                workload_runs_result = await session.execute(
+                    select(BenchmarkWorkloadRun).where(
+                        BenchmarkWorkloadRun.suite_run_id == suite_run_id
+                    )
+                )
+                workload_runs = workload_runs_result.scalars().all()
+
+                workload_statuses = {wr.status for wr in workload_runs}
+
+                if "failed" in workload_statuses:
+                    suite_run.status = "failed"
+                elif "cancelled" in workload_statuses:
+                    suite_run.status = "cancelled"
+                elif workload_statuses == {"passed"} or status == "passed":
+                    suite_run.status = "passed"
+                    (
+                        suite_run.score_performance,
+                        suite_run.score_efficiency,
+                        suite_run.score_total,
+                    ) = scoring.aggregate_scores(list(workload_runs))
+                else:
+                    # Fallback for edge cases (e.g., all created/running)
+                    suite_run.status = status
+
                 await session.commit()
 
     def _resolve_variant_id(self, pipeline_id: str, variant_name_or_id: str) -> str:
@@ -619,7 +380,10 @@ class BenchmarkManager:
             else:
                 statuses = {tcr.status for tcr in test_case_runs}
 
-                if statuses == {"created"}:
+                # If any test case is skipped, mark workload as failed
+                if "skipped" in statuses:
+                    workload_run.status = "failed"
+                elif statuses == {"created"}:
                     workload_run.status = "created"
                 elif "running" in statuses:
                     workload_run.status = "running"
@@ -642,6 +406,13 @@ class BenchmarkManager:
                 and workload_run.execution_time is None
             ):
                 workload_run.execution_time = int(time.time() * 1000) - workload_run.start_time
+
+            if workload_run.status == "passed":
+                (
+                    workload_run.score_performance,
+                    workload_run.score_efficiency,
+                    workload_run.score_total,
+                ) = scoring.aggregate_scores(list(test_case_runs))
 
             await session.commit()
 
@@ -729,13 +500,13 @@ class BenchmarkManager:
                 test_case_run.start_time = start_time_ms
             test_case_run.execution_time = execution_time_ms
             test_case_run.total_fps = total_fps
-            parsed_metrics = self._parse_metrics_text(metrics_text)
-            test_case_run.cpu_usage = self.get_cpu_usage_from_parsed_metrics(parsed_metrics)
-            test_case_run.gpu_usage = self.get_gpu_usage_from_parsed_metrics(parsed_metrics)
-            test_case_run.npu_usage = self.get_npu_usage_from_parsed_metrics(parsed_metrics)
-            test_case_run.media_usage = self.get_media_usage_from_parsed_metrics(parsed_metrics)
-            test_case_run.memory_usage = self.get_mem_usage_from_parsed_metrics(parsed_metrics)
-            test_case_run.power_usage = self.get_power_usage_from_parsed_metrics(parsed_metrics)
+            parsed_metrics = metrics.parse_metrics_text(metrics_text)
+            test_case_run.cpu_usage = metrics.cpu_usage(parsed_metrics)
+            test_case_run.gpu_usage = metrics.gpu_usage(parsed_metrics)
+            test_case_run.npu_usage = metrics.npu_usage(parsed_metrics)
+            test_case_run.media_usage = metrics.media_usage(parsed_metrics)
+            test_case_run.memory_usage = metrics.memory_usage(parsed_metrics)
+            test_case_run.power_usage = metrics.power_usage(parsed_metrics)
             if total_fps is not None and benchmark_test_case is not None and benchmark_test_case.streams > 0:
                 test_case_run.per_stream_fps = total_fps / benchmark_test_case.streams
             else:
@@ -746,6 +517,18 @@ class BenchmarkManager:
                 test_case_run.status = "cancelled"
             elif total_fps is not None:
                 test_case_run.status = "passed"
+                (
+                    test_case_run.score_performance,
+                    test_case_run.score_efficiency,
+                    test_case_run.score_total,
+                ) = scoring.compute_test_case_scores(
+                    total_fps=total_fps,
+                    cpu_usage=test_case_run.cpu_usage,
+                    gpu_usage=test_case_run.gpu_usage,
+                    npu_usage=test_case_run.npu_usage,
+                    media_usage=test_case_run.media_usage,
+                    power_usage=test_case_run.power_usage,
+                )
                 workload_run = await session.scalar(
                     select(BenchmarkWorkloadRun).where(
                         BenchmarkWorkloadRun.id == test_case_run.workload_run_id
@@ -813,6 +596,47 @@ class BenchmarkManager:
                 self._run_db(
                     self._update_workload_run_status(workload_run_id=planned.workload_run_id)
                 )
+
+                pipeline = PipelineManager().get_pipeline_by_id(planned.pipeline_id)
+                variant = None
+                for v in pipeline.variants:
+                    if v.id == planned.variant_id:
+                        variant = v
+                        break
+
+                if variant is None:
+                    logger.warning(f"Variant {planned.variant_id} not found for pipeline {planned.pipeline_id}")
+                    self._run_db(
+                        self._update_test_case_status(
+                            test_case_run_id=planned.test_case_run_id,
+                            status="skipped",
+                        )
+                    )
+                    self._run_db(
+                        self._update_workload_run_status(workload_run_id=planned.workload_run_id)
+                    )
+                    with self._jobs_lock:
+                        job = self.jobs.get(benchmark_job_id)
+                        if job is not None:
+                            job.completed_test_cases = index
+                    continue
+
+                if not self._is_device_available(variant.name):
+                    logger.info(f"Device {variant.name} not available, skipping test case {planned.test_case_run_id}")
+                    self._run_db(
+                        self._update_test_case_status(
+                            test_case_run_id=planned.test_case_run_id,
+                            status="skipped",
+                        )
+                    )
+                    self._run_db(
+                        self._update_workload_run_status(workload_run_id=planned.workload_run_id)
+                    )
+                    with self._jobs_lock:
+                        job = self.jobs.get(benchmark_job_id)
+                        if job is not None:
+                            job.completed_test_cases = index
+                    continue
 
                 internal_spec = self._build_internal_performance_spec(
                     pipeline_id=planned.pipeline_id,
@@ -921,7 +745,7 @@ class BenchmarkManager:
                     ]
 
         except Exception as exc:
-            self.logger.error("Benchmark suite job %s failed: %s", benchmark_job_id, exc)
+            logger.error("Benchmark suite job %s failed: %s", benchmark_job_id, exc)
             with self._jobs_lock:
                 job = self.jobs.get(benchmark_job_id)
                 if job is not None:

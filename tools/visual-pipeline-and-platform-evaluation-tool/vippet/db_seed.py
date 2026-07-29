@@ -37,8 +37,8 @@ async def seed_initial_data(
                     {
                         "pipeline_id": "goods-detection-classification",
                         "variants": [
-                            {"name": "cpu", "test_cases": [3, 5]},
-                            {"name": "gpu", "test_cases": [7, 8]},
+                            {"name": "cpu", "test_cases": [3, 4]},
+                            {"name": "gpu", "test_cases": [5, 6]},
                         ],
                     },
                 ]

@@ -533,12 +533,23 @@ async def export_benchmark_suite_run_csv(
         output = io.StringIO()
         writer = csv.writer(output)
 
-        writer.writerow(["suite_name", "start_time", "id", "status"])
+        writer.writerow([
+            "suite_name",
+            "start_time",
+            "id",
+            "status",
+            "overall_score",
+            "performance_score",
+            "efficiency_score",
+        ])
         writer.writerow([
             suite.name,
             suite_run.start_time,
             suite_run.id,
             suite_run.status,
+            suite_run.score_total,
+            suite_run.score_performance,
+            suite_run.score_efficiency,
         ])
         writer.writerow([])
 
@@ -771,6 +782,9 @@ async def get_benchmark_suite_run_by_id(
                     media_usage=row.media_usage,
                     memory_usage=row.memory_usage,
                     power_usage=row.power_usage,
+                    score_total=row.score_total,
+                    score_performance=row.score_performance,
+                    score_efficiency=row.score_efficiency,
                     metrics=row.metrics,
                     job_id=row.job_id,
                     status=status,
@@ -1007,6 +1021,9 @@ async def get_benchmark_test_run_by_id(
             media_usage=test_case_run.media_usage,
             memory_usage=test_case_run.memory_usage,
             power_usage=test_case_run.power_usage,
+            score_total=test_case_run.score_total,
+            score_performance=test_case_run.score_performance,
+            score_efficiency=test_case_run.score_efficiency,
             metrics=test_case_run.metrics,
             job_id=test_case_run.job_id,
             status=status,

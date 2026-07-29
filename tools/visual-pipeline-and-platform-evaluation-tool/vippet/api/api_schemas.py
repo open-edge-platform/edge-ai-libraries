@@ -76,6 +76,7 @@ class BenchmarkTestCaseRunStatus(str, Enum):
     PASSED = "passed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    SKIPPED = "skipped"
 
 
 class OptimizationJobState(str, Enum):
@@ -1676,6 +1677,9 @@ class BenchmarkTestCaseRun(BaseModel):
     media_usage: float | None
     memory_usage: float | None
     power_usage: float | None
+    score_total: float | None
+    score_performance: float | None
+    score_efficiency: float | None
     metrics: str | None
     job_id: str
     status: BenchmarkTestCaseRunStatus
