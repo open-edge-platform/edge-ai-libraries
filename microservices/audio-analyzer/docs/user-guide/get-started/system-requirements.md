@@ -54,6 +54,17 @@ sudo apt-get install -y ffmpeg alsa-utils libsndfile1
 - Python 3.10 or newer.
 - Dependencies installed from `requirements.txt`.
 
+### Hugging Face Access (For Speaker Diarization)
+
+If you plan to enable speaker diarization in `config.yaml`, you must have:
+
+- A [Hugging Face account](https://huggingface.co/settings/tokens) with a personal access token (free).
+- Acceptance of the [Pyannote speaker-diarization model license](https://huggingface.co/pyannote/speaker-diarization-community-1)
+  on Hugging Face (one-time gate acceptance required).
+- The access token set as `HF_TOKEN` in `.env` or the environment before starting the service.
+
+If speaker diarization is not enabled in `config.yaml`, `HF_TOKEN` is not required.
+
 ## Network Requirements
 
 - Outbound internet access on first run to download model assets from

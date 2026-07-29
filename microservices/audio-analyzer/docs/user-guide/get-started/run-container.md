@@ -15,6 +15,25 @@ To rebuild the image from source instead of pulling, see the
 - The container runs as UID/GID `1000:1000` (baked into the image). The named volumes are initialized with that ownership, so no host UID/GID configuration is required.
 - The image reference is `${REGISTRY}/audio-analyzer:${RELEASE_TAG}`, both read from `.env`. Defaults are `REGISTRY=intel` and the committed `RELEASE_TAG` pins the current release.
 
+### Speaker Diarization Setup (Optional)
+
+If you plan to enable speaker diarization by setting `models.asr.diarization: true` in `config.yaml`:
+
+1. Create a [Hugging Face account](https://huggingface.co/settings/tokens) and generate a personal access token (free).
+2. Accept the [Pyannote speaker-diarization model license](https://huggingface.co/pyannote/speaker-diarization-community-1)
+   on Hugging Face. Visit the link and click the gate acceptance button. This is a one-time requirement per account.
+3. Set your Hugging Face token in the `.env` file:
+   ```bash
+   HF_TOKEN=hf_your_token_here
+   ```
+4. Restart the container:
+   ```bash
+   docker compose up -d
+   ```
+
+Without a valid `HF_TOKEN` and gate acceptance, the service will fail at startup if diarization is enabled.
+If diarization is disabled in `config.yaml`, `HF_TOKEN` is not required.
+
 ## Run the Container
 
 ### Pull And Start
