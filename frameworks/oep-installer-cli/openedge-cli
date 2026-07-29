@@ -103,18 +103,9 @@ act_helpper () {
       if [ "${act_name}" = "install" ]; then
         echo "${act_name} options:"
         echo "  --reset-<name>  force reinstallation of the component if exit."
+        echo
       fi
-      echo
     fi
-    local profiles=()
-    for profiler in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f4- -d_); do
-      local handles=($(act_find_deps $act_name $profiler 2> /dev/null))
-      [ ${#handles[@]} -eq 0 ] || profiles+=($profiler)
-    done
-    mapfile -t profiles < <(printf '%s\n' ${profiles[*]} | grep -Fxv -f <(printf '%s\n' ${components[*]}))
-    [ ${#profiles[*]} -eq 0 ] || echo "  list of profiles: ${profiles[*]}"
-    [ ${#components[*]} -eq 0 ] || echo "  list of components: ${components[*]}"
-    [ "${#profiles[*]}${#components[*]}" = "00" ] || echo
     return 0
   fi
 
@@ -182,6 +173,43 @@ subcommand_start () {
 
 subcommand_stop () {
   act_helpper stop "-r" "$@"
+}
+
+subcommand_list () {
+  [[ "$*" != *"--help"* ]] || return
+
+  local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_))
+  local all_profiles=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f3 -d' '))
+  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f2,4- -d_ | sort -r | uniq | cut -f2- -d_))
+
+  if [ ${#all_profiles[@]} -gt 0 ]; then
+    echo "List of profiles:"
+    local profiler cmd
+    for profiler in ${all_profiles[*]}; do
+      local profile_name=$(echo $profiler | cut -f4- -d_)
+      [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
+      local profile_cmds=()
+      for cmd in ${all_cmds[*]/list/}; do
+        local profile_modules=($($profiler $cmd))
+        [ ${#profile_modules[@]} -eq 0 ] || profile_cmds+=($cmd)
+      done
+      echo ",$profile_name,[${profile_cmds[*]}]"
+    done | column -s, -t
+    echo
+  fi
+
+  if [ ${#all_modules[@]} -gt 0 ]; then
+    echo "List of components:"
+    local module_name cmd
+    for module_name in ${all_modules[*]}; do
+      local module_cmds=()
+      for cmd in ${all_cmds[*]/list/}; do
+        declare -F | grep -q -E " ${ID_LIKE}_[0-9]+_${cmd}_${module_name}$" && module_cmds+=($cmd)
+      done
+      echo ",$module_name,[${module_cmds[*]}]"
+    done | column -s, -t
+    echo
+  fi
 }
 
 #### COLLECTION OF MODULES ####
@@ -252,3 +280,4 @@ subcommand_bootstrap () {
     exit 3
   fi
 }
+
