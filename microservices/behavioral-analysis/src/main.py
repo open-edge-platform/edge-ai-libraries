@@ -182,8 +182,6 @@ class HealthResponse(BaseModel):
 class AnalyzeDirectRequest(BaseModel):
     """Direct frame analysis request (metadata for multipart form)."""
     entity_id: str = Field(..., description="Unique entity identifier")
-    scene_id: Optional[str] = Field(None, description="Scene/location identifier")
-    region_id: Optional[str] = Field(None, description="Region/zone identifier")
     pattern_id: str = Field(default="shelf_to_waist", description="Pattern to detect")
     vlm_enabled: Optional[bool] = Field(None, description="Override VLM settings")
     request_id: Optional[str] = Field(None, description="Request tracking ID")
@@ -192,8 +190,7 @@ class AnalyzeDirectRequest(BaseModel):
 class AnalyzeDirectResponse(BaseModel):
     """Simplified direct analysis response."""
     entity_id: str
-    scene_id: Optional[str] = None
-    status: str  # "no_data" | "accumulating" | "no_match" | "suspicious"
+    status: str  # "pose_not_detected" | "no_match" | "suspicious"
     pose_detected: bool
     frames_submitted: int
     confidence: Optional[float] = None
@@ -416,8 +413,6 @@ async def clear_entity_frames(entity_id: str, region_id: Optional[str] = None, s
 @app.post("/api/v1/analyze/batch", response_model=AnalyzeDirectResponse)
 async def analyze_frames_batch(
     entity_id: str = Form(..., description="Unique entity identifier"),
-    scene_id: Optional[str] = Form(None, description="Scene/location identifier"),
-    region_id: Optional[str] = Form(None, description="Region/zone identifier"),
     pattern_id: str = Form(default="shelf_to_waist", description="Pattern to detect"),
     vlm_enabled: Optional[bool] = Form(None, description="Override global VLM setting"),
     request_id: Optional[str] = Form(None, description="Request tracking ID"),
@@ -435,8 +430,6 @@ async def analyze_frames_batch(
 
     Args:
         entity_id: Unique entity identifier (required)
-        scene_id: Scene/location identifier (optional)
-        region_id: Region/zone identifier (optional)
         pattern_id: Pattern to detect (default: "shelf_to_waist")
         vlm_enabled: Override global VLM setting (optional)
         request_id: Request tracking ID for logging (optional)
@@ -517,8 +510,7 @@ async def analyze_frames_batch(
             logger.info(f"[{req_id}] Entity {entity_id}: No poses detected")
             return AnalyzeDirectResponse(
                 entity_id=entity_id,
-                scene_id=scene_id,
-                status="accumulating",
+                status="pose_not_detected",
                 pose_detected=False,
                 frames_submitted=frames_valid,
                 message="Could not extract poses from submitted frames"
@@ -579,7 +571,6 @@ async def analyze_frames_batch(
                 logger.info(f"[{req_id}] Pose matched but VLM did not confirm")
                 return AnalyzeDirectResponse(
                     entity_id=entity_id,
-                    scene_id=scene_id,
                     status="no_match",
                     pose_detected=True,
                     frames_submitted=frames_valid,
@@ -593,7 +584,6 @@ async def analyze_frames_batch(
                 logger.warning(f"[{req_id}] SUSPICIOUS: {result.description}")
                 return AnalyzeDirectResponse(
                     entity_id=entity_id,
-                    scene_id=scene_id,
                     status="suspicious",
                     pose_detected=True,
                     frames_submitted=frames_valid,
@@ -607,7 +597,6 @@ async def analyze_frames_batch(
             logger.info(f"[{req_id}] No suspicious pattern detected")
             return AnalyzeDirectResponse(
                 entity_id=entity_id,
-                scene_id=scene_id,
                 status="no_match",
                 pose_detected=True,
                 frames_submitted=frames_valid,

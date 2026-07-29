@@ -79,8 +79,6 @@ class TestDataGenerator:
     def prepare_multipart_request(
         frames: List[Path],
         entity_id: str = "test_person_001",
-        scene_id: str = "test_scene",
-        region_id: str = "test_zone",
         pattern_id: str = "shelf_to_waist",
         vlm_enabled: bool = None,
         request_id: str = None,
@@ -88,8 +86,6 @@ class TestDataGenerator:
         """Prepare multipart form-data request."""
         form_data = {
             "entity_id": entity_id,
-            "scene_id": scene_id,
-            "region_id": region_id,
             "pattern_id": pattern_id,
         }
 
@@ -191,7 +187,7 @@ class TestAPI:
             f"vlm_confirmed should be None when vlm_enabled=false, got {result['vlm_confirmed']}"
         
         # Response should still have valid structure
-        assert result["status"] in ["no_data", "accumulating", "no_match", "suspicious"]
+        assert result["status"] in ["pose_not_detected", "no_match", "suspicious"]
         logger.info(f"✅ VLM disabled confirmed - vlm_confirmed is None. Status: {result['status']}")
 
     def test_03_no_match_non_suspicious_frames(self):
