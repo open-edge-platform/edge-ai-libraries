@@ -191,7 +191,6 @@ subcommand_bootstrap () {
 
   if [[ "$*" = "--help" ]]; then
     echo "bootstrap options:"
-    echo "  --dry-run              dry-run the bootstrap sequence."
     echo "  --install=<name>       set default installation component|profile."
     echo "  --start=<name>         set default start component|profile."
     echo
