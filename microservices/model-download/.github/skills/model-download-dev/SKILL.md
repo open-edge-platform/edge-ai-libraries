@@ -44,13 +44,13 @@ Help developers extend, test, debug, and integrate the Model Download microservi
 | [testing-patterns.md](./references/testing-patterns.md) | Subprocess mocking, async fixtures, conftest patterns, parametrize |
 | [integration-patterns.md](./references/integration-patterns.md) | App-side architecture, request flow, polling, error handling, storage wiring |
 
-## Example Walkthroughs
+## Example Prompts
 
 | File | Covers |
 |------|--------|
-| [examples/plugin-blueprint.md](./examples/plugin-blueprint.md) | Reusable skeleton for new downloader and converter plugins |
-| [examples/new-downloader-plugin.md](./examples/new-downloader-plugin.md) | Step-by-step: wire a new downloader plugin end-to-end |
-| [examples/writing-tests.md](./examples/writing-tests.md) | Unit test patterns for plugins with subprocess and async mocks |
+| [examples-prompts/plugin-blueprint.md](./examples-prompts/plugin-blueprint.md) | Reusable skeleton for new downloader and converter plugins |
+| [examples-prompts/new-downloader-plugin.md](./examples-prompts/new-downloader-plugin.md) | Wire a new downloader plugin end-to-end |
+| [examples-prompts/writing-tests.md](./examples-prompts/writing-tests.md) | Unit test patterns for plugins with subprocess and async mocks |
 
 ---
 
@@ -82,11 +82,11 @@ src/
 ## Procedure: Adding a New Plugin
 
 Read [plugin-architecture.md](./references/plugin-architecture.md) first, then use the
-examples in this order:
+example prompts in this order:
 
-1. [examples/plugin-blueprint.md](./examples/plugin-blueprint.md) for the reusable class skeleton
-2. [examples/new-downloader-plugin.md](./examples/new-downloader-plugin.md) for the end-to-end wiring steps
-3. [examples/writing-tests.md](./examples/writing-tests.md) for the unit-test shape
+1. [examples-prompts/plugin-blueprint.md](./examples-prompts/plugin-blueprint.md) for the reusable class skeleton
+2. [examples-prompts/new-downloader-plugin.md](./examples-prompts/new-downloader-plugin.md) for the end-to-end wiring
+3. [examples-prompts/writing-tests.md](./examples-prompts/writing-tests.md) for the unit-test shape
 
 The minimum set of surfaces that must stay aligned is:
 
