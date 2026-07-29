@@ -33,7 +33,7 @@ model download. It does not include a UI or Nginx.
 get-started
 how-it-works
 Build From Source <build-from-source.md>
-How to Integrate service <agent-service-integration-guide.md>
+How to Integrate <agent-service-integration-guide.md>
 api-reference
 troubleshooting
 release-notes
