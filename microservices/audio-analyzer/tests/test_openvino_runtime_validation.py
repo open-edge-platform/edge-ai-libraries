@@ -35,8 +35,7 @@ def test_validate_npu_runtime_reports_missing_openvino(monkeypatch):
 
 def test_validate_npu_runtime_reports_missing_compiler_loader(monkeypatch):
     fake_ov = ModuleType("openvino")
-    fake_runtime = ModuleType("openvino.runtime")
-    fake_opset8 = ModuleType("openvino.runtime.opset8")
+    fake_op = ModuleType("openvino.op")
 
     class FakeCore:
         def __init__(self):
@@ -45,14 +44,27 @@ def test_validate_npu_runtime_reports_missing_compiler_loader(monkeypatch):
         def compile_model(self, _model, _device):
             raise RuntimeError("Cannot load libopenvino_intel_npu_compiler_loader.so")
 
+    class FakeParameter:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def output(self, *_args, **_kwargs):
+            return "fake_output"
+
+    class FakeResult:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
     fake_ov.Core = FakeCore
     fake_ov.Model = lambda *args, **kwargs: (args, kwargs)
-    fake_opset8.parameter = lambda *args, **kwargs: ("parameter", args, kwargs)
-    fake_opset8.result = lambda *args, **kwargs: ("result", args, kwargs)
+    fake_ov.Type = SimpleNamespace(f32="fake_f32")
+    fake_ov.Shape = lambda dims: dims
+    fake_op.Parameter = FakeParameter
+    fake_op.Result = FakeResult
+    fake_ov.op = fake_op
 
     monkeypatch.setitem(sys.modules, "openvino", fake_ov)
-    monkeypatch.setitem(sys.modules, "openvino.runtime", fake_runtime)
-    monkeypatch.setitem(sys.modules, "openvino.runtime.opset8", fake_opset8)
+    monkeypatch.setitem(sys.modules, "openvino.op", fake_op)
 
     with pytest.raises(RuntimeError, match="libopenvino_intel_npu_compiler_loader.so"):
         validate_openvino_npu_runtime(_cfg(asr_provider="openvino", asr_device="NPU"))
