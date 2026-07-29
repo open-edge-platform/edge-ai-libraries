@@ -141,7 +141,7 @@ using that exact bucket and `video_id`:
 curl -s -X POST 'http://localhost:6007/v1/dataprep/summary' \
   -H 'Content-Type: application/json' \
   -d '{
-    "bucket_name": "vdms-bucket",
+    "bucket_name": "video-summary",
     "video_id": "dp_video_1730000000",
     "video_summary": "forklift narrowly misses pedestrian",
     "video_start_time": 33,
@@ -152,7 +152,7 @@ curl -s -X POST 'http://localhost:6007/v1/dataprep/summary' \
 ## 4. Manage & observe
 
 ```bash
-curl -s 'http://localhost:6007/v1/dataprep/videos'              # list (default bucket vdms-bucket)
+curl -s 'http://localhost:6007/v1/dataprep/videos'              # list (default bucket video-summary)
 curl -s 'http://localhost:6007/v1/dataprep/telemetry?limit=5'   # ingestion timings
 ```
 

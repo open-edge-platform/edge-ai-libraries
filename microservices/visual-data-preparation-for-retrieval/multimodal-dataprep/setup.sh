@@ -21,7 +21,7 @@ export TAG=${TAG:-latest}
 
 # Env vars for multimodal-dataprep -----------------------------------------
 export INDEX_NAME="video-rag"
-export DEFAULT_BUCKET_NAME="vdms-bucket"
+export DEFAULT_BUCKET_NAME="video-summary"
 export MM_DATAPREP_HOST_PORT=6007
 
 # Embedding configuration -------------------------------------------

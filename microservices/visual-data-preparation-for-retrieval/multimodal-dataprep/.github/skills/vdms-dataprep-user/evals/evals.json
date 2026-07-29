@@ -29,8 +29,8 @@
     {
       "id": 3,
       "name": "attach-summary",
-      "prompt": "In bucket vdms-bucket, video_id dp_video_1730000000 is already ingested. Give me the exact request to attach the summary 'forklift narrowly misses pedestrian' covering seconds 33 to 41; do not call the live API.",
-      "expected_output": "A POST to /v1/dataprep/summary with a JSON body containing bucket_name=vdms-bucket, video_id=dp_video_1730000000, video_summary, video_start_time: 33, and video_end_time: 41.",
+      "prompt": "In bucket video-summary, video_id dp_video_1730000000 is already ingested. Give me the exact request to attach the summary 'forklift narrowly misses pedestrian' covering seconds 33 to 41; do not call the live API.",
+      "expected_output": "A POST to /v1/dataprep/summary with a JSON body containing bucket_name=video-summary, video_id=dp_video_1730000000, video_summary, video_start_time: 33, and video_end_time: 41.",
       "expectations": [
         "Posts to /v1/dataprep/summary with a JSON body (not multipart)",
         "Includes video_summary, video_start_time: 33, and video_end_time: 41 referencing the ingested video's bucket/video_id"
@@ -49,10 +49,10 @@
     {
       "id": 5,
       "name": "single-file-delete-safety",
-      "prompt": "In bucket vdms-bucket, video directory dp_video_1730000000 contains forklift.mp4 plus metadata. Give me the exact request that deletes only forklift.mp4 and preserves the rest of the directory.",
-      "expected_output": "Uses DELETE /v1/dataprep/videos/vdms-bucket/dp_video_1730000000?video_name=forklift.mp4 and warns that omitting video_name deletes the entire video directory.",
+      "prompt": "In bucket video-summary, video directory dp_video_1730000000 contains forklift.mp4 plus metadata. Give me the exact request that deletes only forklift.mp4 and preserves the rest of the directory.",
+      "expected_output": "Uses DELETE /v1/dataprep/videos/video-summary/dp_video_1730000000?video_name=forklift.mp4 and warns that omitting video_name deletes the entire video directory.",
       "expectations": [
-        "Uses DELETE /v1/dataprep/videos/vdms-bucket/dp_video_1730000000 with video_name=forklift.mp4",
+        "Uses DELETE /v1/dataprep/videos/video-summary/dp_video_1730000000 with video_name=forklift.mp4",
         "Warns that omitting video_name deletes the whole video directory and does not recommend that broader deletion"
       ]
     }

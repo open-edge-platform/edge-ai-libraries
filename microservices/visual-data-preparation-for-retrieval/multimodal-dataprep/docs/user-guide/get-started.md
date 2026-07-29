@@ -30,7 +30,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_LOCAL_STORAGE_PATH` | Optional | `/tmp/dataprep/storage` | Root directory for the `local` storage backend; each bucket maps to a subdirectory. Used only when `STORAGE_BACKEND=local`. |
 | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | ✅ | _(none)_ | Credentials used to bootstrap MinIO. Required only when `STORAGE_BACKEND=minio`. |
 | `MM_DATAPREP_MINIO_ENDPOINT` | ✅ | `minio-server:9000` | Host:port string DataPrep uses to communicate with MinIO from inside the container. Required only when `STORAGE_BACKEND=minio`. |
-| `MM_DATAPREP_DEFAULT_BUCKET_NAME` | ✅ | `vdms-bucket` (via `setup.sh`) | Destination bucket for uploaded media and generated manifests. Override with `MM_DATAPREP_PM_MINIO_BUCKET` when running alongside pipeline-manager. |
+| `MM_DATAPREP_DEFAULT_BUCKET_NAME` | ✅ | `video-summary` (via `setup.sh`) | Destination bucket for uploaded media and generated manifests. Override with `MM_DATAPREP_PM_MINIO_BUCKET` when running alongside pipeline-manager. |
 | `MM_DATAPREP_VDMS_VDB_HOST` / `MM_DATAPREP_VDMS_VDB_PORT` | ✅ | `vdms-vector-db` / `55555` | Connection information for VDMS Vector DB. Used only when `VECTORDB_BACKEND=vdms`. |
 | `MM_DATAPREP_DB_COLLECTION` | ✅ | `video-rag-test` | Vector-database collection/index that stores embeddings and metadata (applies to both VDMS and Milvus). |
 | `MM_DATAPREP_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by the in-process embedding pipeline (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
@@ -257,7 +257,7 @@ curl -X POST "http://localhost:6007/v1/dataprep/media/ingest" \
 curl -X POST "http://localhost:6007/v1/dataprep/media/process" \
   -H "Content-Type: application/json" \
   -d '{
-        "bucket_name": "vdms-bucket",
+        "bucket_name": "video-summary",
         "video_id": "traffic_cam_2024_10_21",
         "frame_interval": 12,
         "enable_object_detection": true,
@@ -273,7 +273,7 @@ To attach a human-authored summary to a video, use this command:
 curl -X POST "http://localhost:6007/v1/dataprep/summary" \
   -H "Content-Type: application/json" \
   -d '{
-        "bucket_name": "vdms-bucket",
+        "bucket_name": "video-summary",
         "video_id": "traffic_cam_2024_10_21",
         "video_summary": "Vehicle stopped at intersection for 45 seconds",
         "video_start_time": 12.5,

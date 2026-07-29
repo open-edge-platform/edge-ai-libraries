@@ -352,7 +352,7 @@ export VDMS_DATAPREP_HOST_PORT=6016
 export VDMS_DATAPREP_HOST=multimodal-dataprep
 export VDMS_DATAPREP_ENDPOINT=http://$VDMS_DATAPREP_HOST:8000
 export VDMS_PIPELINE_MANAGER_UPLOAD=http://pipeline-manager:3000
-export DEFAULT_BUCKET_NAME="vdms-bucket"
+export DEFAULT_BUCKET_NAME="video-summary"
 
 # YOLOX model volume configuration for object detection
 export YOLOX_MODELS_VOLUME_NAME="dataprep-yolox-models"

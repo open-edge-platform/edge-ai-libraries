@@ -25,7 +25,7 @@ Sample response:
                 "wall_time_seconds": 127.636318
             },
             "video": {
-                "bucket_name": "vdms-bucket",
+                "bucket_name": "video-summary",
                 "video_id": "dp_video_1775462750",
                 "filename": "input.mp4",
                 "frame_interval": 1,
@@ -33,8 +33,8 @@ Sample response:
                 "total_frames": 12552,
                 "video_duration_seconds": 418.4,
                 "tags": ["intersection", "night"],
-                "video_url": "http://:8000/v1/dataprep/media/download?video_id=dp_video_1775462750&bucket_name=vdms-bucket",
-                "video_rel_url": "/v1/dataprep/media/download?video_id=dp_video_1775462750&bucket_name=vdms-bucket"
+                "video_url": "http://:8000/v1/dataprep/media/download?video_id=dp_video_1775462750&bucket_name=video-summary",
+                "video_rel_url": "/v1/dataprep/media/download?video_id=dp_video_1775462750&bucket_name=video-summary"
             },
             "config": {
                 "object_detection_enabled": true,

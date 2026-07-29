@@ -110,7 +110,7 @@ All variables below are read as `MM_DATAPREP_<NAME>`.
 | `MM_DATAPREP_MINIO_ACCESS_KEY` | `""` | Access key. |
 | `MM_DATAPREP_MINIO_SECRET_KEY` | `""` | Secret key. |
 | `MM_DATAPREP_MINIO_SECURE` | `false` | Use HTTPS. |
-| `MM_DATAPREP_DEFAULT_BUCKET_NAME` | `vdms-bucket` | Default media bucket. |
+| `MM_DATAPREP_DEFAULT_BUCKET_NAME` | `video-summary` | Default media bucket. |
 
 ### Embedding service
 
