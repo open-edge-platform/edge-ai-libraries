@@ -35,6 +35,17 @@ cached artifacts.
 - For the container, `/dev/dri` must be exposed to the container (default in
   `docker-compose.yml`).
 
+## NPU Path Is Not Used
+
+- Confirm the host exposes `/dev/accel/accel0`.
+- Set `ACCEL_MOUNT_PATH=/dev/accel/accel0` for Compose runs.
+- Keep `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so` in the container environment.
+- Make sure the container runs with the host render group via `RENDER_GID` so
+  the app user can access the Intel NPU device node.
+- If `core.available_devices` still reports only `CPU`, re-check that you are
+  using the NPU-capable image built from the updated Dockerfile and that the
+  host Intel NPU driver stack is installed and loaded.
+
 ## Permission Errors on Mounted Folders
 
 The container runs as UID/GID `1000:1000` (baked into the image).
