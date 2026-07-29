@@ -1,245 +1,203 @@
-# API v1 Test Guide
+# API v1 Batch Test Guide
 
 ## Overview
 
-This directory contains comprehensive tests for the `/api/v1/analyze/batch` endpoint:
+This directory contains integration-style tests for the batch REST endpoint:
 
-- **`generate_test_video.py`**: Generates a 20-second synthetic video showing suspicious shelf-to-pocket concealment behavior
-- **`test_api_v1_direct.py`**: Complete test suite with 10+ test cases covering success paths, error handling, and edge cases
+- Endpoint: `/api/v1/analyze/batch`
+- Test file: `test_api_v1_direct.py`
 
-## Quick Start
+Current automated API suite in `test_api_v1_direct.py` contains 3 main tests:
 
-### 1. Generate Test Video and Frames
+1. `test_01_vlm_confirmation_enabled`
+2. `test_02_vlm_confirmation_disabled`
+3. `test_03_no_match_non_suspicious_frames`
 
-```bash
-cd tests/
-python generate_test_video.py
-```
+---
 
-**Output:**
-- `test_video_suspicious.mp4` - 20-second video file
-- `test_frames/` directory with ~200 extracted frames (JPEG)
+## Prerequisites
 
-The video simulates:
-- **0-5s**: Person standing in front of shelf
-- **5-10s**: Person reaching up to shelf
-- **10-15s**: Person picking item from shelf
-- **15-20s**: Person concealing item and standing normally
+- Behavioral Analysis service running and reachable on `http://localhost:8085`
+- Test frames available in `tests/test_frames/`
+- Python environment with test dependencies installed (`pytest`, `requests`, `numpy`)
 
-### 2. Start the Behavioral Analysis Service
+---
 
-In a separate terminal:
+## 1) Prepare Test Frames
 
-```bash
-cd /path/to/behavioral-analysis/
+Prepare frames from a real video into `tests/test_frames`.
 
-# Install dependencies (if not already done)
-pip install -r requirements.txt
-
-# Start the service
-python -m uvicorn src.main:app --host 0.0.0.0 --port 8080 --reload
-```
-
-Wait for:
-```
-INFO:     Application startup complete
-```
-
-### 3. Run the Tests
+Example (extract every 1 second from 0s to 32s):
 
 ```bash
-cd tests/
+cd tests
+# Use your preferred frame extraction tool/script
+# and place output frames in tests/test_frames
+```
 
-# Install pytest if not already installed
-pip install pytest requests
+Expected output naming pattern:
 
-# Run all tests
+- `test_frames/frame_000_0.0s.jpg`
+- `test_frames/frame_001_1.0s.jpg`
+- ...
+
+The test suite uses frame ranges:
+
+- Suspicious path tests: frames `0..23`
+- No-match test: frames `25..29` (Python slice end is exclusive)
+
+---
+
+## 2) Start the Service
+
+For complete startup instructions (deployment modes, Docker Compose, and host run), follow the existing get-started docs:
+
+- `docs/user-guide/get-started.md`
+- `docs/user-guide/get-started/run-container.md`
+- `docs/user-guide/get-started/run-standalone.md`
+
+---
+
+## 3) Run the Tests
+
+```bash
+cd tests
 pytest test_api_v1_direct.py -v
-
-# Run specific test
-pytest test_api_v1_direct.py::TestAPI::test_01_successful_suspicious_detection -v
-
-# Run with detailed output
-pytest test_api_v1_direct.py -v -s
 ```
 
-## Test Cases
-
-### TestAPI Class (10 test cases)
-
-| Test | Purpose | Expected Result |
-|------|---------|-----------------|
-| `test_01_successful_suspicious_detection` | End-to-end suspicious activity detection | HTTP 200, status="suspicious" or "no_match" |
-| `test_02_pose_detection` | Verify pose extraction from frames | HTTP 200, pose_detected=bool |
-| `test_03_vlm_confirmation_enabled` | API behavior with VLM enabled | HTTP 200, vlm_confirmed present if matched |
-| `test_04_vlm_confirmation_disabled` | API behavior with VLM disabled | HTTP 200, pose-only detection |
-| `test_05_no_frames_error` | Error handling when no frames provided | HTTP 400/422 |
-| `test_06_invalid_frame_format` | Error handling for corrupted frames | HTTP 422 |
-| `test_07_request_id_tracking` | Request tracking with custom request_id | HTTP 200, logged with request_id prefix |
-| `test_08_multiple_patterns` | Different pattern types | HTTP 200 for all patterns |
-| `test_09_response_structure` | Response schema validation | All required fields present and typed correctly |
-| `test_10_performance_benchmark` | Performance with varying frame counts | Response time logged for 3, 5, 10, 15 frames |
-
-### TestIntegration Class (1 test case)
-
-| Test | Purpose | Expected Result |
-|------|---------|-----------------|
-| `test_e2e_suspicious_activity_detection` | Full pipeline test | HTTP 200, complete response |
-
-## API Endpoint Reference
-
-**POST /api/v1/analyze/batch**
-
-### Request (Multipart Form-Data)
+Run a single test:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/analyze/batch \
+pytest test_api_v1_direct.py::TestAPI::test_01_vlm_confirmation_enabled -v -s
+```
+
+---
+
+## Test Case Summary
+
+| Test | Purpose | Expected Behavior |
+|---|---|---|
+| `test_01_vlm_confirmation_enabled` | Validate VLM path when pose pattern matches | HTTP 200, `status="suspicious"`, `vlm_confirmed` is boolean |
+| `test_02_vlm_confirmation_disabled` | Validate pose-only path | HTTP 200, `vlm_confirmed is None`, status in `pose_not_detected/no_match/suspicious` |
+| `test_03_no_match_non_suspicious_frames` | Negative test on non-concealment window | HTTP 200, `status="no_match"`, `frames_submitted` equals uploaded frame count |
+
+---
+
+## API Contract Used by Tests
+
+### Request (multipart/form-data)
+
+Required fields:
+
+- `entity_id`
+- `frames` (one or more image files)
+
+Optional fields:
+
+- `pattern_id` (default: `shelf_to_waist`)
+- `vlm_enabled` (`true` or `false`)
+- `request_id`
+
+Example:
+
+```bash
+curl -X POST "http://localhost:8085/api/v1/analyze/batch" \
   -F "entity_id=test_person_001" \
-  -F "scene_id=test_scene" \
-  -F "region_id=test_zone" \
   -F "pattern_id=shelf_to_waist" \
   -F "vlm_enabled=false" \
   -F "request_id=req_custom_001" \
-  -F "frames=@test_frames/frame_000.jpg" \
-  -F "frames=@test_frames/frame_001.jpg" \
-  -F "frames=@test_frames/frame_002.jpg"
+  -F "frames=@test_frames/frame_000_0.0s.jpg" \
+  -F "frames=@test_frames/frame_001_1.0s.jpg"
 ```
 
-### Response (JSON)
+### Response Fields
+
+The response contains:
+
+- `entity_id`
+- `status`
+- `pose_detected`
+- `frames_submitted`
+- `confidence`
+- `message`
+- `vlm_confirmed`
+- `vlm_reasoning`
+
+Possible `status` values for this endpoint:
+
+- `pose_not_detected`
+- `no_match`
+- `suspicious`
+
+Example:
 
 ```json
 {
   "entity_id": "test_person_001",
-  "scene_id": "test_scene",
-  "status": "suspicious",
+  "status": "no_match",
   "pose_detected": true,
-  "frames_submitted": 3,
-  "confidence": 0.85,
-  "message": "Suspicious shelf-to-waist movement detected",
+  "frames_submitted": 2,
+  "confidence": 0.0,
+  "message": "No suspicious pattern detected",
   "vlm_confirmed": null,
   "vlm_reasoning": null
 }
 ```
 
-## Expected Behavior
-
-### Video Generation
-
-The synthetic video shows a simple stick figure person:
-1. Standing in front of a brown shelf with red items
-2. Reaching up to the shelf (hand moves up)
-3. Picking an item (hand at shelf level)
-4. Bringing item down to waist/pocket level (**key suspicious phase**)
-5. Concealing item and standing normally
-
-### API Test Behavior
-
-- **With pose detection**: `pose_detected=true`, analysis based on keypoint sequences
-- **With pattern matching**: If pose sequence matches "shelf_to_waist", `status="suspicious"`
-- **With VLM enabled**: If pattern matched, sends frames to Claude-vision for confirmation
-- **With VLM disabled**: Skips LLM confirmation, uses only pose-based detection
+---
 
 ## Troubleshooting
 
-### Issue: "Service not running at http://localhost:8080"
+### Service not reachable
 
-**Solution**: Start the service in another terminal:
+Symptom:
+
+- Tests skip/fail due to connection errors on `http://localhost:8085`
+
+Fix:
+
 ```bash
-cd /path/to/behavioral-analysis/
-python -m uvicorn src.main:app --host 0.0.0.0 --port 8080
+python -m uvicorn src.main:app --host 0.0.0.0 --port 8085
 ```
 
-### Issue: "Test frames not found"
+### Test frames not found
 
-**Solution**: Generate frames first:
+Symptom:
+
+- `test_frames` folder missing or empty
+
+Fix:
+
 ```bash
-cd tests/
-python generate_test_video.py
+cd tests
+# Generate/extract frames into tests/test_frames using your preferred workflow
 ```
 
-### Issue: "Pose not detected"
+### Unexpected `pose_not_detected`
 
-**Reason**: Synthetic video may not contain realistic human pose keypoints detected by YOLO-Pose.
+Reason:
 
-**Solution**: 
-- Test framework will log `pose_detected=false` but continue with other test cases
-- For production testing, use real video footage of actual shelf-to-pocket behavior
-- Check YOLO-Pose model is loaded: `curl http://localhost:8080/health`
+- Uploaded frames did not yield reliable poses (quality, angle, occlusion, or model/runtime issues)
 
-### Issue: Tests timeout after 60 seconds
+Fix:
 
-**Solution**: Increase timeout or check service performance:
-```bash
-# Check service logs for errors
-tail -f /var/log/behavioral-analysis.log
+- Use clearer person-centric frames
+- Verify YOLO model mount/path and service health
+- Increase frame count for the suspicious window
 
-# Reduce frame count for quick test
-pytest test_api_v1_direct.py::TestAPI::test_02_pose_detection -v
-```
+### VLM confirmation not populated in test_01
 
-## File Structure
+Reason:
 
-```
-tests/
-├── generate_test_video.py          # Synthetic video generator (20s)
-├── test_api_v1_direct.py           # Comprehensive test suite
-├── test_pose_analyzer.py           # Existing pose analyzer tests
-└── test_frames/                    # Generated frames directory
-    ├── frame_000.jpg
-    ├── frame_001.jpg
-    └── ...
-```
+- VLM service not reachable or VLM path not triggered by pose match
 
-## Integration with CI/CD
+Fix:
 
-### GitHub Actions Example
-
-```yaml
-name: API Tests
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: '3.9'
-      
-      - name: Install dependencies
-        run: pip install -r requirements.txt pytest requests
-      
-      - name: Generate test frames
-        run: cd tests && python generate_test_video.py
-      
-      - name: Start service
-        run: python -m uvicorn src.main:app --host 127.0.0.1 --port 8080 &
-        timeout-minutes: 2
-      
-      - name: Run API tests
-        run: pytest tests/test_api_v1_direct.py -v
-```
-
-## Performance Baseline
-
-Expected response times (on typical hardware):
-- 3 frames: 5-10 seconds
-- 5 frames: 8-15 seconds
-- 10 frames: 15-30 seconds
-- 15 frames: 20-40 seconds
-
-*(Depends on VLM enabled, model inference speed, frame resolution)*
-
-## Next Steps
-
-1. ✅ Run `python generate_test_video.py` to create synthetic test data
-2. ✅ Start the BA service with the new v1 endpoint
-3. ✅ Execute `pytest test_api_v1_direct.py -v` to run full test suite
-4. 📊 Review test results and response times
-5. 🔄 For real-world testing, replace synthetic video with actual shelf footage
+- Ensure OVMS/VLM is up and reachable from BA service
+- Confirm suspicious test frames actually match the configured pattern
 
 ---
 
-**Questions?** Check the test file docstrings or review the main.py `/api/v1/analyze/batch` endpoint implementation.
+## Notes
+
+- This README reflects the current `test_api_v1_direct.py` test set and `/api/v1/analyze/batch` contract.
