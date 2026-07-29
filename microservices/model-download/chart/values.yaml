@@ -15,7 +15,7 @@ modeldownload:
     pullPolicy: IfNotPresent
 
   startupConfig:
-    enabled: true
+    enabled: false
     config:
       download_path: models
       parallel_downloads: false

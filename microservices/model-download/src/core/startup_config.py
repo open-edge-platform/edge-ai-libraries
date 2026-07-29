@@ -77,7 +77,7 @@ def _log_unusable_config(path: Path, reason: str, action: str) -> None:
 def load_startup_models_config(
     config_path: Optional[str | os.PathLike[str]] = None,
 ) -> Optional[StartupModelsConfig]:
-    """Load a bounded YAML or JSON startup configuration without raising errors."""
+    """Load a bounded startup configuration without raising errors."""
 
     configured_path = (
         config_path
@@ -91,7 +91,7 @@ def load_startup_models_config(
         _log_unusable_config(
             Path("."),
             f"{STARTUP_MODELS_CONFIG_ENV} is empty",
-            "Set it to a readable .yaml, .yml, or .json regular file, or unset it.",
+            "Set it to a readable startup configuration file, or unset it.",
         )
         return None
 
@@ -100,7 +100,7 @@ def load_startup_models_config(
         _log_unusable_config(
             path,
             "unsupported file extension",
-            "Use a configuration file ending in .yaml, .yml, or .json.",
+            "Use a supported startup configuration file.",
         )
         return None
 
@@ -114,7 +114,7 @@ def load_startup_models_config(
             _log_unusable_config(
                 path,
                 "path is not a regular file",
-                "Mount a regular YAML or JSON file at the configured path.",
+                "Mount a regular startup configuration file at the configured path.",
             )
             return None
         if file_stat.st_size > MAX_STARTUP_CONFIG_SIZE_BYTES:
@@ -159,7 +159,7 @@ def load_startup_models_config(
             path,
             f"configuration parsing or validation failed ({type(error).__name__})",
             (
-                "Verify the YAML or JSON syntax, required fields, supported model "
+                "Verify the configuration syntax, required fields, supported model "
                 f"values, and the {MAX_STARTUP_MODELS}-model limit."
             ),
         )

@@ -5,6 +5,7 @@ import json
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from src.core.startup_config import (
     MAX_STARTUP_CONFIG_SIZE_BYTES,
@@ -51,9 +52,9 @@ models:
     assert config.models[1].download_path == "vision"
 
 
-def test_loads_json_config_from_environment(tmp_path, monkeypatch):
-    config_path = tmp_path / "startup.json"
-    config_path.write_text(json.dumps(_valid_config()), encoding="utf-8")
+def test_loads_yaml_config_from_environment(tmp_path, monkeypatch):
+    config_path = tmp_path / "startup.yaml"
+    config_path.write_text(yaml.safe_dump(_valid_config()), encoding="utf-8")
     monkeypatch.setenv(STARTUP_MODELS_CONFIG_ENV, str(config_path))
 
     config = load_startup_models_config()
@@ -61,6 +62,27 @@ def test_loads_json_config_from_environment(tmp_path, monkeypatch):
     assert config is not None
     assert config.download_path == "preloaded"
     assert config.models[0].name == "org/model"
+
+
+def test_loads_json_config_for_future_compatibility(tmp_path):
+    config_path = tmp_path / "startup.json"
+    config_path.write_text(json.dumps(_valid_config()), encoding="utf-8")
+
+    config = load_startup_models_config(config_path)
+
+    assert config is not None
+    assert config.download_path == "preloaded"
+
+
+def test_rejects_unsupported_config_extension(tmp_path):
+    config_path = tmp_path / "startup.txt"
+    config_path.write_text(yaml.safe_dump(_valid_config()), encoding="utf-8")
+
+    with patch("src.core.startup_config.yaml.safe_load") as yaml_load:
+        result = load_startup_models_config(config_path)
+
+    assert result is None
+    yaml_load.assert_not_called()
 
 
 def test_unset_environment_disables_startup_config(monkeypatch):
@@ -96,14 +118,14 @@ def test_unusable_paths_are_logged_without_raising(
 
 
 def test_oversized_config_is_rejected_before_parsing(tmp_path):
-    config_path = tmp_path / "oversized.json"
+    config_path = tmp_path / "oversized.yaml"
     config_path.write_bytes(b" " * (MAX_STARTUP_CONFIG_SIZE_BYTES + 1))
 
-    with patch("src.core.startup_config.json.loads") as json_loads:
+    with patch("src.core.startup_config.yaml.safe_load") as yaml_load:
         result = load_startup_models_config(config_path)
 
     assert result is None
-    json_loads.assert_not_called()
+    yaml_load.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -152,8 +174,8 @@ def test_invalid_utf8_config_is_rejected(tmp_path):
     ],
 )
 def test_schema_rejects_invalid_values(tmp_path, config):
-    config_path = tmp_path / "invalid.json"
-    config_path.write_text(json.dumps(config), encoding="utf-8")
+    config_path = tmp_path / "invalid.yaml"
+    config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
 
     assert load_startup_models_config(config_path) is None
 
@@ -170,9 +192,9 @@ def test_model_count_is_bounded(tmp_path, model_count, is_valid):
         {"name": f"org/model-{index}", "hub": "huggingface"}
         for index in range(model_count)
     ]
-    config_path = tmp_path / "startup.json"
+    config_path = tmp_path / "startup.yaml"
     config_path.write_text(
-        json.dumps(_valid_config(models=models)),
+        yaml.safe_dump(_valid_config(models=models)),
         encoding="utf-8",
     )
 
