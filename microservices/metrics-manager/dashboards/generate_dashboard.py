@@ -172,7 +172,7 @@ def build(uid):
     # ── T — Thermal & Power ───────────────────────────────────────────────
     panels.append(row("T — Thermal & Power", uid))
     panels.append(timeseries(
-        "CPU Package + DRAM Power (RAPL)", uid,
+        "CPU Package + DRAM Power (RAPL = Running Average Power Limit)", uid,
         [target(uid, f'powerstat_package_current_power_consumption_watts{H}', "pkg {{package_id}}"),
          target(uid, f'powerstat_package_current_dram_power_consumption_watts{H}', "dram {{package_id}}")],
         unit="watt", x=0, w=8, desc="CPU package + DRAM RAPL power via intel_powerstat."))
@@ -192,10 +192,10 @@ def build(uid):
         [target(uid, f'temp_temp{{sensor=~"nvme.*|acpitz",host=~"$host"}}', "{{sensor}}")],
         unit="celsius", x=0, w=8, desc="NVMe Composite + ACPI board thermal zone."))
     panels.append(timeseries(
-        "NPU Power / Temperature", uid,
+        "NPU (Neural Processing Unit) Power / Temperature", uid,
         [target(uid, f'npu_power{H}', "power (W)"),
          target(uid, f'npu_temperature{H}', "temp (°C)")],
-        unit="short", x=8, w=8, desc="Intel NPU via PMT (npu_reader.py)."))
+        unit="short", x=8, w=8, desc="Intel NPU via PMT = Platform Monitoring Technology (npu_reader.py)."))
     panels.append(timeseries(
         "Uncore Frequency", uid,
         [target(uid, f'powerstat_package_uncore_frequency_mhz_cur{H}', "uncore {{package_id}}")],
@@ -268,7 +268,7 @@ def build(uid):
          target(uid, f'rate(diskio_write_bytes{{{disk_filter},host=~"$host"}}[1m])', "write {{name}}")],
         unit="Bps", x=8, w=8, desc="Per-device read/write throughput (auto-scaled to MB/s)."))
     panels.append(timeseries(
-        "Device IRQ Rate (top devices)", uid,
+        "Device Interrupt (IRQ) Rate (top devices)", uid,
         [target(uid, f'topk(8, sum by (device) (rate(interrupts_total{H}[1m])))', "{{device}}")],
         unit="cps", x=16, w=8,
         desc="Per-device interrupt rate (numeric device IRQs only; housekeeping dropped)."))
@@ -286,27 +286,152 @@ def build(uid):
     panels.append(text_panel(
         "About the R dimension", uid,
         "**R = Real-Time Determinism.** The C0-state residency panel below is "
-        "always live (from `intel_powerstat`). The **IPC / SMI / per-core** panels "
-        "populate only when the opt-in turbostat reader is enabled "
-        "(`ENABLE_TURBOSTAT=true`, requires the kernel-matched `linux-tools` "
-        "package) — otherwise they read *No data*, which is expected. "
-        "SMI (System Management Interrupts) are the #1 hidden cause of RT latency spikes.",
-        x=0, w=24, h=3))
+        "always live (from `intel_powerstat`). Every other panel in this row comes "
+        "from the opt-in **turbostat** plugin and populates only when "
+        "`ENABLE_TURBOSTAT=true` (needs the kernel-matched `linux-tools` package) — "
+        "otherwise they read *No data*, which is expected. Acronyms are spelled out "
+        "in each panel title. **SMI** (System Management Interrupts) are the #1 "
+        "hidden cause of RT latency spikes.",
+        x=0, w=24, h=4))
+
+    # Always-on baseline from intel_powerstat (no turbostat needed).
     panels.append(timeseries(
-        "CPU C0-state Residency (per core)", uid,
+        "CPU C0-state (active) Residency (per core)", uid,
         [target(uid, f'powerstat_core_cpu_c0_state_residency_percent{H}', "core {{core_id}}")],
         unit="percent", x=0, w=12,
-        desc="Time in the active C0 state per core — a determinism signal (deep C-states add wake latency)."))
+        desc="Time each core spent in the active C0 state — a determinism signal "
+             "(deep C-states add wake-up latency). Source: intel_powerstat (always on)."))
+
+    # Native inputs.turbostat (Telegraf >=1.36) snake-cases every field and tags
+    # each row core/cpu/apic/x2apic; the system-wide summary row carries core="-".
+    # Per-core panels filter core!="-"; package/system panels select core="-".
+    PC = '{core!="-",host=~"$host"}'   # per-core series only (drops the summary row)
+    PKG = '{core="-",host=~"$host"}'   # single system-summary series
+
+    # -- latency-critical interrupt & efficiency signals --
     panels.append(timeseries(
-        "Per-core IPC (turbostat, opt-in)", uid,
-        [target(uid, f'turbostat_IPC{{scope="core",host=~"$host"}}', "core {{core}}")],
+        "Instructions Per Cycle — IPC (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_ipc{PC}', "core {{core}}")],
         unit="short", x=12, w=6,
-        desc="Instructions per cycle — distinguishes 'busy' from 'stalled on memory'. Needs ENABLE_TURBOSTAT."))
+        desc="IPC = Instructions Per Cycle. High = productive work each cycle; low = "
+             "the core is 'busy' but stalled on memory. Needs ENABLE_TURBOSTAT."))
     panels.append(timeseries(
-        "SMI count (turbostat, opt-in)", uid,
-        [target(uid, f'turbostat_SMI{{host=~"$host"}}', "{{scope}} {{core}}")],
+        "System Management Interrupts — SMI (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_smi{PC}', "core {{core}}")],
         unit="short", x=18, w=6,
-        desc="System Management Interrupts — firmware CPU pauses. Needs ENABLE_TURBOSTAT."))
+        desc="SMI = System Management Interrupt: invisible firmware/BIOS CPU pauses, "
+             "the #1 hidden cause of RT latency spikes. Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "Hardware Interrupts — IRQ (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_irq{PC}', "core {{core}}")],
+        unit="short", x=0, w=8,
+        desc="IRQ = Interrupt Request count per core over the sample interval. "
+             "A core fielding heavy IRQs is a poor RT-thread home. Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "Non-Maskable Interrupts — NMI (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_nmi{PC}', "core {{core}}")],
+        unit="short", x=8, w=8,
+        desc="NMI = Non-Maskable Interrupt count per core — cannot be deferred by "
+             "the OS. Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "Per-core Temperature — CoreTmp (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_core_temperature_celsius{PC}', "core {{core}}")],
+        unit="celsius", x=16, w=8,
+        desc="Per-core die temperature. intel_powerstat is package-level; this "
+             "exposes a single hot core (e.g. an RT executor pinned to it). Needs ENABLE_TURBOSTAT."))
+
+    # -- per-core utilisation / frequency / throttle --
+    panels.append(timeseries(
+        "Per-core Busy % (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_busy_percent{PC}', "core {{core}}")],
+        unit="percent", x=0, w=8,
+        desc="Fraction of the interval the core ran in C0 (active). Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "Per-core Frequency: Average vs Busy MHz (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_average_frequency_mhz{PC}', "avg core {{core}}"),
+         target(uid, f'turbostat_busy_frequency_mhz{PC}', "busy core {{core}}")],
+        unit="megahertz", x=8, w=8,
+        desc="Average MHz (over the whole interval) vs Busy MHz (only while running). "
+             "A large gap means the core spent most of the interval idle/throttled. Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "Core Throttle events — CoreThr (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_core_throttle{PC}', "core {{core}}")],
+        unit="short", x=16, w=8,
+        desc="Thermal-throttle activations per core. Non-zero = the core hit a "
+             "thermal limit and was clocked down. Needs ENABLE_TURBOSTAT."))
+
+    # -- C-state residency detail --
+    panels.append(timeseries(
+        "CPU Core C-state Residency: C1 / C6 / C7 (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_cpu_percent_c1{PC}', "C1 core {{core}}"),
+         target(uid, f'turbostat_cpu_percent_c6{PC}', "C6 core {{core}}"),
+         target(uid, f'turbostat_cpu_percent_c7{PC}', "C7 core {{core}}")],
+        unit="percent", x=0, w=12,
+        desc="Hardware C-state residency per core. Deeper states (C6/C7) save power "
+             "but add wake-up latency — the core RT determinism trade-off. Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "ACPI C-state Residency: C1 / C2 / C3 (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_c1acpi_percent{PC}', "C1 core {{core}}"),
+         target(uid, f'turbostat_c2acpi_percent{PC}', "C2 core {{core}}"),
+         target(uid, f'turbostat_c3acpi_percent{PC}', "C3 core {{core}}")],
+        unit="percent", x=12, w=12,
+        desc="ACPI = Advanced Configuration and Power Interface: the OS-visible "
+             "C-state residency per core. Needs ENABLE_TURBOSTAT."))
+
+    # -- package / system-wide (single summary series, core=\"-\") --
+    panels.append(timeseries(
+        "Power Breakdown — Package / Core / GPU / RAM / System Watts (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_package_power_watt{PKG}', "package"),
+         target(uid, f'turbostat_core_power_watt{PKG}', "core"),
+         target(uid, f'turbostat_gfx_power_watt{PKG}', "GPU (graphics)"),
+         target(uid, f'turbostat_ram_power_watt{PKG}', "RAM"),
+         target(uid, f'turbostat_system_power_watt{PKG}', "system (whole platform)")],
+        unit="watt", x=0, w=12,
+        desc="turbostat's RAPL power domains: package, cores, graphics, RAM and the "
+             "whole platform. Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "Package Deep-Idle Residency: PC2 / PC6 / PC10 (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_package_percent_pc2{PKG}', "PC2"),
+         target(uid, f'turbostat_package_percent_pc6{PKG}', "PC6"),
+         target(uid, f'turbostat_pk_percent_pc10{PKG}', "PC10")],
+        unit="percent", x=12, w=12,
+        desc="Package (whole-SoC) deep-idle residency. PC10 is the deepest package "
+             "sleep; high PC-state time means the entire SoC idled. Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "System C0 (active) Residency: Total / Any-core / GPU (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_totl_percent_c0{PKG}', "total C0"),
+         target(uid, f'turbostat_any_percent_c0{PKG}', "any-core C0"),
+         target(uid, f'turbostat_gfx_percent_c0{PKG}', "GPU C0")],
+        unit="percent", x=0, w=12,
+        desc="Aggregate active-state residency: all cores summed, at-least-one-core "
+             "active, and GPU active. Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "Low-Power Idle Residency — LPI: CPU / System (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_cpu_percent_lpi{PKG}', "CPU LPI"),
+         target(uid, f'turbostat_system_percent_lpi{PKG}', "System LPI")],
+        unit="percent", x=12, w=12,
+        desc="LPI = Low-Power Idle, the platform's deepest S0ix-style idle state. Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "Uncore & TSC Frequency (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_uncore_frequency_mhz{PKG}', "uncore"),
+         target(uid, f'turbostat_tsc_frequency_mhz{PC}', "TSC core {{core}}")],
+        unit="megahertz", x=0, w=12,
+        desc="Uncore (ring / last-level-cache / memory-controller) frequency, plus "
+             "TSC = Time Stamp Counter reference frequency. Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "Package Temperature — PkgTmp (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_package_temperature_celsius{PKG}', "package")],
+        unit="celsius", x=12, w=12,
+        desc="Package-level temperature reported by turbostat. Needs ENABLE_TURBOSTAT."))
+    panels.append(timeseries(
+        "POLL Residency + CPU-GFX / RAM overlap (turbostat, opt-in)", uid,
+        [target(uid, f'turbostat_poll_percent{PC}', "POLL core {{core}}"),
+         target(uid, f'turbostat_cpu_gfx_percent{PKG}', "CPU+GFX C0"),
+         target(uid, f'turbostat_ram_percent{PKG}', "RAM throttle %")],
+        unit="percent", x=0, w=12,
+        desc="POLL = the shallow spin-idle state (no power saving, lowest wake "
+             "latency). CPU+GFX = fraction where both CPU and graphics were active; "
+             "RAM % = memory RAPL throttle. Needs ENABLE_TURBOSTAT."))
 
     return panels
 

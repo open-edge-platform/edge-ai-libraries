@@ -29,8 +29,8 @@ flowchart LR
   subgraph MM["metrics-manager container"]
     direction TB
     subgraph COLL["Telegraf"]
-      NATIVE["native plugins\nintel_powerstat, diskio,\nnet, interrupts, temp"]
-      EXECD["execd readers\nrapl_reader / dram_bw_reader /\nturbostat_reader / npu / qmassa"]
+      NATIVE["native plugins\nintel_powerstat, diskio, net,\ninterrupts, temp, turbostat"]
+      EXECD["execd readers\nrapl_reader / dram_bw_reader /\nnpu / qmassa"]
     end
     ENV["entrypoint.sh\nturns .conf files on/off\nfrom ENABLE_* env"]
     PROMCLI["prometheus_client\noutput :9273"]
@@ -105,18 +105,19 @@ The difference in one line each:
 
 ## Why there are custom readers at all
 
-Fair question — Telegraf has a lot of plugins. Each of the three exists because the native way was
-blocked:
+Telegraf has a lot of plugins. There are only two, and each exists because the native way was blocked:
 
 - **`rapl_reader.py` (psys)** — `intel_powerstat` gives you CPU package and DRAM power, but not the
   RAPL platform (psys) domain, and psys is the whole-board number you actually want for a power budget.
 - **`dram_bw_reader.py`** — the reference PTL chip reports a masked CPU model, and `intel_pmu`'s
   named-event lookup is keyed on the model, so it comes up empty. Reading the IMC free-running
   counters through `perf` doesn't care about the model, so it just works.
-- **`turbostat_reader.py`** — the IPC/SMI/per-core determinism signals don't have a Telegraf plugin,
-  and turbostat is tied to the kernel version, so it's opt-in.
 
-All three follow the same rule: if the tool or counter or permission isn't there, the reader parks
+The R-dimension signals (IPC/SMI/per-core) *used* to be a third reader, but the native
+`[[inputs.turbostat]]` plugin (Telegraf 1.36+, and we build 1.38.4) covers them, so we dropped the
+script and turned the plugin on instead — opt-in, since turbostat is kernel-coupled.
+
+Both readers follow the same rule: if the tool or counter or permission isn't there, the reader parks
 itself instead of hot-looping under execd. That way a missing dependency is a quiet "no data," not a
 crash loop.
 

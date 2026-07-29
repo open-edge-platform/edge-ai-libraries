@@ -11,7 +11,7 @@
 #   cp 20-dram-bw.conf.example 20-dram-bw.conf   # then keep only one [[inputs.*]]
 #
 # ---------------------------------------------------------------------------
-# PROBED ON PTL TARGET (10.49.97.226, Panther-Lake-Client, kernel 6.17.0-35),
+# PROBED ON PTL TARGET (Panther-Lake-Client, kernel 6.17.0-35),
 # 2026-07-22 — results baked into the recommendation below:
 #   perf_event_paranoid = -1                          -> PMU access OK, no sysctl needed
 #   uncore_imc_0/1 + uncore_imc_free_running_0/1      -> PRESENT

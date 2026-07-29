@@ -59,7 +59,7 @@
       "panels": []
     },
     {
-      "title": "CPU Package + DRAM Power (RAPL)",
+      "title": "CPU Package + DRAM Power (RAPL = Running Average Power Limit)",
       "description": "CPU package + DRAM RAPL power via intel_powerstat.",
       "type": "timeseries",
       "datasource": {
@@ -305,8 +305,8 @@
       }
     },
     {
-      "title": "NPU Power / Temperature",
-      "description": "Intel NPU via PMT (npu_reader.py).",
+      "title": "NPU (Neural Processing Unit) Power / Temperature",
+      "description": "Intel NPU via PMT = Platform Monitoring Technology (npu_reader.py).",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1313,7 +1313,7 @@
       }
     },
     {
-      "title": "Device IRQ Rate (top devices)",
+      "title": "Device Interrupt (IRQ) Rate (top devices)",
       "description": "Per-device interrupt rate (numeric device IRQs only; housekeeping dropped).",
       "type": "timeseries",
       "datasource": {
@@ -1500,7 +1500,7 @@
       "title": "About the R dimension",
       "type": "text",
       "gridPos": {
-        "h": 3,
+        "h": 4,
         "w": 24,
         "x": 0,
         "y": 66
@@ -1508,12 +1508,12 @@
       "id": 62,
       "options": {
         "mode": "markdown",
-        "content": "**R = Real-Time Determinism.** The C0-state residency panel below is always live (from `intel_powerstat`). The **IPC / SMI / per-core** panels populate only when the opt-in turbostat reader is enabled (`ENABLE_TURBOSTAT=true`, requires the kernel-matched `linux-tools` package) \u2014 otherwise they read *No data*, which is expected. SMI (System Management Interrupts) are the #1 hidden cause of RT latency spikes."
+        "content": "**R = Real-Time Determinism.** The C0-state residency panel below is always live (from `intel_powerstat`). Every other panel in this row comes from the opt-in **turbostat** plugin and populates only when `ENABLE_TURBOSTAT=true` (needs the kernel-matched `linux-tools` package) \u2014 otherwise they read *No data*, which is expected. Acronyms are spelled out in each panel title. **SMI** (System Management Interrupts) are the #1 hidden cause of RT latency spikes."
       }
     },
     {
-      "title": "CPU C0-state Residency (per core)",
-      "description": "Time in the active C0 state per core \u2014 a determinism signal (deep C-states add wake latency).",
+      "title": "CPU C0-state (active) Residency (per core)",
+      "description": "Time each core spent in the active C0 state \u2014 a determinism signal (deep C-states add wake-up latency). Source: intel_powerstat (always on).",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1523,7 +1523,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 69
+        "y": 70
       },
       "id": 64,
       "targets": [
@@ -1569,8 +1569,8 @@
       }
     },
     {
-      "title": "Per-core IPC (turbostat, opt-in)",
-      "description": "Instructions per cycle \u2014 distinguishes 'busy' from 'stalled on memory'. Needs ENABLE_TURBOSTAT.",
+      "title": "Instructions Per Cycle \u2014 IPC (turbostat, opt-in)",
+      "description": "IPC = Instructions Per Cycle. High = productive work each cycle; low = the core is 'busy' but stalled on memory. Needs ENABLE_TURBOSTAT.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1580,7 +1580,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 69
+        "y": 70
       },
       "id": 66,
       "targets": [
@@ -1589,7 +1589,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "turbostat_IPC{scope=\"core\",host=~\"$host\"}",
+          "expr": "turbostat_ipc{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "core {{core}}",
           "refId": "N"
         }
@@ -1626,8 +1626,8 @@
       }
     },
     {
-      "title": "SMI count (turbostat, opt-in)",
-      "description": "System Management Interrupts \u2014 firmware CPU pauses. Needs ENABLE_TURBOSTAT.",
+      "title": "System Management Interrupts \u2014 SMI (turbostat, opt-in)",
+      "description": "SMI = System Management Interrupt: invisible firmware/BIOS CPU pauses, the #1 hidden cause of RT latency spikes. Needs ENABLE_TURBOSTAT.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1637,7 +1637,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 69
+        "y": 70
       },
       "id": 68,
       "targets": [
@@ -1646,14 +1646,1022 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "turbostat_SMI{host=~\"$host\"}",
-          "legendFormat": "{{scope}} {{core}}",
+          "expr": "turbostat_smi{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "core {{core}}",
           "refId": "P"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Hardware Interrupts \u2014 IRQ (turbostat, opt-in)",
+      "description": "IRQ = Interrupt Request count per core over the sample interval. A core fielding heavy IRQs is a poor RT-thread home. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 78
+      },
+      "id": 70,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_irq{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "core {{core}}",
+          "refId": "R"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Non-Maskable Interrupts \u2014 NMI (turbostat, opt-in)",
+      "description": "NMI = Non-Maskable Interrupt count per core \u2014 cannot be deferred by the OS. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 78
+      },
+      "id": 72,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_nmi{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "core {{core}}",
+          "refId": "T"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Per-core Temperature \u2014 CoreTmp (turbostat, opt-in)",
+      "description": "Per-core die temperature. intel_powerstat is package-level; this exposes a single hot core (e.g. an RT executor pinned to it). Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 78
+      },
+      "id": 74,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_core_temperature_celsius{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "core {{core}}",
+          "refId": "V"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Per-core Busy % (turbostat, opt-in)",
+      "description": "Fraction of the interval the core ran in C0 (active). Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 86
+      },
+      "id": 76,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_busy_percent{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "core {{core}}",
+          "refId": "X"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Per-core Frequency: Average vs Busy MHz (turbostat, opt-in)",
+      "description": "Average MHz (over the whole interval) vs Busy MHz (only while running). A large gap means the core spent most of the interval idle/throttled. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 86
+      },
+      "id": 79,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_average_frequency_mhz{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "avg core {{core}}",
+          "refId": "Z"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_busy_frequency_mhz{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "busy core {{core}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "megahertz",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Core Throttle events \u2014 CoreThr (turbostat, opt-in)",
+      "description": "Thermal-throttle activations per core. Non-zero = the core hit a thermal limit and was clocked down. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 86
+      },
+      "id": 81,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_core_throttle{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "core {{core}}",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "CPU Core C-state Residency: C1 / C6 / C7 (turbostat, opt-in)",
+      "description": "Hardware C-state residency per core. Deeper states (C6/C7) save power but add wake-up latency \u2014 the core RT determinism trade-off. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 94
+      },
+      "id": 85,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_cpu_percent_c1{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "C1 core {{core}}",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_cpu_percent_c6{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "C6 core {{core}}",
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_cpu_percent_c7{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "C7 core {{core}}",
+          "refId": "G"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "ACPI C-state Residency: C1 / C2 / C3 (turbostat, opt-in)",
+      "description": "ACPI = Advanced Configuration and Power Interface: the OS-visible C-state residency per core. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 94
+      },
+      "id": 89,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_c1acpi_percent{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "C1 core {{core}}",
+          "refId": "I"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_c2acpi_percent{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "C2 core {{core}}",
+          "refId": "J"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_c3acpi_percent{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "C3 core {{core}}",
+          "refId": "K"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Power Breakdown \u2014 Package / Core / GPU / RAM / System Watts (turbostat, opt-in)",
+      "description": "turbostat's RAPL power domains: package, cores, graphics, RAM and the whole platform. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 102
+      },
+      "id": 95,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_package_power_watt{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "package",
+          "refId": "M"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_core_power_watt{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "core",
+          "refId": "N"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_gfx_power_watt{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "GPU (graphics)",
+          "refId": "O"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_ram_power_watt{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "RAM",
+          "refId": "P"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_system_power_watt{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "system (whole platform)",
+          "refId": "Q"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Package Deep-Idle Residency: PC2 / PC6 / PC10 (turbostat, opt-in)",
+      "description": "Package (whole-SoC) deep-idle residency. PC10 is the deepest package sleep; high PC-state time means the entire SoC idled. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 102
+      },
+      "id": 99,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_package_percent_pc2{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "PC2",
+          "refId": "S"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_package_percent_pc6{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "PC6",
+          "refId": "T"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_pk_percent_pc10{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "PC10",
+          "refId": "U"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "System C0 (active) Residency: Total / Any-core / GPU (turbostat, opt-in)",
+      "description": "Aggregate active-state residency: all cores summed, at-least-one-core active, and GPU active. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 110
+      },
+      "id": 103,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_totl_percent_c0{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "total C0",
+          "refId": "W"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_any_percent_c0{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "any-core C0",
+          "refId": "X"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_gfx_percent_c0{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "GPU C0",
+          "refId": "Y"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Low-Power Idle Residency \u2014 LPI: CPU / System (turbostat, opt-in)",
+      "description": "LPI = Low-Power Idle, the platform's deepest S0ix-style idle state. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 110
+      },
+      "id": 106,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_cpu_percent_lpi{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "CPU LPI",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_system_percent_lpi{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "System LPI",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Uncore & TSC Frequency (turbostat, opt-in)",
+      "description": "Uncore (ring / last-level-cache / memory-controller) frequency, plus TSC = Time Stamp Counter reference frequency. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 118
+      },
+      "id": 109,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_uncore_frequency_mhz{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "uncore",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_tsc_frequency_mhz{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "TSC core {{core}}",
+          "refId": "E"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "megahertz",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Package Temperature \u2014 PkgTmp (turbostat, opt-in)",
+      "description": "Package-level temperature reported by turbostat. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 118
+      },
+      "id": 111,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_package_temperature_celsius{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "package",
+          "refId": "G"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "POLL Residency + CPU-GFX / RAM overlap (turbostat, opt-in)",
+      "description": "POLL = the shallow spin-idle state (no power saving, lowest wake latency). CPU+GFX = fraction where both CPU and graphics were active; RAM % = memory RAPL throttle. Needs ENABLE_TURBOSTAT.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 126
+      },
+      "id": 115,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_poll_percent{core!=\"-\",host=~\"$host\"}",
+          "legendFormat": "POLL core {{core}}",
+          "refId": "I"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_cpu_gfx_percent{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "CPU+GFX C0",
+          "refId": "J"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "turbostat_ram_percent{core=\"-\",host=~\"$host\"}",
+          "legendFormat": "RAM throttle %",
+          "refId": "K"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
           "custom": {
             "drawStyle": "line",
             "lineWidth": 1,

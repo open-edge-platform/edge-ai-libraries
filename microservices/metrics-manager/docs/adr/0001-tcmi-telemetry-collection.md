@@ -7,30 +7,36 @@ SPDX-License-Identifier: Apache-2.0
 
 ## The situation
 
-TCMI was a pile of Python scripts that read Intel hardware telemetry — power, thermals, memory
-bandwidth, I/O. Metrics Manager already runs Telegraf plus a FastAPI relay in one container, and it's
-the thing we're upstreaming. Running both meant two collectors, two config surfaces, and no shared
-dashboard. So the goal was: one collector, keep all of TCMI's coverage, and get the metrics into
-Grafana instead of reading them off `curl`.
+**TCMI** — **T**hermal · **C**ompute · **M**emory · **I/O** — is a hardware-telemetry framework for
+Intel Core Platforms. It's a pile of Python scripts that read Intel hardware telemetry — power, thermals,
+memory bandwidth, I/O — alongside a ROS 2 workload without touching it. Metrics Manager already runs Telegraf
+plus a FastAPI relay in one container, and it's the thing we're upstreaming. Running both meant two collectors,
+two config surfaces, and no shared dashboard. So the goal was: one collector, keep all of TCMI's coverage, and
+get the metrics into Grafana instead of reading them off `curl`. (That T/C/M/I split is exactly why the dashboard has those
+rows — plus the new R for real-time determinism.)
 
 ## 1. Use Telegraf plugins by default; write a reader only for the gaps
 
-The native plugins (`intel_powerstat`, `diskio`, `net`, `interrupts`, `temp`) cover most of what TCMI
-did. For the three things they can't do, we wrote small long-running `execd` readers that print
-InfluxDB line protocol:
+The native plugins (`intel_powerstat`, `diskio`, `net`, `interrupts`, `temp`, and — for the R
+dimension — `turbostat`) cover most of what TCMI did. For the two things none of them can reach, we
+wrote small long-running `execd` readers that print InfluxDB line protocol:
 
 - **psys power** — `intel_powerstat` gives you package and DRAM power, but not the RAPL platform
   (psys) domain. psys is the whole-board number, which is the one that matters for a power budget.
 - **DRAM bandwidth** — the reference PTL chip reports a masked CPU model
   ("Genuine Intel(R) 0000"), and `intel_pmu` looks up named events by model, so it comes up empty.
   Reading the IMC free-running counters through `perf` doesn't depend on the model.
-- **turbostat signals** (IPC/SMI/per-core) — there's just no Telegraf plugin for these.
+
+We *don't* write a reader for turbostat. We used to — but `[[inputs.turbostat]]` landed in Telegraf
+v1.36.0, and this image builds 1.38.4, so the native plugin is already compiled in and covers the same
+IPC/SMI/per-core signals. Using it drops us from three custom scripts to two. It stays opt-in (ships
+disabled) because turbostat is tied to the kernel version and needs MSR access.
 
 **What we didn't do, and why:** Intel PCM (a heavy external binary, more CVE surface to worry about);
 `inputs.intel_pmu` (dead on arrival because of the masked model); leaving the TCMI scripts as a
 separate stack (which is the whole thing we were trying to get rid of).
 
-**The catch:** three scripts to maintain. But each one is model-independent and fails soft — if the
+**The catch:** two scripts to maintain. But each one is model-independent and fails soft — if the
 tool, counter, or permission isn't there, the reader parks itself instead of hot-looping under execd.
 
 ## 2. Turn collectors on and off with `ENABLE_*` env vars

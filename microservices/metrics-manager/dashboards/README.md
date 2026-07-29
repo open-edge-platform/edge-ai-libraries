@@ -91,6 +91,8 @@ curl -s -u <user>:<pass> -X POST http://<grafana>/api/dashboards/db \
   tell you forgot the `rate()`.
 - **The host dropdown.** Every panel filters on a `$host` variable, which is populated from
   `label_values(mem_used_percent, host)`.
-- **"No data" on the R row is normal** unless you've turned turbostat on (`ENABLE_TURBOSTAT=true`,
-  which needs the kernel-matched `linux-tools`). The C0-residency panel is the exception — that one's
-  always live from `intel_powerstat`.
+- **"No data" on the R row is normal** unless you've turned turbostat on. Two things are needed:
+  `ENABLE_TURBOSTAT=true`, and — because turbostat is kernel-coupled and the image ships no binary —
+  `TURBOSTAT_BIN` pointing at the host's kernel-matched turbostat (compose bind-mounts it in). The
+  IPC/SMI panels then populate; verified live on PTL. The C0-residency panel is the exception — that
+  one's always live from `intel_powerstat`, no turbostat required.

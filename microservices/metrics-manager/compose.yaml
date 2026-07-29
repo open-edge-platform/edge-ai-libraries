@@ -109,6 +109,12 @@ services:
       - ${TELEGRAF_CONFIG_DIR:-./telegraf.d}:/etc/telegraf/telegraf.d:ro
       # Custom metrics storage - mount point for user-provided Telegraf input scripts/configs
       - custom-metrics:/app/custom-metrics
+      # turbostat (R-dimension, opt-in). turbostat is kernel-coupled, so instead
+      # of baking a pinned binary into the image we bind-mount the host's
+      # kernel-matched one. Point TURBOSTAT_BIN at it (e.g.
+      # /usr/lib/linux-hwe-6.17-tools-$(uname -r)/turbostat) when ENABLE_TURBOSTAT=true.
+      # Defaults to /dev/null so the mount is a harmless no-op when unused.
+      - ${TURBOSTAT_BIN:-/dev/null}:/usr/local/bin/turbostat:ro
     pid: host
 
     # Health check (used by depends_on: condition: service_healthy)
