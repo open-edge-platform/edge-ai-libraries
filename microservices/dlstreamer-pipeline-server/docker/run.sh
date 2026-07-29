@@ -77,6 +77,15 @@ check_proxy_format || exit 1
 
 ros2_prerequisites
 
+# ---------------------------------------------------------------------------
+# Append any additional GStreamer plugin path supplied at runtime (e.g. via
+# the .env file / docker compose `environment:`) to the one baked into the
+# base image.
+# ---------------------------------------------------------------------------
+if [ -n "${ADDITIONAL_GST_PLUGIN_PATH:-}" ]; then
+    export GST_PLUGIN_PATH="${GST_PLUGIN_PATH}:${ADDITIONAL_GST_PLUGIN_PATH}"
+fi
+
 taskset_cores=()
 [ -z "$CORE_PINNING" ] || . ./detect-cores.sh || true
 for coreset in ${CORE_PINNING//,/ }; do
