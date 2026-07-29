@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export type PipelineToolbarButtonVariant =
-  | "primary"
-  | "accent-outline"
-  | "destructive"
-  | "icon-primary";
+export type PipelineToolbarButtonVariant = ComponentProps<
+  typeof Button
+>["variant"];
 
 export type PipelineToolbarButtonProps = {
   onClick?: () => void;
@@ -19,41 +18,31 @@ export type PipelineToolbarButtonProps = {
   className?: string;
 };
 
-const TOOLBAR_VARIANT_CLASSES: Record<PipelineToolbarButtonVariant, string> = {
-  primary:
-    "bg-primary hover:bg-primary/90 text-primary-foreground disabled:bg-muted rounded-none",
-  "accent-outline":
-    "bg-background hover:bg-brand-accent text-brand-accent hover:text-white border-2 border-brand-accent rounded-none",
-  destructive:
-    "bg-destructive hover:bg-destructive/90 text-primary-foreground disabled:bg-destructive/40 rounded-none",
-  "icon-primary":
-    "bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg",
-};
-
 export const PipelineToolbarButton = ({
   onClick,
   disabled,
   title,
   icon,
   label,
-  variant = "primary",
+  variant = "default",
   widthClassName,
   className,
 }: PipelineToolbarButtonProps) => (
-  <button
+  <Button
     onClick={onClick}
     disabled={disabled}
     title={title}
+    type="button"
+    variant={variant}
     className={cn(
-      "px-3 py-2 shadow-lg transition-colors flex items-center gap-2 font-medium disabled:opacity-50",
-      TOOLBAR_VARIANT_CLASSES[variant],
+      "px-3 py-2 h-auto shadow-lg gap-2 font-medium text-[1.025rem]",
       widthClassName,
       className,
     )}
   >
     {icon}
     {label}
-  </button>
+  </Button>
 );
 
 export type PipelineMenuOptionButtonProps = {
@@ -73,11 +62,12 @@ export const PipelineMenuOptionButton = ({
   description,
   className,
 }: PipelineMenuOptionButtonProps) => (
-  <button
+  <Button
     onClick={onClick}
     disabled={disabled}
+    type="button"
     className={cn(
-      "w-full text-left px-3 py-2 rounded hover:bg-muted transition-colors text-sm disabled:opacity-50 flex items-start gap-2",
+      "w-full h-auto text-left px-3 py-2 rounded hover:bg-muted transition-colors text-[1.025rem] flex items-start gap-2",
       className,
     )}
   >
@@ -86,7 +76,7 @@ export const PipelineMenuOptionButton = ({
       <div className="font-medium">{title}</div>
       <div className="text-xs text-muted-foreground">{description}</div>
     </div>
-  </button>
+  </Button>
 );
 
 export type PipelineDialogButtonVariant = "primary" | "secondary";
@@ -112,15 +102,16 @@ export const PipelineDialogButton = ({
   variant = "secondary",
   className,
 }: PipelineDialogButtonProps) => (
-  <button
+  <Button
     onClick={onClick}
     disabled={disabled}
+    type="button"
     className={cn(
-      "px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+      "px-4 py-2 h-auto text-[1.025rem] font-medium transition-colors disabled:cursor-not-allowed",
       DIALOG_VARIANT_CLASSES[variant],
       className,
     )}
   >
     {children}
-  </button>
+  </Button>
 );

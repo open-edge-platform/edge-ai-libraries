@@ -319,6 +319,127 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
     )
 
 
+# ----------------------------------------------------------------------
+# POST /models/check-status
+# ----------------------------------------------------------------------
+
+
+@router.post(
+    "/check-status",
+    operation_id="check_models_status",
+    summary="Check installation status of models by display name",
+    response_model=schemas.ModelCheckStatusResponse,
+    responses={
+        200: {
+            "description": "Model status check completed",
+            "model": schemas.ModelCheckStatusResponse,
+        },
+        422: {
+            "description": (
+                "Request body validation failed (e.g. empty list, duplicate names)."
+            ),
+            "model": schemas.MessageResponse,
+        },
+        500: {"description": "Unexpected error", "model": schemas.MessageResponse},
+    },
+)
+async def check_models_status(body: schemas.ModelCheckStatusRequest):
+    """
+    # Check Model Installation Status
+
+    Check the installation status of one or more models by their display names.
+    Returns the installation status for all matching models in the list.
+
+    ## Request Body
+
+    - **`display_names`** *(required)* - Non-empty list of model display names to check.
+
+    ## Response Body
+
+    A `ModelCheckStatusResponse` containing a list of `ModelStatusItem` objects
+    for each matching model. Each item includes:
+    - `name` - Internal model identifier
+    - `display_name` - Human-readable model name (as provided)
+    - `install_status` - Current status (`installed`, `not_installed`, `installing`, `failed`)
+
+    If a display name does not match any known model, it is silently omitted from
+    the response.
+
+    ## Response Codes
+
+    Validation is handled by FastAPI/Pydantic before route logic runs,
+    so malformed bodies return `422` automatically.
+
+    | Code | When |
+    |------|------|
+    | 200  | Request is valid and status check completed. `models` contains one entry per matched display name. |
+    | 422  | Body validation failed (for example: `display_names` is empty, missing, or contains duplicates). |
+    | 500  | Unexpected server-side error while loading or mapping model data. |
+
+    ## Examples
+
+    ### Request
+    ```json
+    {
+      "display_names": [
+        "YOLO 11n 640x640",
+        "MobileNet V2 PyTorch"
+      ]
+    }
+    ```
+
+    ### Success Response (200)
+    ```json
+    {
+      "models": [
+        {
+          "name": "yolo11n",
+          "display_name": "YOLO 11n 640x640",
+          "install_status": "installed"
+        },
+        {
+          "name": "mobilenet-v2-pytorch",
+          "display_name": "MobileNet V2 PyTorch",
+          "install_status": "not_installed"
+        }
+      ]
+    }
+    ```
+    """
+    try:
+        # Get all models and their current install status
+        all_models = ModelManager().list_models()
+
+        # Build a map of display_name -> internal model for quick lookup
+        display_name_map = {m.display_name: m for m in all_models}
+
+        # Filter to only requested display names and convert to API format
+        result_items: list[schemas.ModelStatusItem] = []
+        for display_name in body.display_names:
+            internal_model = display_name_map.get(display_name)
+            if internal_model is not None:
+                result_items.append(
+                    schemas.ModelStatusItem(
+                        name=internal_model.name,
+                        display_name=internal_model.display_name,
+                        install_status=schemas.ModelInstallStatus(
+                            internal_model.install_status.value
+                        ),
+                    )
+                )
+
+        return schemas.ModelCheckStatusResponse(models=result_items)
+
+    except Exception:
+        logger.error("Unexpected error while checking model status", exc_info=True)
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message="Unexpected error while checking model status"
+            ).model_dump(),
+            status_code=500,
+        )
+
+
 def _aggregate_status(
     items: dict[str, schemas.ModelDownloadJobItem],
 ) -> int:
