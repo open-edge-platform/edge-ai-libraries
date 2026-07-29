@@ -41,7 +41,7 @@ async def seed_initial_data(
                             {"name": "gpu", "test_cases": [5, 6]},
                         ],
                     },
-                ]
+                ],
             },
             {
                 "name": "Test Suite",
@@ -66,10 +66,9 @@ async def seed_initial_data(
                         "variants": [
                             {"name": "cpu", "test_cases": [3, 5, 7, 8, 9]},
                             {"name": "gpu", "test_cases": [3, 5, 8, 9]},
-
                         ],
                     },
-                ]
+                ],
             },
             {
                 "name": "Retail Suite",
@@ -105,7 +104,7 @@ async def seed_initial_data(
                             {"name": "cpu", "test_cases": default_test_cases},
                             {"name": "gpu", "test_cases": default_test_cases},
                         ],
-                    }
+                    },
                 ],
             },
             {
@@ -205,7 +204,9 @@ async def seed_initial_data(
                 suite.description = suite_spec["description"]
 
             for workload_spec in suite_spec["workloads"]:
-                variant_names = [variant_spec["name"] for variant_spec in workload_spec["variants"]]
+                variant_names = [
+                    variant_spec["name"] for variant_spec in workload_spec["variants"]
+                ]
                 variants_value = ",".join(variant_names)
 
                 workload = await session.scalar(

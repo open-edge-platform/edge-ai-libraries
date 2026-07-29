@@ -24,11 +24,14 @@ from orm_models import (
 router = APIRouter()
 logger = logging.getLogger("api.routes.benchmarks")
 
+
 def _build_pipeline_name_by_id_map() -> dict[str, str]:
     """Best-effort map of pipeline id to display name."""
     # TODO: Read pipeline names from the pipelines table once pipelines are persisted in DB.
     try:
-        return {pipeline.id: pipeline.name for pipeline in PipelineManager().get_pipelines()}
+        return {
+            pipeline.id: pipeline.name for pipeline in PipelineManager().get_pipelines()
+        }
     except Exception:
         logger.warning("Failed to resolve pipeline names for CSV export", exc_info=True)
         return {}
@@ -56,7 +59,9 @@ async def get_benchmarks(
     """Return all benchmark suites with nested workloads and test cases."""
     try:
         result = await session.execute(
-            select(BenchmarkSuite).order_by(BenchmarkSuite.last_run_at.desc(), BenchmarkSuite.id)
+            select(BenchmarkSuite).order_by(
+                BenchmarkSuite.last_run_at.desc(), BenchmarkSuite.id
+            )
         )
         suites = result.scalars().all()
 
@@ -145,7 +150,9 @@ async def get_all_benchmark_runs(
     """Return all benchmark runs across all suites."""
     try:
         suite_runs_result = await session.execute(
-            select(BenchmarkSuiteRun).order_by(BenchmarkSuiteRun.start_time.desc(), BenchmarkSuiteRun.id.desc())
+            select(BenchmarkSuiteRun).order_by(
+                BenchmarkSuiteRun.start_time.desc(), BenchmarkSuiteRun.id.desc()
+            )
         )
         suite_runs = suite_runs_result.scalars().all()
         if not suite_runs:
@@ -328,7 +335,9 @@ def run_benchmark_suite(suite_slug: str):
             status_code=202,
         )
     except ValueError as exc:
-        logger.error("Invalid benchmark suite run request for slug=%s: %s", suite_slug, exc)
+        logger.error(
+            "Invalid benchmark suite run request for slug=%s: %s", suite_slug, exc
+        )
         return JSONResponse(
             content=schemas.MessageResponse(message=str(exc)).model_dump(),
             status_code=400,
@@ -526,31 +535,35 @@ async def export_benchmark_suite_run_csv(
 
         test_case_runs_by_workload_run_id: dict[int, list[BenchmarkTestCaseRun]] = {}
         for row in test_case_runs:
-            test_case_runs_by_workload_run_id.setdefault(row.workload_run_id, []).append(
-                row
-            )
+            test_case_runs_by_workload_run_id.setdefault(
+                row.workload_run_id, []
+            ).append(row)
 
         output = io.StringIO()
         writer = csv.writer(output)
 
-        writer.writerow([
-            "suite_name",
-            "start_time",
-            "id",
-            "status",
-            "overall_score",
-            "performance_score",
-            "efficiency_score",
-        ])
-        writer.writerow([
-            suite.name,
-            suite_run.start_time,
-            suite_run.id,
-            suite_run.status,
-            suite_run.score_total,
-            suite_run.score_performance,
-            suite_run.score_efficiency,
-        ])
+        writer.writerow(
+            [
+                "suite_name",
+                "start_time",
+                "id",
+                "status",
+                "overall_score",
+                "performance_score",
+                "efficiency_score",
+            ]
+        )
+        writer.writerow(
+            [
+                suite.name,
+                suite_run.start_time,
+                suite_run.id,
+                suite_run.status,
+                suite_run.score_total,
+                suite_run.score_performance,
+                suite_run.score_efficiency,
+            ]
+        )
         writer.writerow([])
 
         workload_header = [
@@ -602,8 +615,12 @@ async def export_benchmark_suite_run_csv(
             writer.writerow(test_header)
 
             for test_row in workload_test_case_runs:
-                benchmark_test_case = benchmark_test_cases_by_id.get(test_row.test_case_id)
-                variant_id = benchmark_test_case.variant_id if benchmark_test_case else ""
+                benchmark_test_case = benchmark_test_cases_by_id.get(
+                    test_row.test_case_id
+                )
+                variant_id = (
+                    benchmark_test_case.variant_id if benchmark_test_case else ""
+                )
                 streams = benchmark_test_case.streams if benchmark_test_case else 0
 
                 status = schemas.BenchmarkTestCaseRunStatus(test_row.status)
@@ -753,11 +770,14 @@ async def get_benchmark_suite_run_by_id(
             status = schemas.BenchmarkTestCaseRunStatus(row.status)
             live_execution_time = (
                 now_ms - row.start_time
-                if status == schemas.BenchmarkTestCaseRunStatus.RUNNING and row.start_time is not None
+                if status == schemas.BenchmarkTestCaseRunStatus.RUNNING
+                and row.start_time is not None
                 else row.execution_time
             )
 
-            test_case_runs_by_workload_run_id.setdefault(row.workload_run_id, []).append(
+            test_case_runs_by_workload_run_id.setdefault(
+                row.workload_run_id, []
+            ).append(
                 schemas.BenchmarkTestCaseRun(
                     id=row.id,
                     test_case_id=row.test_case_id,
@@ -961,7 +981,9 @@ async def get_benchmark_test_run_by_id(
             )
 
         benchmark_test_case = await session.scalar(
-            select(BenchmarkTestCase).where(BenchmarkTestCase.id == test_case_run.test_case_id)
+            select(BenchmarkTestCase).where(
+                BenchmarkTestCase.id == test_case_run.test_case_id
+            )
         )
         if benchmark_test_case is None:
             return JSONResponse(
@@ -975,7 +997,9 @@ async def get_benchmark_test_run_by_id(
             )
 
         workload = await session.scalar(
-            select(BenchmarkWorkload).where(BenchmarkWorkload.id == benchmark_test_case.workload_id)
+            select(BenchmarkWorkload).where(
+                BenchmarkWorkload.id == benchmark_test_case.workload_id
+            )
         )
         if workload is None:
             return JSONResponse(
@@ -1011,7 +1035,8 @@ async def get_benchmark_test_run_by_id(
                 if test_case_run.per_stream_fps is not None
                 else (
                     test_case_run.total_fps / benchmark_test_case.streams
-                    if test_case_run.total_fps is not None and benchmark_test_case.streams > 0
+                    if test_case_run.total_fps is not None
+                    and benchmark_test_case.streams > 0
                     else None
                 )
             ),

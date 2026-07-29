@@ -1595,7 +1595,6 @@ class TestJobResponse(BaseModel):
     )
 
 
-
 class BenchmarkJobResponse(BaseModel):
     """Simple envelope with a new benchmark job identifier."""
 
@@ -1631,32 +1630,32 @@ class BenchmarkJobSummary(BaseModel):
 
 
 class BenchmarkTestCase(BaseModel):
-  """Concrete stream-count test case belonging to a workload."""
+    """Concrete stream-count test case belonging to a workload."""
 
-  id: int
-  variant_id: str
-  streams: int
+    id: int
+    variant_id: str
+    streams: int
 
 
 class BenchmarkWorkload(BaseModel):
-  """Pipeline workload definition belonging to a benchmark suite."""
+    """Pipeline workload definition belonging to a benchmark suite."""
 
-  id: int
-  pipeline_id: str
-  variants: str
-  test_cases: list[BenchmarkTestCase]
+    id: int
+    pipeline_id: str
+    variants: str
+    test_cases: list[BenchmarkTestCase]
 
 
 class BenchmarkSuite(BaseModel):
-  """Benchmark suite with nested workloads and test cases."""
+    """Benchmark suite with nested workloads and test cases."""
 
-  id: int
-  slug: str
-  name: str
-  description: str
-  created_at: datetime
-  last_run_at: datetime
-  workloads: list[BenchmarkWorkload]
+    id: int
+    slug: str
+    name: str
+    description: str
+    created_at: datetime
+    last_run_at: datetime
+    workloads: list[BenchmarkWorkload]
 
 
 class BenchmarkTestCaseRun(BaseModel):
@@ -1731,22 +1730,22 @@ class BenchmarkSuiteRunDetails(BenchmarkSuiteRun):
 
 
 class BenchmarkSuiteRef(BaseModel):
-  """Compact benchmark suite reference for nested responses."""
+    """Compact benchmark suite reference for nested responses."""
 
-  id: int
-  slug: str
-  name: str
-  description: str
+    id: int
+    slug: str
+    name: str
+    description: str
 
 
 class BenchmarkTestCaseRunDetails(BenchmarkTestCaseRun):
-  """Detailed benchmark test-case run with resolved foreign-key metadata."""
+    """Detailed benchmark test-case run with resolved foreign-key metadata."""
 
-  suite_run_id: int
-  workload_id: int
-  pipeline_id: str
-  test_case: BenchmarkTestCase
-  suite: BenchmarkSuiteRef
+    suite_run_id: int
+    workload_id: int
+    pipeline_id: str
+    test_case: BenchmarkTestCase
+    suite: BenchmarkSuiteRef
 
 
 class LatencyMetrics(BaseModel):

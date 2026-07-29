@@ -243,7 +243,9 @@ def media_usage(parsed_metrics: list[dict]) -> float | None:
             buckets[engine_label].append(value)
 
     averages = [
-        avg for avg in (_mean_of_trimmed(values) for values in buckets.values()) if avg is not None
+        avg
+        for avg in (_mean_of_trimmed(values) for values in buckets.values())
+        if avg is not None
     ]
     if not averages:
         return None

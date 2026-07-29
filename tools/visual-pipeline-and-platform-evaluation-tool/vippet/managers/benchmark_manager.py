@@ -118,12 +118,16 @@ class BenchmarkManager:
                 logger.warning(f"Unknown variant name for device check: {variant_name}")
                 return True  # Default to allowing unknown variants
         except Exception as e:
-            logger.error(f"Error checking device availability for variant {variant_name}: {e}")
+            logger.error(
+                f"Error checking device availability for variant {variant_name}: {e}"
+            )
             return True  # Default to allowing on error
 
     def start_suite(self, suite_slug: str) -> str:
         job_id = self._generate_job_id()
-        plan = self._run_db(self._create_benchmark_plan(suite_slug=suite_slug, job_id=job_id))
+        plan = self._run_db(
+            self._create_benchmark_plan(suite_slug=suite_slug, job_id=job_id)
+        )
 
         job = InternalBenchmarkJobStatus(
             id=job_id,
@@ -147,7 +151,9 @@ class BenchmarkManager:
 
         return job_id
 
-    async def _create_benchmark_plan(self, suite_slug: str, job_id: str) -> _BenchmarkPlan:
+    async def _create_benchmark_plan(
+        self, suite_slug: str, job_id: str
+    ) -> _BenchmarkPlan:
         if async_session_maker is None:
             raise RuntimeError("Database not initialized. Call init_db() first.")
 
@@ -219,7 +225,9 @@ class BenchmarkManager:
                 performance_job_id = self._generate_job_id()
                 test_case_run = BenchmarkTestCaseRun(
                     test_case_id=test_case.id,
-                    workload_run_id=workload_run_by_workload_id[test_case.workload_id].id,
+                    workload_run_id=workload_run_by_workload_id[
+                        test_case.workload_id
+                    ].id,
                     job_id=performance_job_id,
                     status="created",
                 )
@@ -229,7 +237,9 @@ class BenchmarkManager:
                 planned_cases.append(
                     _PlannedTestCaseRun(
                         test_case_run_id=test_case_run.id,
-                        workload_run_id=workload_run_by_workload_id[test_case.workload_id].id,
+                        workload_run_id=workload_run_by_workload_id[
+                            test_case.workload_id
+                        ].id,
                         performance_job_id=performance_job_id,
                         pipeline_id=workload.pipeline_id,
                         variant_id=test_case.variant_id,
@@ -348,11 +358,17 @@ class BenchmarkManager:
 
         async with async_session_maker() as session:
             test_case_run = await session.scalar(
-                select(BenchmarkTestCaseRun).where(BenchmarkTestCaseRun.id == test_case_run_id)
+                select(BenchmarkTestCaseRun).where(
+                    BenchmarkTestCaseRun.id == test_case_run_id
+                )
             )
             if test_case_run is not None:
                 test_case_run.status = status
-                if status == "running" and start_time_ms is not None and test_case_run.start_time is None:
+                if (
+                    status == "running"
+                    and start_time_ms is not None
+                    and test_case_run.start_time is None
+                ):
                     test_case_run.start_time = start_time_ms
                 await session.commit()
 
@@ -363,7 +379,9 @@ class BenchmarkManager:
 
         async with async_session_maker() as session:
             workload_run = await session.scalar(
-                select(BenchmarkWorkloadRun).where(BenchmarkWorkloadRun.id == workload_run_id)
+                select(BenchmarkWorkloadRun).where(
+                    BenchmarkWorkloadRun.id == workload_run_id
+                )
             )
             if workload_run is None:
                 return
@@ -405,7 +423,9 @@ class BenchmarkManager:
                 and workload_run.start_time is not None
                 and workload_run.execution_time is None
             ):
-                workload_run.execution_time = int(time.time() * 1000) - workload_run.start_time
+                workload_run.execution_time = (
+                    int(time.time() * 1000) - workload_run.start_time
+                )
 
             if workload_run.status == "passed":
                 (
@@ -416,13 +436,17 @@ class BenchmarkManager:
 
             await session.commit()
 
-    async def _mark_workload_run_started(self, workload_run_id: int, start_time_ms: int) -> None:
+    async def _mark_workload_run_started(
+        self, workload_run_id: int, start_time_ms: int
+    ) -> None:
         if async_session_maker is None:
             raise RuntimeError("Database not initialized. Call init_db() first.")
 
         async with async_session_maker() as session:
             workload_run = await session.scalar(
-                select(BenchmarkWorkloadRun).where(BenchmarkWorkloadRun.id == workload_run_id)
+                select(BenchmarkWorkloadRun).where(
+                    BenchmarkWorkloadRun.id == workload_run_id
+                )
             )
             if workload_run is not None and workload_run.start_time is None:
                 workload_run.start_time = start_time_ms
@@ -435,7 +459,9 @@ class BenchmarkManager:
 
         async with async_session_maker() as session:
             workload_runs_result = await session.execute(
-                select(BenchmarkWorkloadRun).where(BenchmarkWorkloadRun.suite_run_id == suite_run_id)
+                select(BenchmarkWorkloadRun).where(
+                    BenchmarkWorkloadRun.suite_run_id == suite_run_id
+                )
             )
             workload_runs = workload_runs_result.scalars().all()
 
@@ -452,8 +478,13 @@ class BenchmarkManager:
 
             for workload_run in workload_runs:
                 if workload_run.status == "running":
-                    if workload_run.start_time is not None and workload_run.execution_time is None:
-                        workload_run.execution_time = int(time.time() * 1000) - workload_run.start_time
+                    if (
+                        workload_run.start_time is not None
+                        and workload_run.execution_time is None
+                    ):
+                        workload_run.execution_time = (
+                            int(time.time() * 1000) - workload_run.start_time
+                        )
                     workload_run.status = "cancelled"
                 elif workload_run.status == "created":
                     workload_run.status = "cancelled"
@@ -485,7 +516,9 @@ class BenchmarkManager:
                 raise ValueError(f"BenchmarkSuiteRun with id={suite_run_id} not found.")
 
             test_case_run = await session.scalar(
-                select(BenchmarkTestCaseRun).where(BenchmarkTestCaseRun.id == test_case_run_id)
+                select(BenchmarkTestCaseRun).where(
+                    BenchmarkTestCaseRun.id == test_case_run_id
+                )
             )
             if test_case_run is None:
                 raise ValueError(
@@ -493,7 +526,9 @@ class BenchmarkManager:
                 )
 
             benchmark_test_case = await session.scalar(
-                select(BenchmarkTestCase).where(BenchmarkTestCase.id == test_case_run.test_case_id)
+                select(BenchmarkTestCase).where(
+                    BenchmarkTestCase.id == test_case_run.test_case_id
+                )
             )
 
             if test_case_run.start_time is None:
@@ -507,7 +542,11 @@ class BenchmarkManager:
             test_case_run.media_usage = metrics.media_usage(parsed_metrics)
             test_case_run.memory_usage = metrics.memory_usage(parsed_metrics)
             test_case_run.power_usage = metrics.power_usage(parsed_metrics)
-            if total_fps is not None and benchmark_test_case is not None and benchmark_test_case.streams > 0:
+            if (
+                total_fps is not None
+                and benchmark_test_case is not None
+                and benchmark_test_case.streams > 0
+            ):
                 test_case_run.per_stream_fps = total_fps / benchmark_test_case.streams
             else:
                 test_case_run.per_stream_fps = None
@@ -535,17 +574,23 @@ class BenchmarkManager:
                     )
                 )
                 if workload_run is not None:
-                    workload_run.passed_test_cases = (workload_run.passed_test_cases or 0) + 1
+                    workload_run.passed_test_cases = (
+                        workload_run.passed_test_cases or 0
+                    ) + 1
                 suite_run.passed_test_cases = (suite_run.passed_test_cases or 0) + 1
             else:
                 test_case_run.status = "failed"
 
             if execution_time_ms is not None:
-                suite_run.execution_time = (suite_run.execution_time or 0) + execution_time_ms
+                suite_run.execution_time = (
+                    suite_run.execution_time or 0
+                ) + execution_time_ms
 
             await session.commit()
 
-    def _execute_benchmark_plan(self, benchmark_job_id: str, plan: _BenchmarkPlan) -> None:
+    def _execute_benchmark_plan(
+        self, benchmark_job_id: str, plan: _BenchmarkPlan
+    ) -> None:
         failures = 0
         cancelled_cases = 0
 
@@ -557,7 +602,9 @@ class BenchmarkManager:
                         return
                     if benchmark_job_id in self._cancel_requested:
                         self._run_db(
-                            self._mark_created_runs_cancelled(suite_run_id=plan.suite_run_id)
+                            self._mark_created_runs_cancelled(
+                                suite_run_id=plan.suite_run_id
+                            )
                         )
                         self._run_db(
                             self._update_suite_run_status(
@@ -572,9 +619,7 @@ class BenchmarkManager:
 
                     job.current_test_case_run_id = planned.test_case_run_id
                     job.current_performance_job_id = planned.performance_job_id
-                    job.details = [
-                        f"Running test case {index}/{plan.total_test_cases}"
-                    ]
+                    job.details = [f"Running test case {index}/{plan.total_test_cases}"]
 
                 case_start_ms = int(time.time() * 1000)
 
@@ -594,7 +639,9 @@ class BenchmarkManager:
                 )
 
                 self._run_db(
-                    self._update_workload_run_status(workload_run_id=planned.workload_run_id)
+                    self._update_workload_run_status(
+                        workload_run_id=planned.workload_run_id
+                    )
                 )
 
                 pipeline = PipelineManager().get_pipeline_by_id(planned.pipeline_id)
@@ -605,7 +652,9 @@ class BenchmarkManager:
                         break
 
                 if variant is None:
-                    logger.warning(f"Variant {planned.variant_id} not found for pipeline {planned.pipeline_id}")
+                    logger.warning(
+                        f"Variant {planned.variant_id} not found for pipeline {planned.pipeline_id}"
+                    )
                     self._run_db(
                         self._update_test_case_status(
                             test_case_run_id=planned.test_case_run_id,
@@ -613,7 +662,9 @@ class BenchmarkManager:
                         )
                     )
                     self._run_db(
-                        self._update_workload_run_status(workload_run_id=planned.workload_run_id)
+                        self._update_workload_run_status(
+                            workload_run_id=planned.workload_run_id
+                        )
                     )
                     with self._jobs_lock:
                         job = self.jobs.get(benchmark_job_id)
@@ -622,7 +673,9 @@ class BenchmarkManager:
                     continue
 
                 if not self._is_device_available(variant.name):
-                    logger.info(f"Device {variant.name} not available, skipping test case {planned.test_case_run_id}")
+                    logger.info(
+                        f"Device {variant.name} not available, skipping test case {planned.test_case_run_id}"
+                    )
                     self._run_db(
                         self._update_test_case_status(
                             test_case_run_id=planned.test_case_run_id,
@@ -630,7 +683,9 @@ class BenchmarkManager:
                         )
                     )
                     self._run_db(
-                        self._update_workload_run_status(workload_run_id=planned.workload_run_id)
+                        self._update_workload_run_status(
+                            workload_run_id=planned.workload_run_id
+                        )
                     )
                     with self._jobs_lock:
                         job = self.jobs.get(benchmark_job_id)
@@ -654,7 +709,9 @@ class BenchmarkManager:
                 execution_time_ms: int | None = None
                 if isinstance(perf_status, InternalPerformanceJobStatus):
                     if perf_status.end_time is not None:
-                        execution_time_ms = perf_status.end_time - perf_status.start_time
+                        execution_time_ms = (
+                            perf_status.end_time - perf_status.start_time
+                        )
 
                 if execution_time_ms is None:
                     execution_time_ms = int(time.time() * 1000) - case_start_ms
@@ -672,7 +729,9 @@ class BenchmarkManager:
                 )
 
                 self._run_db(
-                    self._update_workload_run_status(workload_run_id=planned.workload_run_id)
+                    self._update_workload_run_status(
+                        workload_run_id=planned.workload_run_id
+                    )
                 )
 
                 with self._jobs_lock:
@@ -681,7 +740,10 @@ class BenchmarkManager:
                         return
 
                     cancelled = bool(result.get("cancelled", False))
-                    if result.get("state") != InternalTestJobState.COMPLETED or cancelled:
+                    if (
+                        result.get("state") != InternalTestJobState.COMPLETED
+                        or cancelled
+                    ):
                         failures += 1
                     if cancelled:
                         cancelled_cases += 1
@@ -690,7 +752,9 @@ class BenchmarkManager:
 
                     if benchmark_job_id in self._cancel_requested:
                         self._run_db(
-                            self._mark_created_runs_cancelled(suite_run_id=plan.suite_run_id)
+                            self._mark_created_runs_cancelled(
+                                suite_run_id=plan.suite_run_id
+                            )
                         )
                         self._run_db(
                             self._update_suite_run_status(

@@ -130,9 +130,7 @@ def aggregate_scores(
         else None
     )
     score_efficiency = (
-        sum(efficiency_values) / len(efficiency_values)
-        if efficiency_values
-        else None
+        sum(efficiency_values) / len(efficiency_values) if efficiency_values else None
     )
 
     return (

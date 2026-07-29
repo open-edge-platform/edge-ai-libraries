@@ -130,7 +130,9 @@ def stop_benchmark_job_handler(job_id: str):
             content=response.model_dump(),
             status_code=409,
         )
-    logger.error("Unexpected error while stopping benchmark job %s: %s", job_id, message)
+    logger.error(
+        "Unexpected error while stopping benchmark job %s: %s", job_id, message
+    )
     return JSONResponse(
         content=response.model_dump(),
         status_code=500,
@@ -853,7 +855,10 @@ def stop_density_test_job(job_id: str):
 )
 def get_benchmark_statuses():
     """List statuses of all benchmark-suite orchestration jobs."""
-    return [_benchmark_job_to_api_status(job) for job in BenchmarkManager().get_job_statuses()]
+    return [
+        _benchmark_job_to_api_status(job)
+        for job in BenchmarkManager().get_job_statuses()
+    ]
 
 
 @router.get(
@@ -874,7 +879,9 @@ def get_benchmark_job_status(job_id: str):
     if internal_status is None:
         logger.warning("Benchmark job %s not found", job_id)
         return JSONResponse(
-            content=schemas.MessageResponse(message=f"Job {job_id} not found").model_dump(),
+            content=schemas.MessageResponse(
+                message=f"Job {job_id} not found"
+            ).model_dump(),
             status_code=404,
         )
     return _benchmark_job_to_api_status(internal_status)
@@ -898,7 +905,9 @@ def get_benchmark_job_summary(job_id: str):
     if internal_summary is None:
         logger.warning("Benchmark job summary requested for unknown job %s", job_id)
         return JSONResponse(
-            content=schemas.MessageResponse(message=f"Job {job_id} not found").model_dump(),
+            content=schemas.MessageResponse(
+                message=f"Job {job_id} not found"
+            ).model_dump(),
             status_code=404,
         )
     return _benchmark_summary_to_api(internal_summary)
