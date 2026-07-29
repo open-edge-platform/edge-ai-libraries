@@ -14,6 +14,9 @@
 - **GPU (optional)**: Intel integrated GPU (Meteor Lake or newer iGPU) or a
   supported discrete GPU exposed via `/dev/dri` for the OpenVINO `GPU`
   device path.
+- **NPU (optional)**: Intel NPU on Meteor Lake or newer, exposed as
+  `/dev/accel/accel0` and used with `ACCEL_MOUNT_PATH=/dev/accel/accel0`
+  plus the `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so` runtime variable.
 - **Microphone (optional)**: ALSA-compatible capture device if you intend
   to list devices via `GET /devices` or pass `/dev/snd` into the container.
 
@@ -23,6 +26,7 @@
 | Memory                | 16 GB RAM            | 32 GB RAM                                                                                           |
 | Disk                  | 20 GB free SSD space | NVMe storage                                                                                        |
 | GPU (optional)        | Not applicable       | Intel integrated GPU (Meteor Lake or newer iGPU) or a supported discrete GPU exposed via `/dev/dri` |
+| NPU (optional)        | Not applicable       | Intel NPU on Meteor Lake or newer exposed via `/dev/accel/accel0`                                         |
 | Microphone (optional) | Not applicable       | ALSA-compatible capture device with `/dev/snd` access when needed                                   |
 
 ## Software Requirements
