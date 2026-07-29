@@ -26,5 +26,12 @@ pyannote.audio==4.0.4
 huggingface-hub==0.34.4
 hf_xet==1.4.3
 librosa==0.11.0
+# numba/llvmlite are pulled in transitively via librosa. Newer numba (0.66.x)
+# ships unsigned native DLLs that Windows Smart App Control / WDAC blocks at load
+# time ("Application Control policy has blocked this file" on _typeconv). Pin to
+# an older, reputable build that still supports the pinned numpy 2.2.x.
+numba==0.61.2
+llvmlite==0.44.0
 soundfile==0.13.1
 pywhispercpp==1.5.0
+minio==7.2.9

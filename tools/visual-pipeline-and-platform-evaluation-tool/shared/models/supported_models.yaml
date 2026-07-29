@@ -409,3 +409,22 @@
   download_request:
     hub: ultralytics
     name: yolo26n-seg
+
+- name: mars-small128
+  display_name: Mars Small128 Re-ID
+  source: public
+  hub: ultralytics
+  type: classification
+  precisions:
+    - precision: FP32
+      model_path: ultralytics/public/mars-small128/mars_small128_fp32.xml
+      model_proc: ""
+    - precision: INT8
+      model_path: ultralytics/public/mars-small128/mars_small128_int8.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: false
+  download_request:
+    hub: ultralytics
+    name: mars-small128

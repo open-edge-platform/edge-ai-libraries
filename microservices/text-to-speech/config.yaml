@@ -12,7 +12,7 @@ models:
     # Inference device. Permitted values: CPU | GPU
     #   SpeechT5: CPU or GPU
     #   Qwen:     CPU or GPU
-    device: GPU
+    device: CPU
     # Model precision. Permitted values: int8 | int4 | fp16 | fp32
     #   SpeechT5: int8, int4, fp16, or fp32
     #   Qwen:     int8, int4, fp16, or fp32
