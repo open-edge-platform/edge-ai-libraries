@@ -195,7 +195,6 @@ class SupportedModelsManager:
                     )
                     model_type = require_str_field(entry, "type", idx)
                     unsupported_devices = entry.get("unsupported_devices", None)
-                    default = entry.get("default", False)
                     extra_model_procs = entry.get("extra_model_procs", None)
 
                     # Validate precisions list
@@ -249,7 +248,6 @@ class SupportedModelsManager:
                                 model_proc=model_proc,
                                 unsupported_devices=unsupported_devices,
                                 precision=precision,
-                                default=default,
                                 hub=hub,
                                 canonical_name=name,
                                 canonical_display_name=display_name,
