@@ -8,7 +8,7 @@ engine understands.
 
 The service has three integration surfaces:
 
-1. **Inbound MQTT** — SceneScape events it consumes (its data source).
+1. **Inbound MQTT** — Scenescape events it consumes (its data source).
 2. **BA MQTT** — the request/result exchange with a behavioral-analysis worker.
 3. **REST API** — read/query endpoints (see [API Reference](./api-reference.md)).
 
@@ -19,43 +19,43 @@ the event-driven re-publish cadence rather than replay.
 
 ---
 
-## 1. Prerequisite: SceneScape
+## 1. Prerequisite: Scenescape
 
 The service is **not** a standalone event source. It requires a reachable
-[SceneScape](https://github.com/open-edge-platform/scenescape) deployment that
+[Scenescape](https://github.com/open-edge-platform/scenescape) deployment that
 provides:
 
-| Dependency          | Purpose                                                        |
-| ------------------- | -------------------------------------------------------------- |
-| SceneScape MQTT broker | Source of all person/zone/scene events (see topics below).  |
-| SceneScape REST API | Zone auto-discovery at startup (region UUID → name mapping).   |
+| Dependency             | Purpose                                                      |
+| ---------------------- | ------------------------------------------------------------ |
+| Scenescape MQTT broker | Source of all person/zone/scene events (see topics below).   |
+| Scenescape REST API    | Zone auto-discovery at startup (region UUID → name mapping). |
 
-A use case that has no SceneScape deployment cannot use this service as-is; it
-would need an adapter that republishes its events onto the SceneScape topic
+A use case that has no Scenescape deployment cannot use this service as-is; it
+would need an adapter that republishes its events onto the Scenescape topic
 shapes described below.
 
 ---
 
-## 2. Inbound MQTT (SceneScape → service)
+## 2. Inbound MQTT (Scenescape → service)
 
 The service **subscribes** to the following topics on connect. The topic
 patterns are configurable in `scene-config.yaml` under `mqtt` (defaults shown).
 
-| Topic pattern (default)              | Config key                    | Meaning                                                   |
-| ------------------------------------ | ----------------------------- | --------------------------------------------------------- |
-| `scenescape/data/scene/+/+`          | `scene_data_topic_pattern`    | Scene object data: `.../{scene_id}/{object_type}`.        |
-| `scenescape/data/region/+/+/+`       | _(fixed)_                     | Continuous per-region object feed.                        |
-| `scenescape/event/region/+/+/+`      | `region_event_topic_pattern`  | Region enter/exit events: `.../{scene_id}/{region_id}/…`. |
-| `scenescape/image/camera/+`          | `image_topic_pattern`         | Camera image frames: `.../{camera_name}`.                 |
+| Topic pattern (default)         | Config key                   | Meaning                                                   |
+| ------------------------------- | ---------------------------- | --------------------------------------------------------- |
+| `scenescape/data/scene/+/+`     | `scene_data_topic_pattern`   | Scene object data: `.../{scene_id}/{object_type}`.        |
+| `scenescape/data/region/+/+/+`  | _(fixed)_                    | Continuous per-region object feed.                        |
+| `scenescape/event/region/+/+/+` | `region_event_topic_pattern` | Region enter/exit events: `.../{scene_id}/{region_id}/…`. |
+| `scenescape/image/camera/+`     | `image_topic_pattern`        | Camera image frames: `.../{camera_name}`.                 |
 
-The service **publishes** camera image requests back to SceneScape:
+The service **publishes** camera image requests back to Scenescape:
 
-| Topic pattern (default)                     | Config key         | Meaning                                    |
-| ------------------------------------------- | ------------------ | ------------------------------------------ |
-| `scenescape/cmd/camera/{camera_name}`       | `cmd_topic_pattern` | `getimage` command to pull a live frame.   |
+| Topic pattern (default)               | Config key          | Meaning                                  |
+| ------------------------------------- | ------------------- | ---------------------------------------- |
+| `scenescape/cmd/camera/{camera_name}` | `cmd_topic_pattern` | `getimage` command to pull a live frame. |
 
-> Payloads on these topics follow the SceneScape schema and are owned by
-> SceneScape, not by this service.
+> Payloads on these topics follow the Scenescape schema and are owned by
+> Scenescape, not by this service.
 
 ---
 
@@ -65,10 +65,10 @@ This is the interface any behavioral-analysis worker must implement. The two
 topic names are configurable and **must be identical on both sides** (see
 [Configuration](./get-started/configuration.md)):
 
-| Direction                | Topic (default) | Config key / env                                   |
-| ------------------------ | --------------- | -------------------------------------------------- |
-| service → BA worker      | `ba/requests`   | `mqtt.ba_request_topic` / `BA_REQUEST_TOPIC`       |
-| BA worker → service      | `ba/results`    | `mqtt.ba_result_topic` / `BA_RESULT_TOPIC`         |
+| Direction           | Topic (default) | Config key / env                             |
+| ------------------- | --------------- | -------------------------------------------- |
+| service → BA worker | `ba/requests`   | `mqtt.ba_request_topic` / `BA_REQUEST_TOPIC` |
+| BA worker → service | `ba/results`    | `mqtt.ba_result_topic` / `BA_RESULT_TOPIC`   |
 
 ### 3.1 Request: `ba/requests`
 
@@ -112,7 +112,7 @@ correlate the verdict to the correct visit.
 
 ### 3.3 `status` values (enum)
 
-| Value            | Meaning                                                         |
+| Value            | Meaning                                                        |
 | ---------------- | -------------------------------------------------------------- |
 | `suspicious`     | Behavior confirmed (e.g. pose pattern + VLM). Triggers alerts. |
 | `no_match`       | Analysis ran but did not confirm suspicious behavior.          |

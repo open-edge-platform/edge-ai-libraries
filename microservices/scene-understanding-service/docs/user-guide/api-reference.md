@@ -27,7 +27,7 @@ curl --noproxy '*' http://127.0.0.1:8082/api/v1/lp/status
 ### `GET /api/v1/lp/sessions`
 
 Return active person sessions with a per-zone visit summary. By default, only
-sessions whose SceneScape re-id state has progressed beyond initial collection
+sessions whose Scenescape re-id state has progressed beyond initial collection
 are returned. Pass `?include_pending=true` to include transient tracks.
 
 | Query             | Default | Description                              |
@@ -66,7 +66,7 @@ Remove a zone mapping.
 
 ### `POST /api/v1/lp/zones/discover`
 
-Trigger zone re-discovery from the SceneScape REST API.
+Trigger zone re-discovery from the Scenescape REST API.
 
 ## Alerts
 
