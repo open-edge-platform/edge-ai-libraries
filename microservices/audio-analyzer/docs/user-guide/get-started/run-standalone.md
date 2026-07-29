@@ -47,7 +47,8 @@ If you plan to enable speaker diarization by setting `models.asr.diarization: tr
    python main.py
    ```
 
-Without a valid `HF_TOKEN` and gate acceptance, the service will fail at startup if diarization is enabled.
+Without a valid `HF_TOKEN` and gate acceptance, speaker diarization will not initialize. The service
+continues running, logs a warning, and disables diarization for that session.
 If diarization is disabled in `config.yaml`, `HF_TOKEN` is not required.
 
 ## Running the Service

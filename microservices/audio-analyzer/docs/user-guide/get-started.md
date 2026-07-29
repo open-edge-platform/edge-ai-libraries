@@ -11,7 +11,8 @@ Optional sentiment analysis per chunk complements the transcription output.
 
 If you enable speaker diarization in `config.yaml` (`models.asr.diarization: true`), you must provide a
 Hugging Face access token (`HF_TOKEN`) and accept the Pyannote speaker-diarization model license on
-Hugging Face before the service can start.
+Hugging Face if you want diarization to initialize successfully. If diarization setup is incomplete,
+the service continues running and logs a warning while disabling diarization for that session.
 
 ## Before You Begin
 

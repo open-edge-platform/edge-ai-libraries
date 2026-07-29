@@ -44,8 +44,9 @@ def _probe_openvino_npu_runtime() -> None:
     if "NPU" not in available_devices:
         raise RuntimeError(
             "OpenVINO does not report an NPU device. Ensure the container has Intel NPU user-space runtime "
-            "(linux-npu-driver userspace + libze1), that /dev/accel is passed through, and that the host Intel "
-            "NPU driver is loaded."
+            "(linux-npu-driver userspace + libze1), that the configured NPU device mapping is passed through "
+            "to the container (for Docker Compose, check ACCEL_MOUNT_PATH), and that the host Intel NPU driver "
+            "is loaded."
         )
 
     # Compile a tiny identity graph to force initialization of the NPU compiler stack.
@@ -61,13 +62,14 @@ def _probe_openvino_npu_runtime() -> None:
             raise RuntimeError(
                 "Configured device is NPU but required OpenVINO NPU compiler library is missing: "
                 "libopenvino_intel_npu_compiler_loader.so. Rebuild the Audio Analyzer image with Intel NPU "
-                "user-space runtime/compiler dependencies and ensure /dev/accel is mapped into the container."
+                "user-space runtime/compiler dependencies and ensure the configured NPU device mapping is "
+                "available inside the container."
             ) from exc
 
         raise RuntimeError(
             "Configured device is NPU, but OpenVINO NPU runtime/compiler initialization failed. "
-            "Verify Intel NPU user-space runtime (linux-npu-driver userspace + libze1), /dev/accel mapping, "
-            "and host NPU driver compatibility. Original error: "
+            "Verify Intel NPU user-space runtime (linux-npu-driver userspace + libze1), the configured NPU "
+            "device mapping, and host NPU driver compatibility. Original error: "
             f"{message}"
         ) from exc
 

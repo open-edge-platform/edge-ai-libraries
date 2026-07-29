@@ -37,8 +37,9 @@ cached artifacts.
 
 ## NPU Path Is Not Used
 
-- Confirm the host exposes `/dev/accel/accel0`.
-- Set `ACCEL_MOUNT_PATH=/dev/accel/accel0` for Compose runs.
+- Confirm the host exposes the NPU device node you intend to map. On Meteor
+  Lake systems this is commonly `/dev/accel/accel0`.
+- Set `ACCEL_MOUNT_PATH` to that host device node for Compose runs.
 - Keep `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so` in the container environment.
 - Make sure the container runs with the host render group via `RENDER_GID` so
   the app user can access the Intel NPU device node.

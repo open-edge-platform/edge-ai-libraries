@@ -68,3 +68,4 @@ def test_validate_npu_runtime_reports_missing_compiler_loader(monkeypatch):
 
     with pytest.raises(RuntimeError, match="libopenvino_intel_npu_compiler_loader.so"):
         validate_openvino_npu_runtime(_cfg(asr_provider="openvino", asr_device="NPU"))
+
