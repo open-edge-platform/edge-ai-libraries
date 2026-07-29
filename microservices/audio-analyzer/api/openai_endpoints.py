@@ -51,6 +51,7 @@ def transcribe_audio(
     file: UploadFile = File(...),
     model: str = Form("whisper-1"),
     session_id: str | None = Form(None),
+    speaker_scope_id: str | None = Form(None),
     language: str | None = Form("en"),
     prompt: str | None = Form(None),
     response_format: str = Form("json"),
@@ -72,7 +73,12 @@ def transcribe_audio(
     if not os.path.isfile(filepath):
         raise HTTPException(status_code=400, detail=f"Audio file not found: {filepath}")
 
-    pipeline = Pipeline(session_id=session_id, temperature=temperature, append_to_session=continue_session)
+    pipeline = Pipeline(
+        session_id=session_id,
+        temperature=temperature,
+        append_to_session=continue_session,
+        speaker_scope_id=speaker_scope_id,
+    )
 
     result = pipeline.transcribe(
         SimpleNamespace(
