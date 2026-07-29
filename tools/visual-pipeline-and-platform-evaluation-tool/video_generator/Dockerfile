@@ -23,6 +23,10 @@ USER root
 # Set environment variable to non-interactive mode (avoids some prompts)
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Remove kernel headers inherited from base image (not needed at runtime,
+# source of CVE-2026-* critical vulnerabilities reported by Trivy).
+RUN dpkg --purge --force-depends linux-libc-dev
+
 # Set GStreamer plugin path
 ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/
 

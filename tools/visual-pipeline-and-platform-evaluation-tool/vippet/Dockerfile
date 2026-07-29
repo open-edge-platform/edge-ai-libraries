@@ -34,6 +34,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && \
     apt-get install --yes --no-install-recommends yq v4l-utils
 
+# Remove kernel headers inherited from base image (not needed at runtime,
+# source of CVE-2026-* critical vulnerabilities reported by Trivy).
+RUN dpkg --purge --force-depends linux-libc-dev
+
 # Switch to dlstreamer user
 USER dlstreamer
 
