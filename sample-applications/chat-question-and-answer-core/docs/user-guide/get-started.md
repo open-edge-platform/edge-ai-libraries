@@ -129,7 +129,7 @@ By following this guide, you will learn how to:
      >     LLM_DEVICE: "<GPU.0/GPU.1>"
      >   ```
 
-   - Refer to and use the same list of models as documented in [Chat Question-and-Answer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/get-started.html#supported-models).
+   - Refer to and use the same list of models as documented in [Chat Q&A](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/get-started.html#supported-models).
 
 6. **Start the Application**:
 
