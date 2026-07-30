@@ -10,8 +10,10 @@ import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from ..core.plugin_registry import PluginRegistry
@@ -97,6 +99,22 @@ app = FastAPI(
     version="1.0.1",
     lifespan=lifespan,
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = []
+
+    for error in exc.errors():
+        error = error.copy()
+        error.pop("input", None)
+        error.pop("ctx", None)      # Remove non-serializable ValueError
+        errors.append(error)
+
+    return JSONResponse(
+        status_code=422,
+        content={"detail": errors},
+    )
+
 
 # Custom OpenAPI schema loader
 def custom_openapi():
