@@ -79,8 +79,6 @@ services:
       - INFLUXDB_PORT=${INFLUXDB_PORT}
       - INFLUXDB_USER=${INFLUXDB_USER}
       - INFLUXDB_PASS=${INFLUXDB_PASS}
-      # NPU related environment variables
-      - ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so
     volumes:
       - "../resources:/home/pipeline-server/resources/"
       # - "../configs/default/config.json:/home/pipeline-server/config.json"
