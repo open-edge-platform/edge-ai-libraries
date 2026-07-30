@@ -29,8 +29,8 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # sharedPvcName is the PVC used for collector signal exchange (pipeline-manager <-> vss-collector).
-  sharedPvcName: "vss-shared-pvc"
+  metricsManager:
+    enabled: false
 
   # huggingfaceToken should be set during installation if gated models need to be accessed.
   huggingfaceToken: ""
@@ -96,13 +96,9 @@ global:
     SDK_USE_OPENVINO: true
     OV_MODELS_DIR: "/app/ov_models"
     OV_PERFORMANCE_MODE: "THROUGHPUT"
-    VDMS_DATAPREP_LOG_LEVEL: "INFO"
+    MM_DATAPREP_LOG_LEVEL: "INFO"
     MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS: true
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart
-
-# sharedClaimSize is the storage size for the shared collector-signals PVC
-# consumed by pipeline-manager and vss-collector.
-sharedClaimSize: "7Gi"
 
 rabbitmq:
   enabled: false
@@ -162,6 +158,9 @@ pipelinemanager:
     SUMMARY_FEATURE: "FEATURE_OFF"
     SEARCH_FEATURE: "FEATURE_OFF"
     SEARCH_DATAPREP_TIMEOUT_MS: "600000"
+    SEARCH_DATAPREP_POLL_MAX_RETRIES: "3"
+    SEARCH_DATAPREP_POLL_TIMEOUT_MS: "10000"
+    SEARCH_DATAPREP_POLL_RETRY_DELAY_MS: "500"
   nodeSelector: {}
   affinity: {}
   tolerations: []
@@ -288,24 +287,13 @@ videosearch:
     type: ClusterIP
     port: 8000
 
-vsscollector:
-  enabled: false
-  name: vss-collector
+metricsmanager:
+  fullnameOverride: metrics-manager
+  coLocateWithDataPrep: true
   image:
-    repository: docker.io/intel/vippet-collector
-    tag: "2025.2.0"
+    repository: intel/metrics-manager
+    tag: "2026.2.0-20260715-weekly"
     pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 9273
-  websocketPath: "/metrics/ws/collector"
-  websocketUrl: ""
-  signalVolume:
-    subPath: collector-signals
-  resources: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
 
 # VSS UI subchart alias conditions. Detailed defaults come from subchart/vss-ui/values.yaml.
 summaryui:

@@ -1,8 +1,8 @@
 # VSS modes and Docker Compose overlays
 
-Sources: `setup.sh`, `docker/compose.base.yaml`, `docker/compose.summary.yaml`, `docker/compose.search.yaml`, `docker/compose.ui.yaml`, `docker/compose.vllm.yaml`, `docker/compose.gpu_ovms.yaml`, and `docker/compose.telemetry.yaml`.
+Sources: `setup.sh`, `docker/compose.base.yaml`, `docker/compose.summary.yaml`, `docker/compose.search.yaml`, `docker/compose.ui.yaml`, `docker/compose.vllm.yaml`, `docker/compose.gpu_ovms.yaml`, and `docker/compose.metrics-manager.yaml`.
 
-`setup.sh` always begins active app deployments with `-f docker/compose.base.yaml`, appends mode overlays, appends `-f docker/compose.ui.yaml`, then appends backend/telemetry overlays as needed. The final command is:
+`setup.sh` always begins active app deployments with `-f docker/compose.base.yaml`, appends mode overlays, appends `-f docker/compose.ui.yaml`, then appends backend/metrics overlays as needed. The final command is:
 
 ```bash
 docker compose $APP_COMPOSE_FILE --profile $BACKEND_PROFILE --profile $UI_PROFILE up -d
@@ -26,7 +26,7 @@ For config-only inspection, `up -d` becomes `config`.
 | OVMS NPU | Summary, Dual UI, Unified UI | e.g. `LLM_TARGET_DEVICE=NPU` | none | `ovms` | `ovms-service` already passes `${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0`. No GPU overlay unless a target contains `GPU`. |
 | vLLM CPU | Summary, Dual UI, Unified UI | `ENABLE_VLLM=true` | `compose.vllm.yaml` | `vllm` plus UI profile | Starts `vllm-cpu-service` image `${VLLM_IMAGE:-public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.17.1}` on `${VLLM_HOST_PORT:-8200}:8000`; `setup.sh` sets `USE_VLLM=CONFIG_ON`, `LLM_SUMMARIZATION_API` and `VLM_ENDPOINT` to `http://vllm-cpu-service:8000/v1`. |
 | Search embedding GPU | Search, Dual UI | `ENABLE_EMBEDDING_GPU=true` | none | unchanged | `setup.sh` sets `DATAPREP_EMBEDDING_DEVICE=GPU`; `multimodal-dataprep` and `multimodal-embedding-serving` mount `${DRI_MOUNT_PATH:-/dev/null}:/dev/dri`. |
-| Telemetry | Search, Dual UI in docs; script can append when `ENABLE_VSS_COLLECTOR=true` | `ENABLE_VSS_COLLECTOR=true` | `compose.telemetry.yaml` | unchanged | Starts `vss-collector` on host port `9273`, streaming to `ws://pipeline-manager:3000/metrics/ws/collector`. |
+| Live metrics | Search, Dual UI, Unified UI | `ENABLE_METRICS_MANAGER=true` | `compose.metrics-manager.yaml` | unchanged | Starts `metrics-manager` on API port `9090` and Prometheus port `9273`; nginx proxies its health and SSE stream. |
 
 ## Service names and default host ports
 
@@ -43,12 +43,12 @@ For config-only inspection, `up -d` becomes `config`.
 | `rabbitmq-service` | `compose.summary.yaml` | `5672`, `15672`, `1883` | AMQP, management UI, MQTT. |
 | `video-search` | `compose.search.yaml` | `VS_HOST_PORT=7890` -> `8000` | Search API/microservice. |
 | `vdms-vector-db` | `compose.search.yaml` | `VDMS_VDB_HOST_PORT=55555` -> `55555` | VDMS vector DB. |
-| `multimodal-dataprep` | `compose.search.yaml` | `VDMS_DATAPREP_HOST_PORT=6016` -> `8000` | Frame extraction, object detection, embedding prep. |
+| `multimodal-dataprep` | `compose.search.yaml` | `MM_DATAPREP_HOST_PORT=6016` -> `8000` | Frame extraction, object detection, embedding prep. |
 | `vector-retriever` | `compose.search.yaml` | `VECTOR_RETRIEVER_HOST_PORT=6008` -> `8000` | Vector similarity search; `video-search` delegates all queries here. |
 | `multimodal-embedding-serving` | `compose.search.yaml` | `EMBEDDING_SERVER_PORT=9777` -> `8000` | Embedding service; API endpoint `http://multimodal-embedding-serving:8000/embeddings`. |
 | `vss-singleton-ui` | `compose.ui.yaml` | behind nginx | Single Summary, Search, or Unified UI. |
 | `vss-summary-ui`, `vss-search-ui` | `compose.ui.yaml` | behind nginx | Separate Dual UI frontends. |
-| `vss-collector` | `compose.telemetry.yaml` | `9273:9273` | Optional telemetry collector. |
+| `metrics-manager` | `compose.metrics-manager.yaml` | `9090:9090`, `9273:9273` | Optional live metrics REST/SSE service. |
 
 ## Index and UI behavior
 

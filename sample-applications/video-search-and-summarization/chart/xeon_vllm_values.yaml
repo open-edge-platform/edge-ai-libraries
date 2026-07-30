@@ -93,7 +93,7 @@ multimodalembeddingms:
       memory: "10Gi"
 
 multimodaldataprep:
-  # Resource overrides for vdms-dataprep subchart
+  # Resource overrides for multimodal-dataprep subchart
   resources:
     requests:
       cpu: "1"

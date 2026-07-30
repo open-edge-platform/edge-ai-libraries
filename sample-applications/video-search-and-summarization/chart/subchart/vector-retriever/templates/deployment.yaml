@@ -24,6 +24,40 @@ spec:
         app.kubernetes.io/name: {{ include "vector-retriever.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      {{- if .Values.embeddingService.waitForHealthy }}
+      initContainers:
+        - name: wait-for-multimodal-embedding
+          image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" $repo "tag" (.Values.global.tag | default .Values.image.tag)) }}"
+          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.image.pullPolicy }}
+          command:
+            - python3
+            - -c
+          args:
+            - |
+              import os
+              import time
+              import urllib.request
+
+              url = os.environ["MME_HEALTH_URL"]
+              timeout = float(os.environ["MME_HEALTH_TIMEOUT_SECONDS"])
+              interval = float(os.environ["MME_HEALTH_RETRY_INTERVAL_SECONDS"])
+              while True:
+                  try:
+                      with urllib.request.urlopen(url, timeout=timeout) as response:
+                          if response.status == 200:
+                              print("Multimodal Embedding service is healthy")
+                              break
+                  except Exception as error:
+                      print(f"Waiting for Multimodal Embedding service: {error}")
+                  time.sleep(interval)
+          env:
+            - name: MME_HEALTH_URL
+              value: {{ .Values.embeddingService.healthUrl | quote }}
+            - name: MME_HEALTH_TIMEOUT_SECONDS
+              value: {{ .Values.embeddingService.healthTimeoutSeconds | quote }}
+            - name: MME_HEALTH_RETRY_INTERVAL_SECONDS
+              value: {{ .Values.embeddingService.retryIntervalSeconds | quote }}
+      {{- end }}
       containers:
         - name: vector-retriever
           image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" $repo "tag" (.Values.global.tag | default .Values.image.tag)) }}"

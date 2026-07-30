@@ -10,7 +10,7 @@
       "expectations": [
         "Uses the real chart location or chart name `video-search-and-summarization` and gives the summary install command `helm install vss . -f summary_override.yaml -f user_values_override.yaml -n \"$NAMESPACE\"` from the chart directory.",
         "Identifies `summary_override.yaml` as the mode selector and references real summary-mode toggles such as `rabbitmq.enabled=true`, `ovms.enabled=true`, `videoingestion.enabled=true`, `audioanalyzer.enabled=true`, `summaryui.enabled=true`, or `pipelinemanager.env.SUMMARY_FEATURE=FEATURE_ON`.",
-        "Lists required shared-storage/model values from `user_values_override.yaml`, including `global.usePvc`, `global.keepPvc`, `global.sharedPvcName`, and `global.vlmName`.",
+        "Lists the summary persistence/model values `global.usePvc`, `global.keepPvc`, and `global.vlmName`, and explains that `ovms.claimSize` can be overridden when the default workspace is too small.",
         "Calls out the required credentials under `global.env`, including `POSTGRES_USER`, `POSTGRES_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `RABBITMQ_DEFAULT_USER`, and `RABBITMQ_DEFAULT_PASS`.",
         "Includes the namespace creation step (`kubectl create namespace \"$NAMESPACE\"`) or otherwise makes it clear the Helm install should target a namespace such as `vss-deployment`."
       ]
@@ -60,15 +60,29 @@
     {
       "id": 5,
       "prompt_file": "example-prompts/05-storage-troubleshoot-pvc.md",
-      "prompt": "I uninstalled and reinstalled the `vss` Helm release in namespace `vss-deployment` (summary mode) to pick up a new `global.vlmName`, but pods are crashing on startup and it looks like it's reusing old model data because I have `global.keepPvc: true`. Also I suspect `sharedClaimSize: 7Gi` is too small for the new model. How do I clean this up safely and size storage correctly?",
-      "expected_output": "Provides a safe recovery path for a VSS Helm reinstall that is reusing incompatible PVC state, including warning about data loss, deleting the shared PVC only when accepted, increasing storage sizes, reinstalling, and verifying pods/logs/events.",
+      "prompt": "I uninstalled and reinstalled the `vss` Helm release in namespace `vss-deployment` (summary mode) to pick up a new `global.vlmName`, but the OVMS pod is crashing on startup and it looks like it is reusing old model data because I have `global.keepPvc: true`. I also suspect `ovms.claimSize` is too small for the new model. How do I clean this up safely and size summary-mode storage correctly?",
+      "expected_output": "Provides a safe summary-mode recovery path for incompatible retained OVMS model state, including a data-loss warning, targeted deletion of the OVMS PVC only after confirmation, increasing ovms.claimSize, reinstalling the summary stack, and verifying pods/logs/events.",
       "files": [],
       "expectations": [
         "Explains that `global.keepPvc: true` avoids re-downloading or re-converting models but can preserve incompatible stale PVC state after model changes.",
-        "Warns that deleting the PVC loses cached models/data and shows the targeted cleanup command `kubectl delete pvc vss-shared-pvc -n vss-deployment` or equivalent using `$NAMESPACE`.",
-        "Recommends increasing `sharedClaimSize` and names other real storage keys as applicable, such as `minioserver.claimSize`, `postgresql.claimSize`, `ovms.claimSize`, `vdmsvectordb.claimSize`, or `vllm.pvc.size`.",
+        "Warns that deleting a PVC loses cached model data and shows the targeted cleanup command `kubectl delete pvc vss-ovms-pvc -n vss-deployment` or equivalent using `$NAMESPACE`.",
+        "Recommends increasing `ovms.claimSize` and names other summary-mode storage keys only when applicable, such as `minioserver.claimSize`, `postgresql.claimSize`, `audioanalyzer.claimSize`, `videoingestion.claimSize`, or `vllm.pvc.size` when using vLLM.",
         "Uses the real summary reinstall stack `helm install vss . -f summary_override.yaml -f user_values_override.yaml -n vss-deployment` or the same command with `$NAMESPACE`.",
         "Includes verification with `kubectl get pods -n vss-deployment -w`, `kubectl logs -n vss-deployment deploy/vss-pipelinemanager`, and `kubectl get events -n vss-deployment --sort-by=.lastTimestamp` or equivalent namespace variables."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt_file": "example-prompts/07-search-storage-troubleshoot-pvc.md",
+      "prompt": "I uninstalled and reinstalled the `vss` Helm release in namespace `vss-deployment` (search mode) to pick up a new `global.embeddingModelName`, but Multimodal DataPrep and the embedding service are crashing and retained model caches may be incompatible because `global.keepPvc: true`. The default model PVC sizes may also be too small. How do I clean up only the affected search PVCs and resize them safely?",
+      "expected_output": "Provides a search-mode recovery path that identifies the independent Multimodal DataPrep and embedding-service model PVCs, warns before deleting retained cache data, increases both modelPvc sizes, reinstalls with search_override.yaml, and verifies the search pods.",
+      "files": [],
+      "expectations": [
+        "Explains that search mode uses independent `multimodaldataprep.modelPvc` and `multimodalembeddingms.modelPvc` settings rather than a shared PVC.",
+        "Warns that deletion loses cached models and targets `vss-multimodaldataprep-models-pvc` and `vss-multimodalembeddingms-models-pvc` in namespace `vss-deployment`, mentioning the corresponding data PVCs only when their Hugging Face cache also needs cleanup.",
+        "Recommends increasing both `multimodaldataprep.modelPvc.size` and `multimodalembeddingms.modelPvc.size`, or using each subchart's `modelPvc.existingClaim` for operator-managed claims.",
+        "Uses the search reinstall stack `helm install vss . -f search_override.yaml -f user_values_override.yaml -n vss-deployment` or the equivalent command with `$NAMESPACE`.",
+        "Verifies Multimodal DataPrep, the embedding service, and cluster events with `kubectl get pods`, targeted `kubectl logs`, and `kubectl get events --sort-by=.lastTimestamp`."
       ]
     },
     {

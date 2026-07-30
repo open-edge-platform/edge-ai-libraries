@@ -1,10 +1,11 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 import { HttpService } from '@nestjs/axios';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { tap } from 'rxjs';
+import { isAxiosError } from 'axios';
+import { defer, retry, tap, timer } from 'rxjs';
 import { SearchEvents } from 'src/events/Pipeline.events';
 import {
   DataPrepBatchJobStatusRO,
@@ -17,11 +18,45 @@ import {
 
 @Injectable()
 export class DataPrepShimService {
+  private static readonly RETRYABLE_POLL_STATUS_CODES = new Set([
+    408, 429, 500, 502, 503, 504,
+  ]);
+
+  private static readonly RETRYABLE_POLL_ERROR_CODES = new Set([
+    'ECONNABORTED',
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'EPIPE',
+    'ETIMEDOUT',
+    'EAI_AGAIN',
+  ]);
+
   constructor(
     private $config: ConfigService,
     private $http: HttpService,
     private $emitter: EventEmitter2,
   ) {}
+
+  private getNonNegativeInteger(key: string, fallback: number): number {
+    const value = this.$config.get<number>(key);
+    return typeof value === 'number' && Number.isFinite(value)
+      ? Math.max(0, Math.floor(value))
+      : fallback;
+  }
+
+  private isRetryableBatchPollError(error: unknown): boolean {
+    if (!isAxiosError(error)) {
+      return false;
+    }
+
+    if (error.response?.status !== undefined) {
+      return DataPrepShimService.RETRYABLE_POLL_STATUS_CODES.has(
+        error.response.status,
+      );
+    }
+
+    return DataPrepShimService.RETRYABLE_POLL_ERROR_CODES.has(error.code ?? '');
+  }
 
   createEmbeddings(data: DataPrepMinioDTO) {
     const dataPrepEndpoint: string =
@@ -70,10 +105,42 @@ export class DataPrepShimService {
     const dataPrepEndpoint: string =
       this.$config.get<string>('search.dataPrep')!;
     const api = [dataPrepEndpoint, 'media', 'jobs', jobId].join('/');
-    const timeout =
-      this.$config.get<number>('search.dataPrepTimeoutMs') ?? 30000;
+    const timeout = this.getNonNegativeInteger(
+      'search.dataPrepPollTimeoutMs',
+      10000,
+    );
+    const maxRetries = this.getNonNegativeInteger(
+      'search.dataPrepPollMaxRetries',
+      3,
+    );
+    const retryDelayMs = this.getNonNegativeInteger(
+      'search.dataPrepPollRetryDelayMs',
+      500,
+    );
 
-    return this.$http.get<DataPrepBatchJobStatusRO>(api, { timeout }).pipe(
+    return defer(() =>
+      this.$http.get<DataPrepBatchJobStatusRO>(api, { timeout }),
+    ).pipe(
+      retry({
+        count: maxRetries,
+        delay: (error, retryCount) => {
+          if (!this.isRetryableBatchPollError(error)) {
+            throw error;
+          }
+
+          const delayMs = retryDelayMs * 2 ** (retryCount - 1);
+          const reason = isAxiosError(error)
+            ? error.response?.status
+              ? `HTTP ${error.response.status}`
+              : (error.code ?? 'network error')
+            : 'unknown error';
+          Logger.warn(
+            `Transient DataPrep batch-status poll failure (${reason}); ` +
+              `retrying ${retryCount}/${maxRetries} in ${delayMs} ms`,
+          );
+          return timer(delayMs);
+        },
+      }),
       tap((response) => {
         const state = response.data?.state;
         if (

@@ -31,6 +31,12 @@ service:
   port: 8000
   portName: http
 
+embeddingService:
+  waitForHealthy: true
+  healthUrl: "http://multimodal-embedding-ms:8000/health"
+  healthTimeoutSeconds: 5
+  retryIntervalSeconds: 5
+
 resources: {}
 
 livenessProbe:

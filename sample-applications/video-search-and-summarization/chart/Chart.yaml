@@ -33,7 +33,7 @@ dependencies:
     version: 1.3.2
     repository: "file://subchart/vdms-vectordb/"
     condition: vdmsvectordb.enabled
-  - name: vdmsdataprep
+  - name: multimodal-dataprep
     alias: multimodaldataprep
     version: 2.0.0
     repository: "file://subchart/multimodal-dataprep/"
@@ -65,3 +65,8 @@ dependencies:
     version: 1.3.2
     repository: "file://subchart/vss-ui/"
     condition: searchui.enabled
+  - name: metrics-manager
+    alias: metricsmanager
+    version: 2.0.0
+    repository: "file://subchart/metrics-manager/"
+    condition: global.metricsManager.enabled

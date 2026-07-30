@@ -66,7 +66,7 @@ curl -s "$HOST/manager/app/features" | jq .   # search/summary flags
 curl -s "$HOST/manager/app/config"   | jq .   # resolved system config
 
 # 3. Subsystem probes
-curl -s "$HOST/manager/metrics/status" | jq .  # telemetry collector
+curl -s "$HOST/metrics-manager/health"          # optional live metrics service
 curl -s "$HOST/manager/audio/models"   | jq .  # whisper models (summary modes)
 curl -s "$HOST/manager/pipeline/evam"  | jq .  # EVAM pipeline status
 ```
@@ -83,7 +83,7 @@ is usually **starting**, not broken - wait and re-probe.
 
 ### 1. Containers are missing, stopped, unhealthy, or crash-looping
 
-Check these exact services first: `nginx`, `pipeline-manager`, `postgres-service`, `minio-service`, `ovms-service`, `vllm-cpu-service`, `video-ingestion`, `audio-analyzer`, `rabbitmq-service`, `video-search`, `vdms-vector-db`, `multimodal-dataprep`, `vector-retriever`, `multimodal-embedding-serving`, and optional `vss-collector`.
+Check these exact services first: `nginx`, `pipeline-manager`, `postgres-service`, `minio-service`, `ovms-service`, `vllm-cpu-service`, `video-ingestion`, `audio-analyzer`, `rabbitmq-service`, `video-search`, `vdms-vector-db`, `multimodal-dataprep`, `vector-retriever`, `multimodal-embedding-serving`, and optional `metrics-manager`.
 
 Why: Compose `depends_on` gates many services on health. For example, summary mode needs `ovms-service` or `vllm-cpu-service`, `video-ingestion`, `rabbitmq-service`, and `audio-analyzer`; search mode needs `multimodal-dataprep`, `vector-retriever`, and `multimodal-embedding-serving` healthy.
 

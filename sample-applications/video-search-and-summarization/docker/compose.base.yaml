@@ -40,7 +40,7 @@ services:
       minio-service:
         condition: service_started
     environment:
-      no_proxy: ${no_proxy},${EVAM_HOST},${VLM_HOST},${AUDIO_HOST},${RABBITMQ_HOST},${MINIO_HOST},${POSTGRES_HOST},${OVMS_HOST},${VDMS_DATAPREP_HOST},${VS_HOST},localhost
+      no_proxy: ${no_proxy},${EVAM_HOST},${VLM_HOST},${AUDIO_HOST},${RABBITMQ_HOST},${MINIO_HOST},${POSTGRES_HOST},${OVMS_HOST},${MM_DATAPREP_HOST},${VS_HOST},localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       MINIO_PROTOCOL: "http:"
@@ -62,11 +62,10 @@ services:
       PRODUCE_FINAL_SUMMARY: ${PM_PRODUCE_FINAL_SUMMARY:-true}
       OTLP_TRACE_URL: ${OTLP_TRACE_URL:-}
       OTEL_CONSOLE_EXPORTER: ${OTEL_CONSOLE_EXPORTER:-false}
-      DATAPREP_TELEMETRY_URL: ${DATAPREP_TELEMETRY_URL:-http://multimodal-dataprep:8000/v1/dataprep/telemetry?limit=1}
-      TELEMETRY_SIGNAL_DIR: ${TELEMETRY_SIGNAL_DIR:-/app/.collector-signals}
       SEARCH_DATAPREP_TIMEOUT_MS: ${SEARCH_DATAPREP_TIMEOUT_MS:-600000}
-    volumes:
-      - collector_signals:/app/.collector-signals
+      SEARCH_DATAPREP_POLL_MAX_RETRIES: ${SEARCH_DATAPREP_POLL_MAX_RETRIES:-3}
+      SEARCH_DATAPREP_POLL_TIMEOUT_MS: ${SEARCH_DATAPREP_POLL_TIMEOUT_MS:-10000}
+      SEARCH_DATAPREP_POLL_RETRY_DELAY_MS: ${SEARCH_DATAPREP_POLL_RETRY_DELAY_MS:-500}
     restart: unless-stopped
     user: "0:0"
     healthcheck:
@@ -128,8 +127,6 @@ volumes:
   minio_data:
     driver: local
   pg_data:
-    driver: local
-  collector_signals:
     driver: local
 networks:
   vs_network:

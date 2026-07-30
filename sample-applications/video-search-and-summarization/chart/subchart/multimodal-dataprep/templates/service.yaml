@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: "multimodal-dataprep"
   labels:
-    {{ include "vdms-dataprep.labels" . | nindent 4 }}
+    {{ include "multimodal-dataprep.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -13,4 +13,4 @@ spec:
       name: {{ .Values.service.portName }}
   
   selector:
-    {{- include "vdms-dataprep.selectorLabels" . | nindent 4 }}
+    {{- include "multimodal-dataprep.selectorLabels" . | nindent 4 }}

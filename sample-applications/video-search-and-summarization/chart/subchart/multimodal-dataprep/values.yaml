@@ -1,4 +1,4 @@
-# Default values for VDMS DataPrep Service.
+# Default values for Multimodal DataPrep Service.
 
 global:
   # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
@@ -10,8 +10,8 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # sharedPvcName is the chart-level shared PVC used outside this subchart (collector signals).
-  sharedPvcName: ""
+  metricsManager:
+    enabled: false
 
   # Common release tags to be used for several dependencies
   commonTag: ""
@@ -141,6 +141,9 @@ vdbIndexType: "FLAT"
 multimodalEmbeddingEndpoint: "http://multimodal-embedding-ms:8000/embeddings"
 defaultBucketName: "video-summary"
 logLevel: "INFO"
+metricsManager:
+  url: "http://metrics-manager:9090"
+  timeoutSeconds: 2
 uploadPolicy:
   allowDuplicateUploads: true
 cors:

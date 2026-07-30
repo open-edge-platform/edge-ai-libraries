@@ -15,6 +15,10 @@ global:
   # Leave empty to keep the default (IfNotPresent); set "Always" to force a pull on every start.
   pullPolicy: ""
 
+  # Enable live CPU, RAM, GPU, NPU, and DataPrep throughput metrics.
+  metricsManager:
+    enabled: false
+
   # accelGroupIds are the host group ids owning the accelerator device nodes
   # (/dev/dri for GPU, /dev/accel for NPU). They are added to the pod
   # supplementalGroups for any service configured to use a GPU or NPU, so the
@@ -104,6 +108,3 @@ videoingestion:
   odModelName: ""
   # odModelType defines the type of Object Detection Model. e.g., "yolo_v8"
   odModelType: ""
-
-vsscollector:
-  enabled: false

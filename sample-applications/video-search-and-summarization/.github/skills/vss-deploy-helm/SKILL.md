@@ -69,7 +69,6 @@ Minimum required values for most modes:
 global:
   usePvc: true
   keepPvc: true
-  sharedPvcName: vss-shared-pvc
   huggingfaceToken: "hf_..."   # needed for gated/private Hugging Face models
   vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"
   llmName: ""                  # optional OVMS split-model summarization model
@@ -84,11 +83,27 @@ global:
     MINIO_ROOT_PASSWORD: "change-me-8chars"
     RABBITMQ_DEFAULT_USER: "guest"
     RABBITMQ_DEFAULT_PASS: "change-me"
+
+# Summary/OVMS model workspace:
+ovms:
+  claimSize: "20Gi"
+
+# Search model caches (needed only when search is enabled):
+multimodaldataprep:
+  modelPvc:
+    enabled: true
+    size: "10Gi"
+multimodalembeddingms:
+  modelPvc:
+    enabled: true
+    size: "10Gi"
 ```
 
 Why these matter:
-- `global.usePvc` and `global.sharedPvcName` control shared model/cache storage for `multimodaldataprep`, `multimodalembeddingms`, pipeline-manager collector signals, and OVMS model storage paths.
+- `global.usePvc` enables the service-specific claims; OVMS, Multimodal DataPrep, and the embedding service no longer share one PVC.
 - `global.keepPvc: true` avoids re-downloading/re-converting models after uninstall, but stale PVCs can also preserve incompatible old state.
+- `ovms.claimSize` sizes the summary-mode OVMS model workspace.
+- `multimodaldataprep.modelPvc` and `multimodalembeddingms.modelPvc` independently configure search model caches.
 - `global.vlmName` is required for summary/unified modes and is used by OVMS or by vLLM.
 - `global.embeddingModelName` is required when search components are enabled.
 
@@ -306,8 +321,13 @@ curl http://localhost:8081/ovms/metrics
 - Helm fails with GPU key errors: set `global.devices.*.key` for every non-CPU device.
 - Helm fails with embedding/dataprep pairing: set both `global.devices.multimodalEmbedding.device` and `global.devices.multimodalDataprep.embedding.device` to the same value.
 - Search returns bad/no results: confirm `global.embeddingModelName` matches the mode and `global.vdmsIndexName` came from the right override file.
-- Reinstall still broken with `global.keepPvc: true`: stale PVC contents may be incompatible. Delete the relevant PVC only if the user accepts losing cached models/data:
+- Reinstall still broken with `global.keepPvc: true`: stale PVC contents may be incompatible. Identify the affected mode and delete only its PVCs after the user accepts losing cached models/data:
   ```bash
-  kubectl delete pvc vss-shared-pvc -n "$NAMESPACE"
+  # Summary with OVMS:
+  kubectl delete pvc vss-ovms-pvc -n "$NAMESPACE"
+
+  # Search model caches:
+  kubectl delete pvc vss-multimodaldataprep-models-pvc \
+    vss-multimodalembeddingms-models-pvc -n "$NAMESPACE"
   ```
-- Need larger storage: set `sharedClaimSize`, `minioserver.claimSize`, `postgresql.claimSize`, `ovms.claimSize`, `vdmsvectordb.claimSize`, or `vllm.pvc.size` as needed.
+- Need larger storage: set `multimodaldataprep.modelPvc.size`, `multimodalembeddingms.modelPvc.size`, `minioserver.claimSize`, `postgresql.claimSize`, `ovms.claimSize`, `vdmsvectordb.claimSize`, or `vllm.pvc.size` as needed.

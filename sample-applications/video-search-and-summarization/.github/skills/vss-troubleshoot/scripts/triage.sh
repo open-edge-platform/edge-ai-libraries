@@ -32,7 +32,7 @@ compose_args=(
     -f docker/compose.vllm.yaml
     -f docker/compose.search.yaml
     -f docker/compose.ui.yaml
-    -f docker/compose.telemetry.yaml
+    -f docker/compose.metrics-manager.yaml
     --profile ovms
     --profile vlm-ov
     --profile vllm
@@ -57,7 +57,7 @@ services=(
     multimodal-dataprep
     vector-retriever
     multimodal-embedding-serving
-    vss-collector
+    metrics-manager
 )
 
 find_container_ids() {
@@ -107,7 +107,7 @@ declare -a health_checks=(
     "vllm-cpu-service|http://localhost:${VLLM_HOST_PORT:-8200}/health"
     "video-ingestion|http://localhost:${EVAM_PIPELINE_HOST_PORT:-8090}/pipelines"
     "audio-analyzer|http://localhost:${AUDIO_HOST_PORT:-8999}/api/v1/health"
-    "multimodal-dataprep|http://localhost:${VDMS_DATAPREP_HOST_PORT:-6016}/v1/dataprep/health"
+    "multimodal-dataprep|http://localhost:${MM_DATAPREP_HOST_PORT:-6016}/v1/dataprep/health"
     "vector-retriever|http://localhost:${VECTOR_RETRIEVER_HOST_PORT:-6008}/ready"
     "multimodal-embedding-serving|http://localhost:${EMBEDDING_SERVER_PORT:-9777}/health"
 )

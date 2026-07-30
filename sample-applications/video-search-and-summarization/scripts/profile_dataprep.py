@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Profile VDMS DataPrep throughput via pipeline manager and telemetry."""
+"""Profile Multimodal DataPrep throughput via pipeline manager and telemetry."""
 
 from __future__ import annotations
 
@@ -84,7 +84,7 @@ class ProfileResult:
 
 def parse_args() -> ProfileArgs:
     parser = argparse.ArgumentParser(
-        description="Profile VDMS DataPrep by sweeping worker and batch size combinations",
+        description="Profile Multimodal DataPrep by sweeping worker and batch size combinations",
     )
     parser.add_argument(
         "--pipeline-manager-url",

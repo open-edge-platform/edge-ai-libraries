@@ -38,9 +38,12 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | `pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | Include full audio transcript summary by default |
 | `PRODUCE_FINAL_SUMMARY` | `pipelinemanager.env.PRODUCE_FINAL_SUMMARY` | Consolidate chunk summaries into final summary by default |
 | `SEARCH_DATAPREP_TIMEOUT_MS` | `pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS`; `videosearch.env.SEARCH_DATAPREP_TIMEOUT_MS` | Timeout for search dataprep |
+| `SEARCH_DATAPREP_POLL_MAX_RETRIES` | `pipelinemanager.env.SEARCH_DATAPREP_POLL_MAX_RETRIES` | Maximum retries for transient batch-status polling failures |
+| `SEARCH_DATAPREP_POLL_TIMEOUT_MS` | `pipelinemanager.env.SEARCH_DATAPREP_POLL_TIMEOUT_MS` | Timeout for each batch-status polling request; independent of total batch processing time |
+| `SEARCH_DATAPREP_POLL_RETRY_DELAY_MS` | `pipelinemanager.env.SEARCH_DATAPREP_POLL_RETRY_DELAY_MS` | Initial batch-status retry delay; subsequent retries use exponential backoff |
 | `OD_MODEL_NAME`, `OD_MODEL_TYPE` | `videoingestion.odModelName`, `videoingestion.odModelType` | Object detection model config for video ingestion |
-| Docker named volumes | `global.usePvc`, `global.keepPvc`, `sharedClaimSize`, `*.claimSize`, `*.modelPvc.size`, `vllm.pvc.size` | Kubernetes persistent storage sizes and retention |
-| `ENABLE_VSS_COLLECTOR=true` / `compose.telemetry.yaml` | `vsscollector.enabled=true`, `vsscollector.websocketUrl`, `vsscollector.signalVolume.subPath` | Deploys `vss-collector`; only useful when search or unified enables `multimodaldataprep` |
+| Docker named volumes | `global.usePvc`, `global.keepPvc`, `*.claimSize`, `*.modelPvc.size`, `vllm.pvc.size` | Kubernetes persistent storage sizes and retention |
+| `ENABLE_METRICS_MANAGER=true` / `compose.metrics-manager.yaml` | `global.metricsManager.enabled=true` | Deploys Metrics Manager and configures DataPrep publishing in search-enabled modes. |
 
 ## Important actual values.yaml keys
 
@@ -49,8 +52,6 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `global.volumeHostPath` | `/mnt/vss-data` | HostPath fallback location when not using PVC; for Kubernetes deployment prefer PVCs. |
 | `global.usePvc` | `false` in `values.yaml`; `true` in `user_values_override.yaml` | Controls whether chart creates/uses PVC storage. |
 | `global.keepPvc` | `false` | Adds keep behavior for PVCs to avoid model re-downloads. |
-| `global.sharedPvcName` | `vss-shared-pvc` | Shared PVC name for VDMS Dataprep and Multimodal Embedding MS; also referenced by main templates. |
-| `sharedClaimSize` | `7Gi` | Size for the main shared PVC. Increase for model/cache needs. |
 | `global.huggingfaceToken` | empty | Required for gated Hugging Face models and passed to OVMS/vLLM paths. |
 | `global.vlmName` | empty | VLM model used by OVMS or vLLM; required in summary/unified. |
 | `global.llmName` | empty | Optional separate OVMS LLM model; empty means shared VLM model. |
@@ -90,7 +91,8 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `vdmsvectordb.enabled` | `false` | Enabled by search/unified. Image `intellabs/vdms:v2.12.0`. |
 | `videosearch.enabled` | `false` | Enabled by search/unified. Image `intel/video-search:2026.1.0-rc1`. |
 | `summaryui.enabled`, `searchui.enabled` | `false` | UI aliases. `summaryui` becomes summary or unified UI; `searchui` is separate Search UI in search/dual. |
-| `vsscollector.enabled` | `false` | Deploys telemetry collector image `docker.io/intel/vippet-collector:2026.0.0`. |
+| `global.metricsManager.enabled` | `false` | Enables the Metrics Manager subchart, nginx health/SSE routes, and DataPrep publisher environment. |
+| `metricsmanager.image.repository/tag` | `intel/metrics-manager` / `2026.2.0-20260715-weekly` | Metrics Manager runtime image. |
 
 ## Rendered resource names with release `vss`
 

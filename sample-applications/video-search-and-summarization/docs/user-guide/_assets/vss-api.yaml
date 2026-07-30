@@ -530,20 +530,6 @@ paths:
       summary: Check service health status
       tags:
         - Health
-  /metrics/status:
-    get:
-      operationId: TelemetryController_status
-      parameters: []
-      responses:
-        '200':
-          description: Telemetry collector status
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TelemetryStatusRO'
-      summary: Get telemetry collector connection status
-      tags:
-        - Metrics
 info:
   title: Pipeline Manager
   description: Pipeline Manager API
@@ -784,15 +770,3 @@ components:
           description: ID of the created summary pipeline state
       required:
         - summaryPipelineId
-    TelemetryStatusRO:
-      type: object
-      properties:
-        collectorConnected:
-          type: boolean
-          description: Whether the telemetry collector is connected
-        message:
-          type: string
-          description: Status message
-      required:
-        - collectorConnected
-        - message

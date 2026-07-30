@@ -46,7 +46,7 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `POSTGRES_HOST_PORT`, `POSTGRES_DB`, `POSTGRES_HOST` | `5432`, `video_summary_db`, `postgres-service` | PostgreSQL. |
 | `MINIO_API_HOST_PORT`, `MINIO_CONSOLE_HOST_PORT`, `MINIO_HOST` | `4001`, `4002`, `minio-service` | MinIO API/console. |
 | `VDMS_VDB_HOST_PORT`, `VDMS_VDB_HOST` | `55555`, `vdms-vector-db` | VDMS vector DB. |
-| `VDMS_DATAPREP_HOST_PORT`, `VDMS_DATAPREP_HOST`, `VDMS_DATAPREP_ENDPOINT` | `6016`, `multimodal-dataprep`, `http://multimodal-dataprep:8000` | Search data preparation service (`multimodal-dataprep`; env var names retain the `VDMS_DATAPREP_` prefix). |
+| `MM_DATAPREP_HOST_PORT`, `MM_DATAPREP_HOST`, `MM_DATAPREP_ENDPOINT` | `6016`, `multimodal-dataprep`, `http://multimodal-dataprep:8000` | Search data preparation service (`multimodal-dataprep`). |
 | `VECTOR_RETRIEVER_HOST_PORT` | `6008` | Vector Retriever service; `video-search` delegates all similarity search to it at `http://vector-retriever:8000/query`. Backend flavor (`vector-retriever-vdms`/`vector-retriever-milvus`) is baked at build time from `VECTORDB_BACKEND`. |
 | `VS_HOST_PORT`, `VS_HOST`, `VS_ENDPOINT` | `7890`, `video-search`, `http://video-search:8000` | Video Search service. |
 | `EMBEDDING_SERVER_PORT`, `MULTIMODAL_EMBEDDING_HOST`, `MULTIMODAL_EMBEDDING_ENDPOINT` | `9777`, `multimodal-embedding-serving`, `http://multimodal-embedding-serving:8000/embeddings` | Embedding service. |
@@ -121,7 +121,7 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `ROI_CONSOLIDATION_IOU_THRESHOLD` | `0.2` | ROI grouping threshold. |
 | `ROI_CONSOLIDATION_CLASS_AWARE` | `false` | Merge only same class when true. |
 | `ROI_CONSOLIDATION_CONTEXT_SCALE` | `0.2` | Expand merged ROI. |
-| `VDMS_DATAPREP_LOG_LEVEL` | `INFO` | Data prep log level. |
+| `MM_DATAPREP_LOG_LEVEL` | `INFO` | Data prep log level. |
 | `EMBEDDING_BATCH_SIZE` | `32` | Embedding batch size. |
 | `MAX_PARALLEL_WORKERS` | empty | Optional data prep worker limit. |
 | `AGGREGATION_ENABLED` | `true` | Frame-to-video aggregation. |
@@ -142,7 +142,8 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `APP_FEATURE_MUX` | set by mode | `ATOMIC` for singleton summary/search; `SUMMARY_SEARCH` for Unified. |
 | `APP_SUMMARY_FEATURE` | set by mode | UI summary feature flag. |
 | `APP_SEARCH_FEATURE` | set by mode | UI search feature flag. |
-| `ENABLE_VSS_COLLECTOR` | `false` | Adds `compose.telemetry.yaml` when `true`. |
+| `ENABLE_METRICS_MANAGER` | `false` | Adds `compose.metrics-manager.yaml` in search-enabled modes when `true`. |
+| `METRICS_MANAGER_HOST_PORT` | `9090` | Metrics Manager REST/SSE API host port. |
+| `METRICS_MANAGER_PROMETHEUS_HOST_PORT` | `9273` | Metrics Manager Prometheus host port. |
+| `MM_DATAPREP_METRICS_MANAGER_TIMEOUT_SECONDS` | `2` | Timeout for DataPrep metrics publishing. |
 | `OTLP_TRACE_URL` | empty | Pipeline Manager telemetry trace URL. |
-| `DATAPREP_TELEMETRY_URL` | `http://multimodal-dataprep:8000/v1/dataprep/telemetry?limit=1` | Pipeline Manager data prep telemetry URL. |
-| `TELEMETRY_SIGNAL_DIR` | `/app/.collector-signals` | Shared collector signal directory. |

@@ -56,7 +56,7 @@ stop_containers() {
         -f docker/compose.search.yaml \
         -f docker/compose.search.milvus.yaml \
         -f docker/compose.ui.yaml \
-        -f docker/compose.telemetry.yaml \
+        -f docker/compose.metrics-manager.yaml \
         --profile ovms --profile vlm-ov --profile vllm --profile vllm-xpu \
         --profile dual_ui --profile singleton_unified_ui \
         --profile singleton_summary_ui \
@@ -84,8 +84,7 @@ docker_vdms-db \
 docker_milvus-db \
 docker_milvus-etcd \
 docker_audio_analyzer_data \
-docker_data-prep \
-docker_collector_signals"
+docker_data-prep"
 
     local removed=""
     local failed=""
@@ -348,10 +347,10 @@ if [ "$VECTORDB_BACKEND" = "milvus" ]; then
 fi
 
 # env for multimodal-dataprep-ms
-export VDMS_DATAPREP_HOST_PORT=6016
-export VDMS_DATAPREP_HOST=multimodal-dataprep
-export VDMS_DATAPREP_ENDPOINT=http://$VDMS_DATAPREP_HOST:8000
-export VDMS_PIPELINE_MANAGER_UPLOAD=http://pipeline-manager:3000
+export MM_DATAPREP_HOST_PORT=6016
+export MM_DATAPREP_HOST=multimodal-dataprep
+export MM_DATAPREP_ENDPOINT=http://$MM_DATAPREP_HOST:8000
+export VIDEO_UPLOAD_ENDPOINT=http://pipeline-manager:3000
 export DEFAULT_BUCKET_NAME="video-summary"
 
 # YOLOX model volume configuration for object detection
@@ -373,7 +372,7 @@ export ROI_CONSOLIDATION_CONTEXT_SCALE=${ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
 export FRAMES_TEMP_DIR=${FRAMES_TEMP_DIR:-"/tmp/dataprep"}
 
 # Application configuration
-export VDMS_DATAPREP_LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+export MM_DATAPREP_LOG_LEVEL=${MM_DATAPREP_LOG_LEVEL:-INFO}
 export MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=${MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS:-true}
 export MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-""}
 export EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
@@ -506,8 +505,8 @@ export UI_ASSETS_ENDPOINT=${UI_ASSETS_ENDPOINT:-/datastore}
 
 export CONFIG_SOCKET_APPEND=${CONFIG_SOCKET_APPEND} # Set this to CONFIG_ON in your shell, if nginx not being used
 
-# Telemetry collector toggle for search (disabled by default)
-export ENABLE_VSS_COLLECTOR=${ENABLE_VSS_COLLECTOR:-false}
+# Metrics Manager toggle for search (disabled by default)
+export ENABLE_METRICS_MANAGER=${ENABLE_METRICS_MANAGER:-false}
 
 # Object detection model settings
 export OD_MODEL_NAME=${OD_MODEL_NAME}
@@ -1208,11 +1207,18 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
         echo -e  "[multimodal-dataprep] ${GREEN}Vector-DB backend: ${YELLOW}VDMS${GREEN} (video-search delegates search to vector-retriever at ${YELLOW}${VS_RETRIEVER_ENDPOINT}${GREEN}).${NC}"
     fi
     echo -e  "[nginx] ${GREEN}Using UI routing config: ${YELLOW}${NGINX_UI_CONFIG}${NC}"
-    if [ "$ENABLE_VSS_COLLECTOR" = true ]; then
-        APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.telemetry.yaml"
-        echo -e  "[telemetry] ${GREEN}vss-collector enabled (set ENABLE_VSS_COLLECTOR=true to keep enabled)${NC}"
+    if [ "$ENABLE_METRICS_MANAGER" = true ]; then
+        case "$APP_COMPOSE_FILE" in
+            *docker/compose.search.yaml*)
+                APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.metrics-manager.yaml"
+                echo -e  "[metrics-manager] ${GREEN}Metrics Manager enabled (set ENABLE_METRICS_MANAGER=true to keep enabled)${NC}"
+                ;;
+            *)
+                echo -e  "[metrics-manager] ${YELLOW}Metrics Manager requires a search-enabled mode; ignoring ENABLE_METRICS_MANAGER for summary-only mode${NC}"
+                ;;
+        esac
     else
-        echo -e  "[telemetry] ${YELLOW}vss-collector disabled (set ENABLE_VSS_COLLECTOR=true to enable)${NC}"
+        echo -e  "[metrics-manager] ${YELLOW}Metrics Manager disabled (set ENABLE_METRICS_MANAGER=true to enable)${NC}"
     fi
 
     # Validate expected OpenVINO artifact; directory-only checks can miss partial/incomplete model state.

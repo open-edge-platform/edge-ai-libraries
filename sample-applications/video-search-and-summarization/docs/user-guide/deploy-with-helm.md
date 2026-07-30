@@ -82,7 +82,7 @@ Update or edit the values in YAML file as follows:
 | `global.registry` | Single-source image registry override for all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, multimodal-dataprep, multimodal-embedding-serving, vector-retriever). Leave empty to keep each subchart's own default. | `""` or `my-registry.example.com/vss/` |
 | `global.tag` | Single-source image tag override for the VSS service images above. Leave empty to keep each subchart's own default tag. | `""` or `2026.2.0-rc1` |
 | `global.pullPolicy` | Image pull policy override for the VSS service images above. Leave empty to keep each subchart's default (`IfNotPresent`). Set to `Always` to force a fresh pull on every pod start (e.g. when reusing a mutable tag). | `""`, `Always`, or `IfNotPresent` |
-| `global.sharedPvcName` | Name for shared PVC used by collector signal exchange (`pipeline-manager` ↔ `vss-collector`) | `vss-shared-pvc` |
+| `global.metricsManager.enabled` | Deploy Metrics Manager and enable direct DataPrep metric publishing | `true` or `false` |
 | `global.keepPvc` | PVC gets deleted by default once helm is uninstalled. Set this to true to persist PVC (helps avoid delay due to model re-downloads when re-installing chart). | `true` or `false` |
 | `global.huggingfaceToken` | Your Hugging Face API token | `<your-huggingface-token>` |
 | `global.proxy.http_proxy` | HTTP proxy if required | `http://proxy-example.com:000` |
@@ -122,9 +122,8 @@ Update or edit the values in YAML file as follows:
 | `pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS` | Timeout in milliseconds for search dataprep operations (video embedding pipeline). Increase for large videos or slow hardware. | `600000` (default, 10 minutes) |
 | `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
 | `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
-| `vsscollector.enabled` | Enable the telemetry collector sidecar (telegraf-based) | `true` or `false` |
-| `vsscollector.websocketUrl` | Override the telemetry websocket URL (defaults to `ws://pipeline-manager:80/metrics/ws/collector`) | `ws://pipeline-manager:80/metrics/ws/collector` |
-| `vsscollector.signalVolume.subPath` | Subpath under the shared volume for telemetry signal files | `collector-signals` |
+| `metricsmanager.image.repository` | Metrics Manager image repository | `docker.io/intel/metrics-manager` |
+| `metricsmanager.image.tag` | Metrics Manager image tag | `2026.2.0-20260715-weekly` |
 
 > **`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` override:** You do **not** need to put this in `user_values_override.yaml`. You can set it directly at install/upgrade time with `--set`, for example:
 >
@@ -145,7 +144,14 @@ Update or edit the values in YAML file as follows:
 
 > **OpenVINO model cache:** On GPU/NPU, `multimodal-embedding-ms` and `multimodal-dataprep` write the first-time OpenVINO model compilation to `ovCacheDir` (default `/app/ov_models/ov_cache`, on the persistent models mount), so the compile is reused across pod restarts instead of recompiling on every start. The DataPrep `startupProbe` budget is sized to allow this first cold compile to finish before the pod is restarted.
 
-> **Telemetry (vss-collector):** When `vsscollector.enabled=true`, the chart deploys a telegraf-based collector and wires it to the pipeline-manager websocket at `/metrics/ws/collector`. If your cluster uses a non-default Service port or a custom ingress, set `vsscollector.websocketUrl` explicitly. **Note:** The vss-collector is only deployed in **search mode** (using `search_override.yaml`) or **unified summary+search mode** (using `unified_summary_search.yaml`). It is not part of the summary-only stack; setting `vsscollector.enabled=true` in `user_values_override.yaml` has no effect when deploying with `summary_override.yaml` alone.
+> **Metrics Manager:** Set `global.metricsManager.enabled=true` for search,
+> dual, or unified deployments. The chart mounts host `/dev`, `/sys`, and
+> `/run`, uses host PID visibility, and runs the service privileged so it can
+> collect CPU, RAM, Intel GPU, and Intel NPU metrics. DataPrep publishes
+> embeddings/sec directly to `http://metrics-manager:9090`; nginx exposes only
+> `/metrics-manager/health` and `/metrics-manager/metrics/stream`. The bundled
+> DataPrep image must contain the direct publisher introduced with this
+> integration. Missing GPU/NPU devices simply result in absent device metrics.
 
 
 > **Split-device OVMS example (GPU VLM + NPU LLM):**
@@ -435,20 +441,27 @@ helm uninstall vss -n $my_namespace
 
 If any of the microservice requires more or less storage than the default allotted storage in values file, this can be overridden for one or more services.
 
-### Updating storage for VDMS-Dataprep and MultiModal Embedding Service
+### Updating storage for Multimodal DataPrep and MultiModal Embedding Service
 
-Set the required `sharedClaimSize` value while installing the helm chart.
+Multimodal DataPrep and the MultiModal Embedding Service use independent model
+PVCs. Override either or both PVC sizes while installing the Helm chart.
 
-For example, if installing chart in search only mode :
+For example, when installing the chart in search-only mode:
 
 ```bash
-helm install vss . -f search_override.yaml -f user_values_override.yaml --set sharedClaimSize=10Gi -n $my_namespace
+helm install vss . -f search_override.yaml -f user_values_override.yaml \
+  --set multimodaldataprep.modelPvc.size=20Gi \
+  --set multimodalembeddingms.modelPvc.size=15Gi \
+  -n $my_namespace
 ```
 
-If installing the chart in the combined Video Search and Summarization mode :
+The same settings apply in combined Video Search and Summarization mode:
 
 ```bash
-helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml --set sharedClaimSize=10Gi -n $my_namespace
+helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml \
+  --set multimodaldataprep.modelPvc.size=20Gi \
+  --set multimodalembeddingms.modelPvc.size=15Gi \
+  -n $my_namespace
 ```
 
 ### Updating storage for other microservices
@@ -504,8 +517,6 @@ If not set while installing the chart, all services will claim a default amount 
     # If modelPvc.enabled=false, delete the fallback data PVCs instead:
     # kubectl delete pvc <release-name>-multimodalembeddingms-data-pvc -n $my_namespace
     # kubectl delete pvc <release-name>-multimodaldataprep-data-pvc -n $my_namespace
-    # If vsscollector is enabled, also delete:
-    # kubectl delete pvc vss-shared-pvc -n $my_namespace
     ```
 
   If you are using custom PVC names via existing claims, delete those claim names instead.
@@ -535,6 +546,25 @@ If not set while installing the chart, all services will claim a default amount 
 - [How to Build from Source](./build-from-source.md)
 
 ## Monitoring and Metrics
+
+### Metrics Manager live metrics
+
+With `global.metricsManager.enabled=true`, verify the same-origin routes through
+nginx:
+
+```bash
+curl http://localhost:8081/metrics-manager/health
+curl -N -H "Accept: text/event-stream" \
+  http://localhost:8081/metrics-manager/metrics/stream
+```
+
+The stream supplies `cpu_usage_user`, `mem_used_percent`,
+`gpu_engine_usage_usage`, `npu_utilization`, and
+`dataprep_embeddings_per_second` to the UI. If system metrics are missing,
+check that the pod is privileged, uses `hostPID: true`, and can read the host
+device and sysfs mounts. If only embeddings/sec is missing, verify the DataPrep
+image supports `MM_DATAPREP_METRICS_MANAGER_URL` and inspect both DataPrep and
+Metrics Manager logs.
 
 ### OVMS Prometheus Metrics
 

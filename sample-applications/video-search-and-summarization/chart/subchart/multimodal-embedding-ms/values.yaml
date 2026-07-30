@@ -8,9 +8,6 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # sharedPvcName is the chart-level shared PVC used outside this subchart (collector signals).
-  sharedPvcName: ""
-
   # Common release tags to be used for several dependencies
   commonTag: ""
   embeddingModelName: ""

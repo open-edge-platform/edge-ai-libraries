@@ -1,5 +1,5 @@
-{{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.devices.multimodalDataprep.embedding.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
-{{- $detectionDevice := .Values.frameProcessing.dataprepDetectionDevice | default .Values.global.devices.multimodalDataprep.detection.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
+{{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.devices.multimodalDataprep.embedding.device | default .Values.embedding.device | default "CPU" -}}
+{{- $detectionDevice := .Values.frameProcessing.dataprepDetectionDevice | default .Values.global.devices.multimodalDataprep.detection.device | default .Values.embedding.device | default "CPU" -}}
 {{- $embeddingUsesGpu := eq $embeddingDevice "GPU" -}}
 {{- $embeddingUsesNpu := eq $embeddingDevice "NPU" -}}
 {{- $embeddingUsesAccelerator := or $embeddingUsesGpu $embeddingUsesNpu -}}
@@ -10,9 +10,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "vdms-dataprep.fullname" . }}-config
+  name: {{ include "multimodal-dataprep.fullname" . }}-config
   labels:
-    {{- include "vdms-dataprep.labels" . | nindent 4 }}
+    {{- include "multimodal-dataprep.labels" . | nindent 4 }}
 data:
   MM_DATAPREP_APP_HOST: "multimodal-dataprep"
   MM_DATAPREP_VECTORDB_BACKEND: {{ .Values.global.vectordbBackend | default .Values.vectorDbBackend | quote }}
@@ -29,7 +29,7 @@ data:
   MM_DATAPREP_DB_COLLECTION: {{ .Values.global.vdmsIndexName | quote }}
   http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
   https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
-  no_proxy: "localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,multimodal-dataprep,vdms-vectordb,vector-retriever,videosearch,.svc.cluster.local"
+  no_proxy: "localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,multimodal-dataprep,metrics-manager,vdms-vectordb,vector-retriever,videosearch,.svc.cluster.local"
   MM_DATAPREP_MINIO_ACCESS_KEY: {{ .Values.global.env.MINIO_ROOT_USER | quote }}
   MM_DATAPREP_MINIO_SECRET_KEY: {{ .Values.global.env.MINIO_ROOT_PASSWORD | quote }}
   MM_DATAPREP_MINIO_ENDPOINT: {{ .Values.minioServer.name }}:{{ .Values.minioServer.service.port }}
@@ -81,7 +81,11 @@ data:
   # Persist the OpenVINO compiled-model cache on the (writable, persistent) ov_models
   # volume so GPU/NPU graph compilation runs once instead of on every pod start.
   OV_CACHE_DIR: {{ .Values.ovCacheDir | default "/app/ov_models/ov_cache" | quote }}
-  MM_DATAPREP_LOG_LEVEL: {{ .Values.logLevel | default .Values.global.env.VDMS_DATAPREP_LOG_LEVEL | default "INFO" | quote }}
+  MM_DATAPREP_LOG_LEVEL: {{ .Values.logLevel | default .Values.global.env.MM_DATAPREP_LOG_LEVEL | default "INFO" | quote }}
+  {{- if .Values.global.metricsManager.enabled }}
+  MM_DATAPREP_METRICS_MANAGER_URL: {{ .Values.metricsManager.url | quote }}
+  MM_DATAPREP_METRICS_MANAGER_TIMEOUT_SECONDS: {{ .Values.metricsManager.timeoutSeconds | quote }}
+  {{- end }}
   {{- if hasKey .Values.uploadPolicy "allowDuplicateUploads" }}
   MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS: {{ printf "%v" .Values.uploadPolicy.allowDuplicateUploads | quote }}
   {{- else if hasKey .Values.global.env "MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS" }}

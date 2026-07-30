@@ -240,13 +240,13 @@ Alternatively, switch to a model with a larger context window.
 
 ## Embedding Fails on NPU/GPU in Kubernetes (Device Permission)
 
-**Problem**: On a Helm deployment, video embedding fails when `multimodal-embedding-ms` or `vdms-dataprep` is configured for `NPU` (or `GPU`), even though the device plugin granted the resource and `/dev/accel` (or `/dev/dri`) is mounted in the pod. The UI may show a generic embedding failure.
+**Problem**: On a Helm deployment, video embedding fails when `multimodal-embedding-ms` or `multimodal-dataprep` is configured for `NPU` (or `GPU`), even though the device plugin granted the resource and `/dev/accel` (or `/dev/dri`) is mounted in the pod. The UI may show a generic embedding failure.
 
 **Cause**: The container runs as a non-root user. The accelerator device node (`/dev/accel` for NPU, `/dev/dri` for GPU) is owned by a host group (gid). Without that gid in the pod's `supplementalGroups`, the user cannot open the device, so OpenVINO enumerates only `['CPU']` and NPU/GPU plugin initialization fails — sometimes with a misleading "cannot load library …compiler_loader.so" message even though the library exists.
 
 **Symptoms**:
 
-- `multimodal-embedding-ms` / `vdms-dataprep` logs show `DEVICES: ['CPU']` (NPU/GPU missing) and an NPU/GPU plugin/compiler load failure.
+- `multimodal-embedding-ms` / `multimodal-dataprep` logs show `DEVICES: ['CPU']` (NPU/GPU missing) and an NPU/GPU plugin/compiler load failure.
 - The pod has the device mounted and the resource granted, yet inference stays on CPU or errors out.
 
 **Solution**:

@@ -53,7 +53,7 @@ sample-applications/video-search-and-summarization/
 │   ├── compose.vllm.yaml          # vLLM CPU backend
 │   ├── compose.vllm.xpu.yaml      # vLLM Intel Arc Pro B-series GPU/XPU backend (experimental)
 │   ├── compose.gpu_ovms.yaml
-│   └── compose.telemetry.yaml
+│   └── compose.metrics-manager.yaml
 ├── docs/
 │   └── user-guide/                # User guides and tutorials
 ├── pipeline-manager/              # Orchestrates summarization and search pipelines
@@ -232,17 +232,25 @@ Before running the application, you need to set several environment variables:
 
    > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
 
-9. **(Optional) Telemetry collection (Search and Dual UI mode)**:
+9. **(Optional) Metrics Manager (Search, Dual UI, and Unified UI modes)**:
 
-   The deployment can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI. Telemetry is only applicable in `--search` and `--summary --search` modes.
+   Metrics Manager collects CPU, RAM, Intel® GPU, and Intel® NPU metrics and
+   serves them to the UI over server-sent events. Multimodal DataPrep publishes
+   each completed embedding pipeline's embeddings-per-second value directly to
+   Metrics Manager; Pipeline Manager is not part of this path.
 
    ```bash
    # Disabled by default
-   export ENABLE_VSS_COLLECTOR=false
+   export ENABLE_METRICS_MANAGER=false
 
-   # Enable the collector if you want telemetry
-   export ENABLE_VSS_COLLECTOR=true
+   # Enable live metrics
+   export ENABLE_METRICS_MANAGER=true
    ```
+
+   This integration requires the coordinated `multimodal-dataprep` image that
+   supports `MM_DATAPREP_METRICS_MANAGER_URL`. Metrics publishing is
+   non-blocking: video ingestion continues if Metrics Manager is unavailable.
+   GPU and NPU panels remain empty on hosts without those devices.
 
 10. **Tune Inference Concurrency (Summary and Dual UI mode)**:
 
@@ -544,12 +552,14 @@ Follow these steps to run the application:
      source setup.sh --summary-and-search    # or, `source setup.sh --search-and-summary`
      ```
 
-      > **Telemetry** (applicable to `--search` and `--summary --search` modes only): The telemetry collector is disabled by default. Enable it with:
+      > **Live metrics:** Metrics Manager is disabled by default. Enable it with:
       >
       > ```bash
-      > ENABLE_VSS_COLLECTOR=true source setup.sh --search
+      > ENABLE_METRICS_MANAGER=true source setup.sh --search
       > # or
-      > ENABLE_VSS_COLLECTOR=true source setup.sh --summary --search
+      > ENABLE_METRICS_MANAGER=true source setup.sh --summary --search
+      > # or
+      > ENABLE_METRICS_MANAGER=true source setup.sh --summary-and-search
       > ```
 
       > **📁 Directory Watcher**: For automated video ingestion into the Search pipeline, see the [Directory Watcher Service Guide](./directory-watcher-guide.md).

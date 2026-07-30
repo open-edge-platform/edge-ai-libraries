@@ -15,7 +15,7 @@ services:
                 condition: service_started
         environment:
             SEARCH_ENDPOINT: ${VS_ENDPOINT}
-            SEARCH_DATAPREP_ENDPOINT: ${VDMS_DATAPREP_ENDPOINT}
+            SEARCH_DATAPREP_ENDPOINT: ${MM_DATAPREP_ENDPOINT}
             SEARCH_FEATURE: "FEATURE_ON"
 
     video-search:
@@ -34,8 +34,8 @@ services:
         ports:
             - '${VS_HOST_PORT}:8000'
         environment:
-            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},vector-retriever,pipeline-manager,localhost
-            no_proxy_env: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},vector-retriever,pipeline-manager,localhost
+            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${MM_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},vector-retriever,pipeline-manager,localhost
+            no_proxy_env: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${MM_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},vector-retriever,pipeline-manager,localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             EMBEDDINGS_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT}
@@ -49,7 +49,7 @@ services:
             DEBOUNCE_TIME: ${VS_DEBOUNCE_TIME}
             DELETE_PROCESSED_FILES: ${VS_DELETE_PROCESSED_FILES}
             VS_INITIAL_DUMP: ${VS_INITIAL_DUMP}
-            VIDEO_UPLOAD_ENDPOINT: ${VDMS_PIPELINE_MANAGER_UPLOAD}
+            VIDEO_UPLOAD_ENDPOINT: ${VIDEO_UPLOAD_ENDPOINT}
             WATCH_DIRECTORY_RECURSIVE: ${VS_WATCH_DIRECTORY_RECURSIVE}
             WATCH_BATCH_SIZE: ${VS_WATCH_BATCH_SIZE:-10}
             BATCH_JOB_POLL_INTERVAL_SECONDS: ${VS_BATCH_JOB_POLL_INTERVAL_SECONDS:-0.5}
@@ -89,7 +89,7 @@ services:
         image: ${REGISTRY:-}multimodal-dataprep:${TAG:-latest}
         hostname: multimodal-dataprep
         environment:
-            no_proxy: ${no_proxy},${VDMS_VDB_HOST},${MINIO_HOST},localhost
+            no_proxy: ${no_proxy},${VDMS_VDB_HOST},${MINIO_HOST},metrics-manager,localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             # Basic app settings
@@ -158,7 +158,7 @@ services:
             MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE: ${ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
 
             # Application configuration
-            MM_DATAPREP_LOG_LEVEL: ${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+            MM_DATAPREP_LOG_LEVEL: ${MM_DATAPREP_LOG_LEVEL:-INFO}
             # Duplicate-upload policy (true keeps historical behavior; false returns 409
             # when the uploaded content already exists).
             MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS: ${MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS:-true}
@@ -173,7 +173,7 @@ services:
                 hard: 65535
         ipc: host
         ports:
-            - '${VDMS_DATAPREP_HOST_PORT}:8000'
+            - '${MM_DATAPREP_HOST_PORT}:8000'
         depends_on:
             vdms-vector-db:
                 condition: service_started
@@ -213,8 +213,8 @@ services:
             - '${EMBEDDING_SERVER_PORT:-9777}:8000'
         ipc: host
         environment:
-            no_proxy: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST},localhost
-            no_proxy_env: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST},localhost
+            no_proxy: ${no_proxy},${MINIO_HOST},${MM_DATAPREP_HOST},localhost
+            no_proxy_env: ${no_proxy},${MINIO_HOST},${MM_DATAPREP_HOST},localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}

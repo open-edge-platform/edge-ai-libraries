@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "vdms-dataprep.fullname" . }}-models-pvc
+  name: {{ include "multimodal-dataprep.fullname" . }}-models-pvc
   {{- if .Values.global.keepPvc }}
   annotations:
     helm.sh/resource-policy: keep

@@ -23,6 +23,15 @@ export default () => ({
     dataPrepTimeoutMs: process.env.SEARCH_DATAPREP_TIMEOUT_MS
       ? Number(process.env.SEARCH_DATAPREP_TIMEOUT_MS)
       : 30000,
+    dataPrepPollMaxRetries: process.env.SEARCH_DATAPREP_POLL_MAX_RETRIES
+      ? Number(process.env.SEARCH_DATAPREP_POLL_MAX_RETRIES)
+      : 3,
+    dataPrepPollTimeoutMs: process.env.SEARCH_DATAPREP_POLL_TIMEOUT_MS
+      ? Number(process.env.SEARCH_DATAPREP_POLL_TIMEOUT_MS)
+      : 10000,
+    dataPrepPollRetryDelayMs: process.env.SEARCH_DATAPREP_POLL_RETRY_DELAY_MS
+      ? Number(process.env.SEARCH_DATAPREP_POLL_RETRY_DELAY_MS)
+      : 500,
   },
   database: {
     host: process.env.DB_HOST,

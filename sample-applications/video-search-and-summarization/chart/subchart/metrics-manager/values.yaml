@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+global:
+  proxy:
+    no_proxy: ""
+    http_proxy: ""
+    https_proxy: ""
+
+image:
+  repository: intel/metrics-manager
+  tag: "2026.2.0-20260715-weekly"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+deploymentNameOverride: ""
+imagePullSecrets: []
+
+# Schedule Metrics Manager with this release's Multimodal DataPrep pod so its
+# host device mounts report the accelerators used by DataPrep.
+coLocateWithDataPrep: false
+
+service:
+  type: ClusterIP
+  metricsPort: 9090
+  telegrafPort: 9273
+
+config:
+  logLevel: INFO
+  corsOrigins: "*"
+  prometheusPollIntervalMs: 1000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

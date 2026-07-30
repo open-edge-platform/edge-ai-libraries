@@ -1,5 +1,5 @@
-{{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.devices.multimodalDataprep.embedding.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
-{{- $detectionDevice := .Values.frameProcessing.dataprepDetectionDevice | default .Values.global.devices.multimodalDataprep.detection.device | default .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default "CPU" -}}
+{{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.devices.multimodalDataprep.embedding.device | default .Values.embedding.device | default "CPU" -}}
+{{- $detectionDevice := .Values.frameProcessing.dataprepDetectionDevice | default .Values.global.devices.multimodalDataprep.detection.device | default .Values.embedding.device | default "CPU" -}}
 {{- $embeddingUsesGpu := eq $embeddingDevice "GPU" -}}
 {{- $embeddingUsesNpu := eq $embeddingDevice "NPU" -}}
 {{- $embeddingUsesAccelerator := or $embeddingUsesGpu $embeddingUsesNpu -}}
@@ -21,14 +21,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "vdms-dataprep.fullname" . }}
+  name: {{ include "multimodal-dataprep.fullname" . }}
   labels:
-    {{- include "vdms-dataprep.labels" . | nindent 4 }}
+    {{- include "multimodal-dataprep.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "vdms-dataprep.selectorLabels" . | nindent 6 }}
+      {{- include "multimodal-dataprep.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -36,7 +36,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "vdms-dataprep.labels" . | nindent 8 }}
+        {{- include "multimodal-dataprep.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -72,7 +72,7 @@ spec:
               value: "multimodal-dataprep"
           envFrom:
             - configMapRef:
-                name: {{ include "vdms-dataprep.fullname" . }}-config
+                name: {{ include "multimodal-dataprep.fullname" . }}-config
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.image.repository "tag" (.Values.global.tag | default (ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion))) }}"
@@ -161,7 +161,7 @@ spec:
             claimName: {{ .Values.modelPvc.existingClaim }}
           {{- else if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: {{ include "vdms-dataprep.fullname" . }}-models-pvc
+            claimName: {{ include "multimodal-dataprep.fullname" . }}-models-pvc
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}
@@ -173,7 +173,7 @@ spec:
         - name: volume-data
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: {{ include "vdms-dataprep.fullname" . }}-data-pvc
+            claimName: {{ include "multimodal-dataprep.fullname" . }}-data-pvc
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

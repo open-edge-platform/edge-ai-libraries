@@ -34,14 +34,23 @@ spec:
             httpGet:
               path: /healthz
               port: 9091
-            initialDelaySeconds: 90
             periodSeconds: 30
+            timeoutSeconds: 2
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /healthz
               port: 9091
-            initialDelaySeconds: 90
-            periodSeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 9091
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 24
           {{- with .Values.milvus.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
