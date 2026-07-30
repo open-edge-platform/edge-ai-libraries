@@ -2539,6 +2539,104 @@ class ModelDownloadJobSummary(BaseModel):
     source: ModelSource
 
 
+class ModelCheckStatusRequest(BaseModel):
+    """
+    **Request body for checking installation status of multiple models by display name.**
+
+    Pass a list of model display names to check their installation status.
+    The endpoint will return information for all matching models.
+
+    ## Attributes
+    - `display_names` - List of model display names to check
+
+    ### Example
+    ```json
+    {
+      "display_names": ["YOLO 11n 640x640", "MobileNet V2 PyTorch"]
+    }
+    ```
+    """
+
+    display_names: list[str] = Field(
+        ...,
+        min_length=1,
+        description="Non-empty list of model display names to check.",
+    )
+
+    @model_validator(mode="after")
+    def validate_no_empty_names(self) -> "ModelCheckStatusRequest":
+        """Reject empty or whitespace-only display names."""
+        for name in self.display_names:
+            if not name or not name.strip():
+                raise ValueError("Model display names must be non-empty strings.")
+        return self
+
+
+class ModelStatusItem(BaseModel):
+    """
+    **Single model status item returned by check-status endpoint.**
+
+    Contains the essential identification and status fields for a model.
+
+    ## Attributes
+    - `name` - Internal model identifier used by the backend
+    - `display_name` - Human-readable model name
+    - `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)
+
+    ### Example
+    ```json
+    {
+      "name": "yolo11n",
+      "display_name": "YOLO 11n 640x640",
+      "install_status": "installed"
+    }
+    ```
+    """
+
+    name: str = Field(..., description="Internal model identifier.")
+    display_name: str = Field(..., description="Human-readable model name.")
+    install_status: ModelInstallStatus = Field(
+        ...,
+        description="Current install status of the model.",
+    )
+
+
+class ModelCheckStatusResponse(BaseModel):
+    """
+    **Response body from POST /models/check-status.**
+
+    Returns a list of models matching the requested display names,
+    with their installation status. If a display name is not found,
+    it is omitted from the response.
+
+    ## Attributes
+    - `models` - List of model status items
+
+    ### Example
+    ```json
+    {
+      "models": [
+        {
+          "name": "yolo11n",
+          "display_name": "YOLO 11n 640x640",
+          "install_status": "installed"
+        },
+        {
+          "name": "mobilenet-v2-pytorch",
+          "display_name": "MobileNet V2 PyTorch",
+          "install_status": "not_installed"
+        }
+      ]
+    }
+    ```
+    """
+
+    models: list[ModelStatusItem] = Field(
+        default_factory=list,
+        description="List of model status items for requested display names.",
+    )
+
+
 class MetricSample(BaseModel):
     """
     **Single metric sample used in streaming metrics APIs.**

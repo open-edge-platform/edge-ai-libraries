@@ -95,21 +95,21 @@ Read a reference file only when you need the detail it contains:
 | [plugins-guide.md](./references/plugins-guide.md) | Per-plugin request bodies, parameters, and curl examples |
 | [troubleshooting.md](./references/troubleshooting.md) | Auth errors, stuck jobs, plugin not activated, venv failures |
 
-## Example Scenarios
+## Example Prompts
 
 Read these only if the user's request matches:
 
 | File | Covers |
 |------|--------|
-| [examples/huggingface.md](./examples/huggingface.md) | Downloading public and gated HF models |
-| [examples/openvino-llm.md](./examples/openvino-llm.md) | LLM → OpenVINO conversion (INT4/INT8) |
-| [examples/openvino-vlm.md](./examples/openvino-vlm.md) | VLM → OpenVINO conversion |
-| [examples/openvino-embeddings.md](./examples/openvino-embeddings.md) | Embedding model → OpenVINO for OVMS |
-| [examples/ollama.md](./examples/ollama.md) | Pulling Ollama models |
-| [examples/ultralytics-quantized.md](./examples/ultralytics-quantized.md) | YOLO models + INT8 quantization |
-| [examples/geti.md](./examples/geti.md) | Downloading from Intel Geti |
-| [examples/hls-healthcare.md](./examples/hls-healthcare.md) | 3D Pose, rPPG, AI-ECG healthcare models |
-| [examples/pipeline-zoo.md](./examples/pipeline-zoo.md) | DL Streamer pipeline-zoo models |
+| [examples-prompts/huggingface.md](./examples-prompts/huggingface.md) | Downloading public and gated HF models |
+| [examples-prompts/openvino-llm.md](./examples-prompts/openvino-llm.md) | LLM to OpenVINO conversion (INT4/INT8) |
+| [examples-prompts/openvino-vlm.md](./examples-prompts/openvino-vlm.md) | VLM to OpenVINO conversion |
+| [examples-prompts/openvino-embeddings.md](./examples-prompts/openvino-embeddings.md) | Embedding model to OpenVINO for OVMS |
+| [examples-prompts/ollama.md](./examples-prompts/ollama.md) | Pulling Ollama models |
+| [examples-prompts/ultralytics-quantized.md](./examples-prompts/ultralytics-quantized.md) | YOLO models with INT8 quantization |
+| [examples-prompts/geti.md](./examples-prompts/geti.md) | Downloading from Intel Geti |
+| [examples-prompts/hls-healthcare.md](./examples-prompts/hls-healthcare.md) | 3D Pose, rPPG, AI-ECG healthcare models |
+| [examples-prompts/pipeline-zoo.md](./examples-prompts/pipeline-zoo.md) | DL Streamer pipeline-zoo models |
 
 ---
 
