@@ -19,13 +19,15 @@ services:
     user: "1000:1000"
     ports:
       - "8010:8010"
-    devices:
-      - /dev/dri:/dev/dri
     group_add:
       - video
       - "${RENDER_GID:-992}"
     environment:
       HF_HOME: /app/audio_analyzer/.cache/huggingface
+      # NPU runtime selection. ZE_ENABLE_ALT_DRIVERS is required for Intel NPU
+      # enumeration; ACCEL_MOUNT_PATH should point to the host NPU device node
+      # (for example /dev/accel/accel0 on Meteor Lake systems).
+      ZE_ENABLE_ALT_DRIVERS: libze_intel_npu.so
       # HF_TOKEN: required when diarization is enabled to download gated pyannote models.
       # Set in your shell: export HF_TOKEN=hf_xxx  (or use a .env file).
       HF_TOKEN: ${HF_TOKEN:-}
@@ -43,6 +45,9 @@ services:
       - audio_analyzer_chunks:/app/audio_analyzer/chunks
       - audio_analyzer_storage:/app/audio_analyzer/storage
       - audio_analyzer_cache:/app/audio_analyzer/.cache
+    devices:
+      - /dev/dri:/dev/dri
+      - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
     # Whisper warmup on GPU can take ~120s; override the image healthcheck
     # so connection-refused during boot doesn't trip `unhealthy`.
     healthcheck:

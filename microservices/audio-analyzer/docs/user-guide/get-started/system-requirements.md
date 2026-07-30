@@ -14,6 +14,10 @@
 - **GPU (optional)**: Intel integrated GPU (Meteor Lake or newer iGPU) or a
   supported discrete GPU exposed via `/dev/dri` for the OpenVINO `GPU`
   device path.
+- **NPU (optional)**: Intel NPU on Meteor Lake or newer, exposed via a host
+  NPU device node and used by setting `ACCEL_MOUNT_PATH` to that node
+  (commonly `/dev/accel/accel0` on Meteor Lake systems), plus the
+  `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so` runtime variable.
 - **Microphone (optional)**: ALSA-compatible capture device if you intend
   to list devices via `GET /devices` or pass `/dev/snd` into the container.
 
@@ -23,6 +27,7 @@
 | Memory                | 16 GB RAM            | 32 GB RAM                                                                                           |
 | Disk                  | 20 GB free SSD space | NVMe storage                                                                                        |
 | GPU (optional)        | Not applicable       | Intel integrated GPU (Meteor Lake or newer iGPU) or a supported discrete GPU exposed via `/dev/dri` |
+| NPU (optional)        | Not applicable       | Intel NPU on Meteor Lake or newer exposed via a host NPU device node (commonly `/dev/accel/accel0`)      |
 | Microphone (optional) | Not applicable       | ALSA-compatible capture device with `/dev/snd` access when needed                                   |
 
 ## Software Requirements
@@ -49,6 +54,17 @@ sudo apt-get install -y ffmpeg alsa-utils libsndfile1
 
 - Python 3.10 or newer.
 - Dependencies installed from `requirements.txt`.
+
+### Hugging Face Access (For Speaker Diarization)
+
+If you plan to enable speaker diarization in `config.yaml`, you must have:
+
+- A [Hugging Face account](https://huggingface.co/settings/tokens) with a personal access token (free).
+- Acceptance of the [Pyannote speaker-diarization model license](https://huggingface.co/pyannote/speaker-diarization-community-1)
+  on Hugging Face (one-time gate acceptance required).
+- The access token set as `HF_TOKEN` in `.env` or the environment before starting the service.
+
+If speaker diarization is not enabled in `config.yaml`, `HF_TOKEN` is not required.
 
 ## Network Requirements
 
