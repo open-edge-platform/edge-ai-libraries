@@ -101,8 +101,8 @@ export const BenchmarkSuiteRunsTable = ({
           [...suiteRuns]
             .sort((a, b) => b.start_time - a.start_time)
             .map((run) => {
-              const totalTests = run.total_test_cases || 0;
-              const passedTests = run.passed_test_cases || 0;
+              const totalTests = run.total_test_cases ?? 0;
+              const passedTests = run.passed_test_cases ?? 0;
               const passRate =
                 totalTests > 0 ? (passedTests / totalTests) * 100 : 0;
 

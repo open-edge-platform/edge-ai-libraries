@@ -139,8 +139,8 @@ export const BenchmarkSuiteRunDetailsTable = ({
       <TableBody>
         {runDetails.workload_runs.length > 0 ? (
           runDetails.workload_runs.map((workloadRun) => {
-            const total = workloadRun.total_test_cases || 0;
-            const passed = workloadRun.passed_test_cases || 0;
+            const total = workloadRun.total_test_cases ?? 0;
+            const passed = workloadRun.passed_test_cases ?? 0;
             const passRate = total > 0 ? (passed / total) * 100 : 0;
             const workload = benchmark.workloads.find(
               (w) => w.id === workloadRun.workload_id,

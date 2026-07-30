@@ -12,12 +12,11 @@ import { CARDS_GRID_CLASS, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Play } from "lucide-react";
 
-const getBenchmarkTestCount = (benchmark: BenchmarkSuite): number => {
-  return benchmark.workloads.reduce(
+const getBenchmarkTestCount = (benchmark: BenchmarkSuite) =>
+  benchmark.workloads.reduce(
     (total, workload) => total + workload.test_cases.length,
     0,
   );
-};
 
 type BenchmarkCardsProps = {
   benchmarks: BenchmarkSuite[];
