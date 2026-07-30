@@ -1,6 +1,6 @@
 # How to Build from Source
 
-Build the VDMS-DataPrep microservice from source to customize, debug, or extend its functionality. In this guide, you will:
+Build the Multimodal DataPrep microservice from source to customize, debug, or extend its functionality. In this guide, you will:
 - Set up your development environment.
 - Compile the source code and resolve dependencies.
 - Generate a runnable build for local testing or deployment.

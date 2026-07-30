@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-FastAPI application entry point for VDMS DataPrep microservice.
+FastAPI application entry point for Multimodal DataPrep microservice.
 
 This module initializes the FastAPI application with all necessary middleware,
 routers, and configuration for the Visual Data Management System (VDMS) based
@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 
 from src.common import logger, settings
 from src.common.schema import DataPrepResponse, StatusEnum
+from src.core.metrics_manager import start_metrics_publisher, stop_metrics_publisher
 from src.core.vectorstores import get_vector_store
 from src.endpoints import (
     batch_ingest_router,
@@ -75,8 +76,8 @@ async def _run_startup_preloads() -> None:
 
     try:
         from src.core.embedding.embedding_helper import (
-            preload_object_detector,
             preload_embedding_client,
+            preload_object_detector,
         )
         from src.core.utils.config_utils import get_config
     except Exception as exc:  # pragma: no cover - defensive guard
@@ -138,11 +139,14 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Multimodal-Dataprep Service . . .")
     _log_runtime_settings()
 
+    await start_metrics_publisher()
     await _run_startup_preloads()
 
     try:
         yield
     finally:
+        await stop_metrics_publisher()
+
         # Flush/refresh the active vector store index before teardown. This is a
         # backend-agnostic call: VDMS persists its descriptor-set index, Milvus
         # is a no-op (eager indexing).
@@ -211,4 +215,3 @@ app.include_router(telemetry_router)
 app.include_router(list_videos_router)
 app.include_router(download_video_router)
 app.include_router(delete_video_router)
-

@@ -21,8 +21,9 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from src.common import logger, sanitize_for_log, settings
-from src.core.telemetry.recorder import record_video_telemetry
 from src.common.schema import TelemetryRecord
+from src.core.metrics_manager import publish_embeddings_throughput
+from src.core.telemetry.recorder import record_video_telemetry
 
 # Import embedding helper for optimized processing
 from .embedding_helper import (
@@ -259,7 +260,8 @@ def _record_pipeline(
             "batch_size": pipeline_config.get("batch_size"),
         }
 
-        context["completed_at"] = time.time()
+        completed_at = time.time()
+        context["completed_at"] = completed_at
         record = record_video_telemetry(
             context=context,
             video_metadata=video_metadata,
@@ -267,6 +269,11 @@ def _record_pipeline(
             config=config,
         )
         _log_telemetry_record(record)
+        if record is not None:
+            publish_embeddings_throughput(
+                record.stage_throughput["embeddings_throughput"],
+                completed_at,
+            )
     except Exception as exc:
         logger.warning("Unable to record telemetry: %s", exc)
 

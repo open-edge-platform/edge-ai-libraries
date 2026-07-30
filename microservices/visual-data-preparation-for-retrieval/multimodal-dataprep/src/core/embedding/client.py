@@ -3,23 +3,37 @@
 
 """SDK-based embedding client that stores embeddings produced by the MME SDK."""
 
+import os
 import threading
 import time
 import traceback
 from collections.abc import Iterable
-from typing import Any
-from typing import List
-from typing import Optional
+from typing import Any, List, Optional
 
 import numpy as np
-from multimodal_embedding_serving import EmbeddingModel
-from multimodal_embedding_serving import get_model_handler
+from multimodal_embedding_serving import EmbeddingModel, get_model_handler
 from PIL import Image
 
-from src.common import Strings
-from src.common import logger
-from src.common import settings
+from src.common import Strings, logger, settings
 from src.core.vectorstores import get_vector_store
+
+
+def _configure_mme_sdk_environment() -> None:
+    """Translate DataPrep-owned settings into the embedded MME SDK contract.
+
+    DataPrep exposes only namespaced ``MM_DATAPREP_*`` settings, while the
+    in-process MME package reads these three model-tuning values directly from
+    the process environment. Keep that compatibility boundary internal so
+    deployments do not need to configure both naming schemes.
+    """
+
+    os.environ["INFER_BATCH_SIZE"] = str(settings.EMBEDDING_BATCH_SIZE)
+    os.environ["OV_PERFORMANCE_MODE"] = settings.OV_PERFORMANCE_MODE
+
+    if settings.MAX_PARALLEL_WORKERS is None:
+        os.environ.pop("MAX_PARALLEL_WORKERS", None)
+    else:
+        os.environ["MAX_PARALLEL_WORKERS"] = str(settings.MAX_PARALLEL_WORKERS)
 
 
 class EmbeddingClient:
@@ -36,6 +50,7 @@ class EmbeddingClient:
     - Uses optimized batch sizes for vector store operations
     - Aligns with standard persistence flows to maintain index continuity
     """
+
     @staticmethod
     def _to_list(embedding: Any) -> List[float]:
         """Convert an embedding tensor/array into a plain Python list."""
@@ -76,14 +91,14 @@ class EmbeddingClient:
     ) -> None:
         """
         Initialize the SDK client with embedding model and the vector store.
-        
+
         Args:
             model_id: Model identifier for embedding generation
             device: Device to run the model on (CPU, GPU, etc.)
             use_openvino: Whether to use OpenVINO optimization
             ov_models_dir: Directory for OpenVINO models
             db_host: Vector DB host (defaults to settings)
-            db_port: Vector DB port (defaults to settings)  
+            db_port: Vector DB port (defaults to settings)
             collection_name: Vector DB collection name (defaults to settings)
         """
         # Store embedding model configuration
@@ -91,17 +106,18 @@ class EmbeddingClient:
         self.device = device
         self.use_openvino = use_openvino
         self.ov_models_dir = ov_models_dir
-        
-        # Store Vector DB configuration  
+
+        # Store Vector DB configuration
         self.db_host = db_host or settings.VDMS_VDB_HOST
         self.db_port = db_port or settings.VDMS_VDB_PORT
         self.collection_name = collection_name or settings.DB_COLLECTION
-        
+
         # Synchronization for vector store operations
         self._store_lock = threading.RLock()
 
         # Initialize the embedding model
         logger.info("Initializing embedding model: %s", model_id or "<unspecified>")
+        _configure_mme_sdk_environment()
         self.model_handler = get_model_handler(
             model_id=model_id,
             device=device,
@@ -117,12 +133,12 @@ class EmbeddingClient:
         self.embedding_model = EmbeddingModel(self.model_handler)
 
         self.embedding_dimensions = self._resolve_embedding_dimensions()
-        
+
         # Initialize vector store connection
         self._init_vector_store()
 
         logger.info("SDK client initialized with model: %s", self.model_id)
-    
+
     def _detect_modalities(self, model_id: str) -> tuple[bool, bool]:
         text_supported = False
         image_supported = False
@@ -175,7 +191,7 @@ class EmbeddingClient:
     def _probe_embedding_dimensions(self) -> int:
         """
         Auto-detect embedding dimensions by testing the model with a dummy input.
-        
+
         Returns:
             int: The detected embedding dimensions
         """
@@ -189,7 +205,7 @@ class EmbeddingClient:
                 logger.debug(
                     "Image probe type=%s length=%s",
                     type(test_embedding),
-                    len(test_embedding) if test_embedding is not None else 'None',
+                    len(test_embedding) if test_embedding is not None else "None",
                 )
                 if test_embedding is not None and len(test_embedding) > 0:
                     embedding_list = self._to_list(test_embedding[0])
@@ -205,7 +221,7 @@ class EmbeddingClient:
                 logger.debug(
                     "Text probe type=%s length=%s",
                     type(test_embedding),
-                    len(test_embedding) if test_embedding is not None else 'None',
+                    len(test_embedding) if test_embedding is not None else "None",
                 )
                 if test_embedding is not None and len(test_embedding) > 0:
                     embedding_list = self._to_list(test_embedding[0])
@@ -223,7 +239,7 @@ class EmbeddingClient:
             logger.debug(traceback.format_exc())
             logger.warning("Falling back to default 512 dimensions")
             return 512
-    
+
     def _init_vector_store(self):
         """Initialize the active vector store backend via the factory.
 
@@ -234,9 +250,7 @@ class EmbeddingClient:
             self.vector_store = get_vector_store()
             # Propagate the resolved embedding dimensions to backends that need
             # them at collection-creation time (e.g. VDMS).
-            if self.embedding_dimensions and hasattr(
-                self.vector_store, "embedding_dimensions"
-            ):
+            if self.embedding_dimensions and hasattr(self.vector_store, "embedding_dimensions"):
                 self.vector_store.embedding_dimensions = self.embedding_dimensions
             self.vector_store.connect()
             logger.info("Vector store backend initialized for EmbeddingClient")
@@ -244,7 +258,9 @@ class EmbeddingClient:
             logger.error("Error initializing vector store: %s", ex)
             raise Exception(Strings.db_conn_error)
 
-    def store_frame_embeddings(self, embeddings: List[List[float]], frame_metadatas: List[dict]) -> List[str]:
+    def store_frame_embeddings(
+        self, embeddings: List[List[float]], frame_metadatas: List[dict]
+    ) -> List[str]:
         """
         Store frame embeddings using optimized vector store batching.
 
@@ -260,27 +276,29 @@ class EmbeddingClient:
             total_embeddings = len(embeddings)
             logger.info("Storing %d frame embeddings...", total_embeddings)
             logger.debug("Embedding dimensions: %d", self.embedding_dimensions)
-            
+
             # Validate inputs
             if len(embeddings) != len(frame_metadatas):
-                raise ValueError(f"Mismatch: {len(embeddings)} embeddings vs {len(frame_metadatas)} metadata entries")
-            
+                raise ValueError(
+                    f"Mismatch: {len(embeddings)} embeddings vs {len(frame_metadatas)} metadata entries"
+                )
+
             # Generate frame texts and clean metadata
             frame_texts = []
             cleaned_metadatas = []
-            
+
             for i, metadata in enumerate(frame_metadatas):
-                video_id = metadata.get('video_id', 'unknown')
-                frame_num = metadata.get('frame_number', i)
-                frame_type = metadata.get('frame_type', 'full_frame')
-                crop_index = metadata.get('crop_index')
-                
+                video_id = metadata.get("video_id", "unknown")
+                frame_num = metadata.get("frame_number", i)
+                frame_type = metadata.get("frame_type", "full_frame")
+                crop_index = metadata.get("crop_index")
+
                 # Generate descriptive text for crops vs full frames
                 if frame_type == "detected_crop" and crop_index is not None:
                     frame_text = f"frame_{frame_num}_crop_{crop_index}_{video_id}"
                 else:
                     frame_text = f"frame_{frame_num}_{video_id}"
-                
+
                 # Pass canonical metadata through unmodified; the active vector
                 # store backend adapts it per-backend (VDMS flattens lists,
                 # Milvus preserves them).
@@ -293,21 +311,21 @@ class EmbeddingClient:
                 "Storage payload: dim=%s, sample_text=%s, metadata_keys=%s",
                 len(embeddings[0]) if embeddings and len(embeddings[0]) > 0 else "unknown",
                 (frame_texts[0][:50] + "...") if frame_texts else "<none>",
-                list(cleaned_metadatas[0].keys()) if cleaned_metadatas else []
+                list(cleaned_metadatas[0].keys()) if cleaned_metadatas else [],
             )
-            
+
             ids = self._store_embeddings(embeddings, frame_texts, cleaned_metadatas)
             total_time = time.time() - start_time
             logger.info("Stored %d embeddings in %.3fs", len(ids), total_time)
             return ids
-            
+
         except Exception as ex:
-            total_time = time.time() - start_time if 'start_time' in locals() else 0
+            total_time = time.time() - start_time if "start_time" in locals() else 0
             logger.error("store_frame_embeddings() failed after %.3fs", total_time)
             logger.error("Error: %s", ex)
             logger.error("Error type: %s", type(ex).__name__)
             raise Exception(Strings.embedding_error)
-    
+
     def _store_embeddings(
         self,
         embeddings: List[List[float]],
@@ -334,16 +352,14 @@ class EmbeddingClient:
 
         logger.info("Stored %d embeddings", len(generated_ids))
         return generated_ids
-    
 
-    
     def generate_embedding_for_image(self, image_input: Any) -> Optional[List[float]]:
         """
         Generate embedding for a single image using SDK.
-        
+
         Args:
             image_input: Image input (PIL Image, numpy array, or path)
-            
+
         Returns:
             Embedding as list of floats or None if failed
         """
@@ -365,24 +381,26 @@ class EmbeddingClient:
             else:
                 # Assume it's already a PIL Image
                 image = image_input
-            
+
             # Generate embedding using the model handler
             embeddings = self.model_handler.encode_image([image])
-            
+
             if embeddings is not None and len(embeddings) > 0:
                 embedding = embeddings[0]
                 vector = self._to_list(embedding)
                 return vector or None
             return None
-            
+
         except Exception as exc:
             logger.error("Error generating image embedding: %s", exc)
             return None
 
-    def generate_embeddings_for_images(self, image_inputs: List[Any], metrics_out: bool = False) -> List[Optional[List[float]]]:
+    def generate_embeddings_for_images(
+        self, image_inputs: List[Any], metrics_out: bool = False
+    ) -> List[Optional[List[float]]]:
         """
         Generate embeddings for multiple images using SDK in batch.
-        
+
         Args:
             image_inputs: List of image inputs (numpy arrays)
             metrics_out: Whether to return metrics along with embeddings

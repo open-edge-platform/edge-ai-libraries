@@ -97,6 +97,29 @@ Sample response:
 
 Each `TelemetryRecord` is stored in JSONL under `data/telemetry/telemetry.jsonl` (or the configured path) and is served verbatim after lightweight normalization so that older float timestamps are converted to UTC ISO-8601 strings.
 
+## Metrics Manager live publishing
+
+Set `MM_DATAPREP_METRICS_MANAGER_URL` to enable direct, event-driven live
+publishing. Immediately after a completed record is stored, DataPrep queues:
+
+```json
+{
+  "name": "dataprep_embeddings_per_second",
+  "value": 260.716,
+  "timestamp": 1775462880.34637,
+  "tags": {
+    "service": "multimodal-dataprep",
+    "stage": "embedding"
+  }
+}
+```
+
+for `POST /api/v1/metrics/simple`. The publisher uses a one-item latest-value
+queue and a bounded timeout. Connection failures are retried with capped
+backoff, but a newer completion supersedes an older retry. Publishing failures
+never fail or delay media ingestion, and the existing JSONL history and
+`GET /telemetry` API remain unchanged.
+
 ## Metric derivations
 
 ### Timestamps

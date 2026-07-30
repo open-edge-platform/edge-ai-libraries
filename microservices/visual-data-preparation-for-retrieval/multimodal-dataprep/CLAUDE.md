@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# VDMS DataPrep — Claude
+# Multimodal DataPrep — Claude
 
 **Do not add project policy here.**
 

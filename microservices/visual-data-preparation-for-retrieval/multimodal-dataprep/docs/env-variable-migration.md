@@ -1,7 +1,7 @@
-# Environment Variable Migration: vdms-dataprep → multimodal-dataprep
+# Environment Variable Migration: multimodal-dataprep → multimodal-dataprep
 
 > **Purpose (temporary tracking doc):** This file records every environment
-> variable change introduced while making the old `vdms-dataprep` microservice
+> variable change introduced while making the old `multimodal-dataprep` microservice
 > vector-DB / storage agnostic, renaming it to `multimodal-dataprep`, and
 > namespacing all of its configuration under a single `MM_DATAPREP_` prefix. It
 > exists to give a single source of truth for the downstream migrations of the
@@ -160,6 +160,8 @@ All variables below are read as `MM_DATAPREP_<NAME>`.
 |---|---|---|
 | `MM_DATAPREP_TELEMETRY_FILE_PATH` | *(component default)* | Telemetry output file path. |
 | `MM_DATAPREP_TELEMETRY_MAX_RECORDS` | *(component default)* | Max telemetry records retained. |
+| `MM_DATAPREP_METRICS_MANAGER_URL` | *(empty / disabled)* | Metrics Manager base URL used to publish completed embedding throughput. |
+| `MM_DATAPREP_METRICS_MANAGER_TIMEOUT_SECONDS` | `2.0` | Bounded timeout for each Metrics Manager publish attempt. |
 
 ### Batch ingestion
 
@@ -176,7 +178,7 @@ All variables below are read as `MM_DATAPREP_<NAME>`.
 
 ## 2. Branded rename history (first hop, for reference)
 
-| Original (vdms-dataprep) | Intermediate | Final |
+| Original (multimodal-dataprep) | Intermediate | Final |
 |---|---|---|
 | `VDMS_DATAPREP_DEVICE` | `MULTIMODAL_DATAPREP_DEVICE` | `MM_DATAPREP_EMBEDDING_DEVICE` (embedding-pipeline device; the baseline `MM_DATAPREP_DEVICE` was later dropped) |
 | `VDMS_DATAPREP_LOG_LEVEL` | `MULTIMODAL_DATAPREP_LOG_LEVEL` | `MM_DATAPREP_LOG_LEVEL` |

@@ -60,6 +60,8 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS` | Optional | `2` | Number of decoder workers used in frame extraction utilities. |
 | `MM_DATAPREP_VIDEO_FRAME_LOG_LEVEL` | Optional | `INFO` | Log level for decoder internals (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
 | `MM_DATAPREP_OV_MODELS_DIR` | Optional | `/app/ov_models` | Persistent mount that caches OpenVINO-optimized models. |
+| `MM_DATAPREP_METRICS_MANAGER_URL` | Optional | _(empty / disabled)_ | Metrics Manager base URL. When set, each completed video pipeline publishes `dataprep_embeddings_per_second` to `/api/v1/metrics/simple`. |
+| `MM_DATAPREP_METRICS_MANAGER_TIMEOUT_SECONDS` | Optional | `2.0` | Timeout for one Metrics Manager publish attempt. Publishing is asynchronous and never delays ingestion. |
 | `MM_DATAPREP_ALLOW_ORIGINS`, `MM_DATAPREP_ALLOW_METHODS`, `MM_DATAPREP_ALLOW_HEADERS` | Optional | `*` | CORS configuration applied by FastAPI. |
 
 ### Device selection (`MM_DATAPREP_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`)

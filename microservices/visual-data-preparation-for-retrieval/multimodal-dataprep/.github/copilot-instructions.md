@@ -3,37 +3,36 @@ SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# VDMS DataPrep — AI agents
+# Multimodal DataPrep — AI agents
 
 ## Canonical Instructions
 
 Use this file as the canonical router for coding agents. Keep tool-specific
-files such as `AGENTS.md`, `CLAUDE.md`, and `.cursor/rules/vdms-dataprep.mdc`
+files such as `AGENTS.md`, `CLAUDE.md`, and `.cursor/rules/multimodal-dataprep.mdc`
 as short pointers to this file.
 
 ## What This Service Is
 
-VDMS DataPrep ingests videos for retrieval: it extracts frames (optionally
-YOLOX object crops and text summaries), embeds them with a multimodal
-embedding model, and stores vectors + metadata in the **VDMS** vector DB;
-raw MP4s live in **MinIO**. It is one half of a video-RAG pipeline — ingestion
-only; search/query is a separate concern. Prebuilt image:
-`intel/vdms-dataprep:latest`. Deeper user docs live under
+Multimodal DataPrep ingests videos, images, and text summaries for retrieval. It
+extracts video frames, optionally creates YOLOX object crops, generates
+multimodal embeddings in-process, and stores vectors plus metadata through a
+pluggable VDMS or Milvus backend. Raw media uses MinIO or local storage. The
+service handles ingestion only; search and query are separate concerns.
+Prebuilt image: `intel/multimodal-dataprep:latest`. Deeper user docs live under
 [`docs/user-guide/`](../docs/user-guide/); this file is the agent-facing map.
 
 ## The Stack
 
 | Service | Image | Host port → container |
 |---|---|---|
-| vdms-dataprep | `intel/vdms-dataprep:latest` (or local build) | `6007` → 8000, API under `/v1/dataprep` |
+| multimodal-dataprep | `intel/multimodal-dataprep:latest` (or local build) | `6007` → 8000, API under `/v1/dataprep` |
 | vdms-vector-db | `intellabs/vdms:v2.12.0` | `6020` → 55555 |
+| milvus-standalone | Milvus | `19530` → 19530 when that backend is selected |
 | minio-server | MinIO | `6010` → 9000 (API), `6011` → 9001 (console) |
-| multimodal-embedding-serving | `intel/multimodal-embedding-serving` | `9777` → 8000 — **only in `api` embedding mode** |
 
-Two embedding modes (`EMBEDDING_PROCESSING_MODE`): **`sdk`** (default —
-embedding runs in-process via the `multimodal-embedding-serving` path
-dependency; `docker/compose.yaml`) and **`api`** (HTTP to a separate embedding
-container; `docker/compose-with-embedding.yaml` + `setup-with-embedding.sh`).
+Embedding runs in-process through the multimodal embedding package. Select the
+vector database with `MM_DATAPREP_VECTORDB_BACKEND` (`vdms` or `milvus`) and
+the storage backend with `MM_DATAPREP_STORAGE_BACKEND` (`minio` or `local`).
 
 ## Run Interfaces
 
@@ -54,14 +53,17 @@ container; `docker/compose-with-embedding.yaml` + `setup-with-embedding.sh`).
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/health` | Service + embedding-backend status |
-| POST | `/videos/upload` | Multipart MP4 upload → store + embed (currently buffers the full body) |
-| POST | `/videos/minio` | Embed a video already in MinIO (JSON body) |
-| POST | `/summary` | Embed a text summary with video time range |
-| POST | `/videos/rtsp` | Ingest RTSP streams (experimental; not in api-reference.md) |
-| GET | `/videos` | List videos in a bucket |
-| GET | `/videos/download` | Download/stream a video |
-| DELETE | `/videos/{bucket_name}/{video_id}` | Delete one file (`?video_name=`) or the whole directory |
+| GET | `/health` | Service and embedding-pipeline status |
+| POST | `/media/upload` | Upload and embed one video or image |
+| POST | `/media/process` | Process media already in object storage |
+| POST | `/media/ingest` | Ingest a base64 image or remote image URL |
+| POST | `/media/*/batch`, `/media/ingest-dir` | Start asynchronous batch ingestion |
+| GET | `/media/jobs/{job_id}` | Poll a batch job |
+| POST | `/summary` | Embed a text summary with a video time range |
+| POST | `/media/rtsp` | Ingest an RTSP stream |
+| GET | `/media` | List stored media |
+| GET | `/media/download` | Download or stream stored media |
+| DELETE | `/media/{bucket_name}/{video_id}` | Delete stored media |
 | GET | `/telemetry` | Recent ingestion telemetry |
 
 ## Repository Map
@@ -103,7 +105,7 @@ container; `docker/compose-with-embedding.yaml` + `setup-with-embedding.sh`).
 - A 413 may come from an upstream proxy/server; the source upload endpoint has
   no implemented size check and buffers the full body. Stage large files in
   MinIO and use `POST /videos/minio`.
-- Only MP4 is supported for embedding creation.
+- Video and common image formats are supported for embedding creation.
 
 ## Skills
 
@@ -113,8 +115,8 @@ then read that skill's `SKILL.md`.
 
 | User intent | Skill |
 |---|---|
-| Bring up the stack and ingest/manage videos from an app | `vdms-dataprep-user` |
-| Build from source, run tests/lint, modify the pipeline | `vdms-dataprep-dev` |
+| Bring up the stack and ingest/manage videos from an app | `multimodal-dataprep-user` |
+| Build from source, run tests/lint, modify the pipeline | `multimodal-dataprep-dev` |
 
 ## Skill Loading Rules
 
@@ -126,7 +128,7 @@ then read that skill's `SKILL.md`.
 ## Path Conventions
 
 All paths in the skill catalog are relative to this microservice's root
-(`microservices/visual-data-preparation-for-retrieval/vdms/`). The skills live
+(`microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/`). The skills live
 in `.github/skills` as the shared location for Codex, Copilot CLI, Claude
 Code, Cursor, and local agent scripts. Skills also work without a repo clone —
 the `-user` skill fetches the same `setup.sh`/compose files and docs from

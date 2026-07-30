@@ -232,6 +232,15 @@ class Settings(BaseSettings):
     # Telemetry persistence settings
     TELEMETRY_FILE_PATH: Path = Path("/tmp/dataprep/telemetry/telemetry.jsonl")
     TELEMETRY_MAX_RECORDS: int = 100
+    METRICS_MANAGER_URL: str = Field(
+        default="",
+        description="Metrics Manager base URL. Empty disables live metric publishing.",
+    )
+    METRICS_MANAGER_TIMEOUT_SECONDS: float = Field(
+        default=2.0,
+        gt=0,
+        description="Timeout for a single Metrics Manager publish attempt.",
+    )
 
     # Allow environment override for bucket name (useful for different deployments)
     # If MM_DATAPREP_PM_MINIO_BUCKET is set (from sample app), use that; otherwise

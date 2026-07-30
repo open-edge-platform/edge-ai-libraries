@@ -4,7 +4,7 @@
 """Common utility functions extracted from util.py
 
 This module contains general-purpose utility functions that are used across
-the VDMS DataPrep microservice.
+the Multimodal DataPrep microservice.
 """
 
 import logging

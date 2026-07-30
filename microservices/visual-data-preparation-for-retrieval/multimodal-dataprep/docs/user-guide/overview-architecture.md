@@ -11,7 +11,7 @@ store and the object storage are each selected at startup behind a factory (see
 ## Architecture Overview
 
 ### High-Level Architecture Diagram
-![Architecture Diagram](images/VDMS_DataPrep.png)
+![Architecture Diagram](images/Multimodal_DataPrep.png)
 *Figure 1: High-level system view demonstrating the microservice.*
 
 ### Core Components

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build script for VDMS DataPrep docker image.
+# Build script for Multimodal DataPrep Docker image.
 set -euo pipefail
 
 GREEN='\033[0;32m'

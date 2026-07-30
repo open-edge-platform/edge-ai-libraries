@@ -107,7 +107,7 @@ def test_clean_metadata_drops_transient_keys(backend):
         "frame_number": 7,
         "detected_label": "car",
         "tags": ["a"],
-        "video_url": "http://vdms-dataprep:8000/x",
+        "video_url": "http://multimodal-dataprep:8000/x",
         # transient pipeline plumbing that must be stripped before storage
         "shm": "seg1",
         "shape": [3, 224, 224],
