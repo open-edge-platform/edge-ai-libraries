@@ -62,7 +62,7 @@ class ModelDownloadPlugin(ABC):
         """
         return False
 
-    def config_keys(self) -> List[PluginConfigKey]:
+    def hub_config_keys(self, hub: str) -> List[PluginConfigKey]:
         """
         Return the connection/configuration keys this plugin consumes.
 
@@ -73,7 +73,7 @@ class ModelDownloadPlugin(ABC):
         """
         return []
 
-    def resolve_config(self, overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def resolve_config(self, overrides: Optional[Dict[str, Any]] = None, hub: Optional[str] = None) -> Dict[str, Any]:
         """
         Resolve this plugin's declared config keys for a single request.
 
@@ -83,14 +83,15 @@ class ModelDownloadPlugin(ABC):
         rejected, and grouped keys are resolved together (see PluginConfigKey).
         """
         overrides = overrides or {}
-        declared = {key.name: key for key in self.config_keys()}
+        keys = self.hub_config_keys(hub)
+        declared = {key.name: key for key in keys}
 
         # Reject any override key the plugin does not understand.
         for name in overrides:
             if name not in declared:
                 allowed = ", ".join(sorted(declared)) or "(none)"
                 raise ValueError(
-                    f"Unknown override key '{name}' for plugin '{self.plugin_name}'. "
+                    f"Unknown override key '{name}' for hub '{hub}'. "
                     f"Allowed keys: {allowed}."
                 )
 
@@ -102,7 +103,7 @@ class ModelDownloadPlugin(ABC):
         }
 
         resolved: Dict[str, Any] = {}
-        for key in self.config_keys():
+        for key in keys:
             if key.name in overrides and overrides[key.name] is not None:
                 resolved[key.name] = overrides[key.name]
             elif key.group and key.group in touched_groups:

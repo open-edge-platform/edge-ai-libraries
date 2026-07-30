@@ -19,7 +19,7 @@ class HuggingFacePlugin(ModelDownloadPlugin):
     def plugin_type(self) -> str:
         return "downloader"
 
-    def config_keys(self) -> list:
+    def hub_config_keys(self, hub: str = "huggingface") -> list:
         return [
             PluginConfigKey(
                 name="HF_TOKEN",

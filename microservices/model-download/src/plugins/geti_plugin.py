@@ -86,7 +86,7 @@ class GetiPlugin(ModelDownloadPlugin):
         self._initialized = True
         self._req_timeout: int = 30
 
-    def config_keys(self) -> List[PluginConfigKey]:
+    def hub_config_keys(self, hub: str = "geti") -> List[PluginConfigKey]:
         return [
             PluginConfigKey(
                 name="GETI_HOST",

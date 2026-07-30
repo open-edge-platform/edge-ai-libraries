@@ -160,7 +160,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
     def plugin_type(self) -> str:
         return "converter"  # This is a converter plugin, not a downloader
 
-    def config_keys(self) -> list:
+    def hub_config_keys(self, hub: str = "openvino") -> list:
         return [
             PluginConfigKey(
                 name="HF_TOKEN",

@@ -123,7 +123,7 @@ async def submit_models(
             plugin = plugin_registry.get_plugin("converter", "openvino")
         if request_credentials and plugin is not None:
             try:
-                plugin.resolve_config(request_credentials)
+                plugin.resolve_config(request_credentials, hub=hub_name)
             except ValueError as error:
                 raise ModelSubmissionError(str(error)) from error
 

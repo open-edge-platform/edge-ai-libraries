@@ -28,7 +28,7 @@ from .models import (
 )
 from ..core.interfaces import ListingAuthError, ListingNotSupportedError
 from ..utils.logging import logger
-from ..utils.helper import validate_zip_contents_within_target, validate_zip_file, sanitize_path_part
+from ..utils.helper import validate_zip_contents_within_target, validate_zip_file, sanitize_path_part, get_hub_config_keys
 
 
 _background_tasks: set[asyncio.Task[Any]] = set()
@@ -199,7 +199,7 @@ async def _list_hub_models(
         raise HTTPException(status_code=400, detail=reason)
 
     try:
-        resolved_config = plugin.resolve_config(override_credentials or {})
+        resolved_config = plugin.resolve_config(override_credentials or {}, hub=hub_name)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -400,33 +400,13 @@ async def list_plugins():
             can_handle_parallel = hasattr(plugin, "get_download_tasks") and callable(getattr(plugin, "get_download_tasks"))
             plugin_supported_hubs = plugin.plugin_supported_hubs()
 
-            # Connection/configuration keys the plugin understands. These can be
-            # overridden per request via the 'override_credentials' field of
-            # POST /models/download and POST /models/list; environment variables
-            # remain the fallback default.
-            config_keys = []
-            try:
-                keys_provider = getattr(plugin, "config_keys", None)
-                raw_keys = keys_provider() if callable(keys_provider) else []
-                for key in raw_keys:
-                    config_keys.append({
-                        "name": key.name,
-                        "description": key.description,
-                        "sensitive": key.sensitive,
-                        "required": key.required,
-                        "group": key.group,
-                    })
-            except Exception:
-                # Plugins without a proper config_keys() implementation (e.g. mocks)
-                # simply advertise no overridable configuration keys.
-                config_keys = []
-
             # Multi-hub plugins (e.g. external-sources) expose each hub as its
             # own entry under the user-facing hub name; only activated hubs are listed.
             # Detection: If plugin_supported_hubs() returns multiple hubs, it's multi-hub.
             if len(plugin_supported_hubs) > 1:
                 hub_description = getattr(plugin, "hub_description", None)
                 hub_capabilities = getattr(plugin, "hub_capabilities", None)
+
                 for hub in plugin_supported_hubs:
                     is_available, _ = plugin_registry.hub_is_available(hub)
                     if not is_available:
@@ -440,12 +420,13 @@ async def list_plugins():
                     if callable(hub_capabilities):
                         hub_caps.update(hub_capabilities(hub))
 
+
                     plugins_info[plugin_type].append({
                         "name": hub,
                         "type": plugin_type,
                         "description": hub_desc or "No description available",
                         "capabilities": hub_caps,
-                        "config_keys": config_keys,
+                        "config_keys": get_hub_config_keys(plugin, hub),
                         "available": True,
                         "unavailable_reason": None,
                     })
@@ -466,7 +447,7 @@ async def list_plugins():
                 "type": plugin_type,
                 "description": description,
                 "capabilities": capabilities,
-                "config_keys": config_keys,
+                "config_keys": get_hub_config_keys(plugin, plugin_name),
                 "available": is_available,
                 "unavailable_reason": reason if not is_available else None
             }
