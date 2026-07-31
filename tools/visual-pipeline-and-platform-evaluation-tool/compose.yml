@@ -90,7 +90,6 @@ x-vippet: &vippet
     - ./shared/images/:/images
     - ./shared/models/:/models
     - ./shared/videos/:/videos
-    - ./shared/assets/:/assets
     - ./shared/scripts/:/scripts
     - ./shared/onvif/:/onvif
     - ./shared/metadata/:/metadata
