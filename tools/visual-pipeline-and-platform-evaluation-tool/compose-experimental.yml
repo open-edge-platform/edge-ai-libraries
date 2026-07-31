@@ -279,7 +279,7 @@ services:
         TIMESERIES_USER_NAME: ${TIMESERIES_USER_NAME}
         TIMESERIES_UID: ${TIMESERIES_UID}
     container_name: ia-timeseries-ingestion
-    image: ${DOCKER_REGISTRY}intel/ia-timeseries-ingestion:2026.1.0
+    image: ${DOCKER_REGISTRY}intel/ia-timeseries-ingestion:${IMAGE_SUFFIX:-latest}${WEEKLY_BUILD_DATE:+-${WEEKLY_BUILD_DATE}}${WEEKLY_BUILD_DATE:+-weekly}
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -309,8 +309,8 @@ services:
       timeout: 5s
       retries: 20
     environment:
-      no_proxy: "ia-time-series-analytics-microservice,ia-mqtt-broker,ia-opcua-server,localhost"
-      NO_PROXY: "ia-time-series-analytics-microservice,ia-influxdb,ia-mqtt-broker,ia-opcua-server,localhost"
+      no_proxy: "ia-time-series-analytics-microservice,localhost"
+      NO_PROXY: "ia-time-series-analytics-microservice,localhost"
       KAPACITOR_PORT: 9092
       INFLUX_SERVER: ""
       KAPACITOR_INFLUXDB_0_USERNAME: ""
@@ -318,13 +318,12 @@ services:
       PROFILING_MODE: "false"
       KAPACITOR_URL: http://ia-time-series-analytics-microservice:9092
       KAPACITOR_UNSAFE_SSL: "true"
-      KAPACITOR_INFLUXDB_0_URLS_0: http://ia-influxdb:8086/
-      INFLUXDB_PORT: 8086
+      KAPACITOR_INFLUXDB_0_URLS_0: ""
+      INFLUXDB_PORT: 
       KAPACITOR_LOGGING_LEVEL: INFO
-      INFLUXDB_DBNAME: datain
+      INFLUXDB_DBNAME: ""
       PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
       UDF_MAX_FILE_SIZE_MB: 100
-      SSL_CERT_FILE: /run/secrets/ca_certificate.pem
       SAMPLE_APP: "wind-turbine-anomaly-detection"
     ports:
       - 5000:5000
@@ -346,11 +345,6 @@ services:
 
 volumes:
   vol_temp_time_series_analytics_microservice:
-    driver: local
-    driver_opts:
-      type: tmpfs
-      device: tmpfs
-  vol_influxdb_conf:
     driver: local
     driver_opts:
       type: tmpfs
