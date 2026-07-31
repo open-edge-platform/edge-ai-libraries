@@ -1,11 +1,14 @@
 # Get Started
 
-The installation flow for the Edge Device Enablement Framework (EEF) primarily targets public and
-external users. A shell script installs the Edge Device Enablement Framework software from the Open
-Edge Platform (OEP)'s `edge-ai-libraries/frameworks` folder. Users can download the installer script
+This document is a quick start guide to configure and deploy nodes using the Edge Device
+Enablement Framework on Intel® Core™ and Intel® Xeon® Scalable processors with Intel® Iris® Xe
+Integrated Graphics for Core platform.
+
+A shell script installs the Edge Device Enablement Framework software from the Open Edge
+Platform (OEP)'s `edge-ai-libraries/frameworks` folder. Users can download the installer script
 and deploy it to the Edge Node.
 
-## Installation Process for EEF
+## Installation Flow for EEF
 
 ![Installation flow](_images/installation_flow.png)
 *Figure 1: Flow for Edge Device Enablement Framework*
@@ -20,15 +23,29 @@ Before starting the Edge Node deployment, ensure you meet the following prerequi
   - For example: "wrk-8" is acceptable; "wrk_8", "WRK8", and "Wrk^8" are not accepted as hostnames.
 - The required proxy settings are added to the /etc/environment file.
 - Secure boot uses the following BIOS settings:
+
+   <!--hide_directive
    <details>
-   <summary><code><b>BIOS Settings</b></code></summary>
+   <summary><code><b>hide_directive-->BIOS Settings
+   <!--hide_directive</b></code></summary>hide_directive-->
 
-   ### BIOS Settings
+   <!--hide_directive ::::{tab-set} hide_directive-->
+   <!--hide_directive :::{tab-item} hide_directive--> **Dell R760**
+   <!--hide_directive :sync: dell-r760 hide_directive-->
 
-   | **Settings** | **Process** |
-   | ------------------------------------	|------------------------------------------------------------------------------------------------------------------ |
-   | **Secure Boot** |  **Dell R760** :– <br> - BIOS Settings → System BIOS → System Security → Secure Boot → Enabled <br> **ASRock iEP-7020E, ASUS PE3000G** :– <br> - Press F2 → Go to UEFI Firmware Settings → Security Section → Secure Boot Section → Set Secure Boot Mode to Custom → Select Secure Boot → Enabled → Save Changes → Boot to setup. |
+   - BIOS Settings → System BIOS → System Security → Secure Boot → Enabled
+
+   <!--hide_directive ::: hide_directive-->
+   <!--hide_directive :::{tab-item} hide_directive--> **ASRock iEP-7020E or ASUS PE3000G**
+   <!--hide_directive :sync: asrock-asus hide_directive-->
+
+   - Press F2 → Go to UEFI Firmware Settings → Security Section → Secure Boot Section → Set Secure Boot Mode to Custom → Select Secure Boot → Enabled → Save Changes → Boot to setup.
+
+   <!--hide_directive
+   :::
+   ::::
    </details>
+   hide_directive-->
 
 ## Step 2: Download the Script
 
@@ -107,15 +124,16 @@ Before starting the Edge Node deployment, ensure you meet the following prerequi
 
 ### User Inputs Required for Installer Execution
 
+<!--hide_directive
 <details>
- <summary><code>User Input</code> <code><b>VA Enablement Node</b></code></summary>
-
-#### Parameters
+<summary><code>hide_directive-->User Input
+<!--hide_directive</code><code><b>hide_directive-->VA Enablement Node
+<!--hide_directive</b></code></summary>hide_directive-->
 
 | Prompt       | User Input                                                                                            |
 | ------------ | ----------------------------------------------------------------------------------------------------- |
 | Docker Group | For Metro/ESQ team enter 'yes', other users enter 'no'                                                |
-| DLStreamer   | Do you want to install DL Streamer? (y/n) <br> (Comes up only for the DevKit command-line argument)   |
+| DL Streamer  | Do you want to install DL Streamer? (y/n) <br> (Comes up only for the DevKit command-line argument)   |
 | XPU-SMI      | Do you want to install Intel XPU-SMI? (y/n) <br> (Comes up only for the DevKit command-line argument) |
 
 </details>
@@ -124,8 +142,10 @@ Before starting the Edge Node deployment, ensure you meet the following prerequi
 
 After the installer script finishes executing, follow these steps to deploy Time of Day (TOD) Provisioning:
 
+<!--hide_directive
 <details>
- <summary><code><b>Time of Day (TOD) Provisioning</b></code></summary>
+<summary><code><b>hide_directive-->Time of Day (TOD) Provisioning
+<!--hide_directive</b></code></summary>hide_directive-->
 
 TOD enables power management provisioning to save power at a specific time of day, delivering power
 savings during non-peak hours on the edge device by using the Intel® Infrastructure Power Manager
@@ -135,6 +155,8 @@ and the technology guide, available through the same link, as shown in Figure 2.
 feature, follow the instructions in Chapter 9 of the TOD technology guide.
 
 ![TOD](_images/tod.png)
-*Figure 2: Time of Day Home Page* <br>
+*Figure 2: Time of Day Home Page*
 
+<!--hide_directive
 </details>
+hide_directive-->

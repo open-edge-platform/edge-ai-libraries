@@ -16,28 +16,24 @@ stacks (also known as profiles), providing a runtime for edge applications. It i
 modular framework where each node is based on a common foundation of hardware, OS, and container
 runtime.
 
-This document is a quick start guide to configure and deploy nodes using the Edge Device Enablement
-Framework on Intel® Core™ and Intel® Xeon® Scalable processors with Intel® Iris® Xe Integrated
-Graphics for Core platform.
-
 ## How It Works
 
 This release of the Edge Device Enablement Framework currently contains the Video Analytics (VA)
-Enablement Node profile, with components curated mainly for the needs of VA workloads. Command-line
-options support the Metro, VPP, TFCC, vPRO, and Edge Workloads and Benchmarks enablement needs
-on the edge nodes and a new 'DevKit' option with a very minimal set of components and GPU/NPU
-driver installation.
+Enablement Node profile, with components curated mainly for the needs of VA workloads.
+Command-line options support the Metro, Intel® Video Processing Platform, TFCC, Intel vPro®
+Platform, and Edge Workloads and Benchmarks enablement needs on the edge nodes, and a new
+'DevKit' option with a very minimal set of components and GPU or NPU driver installation.
 
 ## Main Supported Features
 
 |**Category**                  |**Feature**               |
 |------------------------------|--------------------------|
-|**Hardware**                  | - Support for 4th and 5th Gen Intel® Xeon® Scalable processor <br> - Support for Intel® Core™ Ultra processor and 12th and 13th Gen Intel® Core™ industrial processors <br> - Support for Intel® Iris® Xe Integrated Graphics for Core platform - Intel® Atom® Processor |
+|**Hardware**                  | - Support for 4th and 5th Gen Intel® Xeon® Scalable processor <br> - Support for Intel® Core™ Ultra processor and 12th and 13th Gen Intel® Core™ industrial processors <br> - Support for Intel® Iris® Xe Integrated Graphics for Core platform <br> - Intel® Atom® Processor |
 |**OS**                        | - Ubuntu 24.04.4 (Or the latest LTS version from Canonical) |
-|**CAAS**                      | - Model: Bare Metal <br> - ContainerD; Docker CE; Docker Compose |
-|**Observability / Telemetry** | - Aggregate/query telemetry (e.g. Prometheus) <br> - GPU, CPU/Memory Telemetry <br> - Visualization / Logs analysis |
-|**Security**                  | - Secure Boot (documentation) (Enabled for SPR, RPL. Not supported on MTL internal SKUs) <br> - A hardware RoT-based foundation (TPM chip SW) <br> - Secure network and communication (IPSEC, OpenSSL) |
-|**Framework**                 | - OVPL; OpenVINO LTS; DLStreamer; GStreamer; Graph Compute Runtime; OpenCV with Ffmpeg |
+|**CaaS**                      | - Model: Bare Metal <br> - ContainerD; Docker CE; Docker Compose |
+|**Observability / Telemetry** | - Aggregate and query telemetry (e.g., Prometheus) <br> - GPU, CPU and Memory Telemetry <br> - Visualization and Logs analysis |
+|**Security**                  | - Secure Boot (documentation) (Enabled for SPR, RPL. Not supported on MTL internal SKUs) <br> - A hardware RoT-based foundation (TPM chip SW) <br> - Secure network and communication (IPsec, OpenSSL) |
+|**Framework**                 | - OVPL; OpenVINO™ LTS; DL Streamer; GStreamer; Graph Compute Runtime; OpenCV with Ffmpeg |
 
 ## Key Hardware Elements Supported
 
@@ -52,7 +48,7 @@ driver installation.
 
 | **Capability**                      | **Software Packages**        |
 |-------------------------------------|------------------------------|
-| **Latest Software Support Summary** | - Prometheus 3.11.2 <br> - Grafana 2.6.0 <br> - cAdvisor v0.49.1 <br> - Intel® XPU SMI v1.3.5 <br> - OpenVINO 2025.4.0 <br> - OpenCV 4.12.0 <br> - FFmpeg 2025Q1 <br> - oneVPL 25.4.5 <br> - Intel® Media Driver 24.1.0 <br> - Libva 2.22.0 <br> - Mesa Driver 25.2 <br> - Intel Level Zero for GPU 1.3.29735.27-914~22.04 <br> - DiscreteTPM ubuntu-22.04 <br> - OpenSSL 3.1.4 <br> - Intel® LTS Kernel 6.6-intel <br> - Docker Compose 2.29 <br> - DockerCE 27.2 <br> - ContainerD 1.7.22 <br> - GPU driver i915 v0.28.0 |
+| **Latest Software Support Summary** | - Prometheus 3.11.2 <br> - Grafana 2.6.0 <br> - cAdvisor v0.49.1 <br> - Intel® XPU SMI v1.3.5 <br> - OpenVINO™ 2025.4.0 <br> - OpenCV 4.12.0 <br> - FFmpeg 2025Q1 <br> - oneVPL 25.4.5 <br> - Intel® Media Driver 24.1.0 <br> - Libva 2.22.0 <br> - Mesa Driver 25.2 <br> - Intel Level Zero for GPU 1.3.29735.27-914~22.04 <br> - DiscreteTPM ubuntu-22.04 <br> - OpenSSL 3.1.4 <br> - Intel® LTS Kernel 6.6-intel <br> - Docker Compose 2.29 <br> - DockerCE 27.2 <br> - ContainerD 1.7.22 <br> - GPU driver i915 v0.28.0 |
 
 ## Edge Device Enablement Framework Profile Architecture
 
@@ -75,7 +71,7 @@ Framework*
 | Feature                         | Component |
 |---------------------------------|-----------|
 | **Observability and Telemetry** | - Platform-Observability<br>- Prometheus<br>- Grafana<br>- cAdvisor<br>- Intel® XPU Manager            |
-| **Frameworks / Test Suite**     | - OpenVINO™ Toolkit<br>- DLStreamer<br>- OpenCV |
+| **Frameworks / Test Suite**     | - OpenVINO™ Toolkit<br>- DL Streamer<br>- OpenCV |
 | **Power Management**            | - Intel Power Management |
 | **Libraries**                   | - FFmpeg<br>- Intel® OneVPL<br>- Intel® Media Driver<br>- Libva<br>- Lib Mesa Driver<br>- Intel® Level Zero for GPU<br>- GPU A780<br>- Intel® Media Transport Library (iMTL)<br>- Media Communication Mesh (MCM) |
 | **Security**                    | - TPM<br>- OpenSSL |
