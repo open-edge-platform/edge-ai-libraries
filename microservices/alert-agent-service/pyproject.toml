@@ -8,27 +8,27 @@ description = "Alert Agent Service — Generic multimodal alert action dispatche
 requires-python = ">=3.12"
 dependencies = [
     # Core framework
-    "fastapi==0.128.0",
-    "uvicorn==0.40.0",
+    "fastapi==0.141.1",
+    "uvicorn==0.49.0",
     "sse-starlette==2.3.6",
 
     # Schemas & validation
-    "pydantic==2.12.5",
+    "pydantic==2.13.4",
 
     # Agentic framework
-    "google-adk>=1.28.1",
-    "litellm>=1.92.0",
-    "orjson>=3.10.0",
+    "google-adk>=2.6.0",
+    "litellm>=1.94.1",
+    "orjson>=3.11.9",
 
     # Action tools
-    "aiohttp>=3.13.4",
-    "paho-mqtt>=2.0.0",
+    "aiohttp>=3.14.3",
+    "paho-mqtt>=2.1.0",
 
     # YAML config
-    "pyyaml>=6.0",
+    "pyyaml>=6.0.3",
 
     # MCP
-    "fastmcp==3.2.4",
+    "fastmcp==3.4.5",
 ]
 
 [dependency-groups]
