@@ -868,9 +868,9 @@ async def get_benchmark_suite_run_by_id(
             score_total=suite_run.score_total,
             score_performance=suite_run.score_performance,
             score_efficiency=suite_run.score_efficiency,
-            start_time=suite_run.start_time,
+            start_time=suite_run.start_time or 0,
             execution_time=(
-                now_ms - suite_run.start_time
+                now_ms - (suite_run.start_time or 0)
                 if suite_run.status == "running"
                 else suite_run.execution_time
             ),
