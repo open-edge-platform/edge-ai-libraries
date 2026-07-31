@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import time
 import uuid
@@ -21,6 +22,7 @@ from internal_types import (
     InternalPipelineStreamSpec,
     InternalTestJobState,
 )
+from dlsps2_runner import Dlsps2PipelineRunner
 from pipeline_runner import LatencyTracerSample, PipelineRunner
 from benchmark import Benchmark
 from managers.pipeline_manager import PipelineManager
@@ -29,6 +31,14 @@ from videos import collect_video_outputs_from_dirs
 from utils import slugify_text
 
 logger = logging.getLogger("tests_manager")
+
+# Selects the pipeline execution backend for single-stream performance
+# tests: "local" (default) spawns gst_runner.py as before; "dlsps2"
+# delegates to a running DLSPS 2.0 instance via Dlsps2PipelineRunner.
+# Density tests and multi-stream performance tests always use the local
+# runner -- see dlsps2_runner.py for why (no per-stream FPS breakdown on
+# DLSPS 2.0 for independent concurrent streams).
+_EXECUTION_BACKEND = os.environ.get("VIPPET_EXECUTION_BACKEND", "local").strip().lower()
 
 
 def _map_latency_tracer_samples(
@@ -104,8 +114,9 @@ class TestsManager:
         self.jobs: dict[
             str, InternalPerformanceJobStatus | InternalDensityJobStatus
         ] = {}
-        # Currently running PipelineRunner or Benchmark jobs keyed by job id
-        self.runners: dict[str, PipelineRunner | Benchmark] = {}
+        # Currently running PipelineRunner (local or dlsps2-backed) or
+        # Benchmark jobs keyed by job id.
+        self.runners: dict[str, PipelineRunner | Dlsps2PipelineRunner | Benchmark] = {}
         # Shared lock protecting access to ``jobs`` and ``runners``
         self._jobs_lock = threading.Lock()
         self.logger = logging.getLogger("TestsManager")
@@ -460,13 +471,34 @@ class TestsManager:
                             f"metadata_stream_urls: {metadata_stream_urls}"
                         )
 
-            # Initialize PipelineRunner in normal mode with max_runtime from execution_config
-            runner = PipelineRunner(
-                mode="normal",
-                max_runtime=internal_spec.execution_config.max_runtime,
-                enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
-                job_id=job_id,
+            # Initialize the pipeline runner in normal mode with max_runtime
+            # from execution_config.
+            #
+            # Dlsps2PipelineRunner is only used when explicitly enabled via
+            # VIPPET_EXECUTION_BACKEND=dlsps2 AND the test is single-stream:
+            # DLSPS 2.0 cannot currently report a correct per-stream FPS
+            # breakdown for a launch string combining several independent
+            # streams (see dlsps2_runner.py), nor does it support
+            # latency_tracer metrics. Any other combination falls back to
+            # the local PipelineRunner.
+            use_dlsps2 = (
+                _EXECUTION_BACKEND == "dlsps2"
+                and total_streams == 1
+                and not internal_spec.execution_config.enable_latency_metrics
             )
+            if use_dlsps2:
+                runner = Dlsps2PipelineRunner(
+                    mode="normal",
+                    max_runtime=internal_spec.execution_config.max_runtime,
+                    job_id=job_id,
+                )
+            else:
+                runner = PipelineRunner(
+                    mode="normal",
+                    max_runtime=internal_spec.execution_config.max_runtime,
+                    enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
+                    job_id=job_id,
+                )
 
             # Store runner for this job so it can be cancelled via stop_job()
             with self._jobs_lock:

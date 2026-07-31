@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import time
 import uuid
@@ -10,9 +11,16 @@ from internal_types import (
     InternalValidationJobStatus,
     InternalValidationJobSummary,
 )
+from dlsps2_runner import Dlsps2PipelineRunner
 from pipeline_runner import PipelineRunner
 
 logger = logging.getLogger("validation_manager")
+
+# Selects the pipeline execution backend: "local" (default) spawns
+# gst_runner.py as before; "dlsps2" delegates to a running DLSPS 2.0
+# instance via Dlsps2PipelineRunner (see dlsps2_runner.py for the exact
+# REST mapping and known gaps vs. the local runner).
+_EXECUTION_BACKEND = os.environ.get("VIPPET_EXECUTION_BACKEND", "local").strip().lower()
 
 
 class ValidationManager:
@@ -159,16 +167,30 @@ class ValidationManager:
         new entries for that state are appended.
         """
         try:
-            # Create PipelineRunner in validation mode.
-            # `job_id` is forwarded for API consistency with performance
-            # and density paths, even though validation mode never
-            # pushes FPS metrics (no gvafpscounter is attached).
-            runner = PipelineRunner(
-                mode="validation",
-                max_runtime=max_runtime,
-                hard_timeout=hard_timeout,
-                job_id=job_id,
-            )
+            # Create the pipeline runner in validation mode. `job_id` is
+            # forwarded for API consistency with performance and density
+            # paths, even though validation mode never pushes FPS metrics
+            # (no gvafpscounter is attached).
+            #
+            # When VIPPET_EXECUTION_BACKEND=dlsps2, delegate to a running
+            # DLSPS 2.0 instance instead of spawning gst_runner.py locally
+            # (see dlsps2_runner.py for the exact REST mapping). Validation
+            # mode has no known gaps against dlsps2, so this path is always
+            # safe to use when the flag is set.
+            if _EXECUTION_BACKEND == "dlsps2":
+                runner = Dlsps2PipelineRunner(
+                    mode="validation",
+                    max_runtime=max_runtime,
+                    hard_timeout=hard_timeout,
+                    job_id=job_id,
+                )
+            else:
+                runner = PipelineRunner(
+                    mode="validation",
+                    max_runtime=max_runtime,
+                    hard_timeout=hard_timeout,
+                    job_id=job_id,
+                )
 
             # Run pipeline validation
             result = runner.run(pipeline_description)
