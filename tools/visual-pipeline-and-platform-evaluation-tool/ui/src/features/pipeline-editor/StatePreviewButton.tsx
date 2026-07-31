@@ -26,8 +26,8 @@ const StatePreviewButton = ({
       <DialogTrigger asChild>
         <PipelineToolbarButton
           icon={<Braces className="w-5 h-5" />}
-          variant="icon-primary"
-          className="p-2"
+          variant="default"
+          className="p-2 rounded-lg"
         />
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">

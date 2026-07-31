@@ -1,5 +1,7 @@
 # Run with Docker Compose
 
+Docker Compose starts the behavioral-analysis service. External dependencies (SeaweedFS, MQTT broker, and OVMS) must be reachable from the compose network.
+
 ## Prerequisites
 
 - Docker Engine 24.0+
@@ -12,7 +14,19 @@ See [System Requirements](system-requirements.md) for details.
 
 ---
 
-## Pull the Image
+### 1. Configure the environment
+
+```bash
+cp .env .env.local
+# Edit .env.local with your deployment-specific values
+```
+
+Configuration is mandatory for successful startup and analysis.
+See [Configuration](configuration.md) for all required environment variables and pattern settings.
+
+---
+
+### 2. Pull the Image
 
 Set the image tag in `.env.local` (for `RELEASE_TAG`) and pull the image before startup:
 
@@ -24,33 +38,19 @@ If you prefer to build your own image (for customization, reproducibility, compl
 
 ---
 
-## Run with Docker Compose
-
-Docker Compose starts the behavioral-analysis service. External dependencies (SeaweedFS, MQTT broker, and OVMS) must be reachable from the compose network.
-
-### 1. Configure the environment
-
-```bash
-cp .env .env.local
-# Edit .env.local with your deployment-specific values
-```
-
-Configuration is mandatory for successful startup and analysis.
-See [Configuration](configuration.md) for all required environment variables and pattern settings.
-
-### 2. Start the stack
+### 3. Start the stack
 
 ```bash
 docker compose --env-file .env.local up -d --no-build
 ```
 
-### 3. View logs
+### 4. View logs
 
 ```bash
 docker compose logs behavioral-analysis -f
 ```
 
-### 4. Stop the stack
+### 5. Stop the stack
 
 ```bash
 docker compose down

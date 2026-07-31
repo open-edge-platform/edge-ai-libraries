@@ -66,7 +66,7 @@ def run_video_summary_warmup(warmup_time, ip, profile_path, config):
                 summary_id = response.json().get("summaryPipelineId")
                 if summary_id:
                     url = f"{states_url}/{summary_id}"
-                    video_summary_complete, response = wait_for_video_summary_complete(url)
+                    video_summary_complete, chunking_time, response = wait_for_video_summary_complete(url)
             print(f"Completed warmup requests.! \n")
             
         except Exception as e:
