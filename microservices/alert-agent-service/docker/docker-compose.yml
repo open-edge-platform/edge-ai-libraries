@@ -21,21 +21,20 @@ services:
       - https_proxy=${https_proxy:-}
       - HTTPS_PROXY=${https_proxy:-}
       - TARGET_DEVICE=${TARGET_DEVICE:-GPU}
+      - LLM_MODEL=${LLM_MODEL:-OpenVINO/Phi-4-mini-instruct-int4-ov}
     volumes:
       - ovms-models:/models
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - --rest_port 
-      - "9000"
-      - --source_model 
-      - "OpenVINO/Phi-4-mini-instruct-int4-ov" 
-      - --model_repository_path 
-      - "models/" 
-      - --model_name 
-      - "Phi-4-mini-instruct-int4-ov"
-      - --target_device 
-      - ${TARGET_DEVICE:-GPU} 
-      - --task 
-      - text_generation
+      - |
+        model_name="$${LLM_MODEL##*/}"
+        exec /ovms/bin/ovms \
+          --rest_port 9000 \
+          --source_model "$${LLM_MODEL}" \
+          --model_repository_path models/ \
+          --model_name "$${model_name}" \
+          --target_device "$${TARGET_DEVICE}" \
+          --task text_generation
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/v1/config"]
       interval: 10s
