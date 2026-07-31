@@ -1419,6 +1419,68 @@
         }
       }
     },
+    "/models/check-status": {
+      "post": {
+        "tags": [
+          "models"
+        ],
+        "summary": "Check installation status of models by display name",
+        "description": "# Check Model Installation Status\n\nCheck the installation status of one or more models by their display names.\nReturns the installation status for all matching models in the list.\n\n## Request Body\n\n- **`display_names`** *(required)* - Non-empty list of model display names to check.\n\n## Response Body\n\nA `ModelCheckStatusResponse` containing a list of `ModelStatusItem` objects\nfor each matching model. Each item includes:\n- `name` - Internal model identifier\n- `display_name` - Human-readable model name (as provided)\n- `install_status` - Current status (`installed`, `not_installed`, `installing`, `failed`)\n\nIf a display name does not match any known model, it is silently omitted from\nthe response.\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | Status check completed; see `models` list for results |\n| 400  | Request body validation failed (empty list, etc.) |\n| 500  | Unexpected error |\n\n## Examples\n\n### Request\n```json\n{\n  \"display_names\": [\n    \"YOLO 11n 640x640\",\n    \"MobileNet V2 PyTorch\"\n  ]\n}\n```\n\n### Success Response (200)\n```json\n{\n  \"models\": [\n    {\n      \"name\": \"yolo11n\",\n      \"display_name\": \"YOLO 11n 640x640\",\n      \"install_status\": \"installed\"\n    },\n    {\n      \"name\": \"mobilenet-v2-pytorch\",\n      \"display_name\": \"MobileNet V2 PyTorch\",\n      \"install_status\": \"not_installed\"\n    }\n  ]\n}\n```",
+        "operationId": "check_models_status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelCheckStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model status check completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCheckStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/pipeline-templates": {
       "get": {
         "tags": [
@@ -3939,6 +4001,40 @@
         "title": "ModelCategory",
         "description": "**Model category for classification, detection, or GenAI tasks.**\n\n## Values\n- `CLASSIFICATION` - Classification model\n- `DETECTION` - Detection model\n- `GENAI` - Generative AI model (for example VLM)\n\n### Example\n```json\n\"detection\"\n```"
       },
+      "ModelCheckStatusRequest": {
+        "properties": {
+          "display_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Display Names",
+            "description": "Non-empty list of model display names to check."
+          }
+        },
+        "type": "object",
+        "required": [
+          "display_names"
+        ],
+        "title": "ModelCheckStatusRequest",
+        "description": "**Request body for checking installation status of multiple models by display name.**\n\nPass a list of model display names to check their installation status.\nThe endpoint will return information for all matching models.\n\n## Attributes\n- `display_names` - List of model display names to check\n\n### Example\n```json\n{\n  \"display_names\": [\"YOLO 11n 640x640\", \"MobileNet V2 PyTorch\"]\n}\n```"
+      },
+      "ModelCheckStatusResponse": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelStatusItem"
+            },
+            "type": "array",
+            "title": "Models",
+            "description": "List of model status items for requested display names."
+          }
+        },
+        "type": "object",
+        "title": "ModelCheckStatusResponse",
+        "description": "**Response body from POST /models/check-status.**\n\nReturns a list of models matching the requested display names,\nwith their installation status. If a display name is not found,\nit is omitted from the response.\n\n## Attributes\n- `models` - List of model status items\n\n### Example\n```json\n{\n  \"models\": [\n    {\n      \"name\": \"yolo11n\",\n      \"display_name\": \"YOLO 11n 640x640\",\n      \"install_status\": \"installed\"\n    },\n    {\n      \"name\": \"mobilenet-v2-pytorch\",\n      \"display_name\": \"MobileNet V2 PyTorch\",\n      \"install_status\": \"not_installed\"\n    }\n  ]\n}\n```"
+      },
       "ModelDownloadJobItem": {
         "properties": {
           "name": {
@@ -4149,6 +4245,32 @@
         ],
         "title": "ModelSource",
         "description": "**Upstream hub a model is downloaded from.**\n\nMirrors the `hub` value used by the model-download microservice and\nadds `CUSTOM` for user-uploaded models.\n\n## Values\n- `HUGGINGFACE` - HuggingFace Hub\n- `ULTRALYTICS` - Ultralytics model zoo\n- `PIPELINE_ZOO_MODELS` - OpenVINO Pipeline Zoo models\n- `OMZ` - OpenVINO Open Model Zoo (handled locally by vippet-app)\n- `CUSTOM` - User-uploaded model\n\n### Example\n```json\n\"huggingface\"\n```"
+      },
+      "ModelStatusItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Internal model identifier."
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name",
+            "description": "Human-readable model name."
+          },
+          "install_status": {
+            "$ref": "#/components/schemas/ModelInstallStatus",
+            "description": "Current install status of the model."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "display_name",
+          "install_status"
+        ],
+        "title": "ModelStatusItem",
+        "description": "**Single model status item returned by check-status endpoint.**\n\nContains the essential identification and status fields for a model.\n\n## Attributes\n- `name` - Internal model identifier used by the backend\n- `display_name` - Human-readable model name\n- `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)\n\n### Example\n```json\n{\n  \"name\": \"yolo11n\",\n  \"display_name\": \"YOLO 11n 640x640\",\n  \"install_status\": \"installed\"\n}\n```"
       },
       "ModelUploadResponse": {
         "properties": {

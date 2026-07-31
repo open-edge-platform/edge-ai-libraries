@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
+from managers.execution_coordinator import JobExecutionConflictError
 from managers.optimization_manager import OptimizationManager
 from managers.pipeline_manager import PipelineManager
 from managers.validation_manager import ValidationManager
@@ -186,6 +187,10 @@ def create_pipeline(body: schemas.PipelineDefinition):
             "description": "Pipeline validation started",
             "model": schemas.ValidationJobResponse,
         },
+        409: {
+            "description": "Only one job can be run at the same time.",
+            "model": schemas.MessageResponse,
+        },
         400: {
             "description": "Invalid validation request",
             "model": schemas.MessageResponse,
@@ -270,6 +275,12 @@ def validate_pipeline(body: schemas.PipelineValidation):
         return JSONResponse(
             content=schemas.ValidationJobResponse(job_id=job_id).model_dump(),
             status_code=202,
+        )
+    except JobExecutionConflictError as e:
+        logger.warning("Pipeline validation start blocked: %s", e)
+        return JSONResponse(
+            content=schemas.MessageResponse(message=str(e)).model_dump(),
+            status_code=409,
         )
     except ValueError as e:
         # ValidationManager uses ValueError for user-level input problems.
@@ -636,6 +647,10 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
             "description": "Optimization job successfully started",
             "model": schemas.OptimizationJobResponse,
         },
+        409: {
+            "description": "Only one job can be run at the same time.",
+            "model": schemas.MessageResponse,
+        },
         404: {
             "description": "Pipeline or variant not found",
             "model": schemas.MessageResponse,
@@ -688,6 +703,7 @@ def optimize_variant(
     - OptimizationManager starts a background job
 
     ### ❌ Failure
+    - Another execution job is already running → 409
     - Unknown pipeline or variant ID → 404
     - Unhandled exception in pipeline/variant lookup or job creation → 500
 
@@ -724,6 +740,12 @@ def optimize_variant(
         return JSONResponse(
             content=schemas.OptimizationJobResponse(job_id=job_id).model_dump(),
             status_code=202,
+        )
+    except JobExecutionConflictError as e:
+        logger.warning("Optimization start blocked: %s", e)
+        return JSONResponse(
+            content=schemas.MessageResponse(message=str(e)).model_dump(),
+            status_code=409,
         )
     except ValueError as e:
         if "not found" in str(e).lower():

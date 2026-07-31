@@ -44,6 +44,7 @@ import {
   type PipelineVariantReference,
 } from "@/features/pipeline-tests/pipelineVariantReference";
 import type { Pipeline } from "@/api/api.generated";
+import { NavigationGuard } from "@/components/shared/NavigationGuard";
 
 interface PipelineSelection {
   pipelineId: string;
@@ -103,6 +104,7 @@ export const PerformanceTests = () => {
   const {
     execute: runTest,
     isLoading: isRunning,
+    isPolling: isPollingJob,
     jobId,
     jobStatus,
   } = useAsyncJob({
@@ -288,6 +290,11 @@ export const PerformanceTests = () => {
 
   return (
     <>
+      <NavigationGuard
+        when={isPollingJob}
+        title="Performance test in progress"
+        description="This page is still polling the active performance test. Stop the test or wait for it to finish before leaving this page."
+      />
       <div className="container pl-16 mx-auto py-10">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Performance Tests</h1>
