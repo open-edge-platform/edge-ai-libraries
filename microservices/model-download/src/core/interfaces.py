@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, List
 
+MAX_OVERRIDE_CREDENTIAL_LENGTH = 8 * 1024  # 8 KiB (Max Token Base64-encoded size. Ex:JWT)
+
 class DownloadTask:
     """
     Represents a sub-task in a model download process.
@@ -93,6 +95,14 @@ class ModelDownloadPlugin(ABC):
                 raise ValueError(
                     f"Unknown override key '{name}' for hub '{hub}'. "
                     f"Allowed keys: {allowed}."
+                )
+
+        # Reject excessively large override values.
+        for name, override_val in overrides.items():
+            if override_val is not None and len(override_val) > MAX_OVERRIDE_CREDENTIAL_LENGTH:
+                raise ValueError(
+                    f"override_credentials['{name}'] exceeds the maximum allowed "
+                    f"length of {MAX_OVERRIDE_CREDENTIAL_LENGTH} characters"
                 )
 
         # Groups that the request is overriding (any member supplied).
