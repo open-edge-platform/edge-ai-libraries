@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Optional overlay: runs a DLSPS 2.0 (dlstreamer-pipeline-server) instance
+# alongside VIPPET and points VIPPET's validation / single-stream
+# performance-test execution at it instead of the local gst_runner.py
+# subprocess. See vippet/dlsps2_runner.py for exactly what is and is not
+# supported (density / multi-stream tests and latency metrics still use the
+# local runner regardless of this overlay).
+#
+# Usage (combine with the usual device-profile overlay, e.g. compose.cpu.yml):
+#   docker compose -f compose.yml -f compose.cpu.yml -f compose.dlsps2.yml up -d --build
+#
+# ./shared/videos and ./shared/models are mounted at the SAME container
+# paths as the vippet service (see compose.yml's AUTO_VIDEO_DIR/
+# UPLOADED_VIDEO_DIR/MODELS_PATH env vars), so pipeline strings built by
+# VIPPET — which embed absolute paths like /videos/input/... and
+# /models/output/... — resolve to the same files inside the
+# dlstreamer-pipeline-server container.
+services:
+  dlstreamer-pipeline-server:
+    image: dlsps2.0-21
+    hostname: dlstreamer-pipeline-server
+    container_name: dlstreamer-pipeline-server
+    build:
+      context: ../../microservices/dlstreamer-pipeline-server/dlsps2
+      dockerfile: docker/Dockerfile
+      args:
+        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-intel/dlstreamer:2026.1.0-ubuntu24}
+        UID: ${DLSPS2_UID:-1000}
+        USER: ${DLSPS2_USER:-pipeline-server}
+        http_proxy:
+        https_proxy:
+        no_proxy:
+    restart: on-failure:5
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/pipelines/status', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    ports:
+      - "${DLSPS2_REST_SERVER_PORT:-8081}:8080"
+    environment:
+      REST_SERVER_PORT: 8080
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
+      WEB_SERVER_LOG_LEVEL: ${WEB_SERVER_LOG_LEVEL:-WARNING}
+      GST_DEBUG: "1"
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: "${no_proxy:+${no_proxy},}vippet,mediamtx"
+      HTTP_PROXY: ${http_proxy}
+      HTTPS_PROXY: ${https_proxy}
+      NO_PROXY: "${no_proxy:+${no_proxy},}vippet,mediamtx"
+    group_add:
+      - ${RENDER_GROUP_ID}
+    devices:
+      - "/dev/dri:/dev/dri"
+    tmpfs:
+      - /tmp
+      - /var/tmp
+    volumes:
+      - ./shared/videos/:/videos
+      - ./shared/models/:/models
+      - ./shared/images/:/images
+
+  # Point VIPPET's validation / single-stream performance test path at the
+  # dlstreamer-pipeline-server service above instead of local gst_runner.py.
+  vippet:
+    depends_on:
+      dlstreamer-pipeline-server:
+        condition: service_healthy
+    environment:
+      VIPPET_EXECUTION_BACKEND: dlsps2
+      DLSPS2_BASE_URL: http://dlstreamer-pipeline-server:8080
+      DLSPS2_VERIFY_TLS: "false"
+      no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download,dlstreamer-pipeline-server"
