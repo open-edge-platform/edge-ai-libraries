@@ -25,8 +25,7 @@ def is_port_open(host, port, timeout=3):
         try:
             with socket.create_connection((host, port), timeout=timeout):
                 return True
-        except (socket.timeout, socket.error) as e:
-            pass
+        except (socket.timeout, socket.error):
             time.sleep(1)
             retries += 1
     if retries == 10:
@@ -118,7 +117,7 @@ def send_data(filepath):
                     time.sleep(10)
                     continue
                 except requests.exceptions.Timeout:
-                    print(f"Request timed out. Retrying in 5s...")
+                    print("Request timed out. Retrying in 5s...")
                     time.sleep(5)
                     continue
                 time.sleep(5)
