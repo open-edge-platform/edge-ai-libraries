@@ -174,6 +174,7 @@ async def get_all_benchmark_runs(
             if suite is None:
                 continue
 
+            start_time = suite_run.start_time or 0
             response_runs.append(
                 schemas.BenchmarkSuiteRun(
                     id=suite_run.id,
@@ -185,9 +186,9 @@ async def get_all_benchmark_runs(
                     score_total=suite_run.score_total,
                     score_performance=suite_run.score_performance,
                     score_efficiency=suite_run.score_efficiency,
-                    start_time=suite_run.start_time,
+                    start_time=start_time,
                     execution_time=(
-                        now_ms - suite_run.start_time
+                        now_ms - start_time
                         if suite_run.status == "running"
                         else suite_run.execution_time
                     ),
@@ -413,9 +414,9 @@ async def get_benchmark_suite_runs(
                 score_total=suite_run.score_total,
                 score_performance=suite_run.score_performance,
                 score_efficiency=suite_run.score_efficiency,
-                start_time=suite_run.start_time,
+                start_time=suite_run.start_time or 0,
                 execution_time=(
-                    int(time.time() * 1000) - suite_run.start_time
+                    int(time.time() * 1000) - (suite_run.start_time or 0)
                     if suite_run.status == "running"
                     else suite_run.execution_time
                 ),
@@ -520,7 +521,7 @@ async def export_benchmark_suite_run_csv(
                 .where(BenchmarkTestCaseRun.workload_run_id.in_(workload_run_ids))
                 .order_by(BenchmarkTestCaseRun.id)
             )
-            test_case_runs = test_case_runs_result.scalars().all()
+            test_case_runs = list(test_case_runs_result.scalars().all())
 
         test_case_ids = [test_case_run.test_case_id for test_case_run in test_case_runs]
         benchmark_test_cases_by_id: dict[int, BenchmarkTestCase] = {}
@@ -745,7 +746,7 @@ async def get_benchmark_suite_run_by_id(
                 .where(BenchmarkTestCaseRun.workload_run_id.in_(workload_run_ids))
                 .order_by(BenchmarkTestCaseRun.id)
             )
-            test_case_runs = test_case_runs_result.scalars().all()
+            test_case_runs = list(test_case_runs_result.scalars().all())
 
         test_case_ids = [test_case_run.test_case_id for test_case_run in test_case_runs]
         benchmark_test_cases_by_id: dict[int, BenchmarkTestCase] = {}
