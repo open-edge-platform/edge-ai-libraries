@@ -334,20 +334,18 @@ class TestsManager:
             with self._jobs_lock:
                 self.jobs[job_id] = job
 
-        # Start execution in background thread
-        if collect_metrics:
-            thread_args = (job_id, internal_spec, execution_lease, True)
-        else:
-            # Keep the historical call signature for unit tests and
-            # existing mocks when metrics collection is disabled.
-            thread_args = (job_id, internal_spec, execution_lease)
+            # Start execution in background thread
+            if collect_metrics:
+                thread_args = (job_id, internal_spec, True, execution_lease)
+            else:
+                thread_args = (job_id, internal_spec, False, execution_lease)
 
-        thread = threading.Thread(
-            target=self._execute_performance_test,
-            args=thread_args,
-            daemon=True,
-        )
-        thread.start()
+            thread = threading.Thread(
+                target=self._execute_performance_test,
+                args=thread_args,
+                daemon=True,
+            )
+            thread.start()
         except Exception:
             with self._jobs_lock:
                 self.jobs.pop(job_id, None)
@@ -841,7 +839,7 @@ class TestsManager:
             if collect_metrics:
                 self._stop_metrics_stream_collection(job_id)
             if execution_lease is not None:
-                            ExecutionCoordinator().release(execution_lease)
+                ExecutionCoordinator().release(execution_lease)
 
     def _build_performance_execution_result(self, job_id: str) -> dict[str, Any]:
         """Build final performance execution payload for orchestration callers."""
