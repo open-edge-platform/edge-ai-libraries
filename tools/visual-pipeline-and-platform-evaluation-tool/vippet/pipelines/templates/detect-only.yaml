@@ -5,6 +5,7 @@ definition: >
 tags:
   - template
   - detection
+type: vision
 variants:
   - name: CPU
     pipeline_description: >-

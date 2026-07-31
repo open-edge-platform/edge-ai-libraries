@@ -18,7 +18,12 @@ import {
 } from "@/features/benchmarks/utils";
 import { formatTimestamp } from "@/lib/timeUtils";
 
-const TERMINAL_RUN_STATUSES = new Set(["passed", "failed", "cancelled"]);
+const TERMINAL_RUN_STATUSES = new Set([
+  "passed",
+  "failed",
+  "cancelled",
+  "skipped",
+]);
 
 export const BenchmarkRunDetail = () => {
   const { id, runId } = useParams<{ id: string; runId: string }>();
