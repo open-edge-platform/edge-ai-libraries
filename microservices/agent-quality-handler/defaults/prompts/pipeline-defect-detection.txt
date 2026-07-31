@@ -1,0 +1,131 @@
+# Pipeline Defects Detection - Prompt Configuration
+# This file contains all prompts for the pipeline defects detection use case.
+# Format: Each section starts with [SECTION_NAME] followed by the prompt text.
+# Sections are separated by blank lines.
+
+[SYSTEM]
+You are a pipeline defect analysis system.
+Defect Classes: Deformation, Obstacle, Rupture, Disconnect, Misalignment, Deposition
+Confidence range: 0.0 to 1.0
+Analyze defect detection data and provide structured insights.
+
+[POLICY]
+Set confidence threshold to 0.8 for Rupture and Disconnect (critical defects).
+Set confidence threshold to 0.5 for Obstacle (filter out low-confidence obstacles).
+For all other defect classes, use the global minimum confidence threshold.
+Only include detections with bbox width >= 40 and height >= 40.
+
+Return a structured policy JSON with fields:
+- min_conf_global: global minimum confidence threshold (default 0.4)
+- per_class_thresholds: object mapping class names to confidence thresholds
+- bbox_min_size: object with width and height minimum values
+
+Example output format (use actual policy rules above, not these example values):
+{
+  "min_conf_global": 0.4,
+  "per_class_thresholds": {
+    "ClassA": 0.7,
+    "ClassB": 0.5
+  },
+  "bbox_min_size": {
+    "width": 50,
+    "height": 50
+  }
+}
+
+[ANALYSIS]
+You are generating a defect detection analysis report. You will receive pre-aggregated statistics.
+
+Generate a professional text report with these exact sections:
+
+1. Header: Use "===" for top/bottom borders, include title "DEFECT DETECTION ANALYSIS SUMMARY"
+2. Summary section with total detections and unique classes count
+3. Table with columns: Defect Class, Count, Mean Confidence, Status
+   - Mean Confidence: Format to exactly 3 decimal places (e.g., 0.546, 0.877)
+   - Status: HIGH if confidence >= 0.8, MEDIUM if >= 0.6, LOW otherwise
+   - Sort by count descending
+4. KEY FINDINGS section with bullet points covering:
+   - Most frequent defect type
+   - High confidence classes (>= 0.9) if any
+   - Any critical patterns
+
+IMPORTANT:
+- Use actual data from the provided statistics, do NOT use placeholders
+- Format mean confidence values to EXACTLY 3 decimal places, no more
+- Format with proper text alignment and borders using - and = characters
+- Keep it concise and professional
+- Return ONLY the report text, no additional notes or comments
+
+[EVIDENCE]
+Generate a concise audit trail report as PLAIN TEXT (not JSON). Use the evidence data provided in the context.
+
+Load policy configuration from out/agent/policy.json if available to show detailed policy thresholds.
+
+Output the audit trail in this exact format (replace values in brackets with actual data):
+
+======================================================================
+PIPELINE EXECUTION AUDIT TRAIL
+======================================================================
+
+Run Status: [Completed or Failed]
+Timestamp: [Convert ts to YYYY-MM-DD HH:MM:SS]
+Database Storage: [Yes if db_stored is true, else No]
+
+POLICY DECISIONS
+----------------------------------------------------------------------
+Global Threshold: [queried_min_conf value]
+Detections Kept: [kept] out of [total]
+
+Per-Class Thresholds:
+[List each class and its threshold from policy.json per_class_thresholds]
+
+Bounding Box Min Size:
+Width: [bbox_min_size.width], Height: [bbox_min_size.height]
+
+Per-Class Breakdown (Detections Kept):
+[List each class with count from policy_metrics]
+
+ANALYSIS SCOPE
+----------------------------------------------------------------------
+Detections Analyzed: [analysis_rows]
+
+TRACEABILITY
+----------------------------------------------------------------------
+Storage: SQLite database and local files (out/agent/evidence.json)
+
+======================================================================
+
+IMPORTANT:
+- Output PLAIN TEXT only, NOT JSON
+- Do NOT wrap the output in code blocks or quotes
+- Do NOT add any commentary or notes after the report
+- Use actual line breaks, not \\n escape sequences
+
+STOP after the final line of equals signs. Do not add notes, commentary, or additional text.
+
+[SQL_SCHEMA]
+Database Schema:
+Table: detections
+Columns:
+  - id (INTEGER): Primary key
+  - frame_id (INTEGER): Frame/image identifier
+  - label (TEXT): Defect class — one of: 'Deformation', 'Rupture', 'Obstacle', 'Misalignment', 'Disconnect', 'Deposition'
+  - confidence (REAL): Detection confidence score (0.0 to 1.0)
+  - x (INTEGER): Bounding box X coordinate
+  - y (INTEGER): Bounding box Y coordinate
+  - width (INTEGER): Bounding box width
+  - height (INTEGER): Bounding box height
+  - created_at (TIMESTAMP): Timestamp of detection
+
+Important: Each row is one detection. A frame can have multiple detections with different labels.
+When a question mentions a specific defect type (e.g., 'rupture', 'obstacle'), always filter with WHERE label = '<DefectType>'.
+Always include frame_id in SELECT when the question mentions frames.
+
+Example queries:
+- "rupture frame with max confidence" → SELECT frame_id, label, confidence FROM detections WHERE label = 'Rupture' ORDER BY confidence DESC LIMIT 1;
+- "count detections per label" → SELECT label, COUNT(*) as count FROM detections GROUP BY label;
+- "frames with more than 3 defects" → SELECT frame_id, COUNT(*) as num_defects FROM detections GROUP BY frame_id HAVING num_defects > 3;
+- "all obstacles in frame 50" → SELECT * FROM detections WHERE frame_id = 50 AND label = 'Obstacle';
+- "any 5 frames" → SELECT DISTINCT frame_id FROM detections LIMIT 5;
+- "show 10 random detections" → SELECT * FROM detections ORDER BY RANDOM() LIMIT 10;
+- "first 5 frames with rupture" → SELECT DISTINCT frame_id FROM detections WHERE label = 'Rupture' LIMIT 5;

@@ -1,6 +1,7 @@
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   useConvertSimpleToAdvancedMutation,
+  useCheckModelsStatusMutation,
   useGetPerformanceJobStatusQuery,
   useGetPipelineQuery,
   useRunPerformanceTestMutation,
@@ -13,7 +14,7 @@ import {
   type Node as ReactFlowNode,
   type Viewport,
 } from "@xyflow/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import PipelineEditorCanvas, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
@@ -66,6 +67,11 @@ import {
   Undo2,
 } from "lucide-react";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { NavigationGuard } from "@/components/shared/NavigationGuard";
+import {
+  PipelineModelsRequiredDialog,
+  type PipelineModelStatusItem,
+} from "@/features/models/PipelineModelsRequiredDialog.tsx";
 type UrlParams = {
   id: string;
   variant: string;
@@ -129,6 +135,28 @@ const buildGraphData = (
   })),
 });
 
+const extractModelsFromSimpleGraph = (
+  nodes: Array<{ data: { [key: string]: string } }> = [],
+): string[] => {
+  const uniqueModels = new Set<string>();
+
+  nodes.forEach((node) => {
+    const rawModel = node.data.model?.trim();
+    if (!rawModel) {
+      return;
+    }
+
+    // Pipeline nodes may include precision suffix, e.g. "Model Name (FP16)".
+    // The status API expects display name without precision.
+    const normalizedModel = rawModel.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    if (normalizedModel) {
+      uniqueModels.add(normalizedModel);
+    }
+  });
+
+  return [...uniqueModels];
+};
+
 export const Pipelines = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
   const { id, variant } = useParams<UrlParams>();
@@ -158,6 +186,10 @@ export const Pipelines = () => {
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
     null,
   );
+  const [modelStatusDialogOpen, setModelStatusDialogOpen] = useState(false);
+  const [pipelineModelStatuses, setPipelineModelStatuses] = useState<
+    PipelineModelStatusItem[]
+  >([]);
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
   const nodeDetailsPanelSizeRef = useRef(24);
@@ -165,6 +197,7 @@ export const Pipelines = () => {
   const detailsPanelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
+  const startedToastJobIdRef = useRef<string | null>(null);
 
   const {
     currentNodes,
@@ -193,10 +226,12 @@ export const Pipelines = () => {
     useStopPerformanceTestJobMutation();
   const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
   const [updateVariant] = useUpdateVariantMutation();
+  const [checkModelsStatus] = useCheckModelsStatusMutation();
 
   const {
     execute: runPipeline,
     isLoading: isPipelineRunning,
+    isPolling: isPipelinePolling,
     isJobCancelled,
     jobId,
     jobStatus,
@@ -206,6 +241,17 @@ export const Pipelines = () => {
   });
 
   useActiveJobSync(jobId);
+
+  useEffect(() => {
+    if (!jobId || startedToastJobIdRef.current === jobId) {
+      return;
+    }
+
+    startedToastJobIdRef.current = jobId;
+    toast.success("Pipeline run started", {
+      description: new Date().toISOString(),
+    });
+  }, [jobId]);
 
   // Reset editor state when variant changes
   useEffect(() => {
@@ -229,6 +275,69 @@ export const Pipelines = () => {
       false;
     setMetadataEnabled(isVlmPipeline);
   }, [variant, data]);
+
+  const verifyRequiredModels = useCallback(async () => {
+    if (!data || !variant) {
+      setPipelineModelStatuses([]);
+      setModelStatusDialogOpen(false);
+      return;
+    }
+
+    const variantData = data.variants.find((v) => v.id === variant);
+    const requiredModels = extractModelsFromSimpleGraph(
+      variantData?.pipeline_graph_simple.nodes,
+    );
+
+    if (requiredModels.length === 0) {
+      setPipelineModelStatuses([]);
+      setModelStatusDialogOpen(false);
+      return;
+    }
+
+    try {
+      const response = await checkModelsStatus({
+        modelCheckStatusRequest: {
+          display_names: requiredModels,
+        },
+      }).unwrap();
+
+      const installStatusByModel = new Map<
+        string,
+        PipelineModelStatusItem["installStatus"]
+      >();
+
+      response.models?.forEach((model) => {
+        installStatusByModel.set(model.display_name, model.install_status);
+        installStatusByModel.set(model.name, model.install_status);
+      });
+
+      const modelStatuses: PipelineModelStatusItem[] = requiredModels.map(
+        (model) => ({
+          model,
+          installStatus: installStatusByModel.get(model) ?? "not_installed",
+        }),
+      );
+
+      setPipelineModelStatuses(modelStatuses);
+      setModelStatusDialogOpen(
+        modelStatuses.some((item) => item.installStatus !== "installed"),
+      );
+    } catch (error) {
+      handleApiError(error, "Failed to check models used in pipeline");
+    }
+  }, [data, variant, checkModelsStatus]);
+
+  useEffect(() => {
+    const runVerification = async () => {
+      try {
+        await verifyRequiredModels();
+      } catch {
+        // handled in verifyRequiredModels
+      }
+    };
+
+    void runVerification();
+  }, [verifyRequiredModels]);
 
   const handleViewportChange = (viewport: Viewport) => {
     setCurrentViewport(viewport);
@@ -345,10 +454,6 @@ export const Pipelines = () => {
         (n) => n.type === "gvametapublish",
       );
 
-      toast.success("Pipeline run started", {
-        description: new Date().toISOString(),
-      });
-
       const status = await runPipeline({
         performanceTestSpec: {
           pipeline_performance_specs: [
@@ -363,8 +468,7 @@ export const Pipelines = () => {
           execution_config: {
             output_mode: outputMode,
             max_runtime: maxRuntimeSeconds,
-            metadata_mode:
-              hasMetadata && metadataEnabled ? "file" : "disabled",
+            metadata_mode: hasMetadata && metadataEnabled ? "file" : "disabled",
             enable_latency_metrics: latencyMetricsEnabled,
           },
         },
@@ -480,6 +584,12 @@ export const Pipelines = () => {
       currentVariantData?.pipeline_graph.nodes.some(
         (n) => n.type === "gvametapublish",
       ) ?? false;
+    const hasMissingRequiredModels = pipelineModelStatuses.some(
+      (item) => item.installStatus !== "installed",
+    );
+    const missingRequiredModels = pipelineModelStatuses
+      .filter((item) => item.installStatus !== "installed")
+      .map((item) => item.model);
 
     const editorContent = (
       <div className="w-full h-full relative">
@@ -510,6 +620,11 @@ export const Pipelines = () => {
 
     return (
       <div className="flex flex-col h-full w-full">
+        <NavigationGuard
+          when={isPipelinePolling}
+          title="Pipeline run in progress"
+          description="This page is still polling the active pipeline run. Stop the run or wait for it to finish before leaving this page."
+        />
         <header className="flex h-[3.75rem] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
           <div className="flex flex-wrap items-center gap-2 px-2">
             <Link
@@ -861,6 +976,26 @@ export const Pipelines = () => {
                 isStopping={isStopping}
                 onStop={handleStopPipeline}
               />
+            ) : hasMissingRequiredModels ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <RunPipelineButton
+                      onRun={handleRunPipeline}
+                      isRunning={isPipelineRunning}
+                      disabled
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-80">
+                  <p>Install all required models first.</p>
+                  {missingRequiredModels.length > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground break-words">
+                      Missing: {missingRequiredModels.join(", ")}
+                    </p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
             ) : (
               <RunPipelineButton
                 onRun={handleRunPipeline}
@@ -914,9 +1049,7 @@ export const Pipelines = () => {
                   defaultSize={runPanelSizeRef.current}
                   minSize={640}
                   onResize={(size) => {
-                    if (typeof size === "number") {
-                      runPanelSizeRef.current = size;
-                    }
+                    runPanelSizeRef.current = size.asPercentage;
                   }}
                 >
                   <div
@@ -958,9 +1091,7 @@ export const Pipelines = () => {
                   defaultSize={nodeDetailsPanelSizeRef.current}
                   minSize={400}
                   onResize={(size) => {
-                    if (typeof size === "number") {
-                      nodeDetailsPanelSizeRef.current = size;
-                    }
+                    nodeDetailsPanelSizeRef.current = size.asPercentage;
                   }}
                 >
                   <div
@@ -977,6 +1108,12 @@ export const Pipelines = () => {
             )}
           </ResizablePanelGroup>
         </div>
+        <PipelineModelsRequiredDialog
+          open={modelStatusDialogOpen}
+          onOpenChange={setModelStatusDialogOpen}
+          models={pipelineModelStatuses}
+          onModelsChanged={verifyRequiredModels}
+        />
       </div>
     );
   }

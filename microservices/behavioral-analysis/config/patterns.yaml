@@ -36,7 +36,7 @@ patterns:
       min_confidence_for_alert: 0.30
       phases:
         - name: arm_handling_near_body
-          min_frames: 20
+          min_frames: 5
           conditions:
             # Arm bent or slightly extended (concealment holds item flat against body).
             # Concealment posture: 155-165° → matches.
