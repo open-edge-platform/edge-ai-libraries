@@ -67,7 +67,7 @@ export const BenchmarkSuiteWorkloadsTable = ({
           const sourceValue =
             sourceNode?.data && typeof sourceNode.data === "object"
               ? String(
-                  (sourceNode.data as Record<string, unknown>).source || "",
+                  (sourceNode.data as Record<string, unknown>).source ?? "",
                 )
               : undefined;
 
@@ -104,17 +104,17 @@ export const BenchmarkSuiteWorkloadsTable = ({
               </TableCell>
               <TableCell className="text-muted-foreground">
                 <p className="whitespace-pre-wrap">
-                  {pipeline?.description || "-"}
+                  {pipeline?.description ?? "-"}
                 </p>
               </TableCell>
               <TableCell>
                 <p className="whitespace-pre-wrap text-xs">
-                  {variantNames || "-"}
+                  {variantNames ?? "-"}
                 </p>
               </TableCell>
               <TableCell className="text-xs">
                 <div className="space-y-1">
-                  <div>Input: {String(sourceValue || "-")}</div>
+                  <div>Input: {String(sourceValue ?? "-")}</div>
                   <div>
                     Models:{" "}
                     {modelNames.length > 0
@@ -129,7 +129,7 @@ export const BenchmarkSuiteWorkloadsTable = ({
                         ))
                       : "-"}
                   </div>
-                  <div>Tested stream counts: {uniqueStreams || "-"}</div>
+                  <div>Tested stream counts: {uniqueStreams ?? "-"}</div>
                 </div>
               </TableCell>
             </TableRow>

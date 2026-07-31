@@ -139,7 +139,7 @@ export const PipelineActionsMenu = ({
     const jsonString = JSON.stringify(exportData, null, 2);
     downloadFile(
       jsonString,
-      `${pipelineName || "pipeline"}.json`,
+      `${pipelineName ?? "pipeline"}.json`,
       MimeType.JSON,
     );
     toast.success("Pipeline state downloaded");
@@ -170,7 +170,7 @@ export const PipelineActionsMenu = ({
       const description = response.pipeline_description;
       downloadFile(
         description,
-        `${pipelineName || "pipeline"}.txt`,
+        `${pipelineName ?? "pipeline"}.txt`,
         MimeType.TEXT,
       );
       toast.success("Pipeline description downloaded");

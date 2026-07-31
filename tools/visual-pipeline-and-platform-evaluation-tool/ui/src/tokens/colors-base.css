@@ -41,8 +41,8 @@
   --electric-rust: oklch(0.7315 0.1802 50.72); /* #FE8022 */
   --electric-coral: oklch(0.5859 0.2057 13.88); /* #DA2E56 */
 
-  /* Support paletter */
-  --support-success: oklch(0.548 0.186 142.495); /* #008a00 */
+  /* Support palette */
+  --support-success: oklch(0.548 0.186 142.495); /* #008A00 */
 
   /* Light color palette */
   --moss: oklch(0.818 0.128 124.73); /* #B1D272 */

@@ -15,6 +15,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { handleApiError } from "@/lib/apiUtils";
 import { Loader2, Play, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { unslug } from "@/lib/utils";
@@ -32,7 +33,6 @@ export const RunBenchmarkButton = ({ suiteSlug }: RunBenchmarkButtonProps) => {
   const [stopBenchmark, { isLoading: isStopping }] =
     useStopBenchmarkJobMutation();
 
-  // Poll all benchmark job statuses to detect any running job
   const { data: allStatuses } = useGetBenchmarkStatusesQuery(undefined, {
     pollingInterval: 2000,
   });
@@ -41,9 +41,6 @@ export const RunBenchmarkButton = ({ suiteSlug }: RunBenchmarkButtonProps) => {
   const isThisSuiteRunning = runningJob?.suite_slug === suiteSlug;
   const isOtherSuiteRunning = !!runningJob && !isThisSuiteRunning;
 
-  // Determine which job ID to poll for fine-grained status:
-  // - if this suite has a pre-existing running job, use its id
-  // - otherwise use the id we just started
   const activeJobId = isThisSuiteRunning ? runningJob!.id : newJobId;
 
   const { data: activeJobStatus } = useGetBenchmarkJobStatusQuery(
@@ -51,8 +48,6 @@ export const RunBenchmarkButton = ({ suiteSlug }: RunBenchmarkButtonProps) => {
     { skip: !activeJobId, pollingInterval: 2000 },
   );
 
-  // Clear our local job id once the job finishes (polling from statuses will
-  // stop showing it as RUNNING so isThisSuiteRunning will flip to false)
   const jobFinished =
     activeJobStatus?.state === "COMPLETED" ||
     activeJobStatus?.state === "FAILED";
@@ -68,8 +63,9 @@ export const RunBenchmarkButton = ({ suiteSlug }: RunBenchmarkButtonProps) => {
       setDisplayProgress(0);
       const response = await runBenchmark({ suiteSlug }).unwrap();
       setNewJobId(response.job_id);
-    } catch {
-      // error handling can be added here or via toast
+    } catch (error) {
+      handleApiError(error, "Failed to run benchmark");
+      console.error("Failed to run benchmark:", error);
     }
   };
 
@@ -78,9 +74,10 @@ export const RunBenchmarkButton = ({ suiteSlug }: RunBenchmarkButtonProps) => {
     try {
       setStoppingJobId(activeJobId);
       await stopBenchmark({ jobId: activeJobId }).unwrap();
-    } catch {
+    } catch (error) {
       setStoppingJobId(null);
-      // error handling can be added here or via toast
+      handleApiError(error, "Failed to stop benchmark");
+      console.error("Failed to stop benchmark:", error);
     }
   };
 

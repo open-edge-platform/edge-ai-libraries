@@ -47,13 +47,10 @@ export const downloadFile = (
  * @param value - The file path (can be Unix or Windows format)
  * @returns The filename extracted from the path
  */
-export const getFilenameFromPath = (value: unknown): string => {
-  return (
-    String(value ?? "")
-      .split(/[\\/]/)
-      .pop() ?? ""
-  );
-};
+export const getFilenameFromPath = (value: unknown): string =>
+  String(value ?? "")
+    .split(/[\\/]/)
+    .pop() ?? "";
 
 /**
  * Formats a byte size into a human-readable string
