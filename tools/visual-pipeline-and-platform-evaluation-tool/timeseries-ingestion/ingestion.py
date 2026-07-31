@@ -18,9 +18,10 @@ input_file = os.getenv("INPUT_FILE", "wind-turbine-anomaly-detection.csv")
 metadata_dir = os.getenv("METADATA_DIR", "/metadata")
 metadata_file = os.path.join(metadata_dir, "timeseries-ingestion.jsonl")
 
+
 def is_port_open(host, port, timeout=3):
     retries = 0
-    while(retries < 10):
+    while retries < 10:
         try:
             with socket.create_connection((host, port), timeout=timeout):
                 return True
@@ -32,6 +33,7 @@ def is_port_open(host, port, timeout=3):
         print(f"Failed to connect to {host}:{port} after multiple attempts.")
         return False
 
+
 if not port.isdigit():
     print(f"Invalid port number: {port}. Please provide a valid port number.")
     exit(1)
@@ -41,6 +43,7 @@ if not is_port_open(host, port):
     exit(1)
 else:
     print(f"Port {port} on {host} is accessible.")
+
 
 def wait_for_health(host, port, delay=5):
     health_url = f"http://{host}:{port}/health"
@@ -52,19 +55,24 @@ def wait_for_health(host, port, delay=5):
                 print(f"Health check passed (HTTP {response.status_code}).")
                 return
             else:
-                print(f"Health check attempt {attempt}: status {response.status_code}. Retrying in {delay}s...")
+                print(
+                    f"Health check attempt {attempt}: status {response.status_code}. Retrying in {delay}s..."
+                )
         except requests.exceptions.RequestException as e:
-            print(f"Health check attempt {attempt} failed: {e}. Retrying in {delay}s...")
+            print(
+                f"Health check attempt {attempt} failed: {e}. Retrying in {delay}s..."
+            )
         time.sleep(delay)
         attempt += 1
+
 
 wait_for_health(host, port)
 
 url = f"http://{host}:{port}/input"
 
 headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
 }
 
 csv_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "input", input_file)
@@ -94,7 +102,9 @@ def send_data(filepath):
                 fields = {col: float(row[col]) for col in reader.fieldnames}
                 payload = {"topic": topic, "fields": fields}
                 try:
-                    response = requests.post(url, json=payload, headers=headers, timeout=10)
+                    response = requests.post(
+                        url, json=payload, headers=headers, timeout=10
+                    )
                     print(f"Sent: {fields} | Status: {response.status_code}")
                     write_metadata(fields, response.status_code)
                     if response.status_code in (200, 204):
@@ -102,7 +112,9 @@ def send_data(filepath):
                     else:
                         print(f"Response Body: {response.text}")
                 except requests.exceptions.ConnectionError as e:
-                    print(f"Connection error, service unavailable. Retrying in 10s... ({e})")
+                    print(
+                        f"Connection error, service unavailable. Retrying in 10s... ({e})"
+                    )
                     time.sleep(10)
                     continue
                 except requests.exceptions.Timeout:
@@ -110,5 +122,6 @@ def send_data(filepath):
                     time.sleep(5)
                     continue
                 time.sleep(5)
+
 
 send_data(csv_file)
