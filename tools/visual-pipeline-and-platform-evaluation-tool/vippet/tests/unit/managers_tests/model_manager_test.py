@@ -607,6 +607,26 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(
             sorted(models[0].used_by_pipelines), ["goods-detection", "smart-nvr"]
         )
+        # Verify that default is set to True when model is used by pipelines
+        self.assertTrue(models[0].default)
+
+    def test_list_models_default_ignores_yaml_default_without_pipeline_usage(
+        self,
+    ) -> None:
+        entry = _make_supported_model(
+            name="yolo11n",
+            canonical_name="yolo11n",
+            display_name="YOLO 11n (FP16)",
+            precision="FP16",
+            default=True,
+        )
+        self._supported_cls.return_value.get_all_supported_models.return_value = [entry]
+        self._pipeline_cls.return_value.get_model_display_names_used_by_pipelines.return_value = {}
+
+        mgr = ModelManager()
+        models = mgr.list_models()
+        self.assertEqual(models[0].used_by_pipelines, [])
+        self.assertFalse(models[0].default)
 
 
 # ----------------------------------------------------------------------

@@ -3,6 +3,17 @@
 This page is the entry point for running the Audio Analyzer microservice.
 Pick one of the two deployment paths and follow the linked guide.
 
+## Application Overview
+
+The Audio Analyzer microservice provides automatic speech recognition (ASR) and optional speaker diarization.
+It captures and transcribes audio, optionally identifying different speakers in the same audio chunk.
+Optional sentiment analysis per chunk complements the transcription output.
+
+If you enable speaker diarization in `config.yaml` (`models.asr.diarization: true`), you must provide a
+Hugging Face access token (`HF_TOKEN`) and accept the Pyannote speaker-diarization model license on
+Hugging Face if you want diarization to initialize successfully. If diarization setup is incomplete,
+the service continues running and logs a warning while disabling diarization for that session.
+
 ## Before You Begin
 
 - Confirm that your machine meets the
