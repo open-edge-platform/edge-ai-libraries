@@ -26,6 +26,24 @@ class PipelineSource(str, Enum):
     TEMPLATE = "TEMPLATE"
 
 
+class PipelineType(str, Enum):
+    """
+    **Type of a pipeline definition.**
+
+    ## Values
+    - `vision` - Pipeline processes video/image data using GStreamer and DLStreamer
+    - `time_series` - Pipeline processes time-series data using the Time Series Analytics Microservice
+
+    ### Example
+    ```json
+    "vision"
+    ```
+    """
+
+    VISION = "vision"
+    TIME_SERIES = "time_series"
+
+
 class AppStatus(str, Enum):
     """
     **Application status enum for tracking initialization progress.**
@@ -1078,6 +1096,10 @@ class Pipeline(BaseModel):
     name: str
     description: str
     source: PipelineSource
+    type: PipelineType = Field(
+        default=PipelineType.VISION,
+        description="Pipeline type: 'vision' for video/image pipelines, 'time_series' for time-series analytics pipelines.",
+    )
     tags: List[str] = Field(
         default=[],
         description="List of tags for categorizing the pipeline.",
@@ -1137,6 +1159,10 @@ class PipelineDefinition(BaseModel):
         description="Non-empty human-readable text describing what the pipeline does.",
     )
     source: PipelineSource = PipelineSource.USER_CREATED
+    type: PipelineType = Field(
+        default=PipelineType.VISION,
+        description="Pipeline type: 'vision' for video/image pipelines, 'time_series' for time-series analytics pipelines.",
+    )
     tags: List[str] = Field(
         default=[],
         description="List of tags for categorizing the pipeline.",
