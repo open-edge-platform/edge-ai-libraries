@@ -104,6 +104,29 @@
                 "docker/compose.yaml",
                 "curl"
             ]
+        },
+        {
+            "name": "chatqna-troubleshoot",
+            "path": ".github/skills/chatqna-troubleshoot/SKILL.md",
+            "description": "Troubleshoot ChatQnA deployment and runtime issues across Docker Compose and Helm using startup checks, logs, API probes, and root-cause isolation.",
+            "triggers": [
+                "troubleshoot chatqna",
+                "debug chatqna",
+                "chatqna not working",
+                "health check failed",
+                "chat endpoint 500",
+                "helm pod crashloop"
+            ],
+            "requires": [
+                "docs/user-guide/get-started.md",
+                "docs/user-guide/deploy-with-helm.md",
+                "docs/user-guide/api-reference.md",
+                "scripts/setup_env.sh",
+                "docker/compose.yaml",
+                "kubectl",
+                "helm",
+                "curl"
+            ]
         }
     ]
 }

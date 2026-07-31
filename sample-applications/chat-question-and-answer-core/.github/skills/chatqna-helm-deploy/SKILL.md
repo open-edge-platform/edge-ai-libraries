@@ -6,6 +6,7 @@ description: >
   and translation from Docker Compose setup_env.sh variables into Helm override values.
   Use this skill  when the user says "deploy chatqna core to kubernetes", "helm install chatqna-core",
   "configure values.yaml", "convert compose config to helm", or "translate setup_env.sh to chart values".
+license: Apache-2.0
 metadata:
   version: "1.0.0"
   tags: "chatqna kubernetes helm values yaml openvino ollama gpu cpu deploy"
@@ -22,6 +23,38 @@ SPDX-License-Identifier: Apache-2.0
 
 Deploy the Chat Question and Answer Core sample application Helm chart at `sample-applications/chat-question-and-answer-core/chart/` to Kubernetes using
 Helm. The chart's dependencies are `chatqna-core` and `chatqna-ui`, which are built from the same source code as the Docker Compose deployment. Also it includes `nginx` as a reverse proxy for the backend and UI.
+
+## Environment setup (run first)
+
+This skill operates on real ChatQnA source files, so the ChatQnA application
+must be present and commands must run from the app root. Do this before any
+Helm workflow, whether or not source is already in your workspace.
+
+Run the bundled bootstrap. It searches for an existing ChatQnA checkout by
+walking up from the current directory and checking the enclosing git repo, then
+reuses it without re-cloning. Only when no checkout is found does it do a
+shallow, single-branch, sparse checkout of just
+`sample-applications/chat-question-and-answer-core` from `main`.
+
+It prints the resolved app root on stdout:
+
+```bash
+# SKILL_DIR is this skill directory. In-repo it is:
+# .github/skills/chatqna-helm-deploy
+SKILL_DIR=".github/skills/chatqna-helm-deploy"
+APP_ROOT="$(bash "$SKILL_DIR/scripts/chatqna-bootstrap.sh")"
+cd "$APP_ROOT"
+```
+
+Every command below assumes the working directory is this `APP_ROOT`.
+
+To use a fork/branch or a specific clone path, override these before running
+the bootstrap script:
+
+- `CHATQNA_REPO_URL`
+- `CHATQNA_REPO_BRANCH`
+- `CHATQNA_CLONE_DIR`
+- `CHATQNA_FORCE_CLONE` (set to `1` to force clone)
 
 Codebase root: `sample-applications/chat-question-and-answer-core/`
 

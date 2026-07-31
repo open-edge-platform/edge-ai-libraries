@@ -4,6 +4,7 @@ description: >
   Validate ChatQnA Core REST APIs from docs/user-guide/api-reference.md using repeatable curl-based smoke tests,
   runtime-specific endpoint checks (OpenVINO or Ollama), and concise pass/fail evidence.
   Use this skill  when the user says "test APIs", "verify endpoint health", "check /chat", "validate docs endpoint", or "smoke test deployment".
+license: Apache-2.0
 metadata:
   version: "1.0.0"
   tags: "chatqna api smoke-test curl openapi health chat documents openvino ollama"
@@ -20,6 +21,38 @@ SPDX-License-Identifier: Apache-2.0
 
 Run practical API checks for ChatQnA Core using the documented endpoints in
 `docs/user-guide/api-reference.md`.
+
+## Environment setup (run first)
+
+This skill operates on real ChatQnA source files, so the ChatQnA application
+must be present and commands must run from the app root. Do this before any
+API validation workflow, whether or not source is already in your workspace.
+
+Run the bundled bootstrap. It searches for an existing ChatQnA checkout by
+walking up from the current directory and checking the enclosing git repo, then
+reuses it without re-cloning. Only when no checkout is found does it do a
+shallow, single-branch, sparse checkout of just
+`sample-applications/chat-question-and-answer-core` from `main`.
+
+It prints the resolved app root on stdout:
+
+```bash
+# SKILL_DIR is this skill directory. In-repo it is:
+# .github/skills/chatqna-api-smoke-test
+SKILL_DIR=".github/skills/chatqna-api-smoke-test"
+APP_ROOT="$(bash "$SKILL_DIR/scripts/chatqna-bootstrap.sh")"
+cd "$APP_ROOT"
+```
+
+Every command below assumes the working directory is this `APP_ROOT`.
+
+To use a fork/branch or a specific clone path, override these before running
+the bootstrap script:
+
+- `CHATQNA_REPO_URL`
+- `CHATQNA_REPO_BRANCH`
+- `CHATQNA_CLONE_DIR`
+- `CHATQNA_FORCE_CLONE` (set to `1` to force clone)
 
 Codebase root: `sample-applications/chat-question-and-answer-core/`
 

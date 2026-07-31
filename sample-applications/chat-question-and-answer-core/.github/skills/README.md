@@ -46,6 +46,7 @@ A reference of all ChatQnA skills and intended usage:
 | [`chatqna-helm-deploy`](./chatqna-helm-deploy/SKILL.md) | Ops | Deploy ChatQnA to Kubernetes with Helm, map setup env values to overrides, verify readiness, and uninstall. |
 | [`chatqna-run-unit-tests`](./chatqna-run-unit-tests/SKILL.md) | Contributor | Run backend and UI unit tests with runtime-aware backend options, optional coverage, and pass/fail evidence. |
 | [`chatqna-api-smoke-test`](./chatqna-api-smoke-test/SKILL.md) | Integrator | Validate REST endpoints using curl-based smoke checks, including runtime-specific OpenVINO or Ollama APIs. |
+| [`chatqna-troubleshoot`](./chatqna-troubleshoot/SKILL.md) | SRE | Troubleshoot startup, API, runtime, model, and UI failures for Docker Compose or Helm deployments using evidence-driven diagnostics. |
 
 You generally do not invoke skills manually. The agent uses each skill's
 description and triggers to select relevant guidance automatically.
@@ -107,6 +108,7 @@ Example intent mapping:
 | "Deploy ChatQnA to Kubernetes with Helm values override" | `chatqna-helm-deploy` |
 | "Run unit tests for backend openvino runtime" | `chatqna-run-unit-tests` |
 | "Validate docs, openapi, and chat endpoint" | `chatqna-api-smoke-test` |
+| "Troubleshoot ChatQnA health check or chat 500 errors" | `chatqna-troubleshoot` |
 
 If needed, you can nudge explicitly: "use the chatqna-helm-deploy skill".
 

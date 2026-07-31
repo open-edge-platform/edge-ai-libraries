@@ -1,0 +1,23 @@
+{
+  "skill_name": "chatqna-troubleshoot",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "My ChatQnA deployment starts, but POST /v1/chatqna/chat returns 500. I am using OpenVINO on CPU with Docker Compose. Please troubleshoot and give exact checks and fixes.",
+      "expected_output": "A runtime-aware troubleshooting flow for Docker OpenVINO: health/model/chat checks, backend and compose logs, likely root causes, and verification commands.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I deployed with Helm and the UI URL does not load. Pods are running in namespace ai-demo. Help me debug and isolate whether this is nginx/service/nodeport related.",
+      "expected_output": "A Helm troubleshooting sequence using kubectl get/describe/logs plus hostIP/nodePort checks, with a concise diagnosis and corrective action.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Document upload fails with 400 and sometimes 500 in ChatQnA. Show me how to troubleshoot request format vs backend ingestion/model errors.",
+      "expected_output": "A document ingestion diagnostic flow validating multipart payload, supported formats, /documents behavior, and log-based root-cause guidance.",
+      "files": []
+    }
+  ]
+}
