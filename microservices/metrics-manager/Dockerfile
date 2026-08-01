@@ -223,10 +223,19 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install capabilities-required system tools.
 # - dmidecode: memory technology discovery (DDR4/DDR5/etc.)
 # - pciutils: lspci-based PCI/GPU branding discovery
+# - libva-utils: vainfo for runtime VAAPI codec capability detection
+# - util-linux: lsblk for storage device enumeration
+# - hwinfo: extended hardware information probing
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends dmidecode pciutils && \
+    apt-get install --yes --no-install-recommends \
+        dmidecode \
+        pciutils \
+        vainfo \
+        intel-media-va-driver \
+        util-linux \
+        hwinfo && \
     pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
     (dpkg -s perl-base >/dev/null 2>&1 && dpkg --purge --force-remove-essential perl-base || true) && \
     apt-get clean && \
