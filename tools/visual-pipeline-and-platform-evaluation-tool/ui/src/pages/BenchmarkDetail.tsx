@@ -13,6 +13,7 @@ import { BenchmarkSuiteWorkloadsTable } from "@/features/benchmarks/BenchmarkSui
 import { BenchmarkSuiteRunsTable } from "@/features/benchmarks/BenchmarkSuiteRunsTable.tsx";
 import { BenchmarkSuiteDetailsSkeleton } from "@/features/benchmarks/BenchmarkSuiteDetailsSkeleton";
 import { RunBenchmarkButton } from "@/features/benchmarks/RunBenchmarkButton";
+import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 export const BenchmarkDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -43,7 +44,7 @@ export const BenchmarkDetail = () => {
 
   if (benchmarkLoadError || !benchmark) {
     return (
-      <div className="container pl-16 mx-auto py-10">
+      <div className={CONTENT_CONTAINER_CLASS}>
         <Card>
           <CardContent className="pt-6">
             <p className="text-destructive">
@@ -55,7 +56,7 @@ export const BenchmarkDetail = () => {
     );
   }
   return (
-    <div className="container pl-16 mx-auto py-10">
+    <div className={CONTENT_CONTAINER_CLASS}>
       <div className="mb-6">
         <div className="flex items-center gap-4 mb-2">
           <BackButton to={source === "dashboard" ? "/" : "/benchmarks"} />
@@ -76,6 +77,7 @@ export const BenchmarkDetail = () => {
       />
       <h1 className="font-medium text-xl mt-6 mb-4">Benchmark Results</h1>
       <BenchmarkSuiteRunsTable suiteRuns={suiteRuns} source={source} />
+      <div className="h-10" />
     </div>
   );
 };

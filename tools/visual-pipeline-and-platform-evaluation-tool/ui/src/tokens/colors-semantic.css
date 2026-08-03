@@ -22,6 +22,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-input: var(--input);
@@ -46,7 +47,6 @@
 
   /* Variant badge tokens */
   --color-variant-badge-bg: var(--variant-badge-bg);
-  --color-variant-badge-success: var(--variant-badge-success);
 
   /* Shared opacity-safe semantic tokens */
   --color-surface-overlay: var(--surface-overlay);
@@ -186,6 +186,7 @@
   --muted-foreground: var(--carbon);
   --accent: var(--carbon-10);
   --accent-foreground: var(--black);
+  --success: var(--green);
   --destructive: var(--electric-coral);
   --border: var(--carbon-10);
   --input: var(--carbon-tint-1);
@@ -216,7 +217,6 @@
   --summary-unit: var(--classic-blue);
 
   --variant-badge-bg: var(--carbon-tint-2);
-  --variant-badge-success: var(--support-success);
 
   --surface-overlay: color-mix(
     in oklch,
@@ -471,6 +471,7 @@
   --muted-foreground: var(--carbon-tint-1);
   --accent: oklch(1 0 0 / 15%);
   --accent-foreground: var(--white);
+  --success: var(--electric-moss);
   --destructive: var(--coral-tint-1);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
@@ -492,5 +493,4 @@
   --summary-unit: var(--energy-blue-tint-2);
 
   --variant-badge-bg: var(--spark-dark-gray-50);
-  --variant-badge-success: var(--electric-moss);
 }

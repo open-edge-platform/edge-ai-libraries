@@ -5,6 +5,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Shared CSS class for primary page content containers. */
+export const CONTENT_CONTAINER_CLASS = "container px-12 mx-auto py-8";
+
 /** Shared CSS class for all card grid layouts (pipelines, benchmarks, etc.) */
 export const CARDS_GRID_CLASS =
   "grid gap-4 grid-cols-[repeat(auto-fit,minmax(18.75rem,1fr))]";

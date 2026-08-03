@@ -134,7 +134,7 @@ export const Home = () => {
           </div>
         </div>
       </div>
-      <div className="w-90 border-l p-4 flex flex-col gap-4 bg-sidebar">
+      <div className="w-86 border-l p-4 flex flex-col gap-4 bg-sidebar">
         <h1 className="font-medium text-2xl">Resource utilization</h1>
         <CpuUsageProgress />
         <GpuUsageProgress />

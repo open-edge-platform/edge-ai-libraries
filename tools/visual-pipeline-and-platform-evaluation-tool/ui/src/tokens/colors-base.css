@@ -41,9 +41,6 @@
   --electric-rust: oklch(0.7315 0.1802 50.72); /* #FE8022 */
   --electric-coral: oklch(0.5859 0.2057 13.88); /* #DA2E56 */
 
-  /* Support palette */
-  --support-success: oklch(0.548 0.186 142.495); /* #008A00 */
-
   /* Light color palette */
   --moss: oklch(0.818 0.128 124.73); /* #B1D272 */
   --geode: oklch(0.871 0.084 320.441); /* #EEC3F7 */
@@ -83,6 +80,7 @@
   --black: oklch(0 0 0); /* #000000 */
   --spark-light-gray-100: oklch(0.9694 0.0011 201.14); /* #F4F5F5 */
   --white: oklch(1 0 0); /* #FFFFFF */
+  --green: oklch(0.548 0.186 142.495); /* #008A00 */
 
   /* Dark mode colors*/
   --spark-dark-gray-50: oklch(0.2646 0.0058 271.17); /* #242528  */

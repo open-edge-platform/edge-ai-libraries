@@ -69,6 +69,7 @@ export const Benchmarks = () => {
                 />
               )}
             </div>
+            <div className="h-10" />
           </>
         )}
       </div>

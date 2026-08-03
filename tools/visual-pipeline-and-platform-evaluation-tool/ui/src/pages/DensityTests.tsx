@@ -37,7 +37,11 @@ import {
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils.ts";
-import { cn, formatErrorMessage } from "@/lib/utils.ts";
+import {
+  cn,
+  CONTENT_CONTAINER_CLASS,
+  formatErrorMessage,
+} from "@/lib/utils.ts";
 import { useStreamRateChange } from "@/hooks/useStreamRateChange.ts";
 import { NavigationGuard } from "@/components/shared/NavigationGuard";
 
@@ -267,7 +271,7 @@ export const DensityTests = () => {
   }
 
   return (
-    <div className="container pl-16 mx-auto py-10">
+    <div className={CONTENT_CONTAINER_CLASS}>
       <NavigationGuard
         when={isPollingJob}
         title="Density test in progress"

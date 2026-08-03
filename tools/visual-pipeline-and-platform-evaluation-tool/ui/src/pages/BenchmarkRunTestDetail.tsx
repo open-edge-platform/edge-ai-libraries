@@ -9,6 +9,7 @@ import {
 } from "@/features/metrics/charts";
 import { useEffect, useMemo } from "react";
 import type { MetricsMessage } from "@/store/reducers/metrics.ts";
+import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 export const BenchmarkRunTestDetail = () => {
   const [searchParams] = useSearchParams();
@@ -138,7 +139,7 @@ export const BenchmarkRunTestDetail = () => {
   if (isLoading) {
     //TODO: skeleton
     return (
-      <div className="container pl-16 mx-auto py-10">
+      <div className={CONTENT_CONTAINER_CLASS}>
         <Card>
           <CardContent className="pt-6">
             <p className="text-muted-foreground">
@@ -158,7 +159,7 @@ export const BenchmarkRunTestDetail = () => {
     !testRunDetails
   ) {
     return (
-      <div className="container pl-16 mx-auto py-10">
+      <div className={CONTENT_CONTAINER_CLASS}>
         <Card>
           <CardContent className="pt-6">
             <p className="text-destructive">
@@ -171,7 +172,7 @@ export const BenchmarkRunTestDetail = () => {
   }
 
   return (
-    <div className="container pl-16 mx-auto py-10">
+    <div className={CONTENT_CONTAINER_CLASS}>
       <div className="mb-6">
         <div className="mb-2 flex items-center gap-4">
           <BackButton

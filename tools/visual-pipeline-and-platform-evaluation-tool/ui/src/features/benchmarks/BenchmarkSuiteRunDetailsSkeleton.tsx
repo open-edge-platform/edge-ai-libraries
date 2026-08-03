@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackButton } from "@/components/shared/BackButton";
 import { BenchmarkSuiteRunDetailsTableSkeleton } from "@/features/benchmarks/BenchmarkSuiteRunDetailsTableSkeleton.tsx";
+import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 type BenchmarkSuiteResultDetailsSkeletonProps = {
   backLinkTo: string;
@@ -10,7 +11,7 @@ type BenchmarkSuiteResultDetailsSkeletonProps = {
 export const BenchmarkSuiteRunDetailsSkeleton = ({
   backLinkTo,
 }: BenchmarkSuiteResultDetailsSkeletonProps) => (
-  <div className="container pl-16 mx-auto py-10">
+  <div className={CONTENT_CONTAINER_CLASS}>
     <div className="mb-6">
       <div className="flex items-center gap-4 mb-2">
         <BackButton to={backLinkTo} />
