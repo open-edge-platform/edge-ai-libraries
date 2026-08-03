@@ -1,6 +1,2 @@
 .gradio/*
 .idea/*
-tools/visual-pipeline-and-platform-evaluation-tool/.venv/*
-tools/visual-pipeline-and-platform-evaluation-tool/intel/*
-tools/visual-pipeline-and-platform-evaluation-tool/models/*
-tools/visual-pipeline-and-platform-evaluation-tool/shared/model-download/cache/*
