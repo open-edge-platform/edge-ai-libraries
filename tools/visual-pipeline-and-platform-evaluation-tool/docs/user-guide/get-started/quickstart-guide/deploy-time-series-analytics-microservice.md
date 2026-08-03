@@ -1,6 +1,8 @@
 # Deploy Time Series Analytics Microservice
 
-This guide describes how to build, start, and stop the Time Series Analytics Microservice (TSAM) as part of the ViPPET stack, and how to configure it with a sample Wind Turbine anomaly detection UDF.
+This guide describes how to build, start, and stop the Time Series Analytics Microservice (TSAM)
+as part of the ViPPET stack, and how to configure it with a sample Wind Turbine anomaly
+detection UDF.
 
 ## Prerequisites
 
@@ -8,13 +10,9 @@ This guide describes how to build, start, and stop the Time Series Analytics Mic
 - `make` available on the host
 - `wget` installed (required to download UDF packages)
 
----
 
-## Configure Environment Variables
 
----
-
-## Build, Start, and Stop
+## Configure Environment Variables - Build, Start, and Stop
 
 ### Build
 
@@ -43,7 +41,7 @@ make clean-experimental
 
 ---
 
-## Configure the Wind Turbine Anomaly Detection UDF
+## Deploy the Wind Turbine anomaly detection UDF
 
 Once the services are running, follow the steps below to deploy the Wind Turbine anomaly detection UDF into the TSAM.
 
@@ -92,9 +90,7 @@ A successful response returns the message: `Configuration updated successfully.`
 
 ---
 
-## Verify the Deployment
-
-### Step 4. Verify the Time Series Analytics Microservice logs
+## Step 4. Verify the Time Series Analytics Microservice logs
 
 Check that processing is running correctly:
 
