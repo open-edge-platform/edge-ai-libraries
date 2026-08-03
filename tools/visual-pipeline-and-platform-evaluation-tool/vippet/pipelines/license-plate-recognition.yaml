@@ -7,6 +7,7 @@ tags:
   - Smart Cities
   - Transportation
 thumbnail: images/license-plate-recognition.png
+type: vision
 variants:
   - name: CPU
     pipeline_description: >-

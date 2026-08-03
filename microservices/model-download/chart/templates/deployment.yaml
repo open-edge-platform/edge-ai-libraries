@@ -78,11 +78,21 @@ spec:
               value: "{{ .Values.modeldownload.env.HLS_ECG_BASE_URL }}"
             - name: HLS_RPPG_MODEL_URL
               value: "{{ .Values.modeldownload.env.HLS_RPPG_MODEL_URL }}"
+            {{- if .Values.modeldownload.startupConfig.enabled }}
+            - name: STARTUP_MODELS_CONFIG
+              value: "/opt/model-download/config/startup-models.yaml"
+            {{- end }}
           command: ["/opt/entrypoint.sh"]
           args: ["--plugins", "{{ .Values.modeldownload.env.ENABLED_PLUGINS | default "all" }}"]
           volumeMounts:
             - name: models
               mountPath: /opt/models
+            {{- if .Values.modeldownload.startupConfig.enabled }}
+            - name: startup-models-config
+              mountPath: /opt/model-download/config/startup-models.yaml
+              subPath: startup-models.yaml
+              readOnly: true
+            {{- end }}
             {{- if .Values.modeldownload.gpu.enabled }}
             - name: dri-device
               mountPath: /dev/dri
@@ -102,6 +112,12 @@ spec:
         - name: models
           persistentVolumeClaim:
             claimName: models-pvc
+        {{- if .Values.modeldownload.startupConfig.enabled }}
+        - name: startup-models-config
+          configMap:
+            name: {{ printf "%s-startup-models" .Values.modeldownload.name | trunc 63 | trimSuffix "-" }}
+            defaultMode: 0444
+        {{- end }}
         {{- if .Values.modeldownload.gpu.enabled }}
         - name: dri-device
           hostPath:
