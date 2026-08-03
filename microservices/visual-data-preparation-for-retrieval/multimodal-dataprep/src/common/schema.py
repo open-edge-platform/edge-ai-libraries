@@ -78,6 +78,11 @@ class HealthResponse(BaseModel):
     embedding_client_error: Optional[str] = None
     detection_model: Optional[str] = None
     detection_device: Optional[str] = None
+    vectordb_backend: Optional[str] = None
+    vectordb_status: Optional[str] = None
+    vectordb_error: Optional[str] = None
+    storage_backend: Optional[str] = None
+    default_bucket_name: Optional[str] = None
 
 
 class VideoRequest(BaseModel):
@@ -316,6 +321,26 @@ class DirectoryIngestRequest(BaseModel):
         Optional[List[str]],
         Field(default_factory=list, description="Tags associated with every ingested file."),
     ]
+    store_copy: Annotated[
+        bool,
+        Field(
+            default=True,
+            description="Copy each file into the storage backend. Set to false to "
+            "reference files in place on the mounted ingest root (no on-disk "
+            "duplication); referenced media is still duplicate-checked, listed by "
+            "GET /media and streamable via GET /media/download.",
+        ),
+    ] = True
+    metadata: Annotated[
+        Optional[Dict[str, Any]],
+        Field(
+            default_factory=dict,
+            description="Caller-supplied metadata applied to every ingested file and "
+            "persisted as filterable fields. A meta/<basename>.json sidecar may "
+            "supply per-file metadata, which takes precedence on key collisions. "
+            "Keys colliding with the canonical metadata contract are rejected with 400.",
+        ),
+    ]
 
 
 class BatchItemResult(BaseModel):
@@ -351,12 +376,29 @@ class BatchJobStatus(DataPrepResponse):
 
 
 class VideoInfo(BaseModel):
-    """Information about a video file in Minio storage"""
+    """Information about a media file known to the service"""
 
     video_id: str
     video_name: str
     video_path: str
     creation_ts: str
+    stored: Annotated[
+        bool,
+        Field(
+            default=True,
+            description=(
+                "False when the media was ingested by reference (store_copy=false) and "
+                "is read from the ingest mount instead of the storage backend."
+            ),
+        ),
+    ]
+    source_path: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="Host-visible path of referenced media; null for stored media.",
+        ),
+    ]
 
 
 class BucketVideoListResponse(DataPrepResponse):

@@ -52,7 +52,10 @@ from .file_utils import (
     save_video_to_temp,
     create_temp_directory,
     cleanup_temp_directory,
-    save_metadata_at_temp
+    save_metadata_at_temp,
+    resolve_under_ingest_root,
+    to_host_path,
+    stream_file_range
 )
 
 # Video utilities
@@ -94,6 +97,9 @@ __all__ = [
     'create_temp_directory',
     'cleanup_temp_directory', 
     'save_metadata_at_temp',
+    'resolve_under_ingest_root',
+    'to_host_path',
+    'stream_file_range',
     
     # Video functions
     'get_video_from_minio',

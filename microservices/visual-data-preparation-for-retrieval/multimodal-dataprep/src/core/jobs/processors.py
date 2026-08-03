@@ -3,12 +3,13 @@
 
 """Per-item processors for the batch-job engine.
 
-The engine is source-agnostic: every batch surface first persists its media into
-storage (multipart upload stashes bytes; directory ingest copies files in), so a
-batch item always refers to a video that already lives in the storage backend.
-:func:`process_stored_video` is therefore the single unit of work shared by all
-surfaces. It mirrors the ``POST /media/process`` flow: resolve/validate the stored
-object, download it, and run the in-process embedding pipeline.
+The engine is source-agnostic: a batch item either refers to media that already
+lives in the storage backend (multipart upload stashes bytes; directory ingest
+copies files in) or, for a ``store_copy=false`` directory ingest, references a
+file in place on the mounted ingest root. :func:`process_stored_video` is
+therefore the single unit of work shared by all surfaces. It mirrors the
+``POST /media/process`` flow: resolve/validate the media, load its bytes, and run
+the in-process embedding pipeline.
 
 The heavy pipeline call is ``async`` but ultimately synchronous/CPU-bound; it is
 driven here via :func:`asyncio.run` because processors execute on the job's own
@@ -31,6 +32,7 @@ from src.core.embedding import (
 )
 from src.core.media import detect_media_kind
 from src.core.utils.config_utils import read_config
+from src.core.utils.file_utils import resolve_under_ingest_root
 from src.core.utils.video_utils import get_video_from_minio
 
 from .batch_jobs import BatchItem
@@ -58,8 +60,17 @@ def process_stored_video(item: BatchItem) -> int:
     metadata_temp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        video_data, filename = get_video_from_minio(bucket_name, video_id)
-        content = video_data.read()
+        if item.local_path:
+            # Reference ingest (``store_copy=false``): the media was never copied
+            # into the storage backend, so read it from the mounted ingest root.
+            # The path is re-validated against the root here because the job runs
+            # asynchronously, long after the request was validated.
+            media_path = resolve_under_ingest_root(item.local_path)
+            content = media_path.read_bytes()
+            filename = media_path.name
+        else:
+            video_data, filename = get_video_from_minio(bucket_name, video_id)
+            content = video_data.read()
 
         telemetry_context = {
             "request_id": str(uuid.uuid4()),
@@ -77,6 +88,8 @@ def process_stored_video(item: BatchItem) -> int:
                     enable_object_detection=item.enable_object_detection,
                     detection_confidence=item.detection_confidence,
                     tags=item.tags or [],
+                    source_path=item.source_path,
+                    custom_metadata=item.custom_metadata or {},
                     telemetry_context=telemetry_context,
                 )
             )
@@ -92,6 +105,8 @@ def process_stored_video(item: BatchItem) -> int:
                     enable_object_detection=item.enable_object_detection,
                     detection_confidence=item.detection_confidence,
                     tags=item.tags or [],
+                    source_path=item.source_path,
+                    custom_metadata=item.custom_metadata or {},
                     telemetry_context=telemetry_context,
                 )
             )

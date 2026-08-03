@@ -22,7 +22,7 @@ import time
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from src.common import logger, sanitize_for_log, settings
 from src.common.schema import BatchItemStatusEnum, BatchJobStateEnum
@@ -43,6 +43,15 @@ class BatchItem:
     enable_object_detection: bool = True
     detection_confidence: float = 0.85
     tags: List[str] = field(default_factory=list)
+    # Set when the media is referenced in place instead of copied into storage
+    # (``store_copy=false`` directory ingest): the container-visible path the
+    # processor reads the bytes from.
+    local_path: Optional[str] = None
+    # Origin path recorded as searchable metadata (host-facing when the ingest
+    # root's host path is configured).
+    source_path: Optional[str] = None
+    # Caller-supplied metadata persisted as filterable fields.
+    custom_metadata: Dict[str, Any] = field(default_factory=dict)
     status: BatchItemStatusEnum = BatchItemStatusEnum.pending
     message: Optional[str] = None
     embeddings_count: Optional[int] = None

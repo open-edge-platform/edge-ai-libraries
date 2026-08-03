@@ -7,6 +7,9 @@ Serves ``GET /media/download`` from the active storage backend (MinIO or local
 filesystem) with HTTP Range support, so media players can seek without fetching
 the whole file. Ranges are read directly from storage (server-side range read on
 MinIO, seek/read on local), keeping large media out of memory.
+
+Media ingested by reference (``store_copy=false``) has no stored object; it is
+resolved to its file on the ingest mount and served with the same Range logic.
 """
 
 from http import HTTPStatus
@@ -17,8 +20,7 @@ from fastapi.responses import StreamingResponse
 
 from src.common import DataPrepException, Strings, logger, settings
 from src.core.media import content_type_for_filename
-from src.core.utils.common_utils import get_minio_client
-from src.core.utils.video_utils import resolve_video_object
+from src.core.utils.video_utils import resolve_media_source
 from src.core.validation import validate_params
 
 router = APIRouter(tags=["Media Management APIs"])
@@ -133,6 +135,9 @@ async def download_video(
     - Valid ``Range`` header -> ``206 Partial Content`` with ``Content-Range``.
     - Unsatisfiable ``Range`` -> ``416 Range Not Satisfiable``.
 
+    Media ingested by reference (``store_copy=false``) is served too: it has no
+    stored object, so it is read from its file on the ingest mount instead.
+
     #### Query Params:
     - **video_id (str, required) :** The video ID (directory) containing the video to download.
     - **bucket_name (str, optional) :** The bucket where the video is stored. Defaults to the configured bucket.
@@ -152,17 +157,18 @@ async def download_video(
     file_size = 0
 
     try:
-        storage = get_minio_client()
-
-        # Resolve the concrete object + size without downloading it.
-        object_name, filename = resolve_video_object(bucket_name, video_id)
-        file_size = storage.get_object_size(bucket_name, object_name)
-        # Serve the object with its real MIME type (video/mp4, image/png, ...)
-        # derived from the stored filename extension.
-        media_type = content_type_for_filename(filename)
+        # Resolve the concrete media + size without downloading it. This covers
+        # both stored objects and media referenced in place on the ingest mount.
+        source = resolve_media_source(bucket_name, video_id)
+        file_size = source.size(bucket_name)
+        # Serve the media with its real MIME type (video/mp4, image/png, ...)
+        # derived from the filename extension.
+        media_type = content_type_for_filename(source.filename)
 
         content_disposition = (
-            f"attachment; filename={filename}" if download else f"inline; filename={filename}"
+            f"attachment; filename={source.filename}"
+            if download
+            else f"inline; filename={source.filename}"
         )
         base_headers = {
             "Content-Disposition": content_disposition,
@@ -176,7 +182,7 @@ async def download_video(
             # Full-body response (also served when no/invalid Range header).
             base_headers["Content-Length"] = str(file_size)
             return StreamingResponse(
-                content=storage.stream_object_range(bucket_name, object_name),
+                content=source.stream(bucket_name),
                 media_type=media_type,
                 headers=base_headers,
             )
@@ -186,9 +192,7 @@ async def download_video(
         base_headers["Content-Length"] = str(length)
         base_headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
         return StreamingResponse(
-            content=storage.stream_object_range(
-                bucket_name, object_name, offset=start, length=length
-            ),
+            content=source.stream(bucket_name, offset=start, length=length),
             status_code=HTTPStatus.PARTIAL_CONTENT,
             media_type=media_type,
             headers=base_headers,

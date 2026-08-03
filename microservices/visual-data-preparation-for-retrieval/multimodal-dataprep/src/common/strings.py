@@ -30,6 +30,10 @@ class Strings:
     batch_empty: str = "No videos were provided or found to process."
     batch_too_large: str = "Batch size exceeds the maximum allowed items."
     ingest_dir_not_found: str = "The requested ingest directory was not found."
+    ingest_file_not_found: str = "The referenced media file was not found under the ingest data root."
     ingest_path_invalid: str = "The requested path is outside the configured ingest data root."
+    reserved_metadata_key: str = (
+        "Metadata key is reserved by the canonical metadata contract; choose another name."
+    )
     vectordb_delete_error: str = "Error occurred while deleting embeddings from the vector DB."
     duplicate_upload: str = "A video with identical content already exists"

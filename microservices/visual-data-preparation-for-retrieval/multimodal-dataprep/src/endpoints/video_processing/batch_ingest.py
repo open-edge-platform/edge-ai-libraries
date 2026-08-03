@@ -19,9 +19,10 @@ import datetime
 import io
 import json
 import pathlib
+import re
 import uuid
 from http import HTTPStatus
-from typing import Annotated, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile
 
@@ -37,8 +38,11 @@ from src.core.dedup import check_and_register_upload
 from src.core.jobs import BatchItem, cancel_job, get_job, process_stored_video, submit_job
 from src.core.jobs.batch_jobs import BatchJob
 from src.core.media import SUPPORTED_MEDIA_EXTENSIONS, detect_media_kind
+from src.core.media_ref import register_source_ref
 from src.core.utils.common_utils import get_minio_client
 from src.core.utils.config_utils import read_config
+from src.core.utils.file_utils import resolve_under_ingest_root, to_host_path
+from src.core.vectorstores.metadata import CANONICAL_FIELDS
 from src.core.validation import (
     sanitize_bucket_name,
     sanitize_string,
@@ -50,6 +54,11 @@ router = APIRouter(tags=["Batch Ingestion APIs"])
 # Directory-ingest accepts any supported media file (video or image); the
 # per-item processor picks the embedding path from the stored filename.
 _SUPPORTED_EXTENSIONS = set(SUPPORTED_MEDIA_EXTENSIONS)
+
+# Caller-supplied metadata keys become queryable field names in the vector store,
+# so they are restricted to identifier-like tokens.
+_RESERVED_METADATA_KEYS = frozenset(CANONICAL_FIELDS)
+_METADATA_KEY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 
 
 def _resolve_defaults(
@@ -111,6 +120,25 @@ def _stash_bytes(bucket_name: str, video_id: str, filename: str, content: bytes)
         except Exception as cleanup_ex:  # noqa: BLE001
             logger.warning("Failed to roll back duplicate batch object: %s", cleanup_ex)
         raise
+
+
+def _register_reference(
+    bucket_name: str, video_id: str, content: bytes, source_path: pathlib.Path
+) -> None:
+    """Record the markers for referenced media (``store_copy=false``).
+
+    No object is stored, so only sidecars are written. They are tiny and give the
+    service everything it needs to treat referenced media like stored media:
+
+    * content markers, so a repeated directory ingest recognises files it has
+      already embedded;
+    * a path sidecar, so ``GET /media`` can list the item and
+      ``GET /media/download`` can stream it from the ingest mount.
+    """
+    minio_client = get_minio_client()
+    minio_client.ensure_bucket_exists(bucket_name)
+    check_and_register_upload(minio_client, bucket_name, video_id, content)
+    register_source_ref(minio_client, bucket_name, video_id, source_path)
 
 
 def _job_to_status(job: BatchJob) -> BatchJobStatus:
@@ -288,32 +316,70 @@ async def process_video_batch_existing(
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=Strings.server_error)
 
 
-def _resolve_ingest_dir(dir_path: str) -> pathlib.Path:
-    """Resolve ``dir_path`` under the configured ingest root, blocking traversal."""
-    root = pathlib.Path(settings.INGEST_DATA_ROOT).resolve()
-    requested = pathlib.Path(dir_path)
-    target = (requested if requested.is_absolute() else root / requested).resolve()
-    try:
-        target.relative_to(root)
-    except ValueError:
-        raise DataPrepException(status_code=HTTPStatus.BAD_REQUEST, msg=Strings.ingest_path_invalid)
-    if not target.is_dir():
-        raise DataPrepException(status_code=HTTPStatus.NOT_FOUND, msg=Strings.ingest_dir_not_found)
-    return target
+def _read_sidecar(media_file: pathlib.Path) -> tuple[List[str], Dict[str, Any]]:
+    """Read an optional ``<dir>/meta/<basename>.json`` sidecar (milvus-dataprep parity).
 
-
-def _read_sidecar_tags(media_file: pathlib.Path) -> List[str]:
-    """Read optional ``<dir>/meta/<basename>.json`` tags (milvus-dataprep parity)."""
+    Returns the sidecar's ``tags`` list and every remaining key as caller-supplied
+    metadata, so per-file attributes (camera id, capture date, ...) are ingested
+    and become filterable without the service knowing any of those field names.
+    """
     sidecar = media_file.parent / "meta" / f"{media_file.stem}.json"
     if not sidecar.is_file():
-        return []
+        return [], {}
     try:
         data = json.loads(sidecar.read_text())
-        tags = data.get("tags", []) if isinstance(data, dict) else []
-        return [sanitize_string(t) for t in tags if isinstance(t, str)]
+        if not isinstance(data, dict):
+            return [], {}
+        tags = [sanitize_string(t) for t in data.get("tags", []) if isinstance(t, str)]
+        extra = _sanitize_custom_metadata(
+            {key: value for key, value in data.items() if key != "tags"},
+            context=f"sidecar {sidecar.name}",
+        )
+        return tags, extra
+    except DataPrepException:
+        raise
     except Exception as ex:  # noqa: BLE001
         logger.warning("Ignoring unreadable sidecar %s: %s", sidecar.name, ex)
-        return []
+        return [], {}
+
+
+def _sanitize_custom_metadata(
+    metadata: Optional[Dict[str, Any]], *, context: str = "request metadata"
+) -> Dict[str, Any]:
+    """Validate caller-supplied metadata into a flat, storable dict.
+
+    Keys must be identifier-like (a vector store may expose them as queryable
+    field names) and values are restricted to scalars or lists of scalars.
+    Unsupported values are dropped with a warning rather than failing the
+    ingest. A key that collides with the canonical metadata contract is
+    rejected with ``400`` instead: the canonical value always wins on storage,
+    so silently accepting it would drop the caller's value without notice.
+    """
+    if not metadata:
+        return {}
+    cleaned: Dict[str, Any] = {}
+    for key, value in metadata.items():
+        if not isinstance(key, str) or not _METADATA_KEY_RE.match(key):
+            logger.warning("Ignoring invalid custom metadata key: %s", sanitize_for_log(str(key), max_length=64))
+            continue
+        if key in _RESERVED_METADATA_KEYS:
+            raise DataPrepException(
+                msg=f"{Strings.reserved_metadata_key} ({context}: '{sanitize_for_log(key, max_length=64)}')",
+                status_code=HTTPStatus.BAD_REQUEST,
+            )
+        if isinstance(value, str):
+            cleaned[key] = sanitize_string(value)
+        elif isinstance(value, (int, float, bool)) or value is None:
+            cleaned[key] = value
+        elif isinstance(value, list) and all(
+            isinstance(item, (str, int, float, bool)) for item in value
+        ):
+            cleaned[key] = [
+                sanitize_string(item) if isinstance(item, str) else item for item in value
+            ]
+        else:
+            logger.warning("Ignoring unsupported custom metadata value for key: %s", key)
+    return cleaned
 
 
 @router.post(
@@ -329,7 +395,7 @@ async def ingest_directory(
 ) -> BatchSubmitResponse:
     """Walk a mounted directory, stash each supported media file into storage, and submit one async job."""
     try:
-        target = _resolve_ingest_dir(request.dir_path)
+        target = resolve_under_ingest_root(request.dir_path, must_be_dir=True)
         fi, od, dc = _resolve_defaults(
             request.frame_interval, request.enable_object_detection, request.detection_confidence
         )
@@ -339,6 +405,7 @@ async def ingest_directory(
             else settings.DEFAULT_BUCKET_NAME
         )
         req_tags = [sanitize_string(t) for t in (request.tags or []) if isinstance(t, str)]
+        req_metadata = _sanitize_custom_metadata(request.metadata)
 
         walker = target.rglob("*") if request.recursive else target.glob("*")
         media_files = sorted(
@@ -351,11 +418,33 @@ async def ingest_directory(
         _check_batch_size(len(media_files))
 
         items: List[BatchItem] = []
+        skipped = 0
         for index, media_file in enumerate(media_files):
             filename = media_file.name
             video_id = _new_video_id(index, filename)
-            _stash_bytes(bucket, video_id, filename, media_file.read_bytes())
-            tags = (_read_sidecar_tags(media_file) or []) + req_tags
+            try:
+                if request.store_copy:
+                    _stash_bytes(bucket, video_id, filename, media_file.read_bytes())
+                else:
+                    # Referenced ingest stores no object, but the duplicate policy
+                    # still applies: register the content markers so re-ingesting
+                    # the same directory does not duplicate embeddings.
+                    _register_reference(bucket, video_id, media_file.read_bytes(), media_file)
+            except DataPrepException as ex:
+                if ex.status_code != HTTPStatus.CONFLICT:
+                    raise
+                # A duplicate is a per-file condition, not a reason to reject the
+                # whole directory: skip it and ingest the rest.
+                logger.info(
+                    "Skipping duplicate file during directory ingest: %s",
+                    sanitize_for_log(filename, max_length=256),
+                )
+                skipped += 1
+                continue
+            sidecar_tags, sidecar_metadata = _read_sidecar(media_file)
+            # Sidecar metadata is per-file and therefore more specific than the
+            # request-level metadata, so it wins on a key collision.
+            custom_metadata = {**req_metadata, **sidecar_metadata}
             items.append(
                 BatchItem(
                     identifier=str(media_file.relative_to(target)),
@@ -364,13 +453,19 @@ async def ingest_directory(
                     frame_interval=fi,
                     enable_object_detection=od,
                     detection_confidence=dc,
-                    tags=tags,
+                    tags=sidecar_tags + req_tags,
+                    local_path=None if request.store_copy else str(media_file),
+                    source_path=to_host_path(media_file),
+                    custom_metadata=custom_metadata,
                 )
             )
 
         job = submit_job("directory", items, process_stored_video)
+        message = Strings.batch_accepted
+        if skipped:
+            message = f"{message} ({skipped} duplicate file(s) skipped)"
         return BatchSubmitResponse(
-            message=Strings.batch_accepted, job_id=job.job_id, accepted=len(items)
+            message=message, job_id=job.job_id, accepted=len(items)
         )
     except DataPrepException as ex:
         logger.error(ex)

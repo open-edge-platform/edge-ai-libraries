@@ -12,7 +12,11 @@ All endpoints return JSON unless noted. Error responses use the `DataPrepRespons
 
 ## `GET /health`
 
-Liveness probe. Also reports the in-process embedding client load status.
+Liveness probe. Also reports the active service configuration (embedding model
+and device, detection model, vector DB and storage backends, default bucket) so a
+client can display what the service is running without a separate info call. The
+configured fields are always present; `embedding_client_status` additionally
+reports whether the in-process embedding client has been preloaded.
 
 **Response:**
 
@@ -24,7 +28,13 @@ Liveness probe. Also reports the in-process embedding client load status.
       "embedding_client_status": "preloaded",
       "model_name": "CLIP/clip-vit-b-16",
       "embedding_device": "CPU",
-      "use_openvino": false
+      "use_openvino": false,
+      "detection_model": "yolox_s",
+      "detection_device": "CPU",
+      "vectordb_backend": "milvus",
+      "vectordb_status": "ok",
+      "storage_backend": "minio",
+      "default_bucket_name": "video-summary"
   }
   ```
 
@@ -33,7 +43,9 @@ Liveness probe. Also reports the in-process embedding client load status.
   ```json
   {
       "status": "ok",
-      "embedding_client_status": "not_loaded"
+      "embedding_client_status": "not_loaded",
+      "model_name": "CLIP/clip-vit-b-16",
+      "embedding_device": "CPU"
   }
   ```
 
@@ -420,15 +432,76 @@ curl -X POST http://localhost:8000/v1/dataprep/media/process/batch \
 
 Backward-compatible directory ingest. Walks `dir_path` (resolved against the
 mounted `MM_DATAPREP_INGEST_DATA_ROOT`; paths are constrained to that root to
-prevent traversal) and ingests every `.mp4` file. A `meta/<basename>.json`
-sidecar next to a file may supply `tags` (parity with the legacy milvus-dataprep
-directory ingest). Mount a host directory to `MM_DATAPREP_INGEST_DATA_ROOT` via
+prevent traversal) and ingests every supported media file (videos and images).
+Mount a host directory to `MM_DATAPREP_INGEST_DATA_ROOT` via
 `MM_DATAPREP_INGEST_DATA_ROOT_HOST` in Docker Compose.
 
+| Field                     | Type    | Required | Default | Description                                                                                     |
+| ------------------------- | ------- | -------- | ------- | ------------------------------------------------------------------------------------------------ |
+| `dir_path`                | string  | Yes      | —       | Directory to ingest, relative to (or inside) the ingest data root.                              |
+| `recursive`               | boolean | No       | `false` | Recurse into subdirectories (the `meta` directory is always skipped).                           |
+| `bucket_name`             | string  | No       | config  | Destination bucket.                                                                             |
+| `frame_interval`          | integer | No       | `15`    | Extract every Nth frame (videos only).                                                          |
+| `enable_object_detection` | boolean | No       | `true`  | Embed detected-object crops separately.                                                         |
+| `detection_confidence`    | float   | No       | `0.85`  | Detection confidence threshold.                                                                 |
+| `store_copy`              | boolean | No       | `true`  | Copy each file into the storage backend. `false` references files in place (see below).         |
+| `tags`                    | list    | No       | `[]`    | Tags applied to every ingested file.                                                            |
+| `metadata`                | object  | No       | `{}`    | Caller-supplied metadata applied to every ingested file (see below).                            |
+
+**Per-file sidecar metadata.** A `meta/<basename>.json` sidecar next to a file
+supplies `tags` plus any additional keys, which are persisted as user metadata
+for that file (parity with, and a superset of, the legacy milvus-dataprep
+directory ingest):
+
+```json
+{ "tags": ["outdoor"], "camera": "cam-7", "capture_date": 20260101 }
+```
+
+**User metadata.** Keys from the request-level `metadata` object and from
+sidecars are stored as top-level, directly filterable fields alongside the
+canonical metadata. Sidecar keys are per-file and therefore win over
+request-level keys on a collision. Keys must be identifier-like
+(`^[A-Za-z][A-Za-z0-9_]{0,63}$`), and values must be scalars or lists of scalars;
+entries with unsupported values are skipped with a warning rather than failing
+the ingest. Keys that collide with the canonical metadata contract (`video_id`,
+`bucket_name`, `timestamp`, `tags`, ...) are **rejected with `400`**, so a value
+is never silently dropped — rename the field instead.
+
+**`source_path` and `store_copy`.** Every embedding produced by a directory
+ingest records `source_path`: the origin path of the media, expressed in host
+terms when `MM_DATAPREP_INGEST_DATA_ROOT_HOST` is set. Consumers that share the
+ingest mount can therefore read the original file directly. Because that makes
+the copy in the storage backend redundant, `store_copy: false` skips it
+entirely — the file is embedded in place, with no on-disk duplication. Trade-offs
+of a reference ingest:
+
+- `GET /media` lists referenced media with `"stored": false` and its host-visible
+  `source_path`, and `GET /media/download` streams it straight from the ingest
+  mount (full HTTP Range support included), so it behaves like stored media over
+  the API. Consumers that share the mount can also read `source_path` directly
+  and skip the service entirely.
+- Content markers are still written (a few bytes per file), so the duplicate
+  policy applies: with `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false`, re-ingesting
+  the same directory skips the files already embedded instead of duplicating
+  them. Skipped files are reported in the submit response message and are not
+  part of the job.
+- The file must remain readable at that path for the lifetime of the job, and for
+  as long as `GET /media/download` should be able to serve it. A reference whose
+  file has been moved or deleted is omitted from `GET /media` and returns `404`
+  on download.
+- `DELETE /media/{bucket_name}` still removes the embeddings; original files on
+  the mount are never deleted.
+
 ```bash
+# Copy into storage (default)
 curl -X POST http://localhost:8000/v1/dataprep/media/ingest-dir \
   -H "Content-Type: application/json" \
   -d '{"dir_path":"clips","recursive":true,"tags":["batch-1"]}'
+
+# Reference in place, with shared metadata applied to every file
+curl -X POST http://localhost:8000/v1/dataprep/media/ingest-dir \
+  -H "Content-Type: application/json" \
+  -d '{"dir_path":"clips","recursive":true,"store_copy":false,"metadata":{"site":"plant-a"}}'
 ```
 
 ### `GET /media/jobs/{job_id}`
@@ -464,7 +537,14 @@ are marked `skipped`. Returns the current job status.
 
 ## `GET /media`
 
-List all stored media (videos and images) in a Minio bucket.
+List all media (videos and images) known to the service in a bucket.
+
+Covers both storage models: media copied into the storage backend, and media
+ingested by reference (`store_copy: false`), which has no stored object and is
+tracked by a path sidecar instead. Referenced entries are flagged with
+`"stored": false` and carry the host-visible `source_path` of the original file.
+A reference whose file is no longer readable is omitted, so every listed item can
+actually be downloaded.
 
 **Query Parameters:**
 
@@ -485,11 +565,23 @@ List all stored media (videos and images) in a Minio bucket.
               "video_id": "video-dir-001",
               "video_name": "clip.mp4",
               "video_path": "video-dir-001/clip.mp4",
-              "creation_ts": "2025-06-01T12:00:00+00:00"
+              "creation_ts": "2025-06-01T12:00:00+00:00",
+              "stored": true
+          },
+          {
+              "video_id": "video-dir-002",
+              "video_name": "referenced.mp4",
+              "video_path": "/host/data/cam1/referenced.mp4",
+              "creation_ts": "2025-06-02T09:30:00+00:00",
+              "stored": false,
+              "source_path": "/host/data/cam1/referenced.mp4"
           }
       ]
   }
   ```
+
+  `stored` is `false` only for media ingested by reference; `source_path` is
+  omitted for stored media.
 
 - 500 Internal Server Error.
 
@@ -503,8 +595,8 @@ curl "http://localhost:8000/v1/dataprep/media?bucket_name=my-bucket"
 
 ## `GET /media/download`
 
-Download or stream a video file from the active storage backend (MinIO or local
-filesystem).
+Download or stream a media file, whether it was copied into the active storage
+backend (MinIO or local filesystem) or ingested by reference.
 
 The endpoint advertises `Accept-Ranges: bytes` and honours the HTTP `Range`
 request header, so media players (e.g. an HTML5 `<video>` element) can **seek**
@@ -512,6 +604,12 @@ without downloading the whole file — regardless of which storage backend is
 configured. Byte ranges are served directly from storage (a server-side range
 read on MinIO, a seek/read on the local backend), so large videos are never
 fully buffered in memory.
+
+Media ingested with `store_copy: false` has no stored object; it is resolved to
+its file on the ingest mount and served from there with exactly the same Range
+semantics, so callers do not need to know how a given item was ingested. The
+recorded path is re-validated against `MM_DATAPREP_INGEST_DATA_ROOT` on every
+request, so only files inside the mount can ever be served.
 
 **Query Parameters:**
 
@@ -537,7 +635,8 @@ fully buffered in memory.
 
 - 400 Bad Request — missing or invalid parameters.
 
-- 404 Not Found — video or bucket not found.
+- 404 Not Found — video or bucket not found, or a referenced file that is no
+  longer readable at its recorded path.
 
 - 416 Range Not Satisfiable — the requested range lies outside the object; the
   response includes `Content-Range: bytes */<total>`.
@@ -556,6 +655,50 @@ curl -O "http://localhost:8000/v1/dataprep/media/download?video_id=video-dir-001
 # Request a byte range (seek) — returns 206 Partial Content
 curl -H "Range: bytes=0-1023" \
   "http://localhost:8000/v1/dataprep/media/download?video_id=video-dir-001"
+```
+
+---
+
+## `DELETE /media/{bucket_name}`
+
+Clear a whole bucket: delete every stored media item **and** all of the bucket's
+embeddings from the active vector DB. The bucket-wide counterpart of the
+per-video delete below, for resetting an ingested collection in one call.
+Embeddings are removed first, so a failure never leaves orphaned vectors behind.
+
+Vectors are deleted by `bucket_name`, so this also clears embeddings of media
+that was referenced in place (`store_copy: false`) and therefore has no stored
+object — a bucket that only ever held referenced media does not exist in the
+storage backend at all, and the call still succeeds. Files on the ingest mount
+are never deleted.
+
+**Path Parameters:**
+
+| Parameter     | Type   | Required | Description                                        |
+| ------------- | ------ | -------- | -------------------------------------------------- |
+| `bucket_name` | string | Yes      | Bucket to clear.                                   |
+
+**Responses:**
+
+- 200 OK — bucket cleared (also returned for an already-empty bucket):
+
+  ```json
+  {
+      "status": "success",
+      "message": "Bucket my-bucket cleared successfully: embeddings deleted, 12 stored media item(s) removed"
+  }
+  ```
+
+- 400 Bad Request — invalid bucket name.
+
+- 502 Bad Gateway — the storage backend or vector DB failed to delete.
+
+- 500 Internal Server Error.
+
+**Example:**
+
+```bash
+curl -X DELETE "http://localhost:8000/v1/dataprep/media/my-bucket"
 ```
 
 ---

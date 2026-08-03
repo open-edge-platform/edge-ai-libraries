@@ -21,6 +21,11 @@ async def check_health() -> HealthResponse:
     health_status = {
         "status": "ok",
         "embedding_device": settings.EMBEDDING_DEVICE,
+        # Reported unconditionally so clients can display the active configuration
+        # without depending on whether the embedding client has been preloaded.
+        "model_name": settings.EMBEDDING_MODEL_NAME,
+        "use_openvino": settings.USE_OPENVINO,
+        "default_bucket_name": settings.DEFAULT_BUCKET_NAME,
     }
 
     # Report the active vector store backend health (backend-agnostic).

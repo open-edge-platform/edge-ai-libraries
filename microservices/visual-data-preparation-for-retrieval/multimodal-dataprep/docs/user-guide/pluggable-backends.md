@@ -79,6 +79,12 @@ The canonical field names (see `vectorstores/metadata.py::CANONICAL_FIELDS`) are
 the contract DataPrep **writes**; they are not tied to any one backend. A retriever
 consuming the data maps these to its own query schema.
 
+Caller-supplied metadata (the `metadata` object on directory ingest and the keys
+of a `meta/<basename>.json` sidecar) is carried in the reserved
+`custom_metadata` key and flattened into top-level fields by
+`project_to_canonical`, so it is directly filterable. Canonical fields always win
+on a name collision, so user metadata can never shadow the contract.
+
 ## Configuration
 
 ### Vector database
@@ -197,20 +203,25 @@ by a separate `retriever-milvus` service.
    metadata schema. The Milvus retriever/app must map canonical fields →
    its query schema, for example:
 
-   | Legacy retriever field | Canonical dataprep field      |
-   |------------------------|-------------------------------|
-   | `file_path`            | `video_url` / `video_rel_url` |
-   | `video_pin_second`     | `timestamp`                   |
-   | `timestamp`            | `date_time` / `upload_timestamp` |
-   | `label`                | `label` (detection crops)     |
-   | `type`                 | `frame_type`                  |
+   | Legacy retriever field | Canonical dataprep field                           |
+   |------------------------|----------------------------------------------------|
+   | `file_path`            | `source_path` (directory ingest) / `video_url` / `video_rel_url` |
+   | `video_pin_second`     | `timestamp`                                        |
+   | `timestamp`            | `date_time` / `upload_timestamp`                   |
+   | `label`                | `label` (detection crops)                          |
+   | `type`                 | `content_type` (`video` / `image` / `text`); `frame_type` distinguishes full frames from crops |
+
+   Legacy per-file sidecar keys (for example `camera`) are ingested as user
+   metadata and stored as top-level fields, so a retriever can filter on them by
+   name without any mapping.
 
 3. **Vector-database delete.** This dataprep now supports deleting vector
-   records: `BaseVectorStore.delete_embeddings(bucket_name, video_id)` is
-   implemented for both VDMS and Milvus, and `DELETE /media/{bucket}/{video_id}`
-   removes the embeddings from the vector database (vectors first) and then the
-   object from storage. This reaches parity with the legacy
-   `delete`/`delete_all` behavior at the per-item level.
+   records: `BaseVectorStore.delete_embeddings(bucket_name, video_id)` and
+   `BaseVectorStore.delete_bucket_embeddings(bucket_name)` are implemented for
+   both VDMS and Milvus. `DELETE /media/{bucket}/{video_id}` removes one item's
+   embeddings (vectors first) and then its object from storage;
+   `DELETE /media/{bucket}` clears a whole bucket. Together these reach parity
+   with the legacy `delete` / `delete_all` behavior.
 
 4. **Image ingestion.** This dataprep now ingests **images** in addition to
    video and text/summary. Images can be supplied as a multipart binary

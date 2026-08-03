@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Endpoint tests for ``DELETE /media/{bucket}/{video_id}``.
+"""Endpoint tests for ``DELETE /media/{bucket}[/{video_id}]``.
 
 Each ``video_id`` directory holds exactly one video, so deletion is always a
 whole-directory operation: it removes the object(s) from the active storage
@@ -39,6 +39,16 @@ class FakeStorage:
             for name in self._objects.get(video_id, [])
         ]
 
+    def list_all_videos(self, bucket_name):
+        return [
+            {"video_id": video_id, "video_name": name}
+            for video_id, names in self._objects.items()
+            for name in names
+        ]
+
+    def download_video_stream(self, bucket_name, object_name):
+        return None
+
     def delete_object(self, bucket_name, object_name):
         self.deleted.append(object_name)
 
@@ -52,6 +62,12 @@ class FakeVectorStore:
 
     def delete_embeddings(self, bucket_name, video_id):
         self.calls.append((bucket_name, video_id))
+        if self._fail:
+            raise RuntimeError("boom")
+        return -1
+
+    def delete_bucket_embeddings(self, bucket_name):
+        self.calls.append((bucket_name,))
         if self._fail:
             raise RuntimeError("boom")
         return -1
@@ -109,3 +125,84 @@ def test_delete_aborts_storage_when_vector_delete_fails(test_client, wire):
     # Vector delete failure -> 502 and storage left untouched (no orphaned vectors).
     assert resp.status_code == HTTPStatus.BAD_GATEWAY
     assert storage.deleted == []
+
+
+def test_delete_all_clears_bucket_storage_and_vectors(test_client, wire):
+    storage = FakeStorage({"vid1": ["clip.mp4"], "vid2": ["image.jpg"]})
+    vs = FakeVectorStore()
+    wire(storage, vs)
+
+    resp = test_client.delete("/media/bucket1")
+    assert resp.status_code == HTTPStatus.OK
+    # Vectors are cleared bucket-wide first, then every stored object is removed.
+    assert vs.calls == [("bucket1",)]
+    assert sorted(storage.deleted) == ["vid1/clip.mp4", "vid2/image.jpg"]
+
+
+def test_delete_all_without_stored_objects_still_clears_vectors(test_client, wire):
+    """Media ingested with store_copy=false has vectors but no stored bucket."""
+    storage = FakeStorage({}, bucket_ok=False)
+    vs = FakeVectorStore()
+    wire(storage, vs)
+
+    resp = test_client.delete("/media/bucket1")
+    assert resp.status_code == HTTPStatus.OK
+    assert vs.calls == [("bucket1",)]
+    assert storage.deleted == []
+
+
+def test_delete_all_empty_bucket_is_not_an_error(test_client, wire):
+    storage = FakeStorage({})
+    vs = FakeVectorStore()
+    wire(storage, vs)
+
+    resp = test_client.delete("/media/bucket1")
+    assert resp.status_code == HTTPStatus.OK
+    assert vs.calls == [("bucket1",)]
+    assert storage.deleted == []
+
+
+def test_delete_all_aborts_storage_when_vector_delete_fails(test_client, wire):
+    storage = FakeStorage({"vid1": ["clip.mp4"]})
+    vs = FakeVectorStore(fail=True)
+    wire(storage, vs)
+
+    resp = test_client.delete("/media/bucket1")
+    assert resp.status_code == HTTPStatus.BAD_GATEWAY
+    assert storage.deleted == []
+
+
+class MarkerStorage(FakeStorage):
+    """Storage holding only dedup markers, as left by a store_copy=false ingest."""
+
+    def __init__(self, markers):
+        super().__init__({})
+        # markers: mapping of content hash -> owning video_id
+        self._markers = markers
+
+    def list_objects_in_directory(self, bucket_name, video_id):
+        if video_id == ".dedup":
+            return [StorageObject(object_name=f".dedup/{h}") for h in self._markers]
+        if video_id in self._markers.values():
+            return [StorageObject(object_name=f"{video_id}/.content_sha256")]
+        return []
+
+    def download_video_stream(self, bucket_name, object_name):
+        import io
+
+        content_hash = object_name.split("/", 1)[1]
+        owner = self._markers.get(content_hash)
+        return io.BytesIO(owner.encode("utf-8")) if owner else None
+
+
+def test_delete_all_removes_markers_of_referenced_media(test_client, wire):
+    """Referenced media leaves only content markers; the bucket clear removes them."""
+    storage = MarkerStorage({"hash1": "vid1"})
+    vs = FakeVectorStore()
+    wire(storage, vs)
+
+    resp = test_client.delete("/media/bucket1")
+    assert resp.status_code == HTTPStatus.OK
+    assert vs.calls == [("bucket1",)]
+    assert ".dedup/hash1" in storage.deleted
+    assert "vid1/.content_sha256" in storage.deleted

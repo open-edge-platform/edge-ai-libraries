@@ -8,7 +8,8 @@ from fastapi import APIRouter, HTTPException, Path
 
 from src.common import DataPrepException, Strings, logger, sanitize_for_log
 from src.common.schema import DataPrepResponse
-from src.core.dedup import remove_dedup_marker
+from src.core.dedup import DEDUP_PREFIX, remove_dedup_marker
+from src.core.media_ref import referenced_video_ids
 from src.core.utils.common_utils import get_minio_client
 from src.core.validation import validate_params
 from src.core.vectorstores.factory import get_vector_store
@@ -45,6 +46,115 @@ def _delete_video_embeddings(bucket_name: str, video_id: str) -> None:
         raise DataPrepException(
             status_code=HTTPStatus.BAD_GATEWAY,
             msg=Strings.vectordb_delete_error,
+        )
+
+
+def _delete_bucket_embeddings(bucket_name: str) -> None:
+    """Delete every embedding of a bucket from the active vector DB backend.
+
+    The bucket-wide counterpart of :func:`_delete_video_embeddings`, performed
+    BEFORE any storage delete so a failure aborts the request without leaving
+    orphaned vectors behind.
+
+    Args:
+        bucket_name: The bucket whose vectors to remove.
+
+    Raises:
+        DataPrepException: If the vector-store delete fails (mapped to 502).
+    """
+    try:
+        vector_store = get_vector_store()
+        vector_store.delete_bucket_embeddings(bucket_name)
+        logger.info(
+            "Deleted all embeddings for bucket %s from vector DB",
+            sanitize_for_log(bucket_name, max_length=128),
+        )
+    except Exception as ex:
+        logger.error("Error deleting bucket embeddings from vector DB: %s", ex)
+        raise DataPrepException(
+            status_code=HTTPStatus.BAD_GATEWAY,
+            msg=Strings.vectordb_delete_error,
+        )
+
+
+@router.delete(
+    "/media/{bucket_name}",
+    summary="Delete every media item in a bucket from storage and all its embeddings from the vector DB.",
+    operation_id="deleteAllMedia",
+    response_model=DataPrepResponse,
+    response_model_exclude_none=True,
+)
+@validate_params
+async def delete_all_media(
+    bucket_name: Annotated[
+        str,
+        Path(description="The bucket name whose media and embeddings are to be deleted"),
+    ],
+) -> DataPrepResponse:
+    """
+    ### Clear a bucket: delete all stored media and all of its embeddings.
+
+    The bucket-wide counterpart of ``DELETE /media/{bucket_name}/{video_id}``, for
+    resetting an ingested collection in one call. Embeddings are removed first, so
+    a failure never leaves orphaned vectors behind. Vectors are deleted by
+    ``bucket_name``, which also clears embeddings of media that was referenced in
+    place (``store_copy=false``) and therefore has no stored objects.
+
+    #### Path Params:
+    - **bucket_name (str, required) :** The bucket to clear
+
+    #### Raises:
+    - **400 Bad Request :** If the bucket name is missing or invalid.
+    - **502 Bad Gateway :** When something unpleasant happens at the storage backend or vector DB.
+    - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
+
+    Returns:
+    - **response (json) :** A response JSON containing status and message.
+    """
+
+    try:
+        minio_client = get_minio_client()
+
+        # Vectors first: abort before touching storage if the vector delete fails.
+        # A bucket may hold vectors without any stored object when its media was
+        # referenced in place (store_copy=false), so this runs unconditionally.
+        _delete_bucket_embeddings(bucket_name)
+
+        video_ids = set()
+        if minio_client.bucket_exists(bucket_name):
+            video_ids = {
+                video["video_id"]
+                for video in minio_client.list_all_videos(bucket_name)
+                if video.get("video_id")
+            }
+            # Media referenced in place (store_copy=false) has no stored object,
+            # so it is only known through its content markers.
+            video_ids |= referenced_video_ids(minio_client, bucket_name)
+            for video_id in video_ids:
+                remove_dedup_marker(minio_client, bucket_name, video_id)
+                for obj in minio_client.list_objects_in_directory(bucket_name, video_id):
+                    minio_client.delete_object(bucket_name, obj.object_name)
+            # Sweep any marker left behind by an interrupted earlier delete.
+            for obj in minio_client.list_objects_in_directory(bucket_name, DEDUP_PREFIX):
+                minio_client.delete_object(bucket_name, obj.object_name)
+
+        logger.info(
+            "Cleared bucket %s (%d stored media item(s))",
+            sanitize_for_log(bucket_name, max_length=128),
+            len(video_ids),
+        )
+        return DataPrepResponse(
+            message=f"Bucket {bucket_name} cleared successfully: embeddings deleted, "
+            f"{len(video_ids)} stored media item(s) removed"
+        )
+
+    except DataPrepException as ex:
+        logger.error(ex)
+        raise HTTPException(status_code=ex.status_code, detail=ex.message)
+    except Exception as ex:
+        logger.error(f"Error clearing bucket: {ex}")
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=Strings.server_error
         )
 
 

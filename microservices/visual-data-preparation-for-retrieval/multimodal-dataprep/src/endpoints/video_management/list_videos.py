@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from src.common import DataPrepException, logger, settings
 from src.common.schema import BucketVideoListResponse, VideoInfo
+from src.core.media_ref import list_referenced_media
 from src.core.utils.common_utils import get_minio_client
 from src.core.validation import validate_params
 
@@ -33,7 +34,9 @@ async def list_videos(
     """
     ### Get list of videos from Minio storage.
 
-    This endpoint retrieves a list of all videos stored in Minio and returns their information.
+    This endpoint retrieves a list of all media known to the service and returns their
+    information. Media ingested by reference (``store_copy=false``) is included and
+    flagged with ``stored=false``, carrying its host-visible ``source_path``.
 
     #### Query Params:
     - **bucket_name (str, optional) :** The bucket name where videos are stored. If not provided, default bucket will be used.
@@ -52,8 +55,10 @@ async def list_videos(
         minio_client = get_minio_client()
         minio_client.ensure_bucket_exists(bucket_name)
 
-        # Get all objects in the bucket
+        # Get all objects in the bucket, plus media that was ingested by
+        # reference (store_copy=false) and so has no object to enumerate.
         videos: list[dict] = minio_client.list_all_videos(bucket_name=bucket_name)
+        videos.extend(list_referenced_media(minio_client, bucket_name))
 
         video_list: List[VideoInfo] = []
 

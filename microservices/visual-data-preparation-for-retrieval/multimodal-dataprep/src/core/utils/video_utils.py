@@ -26,7 +26,8 @@ Usage:
 import io
 import pathlib
 import time
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Iterator, List, Optional, Tuple
 
 import cv2
 import torch
@@ -36,7 +37,7 @@ from torchvision.transforms import ToPILImage
 from src.common import DataPrepException, Strings, logger, sanitize_for_log
 from .common_utils import get_minio_client, FrameInfo
 from .config_utils import get_config
-from .file_utils import create_temp_directory
+from .file_utils import create_temp_directory, stream_file_range
 
 # Initialize torchvision transform
 toPIL = ToPILImage()
@@ -72,6 +73,82 @@ def resolve_video_object(bucket_name: str, video_id: str) -> Tuple[str, str]:
 
     filename = pathlib.Path(object_name).name
     return object_name, filename
+
+
+@dataclass
+class MediaSource:
+    """Where a ``video_id``'s bytes actually live, and how to read them.
+
+    Media ingested normally has an object in the storage backend; media ingested
+    by reference (``store_copy=false``) has none and is read from the ingest
+    mount instead. Both are byte-range readable, so callers can treat them
+    uniformly: use :meth:`size` and :meth:`stream`.
+    """
+
+    filename: str
+    #: Storage key ``<video_id>/<filename>``; ``None`` for referenced media.
+    object_name: Optional[str] = None
+    #: Validated path on the ingest mount; ``None`` for stored media.
+    file_path: Optional[pathlib.Path] = None
+
+    @property
+    def is_reference(self) -> bool:
+        """Whether the media is read from the ingest mount rather than storage."""
+        return self.file_path is not None
+
+    def size(self, bucket_name: str) -> int:
+        """Return the media size in bytes."""
+        if self.file_path is not None:
+            return self.file_path.stat().st_size
+        return get_minio_client().get_object_size(bucket_name, self.object_name)
+
+    def stream(
+        self, bucket_name: str, offset: int = 0, length: Optional[int] = None
+    ) -> Iterator[bytes]:
+        """Stream ``[offset, offset+length)`` bytes of the media."""
+        if self.file_path is not None:
+            return stream_file_range(self.file_path, offset=offset, length=length)
+        return get_minio_client().stream_object_range(
+            bucket_name, self.object_name, offset=offset, length=length
+        )
+
+
+def resolve_media_source(bucket_name: str, video_id: str) -> MediaSource:
+    """Resolve ``video_id`` to a readable media source, stored or referenced.
+
+    Tries the storage backend first (the common case), then falls back to the
+    reference sidecar written by a ``store_copy=false`` ingest. This keeps
+    referenced media servable by ``GET /media/download`` even though no object
+    was ever stored for it.
+
+    Args:
+        bucket_name (str): The bucket containing the media.
+        video_id (str): The media identifier to resolve.
+
+    Returns:
+        MediaSource: A handle exposing the media's size and a byte-range reader.
+
+    Raises:
+        DataPrepException: 404 if the media is neither stored nor referenced.
+    """
+    from src.core.media_ref import resolve_referenced_file
+
+    minio_client = get_minio_client()
+    object_name = minio_client.get_video_in_directory(bucket_name, video_id)
+    if object_name:
+        return MediaSource(
+            filename=pathlib.Path(object_name).name, object_name=object_name
+        )
+
+    referenced = resolve_referenced_file(minio_client, bucket_name, video_id)
+    if referenced is not None:
+        return MediaSource(filename=referenced.name, file_path=referenced)
+
+    logger.error(
+        "No media found for video_id %s",
+        sanitize_for_log(video_id, max_length=128),
+    )
+    raise DataPrepException(status_code=404, msg=Strings.video_id_not_found)
 
 
 def get_video_from_minio(bucket_name: str, video_id: str) -> Tuple[io.BytesIO, str]:

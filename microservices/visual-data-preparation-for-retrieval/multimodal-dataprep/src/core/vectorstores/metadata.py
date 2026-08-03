@@ -54,6 +54,7 @@ CANONICAL_FIELDS: List[str] = [
     "filename",
     "video_name",           # text/summary embeddings
     "video_index",
+    "source_path",          # origin path for media ingested from a mounted dir
     # frame positioning
     "extended_frame_id",
     "frame_number",
@@ -78,7 +79,7 @@ CANONICAL_FIELDS: List[str] = [
     "detection_confidence",
     "merged_boxes_count",
     "context_expansion_applied",
-    # text / summary fields
+    # media kind ("video" / "image") and text/summary fields
     "content_type",
     "video_start_time",
     "video_end_time",
@@ -86,6 +87,12 @@ CANONICAL_FIELDS: List[str] = [
 
 # O(1) membership set used by the adapters' projection step.
 _CANONICAL_SET = frozenset(CANONICAL_FIELDS)
+
+# Reserved carrier key for caller-supplied metadata. Callers (ingest endpoints,
+# directory sidecars) place a flat dict of their own keys here; the projection
+# step below flattens it alongside the canonical fields so the values are
+# directly filterable by a retriever, while everything else stays enforced.
+CUSTOM_METADATA_KEY = "custom_metadata"
 
 
 def project_to_canonical(metadata: dict) -> dict:
@@ -95,10 +102,27 @@ def project_to_canonical(metadata: dict) -> dict:
     ``dtype``, ``frame_id``, ``stream_id``, ``batch_id`` and similar) never
     reach the vector store. Dropped keys are logged at DEBUG level to surface
     unexpected fields without failing the request.
+
+    Caller-supplied metadata carried in :data:`CUSTOM_METADATA_KEY` is flattened
+    into the result as top-level fields. Canonical fields always win on a name
+    collision, so user metadata can never shadow or corrupt the contract.
     """
     projected = {key: value for key, value in metadata.items() if key in _CANONICAL_SET}
+
+    custom = metadata.get(CUSTOM_METADATA_KEY)
+    if isinstance(custom, dict):
+        for key, value in custom.items():
+            if key in _CANONICAL_SET or key == CUSTOM_METADATA_KEY:
+                logger.debug("Ignoring custom metadata key colliding with contract: %s", key)
+                continue
+            projected.setdefault(key, value)
+
     if logger.isEnabledFor(10):  # logging.DEBUG
-        dropped = [key for key in metadata if key not in _CANONICAL_SET]
+        dropped = [
+            key
+            for key in metadata
+            if key not in _CANONICAL_SET and key != CUSTOM_METADATA_KEY
+        ]
         if dropped:
             logger.debug("Dropped non-canonical metadata keys before storage: %s", dropped)
     return projected

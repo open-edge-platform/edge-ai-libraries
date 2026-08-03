@@ -25,3 +25,4 @@ ovms_config
 docs/implementation-history
 # .github is tracked: it holds the agent scaffolding (copilot-instructions.md, skills/)
 docker/ingest-data/
+ingest-data

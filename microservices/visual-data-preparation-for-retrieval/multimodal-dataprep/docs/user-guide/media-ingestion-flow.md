@@ -106,7 +106,7 @@ flowchart TD
 
     SEEK --> CONVERT[Convert Tensor to NumPy<br/>• Handle decord NDArray<br/>• Ensure uint8 format<br/>• Verify shape H,W,C]
 
-    CONVERT --> META[Create Frame Metadata<br/>frame_metadata = <br/>• frame_id: video_id_framenum<br/>• frame_number<br/>• timestamp: frame_idx/fps<br/>• frame_type: 'full_frame'<br/>• video_id, filename, bucket<br/>• video_url, video_rel_url<br/>• tags<br/>• fps, total_frames, duration]
+    CONVERT --> META[Create Frame Metadata<br/>frame_metadata = <br/>• frame_id: video_id_framenum<br/>• frame_number<br/>• timestamp: frame_idx/fps<br/>• frame_type: 'full_frame'<br/>• content_type: 'video'<br/>• video_id, filename, bucket<br/>• video_url, video_rel_url<br/>• source_path (dir ingest)<br/>• tags, user metadata<br/>• fps, total_frames, duration]
 
     META --> STORE_FRAME[Store Frame Array<br/>frames.append frame_numpy<br/>frames_metadata.append metadata]
 

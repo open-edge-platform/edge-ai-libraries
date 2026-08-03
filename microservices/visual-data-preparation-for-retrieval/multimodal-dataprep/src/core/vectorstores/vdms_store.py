@@ -206,6 +206,17 @@ class VDMSVectorStore(BaseVectorStore):
         )
         return -1
 
+    def delete_bucket_embeddings(self, bucket_name: str) -> int:
+        """Delete every VDMS vector belonging to a bucket via a metadata constraint."""
+        self.connect()
+        try:
+            self.video_db.delete(constraints={"bucket_name": ["==", bucket_name]})
+        except Exception as exc:
+            logger.error("VDMS bucket delete failed for %s: %s", bucket_name, exc)
+            raise
+        logger.info("Deleted VDMS vectors for bucket %s", bucket_name)
+        return -1
+
     def health(self) -> dict:
         status = {"backend": "vdms", "collection": self.collection_name}
         try:

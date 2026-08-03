@@ -240,6 +240,21 @@ class MilvusVectorStore(BaseVectorStore):
         )
         return -1 if deleted else 0
 
+    def delete_bucket_embeddings(self, bucket_name: str) -> int:
+        """Delete every Milvus vector belonging to a bucket via a filter expression."""
+        if not bucket_name or not _SAFE_IDENTIFIER.match(bucket_name):
+            raise ValueError(f"Unsafe bucket_name for Milvus delete: {bucket_name!r}")
+
+        self.connect()
+        expr = f'bucket_name == "{bucket_name}"'
+        try:
+            deleted = self.store.delete(expr=expr)
+        except Exception as exc:
+            logger.error("Milvus bucket delete failed for %s: %s", bucket_name, exc)
+            raise
+        logger.info("Deleted Milvus vectors for bucket %s (ok=%s)", bucket_name, deleted)
+        return -1 if deleted else 0
+
     def health(self) -> dict:
         status = {"backend": "milvus", "collection": self.collection_name}
         try:

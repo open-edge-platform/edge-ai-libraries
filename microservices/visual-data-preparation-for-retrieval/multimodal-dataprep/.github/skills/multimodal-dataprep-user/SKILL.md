@@ -143,9 +143,16 @@ Asynchronous workflows:
 - `POST /media/upload/batch`
 - `POST /media/process/batch`
 - `POST /media/ingest/batch`
-- `POST /media/ingest-dir`
+- `POST /media/ingest-dir` (also `store_copy: false` to embed files in place
+  without copying them into storage — such media is still listed by `GET /media`
+  with `"stored": false` and streamable via `GET /media/download` — and
+  `metadata` / `meta/<basename>.json` sidecars for user-defined filterable
+  fields)
 - `GET /media/jobs/{job_id}`
 - `DELETE /media/jobs/{job_id}` to request cancellation
+
+Clean-up: `DELETE /media/{bucket_name}/{video_id}` removes one item,
+`DELETE /media/{bucket_name}` clears a whole bucket (storage + embeddings).
 
 Read the API reference for exact request schemas and configured batch limits.
 

@@ -343,6 +343,8 @@ async def generate_video_embedding_from_content(
     detection_confidence: float = 0.85,
     video_name: Optional[str] = None,
     tags: List[str] = None,
+    source_path: Optional[str] = None,
+    custom_metadata: Optional[Dict[str, Any]] = None,
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """
@@ -361,6 +363,9 @@ async def generate_video_embedding_from_content(
         enable_object_detection: Whether to enable object detection
         detection_confidence: Confidence threshold for object detection
         tags: Tags for the video
+        source_path: Origin path of the media as seen outside the container,
+            recorded so consumers sharing the ingest mount can read it in place
+        custom_metadata: Caller-supplied metadata persisted as filterable fields
 
     Returns:
         List of IDs of the created embeddings
@@ -393,6 +398,8 @@ async def generate_video_embedding_from_content(
             "tags": tags or [],
             "video_url": video_url,
             "video_rel_url": video_rel_url,
+            "source_path": source_path or "",
+            "custom_metadata": custom_metadata or {},
         }
 
         # DEBUG: Print metadata dictionary to verify video URLs are created
@@ -650,6 +657,8 @@ def _build_image_base_metadata(
     filename: str,
     video_name: Optional[str] = None,
     tags: List[str],
+    source_path: Optional[str] = None,
+    custom_metadata: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Assemble the canonical metadata shared by an image and all its crops.
 
@@ -674,6 +683,8 @@ def _build_image_base_metadata(
         "tags": _normalize_tags(tags),
         "video_url": video_url,
         "video_rel_url": video_rel_url,
+        "source_path": source_path or "",
+        "custom_metadata": custom_metadata or {},
         "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
 
@@ -706,6 +717,8 @@ def _embed_image_from_content_sync(
     enable_object_detection: bool,
     detection_confidence: float,
     tags: List[str],
+    source_path: Optional[str] = None,
+    custom_metadata: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """Synchronous image embedding core (runs off the event loop via a thread).
 
@@ -733,6 +746,8 @@ def _embed_image_from_content_sync(
         filename=filename,
         video_name=video_name,
         tags=tags,
+        source_path=source_path,
+        custom_metadata=custom_metadata,
     )
 
     # The full image is always the first item.
@@ -821,6 +836,8 @@ async def generate_image_embedding_from_content(
     detection_confidence: float = 0.85,
     video_name: Optional[str] = None,
     tags: Optional[List[str]] = None,
+    source_path: Optional[str] = None,
+    custom_metadata: Optional[Dict[str, Any]] = None,
     telemetry_context: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """Generate and persist embeddings for a single image.
@@ -851,4 +868,6 @@ async def generate_image_embedding_from_content(
         enable_object_detection=enable_object_detection,
         detection_confidence=detection_confidence,
         tags=tags,
+        source_path=source_path,
+        custom_metadata=custom_metadata,
     )

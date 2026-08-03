@@ -89,5 +89,26 @@ class BaseVectorStore(ABC):
         """
 
     @abstractmethod
+    def delete_bucket_embeddings(self, bucket_name: str) -> int:
+        """Delete every vector belonging to one storage bucket.
+
+        The bucket-wide counterpart of :meth:`delete_embeddings`, used to clear a
+        whole ingested collection in one call without enumerating its videos.
+
+        The operation is idempotent: clearing a bucket with no vectors is not an
+        error and returns ``0``.
+
+        Args:
+            bucket_name: The storage bucket whose vectors to remove.
+
+        Returns:
+            int: The number of vectors deleted, or ``-1`` when the backend cannot
+            report an exact count but the delete succeeded.
+
+        Raises:
+            Exception: If the backend delete operation fails.
+        """
+
+    @abstractmethod
     def health(self) -> dict:
         """Return a backend-agnostic health/status dict for the active backend."""

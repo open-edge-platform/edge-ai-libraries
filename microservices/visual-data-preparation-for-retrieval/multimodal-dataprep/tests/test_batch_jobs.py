@@ -123,24 +123,24 @@ def test_retention_evicts_oldest(monkeypatch):
 def test_ingest_dir_traversal_blocked(monkeypatch, tmp_path):
     from src.common import settings
     from src.common.exception import DataPrepException
-    from src.endpoints.video_processing.batch_ingest import _resolve_ingest_dir
+    from src.core.utils.file_utils import resolve_under_ingest_root
 
     root = tmp_path / "ingest_root"
     root.mkdir()
     monkeypatch.setattr(settings, "INGEST_DATA_ROOT", str(root))
 
     with pytest.raises(DataPrepException):
-        _resolve_ingest_dir("../../etc")
+        resolve_under_ingest_root("../../etc", must_be_dir=True)
 
 
 def test_ingest_dir_valid_resolves(monkeypatch, tmp_path):
     from src.common import settings
-    from src.endpoints.video_processing.batch_ingest import _resolve_ingest_dir
+    from src.core.utils.file_utils import resolve_under_ingest_root
 
     root = tmp_path / "ingest_root"
     sub = root / "clips"
     sub.mkdir(parents=True)
     monkeypatch.setattr(settings, "INGEST_DATA_ROOT", str(root))
 
-    resolved = _resolve_ingest_dir("clips")
+    resolved = resolve_under_ingest_root("clips", must_be_dir=True)
     assert resolved == sub.resolve()
