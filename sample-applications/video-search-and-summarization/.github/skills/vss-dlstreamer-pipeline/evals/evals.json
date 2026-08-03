@@ -18,12 +18,12 @@
     {
       "id": 2,
       "prompt_file": "example-prompts/02-add-detection-model.md",
-      "prompt": "We converted a custom YOLOv8 model to OpenVINO IR and want VSS's ingestion pipeline to use it instead of the default `yolov8l-worldv2.xml`. Where do I drop the model files and what code needs to change so `object_detection` requests pick it up on CPU?",
-      "expected_output": "Explains how to place the OpenVINO IR under ov_models so it is mounted at /home/pipeline-server/models, update the pipeline-manager EVAM model path/device configuration for CPU, and validate that object_detection produces detection metadata with the new model.",
+      "prompt": "We converted a custom YOLOv8 model to OpenVINO IR and want VSS's ingestion pipeline to use it instead of the default `yolov8l.xml`. Where do I drop the model files and what configuration needs to change so `object_detection` requests pick it up on CPU?",
+      "expected_output": "Explains how to place a custom OpenVINO IR in the canonical object-detection path under ov_models, set OD_MODEL_NAME so setup derives the EVAM name/path without redownloading or editing TypeScript, select CPU through EVAM_DEVICE, and validate that object_detection produces detection metadata.",
       "files": [],
       "expectations": [
         "Directs the user to place the OpenVINO IR model under ov_models/... so it appears inside video-ingestion at /home/pipeline-server/models/... via docker/compose.summary.yaml.",
-        "Identifies pipeline-manager/src/config/configuration.ts evam.modelPath as the default model path source and evam.device/EVAM_DEVICE as the CPU device source.",
+        "Explains that setup.sh recomputes EVAM_DETECTION_MODEL_PATH and EVAM_DETECTION_MODEL from OD_MODEL_NAME, so the custom XML/bin must use `ov_models/object-detection/ultralytics/public/<custom-id>/FP32/<custom-id>` and OD_MODEL_NAME must use that custom id; uses EVAM_DEVICE as the CPU device source.",
         "Explains that parameters.detection-properties.model/device are sent by EvamService.startChunkingStub() to the element named detection.",
         "Clarifies that the model change affects object_detection because it contains gvadetect name=detection, while video_ingestion has no detection element.",
         "Includes rebuild/restart and validation with POST to /pipelines/user_defined_pipelines/object_detection plus checking metadata.objects in chunk/MinIO metadata JSON."

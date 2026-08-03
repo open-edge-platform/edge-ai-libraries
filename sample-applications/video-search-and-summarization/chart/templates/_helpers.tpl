@@ -100,6 +100,16 @@ No-op placeholder for chart-level validations.
 {{- define "video-summarization.validateGpuPairing" -}}
 {{- end -}}
 
+{{/* Normalize unsupported YOLO-World models to the default YOLOv8L model. */}}
+{{- define "video-summarization.objectDetectionModel" -}}
+{{- $model := . | default "yolov8l" -}}
+{{- if contains "-world" (lower $model) -}}
+yolov8l
+{{- else -}}
+{{ $model }}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Compose an image reference with an optional single-source global registry/tag override.
 
