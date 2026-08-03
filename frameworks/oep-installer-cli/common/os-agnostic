@@ -53,7 +53,7 @@ ensure_git_clone () {
     # full checkout
     git clone -b $version --depth 1 $repository "$workspace"
     pushd "$workspace" > /dev/null
-    [ ! -e .gitmodule ] || git submodule update --init --recurse
+    [ ! -e .gitmodules ] || git submodule update --init --recursive
     popd > /dev/null
   fi
 }
