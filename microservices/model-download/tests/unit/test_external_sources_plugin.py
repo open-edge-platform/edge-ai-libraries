@@ -316,6 +316,36 @@ class TestRuntimeUrlValidation:
             "raw.githubusercontent.com/myorg/",
         ]
 
+    def test_resolved_config_overrides_env_and_profile(self, monkeypatch):
+        monkeypatch.setenv(
+            "EXTERNAL_SOURCES_URL_ALLOWLIST",
+            "github.com/envorg/",
+        )
+        profile = {"allowed_prefixes": ["github.com/open-edge-platform/edge-ai-resources/"]}
+        resolved_config = {
+            "EXTERNAL_SOURCES_URL_ALLOWLIST": "github.com/reqorg/, raw.githubusercontent.com/reqorg/",
+        }
+        assert ExternalSourcesPlugin._resolve_allowlist(profile, resolved_config) == [
+            "github.com/reqorg/",
+            "raw.githubusercontent.com/reqorg/",
+        ]
+
+    def test_resolved_config_empty_falls_back_to_env(self, monkeypatch):
+        monkeypatch.setenv(
+            "EXTERNAL_SOURCES_URL_ALLOWLIST",
+            "github.com/envorg/",
+        )
+        profile = {"allowed_prefixes": ["github.com/open-edge-platform/edge-ai-resources/"]}
+        # Blank/whitespace override is ignored; env wins.
+        assert ExternalSourcesPlugin._resolve_allowlist(profile, {"EXTERNAL_SOURCES_URL_ALLOWLIST": "   "}) == [
+            "github.com/envorg/",
+        ]
+
+    def test_config_keys_declares_allowlist(self, plugin):
+        keys = {key.name: key for key in plugin.config_keys()}
+        assert "EXTERNAL_SOURCES_URL_ALLOWLIST" in keys
+        assert keys["EXTERNAL_SOURCES_URL_ALLOWLIST"].sensitive is False
+
     def test_url_hub_requires_config_url(self, plugin, temp_dir):
         with pytest.raises(ValueError, match="requires 'url'"):
             plugin.download("pkg-a", temp_dir, hub="remote-url")

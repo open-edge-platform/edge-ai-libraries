@@ -25,6 +25,7 @@ import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
+import TimeseriesOutputPanel from "@/features/pipeline-editor/TimeseriesOutputPanel.tsx";
 import { aggregateLatencyTracerMetrics } from "@/hooks/useFrozenMetrics";
 import { toast } from "@/lib/toast";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
@@ -67,6 +68,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { NavigationGuard } from "@/components/shared/NavigationGuard";
 import {
   PipelineModelsRequiredDialog,
   type PipelineModelStatusItem,
@@ -191,11 +193,13 @@ export const Pipelines = () => {
   >([]);
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
+  const [timeseriesStarted, setTimeseriesStarted] = useState(false);
   const nodeDetailsPanelSizeRef = useRef(24);
   const runPanelSizeRef = useRef(35);
   const detailsPanelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
+  const startedToastJobIdRef = useRef<string | null>(null);
 
   const {
     currentNodes,
@@ -229,6 +233,7 @@ export const Pipelines = () => {
   const {
     execute: runPipeline,
     isLoading: isPipelineRunning,
+    isPolling: isPipelinePolling,
     isJobCancelled,
     jobId,
     jobStatus,
@@ -238,6 +243,17 @@ export const Pipelines = () => {
   });
 
   useActiveJobSync(jobId);
+
+  useEffect(() => {
+    if (!jobId || startedToastJobIdRef.current === jobId) {
+      return;
+    }
+
+    startedToastJobIdRef.current = jobId;
+    toast.success("Pipeline run started", {
+      description: new Date().toISOString(),
+    });
+  }, [jobId]);
 
   // Reset editor state when variant changes
   useEffect(() => {
@@ -371,12 +387,12 @@ export const Pipelines = () => {
   };
 
   const handleNodeSelect = (node: ReactFlowNode | null) => {
-    if (jobStatus?.state === "RUNNING") {
+    if (jobStatus?.state === "RUNNING" && !data?.tags?.includes("Time Series")) {
       return;
     }
 
     setSelectedNode(node);
-    setShowDetailsPanel(!!node);
+    setShowDetailsPanel(!!node || timeseriesStarted);
 
     if (node) {
       setCompletedVideoPath(null);
@@ -402,6 +418,14 @@ export const Pipelines = () => {
 
   const handleRunPipeline = async () => {
     if (!id || !variant) return;
+
+    // Time Series pipelines don't use GStreamer — just show the output panel
+    if (data?.tags?.includes("Time Series")) {
+      setTimeseriesStarted(true);
+      setShowDetailsPanel(true);
+      setSelectedNode(null);
+      return;
+    }
 
     setCompletedVideoPath(null);
     setShowDetailsPanel(true);
@@ -439,10 +463,6 @@ export const Pipelines = () => {
       const hasMetadata = payloadGraphData.nodes.some(
         (n) => n.type === "gvametapublish",
       );
-
-      toast.success("Pipeline run started", {
-        description: new Date().toISOString(),
-      });
 
       const status = await runPipeline({
         performanceTestSpec: {
@@ -557,15 +577,20 @@ export const Pipelines = () => {
   }, [showDetailsPanel, jobStatus?.state, completedVideoPath]);
 
   if (isSuccess && data) {
-    const detailsPanelType: "node" | "run" | null = showDetailsPanel
+    const isTimeSeriesPipeline = data.tags?.includes("Time Series") ?? false;
+    const detailsPanelType: "node" | "run" | "timeseries" | null = showDetailsPanel
       ? selectedNode
         ? "node"
-        : "run"
+        : isTimeSeriesPipeline && timeseriesStarted
+          ? "timeseries"
+          : isTimeSeriesPipeline
+            ? null
+            : "run"
       : null;
     const activePanelSize =
       detailsPanelType === "node"
         ? nodeDetailsPanelSizeRef.current
-        : detailsPanelType === "run"
+        : detailsPanelType === "run" || detailsPanelType === "timeseries"
           ? runPanelSizeRef.current
           : 0;
     const currentVariantData = data.variants.find((v) => v.id === variant);
@@ -602,7 +627,7 @@ export const Pipelines = () => {
             shouldFitView={shouldFitView}
             isSimpleGraph={isSimpleMode}
             showDetailsPanel={showDetailsPanel}
-            detailsPanelType={detailsPanelType}
+            detailsPanelType={detailsPanelType === "timeseries" ? "run" : detailsPanelType}
           />
         </div>
       </div>
@@ -610,6 +635,11 @@ export const Pipelines = () => {
 
     return (
       <div className="flex flex-col h-full w-full">
+        <NavigationGuard
+          when={isPipelinePolling}
+          title="Pipeline run in progress"
+          description="This page is still polling the active pipeline run. Stop the run or wait for it to finish before leaving this page."
+        />
         <header className="flex h-[3.75rem] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
           <div className="flex flex-wrap items-center gap-2 px-2">
             <Link
@@ -1034,9 +1064,7 @@ export const Pipelines = () => {
                   defaultSize={runPanelSizeRef.current}
                   minSize={640}
                   onResize={(size) => {
-                    if (typeof size === "number") {
-                      runPanelSizeRef.current = size;
-                    }
+                    runPanelSizeRef.current = size.asPercentage;
                   }}
                 >
                   <div
@@ -1070,6 +1098,26 @@ export const Pipelines = () => {
               </>
             )}
 
+            {detailsPanelType === "timeseries" && (
+              <>
+                <ResizableHandle withHandle />
+
+                <ResizablePanel
+                  defaultSize={runPanelSizeRef.current}
+                  minSize={640}
+                  onResize={(size) => {
+                    if (typeof size === "number") {
+                      runPanelSizeRef.current = size;
+                    }
+                  }}
+                >
+                  <div className="w-full h-full bg-background overflow-y-auto overflow-x-hidden relative [scrollbar-gutter:stable]">
+                    <TimeseriesOutputPanel />
+                  </div>
+                </ResizablePanel>
+              </>
+            )}
+
             {detailsPanelType === "node" && (
               <>
                 <ResizableHandle withHandle />
@@ -1078,9 +1126,7 @@ export const Pipelines = () => {
                   defaultSize={nodeDetailsPanelSizeRef.current}
                   minSize={400}
                   onResize={(size) => {
-                    if (typeof size === "number") {
-                      nodeDetailsPanelSizeRef.current = size;
-                    }
+                    nodeDetailsPanelSizeRef.current = size.asPercentage;
                   }}
                 >
                   <div

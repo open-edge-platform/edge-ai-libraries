@@ -83,19 +83,6 @@ Expected response:
 
 ---
 
-## 5. Submit a Test Request
-
-```bash
-curl -X POST http://localhost:8080/api/v1/analyze \
-  -H "Content-Type: application/json" \
-  -d '{
-    "entity_id": "test-person-001",
-    "pattern_id": "shelf_to_waist"
-  }'
-```
-
----
-
 ## Runtime Arguments
 
 Uvicorn arguments relevant to this service:

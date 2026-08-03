@@ -1,11 +1,53 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from src.core.model_manager import ModelManager
+
+
+@pytest.mark.asyncio
+async def test_process_download_refreshes_credentials_for_each_request(tmp_path):
+    registry = MagicMock()
+    download_plugin = MagicMock()
+    download_plugin.plugin_name = "huggingface"
+    download_plugin.resolve_config.side_effect = lambda overrides: overrides.copy()
+    download_plugin.download = AsyncMock(return_value={"success": True})
+    registry.get_plugin.return_value = download_plugin
+
+    manager = ModelManager(registry, default_dir=str(tmp_path))
+    for index, token in enumerate(("first-token", "second-token"), start=1):
+        job_id = manager.register_job(
+            "download",
+            "org/model",
+            "huggingface",
+            str(tmp_path),
+            "huggingface",
+        )
+        result = await manager.process_download(
+            job_id=job_id,
+            model_name="org/model",
+            hub="huggingface",
+            output_dir=str(tmp_path),
+            downloader="huggingface",
+            parallel_downloads=False,
+            override_credentials={"HF_TOKEN": token},
+        )
+        assert result["status"] == "completed", index
+
+    assert [call.args[0] for call in download_plugin.resolve_config.call_args_list] == [
+        {"HF_TOKEN": "first-token"},
+        {"HF_TOKEN": "second-token"},
+    ]
+    assert [
+        call.kwargs["resolved_config"]
+        for call in download_plugin.download.call_args_list
+    ] == [
+        {"HF_TOKEN": "first-token"},
+        {"HF_TOKEN": "second-token"},
+    ]
 
 
 @pytest.mark.asyncio

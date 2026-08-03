@@ -8,7 +8,7 @@ SHELL := bash -eu -o pipefail
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
 	build-videogenerator build-onvif-discovery docker-build env-setup build-test \
-	test-smoke test-full test-performance
+	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental 
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -145,6 +145,18 @@ run-videogenerator: env-setup build-videogenerator ## Run only the videogenerato
 run-dev: env-setup ## Run the docker compose services for development
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
 
+build-experimental: env-setup ## Build core images for experimental timeseries setup
+	. .env && docker compose -f compose-experimental.yml -f compose.$$COMPOSE_PROFILES.yml build
+
+run-experimental: env-setup ## Run the docker compose services with experimental timeseries features
+	. .env && docker compose -f compose-experimental.yml -f compose.$$COMPOSE_PROFILES.yml up -d --remove-orphans
+
+stop-experimental: ## Stop experimental docker compose services
+	docker compose -f compose-experimental.yml down
+
+clean-experimental: ## Clean experimental setup artifacts
+	docker compose -f compose-experimental.yml down -v
+
 # Build the test image only when its inputs change. Source files are
 # bind-mounted at run-time (see `test` target), so changing application
 # code does not require an image rebuild.
@@ -207,7 +219,7 @@ shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop the docker compose services
-	docker compose down model-download metrics-manager videogenerator mediamtx vippet-ui vippet onvif-discovery
+	docker compose down model-download metrics-manager videogenerator mediamtx vippet-ui vippet onvif-discovery ia-timeseries-ingestion ia-time-series-analytics-microservice
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator

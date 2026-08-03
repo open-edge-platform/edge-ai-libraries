@@ -82,8 +82,11 @@ x-vippet: &vippet
     # Broad access to USB devices is required to support a wide range of USB cameras.
     - 'c 189:* rmw'
     - 'a 189:* rwm'
+  group_add:
+    - "${DOCKER_GID:-984}"
   volumes:
     - "/dev:/dev"
+    - /var/run/docker.sock:/var/run/docker.sock:ro
     - ./shared/images/:/images
     - ./shared/models/:/models
     - ./shared/videos/:/videos
@@ -263,3 +266,6 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
+
+volumes: {}
+
