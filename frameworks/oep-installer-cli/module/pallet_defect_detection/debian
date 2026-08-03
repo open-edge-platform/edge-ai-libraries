@@ -1,0 +1,55 @@
+
+configure_pallet_defect_detection () {
+  workspace="$(ensure_project_path)/sample-pallet-defect-detection"
+  version=release-2026.1.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+debian_90_profile_pallet_defect_detection () {
+  echo "git curl gawk"
+}
+
+debian_90_install_pallet_defect_detection () {
+  configure_pallet_defect_detection
+  [ ! -e "$workspace" ] || [[ "$*" = *"--reset-pallet_defect_detection"* ]] || return 0
+  ensure_disk_space 50
+
+  # clone the repository
+  ensure_git_clone "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
+
+  # setup
+  pushd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision" > /dev/null
+  cat > .env <<EOF
+$(cat .env_pallet-defect-detection)
+HOST_IP=$(ensure_ip)
+ENABLE_HTTPS_MODE=true
+MINIO_ACCESS_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+MINIO_SECRET_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+EOF
+  ./setup.sh
+  popd > /dev/null
+}
+
+debian_90_start_pallet_defect_detection () {
+  configure_pallet_defect_detection
+  pushd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision > /dev/null
+  docker compose up -d
+  ./sample_start.sh -p pallet_defect_detection_gpu
+  echo "UI entrypoint: $(ensure_ip)"
+  popd > /dev/null
+}
+
+debian_90_stop_pallet_defect_detection () {
+  configure_pallet_defect_detection
+  pushd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision > /dev/null
+  ./sample_stop.sh
+  docker compose down -v
+  popd > /dev/null
+}
+
+debian_90_remove_pallet_defect_detection () {
+  configure_pallet_defect_detection
+  ensure_rmdir "$workspace"
+}

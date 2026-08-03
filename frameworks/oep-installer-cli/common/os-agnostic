@@ -1,4 +1,9 @@
 
+# return the installation path
+ensure_project_path () {
+  echo "$HOME/open-edge-platform"
+}
+
 # perform sudo in automation or in tty
 ensure_sudo () {
   if [ -n "$SUDO_PASSWORD" ]; then
@@ -26,6 +31,8 @@ ensure_tmpdir () {
 }
 
 # sparse or full git clone
+# full clone: <workspace> <version> <repository>
+# sparse clone: <workspace> <version> <repository> <dirs> [<dirs>...]
 ensure_git_clone () {
   local workspace="$1"
   local version="$2"
@@ -77,4 +84,15 @@ ensure_docker_container () {
   echo "Pulling image $image (this may take several minutes for large images)..."
   docker pull "$image"
   docker run -dt --name "$name" "${@:3}" "$image"
+}
+
+# check disk space
+ensure_disk_space () {
+  local disk_size=$1            # in MB
+  local disk_path="${2:-$HOME}" # optional disk path
+  local disk_avail=$(df -h --output=avail "$disk_path" | awk '/[0-9]G/{a=$1*1000}/[0-9]M/{a=$1*1}/[0-9]K/{a=$1/1000}END{print int(a)}')
+  if [ "$disk_size" -gt "$disk_avail" ]; then
+    echo "Not enough disk space: required ${disk_size}MiB and available ${disk_avail}MiB"
+    return 3
+  fi
 }

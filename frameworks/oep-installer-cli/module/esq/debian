@@ -1,6 +1,6 @@
 
 configure_esq () {
-  workspace="$(readlink -f ~)/openedge-catalog/esq"
+  workspace="$(ensure_project_path)/esq"
 }
 
 debian_70_profile_esq () {

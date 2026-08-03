@@ -6,7 +6,7 @@
 configure_unstructured () {
   container_name=unstructured
   image=downloads.unstructured.io/unstructured-io/unstructured:latest
-  workspace="$(readlink -f ~)/openedge-catalog/unstructured"
+  workspace="$(ensure_project_path)/unstructured"
 }
 
 debian_95_profile_unstructured () {

@@ -1,6 +1,6 @@
 
 configure_edk () {
-  workspace="$(readlink -f ~)/openedge-catalog/edk"
+  workspace="$(ensure_project_path)/edk"
   version=origin/main
   repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts"
 }

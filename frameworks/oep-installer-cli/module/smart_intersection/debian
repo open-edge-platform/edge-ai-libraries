@@ -1,6 +1,6 @@
 
 configure_smart_intersection () {
-  workspace="$(readlink -f ~)/openedge-catalog/sample-smart-intersection"
+  workspace="$(ensure_project_path)/sample-smart-intersection"
   version=release-2026.1.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
 }

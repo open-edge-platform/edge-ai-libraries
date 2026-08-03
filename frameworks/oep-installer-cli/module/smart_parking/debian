@@ -1,6 +1,6 @@
 
 configure_smart_parking () {
-  workspace="$(readlink -f ~)/openedge-catalog/sample-smart-parking"
+  workspace="$(ensure_project_path)/sample-smart-parking"
   version=release-2026.1.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
 }

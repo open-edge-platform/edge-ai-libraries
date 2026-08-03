@@ -1,6 +1,6 @@
 
 configure_vippet () {
-  workspace="$(readlink -f ~)/openedge-catalog/vippet"
+  workspace="$(ensure_project_path)/vippet"
   version=release-2026.1.0
   repository=https://github.com/open-edge-platform/edge-ai-libraries.git
 }
