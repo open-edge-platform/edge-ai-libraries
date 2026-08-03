@@ -67,13 +67,16 @@ The following is a summary of key configuration options available in the `values
 | `env.HUGGINGFACEHUB_API_TOKEN` | Hugging Face access token                                                                                                                                                     | `hf_xxx`                     | Yes                      |
 | `env.MAX_UPLOAD_SIZE_MB`       | Maximum allowed upload ZIP size in MB                                                                                                                                         | `500`                        | No                       |
 | `env.UPLOAD_CHUNK_SIZE_KB`     | Chunk size for streaming file uploads in KB (larger improves throughput, smaller reduces memory for concurrent uploads)                                                       | `8`                          | No                       |
+| `env.EXTERNAL_SOURCES_URL_ALLOWLIST` | Comma-separated `host/path` prefixes allowed for the `remote-url` hub. When set, it replaces the default allowlist defined in `src/plugins/external_sources/sources.yaml` | `github.com/open-edge-platform/edge-ai-resources/` | No                       |
 | `env.GETI_WORKSPACE_ID`        | Geti™ workspace ID                                                                                                                                                             |                              | Yes, For Geti™ connection |
 | `env.GETI_HOST`                | Geti™ connection host address                                                                                                                                                  |                              | Yes, For Geti™ connection |
 | `env.GETI_TOKEN`               | Geti™ Personal Access token                                                                                                                                                    |                              | Yes, For Geti™ connection |
 | `env.GETI_SERVER_API_VERSION`  | Geti™ API version                                                                                                                                                              | `v1`                         | Yes, For Geti™ connection |
 | `env.GETI_SERVER_SSL_VERIFY`   | Enables SSL certificate validation for HTTPS/HTTP Geti™ hosts                                                                                                                  | `False`                      | Yes, For Geti™ connection |
 | `service.nodePort`             | Sets the static port (in the 30000–32767 range)                                                                                                                               | 32000                        | Yes                      |
-| `env.ENABLED_PLUGINS`          | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics,pipeline-zoo-models,openvino,geti,hls`) or `all` to enable all available plugins              | `all`                        | Yes                      |
+| `env.ENABLED_PLUGINS`          | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics,pipeline-zoo-models,remote-url,omz,openvino,geti,hls`) or `all` to enable all available plugins | `all`                        | Yes                      |
+| `startupConfig.enabled`        | Creates and mounts a startup-model ConfigMap and schedules its models asynchronously                                                                                         | `false`                      | No                       |
+| `startupConfig.config`         | Startup configuration containing the default `download_path`, `parallel_downloads`, and `models` list                                                                        | See `values.yaml`            | When enabled             |
 | `image.repository`             | image repository url                                                                                                                                                          | intel/model-download         | Yes                      |
 | `image.tag`                    | latest image tag                                                                                                                                                              | latest                       | Yes                      |
 | `gpu.enabled`                  | For model download deployed on GPU                                                                                                                                            | false                        |
@@ -83,6 +86,38 @@ The following is a summary of key configuration options available in the `values
 | `affinity.value`               | Provide the values for the respective key                                                                                                                                     |                              |
 
 > **Note:** See the chart's `values.yaml` file for a full list of configurable parameters.
+
+### Preload Models
+
+Startup model loading is disabled by default. To enable the chart's ConfigMap-backed,
+read-only configuration, set:
+
+```yaml
+modeldownload:
+  startupConfig:
+    enabled: true
+    config:
+      download_path: /opt/models/preloaded
+      parallel_downloads: false
+      models:
+        - name: BAAI/bge-small-en-v1.5
+          hub: huggingface
+          type: embeddings
+        - name: yolov8n
+          hub: ultralytics
+          type: vision
+          download_path: /opt/models/vision
+```
+
+Enable every plugin referenced by the model entries in
+`modeldownload.env.ENABLED_PLUGINS`. The chart sets `STARTUP_MODELS_CONFIG` to the mounted
+ConfigMap path. Keep tokens out of `startupConfig.config`; provide credentials through the
+existing environment values or your deployment's secret-injection mechanism.
+
+Model work continues after the readiness probe succeeds. Use the existing jobs endpoints or
+`kubectl logs` to monitor jobs. The PVC preserves downloaded artifacts across pod restarts,
+but in-memory job records are not restored and configured entries are scheduled again. For the
+full schema and behavior, see [Download Models at Startup](./startup-models.md).
 
 ## Deploy the Helm Chart
 

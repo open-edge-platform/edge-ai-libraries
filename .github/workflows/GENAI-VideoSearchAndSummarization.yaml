@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - main
@@ -26,14 +27,6 @@ jobs:
     runs-on: ubuntu-22.04-32core-128GB
     permissions:
       contents: read
-    env:
-      MINIO_ROOT_USER: ${{ secrets.GENAI_MINIO_ROOT_USER }}
-      MINIO_ROOT_PASSWORD: ${{ secrets.GENAI_MINIO_ROOT_PASSWORD }}
-      POSTGRES_USER: ${{ secrets.GENAI_POSTGRES_USER }}
-      POSTGRES_PASSWORD: ${{ secrets.GENAI_POSTGRES_PASSWORD }}
-      RABBITMQ_USER: ${{ secrets.GENAI_RABBITMQ_USER }}
-      RABBITMQ_PASSWORD: ${{ secrets.GENAI_RABBITMQ_PASSWORD }}
-      HUGGINGFACE_TOKEN: ${{ secrets.GENAI_HUGGINGFACE_TOKEN }}
 
     steps:
       - name: Checkout code
@@ -48,7 +41,21 @@ jobs:
       
       - name: Install Poetry
         run: |
-          pip install poetry  
+          pip install poetry
+
+      - name: Generate runtime secrets
+        run: |
+          {
+            echo "MINIO_ROOT_USER=minioadmin"
+            echo "MINIO_ROOT_PASSWORD=$(openssl rand -base64 24)"
+            echo "POSTGRES_USER=postgres"
+            echo "POSTGRES_PASSWORD=$(openssl rand -base64 24)"
+            echo "RABBITMQ_USER=rabbitmq"
+            echo "RABBITMQ_PASSWORD=$(openssl rand -base64 24)"
+          } >> "$GITHUB_ENV"
+
+      - name: Set Hugging Face token
+        run: echo "HUGGINGFACE_TOKEN=${{ secrets.GENAI_HUGGINGFACE_TOKEN }}" >> "$GITHUB_ENV"
 
       - name: Deploy VSS in dual mode
         run: |

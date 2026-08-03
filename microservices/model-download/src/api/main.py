@@ -3,29 +3,118 @@
 
 import os
 import io
-import re
 import zipfile
 import shutil
 import yaml
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from ..core.plugin_registry import PluginRegistry
 from ..core.model_manager import ModelManager
+from ..core.model_submission import ModelSubmissionError, submit_models
+from ..core.startup_config import StartupModelsConfig, load_startup_models_config
 import importlib
-from .models import ModelDownloadRequest, ModelHub
+from .models import (
+    ModelDownloadRequest,
+    ModelListItem,
+    ModelListRequest,
+    ModelListResponse,
+    ModelRequest,
+)
+from ..core.interfaces import ListingAuthError, ListingNotSupportedError
 from ..utils.logging import logger
-from ..utils.helper import validate_zip_contents_within_target, validate_zip_file, sanitize_path_part
+from ..utils.helper import validate_zip_contents_within_target, validate_zip_file, sanitize_path_part, get_hub_config_keys
+
+
+_background_tasks: set[asyncio.Task[Any]] = set()
+
+
+async def _submit_startup_models(config: StartupModelsConfig) -> None:
+    for startup_model in config.models:
+        try:
+            download_path = startup_model.download_path or config.download_path
+            model = ModelRequest.model_validate(
+                startup_model.model_dump(exclude={"download_path"})
+            )
+            request = ModelDownloadRequest(
+                models=[model],
+                parallel_downloads=config.parallel_downloads,
+            )
+            job_ids = await submit_models(
+                request,
+                download_path,
+                plugin_registry=plugin_registry,
+                model_manager=model_manager,
+                models_dir=models_dir,
+                background_tasks=_background_tasks,
+            )
+            logger.info(
+                "startup_model_scheduled",
+                model_name=model.name,
+                hub=model.hub,
+                download_path=download_path,
+                job_ids=job_ids,
+            )
+        except ModelSubmissionError as error:
+            logger.error(
+                "startup_model_submission_failed",
+                model_name=startup_model.name,
+                hub=startup_model.hub,
+                error=str(error),
+            )
+        except Exception as error:
+            logger.error(
+                "startup_model_submission_failed",
+                model_name=startup_model.name,
+                hub=startup_model.hub,
+                error_type=type(error).__name__,
+            )
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    startup_config = load_startup_models_config()
+    if startup_config is not None:
+        await _submit_startup_models(startup_config)
+
+    yield
+
+    active_tasks = list(_background_tasks)
+    for task in active_tasks:
+        task.cancel()
+    if active_tasks:
+        await asyncio.gather(*active_tasks, return_exceptions=True)
+
 
 app = FastAPI(
     root_path="/api/v1",
     title="Model Download Service",
     version="1.0.1",
+    lifespan=lifespan,
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = []
+
+    for error in exc.errors():
+        error = error.copy()
+        error.pop("input", None)
+        error.pop("ctx", None)      # Remove non-serializable ValueError
+        errors.append(error)
+
+    return JSONResponse(
+        status_code=422,
+        content={"detail": errors},
+    )
+
 
 # Custom OpenAPI schema loader
 def custom_openapi():
@@ -54,10 +143,26 @@ MAX_UPLOAD_SIZE_BYTES = int(os.getenv("MAX_UPLOAD_SIZE_MB", "500")) * 1024 * 102
 UPLOAD_CHUNK_SIZE_BYTES = int(os.getenv("UPLOAD_CHUNK_SIZE_KB", "8")) * 1024
 CUSTOM_MODELS_SUBDIR = "custom_uploaded_models"
 
-# Log which plugins are activated at startup
+# Log which plugins are activated at startup. Plugins that serve multiple
+# user-facing hubs (e.g. external-sources) are logged per hub so operators
+# see the hub names they actually enable, not the internal plugin name.
+#
+# Multi-hub detection: If plugin_supported_hubs() returns multiple hubs, log
+# per hub; otherwise log the plugin itself.
 for plugin_type in plugin_registry.plugins:
     for plugin_name in plugin_registry.get_plugin_names(plugin_type):
-        is_available, reason = plugin_registry.check_plugin_dependencies(plugin_name)
+        plugin = plugin_registry.get_plugin(plugin_type, plugin_name)
+        plugin_supported_hubs = plugin.plugin_supported_hubs()
+        if len(plugin_supported_hubs) > 1:
+            # Multi-hub plugins (e.g. external-sources) load when any one hub is
+            # activated; log only activated hubs and skip the rest.
+            for hub in plugin_supported_hubs:
+                is_available, _ = plugin_registry.hub_is_available(hub)
+                if not is_available:
+                    continue
+                logger.info(f"Hub {hub} ({plugin_type}): AVAILABLE")
+            continue
+        is_available, reason = plugin_registry.hub_is_available(plugin_name)
         status = "AVAILABLE" if is_available else f"NOT AVAILABLE: {reason}"
         logger.info(f"Plugin {plugin_name} ({plugin_type}): {status}")
 
@@ -80,6 +185,107 @@ async def health_check():
     return {"status": "ok"}
 
 
+async def _list_hub_models(
+    hub: str,
+    filters: Optional[Dict[str, Any]] = None,
+    limit: int = 50,
+    offset: int = 0,
+    override_credentials: Optional[Dict[str, str]] = None,
+) -> ModelListResponse:
+    if limit < 1 or limit > 200:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 200")
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="offset must be >= 0")
+
+    hub_name = hub.lower()
+    plugin = plugin_registry.get_plugin("downloader", hub_name)
+    if plugin is None:
+        plugin = plugin_registry.find_plugin_for_model("downloader", "", hub_name)
+    if plugin is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Hub '{hub}' was not activated during container startup. "
+                   f"Active hubs: {', '.join(sorted(plugin_registry.activated_plugins))}.",
+        )
+
+    if not getattr(plugin, "supports_listing", False):
+        raise HTTPException(status_code=501, detail=f"Hub '{hub}' does not support listing models")
+
+    # Multi-hub plugins may be found even when the specific hub was not activated.
+    is_available, reason = plugin_registry.hub_is_available(hub_name)
+    if not is_available:
+        raise HTTPException(status_code=400, detail=reason)
+
+    try:
+        resolved_config = plugin.resolve_config(override_credentials or {}, hub=hub_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    try:
+        result = await asyncio.to_thread(
+            plugin.list_models,
+            filters=filters or {},
+            limit=limit,
+            offset=offset,
+            hub=hub_name,
+            resolved_config=resolved_config,
+        )
+    except ListingNotSupportedError:
+        raise HTTPException(status_code=501, detail=f"Hub '{hub}' does not support listing models")
+    except ListingAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Failed to list models for hub '{hub}': {exc}")
+        raise HTTPException(status_code=502, detail=f"Failed to list models from hub '{hub}'")
+
+    raw_items = result.get("items", [])
+    items = [ModelListItem(**item) for item in raw_items[:limit]]
+    count = len(items)
+    total = result.get("total")
+    if total is not None:
+        has_more = offset + count < total
+    else:
+        has_more = len(raw_items) > limit
+    return ModelListResponse(
+        hub=hub_name,
+        items=items,
+        count=count,
+        total=total,
+        limit=limit,
+        offset=offset,
+        has_more=has_more,
+        next_offset=offset + limit if has_more else None,
+    )
+
+
+# TODO: Replace this POST endpoint with HTTP QUERY once FastAPI, OpenAPI tooling,
+# and deployment proxies support QUERY consistently for safe requests with bodies.
+@app.post(
+    "/models/list",
+    response_model=ModelListResponse,
+    response_model_exclude_none=True,
+    tags=["Models"],
+)
+async def list_hub_models_with_body(request: ModelListRequest) -> ModelListResponse:
+    """
+    List models available on a hub using hub-specific filters.
+    """
+    filters = request.filters.copy()
+    body_extras = request.model_extra or {}
+    filters.update({key: value for key, value in body_extras.items() if value is not None})
+    return await _list_hub_models(
+        request.hub,
+        filters=filters,
+        limit=request.limit,
+        offset=request.offset,
+        override_credentials=request.override_credentials,
+    )
+
+
 @app.post("/models/download")
 async def download_models(
     request: ModelDownloadRequest,
@@ -99,136 +305,14 @@ async def download_models(
     gated models from HuggingFace. Public models can be downloaded without authentication.
     """
     try:
-        supported_hubs = set()
-        for plugin_type in plugin_registry.plugins:
-            supported_hubs.update(name.lower() for name in plugin_registry.get_plugin_names(plugin_type))
-        for model in request.models:
-            logger.info(f"Requested Model Hub: {model.hub}")
-            if model.hub.lower() not in supported_hubs:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Unsupported model download/conversion detected. Supported methods are {supported_hubs}.",
-                )
-
-        # Get HuggingFace token from environment variable
-        hf_token = os.getenv("HF_TOKEN")
-
-        logger.info(f"Initiating model download for {len(request.models)} model(s)")
-        job_ids = []
-
-        for model in request.models:
-            # Check if the plugin's dependencies are installed
-            is_plugin_available, error_reason = plugin_registry.check_plugin_dependencies(model.hub)
-            if not is_plugin_available:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Plugin '{model.hub}' is not available: {error_reason}"
-                )
-
-            extra_kwargs = model.model_dump().copy()
-            logger.info(f"Model '{model.name}' download initiated using hub '{model.hub}' with parameters: {extra_kwargs}")
-
-            needs_conversion = model.is_ovms
-            model_download_path = os.path.join(models_dir, download_path)
-
-            if model.hub.lower() in [hub.value.lower() for hub in ModelHub] and not needs_conversion:
-                extra_kwargs["token"] = hf_token
-                # Remove fields that shouldn't be passed to plugins
-                extra_kwargs.pop("hub", None)
-                extra_kwargs.pop("is_ovms", None)
-
-                model_download_path = os.path.join(
-                    models_dir, download_path
-                )
-                # Register download job
-                download_job_id = model_manager.register_job(
-                    operation_type="download",
-                    model_name=model.name,
-                    hub=model.hub,
-                    output_dir=model_download_path,
-                    plugin_name=model.hub,
-                    model_type=model.type,
-                )
-
-                # Add to job_ids for response
-                job_ids.append(download_job_id)
-
-                # Start download in background (async parallel execution)
-                asyncio.create_task(
-                    model_manager.process_download(
-                        job_id=download_job_id,
-                        model_name=model.name,
-                        hub=model.hub,
-                        output_dir=model_download_path,
-                        downloader=model.hub,
-                        **extra_kwargs
-                    )
-                )
-
-            if needs_conversion:
-                # Check if OpenVINO plugin is available for conversion
-                is_openvino_available, openvino_error = plugin_registry.check_plugin_dependencies("openvino")
-                if not is_openvino_available:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"OpenVINO conversion requested but plugin is not available: {openvino_error}"
-                    )
-
-                # Get configuration for conversion
-                extra_kwargs["token"] = hf_token
-                config = model.config.dict() if model.config else {}
-                config['device'] = (config.get("device") or config.get("target_device") or "CPU")
-                config["precision"] = (
-                    config.get("weight-format") or
-                    config.get("precision") or
-                    "int8"
-                ).lower()
-
-                if config['device'].upper() == "NPU":
-                    logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
-                    config['precision'] = "int4"
-
-
-                # Create a unique output directory for the converted model.
-                # HETERO devices contain ':' and ',' which are hostile in paths,
-                # so the device is slugified for the directory (HETERO:GPU,CPU ->
-                # hetero_gpu_cpu) while the raw value is still passed to conversion.
-                device_slug = re.sub(r"[^A-Za-z0-9._-]+", "_", config["device"])
-                convert_output_dir = os.path.join(
-                    models_dir,
-                    download_path,
-                    "openvino_models",
-                    device_slug,
-                    config["precision"]
-                ).lower()
-
-                # Register conversion job
-                convert_job_id = model_manager.register_job(
-                    operation_type="convert",
-                    model_name=model.name,
-                    hub=model.hub,
-                    output_dir=convert_output_dir,
-                    plugin_name="openvino",
-                    model_type=model.type,
-                )
-
-                # Add to job_ids for response
-                job_ids.append(convert_job_id)
-
-                # Start conversion in background (async parallel execution)
-                asyncio.create_task(
-                    model_manager.process_conversion(
-                        job_id=convert_job_id,
-                        model_path=download_path,
-                        hub=model.hub,
-                        output_dir=convert_output_dir,
-                        converter="openvino",
-                        model_name=model.name,
-                        model_type=model.type,
-                        hf_token=extra_kwargs["token"],
-                        **config
-                    )
-                )
+        job_ids = await submit_models(
+            request,
+            download_path,
+            plugin_registry=plugin_registry,
+            model_manager=model_manager,
+            models_dir=models_dir,
+            background_tasks=_background_tasks,
+        )
 
         # Return response immediately with job IDs
         return {
@@ -236,6 +320,8 @@ async def download_models(
             "job_ids": job_ids,
             "status": "processing"
         }
+    except ModelSubmissionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ValidationError as e:
         logger.error(f"Request validation failed: {str(e)}")
         raise HTTPException(
@@ -330,17 +416,56 @@ async def list_plugins():
         for plugin_name, plugin in plugin_registry.plugins.get(plugin_type, {}).items():
             # Get plugin capabilities
             can_handle_parallel = hasattr(plugin, "get_download_tasks") and callable(getattr(plugin, "get_download_tasks"))
+            plugin_supported_hubs = plugin.plugin_supported_hubs()
 
-            # Check if plugin dependencies are installed
-            is_available, reason = plugin_registry.check_plugin_dependencies(plugin_name)
+            # Multi-hub plugins (e.g. external-sources) expose each hub as its
+            # own entry under the user-facing hub name; only activated hubs are listed.
+            # Detection: If plugin_supported_hubs() returns multiple hubs, it's multi-hub.
+            if len(plugin_supported_hubs) > 1:
+                hub_description = getattr(plugin, "hub_description", None)
+                hub_capabilities = getattr(plugin, "hub_capabilities", None)
+
+                for hub in plugin_supported_hubs:
+                    is_available, _ = plugin_registry.hub_is_available(hub)
+                    if not is_available:
+                        continue
+                    # Display a per-hub description as users not aware of internal combined plugin structure.
+                    hub_desc = hub_description(hub) if callable(hub_description) else None
+
+                    # Listing support differs per hub (only some hubs support it),
+                    # so read capabilities per hub instead of at the plugin level.
+                    hub_caps = {"supports_parallel_downloads": can_handle_parallel}
+                    if callable(hub_capabilities):
+                        hub_caps.update(hub_capabilities(hub))
+
+
+                    plugins_info[plugin_type].append({
+                        "name": hub,
+                        "type": plugin_type,
+                        "description": hub_desc or "No description available",
+                        "capabilities": hub_caps,
+                        "config_keys": get_hub_config_keys(plugin, hub),
+                        "available": True,
+                        "unavailable_reason": None,
+                    })
+                continue
+
+            # For single-hub plugins, the plugin_name is also the hub name,
+            # so we can use hub_is_available() to check activation.
+            capabilities = {
+                "supports_parallel_downloads": can_handle_parallel,
+                "supports_listing": getattr(plugin, "supports_listing", False),
+                "listing_filter_fields": getattr(plugin, "listing_filter_fields", []),
+            }
+            description = getattr(plugin, "__doc__", "No description available").strip()
+            is_available, reason = plugin_registry.hub_is_available(plugin_name)
 
             plugin_info = {
                 "name": plugin_name,
                 "type": plugin_type,
-                "description": getattr(plugin, "__doc__", "No description available").strip(),
-                "capabilities": {
-                    "supports_parallel_downloads": can_handle_parallel,
-                },
+                "description": description,
+                "capabilities": capabilities,
+                "config_keys": get_hub_config_keys(plugin, plugin_name),
                 "available": is_available,
                 "unavailable_reason": reason if not is_available else None
             }
@@ -357,7 +482,7 @@ async def list_plugins():
         "available_plugins": plugins_info,
         "total_count": total_plugins,
         "available_count": available_plugins,
-        "activation_instructions": "To enable/disable plugins, restart the container with the --plugins option specifying the plugins you need (e.g. huggingface,openvino,ultralytics,ollama) or use 'all' to enable all plugins"
+        "activation_instructions": "To enable/disable hubs, restart the container with --plugins specifying the hubs you need (e.g. huggingface,openvino,ultralytics,ollama,pipeline-zoo-models,remote-url,omz) or 'all' to enable everything"
     }
 
 
@@ -414,12 +539,12 @@ async def upload_model(
     sanitized_model_name = sanitize_path_part(model_name, "model_name")
     path_parts = [
         upload_base_dir,
-        sanitize_path_part(provider, "provider"),
-        sanitize_path_part(framework, "framework"),
+        sanitize_path_part(provider, "provider", strict=True),
+        sanitize_path_part(framework, "framework", strict=True),
         sanitized_model_name,
     ]
     if precision:
-        path_parts.append(sanitize_path_part(precision, "precision"))
+        path_parts.append(sanitize_path_part(precision, "precision", strict=True))
     target_dir = os.path.abspath(os.path.join(*path_parts))
 
     if os.path.commonpath([upload_base_dir, target_dir]) != upload_base_dir:

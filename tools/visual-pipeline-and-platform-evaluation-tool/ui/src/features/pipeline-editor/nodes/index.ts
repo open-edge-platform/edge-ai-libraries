@@ -1,3 +1,4 @@
+import DataSrcNode, { DataSrcNodeWidth } from "./DataSrcNode.tsx";
 import Decodebin3Node from "./Decodebin3Node.tsx";
 import FakeSinkNode from "./FakeSinkNode.tsx";
 import FileSinkNode from "./FileSinkNode.tsx";
@@ -42,6 +43,9 @@ import VideoScaleNode from "./VideoScaleNode.tsx";
 import VideoXRawNode from "./VideoXRawNode.tsx";
 import VideoXRawWithDimensionsNode from "./VideoXRawWithDimensionsNode.tsx";
 import AvDecH264Node from "./AvDecH264Node.tsx";
+import TsamIngestionNode, { TsamIngestionNodeWidth } from "./TsamIngestionNode.tsx";
+import TsamOutputNode, { TsamOutputNodeWidth } from "./TsamOutputNode.tsx";
+import TsamUdfNode, { TsamUdfNodeWidth } from "./TsamUdfNode.tsx";
 import SourceNode, { SourceNodeWidth } from "./custom/SourceNode.tsx";
 
 export const nodeTypes = {
@@ -75,10 +79,18 @@ export const nodeTypes = {
   tee: TeeNode,
   splitmuxsink: SplitMuxSinkNode,
   videoscale: VideoScaleNode,
+  datasrc: DataSrcNode,
+  "tsam-ingestion": TsamIngestionNode,
+  "tsam-udf": TsamUdfNode,
+  "tsam-output": TsamOutputNode,
   source: SourceNode,
 };
 
 export const nodeWidths: Record<string, number> = {
+  datasrc: DataSrcNodeWidth,
+  "tsam-ingestion": TsamIngestionNodeWidth,
+  "tsam-udf": TsamUdfNodeWidth,
+  "tsam-output": TsamOutputNodeWidth,
   filesrc: FileSrcNodeWidth,
   gvadetect: GVADetectNodeWidth,
   gvaclassify: GVAClassifyNodeWidth,

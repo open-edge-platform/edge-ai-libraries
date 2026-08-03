@@ -1,0 +1,109 @@
+{
+    "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+    "SPDX-License-Identifier": "Apache-2.0",
+    "schemaVersion": "1.0",
+    "description": "Harness-neutral discovery catalog for Chat Question-and-Answer Core workflow skills. Paths are relative to the repository root.",
+    "skillsRoot": ".github/skills",
+    "skills": [
+        {
+            "name": "chatqna-build",
+            "path": ".github/skills/chatqna-build/SKILL.md",
+            "description": "Build ChatQnA backend and UI Docker images from source using Docker or Docker Compose build workflows.",
+            "triggers": [
+                "build chatqna",
+                "rebuild images",
+                "build from source",
+                "build backend image",
+                "build ui image",
+                "prepare images for deployment"
+            ],
+            "requires": [
+                "docker/Dockerfile",
+                "docker/Dockerfile.ollama",
+                "ui/Dockerfile",
+                "docker/compose.yaml",
+                "docker"
+            ]
+        },
+        {
+            "name": "chatqna-docker-deploy",
+            "path": ".github/skills/chatqna-docker-deploy/SKILL.md",
+            "description": "Deploy, verify, and stop ChatQnA with Docker Compose for OpenVINO CPU or GPU and Ollama CPU runtime paths.",
+            "triggers": [
+                "deploy chatqna core",
+                "start chatqna containers",
+                "run docker compose",
+                "openvino gpu deploy",
+                "ollama deploy",
+                "stop chatqna"
+            ],
+            "requires": [
+                "scripts/setup_env.sh",
+                "docker/compose.yaml",
+                "docker compose",
+                "curl"
+            ]
+        },
+        {
+            "name": "chatqna-helm-deploy",
+            "path": ".github/skills/chatqna-helm-deploy/SKILL.md",
+            "description": "Deploy ChatQnA to Kubernetes using Helm with runtime-specific values files, override mapping, verification, and uninstall workflows.",
+            "triggers": [
+                "deploy chatqna to kubernetes",
+                "helm install chatqna-core",
+                "helm upgrade chatqna-core",
+                "configure values.yaml",
+                "translate setup_env to helm",
+                "uninstall helm release"
+            ],
+            "requires": [
+                "chart/",
+                "chart/values.yaml",
+                "chart/values-openvino.yaml",
+                "chart/values-ollama.yaml",
+                "helm",
+                "kubectl"
+            ]
+        },
+        {
+            "name": "chatqna-run-unit-tests",
+            "path": ".github/skills/chatqna-run-unit-tests/SKILL.md",
+            "description": "Run backend and UI unit tests with runtime-aware backend options, optional coverage, and concise pass or fail evidence.",
+            "triggers": [
+                "run unit tests",
+                "run backend tests",
+                "run ui tests",
+                "run pytest",
+                "run vitest",
+                "run test coverage"
+            ],
+            "requires": [
+                "tests/",
+                "ui/src/tests/",
+                "pyproject.toml",
+                "ui/package.json",
+                "uv",
+                "npm"
+            ]
+        },
+        {
+            "name": "chatqna-api-smoke-test",
+            "path": ".github/skills/chatqna-api-smoke-test/SKILL.md",
+            "description": "Run curl-based smoke validation for ChatQnA REST APIs including health, chat, documents, and runtime-specific endpoints.",
+            "triggers": [
+                "smoke test api",
+                "validate endpoints",
+                "check chat endpoint",
+                "verify docs endpoint",
+                "check openapi json",
+                "api health check"
+            ],
+            "requires": [
+                "docs/user-guide/api-reference.md",
+                "docs/user-guide/_assets/chatqna-api.yml",
+                "docker/compose.yaml",
+                "curl"
+            ]
+        }
+    ]
+}

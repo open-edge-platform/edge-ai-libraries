@@ -9,8 +9,11 @@ For a detailed overview of the service architecture, capabilities, and design, s
 ## Before You Begin
 
 - Confirm that your machine meets the [System Requirements](./get-started/system-requirements.md).
-- Ensure required dependencies are reachable: MQTT broker, SeaweedFS S3-compatible storage, and (if VLM is enabled) OpenVINO Model Server (OVMS).
+- Ensure deployment-specific dependencies are reachable:
+	- `seaweedfs+mqtt` mode: MQTT broker + SeaweedFS S3-compatible storage (+ OVMS if VLM is enabled)
+	- `standalone+api` mode: REST API clients (+ OVMS if VLM is enabled)
 - Obtain the **YOLO-Pose model** in OpenVINO IR format (`.xml` + `.bin`)
+- If VLM is enabled, download and place the VLM model files before startup (for Docker Compose, under `DOWNLOADED_MODEL_PATH/vlm_models`).
 - Review [Configuration Guide](./get-started/configuration.md) before starting deployment.
 
 ---
@@ -18,7 +21,6 @@ For a detailed overview of the service architecture, capabilities, and design, s
 ## Configure the Service
 
 All runtime behavior is driven by **environment variables and one YAML pattern file**:
-
 > [!IMPORTANT]
 > Configuration is mandatory for all runs: quick start, Docker deployment, and host deployment.
 > The service may start with default values, but successful analysis requires deployment-specific configuration.
@@ -29,13 +31,25 @@ See [Configuration Guide](./get-started/configuration.md) for the full pattern D
 
 ## Choose Deployment Path
 
+The service supports two deployment modes configured by the `DEPLOYMENT_MODE` environment variable:
+
+| Mode | Primary Interface | Uses SeaweedFS | Uses MQTT | Typical Use Case |
+|---|---|---|---|---|
+| `seaweedfs+mqtt` | Asynchronous queue processing | Yes | Yes | Production pipelines where upstream services write frames and publish analysis requests |
+| `standalone+api` | Direct REST API (`POST /api/v1/analyze/batch`) | No | No | Local testing, integration testing, and direct API-driven deployments (OVMS service starts by default in Docker Compose) |
+
+Default mode: `standalone+api` (as defined in project `.env`).
+
+> [!TIP]
+> Start with `standalone+api` unless you specifically need storage-backed async processing with SeaweedFS and MQTT.
+
 ### Run in Docker (Recommended)
 
 The container image starts the service and reads its config from `/app/config/patterns.yaml`. Mount your own `patterns.yaml` to override the built-in example.
 
 Before starting, complete deployment-specific settings in [Configuration Guide](./get-started/configuration.md).
 
-The project `docker-compose.yml` starts the behavioral-analysis service. Ensure its Docker network is configured to communicate with your SeaweedFS, MQTT, and OVMS containers.
+The project `docker-compose.yml` starts the behavioral-analysis service. In the default `standalone+api` mode, it also starts `ovms-vlm` by default, so VLM model files must be present before launch. Ensure the Docker network can reach all dependencies required by your selected deployment mode.
 
 Full guide: [Run with Docker Compose](./get-started/run-container.md)
 
@@ -51,7 +65,7 @@ Full guide: [Run Standalone](./get-started/run-standalone.md)
 
 ## Verify
 
-Once the service is running, check that it's ready by monitoring logs and confirming MQTT connectivity.
+Once the service is running, check that it's ready by monitoring logs and confirming mode-specific connectivity.
 
 The service logs key startup events:
 
@@ -63,7 +77,9 @@ INFO: MQTT Consumer connected, subscribed to ba/requests
 INFO: Service ready for analysis requests
 ```
 
-Ensure the upstream system publishes requests to the `ba/requests` topic; the service will publish results to `ba/results`.
+For `seaweedfs+mqtt` mode, ensure the upstream system publishes requests to the `ba/requests` topic; the service publishes results to `ba/results`.
+
+For `standalone+api` mode, send a test request to `POST /api/v1/analyze/batch` and confirm a valid JSON response.
 
 Startup logs confirm process readiness only; they do not validate deployment-specific configuration correctness.
 

@@ -15,6 +15,7 @@ from internal_types import (
     InternalDensityTestSpec,
     InternalPerformanceTestSpec,
 )
+from managers.execution_coordinator import JobExecutionConflictError
 from managers.pipeline_manager import PipelineManager
 from managers.tests_manager import TestsManager
 from utils import (
@@ -37,6 +38,10 @@ logger = logging.getLogger("api.routes.tests")
         202: {
             "description": "Performance test job created",
             "model": schemas.TestJobResponse,
+        },
+        409: {
+            "description": "Only one job can be run at the same time.",
+            "model": schemas.MessageResponse,
         },
         400: {
             "description": "Invalid performance test request",
@@ -87,6 +92,7 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
     - TestsManager.test_performance() successfully enqueues the job
 
     ### ❌ Failure
+    - Another execution job is already running → 409
     - Validation or configuration error → 400
     - Unhandled exception in job creation → 500
 
@@ -159,6 +165,12 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
             content=schemas.TestJobResponse(job_id=job_id).model_dump(),
             status_code=202,
         )
+    except JobExecutionConflictError as e:
+        logger.warning("Performance test start blocked: %s", e)
+        return JSONResponse(
+            content=schemas.MessageResponse(message=str(e)).model_dump(),
+            status_code=409,
+        )
     except ValueError as e:
         logger.error("Invalid performance test request: %s", e)
         return JSONResponse(
@@ -185,6 +197,10 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
         202: {
             "description": "Density test job created",
             "model": schemas.TestJobResponse,
+        },
+        409: {
+            "description": "Only one job can be run at the same time.",
+            "model": schemas.MessageResponse,
         },
         400: {
             "description": "Invalid density test request",
@@ -262,6 +278,7 @@ def run_density_test(body: schemas.DensityTestSpec):
     - DensityTestSpec is valid and Benchmark.run() can be started in background thread
 
     ### ❌ Failure
+    - Another execution job is already running → 409
     - Validation errors → 400
     - Unhandled exception → 500
 
@@ -379,6 +396,12 @@ def run_density_test(body: schemas.DensityTestSpec):
         return JSONResponse(
             content=schemas.TestJobResponse(job_id=job_id).model_dump(),
             status_code=202,
+        )
+    except JobExecutionConflictError as e:
+        logger.warning("Density test start blocked: %s", e)
+        return JSONResponse(
+            content=schemas.MessageResponse(message=str(e)).model_dump(),
+            status_code=409,
         )
     except ValueError as e:
         logger.error("Invalid density test request: %s", e)
