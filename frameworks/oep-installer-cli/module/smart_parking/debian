@@ -1,8 +1,12 @@
 
 configure_smart_parking () {
-  workspace="$(ensure_project_path)/sample-smart-parking"
+  workspace="$(ensure_project_path)/smart-parking"
   version=release-2026.1.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+verify_smart_parking () {
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_1.mp4 ]
 }
 
 debian_90_profile_smart_parking () {
@@ -11,7 +15,8 @@ debian_90_profile_smart_parking () {
 
 debian_90_install_smart_parking () {
   configure_smart_parking
-  [ ! -e "$workspace" ] || [[ "$*" = *"--reset-smart_parking"* ]] || return 0
+  ! verify_smart_parking || [[ "$*" = *"--reset-smart_parking"* ]] || return 0
+  ensure_disk_space 300
 
   # clone the repository
   ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
@@ -19,12 +24,14 @@ debian_90_install_smart_parking () {
   # setup
   pushd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe" > /dev/null
   ./install.sh smart-parking $(ensure_ip)
+  verify_smart_parking
   popd > /dev/null
 }
 
 debian_90_start_smart_parking () {
   configure_smart_parking
   pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
+  docker compose up -d
   ./sample_start.sh
   echo "UI entrypoint: https://$(ensure_ip)"
   popd > /dev/null
@@ -33,7 +40,8 @@ debian_90_start_smart_parking () {
 debian_90_stop_smart_parking () {
   configure_smart_parking
   pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
-  ./sample_start.sh
+  ./sample_stop.sh
+  docker compose down -v
   popd > /dev/null
 }
 

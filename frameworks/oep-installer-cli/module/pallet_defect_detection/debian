@@ -1,6 +1,6 @@
 
 configure_pallet_defect_detection () {
-  workspace="$(ensure_project_path)/sample-pallet-defect-detection"
+  workspace="$(ensure_project_path)/pallet-defect-detection"
   version=release-2026.1.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
 }

@@ -1,8 +1,12 @@
 
 configure_smart_intersection () {
-  workspace="$(ensure_project_path)/sample-smart-intersection"
+  workspace="$(ensure_project_path)/smart-intersection"
   version=release-2026.1.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+verify_smart_intersection () {
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/1122north_h264 ]
 }
 
 debian_90_profile_smart_intersection () {
@@ -11,7 +15,8 @@ debian_90_profile_smart_intersection () {
 
 debian_90_install_smart_intersection () {
   configure_smart_intersection
-  [ ! -e "$workspace" ] || [[ "$*" = *"--reset-smart_intersection"* ]] || return 0
+  ! verify_smart_intersection || [[ "$*" = *"--reset-smart_intersection"* ]] || return 0
+  ensure_disk_space 1500
 
   # clone the repository
   ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
@@ -19,12 +24,14 @@ debian_90_install_smart_intersection () {
   # setup
   pushd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe" > /dev/null
   ./install.sh smart-intersection $(ensure_ip)
+  verify_smart_intersection
   popd > /dev/null
 }
 
 debian_90_start_smart_intersection () {
   configure_smart_intersection
   pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
+  docker compose -f compose-scenescape.yml up -d
   ./sample_start.sh
   echo "UI entrypoint: https://$(ensure_ip)"
   popd > /dev/null
@@ -33,7 +40,8 @@ debian_90_start_smart_intersection () {
 debian_90_stop_smart_intersection () {
   configure_smart_intersection
   pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
-  ./sample_start.sh
+  ./sample_stop.sh
+  docker compose -f compose-scenescape.yml down -v
   popd > /dev/null
 }
 
