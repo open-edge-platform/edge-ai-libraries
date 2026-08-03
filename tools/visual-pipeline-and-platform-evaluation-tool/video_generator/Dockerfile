@@ -15,13 +15,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Use DLStreamer as the base image
-FROM intel/dlstreamer:2026.1.0-ubuntu24
+FROM intel/dlstreamer:2026.2.0-20260728-weekly-ubuntu24
 
 # Switch to root user to install dependencies
 USER root
 
 # Set environment variable to non-interactive mode (avoids some prompts)
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Remove kernel headers inherited from base image (not needed at runtime,
+# source of CVE-2026-* critical vulnerabilities reported by Trivy).
+RUN dpkg --purge --force-depends linux-libc-dev
 
 # Set GStreamer plugin path
 ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/

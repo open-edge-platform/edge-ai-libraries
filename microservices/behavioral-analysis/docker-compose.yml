@@ -18,12 +18,12 @@ services:
       timeout: 5s
       retries: 10
       start_period: 60s
-    depends_on:
-      seaweedfs:
-        condition: service_healthy
+    depends_on:      
       ovms-vlm:
         condition: service_healthy
     environment:
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-standalone+api}
+      LOG_LEVEL: ${LOG_LEVEL:-DEBUG}
       SEAWEEDFS_ENDPOINT: ${SEAWEEDFS_ENDPOINT}
       SEAWEEDFS_BUCKET: ${SEAWEEDFS_BUCKET:-behavioral-frames}
       MIN_FRAMES_FOR_DETECTION: ${BA_MIN_FRAMES:-3}
@@ -32,7 +32,7 @@ services:
       POSE_CONFIDENCE_THRESHOLD: ${BA_CONFIDENCE:-0.5}
       YOLO_POSE_MODEL: /models/yolo_models/yolo26n-pose/yolo26n-pose.xml
       GST_INFERENCE_DEVICE: ${BA_GST_DEVICE:-CPU}
-      VLM_ENDPOINT: ${VLM_ENDPOINT:-true}
+      VLM_ENDPOINT: ${VLM_ENDPOINT:-http://ovms-vlm:8001}
       VLM_ENABLED: ${VLM_ENABLED:-true}
       VLM_TIMEOUT: ${VLM_TIMEOUT:-120}
       MQTT_HOST: ${MQTT_HOST:-broker.scenescape.intel.com}
@@ -45,8 +45,43 @@ services:
       no_proxy: ${no_proxy:-${NO_PROXY:-}},seaweedfs,ovms-vlm,broker.scenescape.intel.com,localhost,127.0.0.1,172.18.0.0/16,10.0.0.0/8
     volumes:
       - ${DOWNLOADED_MODEL_PATH:-./models}:/models:ro
-      - ./behavioral-analysis/config:/app/config:ro
+      - ./config:/app/config:ro
     restart: unless-stopped
 
+  ovms-vlm:
+    image: openvino/model_server:${OVMS_IMAGE_TAG}
+    container_name: ovms-vlm
+    volumes:
+      - ${DOWNLOADED_MODEL_PATH:-./models}/vlm_models:/models:ro
+      - ovms-cache:/cache
+    ports:
+      - "${OVMS_GRPC_PORT:-8002}:8000"
+      - "${OVMS_REST_PORT:-8003}:8001"
+    networks:
+      - ba-network
+    environment:
+      - LOG_LEVEL=INFO
+      - OVMS_CACHE_DIR=/cache
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${RENDER_GROUP_ID:-992}
+    command: >
+      --config_path /models/config.json
+      --port 8000
+      --rest_port 8001
+      --cache_dir /cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/v1/config"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    restart: unless-stopped
+
+volumes:
+  ovms-cache:
+    driver: local
+
 networks:
- ba-network:
+  ba-network:

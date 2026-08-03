@@ -1,26 +1,13 @@
-{{- /* OVMS device configuration from global.devices.ovms */ -}}
-{{- $ovmsVlmDevice := default "CPU" .Values.global.devices.ovms.vlm.device -}}
-{{- $ovmsLlmDevice := default "CPU" .Values.global.devices.ovms.llm.device -}}
-{{- $ovmsVlmUsesGpu := contains "GPU" $ovmsVlmDevice -}}
+{{- /* OVMS model-serving parameters — single source of truth: templates/_ovms-model-config.tpl.
+       Storage names here MUST match what the OVMS subchart registers in config.json. */ -}}
+{{- $ovms := include "vss.ovms.modelConfig" (dict "global" .Values.global "ovmsEnv" .Values.ovms.env "parentEnv" .Values.env) | fromYaml -}}
+{{- $ovmsVlmDevice := $ovms.vlmDevice -}}
+{{- $ovmsLlmDevice := $ovms.llmDevice -}}
 {{- $ovmsVlmUsesAccelerator := or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice) -}}
+{{- $vlmStorageName := $ovms.vlmStorageName -}}
+{{- $llmStorageName := $ovms.llmStorageName -}}
 {{- $useVllm := .Values.vllm.enabled -}}
-{{- $ovmsChartEnv := .Values.ovms.env -}}
-{{- $ovmsParentEnv := .Values.env -}}
-{{- /* Weight format: use explicit value or auto-detect based on device */ -}}
-{{- $ovmsVlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsVlmDevice) (contains "NPU" $ovmsVlmDevice))) (default $ovmsChartEnv.VLM_WEIGHT_FORMAT $ovmsParentEnv.VLM_WEIGHT_FORMAT) -}}
-{{- $ovmsLlmWeightFormat := default (ternary "int4" "int8" (or (contains "GPU" $ovmsLlmDevice) (contains "NPU" $ovmsLlmDevice))) (default $ovmsChartEnv.LLM_WEIGHT_FORMAT $ovmsParentEnv.LLM_WEIGHT_FORMAT) -}}
-{{- /* Generate storage model names for OVMS */ -}}
-{{- $vlmSanitized := .Values.global.vlmName | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
-{{- $vlmIsOpenvino := hasPrefix "OpenVINO/" .Values.global.vlmName -}}
-{{- $vlmStorageName := ternary (printf "%s_%s" $vlmSanitized $ovmsVlmDevice) (printf "%s_%s_%s" $vlmSanitized $ovmsVlmDevice $ovmsVlmWeightFormat) $vlmIsOpenvino -}}
-{{- $effectiveOvmLlmModel := default .Values.global.vlmName .Values.global.llmName -}}
-{{- $llmSanitized := $effectiveOvmLlmModel | replace "/" "_" | replace ":" "_" | replace " " "_" -}}
-{{- $llmIsOpenvino := hasPrefix "OpenVINO/" $effectiveOvmLlmModel -}}
-{{- $ovmsSplitModel := or (ne $effectiveOvmLlmModel .Values.global.vlmName) (ne $ovmsLlmDevice $ovmsVlmDevice) (ne $ovmsLlmWeightFormat $ovmsVlmWeightFormat) -}}
-{{- $llmStorageName := $vlmStorageName -}}
-{{- if $ovmsSplitModel -}}
-{{- $llmStorageName = ternary (printf "%s_%s" $llmSanitized $ovmsLlmDevice) (printf "%s_%s_%s" $llmSanitized $ovmsLlmDevice $ovmsLlmWeightFormat) $llmIsOpenvino -}}
-{{- end -}}
+{{- $odModelName := include "video-summarization.objectDetectionModel" .Values.videoingestion.odModelName | trim -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -59,19 +46,25 @@ spec:
             - sh
             - -c
             - |
-              echo "Waiting for OVMS service to be ready..."
-              RETRIES=0
-              MAX_RETRIES=120
-              until [ $RETRIES -ge $MAX_RETRIES ] || curl -s -f -m 10 http://{{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready; do
-                RETRIES=$((RETRIES+1))
-                echo "OVMS service is not ready yet, waiting... (Attempt $RETRIES of $MAX_RETRIES) on {{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready"
-                if [ $RETRIES -ge $MAX_RETRIES ]; then
-                  echo "OVMS service health check failed after $MAX_RETRIES attempts"
-                  exit 1
-                fi
-                sleep 10
-              done
-              echo "OVMS service is ready!"
+              wait_model() {
+                NAME="$1"; ENC="$2"
+                RETRIES=0
+                MAX_RETRIES=240
+                until curl -s -f -m 10 "http://{{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v1/models/${ENC}" | grep -q '"AVAILABLE"'; do
+                  RETRIES=$((RETRIES+1))
+                  if [ $RETRIES -ge $MAX_RETRIES ]; then
+                    echo "OVMS servable ${NAME} not AVAILABLE after $MAX_RETRIES attempts"
+                    exit 1
+                  fi
+                  echo "Waiting for OVMS servable ${NAME}... (Attempt $RETRIES of $MAX_RETRIES)"
+                  sleep 15
+                done
+                echo "OVMS servable ${NAME} is AVAILABLE"
+              }
+              wait_model "{{ $vlmStorageName }}" "{{ $vlmStorageName | urlquery }}"
+              {{- if $ovms.splitModel }}
+              wait_model "{{ $llmStorageName }}" "{{ $llmStorageName | urlquery }}"
+              {{- end }}
         {{- end }}
         {{- if .Values.vllm.enabled }}
         - name: wait-for-vllm
@@ -136,6 +129,10 @@ spec:
               value: "{{ .Values.rabbitmq.service.mqttPort }}"
             - name: EVAM_DEVICE
               value: "CPU"
+            - name: EVAM_DETECTION_MODEL
+              value: {{ $odModelName | quote }}
+            - name: EVAM_DETECTION_MODEL_PATH
+              value: {{ printf "/home/pipeline-server/models/object-detection/ultralytics/public/%s/FP32/%s.xml" $odModelName $odModelName | quote }}
             - name: RABBITMQ_HOST
               value: "{{ .Values.rabbitmq.name }}"
             - name: RABBITMQ_USER
@@ -161,7 +158,7 @@ spec:
               value: "{{ if and .Values.ovms.enabled (not $useVllm) }}{{ $ovmsVlmDevice }}{{ else }}{{ .Values.pipelinemanager.env.VLM_CAPTIONING_DEVICE }}{{ end }}"
             - name: VLM_MODEL_NAME
               # Use storage model name for OVMS (includes device/format), raw name for vLLM
-              value: {{ if $useVllm }}{{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}{{ else if .Values.ovms.enabled }}{{ $vlmStorageName | quote }}{{ else }}{{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}{{ end }}
+              value: {{ if $useVllm }}{{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}{{ else if .Values.ovms.enabled }}{{ $vlmStorageName | quote }}{{ else }}{{ .Values.global.vlmName | quote }}{{ end }}
             - name: LLM_CONCURRENT
               value: "{{ if and .Values.ovms.enabled (not $useVllm) $ovmsVlmUsesAccelerator }}1{{ else }}{{ .Values.pipelinemanager.env.LLM_CONCURRENT }}{{ end }}"
             - name: VLM_CONCURRENT

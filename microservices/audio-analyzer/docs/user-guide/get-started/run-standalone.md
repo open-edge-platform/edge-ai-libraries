@@ -33,6 +33,24 @@ pip install -r requirements.txt
 - Use `AUDIO_ANALYZER__...` environment variables only for targeted overrides.
 - For Linux Intel iGPU usage, first install the required Intel/OpenVINO host runtime on the machine, then set the OpenVINO device fields to `GPU` in config.
 
+### Speaker Diarization Setup (Optional)
+
+If you plan to enable speaker diarization by setting `models.asr.diarization: true` in `config.yaml`:
+
+1. Create a [Hugging Face account](https://huggingface.co/settings/tokens) and generate a personal access token (free).
+2. Accept the [Pyannote speaker-diarization model license](https://huggingface.co/pyannote/speaker-diarization-community-1)
+   on Hugging Face. Visit the link and click the gate acceptance button. This is a one-time requirement per account.
+3. Set your Hugging Face token as an environment variable before starting the service:
+   ```bash
+   export HF_TOKEN=hf_your_token_here
+   source .venv/bin/activate
+   python main.py
+   ```
+
+Without a valid `HF_TOKEN` and gate acceptance, speaker diarization will not initialize. The service
+continues running, logs a warning, and disables diarization for that session.
+If diarization is disabled in `config.yaml`, `HF_TOKEN` is not required.
+
 ## Running the Service
 
 ### Start

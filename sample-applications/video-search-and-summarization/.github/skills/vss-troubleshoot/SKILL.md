@@ -38,7 +38,7 @@ from a fork/branch or reuse a specific checkout dir, override `VSS_REPO_URL`,
 Run the read-only collector:
 
 ```bash
-skills/vss-troubleshoot/scripts/triage.sh
+"$SKILL_DIR/scripts/triage.sh"
 ```
 
 It prints Docker Compose/container status, tails recent logs, curls key health endpoints, checks documented host ports, and reports GPU/NPU device visibility. This matters because most failures are dependency chains: `pipeline-manager` depends on storage/database/search/summary services, and UI symptoms often originate in OVMS, vLLM, EVAM, VDMS, MinIO, RabbitMQ, or Postgres.
@@ -54,7 +54,7 @@ source setup.sh --summary config     # or --search config / --summary-and-search
 Before diving into the decision tree, confirm whether the backend is even up and
 which mode is live. Set `HOST=http://${HOST_IP:-localhost}:${APP_HOST_PORT:-12345}`
 and **run each command yourself**, then relay the result. If nothing is deployed,
-hand off to the [`vss-deploy`](../vss-deploy/SKILL.md) skill.
+hand off to the `vss-deploy` skill at `.github/skills/vss-deploy/SKILL.md`.
 
 ```bash
 # 1. Is the Pipeline Manager reachable?
@@ -83,7 +83,7 @@ is usually **starting**, not broken - wait and re-probe.
 
 ### 1. Containers are missing, stopped, unhealthy, or crash-looping
 
-Check these exact services first: `nginx`, `pipeline-manager`, `postgres-service`, `minio-service`, `ovms-service`, `vllm-cpu-service`, `video-ingestion`, `audio-analyzer`, `rabbitmq-service`, `video-search`, `vdms-vector-db`, `multimodal-dataprep`, `vector-retriever`, `multimodal-embedding-serving`, and optional `metrics-manager`.
+Check these exact services first: `nginx`, `pipeline-manager`, `postgres-service`, `minio-service`, `ovms-service`, `vllm-cpu-service`, `vllm-xpu-service`, `video-ingestion`, `audio-analyzer`, `rabbitmq-service`, `video-search`, `vdms-vector-db`, `multimodal-dataprep`, `vector-retriever`, `multimodal-embedding-serving`, and optional `metrics-manager`.
 
 Why: Compose `depends_on` gates many services on health. For example, summary mode needs `ovms-service` or `vllm-cpu-service`, `video-ingestion`, `rabbitmq-service`, and `audio-analyzer`; search mode needs `multimodal-dataprep`, `vector-retriever`, and `multimodal-embedding-serving` healthy.
 
@@ -99,6 +99,8 @@ Default host ports from `setup.sh`/Compose:
 - OVMS REST/gRPC `8300`/`9300`; vLLM `8200`; EVAM `8090`; audio `8999`
 - RabbitMQ AMQP/management/MQTT `5672`/`15672`/`1883`
 - MinIO API/console `4001`/`4002`; Postgres `5432`; VDMS `55555`; multimodal-dataprep `6016`; vector-retriever `6008`; embedding service `9777`; telemetry `9273`
+- Model-download REST `8640` is loopback-only and transient while `setup.sh`
+  downloads missing summary-path models; it should not remain running afterward.
 
 Why: Compose publishes these host ports. If another process owns one, the container may fail to bind or the UI may talk to the wrong service.
 
@@ -109,36 +111,64 @@ Actions:
 
 ### 3. OVMS will not start or final summary is stuck
 
-Inspect `ovms-service` logs and `config/ovms_config/models/config.json`. The sample currently stores OVMS model entries under `config/ovms_config/models/`; setup generates storage-aware names such as `Qwen_Qwen2.5-VL-3B-Instruct_CPU_int8`.
+Inspect `ovms-service` logs and `ov_models/ovms/config.json`. Converted models
+live under
+`ov_models/ovms/openvino_models/<device>/<precision>/<source-model>`; setup
+registers storage-aware names such as
+`Qwen_Qwen2.5-VL-3B-Instruct_CPU_int8`.
 
 Why: `pipeline-manager` sends VLM/LLM requests to `http://ovms-service/v3` when `ENABLE_VLLM` is false. If OVMS is unhealthy, summary jobs can remain `Ready` or `In Progress`.
 
 Likely fixes:
-- Permission/cache issue in `ov-models` volume: run `source setup.sh --down`, then remove `ov-models` and `docker_ov-models`, then restart. This deletes cached/converted models.
+- Incomplete or incompatible host model cache: identify the affected model
+  entry and directory first, stop VSS, then remove only that model directory
+  and rerun setup so model-download recreates it. Do not delete all
+  `ov_models/` content unless the user accepts re-downloading every model.
 - Token limit error like prompt tokens + max tokens exceed model length: lower `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` below the default `4000`, or use a model with a larger context window.
 - `CL_OUT_OF_RESOURCES` or cache at 100%: split VLM/LLM across CPU/GPU, use smaller/quantized models, or tune `OVMS_CACHE_SIZE_GB` cautiously.
 - NPU errors: verify the model supports NPU; otherwise set `VLM_TARGET_DEVICE=CPU` or another supported device.
 
-### 4. vLLM backend fails
+### 4. Setup fails during model download
 
-When `ENABLE_VLLM=true`, setup adds `compose.vllm.yaml`, starts `vllm-cpu-service` on host port `8200`, and points VLM/LLM APIs to `http://vllm-cpu-service:8000/v1`.
+The model-download container runs before Compose only when an OD artifact or an
+OVMS VLM/split LLM artifact is missing. Inspect the error's
+`ov_models/model-download-*.log`, or `docker logs vss-model-download` while the
+job is still running. Verify `MODEL_DOWNLOAD_IMAGE`, proxy settings, optional
+Hugging Face token, selected model/device/precision, free disk space, and that
+`MODEL_DOWNLOAD_HOST_PORT` (default `8640`) is available. Increase
+`MODEL_DOWNLOAD_JOB_TIMEOUT` from its `5400` second default only when a valid
+download/conversion legitimately needs longer.
+
+### 5. vLLM backend fails
+
+When `ENABLE_VLLM=true`, setup adds `compose.vllm.yaml`, starts
+`vllm-cpu-service` on host port `8200`, and points VLM/LLM APIs to
+`http://vllm-cpu-service:8000/v1`. Experimental `ENABLE_VLLM_GPU=true` instead
+adds `compose.vllm.xpu.yaml`, starts `vllm-xpu-service` on the same default host
+port, and points both APIs to `http://vllm-xpu-service:8000/v1`.
 
 Why: In vLLM mode OVMS is not the active inference backend. Debugging OVMS logs will not explain vLLM request failures.
 
-Actions: check `vllm-cpu-service` health at `/health`, logs for model download/context/KV-cache problems, and `VLM_MODEL_NAME`, `HUGGINGFACE_TOKEN`, `VLLM_CPU_KVCACHE_SPACE`, and `VLLM_MAX_MODEL_LEN` settings.
+Actions: check the active vLLM service's `/health` endpoint and logs for model
+download/context/cache problems. Verify `VLM_MODEL_NAME`,
+`HUGGINGFACE_TOKEN`, and `VLLM_MAX_MODEL_LEN`; for CPU also inspect
+`VLLM_CPU_KVCACHE_SPACE`, and for XPU inspect device visibility and
+`VLLM_GPU_MEM`.
 
-### 5. DLStreamer/EVAM pipeline errors or ingestion stalls
+### 6. DLStreamer/EVAM pipeline errors or ingestion stalls
 
 Check `video-ingestion` health (`http://localhost:8090/pipelines`) and logs, then `rabbitmq-service` and `minio-service` health/logs.
 
 Why: summary ingestion uses DLStreamer Pipeline Server/EVAM to process video, publishes over RabbitMQ MQTT port `1883`, and stores media through MinIO. If any of those fail, no chunks reach downstream summarization.
 
 Actions:
-- Confirm `OD_MODEL_NAME` exists and setup converted object detection files under `ov_models/yoloworld/v2/...`.
+- Confirm `OD_MODEL_NAME` is a generic YOLO id supported by the model-download
+  Ultralytics plugin and that the IR exists under
+  `ov_models/object-detection/ultralytics/public/<model>/FP32/`.
 - Check GPU/device visibility if `EVAM_DEVICE` or detection uses accelerators.
 - Verify RabbitMQ credentials match `RABBITMQ_USER`/`RABBITMQ_PASSWORD` and MinIO credentials match `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`.
 
-### 6. No summary appears
+### 7. No summary appears
 
 Follow this order: `pipeline-manager` health → Postgres health → MinIO health → `video-ingestion` → RabbitMQ → `audio-analyzer` → inference backend (`ovms-service` or `vllm-cpu-service`).
 
@@ -149,7 +179,7 @@ Actions:
 - For hallucinated or poor final summaries, try a larger `VLM_MODEL_NAME`; smaller models may have insufficient capacity.
 - On OpenCV/OpenGL/Mesa errors in summary/video processing, install `libgl1-mesa-dri libgl1-mesa-dev`, remove `ov_models/` if needed, redeploy, and retest.
 
-### 7. Search returns nothing
+### 8. Search returns nothing
 
 Check `video-search` (`http://localhost:7890/health`), `multimodal-dataprep` (`/v1/dataprep/health` on port `6016`), `vector-retriever` (`/ready` on port `6008`), `vdms-vector-db` (`55555`, or the Milvus stack when `VECTORDB_BACKEND=milvus`), `multimodal-embedding-serving` (`9777`), MinIO, and whether videos were actually ingested.
 
@@ -163,6 +193,12 @@ Actions:
 
 ## Log and data locations
 
-The Compose files do not define application log files; use Docker stdout/stderr via `docker logs` or `triage.sh`. Important persistent locations are Docker volumes `docker_minio_data`, `docker_pg_data`, `docker_vdms-db`, `docker_audio_analyzer_data`, `docker_data-prep`, `docker_collector_signals`, plus the OVMS model repository at `config/ovms_config/models/` and object detection models under `ov_models/yoloworld/v2/`.
+The Compose files do not define application log files; use Docker stdout/stderr
+via `docker logs` or `triage.sh`. Important persistent locations are Docker
+volumes `docker_minio_data`, `docker_pg_data`, `docker_vdms-db`,
+`docker_audio_analyzer_data`, `docker_data-prep`, `docker_collector_signals`;
+the host-backed OVMS repository at `ov_models/ovms/`; object detection models
+under `ov_models/object-detection/ultralytics/public/`; and failed setup logs at
+`ov_models/model-download-*.log`.
 
 See `references/common-failures.md` for a compact symptom/cause/fix table.

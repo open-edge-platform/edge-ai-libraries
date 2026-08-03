@@ -1,0 +1,282 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  aqh-agent:
+    image: ${REGISTRY:-intel/}agent-quality-handler:${TAG:-1.0.0}
+    container_name: aqh-agent
+    hostname: aqh-agent
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: ${no_proxy:-},aqh-ovms,mqtt-broker,mock-storage,localhost
+      STORAGE_SERVICE_URL: ${STORAGE_SERVICE_URL:-http://host.docker.internal:5001}
+      STORAGE_CONNECT_TIMEOUT_SECONDS: ${STORAGE_CONNECT_TIMEOUT_SECONDS:-3}
+      STORAGE_READ_TIMEOUT_SECONDS: ${STORAGE_READ_TIMEOUT_SECONDS:-10}
+      STORAGE_READ_MAX_ATTEMPTS: ${STORAGE_READ_MAX_ATTEMPTS:-3}
+      STORAGE_RETRY_BACKOFF_SECONDS: ${STORAGE_RETRY_BACKOFF_SECONDS:-0.25}
+      LLM_MODE: ${LLM_MODE:-llm}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://aqh-ovms:8010/v3}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-Phi-4-mini-instruct}
+      LLM_API_KEY: ${LLM_API_KEY:-UNUSED}
+      MQTT_DISABLED: ${MQTT_DISABLED:-false}
+      MQTT_HOST: ${MQTT_HOST:-mqtt-broker}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_BATCH_TOPIC: ${MQTT_BATCH_TOPIC:-apm/batch-complete}
+      MQTT_QOS: ${MQTT_QOS:-1}
+      MQTT_KEEPALIVE: ${MQTT_KEEPALIVE:-60}
+      MQTT_MAX_PAYLOAD_BYTES: ${MQTT_MAX_PAYLOAD_BYTES:-1048576}
+      MQTT_BATCH_CLIENT_ID: ${MQTT_BATCH_CLIENT_ID:-agent-quality-handler-batch}
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      RUN_RETENTION_SECONDS: ${RUN_RETENTION_SECONDS:-86400}
+      MAX_RETAINED_RUNS: ${MAX_RETAINED_RUNS:-1000}
+      AGENTS_CONFIG_PATH: /app/config/agents.yaml
+      USE_CASE_PROMPTS_DIR: /app/prompts
+      FALLBACK_POLICY_PATH: /app/config/policy_fallback.json
+      OUTPUT_DIR: /app/output
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ${USE_CASE_CONFIGS_DIR:-../defaults/config}:/app/config:ro
+      - ${USE_CASE_PROMPTS_DIR:-../defaults/prompts}:/app/prompts:ro
+      - aqh_agent_output:/app/output
+    ports:
+      - "${AGENT_PORT:-5002}:5002"
+    depends_on:
+      mqtt-broker:
+        condition: service_healthy
+    networks:
+      - aqh_network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:5002/health')"
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  mqtt-broker:
+    image: eclipse-mosquitto:2.0.18
+    container_name: aqh-mqtt-broker
+    hostname: mqtt-broker
+    volumes:
+      - ../config/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - aqh_network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "health", "-m", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  aqh-ovms:
+    image: openvino/model_server:${OVMS_TAG:-2026.2.1-gpu}
+    container_name: aqh-ovms
+    hostname: aqh-ovms
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -eu
+        device="$$(printf '%s' "$${LLM_DEVICE}" | tr '[:upper:]' '[:lower:]')"
+        request_device="$$(printf '%s' "$${LLM_DEVICE}" | tr '[:lower:]' '[:upper:]')"
+        precision="$$(printf '%s' "$${LLM_PRECISION}" | tr '[:upper:]' '[:lower:]')"
+        case "$${MODEL_DOWNLOAD_TIMEOUT_SECONDS}" in
+          ""|0|*[!0-9]*)
+            echo "MODEL_DOWNLOAD_TIMEOUT_SECONDS must be a positive integer" >&2
+            exit 1
+            ;;
+        esac
+        if [ "$${device}" = "npu" ]; then
+          precision="int4"
+        fi
+        config_path="/opt/models/openvino_folder/openvino_models/$${device}/$${precision}/config_all.json"
+        if [ ! -f "$${config_path}" ]; then
+          echo "Calling model-download API..."
+          response="$$(curl --silent --show-error --fail-with-body \
+            -X POST "$${MODEL_DOWNLOAD_URL}/api/v1/models/download?download_path=openvino_folder" \
+            --header "Content-Type: application/json" \
+            --data "{
+              \"models\": [
+                {
+                  \"name\": \"$${LLM_MODEL_NAME}\",
+                  \"hub\": \"openvino\",
+                  \"type\": \"llm\",
+                  \"is_ovms\": true,
+                  \"config\": {
+                    \"precision\": \"$${precision}\",
+                    \"device\": \"$${request_device}\",
+                    \"cache_size\": 10
+                  }
+                }
+              ]
+            }")"
+          job_id="$$(printf '%s' "$${response}" | sed -n \
+            's/.*"job_ids"[[:space:]]*:[[:space:]]*\[[[:space:]]*"\([^"]*\)".*/\1/p')"
+          if [ -z "$${job_id}" ]; then
+            echo "model-download response did not contain a job ID: $${response}" >&2
+            exit 1
+          fi
+
+          elapsed=0
+          while [ "$${elapsed}" -lt "$${MODEL_DOWNLOAD_TIMEOUT_SECONDS}" ]; do
+            job="$$(curl --silent --show-error --fail-with-body \
+              "$${MODEL_DOWNLOAD_URL}/api/v1/jobs/$${job_id}")"
+            status="$$(printf '%s' "$${job}" | sed -n \
+              's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+            case "$${status}" in
+              completed)
+                break
+                ;;
+              failed|canceled)
+                echo "Model download did not complete successfully: $${job}" >&2
+                exit 1
+                ;;
+              queued|downloading|converting)
+                ;;
+              *)
+                echo "Unexpected model-download job response: $${job}" >&2
+                exit 1
+                ;;
+            esac
+            sleep 5
+            elapsed=$$((elapsed + 5))
+          done
+          if [ ! -f "$${config_path}" ]; then
+            echo "OVMS configuration not found at $${config_path} after model provisioning" >&2
+            exit 1
+          fi
+        fi
+        exec /ovms/bin/ovms "$$@" --config_path "$${config_path}"
+      - --
+    command: ["--rest_port", "8010", "--log_level", "INFO"]
+    environment:
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: ${no_proxy:-},localhost,model-download
+      HUGGINGFACE_TOKEN: ${HUGGINGFACEHUB_API_TOKEN:-}
+      LLM_DEVICE: ${LLM_DEVICE:-GPU}
+      LLM_PRECISION: ${LLM_PRECISION:-int8}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-Phi-4-mini-instruct}
+      MODEL_DOWNLOAD_URL: ${MODEL_DOWNLOAD_URL:-http://model-download:8000}
+      MODEL_DOWNLOAD_TIMEOUT_SECONDS: ${MODEL_DOWNLOAD_TIMEOUT_SECONDS:-3600}
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 16384
+        hard: 65536
+    volumes:
+      - ${USE_CASE_MODELS_DIR:-aqh_model_cache}:/opt/models:ro
+    group_add:
+      - ${USER_GROUP_ID:-1001}
+    ports:
+      - "${LLM_PORT:-8010}:8010"
+    networks:
+      - aqh_network
+    depends_on:
+      model-download:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8010/v1/config || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 40
+      start_period: 30s
+
+  model-download:
+    image: intel/model-download:latest
+    command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,openvino}
+    container_name: aqh-model-download
+    hostname: model-download
+    user: "0:0"
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -eu
+        case "$${MODEL_GROUP_ID}" in
+          ""|*[!0-9]*)
+            echo "USER_GROUP_ID must be a numeric group ID" >&2
+            exit 1
+            ;;
+        esac
+        chown 1000:"$${MODEL_GROUP_ID}" /opt/models
+        chmod 0770 /opt/models
+        exec setpriv --reuid=1000 --regid=1000 --groups "$${MODEL_GROUP_ID}" \
+          /opt/entrypoint.sh "$$@"
+      - --
+    environment:
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: ${no_proxy:-}
+      HF_TOKEN: ${HUGGINGFACEHUB_API_TOKEN:-}
+      HF_HUB_ENABLE_HF_TRANSFER: 1
+      HOME: /home/appuser
+      MODEL_PATH: /opt/models
+      ENABLED_PLUGINS: ${MODEL_DOWNLOAD_PLUGINS:-huggingface,openvino}
+      MODEL_GROUP_ID: ${USER_GROUP_ID:-1001}
+    volumes:
+      - ${USE_CASE_MODELS_DIR:-aqh_model_cache}:/opt/models
+    ports:
+      - "${MODEL_DOWNLOAD_PORT:-8200}:8000"
+    group_add:
+      - ${USER_GROUP_ID:-1001}
+    networks:
+      - aqh_network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  mock-storage:
+    profiles: ["dev"]
+    image: python:3.12-slim
+    container_name: aqh-mock-storage
+    hostname: mock-storage
+    working_dir: /app
+    volumes:
+      - ../tests/mock_storage_server.py:/app/mock_storage_server.py:ro
+    command: ["python3", "mock_storage_server.py"]
+    ports:
+      - "${MOCK_STORAGE_PORT:-5001}:5001"
+    networks:
+      - aqh_network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5001/detections')\""
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  aqh_network:
+    driver: bridge
+
+volumes:
+  aqh_agent_output:
+    driver: local
+  aqh_model_cache:
+    driver: local

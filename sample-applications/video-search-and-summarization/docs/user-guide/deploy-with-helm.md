@@ -120,8 +120,7 @@ Update or edit the values in YAML file as follows:
 | `pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | Default for audio transcript summarization. When enabled, the full audio transcript is summarized by the LLM and included in the final video summary. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
 | `pipelinemanager.env.PRODUCE_FINAL_SUMMARY` | Default for producing a final video summary. When enabled, chunk summaries are consolidated into a single video summary via map-reduce. When disabled, only per-chunk summaries are generated. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
 | `pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS` | Timeout in milliseconds for search dataprep operations (video embedding pipeline). Increase for large videos or slow hardware. | `600000` (default, 10 minutes) |
-| `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
-| `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
+| `videoingestion.odModelName` | Name of object detection model (generic YOLO id from the model-download ultralytics hub) used during video ingestion | `yolov8l` |
 | `metricsmanager.image.repository` | Metrics Manager image repository | `docker.io/intel/metrics-manager` |
 | `metricsmanager.image.tag` | Metrics Manager image tag | `2026.2.0-20260715-weekly` |
 

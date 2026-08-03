@@ -14,8 +14,8 @@ services:
             video-search:
                 condition: service_started
         environment:
-            SEARCH_ENDPOINT: ${VS_ENDPOINT}
-            SEARCH_DATAPREP_ENDPOINT: ${MM_DATAPREP_ENDPOINT}
+            SEARCH_ENDPOINT: http://${VS_HOST:-video-search}:8000
+            SEARCH_DATAPREP_ENDPOINT: http://${MM_DATAPREP_HOST:-multimodal-dataprep}:8000
             SEARCH_FEATURE: "FEATURE_ON"
 
     video-search:
@@ -32,13 +32,13 @@ services:
                 condition: service_started
         ipc: host
         ports:
-            - '${VS_HOST_PORT}:8000'
+            - '${VS_HOST_PORT:-7890}:8000'
         environment:
-            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${MM_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},vector-retriever,pipeline-manager,localhost
-            no_proxy_env: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${MM_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},vector-retriever,pipeline-manager,localhost
+            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},${MM_DATAPREP_HOST:-multimodal-dataprep},${MINIO_HOST:-minio-service},${VDMS_VDB_HOST:-vdms-vector-db},vector-retriever,pipeline-manager,localhost
+            no_proxy_env: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},${MM_DATAPREP_HOST:-multimodal-dataprep},${MINIO_HOST:-minio-service},${VDMS_VDB_HOST:-vdms-vector-db},vector-retriever,pipeline-manager,localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
-            EMBEDDINGS_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT}
+            EMBEDDINGS_ENDPOINT: http://${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving}:8000/embeddings
             EMBEDDINGS_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
             INDEX_NAME: ${VS_INDEX_NAME}
             # All vector similarity search is delegated to the standalone
@@ -46,21 +46,21 @@ services:
             # search-ms itself holds no vector DB client logic.
             RETRIEVER_ENDPOINT: ${VS_RETRIEVER_ENDPOINT:-http://vector-retriever:8000/query}
             WATCH_DIRECTORY: ${VS_WATCHER_DIR}
-            DEBOUNCE_TIME: ${VS_DEBOUNCE_TIME}
-            DELETE_PROCESSED_FILES: ${VS_DELETE_PROCESSED_FILES}
-            VS_INITIAL_DUMP: ${VS_INITIAL_DUMP}
-            VIDEO_UPLOAD_ENDPOINT: ${VIDEO_UPLOAD_ENDPOINT}
-            WATCH_DIRECTORY_RECURSIVE: ${VS_WATCH_DIRECTORY_RECURSIVE}
+            DEBOUNCE_TIME: ${VS_DEBOUNCE_TIME:-10}
+            DELETE_PROCESSED_FILES: ${VS_DELETE_PROCESSED_FILES:-false}
+            VS_INITIAL_DUMP: ${VS_INITIAL_DUMP:-false}
+            VIDEO_UPLOAD_ENDPOINT: ${VIDEO_UPLOAD_ENDPOINT:-http://pipeline-manager:3000}
+            WATCH_DIRECTORY_RECURSIVE: ${VS_WATCH_DIRECTORY_RECURSIVE:-false}
             WATCH_BATCH_SIZE: ${VS_WATCH_BATCH_SIZE:-10}
             BATCH_JOB_POLL_INTERVAL_SECONDS: ${VS_BATCH_JOB_POLL_INTERVAL_SECONDS:-0.5}
             BATCH_JOB_TIMEOUT_SECONDS: ${VS_BATCH_JOB_TIMEOUT_SECONDS:-3600}
             # Frame-to-Video Aggregation Settings
-            AGGREGATION_ENABLED: ${AGGREGATION_ENABLED}
-            AGGREGATION_SEGMENT_DURATION: ${AGGREGATION_SEGMENT_DURATION}
-            AGGREGATION_MIN_GAP: ${AGGREGATION_MIN_GAP}
-            AGGREGATION_MAX_RESULTS: ${AGGREGATION_MAX_RESULTS}
-            AGGREGATION_INITIAL_K: ${AGGREGATION_INITIAL_K}
-            AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: ${AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS}
+            AGGREGATION_ENABLED: ${AGGREGATION_ENABLED:-true}
+            AGGREGATION_SEGMENT_DURATION: ${AGGREGATION_SEGMENT_DURATION:-8}
+            AGGREGATION_MIN_GAP: ${AGGREGATION_MIN_GAP:-0}
+            AGGREGATION_MAX_RESULTS: ${AGGREGATION_MAX_RESULTS:-20}
+            AGGREGATION_INITIAL_K: ${AGGREGATION_INITIAL_K:-1000}
+            AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: ${AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS:-0}
             AGGREGATION_PREFER_FULL_FRAME_SEEK: ${AGGREGATION_PREFER_FULL_FRAME_SEEK:-true}
             AGGREGATION_FULL_FRAME_SEEK_BAND: ${AGGREGATION_FULL_FRAME_SEEK_BAND:-0.06}
         restart: unless-stopped
@@ -79,7 +79,7 @@ services:
             - OVERRIDE_blobs_path=/db/blobs
             - OVERRIDE_pmgd_path=/db/graph
         ports:
-            - '${VDMS_VDB_HOST_PORT}:55555'
+            - '${VDMS_VDB_HOST_PORT:-55555}:55555'
         volumes:
             - vdms-db:/db
         networks:
@@ -89,19 +89,19 @@ services:
         image: ${REGISTRY:-}multimodal-dataprep:${TAG:-latest}
         hostname: multimodal-dataprep
         environment:
-            no_proxy: ${no_proxy},${VDMS_VDB_HOST},${MINIO_HOST},metrics-manager,localhost
+            no_proxy: ${no_proxy},${VDMS_VDB_HOST:-vdms-vector-db},${MINIO_HOST:-minio-service},metrics-manager,localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             # Basic app settings
-            MM_DATAPREP_APP_HOST: multimodal-dataprep
+            MM_DATAPREP_APP_HOST: ${MM_DATAPREP_HOST:-multimodal-dataprep}
 
             # Pluggable backend selection (vector DB + object storage)
             MM_DATAPREP_VECTORDB_BACKEND: ${VECTORDB_BACKEND:-vdms}
             MM_DATAPREP_STORAGE_BACKEND: minio
 
             # VDMS Vector Database settings (used when VECTORDB_BACKEND=vdms)
-            MM_DATAPREP_VDMS_VDB_HOST: ${VDMS_VDB_HOST}
-            MM_DATAPREP_VDMS_VDB_PORT: 55555
+            MM_DATAPREP_VDMS_VDB_HOST: ${VDMS_VDB_HOST:-vdms-vector-db}
+            MM_DATAPREP_VDMS_VDB_PORT: ${VDMS_VDB_HOST_PORT:-55555}
 
             # Milvus Vector Database settings (used when VECTORDB_BACKEND=milvus)
             MM_DATAPREP_MILVUS_URI: ${MILVUS_URI:-http://milvus-standalone:19530}
@@ -109,11 +109,11 @@ services:
             MM_DATAPREP_VDB_INDEX_TYPE: ${VDB_INDEX_TYPE:-FLAT}
 
             # MinIO settings
-            MM_DATAPREP_MINIO_ENDPOINT: ${MINIO_HOST}:80
+            MM_DATAPREP_MINIO_ENDPOINT: ${MINIO_HOST:-minio-service}:${MINIO_PORT:-80}
             MM_DATAPREP_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
             MM_DATAPREP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
             MM_DATAPREP_MINIO_SECURE: false
-            MM_DATAPREP_DEFAULT_BUCKET_NAME: ${DEFAULT_BUCKET_NAME}
+            MM_DATAPREP_DEFAULT_BUCKET_NAME: ${DEFAULT_BUCKET_NAME:-video-summary}
 
             # Database settings
             MM_DATAPREP_DB_COLLECTION: ${VS_INDEX_NAME}
@@ -147,11 +147,14 @@ services:
             MM_DATAPREP_DETECTION_CONFIDENCE: ${DETECTION_CONFIDENCE:-0.85}
             MM_DATAPREP_FRAMES_TEMP_DIR: ${FRAMES_TEMP_DIR:-/tmp/dataprep}
 
-            # Object detection model directory
-            MM_DATAPREP_DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH}
+            # YOLOX model volume configuration for object detection
+            MM_DATAPREP_DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
             MM_DATAPREP_DETECTION_DEVICE: ${DATAPREP_DETECTION_DEVICE:-CPU}
 
             # ROI consolidation settings
+            # ROI_CONSOLIDATION_IOU_THRESHOLD: IoU threshold used to cluster ROIs (higher = stricter merging)
+            # ROI_CONSOLIDATION_CLASS_AWARE: only merge ROIs with matching class labels when true
+            # ROI_CONSOLIDATION_CONTEXT_SCALE: expands merged ROI by a fraction of its size
             MM_DATAPREP_ROI_CONSOLIDATION_ENABLED: ${ROI_CONSOLIDATION_ENABLED:-false}
             MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD: ${ROI_CONSOLIDATION_IOU_THRESHOLD:-0.2}
             MM_DATAPREP_ROI_CONSOLIDATION_CLASS_AWARE: ${ROI_CONSOLIDATION_CLASS_AWARE:-false}
@@ -173,7 +176,7 @@ services:
                 hard: 65535
         ipc: host
         ports:
-            - '${MM_DATAPREP_HOST_PORT}:8000'
+            - '${MM_DATAPREP_HOST_PORT:-6016}:8000'
         depends_on:
             vdms-vector-db:
                 condition: service_started
@@ -213,17 +216,17 @@ services:
             - '${EMBEDDING_SERVER_PORT:-9777}:8000'
         ipc: host
         environment:
-            no_proxy: ${no_proxy},${MINIO_HOST},${MM_DATAPREP_HOST},localhost
-            no_proxy_env: ${no_proxy},${MINIO_HOST},${MM_DATAPREP_HOST},localhost
+            no_proxy: ${no_proxy},${MINIO_HOST:-minio-service},${MM_DATAPREP_HOST:-multimodal-dataprep},localhost
+            no_proxy_env: ${no_proxy},${MINIO_HOST:-minio-service},${MM_DATAPREP_HOST:-multimodal-dataprep},localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
             EMBEDDING_DEVICE: ${MME_EMBEDDING_DEVICE:-CPU}
             EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
             EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
-            DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC}
+            DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC:-0}
             DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION:--1}
-            DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES}
+            DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES:-64}
             OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
             INFER_BATCH_SIZE: ${INFER_BATCH_SIZE:-32}
             PREPROCESS_WORKERS: ${PREPROCESS_WORKERS:-8}

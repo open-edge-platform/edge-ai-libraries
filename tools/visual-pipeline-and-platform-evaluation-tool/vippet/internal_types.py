@@ -31,6 +31,19 @@ class InternalPipelineSource(str, Enum):
     TEMPLATE = "TEMPLATE"
 
 
+class InternalPipelineType(str, Enum):
+    """
+    Internal representation of pipeline type.
+
+    Values:
+        VISION: Pipeline processes video/image data using GStreamer and DLStreamer.
+        TIME_SERIES: Pipeline processes time-series data using the Time Series Analytics Microservice.
+    """
+
+    VISION = "vision"
+    TIME_SERIES = "time_series"
+
+
 class InternalAppStatus(str, Enum):
     """
     Internal representation of application status.
@@ -403,6 +416,7 @@ class InternalPipeline:
         name: Pipeline name.
         description: Human-readable description.
         source: Origin of the pipeline (PREDEFINED, USER_CREATED, TEMPLATE).
+        type: Pipeline type (vision or time_series).
         tags: List of tags for categorizing the pipeline.
         variants: List of InternalVariant objects.
         thumbnail: Base64-encoded image for pipeline preview (PREDEFINED only).
@@ -416,6 +430,7 @@ class InternalPipeline:
     name: str
     description: str
     source: InternalPipelineSource
+    type: InternalPipelineType
     tags: List[str]
     variants: List[InternalVariant]
     thumbnail: Optional[str] = field(repr=False)
@@ -435,6 +450,7 @@ class InternalPipelineDefinition:
         name: Non-empty pipeline name.
         description: Human-readable text describing what the pipeline does.
         source: Pipeline source (PREDEFINED, USER_CREATED, or TEMPLATE).
+        type: Pipeline type (vision or time_series).
         tags: List of tags for categorizing the pipeline.
         variants: List of InternalVariantCreate objects.
     """
@@ -442,6 +458,7 @@ class InternalPipelineDefinition:
     name: str
     description: str
     source: InternalPipelineSource
+    type: InternalPipelineType
     tags: List[str]
     variants: List[InternalVariantCreate]
 

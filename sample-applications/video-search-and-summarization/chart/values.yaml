@@ -50,6 +50,17 @@ global:
   # Embedding model used by Multimodal Embedding MS, DataPrep, and Video Search.
   embeddingModelName: ""
 
+  # model-download microservice image used (in ephemeral / one-shot mode) by the
+  # OVMS and Video Ingestion init containers to download & convert models. The
+  # image is pulled from the configured registry; no host Python/venv is needed.
+  modelDownload:
+    image:
+      repository: intel/model-download
+      tag: "2026.2.0-ww30"
+      pullPolicy: IfNotPresent
+    # OVMS release tag whose export_model.py the openvino plugin uses.
+    ovmsReleaseTag: "v2026.1"
+
   # Per-service device configuration
   # Each service independently configures its accelerator needs
   devices:
@@ -180,10 +191,8 @@ videoingestion:
   fullnameOverride: videoingestion
   fullname: videoingestion
   claimSize: "2Gi"
-  # odModelName defines the name of Object Detection Model
-  odModelName: ""
-  # odModelType defines the type of Object Detection Model. e.g., "yolo_v8"
-  odModelType: ""
+  # odModelName defines the name of Object Detection Model (ultralytics hub id)
+  odModelName: "yolov8l"
   service:
     type: ClusterIP
     port: 8080

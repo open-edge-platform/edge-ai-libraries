@@ -1,6 +1,6 @@
 # VSS environment variables
 
-Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-started.md`, `docs/user-guide/get-started/system-requirements.md`, and `docs/user-guide/build-from-source.md`. Deployment reads shell environment; no top-level `.env` or `.env.example` is present. The checked-in env files are `ui/react/.env` for Vite placeholder names and `mcp/.env.example` for the separate MCP server.
+Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-started.md`, `docs/user-guide/get-started/system-requirements.md`, and `docs/user-guide/build-from-source.md`. Deployment reads the shell environment. The checked-in `.env.example` is a general application template, but this skill uses `vss.config.env` plus generated `vss.secrets.env` because those files track the current per-component device variables and keep credentials separate. If using a copied `.env` manually, source it before exporting secrets because its empty secret assignments overwrite existing values.
 
 ## Required before starting containers
 
@@ -16,10 +16,10 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `RABBITMQ_PASSWORD` | all deployment modes | RabbitMQ password. |
 | `VLM_MODEL_NAME` | Summary, Dual UI, Unified UI | VLM model source for captioning/summarization. In vLLM mode it is also the final-summary model. |
 | `ENABLED_WHISPER_MODELS` | Summary, Dual UI, Unified UI | Comma-separated Whisper models for `audio-analyzer` via `ENABLED_WHISPER_MODELS`. |
-| `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | YOLO object detection model converted by `video-ingestion/resources/scripts/converter.py` into `ov_models/yoloworld/v2`. |
+| `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | Generic YOLO id accepted by the model-download Ultralytics plugin. Setup stores it under `ov_models/object-detection/ultralytics/public/<model>/FP32`. YOLO-World names fall back to `yolov8l`. |
 | `MULTIMODAL_EMBEDDING_MODEL` | Search, Dual UI | Model for video frame embeddings; assigned to `EMBEDDING_MODEL_NAME`. |
 | `TEXT_EMBEDDING_MODEL` | Unified UI | Text embedding model for summary-text search; assigned to `EMBEDDING_MODEL_NAME`. |
-| `OVMS_LLM_MODEL_NAME` | only if `ENABLE_OVMS_LLM_SUMMARY=true` or `ENABLE_OVMS_LLM_SUMMARY_GPU=true` for modes with summary | Dedicated OVMS final-summary LLM model. Otherwise OVMS falls back to `VLM_MODEL_NAME`. |
+| `OVMS_LLM_MODEL_NAME` | optional for modes with summary | Dedicated OVMS final-summary LLM model. Split mode is selected when the effective LLM model, target device, or compression differs from the VLM; otherwise OVMS reuses the VLM. |
 
 ## Proxy and image registry
 
@@ -30,6 +30,29 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `PROJECT_NAME` | empty | Also normalized with trailing slash before composing `${REGISTRY_URL}${PROJECT_NAME}`. |
 | `REGISTRY` | derived | Prefix for images such as `${REGISTRY:-}pipeline-manager:${TAG:-latest}`. |
 | `TAG` | `latest` in `setup.sh`; docs example `2026.1.0-rc1` | Image tag for app images. |
+
+## Model download service
+
+For a summary-capable deployment, `setup.sh` checks the host-backed
+`ov_models/` tree before starting Compose. If an OD artifact or an OVMS
+VLM/LLM artifact is missing, it starts a transient model-download REST service,
+submits the required jobs, persists failed logs, and removes the service
+container.
+
+| Variable | Default | What it controls |
+|---|---|---|
+| `MODEL_DOWNLOAD_IMAGE` | `intel/model-download:${MODEL_DOWNLOAD_TAG:-latest}` | Full image reference for the transient model-download service. |
+| `MODEL_DOWNLOAD_TAG` | `latest` | Fallback tag when `MODEL_DOWNLOAD_IMAGE` is unset. |
+| `MODEL_DOWNLOAD_OVMS_TAG` | `v2026.1` | OVMS release used by the OpenVINO export plugin. |
+| `MODEL_DOWNLOAD_HOST_PORT` | `8640` | Loopback-only REST port while setup downloads models. |
+| `MODEL_DOWNLOAD_JOB_TIMEOUT` | `5400` | Per-job timeout in seconds; `0` disables the wall-clock limit. |
+| `OVMS_MS_DOWNLOAD_PATH` | `ovms` | Subdirectory under `ov_models/` containing `config.json` and `openvino_models/`. |
+| `HUGGINGFACE_TOKEN`, `HUGGINGFACEHUB_API_TOKEN` | unset | Optional token forwarded as `HF_TOKEN`; the first non-empty value is used. |
+
+OVMS exports are stored under
+`ov_models/ovms/openvino_models/<device>/<precision>/<source-model>` and
+registered in `ov_models/ovms/config.json`. Failed model-download logs are
+written to `ov_models/model-download-*.log`.
 
 ## Common ports and hosts set by `setup.sh`
 
@@ -71,7 +94,7 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `PM_MULTI_FRAME_COUNT` | `12`, may reduce to `6` for non-CPU OVMS VLM | Multi-frame captioning count. |
 | `PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | `true` in compose | Enables full-transcript summary injection by default. |
 | `PM_PRODUCE_FINAL_SUMMARY` | `true` | Whether Pipeline Manager produces final summary. |
-| `GATED_MODEL`, `HUGGINGFACE_TOKEN` | unset | If `GATED_MODEL=true`, setup logs into Hugging Face during OVMS export; vLLM passes `HUGGING_FACE_HUB_TOKEN=${HUGGINGFACE_TOKEN:-}`. |
+| `HUGGINGFACE_TOKEN`, `HUGGINGFACEHUB_API_TOKEN` | unset | Optional token for gated model download. The model-download service accepts either; vLLM uses `HUGGINGFACE_TOKEN`. |
 
 ## vLLM-specific controls
 
