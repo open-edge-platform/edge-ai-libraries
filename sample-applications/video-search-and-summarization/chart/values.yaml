@@ -103,7 +103,6 @@ global:
     OTLP_ENDPOINT_TRACE: ""
     DEFAULT_BUCKET_NAME: "video-summary"
     MULTIMODAL_EMBEDDING_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
-    EMBEDDING_PROCESSING_MODE: "sdk"
     SDK_USE_OPENVINO: true
     OV_MODELS_DIR: "/app/ov_models"
     OV_PERFORMANCE_MODE: "THROUGHPUT"
