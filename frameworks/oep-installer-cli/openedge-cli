@@ -252,8 +252,9 @@ subcommand_bootstrap () {
   # construct final installer
   if [ ${#scripts[@]} -gt 0 ]; then
     local install_modules=() start_modules=()
+    local rendered="$(dirname "$0")/rendered/openedge-cli"
     if [[ "$*" != *"--dry-run"* ]]; then
-      sed -i '/^#### COLLECTION OF MODULES ####/q' "$0"
+      sed '/^#### COLLECTION OF MODULES ####/q' "$0" > "$rendered"
       for m in $*; do
         case "$m" in
         --install=*)
@@ -264,17 +265,18 @@ subcommand_bootstrap () {
           ;;
         esac
       done
-      cat "$mydir"/common/os-agnostic >> "$0"
+      cat "$mydir"/common/os-agnostic >> "$rendered"
       if [ -r "$mydir"/common/${ID_LIKE} ]; then
-        cat "$mydir"/common/${ID_LIKE} >> "$0"
+        cat "$mydir"/common/${ID_LIKE} >> "$rendered"
       fi
     fi
     for script in "${!scripts[@]}"; do
       echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
-      [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$0"
+      [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$rendered"
     done
-    [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]}" >> "$0"
-    [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]}" >> "$0"
+    [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]}" >> "$rendered"
+    [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]}" >> "$rendered"
+    echo "Rendered to $rendered"
   else
     echo "No bootstrap component" 1>&2
     exit 3
