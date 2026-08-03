@@ -276,6 +276,7 @@ subcommand_bootstrap () {
     done
     [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]}" >> "$rendered"
     [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]}" >> "$rendered"
+    chmod a+rx "$rendered"
     echo "Rendered to $rendered"
   else
     echo "No bootstrap component" 1>&2
