@@ -1,6 +1,8 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import base64
+import binascii
 from enum import Enum
 from typing import List, Optional, TypedDict, Dict, Any, Tuple
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -290,6 +292,41 @@ class DownloadResponse(BaseModel):
     model_path: Optional[str] = None
 
 
+def _decode_override_credentials(
+    value: Optional[Dict[str, str]]
+) -> Optional[Dict[str, str]]:
+    """Decode Base64-encoded ``override_credentials`` values into plain strings.
+
+    Callers Base64-encode each override value so credentials are not sent in
+    clear text in the request body. Each value must be valid Base64 that decodes
+    to UTF-8; anything else is rejected so malformed input fails fast at the API
+    boundary instead of reaching a plugin. Keys are left untouched.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("override_credentials must be an object of string values")
+
+    decoded: Dict[str, str] = {}
+    for key, raw in value.items():
+        if raw is None:
+            decoded[key] = raw
+            continue
+        if not isinstance(raw, str):
+            raise ValueError(
+                f"override_credentials['{key}'] must be a Base64-encoded string"
+            )
+        try:
+            decoded_bytes = base64.b64decode(raw, validate=True)
+            decoded[key] = decoded_bytes.decode("utf-8")
+        except (binascii.Error, ValueError, UnicodeDecodeError) as exc:
+            raise ValueError(
+                f"override_credentials['{key}'] must be a valid Base64-encoded "
+                f"UTF-8 string"
+            ) from exc
+    return decoded
+
+
 class ModelRequest(BaseModel):
     name: str = Field(
         ...,
@@ -300,12 +337,30 @@ class ModelRequest(BaseModel):
     is_ovms: bool = False
     revision: Optional[str] = None
     config: Optional[Config] = None
+    override_credentials: Optional[Dict[str, str]] = Field(
+        default=None,
+        description=(
+            "Optional per-request overrides for the target plugin's connection "
+            "keys (for example HF_TOKEN, or GETI_HOST/GETI_TOKEN/GETI_WORKSPACE_ID). "
+            "Each value must be Base64-encoded (e.g. echo -n 'token' | base64). "
+            "Values are decoded server-side and take precedence over the service's "
+            "environment variables for this request only. They are never stored "
+            "or logged. IMPORTANT: deploy behind HTTPS to protect credentials "
+            "in transit. Use GET /plugins to discover the keys each plugin "
+            "understands."
+        ),
+    )
 
     @field_validator("hub", mode="before")
     @classmethod
     def _normalize_hub(cls, v):
         # Accept hub names case-insensitively (e.g. 'Geti', 'GETI', 'HuggingFace').
         return v.lower() if isinstance(v, str) else v
+
+    @field_validator("override_credentials", mode="before")
+    @classmethod
+    def _decode_credentials(cls, v):
+        return _decode_override_credentials(v)
 
 
 
@@ -328,6 +383,19 @@ class ModelListRequest(BaseModel):
     )
     limit: int = Field(50, ge=1, le=200, description="Maximum models to return.")
     offset: int = Field(0, ge=0, description="Number of models to skip.")
+    override_credentials: Optional[Dict[str, str]] = Field(
+        default=None,
+        description=(
+            "Optional Base64-encoded per-request connection overrides for the "
+            "selected hub. Values take precedence over environment variables "
+            "for this request only."
+        ),
+    )
+
+    @field_validator("override_credentials", mode="before")
+    @classmethod
+    def _decode_credentials(cls, v):
+        return _decode_override_credentials(v)
 
 
 class ModelListItem(BaseModel):

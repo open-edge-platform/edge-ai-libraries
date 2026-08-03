@@ -1,6 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import base64
 import os
 import pytest
 import tempfile
@@ -8,8 +9,10 @@ import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 
-from src.api.main import app
+from src.api.main import _submit_startup_models, app
 from src.api.models import ModelHub, ModelType, ModelPrecision, DeviceType
+from src.core.model_submission import ModelSubmissionError
+from src.core.startup_config import StartupModelsConfig
 
 
 class TestAPIMain:
@@ -60,6 +63,126 @@ class TestAPIMain:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
+
+    @patch("src.api.main.submit_models", new_callable=AsyncMock)
+    async def test_startup_models_use_overrides_and_isolate_failures(self, mock_submit):
+        config = StartupModelsConfig.model_validate(
+            {
+                "download_path": "default",
+                "parallel_downloads": True,
+                "models": [
+                    {"name": "bad/model", "hub": "huggingface"},
+                    {
+                        "name": "good/model",
+                        "hub": "huggingface",
+                        "download_path": "override",
+                    },
+                ],
+            }
+        )
+        mock_submit.side_effect = [
+            ModelSubmissionError("not available"),
+            ["good-job"],
+        ]
+
+        await _submit_startup_models(config)
+
+        assert mock_submit.await_count == 2
+        assert mock_submit.await_args_list[0].args[1] == "default"
+        assert mock_submit.await_args_list[1].args[1] == "override"
+        assert all(
+            call.args[0].parallel_downloads is True
+            for call in mock_submit.await_args_list
+        )
+
+    @patch("src.api.main.submit_models", new_callable=AsyncMock)
+    async def test_startup_models_isolate_unexpected_per_model_failures(
+        self,
+        mock_submit,
+    ):
+        config = StartupModelsConfig.model_validate(
+            {
+                "download_path": "default",
+                "models": [
+                    {"name": "broken/model", "hub": "huggingface"},
+                    {"name": "working/model", "hub": "huggingface"},
+                ],
+            }
+        )
+        mock_submit.side_effect = [RuntimeError("unexpected"), ["working-job"]]
+
+        await _submit_startup_models(config)
+
+        assert mock_submit.await_count == 2
+        assert mock_submit.await_args_list[1].args[0].models[0].name == "working/model"
+
+    @patch("src.api.main.submit_models", new_callable=AsyncMock)
+    def test_download_api_uses_shared_submission_path(self, mock_submit, client):
+        mock_submit.return_value = ["shared-job"]
+
+        response = client.post(
+            "/models/download?download_path=api-models",
+            json={"models": [{"name": "org/model", "hub": "huggingface"}]},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "message": "Started processing 1 model(s)",
+            "job_ids": ["shared-job"],
+            "status": "processing",
+        }
+        mock_submit.assert_awaited_once()
+        assert mock_submit.await_args.args[1] == "api-models"
+
+    @patch("src.api.main.plugin_registry")
+    @patch("src.api.main.model_manager")
+    @patch("src.api.main.load_startup_models_config")
+    def test_lifespan_schedules_without_waiting_for_download(
+        self,
+        mock_load_config,
+        mock_manager,
+        mock_registry,
+    ):
+        mock_load_config.return_value = StartupModelsConfig.model_validate(
+            {
+                "download_path": "startup",
+                "models": [{"name": "org/model", "hub": "huggingface"}],
+            }
+        )
+        mock_registry.plugins = {"downloader": {"huggingface": MagicMock()}}
+        mock_registry.get_plugin_names.return_value = ["huggingface"]
+        mock_registry.supported_hubs.return_value = ["huggingface"]
+        mock_registry.hub_is_available.return_value = (True, "")
+        mock_registry.get_plugin.return_value = mock_registry.plugins["downloader"]["huggingface"]
+        mock_manager._jobs = {}
+
+        def register_job(**kwargs):
+            mock_manager._jobs["startup-job"] = {
+                "id": "startup-job",
+                "model_name": kwargs["model_name"],
+                "status": "queued",
+            }
+            return "startup-job"
+
+        mock_manager.register_job.side_effect = register_job
+
+        async def wait_for_shutdown(**_):
+            await asyncio.Event().wait()
+
+        mock_manager.process_download = AsyncMock(side_effect=wait_for_shutdown)
+
+        with TestClient(app) as lifespan_client:
+            response = lifespan_client.get("/health")
+            assert response.status_code == 200
+            mock_manager.process_download.assert_called_once()
+            jobs_response = lifespan_client.get("/jobs")
+            assert jobs_response.status_code == 200
+            assert jobs_response.json()["jobs"][0]["id"] == "startup-job"
+            job_response = lifespan_client.get("/jobs/startup-job")
+            assert job_response.status_code == 200
+            assert job_response.json()["model_name"] == "org/model"
+
+        mock_load_config.assert_called_once_with()
 
     @patch('src.api.main.model_manager')
     @patch('src.api.main.plugin_registry')
@@ -416,6 +539,27 @@ class TestAPIMain:
         detail = response.json()["detail"]
         assert "Missing huggingface_hub dependency" in detail
 
+    @patch("src.api.main.model_manager")
+    @patch("src.api.main.plugin_registry")
+    def test_download_rejects_path_outside_models_dir(
+        self,
+        mock_registry,
+        mock_manager,
+        client,
+    ):
+        mock_registry.plugins = {"downloader": {"huggingface": MagicMock()}}
+        mock_registry.get_plugin_names.return_value = ["huggingface"]
+        mock_registry.check_plugin_dependencies.return_value = (True, None)
+
+        response = client.post(
+            "/models/download?download_path=../outside",
+            json={"models": [{"name": "test-model", "hub": "huggingface"}]},
+        )
+
+        assert response.status_code == 400
+        assert "must remain under MODELS_DIR" in response.json()["detail"]
+        mock_manager.register_job.assert_not_called()
+
     @patch('src.api.main.model_manager')
     @patch('src.api.main.plugin_registry')
     def test_download_openvino_conversion_unavailable(self, mock_registry, mock_manager, client):
@@ -671,6 +815,7 @@ class TestAPIMain:
             limit=25,
             offset=0,
             hub="pipeline-zoo-models",
+            resolved_config=mock_plugin.resolve_config.return_value,
         )
 
     @patch('src.api.main.plugin_registry')
@@ -697,6 +842,40 @@ class TestAPIMain:
         assert data["has_more"] is True
         assert data["next_offset"] == 1
         assert "total" not in data
+
+    @patch('src.api.main.plugin_registry')
+    def test_list_hub_models_refreshes_credentials_for_each_request(self, mock_registry, client):
+        mock_plugin = MagicMock()
+        mock_plugin.supports_listing = True
+        mock_plugin.resolve_config.side_effect = lambda overrides: overrides.copy()
+        mock_plugin.list_models.return_value = {"items": [], "total": 0}
+        mock_registry.get_plugin.return_value = mock_plugin
+        mock_registry.hub_is_available.return_value = (True, None)
+
+        def encoded(value):
+            return base64.b64encode(value.encode()).decode()
+
+        for token in ("first-token", "second-token"):
+            response = client.post(
+                "/models/list",
+                json={
+                    "hub": "huggingface",
+                    "override_credentials": {"HF_TOKEN": encoded(token)},
+                },
+            )
+            assert response.status_code == 200
+
+        assert [call.args[0] for call in mock_plugin.resolve_config.call_args_list] == [
+            {"HF_TOKEN": "first-token"},
+            {"HF_TOKEN": "second-token"},
+        ]
+        assert [
+            call.kwargs["resolved_config"]
+            for call in mock_plugin.list_models.call_args_list
+        ] == [
+            {"HF_TOKEN": "first-token"},
+            {"HF_TOKEN": "second-token"},
+        ]
 
     @patch('src.api.main.plugin_registry')
     def test_list_hub_models_unsupported(self, mock_registry, client):
@@ -1029,7 +1208,7 @@ class TestUploadModel:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
-        assert data["model_name"] == "my_test_model"  # sanitized
+        assert data["model_name"] == "My_Test_Model"  # sanitized (spaces to underscores, case preserved)
         assert "model_path" in data
         assert data["job_id"] == "upload-job-1"
 
@@ -1118,34 +1297,18 @@ class TestUploadModel:
         assert response.status_code == 409
         assert "already exists" in response.json()["detail"]
 
-    @patch("src.api.main.model_manager")
-    @patch("os.path.exists", return_value=False)
-    @patch("os.makedirs")
-    @patch("zipfile.ZipFile.extractall")
     def test_upload_model_name_sanitization(
-        self, mock_extractall, mock_makedirs, mock_exists, mock_manager, client
+        self, client
     ):
-        """model_name is lowercased, spaces replaced with underscores, special chars stripped."""
-        mock_manager.register_job.return_value = "upload-job-2"
-        mock_manager._jobs = {}
-
-        def fake_register(**kwargs):
-            mock_manager._jobs["upload-job-2"] = {
-                "id": "upload-job-2",
-                "status": "queued",
-            }
-            return "upload-job-2"
-
-        mock_manager.register_job.side_effect = fake_register
-
+        """model_name with invalid chars (!) is rejected with 400."""
         response = client.post(
             "/models/upload",
             data={"model_name": "  My Model!! v2.0 "},
             files={"file": ("model.zip", self._make_valid_zip(), "application/zip")},
         )
 
-        assert response.status_code == 200
-        assert response.json()["model_name"] == "my_model_v20"
+        assert response.status_code == 400
+        assert "may contain only" in response.json()["detail"]
 
     @patch("src.api.main.model_manager")
     @patch("os.path.exists", return_value=False)
@@ -1175,6 +1338,7 @@ class TestUploadModel:
         )
 
         assert response.status_code == 200
+        # precision is preserved as-is (no lowercasing)
         assert "FP32" in response.json()["model_path"]
 
     @patch("src.api.main.model_manager")
@@ -1191,4 +1355,66 @@ class TestUploadModel:
             files={"file": ("model.zip", self._make_valid_zip(), "application/zip")},
         )
         assert response.status_code == 500
-        assert "Failed to extract model" in response.json()["detail"]
+
+
+class TestOverrideCredentialsBase64:
+    """override_credentials values must be Base64-encoded and are decoded at the API boundary."""
+
+    @staticmethod
+    def _b64(value: str) -> str:
+        import base64
+        return base64.b64encode(value.encode("utf-8")).decode("ascii")
+
+    def test_model_request_decodes_base64_values(self):
+        from src.api.models import ModelRequest
+
+        req = ModelRequest(
+            name="some-model",
+            hub="huggingface",
+            override_credentials={"HF_TOKEN": self._b64("hf_secret_token")},
+        )
+        assert req.override_credentials == {"HF_TOKEN": "hf_secret_token"}
+
+    def test_model_request_decodes_multiple_base64_values(self):
+        from src.api.models import ModelRequest
+
+        req = ModelRequest(
+            name="some-model",
+            hub="geti",
+            override_credentials={
+                "GETI_HOST": self._b64("https://geti.example.com"),
+                "GETI_TOKEN": self._b64("geti_secret"),
+            },
+        )
+        assert req.override_credentials == {
+            "GETI_HOST": "https://geti.example.com",
+            "GETI_TOKEN": "geti_secret",
+        }
+
+    def test_none_is_passthrough(self):
+        from src.api.models import ModelRequest
+
+        req = ModelRequest(name="some-model", hub="huggingface")
+        assert req.override_credentials is None
+
+    def test_invalid_base64_is_rejected(self):
+        from pydantic import ValidationError
+        from src.api.models import ModelRequest
+
+        with pytest.raises(ValidationError, match="Base64"):
+            ModelRequest(
+                name="some-model",
+                hub="huggingface",
+                override_credentials={"HF_TOKEN": "not valid base64 !!!"},
+            )
+
+    def test_non_string_value_is_rejected(self):
+        from pydantic import ValidationError
+        from src.api.models import ModelRequest
+
+        with pytest.raises(ValidationError, match="Base64-encoded string"):
+            ModelRequest(
+                name="some-model",
+                hub="huggingface",
+                override_credentials={"HF_TOKEN": 12345},
+            )

@@ -7,13 +7,14 @@ import subprocess
 from collections import deque
 from enum import Enum
 from typing import Dict, Any, Optional, List
-from src.core.interfaces import ModelDownloadPlugin, DownloadTask
+from src.core.interfaces import ModelDownloadPlugin, DownloadTask, PluginConfigKey
 from src.core.plugin_venv import get_plugin_venv_python, get_plugin_venv_env, build_venv_command
 from src.api.models import OPENVINO_EXPORT_PARAMS, EXPORT_TYPE_PARAMS
 from src.utils.logging import logger
 
 # Default OVMS release tag for export_model.py script
 OVMS_RELEASE_TAG = os.getenv("OVMS_RELEASE_TAG", "v2026.0")
+INTERNAL_CONFIG_PARAMS = frozenset({"resolved_config"})
 
 # Graph templates for OVMS serving configuration (aligned with export_model.py)
 TEXT_GENERATION_GRAPH_TEMPLATE = """# OVMS_GRAPH_QUEUE_MAX_SIZE: AUTO
@@ -158,6 +159,19 @@ class OpenVINOConverter(ModelDownloadPlugin):
     @property
     def plugin_type(self) -> str:
         return "converter"  # This is a converter plugin, not a downloader
+
+    def hub_config_keys(self, hub: str = "openvino") -> list:
+        return [
+            PluginConfigKey(
+                name="HF_TOKEN",
+                description=(
+                    "HuggingFace access token used to pull pre-converted models or "
+                    "download source models for conversion. Required only for gated "
+                    "or private models."
+                ),
+                sensitive=True,
+            ),
+        ]
 
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         # Check if the hub is openvino or if is_ovms is True
@@ -519,7 +533,13 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 continue  # Skip None values
 
             # Skip parameters that are already handled as base command arguments or metadata
-            if param_name in ("precision", "device", "source_model", "type", "model_type"):
+            if param_name in (
+                "precision",
+                "device",
+                "source_model",
+                "type",
+                "model_type",
+            ) or param_name in INTERNAL_CONFIG_PARAMS:
                 continue
 
             if param_name in OPENVINO_EXPORT_PARAMS:
@@ -566,18 +586,25 @@ class OpenVINOConverter(ModelDownloadPlugin):
         """
         Convert a model to OpenVINO Model Server (OVMS) format.
         This is the main conversion method expected by the model manager.
-        
+
         Pull Mode: Before converting, attempts to find and download a pre-converted
         model from the OpenVINO organization on HuggingFace. Falls back to conversion
         if no pre-converted model is found.
         """        
         # Extract core parameters using helper (supports multiple sources)
-        weight_format = kwargs.get("precision",kwargs.get("weight-format"))
-        target_device = kwargs.get("device",kwargs.get("target_device"))
+        weight_format = (
+            kwargs.get("precision") or kwargs.get("weight-format") or "int8"
+        )
+        target_device = (
+            kwargs.get("device") or kwargs.get("target_device") or "CPU"
+        )
         cache_size = kwargs.get("cache_size", kwargs.get("cache", None))
         
-        # Extract model metadata
-        huggingface_token = hf_token
+        # Extract model metadata. Per-request override wins over the env
+        # HF_TOKEN / legacy hf_token argument (env fallback applied by
+        # resolve_config).
+        resolved_config = kwargs.get("resolved_config") or {}
+        huggingface_token = resolved_config.get("HF_TOKEN") or hf_token
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         version = kwargs.get("version", "")
 
@@ -631,15 +658,12 @@ class OpenVINOConverter(ModelDownloadPlugin):
         logger.info(f"Pull mode did not find a match. Proceeding with conversion for {model_name}.")
         # --- End Pull Mode ---
         
-        # Extract model metadata
-        huggingface_token = hf_token
-        model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
-        version = kwargs.get("version", "")
-        
         # Always use flat config structure for export, passthrough all config params
         config_for_export = kwargs.copy()
         config_for_export.pop("weight-format", None)
         config_for_export.pop("target_device", None)
+        for param_name in INTERNAL_CONFIG_PARAMS:
+            config_for_export.pop(param_name, None)
         logger.info(f"Using flat config structure: {list(config_for_export.keys())}")
         logger.info(f"Extracted parameters - precision: {weight_format}, device: {target_device}, cache_size: {cache_size}")
         
@@ -758,29 +782,20 @@ class OpenVINOConverter(ModelDownloadPlugin):
 
         export_type = export_type_map[model_type]
 
-        # Validate that HF token is provided for OVMS conversion
-        # Step 1: Check Hugging Face authentication
-        check_login = subprocess.run(
-            ["hf", "auth", "whoami"],
-            capture_output=True,
-            text=True
-        )
-
-        if check_login.returncode != 0:
-            if not huggingface_token:
-                logger.warning(
-                    "No Hugging Face token provided and no cached login found. "
-                    "Set HF_TOKEN or HUGGINGFACEHUB_API_TOKEN environment variable. "
-                    "Proceeding without authentication — this may fail for gated models."
-                )
-            else:
-                # Not logged in, proceed with login using provided token
-                logger.info("Not logged in, authenticating with Hugging Face...")
-                result = subprocess.run(["hf", "auth", "login", "--token", huggingface_token])
-                if result.returncode != 0:
-                    logger.error("Failed to authenticate with Hugging Face. Please check your token.")
+        # Provide the HuggingFace token to the export subprocess via its own
+        # environment only — never through `hf login` (which writes the token to
+        # disk globally) or the command line (which exposes it on the process
+        # list). This keeps a per-request token scoped to this single conversion:
+        # it is not persisted and cannot leak into other requests or users.
+        export_env = get_plugin_venv_env("openvino")
+        if huggingface_token:
+            export_env["HF_TOKEN"] = huggingface_token
+            export_env["HUGGINGFACEHUB_API_TOKEN"] = huggingface_token
         else:
-            logger.info(f"Already logged in to Hugging Face: {check_login.stdout.strip()}")
+            logger.warning(
+                "No HuggingFace token provided. Proceeding without authentication — "
+                "this may fail for gated or private models."
+            )
 
         # Export the model using export_model.py with intelligent parameter handling
         logger.info(f"Exporting model: {model_name} with weight format: {weight_format} and export type: {export_type}...")
@@ -817,6 +832,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 stderr=subprocess.PIPE,
                 universal_newlines=True,
                 text=True,
+                env=export_env,
             )
             stderr_logs = deque(maxlen=3)
             stdout_logs = deque(maxlen=3)
@@ -854,6 +870,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
                         stderr=subprocess.PIPE,
                         universal_newlines=True,
                         text=True,
+                        env=export_env,
                     )
 
                     # Stream output in real-time

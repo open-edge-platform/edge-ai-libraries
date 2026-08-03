@@ -6,6 +6,7 @@ definition: >
 tags:
   - Smart Cities
 thumbnail: images/smart-parking.png
+type: vision
 variants:
   - name: CPU
     pipeline_description: >-
