@@ -5,13 +5,17 @@ configure_pallet_defect_detection () {
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
 }
 
+verify_pallet_defect_detection () {
+  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pallet-defect-detection/videos/warehouse.avi ]
+}
+
 debian_90_profile_pallet_defect_detection () {
-  echo "git curl gawk"
+  echo "git curl gawk unzip"
 }
 
 debian_90_install_pallet_defect_detection () {
   configure_pallet_defect_detection
-  [ ! -e "$workspace" ] || [[ "$*" = *"--reset-pallet_defect_detection"* ]] || return 0
+  ! verify_pallet_defect_detection || [[ "$*" = *"--reset-pallet_defect_detection"* ]] || return 0
   ensure_disk_space 50
 
   # clone the repository
@@ -29,6 +33,7 @@ MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(ca
 MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 EOF
   ./setup.sh
+  verify_pallet_defect_detection
   popd > /dev/null
 }
 

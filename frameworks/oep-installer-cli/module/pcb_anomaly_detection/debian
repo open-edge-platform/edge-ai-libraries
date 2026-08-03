@@ -5,13 +5,17 @@ configure_pcb_anomaly_detection () {
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
 }
 
+verify_pcb_anomaly_detection () {
+  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
+}
+
 debian_90_profile_pcb_anomaly_detection () {
   echo "git curl gawk"
 }
 
 debian_90_install_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  [ ! -e "$workspace" ] || [[ "$*" = *"--reset-pcb-anomaly-detection"* ]] || return 0
+  ! verify_pcb_anomaly_detection || [[ "$*" = *"--reset-pcb-anomaly-detection"* ]] || return 0
   ensure_disk_space 60
 
   # clone the repository
@@ -29,6 +33,7 @@ MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(ca
 MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 EOF
   ./setup.sh
+  verify_pcb_anomaly_detection
   popd > /dev/null
 }
 
