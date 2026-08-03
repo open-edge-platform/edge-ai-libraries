@@ -3,9 +3,18 @@
 This page tracks releases of the Text To Speech microservice. The most
 recent release is listed first; older entries are preserved for history.
 
-<!--## Version 2026.2.0-->
+## v1.1.0
 
-<!--date TBD-->
+**Release Date:** August 2026
+
+**New:**
+
+- Named voices selectable via the `voice` parameter, replacing raw
+  speaker index selection with human-readable identifiers.
+
+**Improved:**
+
+- Faster synthesis with more natural prosody across supported voices.
 
 ## v1.0.0
 
