@@ -117,6 +117,13 @@ class Settings(BaseSettings):
         description="Root directory for POST /media/ingest-dir; requested paths "
         "are constrained to this root (no traversal outside it).",
     )
+    INGEST_DATA_ROOT_HOST: str = Field(
+        default="",
+        description="Host-side path bind-mounted at INGEST_DATA_ROOT. When set, "
+        "the source_path metadata of directory-ingested media is recorded in "
+        "host terms so consumers sharing the mount can locate the file. Empty "
+        "records the container path as-is.",
+    )
     BATCH_MAX_ITEMS: int = Field(
         default=100,
         ge=1,
@@ -167,6 +174,33 @@ class Settings(BaseSettings):
         ge=1,
         description="Shared memory block size in bytes for the video frame pipeline",
     )
+    VIDEO_CROP_SHM_ACQUIRE_TIMEOUT_S: float = Field(
+        default=0.5,
+        ge=0,
+        description=(
+            "Max seconds to wait for a free crop block before copying the crop to the "
+            "heap. Short by design: the heap fallback is cheap, so waiting longer only "
+            "stalls detection. 0 disables waiting entirely."
+        ),
+    )
+    VIDEO_CROP_SHM_MAX_BLOCKS: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Block count for the detected-crop pool. Crops are far smaller than full "
+            "frames, so the pool is sized independently. 0 derives it from "
+            "VIDEO_SHM_MAX_BLOCKS."
+        ),
+    )
+    VIDEO_CROP_SHM_BLOCK_SIZE: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Block size in bytes for the detected-crop pool. Crops larger than this "
+            "fall back to heap allocation instead of being dropped. 0 derives it "
+            "from VIDEO_SHM_BLOCK_SIZE."
+        ),
+    )
     VIDEO_EXTRACTION_BATCH_SIZE: int = Field(
         default=256,
         ge=1,
@@ -196,6 +230,14 @@ class Settings(BaseSettings):
         default=1.0,
         gt=0,
         description="Queue get timeout in seconds for pipeline workers",
+    )
+    VIDEO_SHM_ACQUIRE_TIMEOUT_S: float = Field(
+        default=30.0,
+        gt=0,
+        description=(
+            "Max seconds to wait for a free shared memory block before giving up. "
+            "Prevents the decode/detection stages from blocking forever when the pool is exhausted."
+        ),
     )
 
     SAVE_RUNTIME_PIPELINE_STATS: bool = Field(

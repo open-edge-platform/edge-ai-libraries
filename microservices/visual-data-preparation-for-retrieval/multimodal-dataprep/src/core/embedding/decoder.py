@@ -57,6 +57,9 @@ def _get_video_config():
             VIDEO_SHM_BLOCK_SIZE = int(
                 os.getenv("MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE", str(1920 * 1080 * 3))
             )
+            VIDEO_SHM_ACQUIRE_TIMEOUT_S = float(
+                os.getenv("MM_DATAPREP_VIDEO_SHM_ACQUIRE_TIMEOUT_S", "30.0")
+            )
             ENABLE_TRACING = os.getenv("MM_DATAPREP_ENABLE_TRACING", "False").lower() in ("true", "1", "yes")
 
         return FallbackSettings()
@@ -83,6 +86,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class SharedMemoryPoolExhausted(RuntimeError):
+    """Raised when no shared memory block becomes available within the configured timeout."""
+
+
 class SharedMemoryPool:
     def __init__(self, max_blocks, block_size):
         self.max_blocks = max_blocks
@@ -90,21 +97,40 @@ class SharedMemoryPool:
         self.free = queue.SimpleQueue()
         self.blocks = []
         self.in_use = set()
+        self._lock = threading.Lock()
 
         for _ in range(max_blocks):
             shm = shared_memory.SharedMemory(create=True, size=block_size)
             self.blocks.append(shm)
             self.free.put(shm.name)
 
-    def acquire(self):
-        name = self.free.get()
-        self.in_use.add(name)
+    def acquire(self, timeout=None):
+        """Acquire a free block name.
+
+        A bounded wait is used by default so that a producer stage can never block
+        forever on a pool whose blocks are only released by a downstream stage.
+        """
+        if timeout is None:
+            timeout = _video_config.VIDEO_SHM_ACQUIRE_TIMEOUT_S
+
+        try:
+            name = self.free.get(timeout=timeout)
+        except queue.Empty as exc:
+            raise SharedMemoryPoolExhausted(
+                f"No shared memory block available after {timeout}s "
+                f"(pool stats: {self.stats()})"
+            ) from exc
+
+        with self._lock:
+            self.in_use.add(name)
         return name
 
     def release(self, name):
-        if name in self.in_use:
+        with self._lock:
+            if name not in self.in_use:
+                return
             self.in_use.remove(name)
-            self.free.put(name)
+        self.free.put(name)
 
     def total_blocks(self):
         return self.max_blocks
@@ -322,6 +348,8 @@ def decode_stream_and_batch_generator(
     if batch_size is None:
         batch_size = _video_config.VIDEO_EXTRACTION_BATCH_SIZE
 
+    batch_size = _clamp_batch_size_to_pool(batch_size, shm_pool)
+
     logger.info(f"Stream {stream_id} started decoding with config: {stream_config}")
 
     if tracer is not None:
@@ -470,6 +498,25 @@ def decode_stream_and_batch_generator(
                 logger.info(f"Stream {stream_id} ended")
 
 
+def _clamp_batch_size_to_pool(batch_size: int, shm_pool: Optional[SharedMemoryPool]) -> int:
+    """Clamp a decode batch size to the shared memory pool capacity.
+
+    Blocks belonging to a batch are only released once the whole batch has been
+    consumed downstream, so a batch larger than the pool can never be satisfied.
+    """
+    if shm_pool is None or batch_size <= shm_pool.max_blocks:
+        return batch_size
+
+    logger.warning(
+        "Frame extraction batch size (%d) exceeds shared memory pool capacity (%d); "
+        "clamping to %d to keep the decode stage deadlock-free.",
+        batch_size,
+        shm_pool.max_blocks,
+        shm_pool.max_blocks,
+    )
+    return shm_pool.max_blocks
+
+
 def decode_and_batch_generator(
     container: av.container.Container,
     stream_id: int,
@@ -482,6 +529,8 @@ def decode_and_batch_generator(
 
     if batch_size is None:
         batch_size = _video_config.VIDEO_EXTRACTION_BATCH_SIZE
+
+    batch_size = _clamp_batch_size_to_pool(batch_size, shm_pool)
 
     batch = []
     batch_id = 0

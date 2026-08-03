@@ -54,6 +54,7 @@ from src.common import now_us
 from src.common import Tracer
 
 from src.core.embedding.decoder import SharedMemoryPool
+from src.core.embedding.decoder import SharedMemoryPoolExhausted
 from src.core.embedding.decoder import VideoFrameConfig
 from src.core.embedding.decoder import VideoFrameExtractor
 from src.core.embedding.client import EmbeddingClient
@@ -75,6 +76,7 @@ class FrameMetadata:
     frame_number: int = 0
     timestamp: float = 0.0
     frame_type: str = "FULL_FRAME"
+    content_type: str = "video"
     total_frames: Optional[int] = None
     fps: Optional[float] = None
     video_duration: Optional[float] = None
@@ -82,8 +84,10 @@ class FrameMetadata:
     tags: List[str] = field(default_factory=list)
     video_url: str = ""
     video_rel_url: str = ""
+    source_path: str = ""
     video_index: int = 0
     created_at: Optional[datetime.datetime] = None
+    custom_metadata: Dict[str, Any] = field(default_factory=dict)
 
 
     def to_dict(self) -> Dict[str, Any]:
@@ -1191,8 +1195,20 @@ def _process_video_from_memory_simple_pipeline(
             max_blocks=settings.VIDEO_SHM_MAX_BLOCKS,
             block_size=settings.VIDEO_SHM_BLOCK_SIZE,
         )
+        # Crops are a fraction of a full frame, so the crop pool gets half-sized
+        # blocks and twice as many of them: the same memory as the frame-sized pool
+        # it replaces, with double the capacity before exhaustion. Crops that still
+        # do not fit a block are embedded from the heap rather than dropped.
         _crop_pool = (
-            SharedMemoryPool(max_blocks=_shm_pool.max_blocks, block_size=_shm_pool.block_size)
+            SharedMemoryPool(
+                max_blocks=(
+                    settings.VIDEO_CROP_SHM_MAX_BLOCKS or _shm_pool.max_blocks * 2
+                ),
+                block_size=(
+                    settings.VIDEO_CROP_SHM_BLOCK_SIZE
+                    or max(1, _shm_pool.block_size // 2)
+                ),
+            )
             if enable_object_detection
             else None
         )
@@ -1298,6 +1314,8 @@ def _process_video_from_memory_simple_pipeline(
         tags = metadata_dict.get("tags", [])
         video_url = metadata_dict.get("video_url", "")
         video_rel_url = metadata_dict.get("video_rel_url", "")
+        source_path = metadata_dict.get("source_path", "") or ""
+        custom_metadata = metadata_dict.get("custom_metadata") or {}
 
         # Ensure created_at exists for downstream time filtering
         created_at_value = metadata_dict.get('created_at', None)
@@ -1358,6 +1376,8 @@ def _process_video_from_memory_simple_pipeline(
                         tags=tags,
                         video_url=video_url,
                         video_rel_url=video_rel_url,
+                        source_path=source_path,
+                        custom_metadata=custom_metadata,
                         total_frames=(
                             int(stream_metadata["total_frames"])
                             if stream_metadata["total_frames"] is not None
@@ -1415,8 +1435,23 @@ def _process_video_from_memory_simple_pipeline(
                 "Failed to enqueue shutdown signal to detection_meta_queue, it is full. Workers may take up to 3 seconds to shut down."
             )
 
-        # wait for the result.
-        processed_result = completion_queue.get()
+        # Wait for the result. Bounded so that a worker that died early surfaces as a
+        # pipeline error instead of leaving the job hanging in "running" forever.
+        pipeline_threads = (detection_thread, embed_thread, store_thread, result_thread)
+        while True:
+            try:
+                processed_result = completion_queue.get(
+                    timeout=settings.PIPELINE_QUEUE_GET_TIMEOUT_S
+                )
+                break
+            except queue.Empty:
+                if shutdown_event.is_set():
+                    raise RuntimeError("Pipeline shutdown was requested before completion")
+                if not any(t.is_alive() for t in pipeline_threads):
+                    raise RuntimeError(
+                        "Pipeline workers exited before reporting completion; "
+                        "see worker logs for the originating failure"
+                    )
 
         # Join threads BEFORE closing shm_pool; workers may still hold SHM references.
         detection_thread.join()
@@ -1472,8 +1507,11 @@ def process_frame_detection(
         return cropped_results
 
     h, w = frame_numpy.shape[:2]
+    heap_crops = 0
+    oversized_crops = 0
 
     for crop_idx, det_meta in enumerate(detections):
+        crop_shm_name = None
         try:
             box = det_meta.get("bbox")
             score = det_meta.get("confidence")
@@ -1494,9 +1532,30 @@ def process_frame_detection(
 
             crop_view = frame_numpy[y1:y2, x1:x2]
 
-            shm = shared_memory.SharedMemory(name=crop_pool.acquire())
-            crop_arr = np.ndarray(crop_view.shape, dtype=crop_view.dtype, buffer=shm.buf)
-            np.copyto(crop_arr, crop_view)
+            # Preferred path is a shared-memory block. A crop that is too large for
+            # a block, or that arrives once the pool is drained, is copied to the
+            # heap instead: crops are small, and dropping them loses search recall.
+            crop_shm_name = None
+            oversized = crop_pool is None or crop_view.nbytes > crop_pool.block_size
+            if not oversized:
+                try:
+                    crop_shm_name = crop_pool.acquire(
+                        timeout=settings.VIDEO_CROP_SHM_ACQUIRE_TIMEOUT_S
+                    )
+                except SharedMemoryPoolExhausted:
+                    crop_shm_name = None
+
+            shm = None
+            if crop_shm_name is not None:
+                shm = shared_memory.SharedMemory(name=crop_shm_name)
+                crop_arr = np.ndarray(crop_view.shape, dtype=crop_view.dtype, buffer=shm.buf)
+                np.copyto(crop_arr, crop_view)
+            else:
+                crop_arr = np.array(crop_view, copy=True)
+                if oversized:
+                    oversized_crops += 1
+                else:
+                    heap_crops += 1
             del crop_view  # Release reference to the crop view to free memory
 
             crop_metadata = base_metadata.copy()  # shallow copy for isolation
@@ -1514,14 +1573,19 @@ def process_frame_detection(
                     "extended_frame_id": f"{base_metadata.get('frame_id', 'unknown')}_crop_{crop_idx}",
                     "shape": str(crop_arr.shape),  # Store shape as string for metadata
                     "dtype": crop_arr.dtype.name,
-                    "shm": shm.name,
                 }
             )
+            if shm is not None:
+                crop_metadata["shm"] = shm.name
+                shm.close()  # Close in this process, the consumer will open it when needed
+            else:
+                crop_metadata["array"] = crop_arr
 
-            shm.close()  # Close in this process, the consumer will open it when needed
             cropped_results.append(crop_metadata)
 
         except Exception:
+            if crop_shm_name is not None:
+                crop_pool.release(crop_shm_name)
             logger.warning(
                 "Failed to create crop %d from frame %s",
                 crop_idx,
@@ -1529,10 +1593,35 @@ def process_frame_detection(
             )
             continue
 
+    if oversized_crops:
+        logger.debug(
+            "%d of %d crops for frame %s exceeded the crop block size and were "
+            "embedded from the heap.",
+            oversized_crops,
+            len(detections),
+            base_metadata.get("frame_id", "unknown"),
+        )
+
+    if heap_crops:
+        logger.warning(
+            "Crop shared memory pool was exhausted for %d of %d crops for frame %s; "
+            "those crops were copied to the heap. Raise "
+            "MM_DATAPREP_VIDEO_CROP_SHM_MAX_BLOCKS if this happens often.",
+            heap_crops,
+            len(detections),
+            base_metadata.get("frame_id", "unknown"),
+        )
+
     return cropped_results
 
 
 def _map_shared_frame(d, to_pil=True):
+    # Crops that missed the shared-memory pool travel on the heap: there is no
+    # handle to close and no block to release, so hand back the array directly.
+    heap_arr = d.pop("array", None)
+    if heap_arr is not None:
+        return None, (Image.fromarray(heap_arr) if to_pil else heap_arr), d
+
     shm = shared_memory.SharedMemory(name=d["shm"])
     arr = np.ndarray(
         eval(d["shape"]),
@@ -1767,6 +1856,7 @@ def embed_worker(
         frame_batch = None
         shm_handles = []
         batch_frame_pil = None
+        batch_frame_meta = []
 
         try:
             stats = batch.setdefault("stats", {})
@@ -1854,6 +1944,8 @@ def embed_worker(
 
             logger.info(f"Closing {len(shm_handles)} shared memory handles in finally block of embed_worker")
             for shm in shm_handles:
+                if shm is None:
+                    continue  # heap-backed crop, nothing to close
                 try:
                     shm.close()
                 except Exception as e:
@@ -1861,6 +1953,8 @@ def embed_worker(
                     raise
 
             for meta in batch_frame_meta:
+                if not meta.get("shm"):
+                    continue  # heap-backed crop, nothing to release
                 try:
                     if "is_detected_crop" in meta:
                         crop_pool.release(meta["shm"])
