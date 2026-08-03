@@ -4,6 +4,7 @@ description: >
   Deploy Chat Question-and-Answer Core with Docker Compose (OpenVINO CPU, OpenVINO GPU, or Ollama CPU),
   including env setup, profile selection, startup verification, health checks, and teardown.
   Use this skill when the user says "deploy chatqna core", "start chatqna container", "run compose", "openvino gpu deploy", or "ollama deploy".
+  Canonical deploy sources are docker/compose.yaml (services and image names) and scripts/setup_env.sh (runtime profile export); Makefile is not the source of truth.
 license: Apache-2.0
 metadata:
   version: "1.0.0"
@@ -59,16 +60,16 @@ Codebase root: `sample-applications/chat-question-and-answer-core/`
 ## What This Skill Produces
 
 - A running ChatQnA Core deployment on one backend profile:
-	- OpenVINO CPU (`OPENVINO`)
-	- OpenVINO GPU (`OPENVINO-GPU`)
-	- Ollama CPU (`OLLAMA`)
+  - OpenVINO CPU (`OPENVINO`)
+  - OpenVINO GPU (`OPENVINO-GPU`)
+  - Ollama CPU (`OLLAMA`)
 - A verified startup state using container status, logs, and health endpoint.
 - A concise deployment report containing:
-	- runtime profile selected
-	- image source used (prebuilt tags or locally built)
-	- whether pinned default tags or user-provided tags were used
-	- access URL and API docs URL
-	- any warnings (token/model/device constraints)
+  - runtime profile selected
+  - image source used (prebuilt tags or locally built)
+  - whether pinned default tags or user-provided tags were used
+  - access URL and API docs URL
+  - any warnings (token/model/device constraints)
 
 ## When to Use
 
@@ -85,8 +86,8 @@ Before running commands, confirm or infer these values:
 1. Backend/runtime: `openvino` or `ollama`
 2. Device: `cpu` or `gpu` (GPU valid only for OpenVINO)
 3. Image source:
-	 - prebuilt registry images (`REGISTRY`, `BACKEND_TAG`, `UI_TAG`), or
-	 - local source builds (tags usually `latest`)
+   - prebuilt registry images (`REGISTRY`, `BACKEND_TAG`, `UI_TAG`), or
+   - local source builds (tags usually `latest`)
 4. Optional model config path: `MODEL_CONFIG_PATH`
 5. Optional Hugging Face token for private/gated models: `HUGGINGFACEHUB_API_TOKEN`
 
@@ -100,13 +101,13 @@ Use Docker Compose commands only for deployment actions in this skill.
 ## Decision Logic
 
 - If backend is `ollama`:
-	- force CPU path
-	- use `source scripts/setup_env.sh -b ollama`
+  - force CPU path
+  - use `source scripts/setup_env.sh -b ollama`
 - If backend is `openvino` and device is `gpu`:
-	- use `source scripts/setup_env.sh -d gpu`
-	- if `/dev/dri/render*` does not exist, warn and fall back to CPU path
+  - use `source scripts/setup_env.sh -d gpu`
+  - if `/dev/dri/render*` does not exist, warn and fall back to CPU path
 - Else:
-	- use `source scripts/setup_env.sh` (OpenVINO CPU)
+  - use `source scripts/setup_env.sh` (OpenVINO CPU)
 
 ## Deployment Workflow
 
@@ -178,9 +179,9 @@ When handling a deploy request, include raw command output in the response as
 evidence:
 
 - `docker compose -f docker/compose.yaml ps` output showing expected services
-	as `Up`.
+  as `Up`.
 - Health check output and HTTP status from:
-	`curl -sS -w "\nHTTP_STATUS:%{http_code}\n" "http://${HOST_IP:-127.0.0.1}:8102/v1/chatqna/health"`
+  `curl -sS -w "\nHTTP_STATUS:%{http_code}\n" "http://${HOST_IP:-127.0.0.1}:8102/v1/chatqna/health"`
 
 Expected readiness indicators:
 
@@ -219,15 +220,15 @@ CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
 ## Failure Handling
 
 - `setup_env.sh` returns unsupported backend/device:
-	- correct to one of: `openvino` or `ollama`; device `cpu`/`gpu`
+  - correct to one of: `openvino` or `ollama`; device `cpu`/`gpu`
 - GPU requested but no render node:
-	- continue with OpenVINO CPU and report fallback
+  - continue with OpenVINO CPU and report fallback
 - container startup failure:
-	- collect `docker compose ... logs --tail=200`
-	- report failing service name and first actionable error
+  - collect `docker compose ... logs --tail=200`
+  - report failing service name and first actionable error
 - health check fails after startup:
-	- check backend logs and confirm `HOST_IP`, profile, and model download status
-	- note that first startup can take longer due to model download/conversion
+  - check backend logs and confirm `HOST_IP`, profile, and model download status
+  - note that first startup can take longer due to model download/conversion
 
 ## Completion Criteria
 
@@ -236,7 +237,7 @@ CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
 3. Health endpoint responds at `/v1/chatqna/health`.
 4. User gets access URL, API docs URL, exact stop command, and the image tags used.
 5. For deploy requests, response includes raw `docker compose ps` output and
-	raw health-check output with `HTTP_STATUS:200` as readiness evidence.
+  raw health-check output with `HTTP_STATUS:200` as readiness evidence.
 6. For stop requests, response includes raw `docker ps` output as termination
-	evidence, and a fully stopped state matches:
-	`CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES`
+  evidence, and a fully stopped state matches:
+  `CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES`

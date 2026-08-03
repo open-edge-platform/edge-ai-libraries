@@ -10,7 +10,8 @@
                 "Defaults runtime and device to openvino plus cpu when not provided.",
                 "Uses source scripts/setup_env.sh for default OpenVINO CPU selection.",
                 "Includes docker compose -f docker/compose.yaml up -d to start services.",
-                "Includes health validation at /v1/chatqna/health."
+                "Includes health validation at /v1/chatqna/health.",
+                "Uses concrete repository paths and avoids placeholder compose file tokens such as <compose-file>."
             ]
         },
         {
@@ -22,7 +23,7 @@
                 "Uses source scripts/setup_env.sh -d gpu for GPU profile selection.",
                 "Checks or references /dev/dri/render availability for GPU support.",
                 "Explains fallback to OpenVINO CPU when GPU render devices are missing.",
-                "Starts deployment with docker compose -f docker/compose.yaml up -d."
+                "Includes docker compose -f docker/compose.yaml up -d as the deployment start command."
             ]
         },
         {
@@ -102,7 +103,7 @@
             "expectations": [
                 "Restricts backend to openvino or ollama.",
                 "Restricts device to cpu or gpu where valid.",
-                "Provides corrected setup_env.sh invocation for a supported profile."
+                "Provides at least one corrected setup_env.sh invocation for a supported profile, for example source scripts/setup_env.sh, source scripts/setup_env.sh -d gpu, or source scripts/setup_env.sh -b ollama."
             ]
         },
         {
@@ -112,8 +113,8 @@
             "files": [],
             "expectations": [
                 "Collects docker compose -f docker/compose.yaml logs --tail=200 or similar.",
-                "Reports failing service name.",
-                "Includes first actionable error from logs."
+                "Instructs the user to identify and report the failing service name from compose status or logs.",
+                "Instructs the user to capture and report the first actionable error from logs."
             ]
         },
         {
@@ -136,7 +137,7 @@
             "expectations": [
                 "Includes export MODEL_CONFIG_PATH with an absolute config path.",
                 "Includes export HUGGINGFACEHUB_API_TOKEN as an environment variable.",
-                "Avoids hardcoding real token values in commands or files.",
+                "Uses a placeholder token value and avoids hardcoding real token values in commands or files.",
                 "Continues with a valid setup_env.sh profile selection and compose startup."
             ]
         }

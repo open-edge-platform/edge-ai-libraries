@@ -5,19 +5,40 @@
       "id": 1,
       "prompt": "My ChatQnA deployment starts, but POST /v1/chatqna/chat returns 500. I am using OpenVINO on CPU with Docker Compose. Please troubleshoot and give exact checks and fixes.",
       "expected_output": "A runtime-aware troubleshooting flow for Docker OpenVINO: health/model/chat checks, backend and compose logs, likely root causes, and verification commands.",
-      "files": []
+      "files": [],
+      "expectations": [
+        "Uses OpenVINO CPU Docker Compose path and includes source scripts/setup_env.sh.",
+        "Includes docker compose -f docker/compose.yaml ps and docker compose -f docker/compose.yaml logs --tail=200 (or similar).",
+        "Includes health and chat endpoint checks under /v1/chatqna, including POST /v1/chatqna/chat.",
+        "Includes runtime validation checks such as /v1/chatqna/model and /v1/chatqna/devices for OpenVINO.",
+        "Provides at least one likely root cause for 500 and a concrete verification command after applying the fix."
+      ]
     },
     {
       "id": 2,
       "prompt": "I deployed with Helm and the UI URL does not load. Pods are running in namespace ai-demo. Help me debug and isolate whether this is nginx/service/nodeport related.",
       "expected_output": "A Helm troubleshooting sequence using kubectl get/describe/logs plus hostIP/nodePort checks, with a concise diagnosis and corrective action.",
-      "files": []
+      "files": [],
+      "expectations": [
+        "Uses Helm/Kubernetes diagnostics in namespace ai-demo with kubectl get pods and kubectl get svc.",
+        "Includes kubectl describe pod and kubectl logs for failing components.",
+        "Includes hostIP and nodePort based access checks for nginx/UI path.",
+        "Includes endpoint probes for docs or health under /v1/chatqna and reports HTTP status.",
+        "Provides a concise nginx/service/nodeport-oriented diagnosis and a corrective action."
+      ]
     },
     {
       "id": 3,
       "prompt": "Document upload fails with 400 and sometimes 500 in ChatQnA. Show me how to troubleshoot request format vs backend ingestion/model errors.",
       "expected_output": "A document ingestion diagnostic flow validating multipart payload, supported formats, /documents behavior, and log-based root-cause guidance.",
-      "files": []
+      "files": [],
+      "expectations": [
+        "Includes /v1/chatqna/documents checks, including list and upload behavior.",
+        "Validates multipart/form-data upload with files field and supported formats such as pdf, txt, or docx.",
+        "Differentiates likely 400 causes (request format/payload) from 500 causes (backend ingestion/model/runtime errors).",
+        "Includes backend log inspection commands to isolate ingestion or embedding failures.",
+        "Provides concrete fix-and-verify steps after identifying the root cause."
+      ]
     }
   ]
 }

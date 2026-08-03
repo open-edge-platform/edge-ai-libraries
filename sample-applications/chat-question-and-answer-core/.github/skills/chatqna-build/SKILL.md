@@ -3,7 +3,7 @@ name: chatqna-build
 description: >
   Build Chat Question and Answer Core Docker images from source using direct Docker or Docker Compose build commands (backend CPU, backend GPU, backend Ollama, and UI).
   Use this skill when the user says "build chatqna", "rebuild images", "build from source", or "prepare images for deployment".
-  Dockerfiles and docker/compose.yaml are the source of truth for builds, not the Makefile.
+  Canonical build sources are docker/Dockerfile (OpenVINO backend), docker/Dockerfile.ollama (Ollama backend), ui/Dockerfile (UI), and docker/compose.yaml (compose build contexts and image names); Makefile is not the source of truth.
 license: Apache-2.0
 metadata:
   version: "1.0.0"
