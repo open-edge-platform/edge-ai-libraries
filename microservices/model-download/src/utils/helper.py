@@ -119,3 +119,29 @@ def validate_zip_contents_within_target(zf: zipfile.ZipFile, target_dir: str) ->
     # Check format requirements
     if not has_xml or not has_bin:
         raise ValueError("ZIP must contain at least one .xml and one .bin file (OpenVINO IR format).")
+
+def get_hub_config_keys(plugin, hub: str) -> list[dict]:
+        """
+        Extract and serialize configuration keys for a given hub/plugin directly via hub_config_keys(hub).
+        """
+        hub_config_fn = getattr(plugin, "hub_config_keys", None)
+        if not callable(hub_config_fn):
+            return []
+        try:
+            # Connection/configuration keys the plugin understands. These can be
+            # overridden per request via the 'override_credentials' field of
+            # POST /models/download; environment variables remain the fallback default.
+            raw_keys = hub_config_fn(hub)
+            return [
+                {
+                    "name": key.name,
+                    "description": getattr(key, "description", ""),
+                    "sensitive": getattr(key, "is_sensitive", getattr(key, "sensitive", False)),
+                    "required": getattr(key, "required", False),
+                    "group": getattr(key, "group", None),
+                }
+                for key in raw_keys
+            ]
+        except Exception:
+            # Handles mocks or unconfigured test plugins gracefully
+            return []

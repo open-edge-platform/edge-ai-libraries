@@ -82,7 +82,7 @@ The Plugin System extends the service's functionality by handling interactions w
 - **Parallel Downloads**: Optional concurrent model downloads
 - **Custom Upload API**: Upload Custom Model ZIP artifacts via `POST /models/upload`
 - **Precision Control**: Support for various model precisions (INT8, FP16, and FP32)
-- **Device Targeting**: Optimization for different compute devices (CPU, GPU, and NPU)
+- **Device Targeting**: Optimization for different compute devices (CPU, GPU, and NPU), including heterogeneous execution via `HETERO:<dev>[,<dev>...]` (e.g. `HETERO:GPU,CPU`)
 - **Caching**: Configurable model caching for improved performance
 
 ## Integration
