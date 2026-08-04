@@ -38,7 +38,11 @@ import {
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils";
-import { cn, formatErrorMessage } from "@/lib/utils.ts";
+import {
+  cn,
+  CONTENT_CONTAINER_CLASS,
+  formatErrorMessage,
+} from "@/lib/utils.ts";
 import {
   parsePipelineVariantReference,
   type PipelineVariantReference,
@@ -295,7 +299,7 @@ export const PerformanceTests = () => {
         title="Performance test in progress"
         description="This page is still polling the active performance test. Stop the test or wait for it to finish before leaving this page."
       />
-      <div className="container pl-16 mx-auto py-10">
+      <div className={CONTENT_CONTAINER_CLASS}>
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Performance Tests</h1>
           <p className="text-muted-foreground mt-2">
