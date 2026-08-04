@@ -160,11 +160,70 @@ async def lifespan(app: FastAPI):
         logger.info("Tearing down Multimodal-Dataprep Service . . .")
 
 
+# OpenAPI tag metadata. Ordering here determines the ordering in the rendered docs.
+OPENAPI_TAGS = [
+    {
+        "name": "Media Ingestion APIs",
+        "description": "Upload media and ingest it in a single call. These operations "
+        "store the media in the configured storage backend and write the resulting "
+        "embeddings to the configured vector database.",
+    },
+    {
+        "name": "Media Processing APIs",
+        "description": "Process media that is already present in the configured storage "
+        "backend, or attach to a live stream, and write the resulting embeddings to the "
+        "configured vector database.",
+    },
+    {
+        "name": "Batch Ingestion APIs",
+        "description": "Submit multiple media items in one request and track the "
+        "resulting asynchronous job.",
+    },
+    {
+        "name": "Document Processing APIs",
+        "description": "Embed free-form text (for example, a summary) and associate it "
+        "with previously ingested media.",
+    },
+    {
+        "name": "Media Management APIs",
+        "description": "List, download, and delete stored media together with their "
+        "embeddings.",
+    },
+    {"name": "Status APIs", "description": "Service health and readiness."},
+    {
+        "name": "Telemetry APIs",
+        "description": "Runtime metrics and telemetry exposed by the service.",
+    },
+]
+
+API_DESCRIPTION = f"""{settings.APP_DESC}
+
+The service is **storage agnostic** and **vector-database agnostic**. The same request
+and response contracts apply regardless of how the deployment is configured:
+
+- **Storage backend** - object storage or the local filesystem. The `bucket_name`
+  parameter identifies an object-storage bucket or, for local storage, a top-level
+  directory under the configured storage path. When omitted, the service's configured
+  default bucket is used.
+- **Vector database** - the deployment's configured vector store. Embeddings, search
+  metadata, and delete semantics are identical across backends.
+
+Optional processing parameters (`frame_interval`, `enable_object_detection`,
+`detection_confidence`) have no fixed schema default. When omitted, the service applies
+its own configured value, so the effective default is deployment specific.
+
+All failures - including validation, not-found, duplicate, upstream, and internal
+errors - are returned using the same response envelope.
+"""
+
 # Initialize FastAPI app
 app = FastAPI(
     title=settings.APP_DISPLAY_NAME,
-    description=settings.APP_DESC,
-    root_path="/v1/dataprep",
+    description=API_DESCRIPTION,
+    version=settings.APP_VERSION,
+    root_path=settings.APP_ROOT_PATH,
+    servers=[{"url": settings.APP_ROOT_PATH, "description": "Default service base path"}],
+    openapi_tags=OPENAPI_TAGS,
     lifespan=lifespan,
 )
 

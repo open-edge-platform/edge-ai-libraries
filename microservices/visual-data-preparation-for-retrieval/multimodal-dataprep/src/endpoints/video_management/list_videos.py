@@ -7,6 +7,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from src.common import DataPrepException, logger, settings
+from src.common.api_responses import error_responses
 from src.common.schema import BucketVideoListResponse, VideoInfo
 from src.core.media_ref import list_referenced_media
 from src.core.utils.common_utils import get_minio_client
@@ -21,18 +22,22 @@ router = APIRouter(tags=["Media Management APIs"])
     operation_id="listMedia",
     response_model=BucketVideoListResponse,
     response_model_exclude_none=True,
+    responses=error_responses(
+        HTTPStatus.BAD_REQUEST,
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+    ),
 )
 @validate_params
 async def list_videos(
     bucket_name: Annotated[
         Optional[str],
         Query(
-            description="The bucket name where videos are stored. If not provided, default bucket will be used."
+            description="The bucket (object storage) or top-level directory (local storage) holding the media. Defaults to the service's configured bucket when omitted."
         ),
     ] = None,
 ) -> BucketVideoListResponse:
     """
-    ### Get list of videos from Minio storage.
+    ### Get list of stored media from the configured storage backend.
 
     This endpoint retrieves a list of all media known to the service and returns their
     information. Media ingested by reference (``store_copy=false``) is included and
@@ -42,7 +47,7 @@ async def list_videos(
     - **bucket_name (str, optional) :** The bucket name where videos are stored. If not provided, default bucket will be used.
 
     #### Raises:
-    - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
+    - **502 Bad Gateway :** When the configured storage backend cannot be reached.
     - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
 
     Returns:

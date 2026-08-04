@@ -1,14 +1,16 @@
 from datetime import datetime, timezone
+from http import HTTPStatus
 from typing import Any, Dict
 
 from fastapi import APIRouter, Query
 
 from src.common.schema import TelemetryResponse
 from src.common import settings
+from src.common.api_responses import error_responses
 from src.core.telemetry.store import telemetry_store
 
 
-telemetry_router = APIRouter(tags=["Telemetry"])
+telemetry_router = APIRouter(tags=["Telemetry APIs"])
 
 def _format_timestamp(value: Any) -> str:
 	if isinstance(value, str):
@@ -42,6 +44,7 @@ def _normalize_record(record: Dict[str, Any]) -> Dict[str, Any]:
 	operation_id="listTelemetryRecords",
 	response_model=TelemetryResponse,
 	response_model_exclude_none=True,
+	responses=error_responses(HTTPStatus.INTERNAL_SERVER_ERROR),
 )
 def read_telemetry(
 	limit: int = Query(

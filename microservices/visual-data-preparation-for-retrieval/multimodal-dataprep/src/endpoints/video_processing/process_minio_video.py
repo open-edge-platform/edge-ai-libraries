@@ -12,6 +12,7 @@ from typing import Annotated, List
 from fastapi import APIRouter, Body, HTTPException
 
 from src.common import DataPrepException, Strings, logger, settings
+from src.common.api_responses import INGEST_ERRORS, error_responses
 from src.common.schema import DataPrepResponse, VideoRequest
 from src.core.dedup import check_and_register_upload, compute_content_hash, find_duplicate_video_id
 from src.core.embedding import generate_image_embedding_from_content, generate_video_embedding
@@ -61,12 +62,13 @@ def _resolve_stored_video_name(bucket_name: str, video_id: str) -> str:
     status_code=HTTPStatus.CREATED,
     response_model=DataPrepResponse,
     response_model_exclude_none=True,
+    responses=error_responses(*INGEST_ERRORS),
 )
 async def process_minio_video(
     video_request: Annotated[VideoRequest, Body(description="Video processing parameters")],
 ) -> DataPrepResponse:
     """
-    ### Processes videos stored in Minio using frame-based processing with optional object detection.
+    ### Processes stored media using frame-based processing with optional object detection.
 
     Video is processed by extracting individual frames at regular intervals (every Nth frame).
     Each frame generates its own embedding. When object detection is enabled, detected objects
@@ -81,15 +83,16 @@ async def process_minio_video(
     - **video_request (VideoRequest) :** Contains processing parameters:
        - **bucket_name (str) :** The bucket name where the video is stored (If not provided, a default bucket name will be used based on application config.)
        - **video_id (str) :** The video ID (directory) containing the video (required)
-       - **frame_interval (int) :** Extract every Nth frame for processing (default: 15, range: 1-60)
-       - **enable_object_detection (bool) :** Enable object detection and crop extraction (default: True)
-       - **detection_confidence (float) :** Confidence threshold for object detection (default: 0.85, range: 0.1-1.0)
+       - **frame_interval (int) :** Extract every Nth frame for processing (range: 1-60; defaults to the service's configured frame_interval, 15 unless overridden)
+       - **enable_object_detection (bool) :** Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)
+       - **detection_confidence (float) :** Confidence threshold for object detection (range: 0.1-1.0; defaults to the service's configured threshold, 0.85 unless overridden)
        - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
 
     #### Raises:
     - **400 Bad Request :** If required parameters are missing or invalid.
-    - **404 Not Found :** If the specified video cannot be found in Minio or no videos exist in the specified directory.
-    - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
+    - **404 Not Found :** If the specified media cannot be found, or no media exists in the specified directory.
+    - **409 Conflict :** If the media duplicates an existing item and duplicate uploads are disabled.
+    - **502 Bad Gateway :** When the configured storage backend or vector database cannot be reached.
     - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
 
     Returns:

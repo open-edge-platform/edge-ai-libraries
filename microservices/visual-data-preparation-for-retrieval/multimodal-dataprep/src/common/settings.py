@@ -3,10 +3,21 @@
 
 """Application configuration settings loaded from environment/.env via Pydantic."""
 
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from pathlib import Path
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _resolve_app_version(fallback: str = "0.0.0") -> str:
+    """Read the version declared in pyproject.toml via installed package metadata."""
+    for dist in ("multimodal-dataprep", "multimodal_dataprep"):
+        try:
+            return _pkg_version(dist)
+        except PackageNotFoundError:
+            continue
+    return fallback
 
 
 class Settings(BaseSettings):
@@ -23,6 +34,24 @@ class Settings(BaseSettings):
     APP_NAME: str = "Multimodal-Dataprep"
     APP_DISPLAY_NAME: str = "Intel GenAI Multimodal DataPrep Microservice"
     APP_DESC: str = "A microservice for data preparation from text, video and image sources"
+    APP_VERSION: str = Field(default_factory=lambda: _resolve_app_version("2.0.0"))
+    APP_ROOT_PATH: str = "/v1/dataprep"
+
+    @field_validator("APP_ROOT_PATH", mode="before")
+    @classmethod
+    def _normalize_root_path(cls, value):
+        """Reject a root path that would silently produce unroutable URLs.
+
+        The value is both the ASGI ``root_path`` and the ``servers`` entry in the
+        OpenAPI document, so a malformed override must fail at startup rather
+        than at request time.
+        """
+        if value in (None, ""):
+            return "/"
+        path = str(value).strip()
+        if not path.startswith("/"):
+            raise ValueError(f"APP_ROOT_PATH must start with '/', got: {path!r}")
+        return path if path == "/" else path.rstrip("/")
     APP_PORT: int = 8000
     APP_HOST: str = ""
 

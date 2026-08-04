@@ -1,16 +1,28 @@
 openapi: 3.1.0
 info:
   title: Intel GenAI Multimodal DataPrep Microservice
-  description: A microservice for data preparation from text, video and image sources
-  version: 0.1.0
+  description: "A microservice for data preparation from text, video and image sources\n\nThe service\
+    \ is **storage agnostic** and **vector-database agnostic**. The same request\nand response contracts\
+    \ apply regardless of how the deployment is configured:\n\n- **Storage backend** - object storage\
+    \ or the local filesystem. The `bucket_name`\n  parameter identifies an object-storage bucket or,\
+    \ for local storage, a top-level\n  directory under the configured storage path. When omitted, the\
+    \ service's configured\n  default bucket is used.\n- **Vector database** - the deployment's configured\
+    \ vector store. Embeddings, search\n  metadata, and delete semantics are identical across backends.\n\
+    \nOptional processing parameters (`frame_interval`, `enable_object_detection`,\n`detection_confidence`)\
+    \ have no fixed schema default. When omitted, the service applies\nits own configured value, so the\
+    \ effective default is deployment specific.\n\nAll failures - including validation, not-found, duplicate,\
+    \ upstream, and internal\nerrors - are returned using the same response envelope.\n"
+  version: 2.0.0
+servers:
+- url: /v1/dataprep
+  description: Default service base path
 paths:
   /health:
     get:
       tags:
       - Status APIs
       summary: Check service health
-      description: Health API endpoint to check whether API Server is reachable and
-        responding.
+      description: Health API endpoint to check whether API Server is reachable and responding.
       operationId: getServiceHealth
       responses:
         '200':
@@ -23,25 +35,22 @@ paths:
     post:
       tags:
       - Document Processing APIs
-      summary: Process summary text with video timestamp references for embedding
-        generation.
-      description: "### Process summary text for a video with video timestamp references\
-        \ for embedding generation.\n\nThis endpoint takes a summary text and video\
-        \ timestamp references, validates that the video exists,\nand stores the text\
-        \ embedding in the VDMS vector database with the associated video metadata.\n\
-        \n#### Body Params:\n   - **bucket_name (str) :** The bucket name where the\
-        \ referenced video is stored\n   - **video_id (str) :** The video ID (directory)\
-        \ containing the referenced video\n   - **video_summary (str) :** The text\
-        \ summary for the video to be embedded\n   - **video_start_time (float) :**\
-        \ The start timestamp in seconds for the video or video chunk\n   - **video_end_time\
-        \ (float) :** The end timestamp in seconds for the video or video chunk\n\
-        \   - **tags (list(str)) :** A list of tags to be associated with the video.\
-        \ Useful for filtering the search.\n   \n#### Raises:\n- **400 Bad Request\
-        \ :** If required parameters are missing or invalid.\n- **404 Not Found :**\
-        \ If the specified video cannot be found in Minio.\n- **502 Bad Gateway :**\
-        \ When something unpleasant happens at Minio storage.\n- **500 Internal Server\
-        \ Error :** When some internal error occurs at DataPrep API server.\n\nReturns:\n\
-        - **response (json) :** A response JSON containing status and message."
+      summary: Process summary text with video timestamp references for embedding generation.
+      description: "### Process summary text for a video with video timestamp references for embedding\
+        \ generation.\n\nThis endpoint takes a summary text and video timestamp references, validates\
+        \ that the video exists,\nand stores the text embedding in the configured vector database with\
+        \ the associated video metadata.\n\n#### Body Params:\n   - **bucket_name (str) :** The bucket\
+        \ name where the referenced video is stored\n   - **video_id (str) :** The video ID (directory)\
+        \ containing the referenced video\n   - **video_summary (str) :** The text summary for the video\
+        \ to be embedded\n   - **video_start_time (float) :** The start timestamp in seconds for the video\
+        \ or video chunk\n   - **video_end_time (float) :** The end timestamp in seconds for the video\
+        \ or video chunk\n   - **tags (list(str)) :** A list of tags to be associated with the video.\
+        \ Useful for filtering the search.\n   \n#### Raises:\n- **400 Bad Request :** If required parameters\
+        \ are missing or invalid.\n- **404 Not Found :** If the specified video cannot be found in the\
+        \ configured storage backend.\n- **502 Bad Gateway :** When the configured storage backend or\
+        \ vector database cannot be reached.\n- **500 Internal Server Error :** When some internal error\
+        \ occurs at DataPrep API server.\n\nReturns:\n- **response (json) :** A response JSON containing\
+        \ status and message."
       operationId: createVideoSummaryEmbedding
       requestBody:
         content:
@@ -57,6 +66,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DataPrepResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
@@ -67,34 +102,31 @@ paths:
     post:
       tags:
       - Media Processing APIs
-      summary: Process media (video or image) already stored in object storage for
-        embedding generation.
-      description: "### Processes videos stored in Minio using frame-based processing\
-        \ with optional object detection.\n\nVideo is processed by extracting individual\
-        \ frames at regular intervals (every Nth frame).\nEach frame generates its\
-        \ own embedding. When object detection is enabled, detected objects\nare cropped\
-        \ and embedded as separate entities, providing enhanced semantic coverage.\n\
-        \n***For example:** Given a video of 30s at 30fps (900 frames total), with\
-        \ frame_interval = 15,\n60 frames will be extracted and embedded (every 15th\
-        \ frame). If object detection is enabled\nand 3 objects are detected per frame\
-        \ on average, this results in approximately 240 embeddings\n(60 frames + 180\
-        \ object crops).**\n\n#### Body Params:\n- **video_request (VideoRequest)\
-        \ :** Contains processing parameters:\n   - **bucket_name (str) :** The bucket\
-        \ name where the video is stored (If not provided, a default bucket name will\
-        \ be used based on application config.)\n   - **video_id (str) :** The video\
-        \ ID (directory) containing the video (required)\n   - **frame_interval (int)\
-        \ :** Extract every Nth frame for processing (default: 15, range: 1-60)\n\
-        \   - **enable_object_detection (bool) :** Enable object detection and crop\
-        \ extraction (default: True)\n   - **detection_confidence (float) :** Confidence\
-        \ threshold for object detection (default: 0.85, range: 0.1-1.0)\n   - **tags\
-        \ (list(str), optional) :** A list of tags to be associated with the video.\
-        \ Useful for filtering the search.\n\n#### Raises:\n- **400 Bad Request :**\
-        \ If required parameters are missing or invalid.\n- **404 Not Found :** If\
-        \ the specified video cannot be found in Minio or no videos exist in the specified\
-        \ directory.\n- **502 Bad Gateway :** When something unpleasant happens at\
-        \ Minio storage.\n- **500 Internal Server Error :** When some internal error\
-        \ occurs at DataPrep API server.\n\nReturns:\n- **response (json) :** A response\
-        \ JSON containing status and message."
+      summary: Process media (video or image) already stored in object storage for embedding generation.
+      description: "### Processes stored media using frame-based processing with optional object detection.\n\
+        \nVideo is processed by extracting individual frames at regular intervals (every Nth frame).\n\
+        Each frame generates its own embedding. When object detection is enabled, detected objects\nare\
+        \ cropped and embedded as separate entities, providing enhanced semantic coverage.\n\n***For example:**\
+        \ Given a video of 30s at 30fps (900 frames total), with frame_interval = 15,\n60 frames will\
+        \ be extracted and embedded (every 15th frame). If object detection is enabled\nand 3 objects\
+        \ are detected per frame on average, this results in approximately 240 embeddings\n(60 frames\
+        \ + 180 object crops).**\n\n#### Body Params:\n- **video_request (VideoRequest) :** Contains processing\
+        \ parameters:\n   - **bucket_name (str) :** The bucket name where the video is stored (If not\
+        \ provided, a default bucket name will be used based on application config.)\n   - **video_id\
+        \ (str) :** The video ID (directory) containing the video (required)\n   - **frame_interval (int)\
+        \ :** Extract every Nth frame for processing (range: 1-60; defaults to the service's configured\
+        \ frame_interval, 15 unless overridden)\n   - **enable_object_detection (bool) :** Enable object\
+        \ detection and crop extraction (defaults to the service's configured setting, enabled unless\
+        \ overridden)\n   - **detection_confidence (float) :** Confidence threshold for object detection\
+        \ (range: 0.1-1.0; defaults to the service's configured threshold, 0.85 unless overridden)\n \
+        \  - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for\
+        \ filtering the search.\n\n#### Raises:\n- **400 Bad Request :** If required parameters are missing\
+        \ or invalid.\n- **404 Not Found :** If the specified media cannot be found, or no media exists\
+        \ in the specified directory.\n- **409 Conflict :** If the media duplicates an existing item and\
+        \ duplicate uploads are disabled.\n- **502 Bad Gateway :** When the configured storage backend\
+        \ or vector database cannot be reached.\n- **500 Internal Server Error :** When some internal\
+        \ error occurs at DataPrep API server.\n\nReturns:\n- **response (json) :** A response JSON containing\
+        \ status and message."
       operationId: processStoredMedia
       requestBody:
         content:
@@ -106,6 +138,40 @@ paths:
       responses:
         '201':
           description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '409':
+          description: The upload duplicates media that is already stored. Returned only when duplicate
+            uploads are disabled (``ALLOW_DUPLICATE_UPLOADS=false``); the message carries the existing
+            ``video_id``.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
           content:
             application/json:
               schema:
@@ -137,63 +203,54 @@ paths:
         embedding is discriminated by the ``content_type`` metadata field.
 
 
-        Video is processed by extracting individual frames at regular intervals (every
-        Nth frame).
+        Video is processed by extracting individual frames at regular intervals (every Nth frame).
 
-        Each frame generates its own embedding. When object detection is enabled,
-        detected objects
+        Each frame generates its own embedding. When object detection is enabled, detected objects
 
-        are cropped and embedded as separate entities, providing enhanced semantic
-        coverage.
+        are cropped and embedded as separate entities, providing enhanced semantic coverage.
 
 
-        ***For example:** Given a video of 30s at 30fps (900 frames total), with frame_interval
-        = 15,
+        ***For example:** Given a video of 30s at 30fps (900 frames total), with frame_interval = 15,
 
-        60 frames will be extracted and embedded (every 15th frame). If object detection
-        is enabled
+        60 frames will be extracted and embedded (every 15th frame). If object detection is enabled
 
-        and suppose 3 objects are detected per frame on average, this results in approximately
-        240 embeddings
+        and suppose 3 objects are detected per frame on average, this results in approximately 240 embeddings
 
         (60 frames + 180 object crops).**
 
 
         #### File Upload:
 
-        - **file (UploadFile, required) :** Video file to upload (MP4 format only,
-        max size 500MB)
+        - **file (UploadFile, required) :** Video file to upload (MP4 format only, max size 500MB)
 
 
         #### Query Params:
 
-        - **bucket_name (str, optional) :** The bucket name to store the video in.
-        If not provided, default bucket will be used.
+        - **bucket_name (str, optional) :** The bucket name to store the video in. If not provided, default
+        bucket will be used.
 
-        - **frame_interval (int, optional) :** Extract every Nth frame for processing
-        (default: 15, range: 1-60)
+        - **frame_interval (int, optional) :** Extract every Nth frame for processing (range: 1-60; defaults
+        to the service''s configured frame_interval, 15 unless overridden)
 
-        - **enable_object_detection (bool, optional) :** Enable object detection and
-        crop extraction (default: True)
+        - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (defaults
+        to the service''s configured setting, enabled unless overridden)
 
-        - **detection_confidence (float, optional) :** Confidence threshold for object
-        detection (default: 0.85, range: 0.1-1.0)
+        - **detection_confidence (float, optional) :** Confidence threshold for object detection (range:
+        0.1-1.0; defaults to the service''s configured threshold, 0.85 unless overridden)
 
-        - **tags (list(str), optional) :** A list of tags to be associated with the
-        video. Useful for filtering the search.
+        - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for
+        filtering the search.
 
 
         #### Raises:
 
         - **400 Bad Request :** If the video file is not an MP4 or fails validation.
 
-        - **413 Request Entity Too Large :** If the uploaded file exceeds the 500MB
-        limit.
+        - **413 Request Entity Too Large :** If the uploaded file exceeds the 500MB limit.
 
-        - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
+        - **502 Bad Gateway :** When the configured storage backend or vector database cannot be reached.
 
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep
-        API server.
+        - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
 
 
         Returns:
@@ -208,11 +265,11 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: The bucket name to store the video in. If not provided, default
-            bucket will be used.
+          description: The bucket (object storage) or top-level directory (local storage) to store the
+            media in. Defaults to the service's configured bucket when omitted.
           title: Bucket Name
-        description: The bucket name to store the video in. If not provided, default
-          bucket will be used.
+        description: The bucket (object storage) or top-level directory (local storage) to store the media
+          in. Defaults to the service's configured bucket when omitted.
       - name: frame_interval
         in: query
         required: false
@@ -222,9 +279,11 @@ paths:
             maximum: 60
             minimum: 1
           - type: 'null'
-          description: 'Extract every Nth frame for processing (default: 15)'
+          description: Extract every Nth frame for processing (defaults to the service's configured frame_interval,
+            15 unless overridden)
           title: Frame Interval
-        description: 'Extract every Nth frame for processing (default: 15)'
+        description: Extract every Nth frame for processing (defaults to the service's configured frame_interval,
+          15 unless overridden)
       - name: enable_object_detection
         in: query
         required: false
@@ -232,9 +291,11 @@ paths:
           anyOf:
           - type: boolean
           - type: 'null'
-          description: 'Enable object detection and crop extraction (default: True)'
+          description: Enable object detection and crop extraction (defaults to the service's configured
+            setting, enabled unless overridden)
           title: Enable Object Detection
-        description: 'Enable object detection and crop extraction (default: True)'
+        description: Enable object detection and crop extraction (defaults to the service's configured
+          setting, enabled unless overridden)
       - name: detection_confidence
         in: query
         required: false
@@ -244,9 +305,11 @@ paths:
             maximum: 1.0
             minimum: 0.1
           - type: 'null'
-          description: 'Confidence threshold for object detection (default: 0.85)'
+          description: Confidence threshold for object detection (defaults to the service's configured
+            threshold, 0.85 unless overridden)
           title: Detection Confidence
-        description: 'Confidence threshold for object detection (default: 0.85)'
+        description: Confidence threshold for object detection (defaults to the service's configured threshold,
+          0.85 unless overridden)
       - name: tags
         in: query
         required: false
@@ -256,11 +319,9 @@ paths:
             items:
               type: string
           - type: 'null'
-          description: List of tags to be associated with the video. Useful for filtering
-            the search.
+          description: List of tags to be associated with the video. Useful for filtering the search.
           title: Tags
-        description: List of tags to be associated with the video. Useful for filtering
-          the search.
+        description: List of tags to be associated with the video. Useful for filtering the search.
       requestBody:
         required: true
         content:
@@ -270,6 +331,40 @@ paths:
       responses:
         '201':
           description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '409':
+          description: The upload duplicates media that is already stored. Returned only when duplicate
+            uploads are disabled (``ALLOW_DUPLICATE_UPLOADS=false``); the message carries the existing
+            ``video_id``.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
           content:
             application/json:
               schema:
@@ -288,50 +383,47 @@ paths:
       description: '### Process RTSP stream URLs for frame-based embedding generation.
 
 
-        This endpoint accepts a list of RTSP stream URLs, validates them, and generates
-        embeddings
+        This endpoint accepts a list of RTSP stream URLs, validates them, and generates embeddings
 
         using frame-based processing with optional object detection.
 
 
-        Each RTSP stream is processed by extracting individual frames at regular intervals
-        (every Nth frame).
+        Each RTSP stream is processed by extracting individual frames at regular intervals (every Nth
+        frame).
 
-        Each frame generates its own embedding. When object detection is enabled and
-        suppose 3 objects are detected per frame on average, this results in approximately
-        240 embeddings
+        Each frame generates its own embedding. When object detection is enabled and suppose 3 objects
+        are detected per frame on average, this results in approximately 240 embeddings
 
-        (60 frames + 180 object crops) per video. The generated embeddings are stored
-        in the vector database with associated metadata and tags.
+        (60 frames + 180 object crops) per video. The generated embeddings are stored in the vector database
+        with associated metadata and tags.
 
 
         #### Query Params:
 
-        - **rtsp_urls (list(str), required) :** List of RTSP stream URLs to process.
-        Each URL will be validated and processed for embedding generation.
+        - **rtsp_urls (list(str), required) :** List of RTSP stream URLs to process. Each URL will be
+        validated and processed for embedding generation.
 
-        - **frame_interval (int, optional) :** Extract every Nth frame for processing
-        (default: 15, range: 1-60)
+        - **frame_interval (int, optional) :** Extract every Nth frame for processing (range: 1-60; defaults
+        to the service''s configured frame_interval, 15 unless overridden)
 
-        - **enable_object_detection (bool, optional) :** Enable object detection and
-        crop extraction (default: True)
+        - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (defaults
+        to the service''s configured setting, enabled unless overridden)
 
-        - **detection_confidence (float, optional) :** Confidence threshold for object
-        detection (default: 0.85, range: 0.1-1.0)
+        - **detection_confidence (float, optional) :** Confidence threshold for object detection (range:
+        0.1-1.0; defaults to the service''s configured threshold, 0.85 unless overridden)
 
-        - **tags (list(str), optional) :** A list of tags to be associated with the
-        videos. Useful for filtering the search.
+        - **tags (list(str), optional) :** A list of tags to be associated with the videos. Useful for
+        filtering the search.
 
 
         #### Raises:
 
         - **400 Bad Request :** If any of the RTSP URLs are invalid or fail validation.
 
-        - **502 Bad Gateway :** When something unpleasant happens at Minio storage
-        or during stream access.
+        - **502 Bad Gateway :** When the configured storage backend cannot be reached, or during stream
+        access.
 
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep
-        API server.
+        - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
 
 
         Returns:
@@ -346,11 +438,11 @@ paths:
           type: array
           items:
             type: string
-          description: List of RTSP stream URLs to process. Each URL will be validated
-            and processed for embedding generation.
+          description: List of RTSP stream URLs to process. Each URL will be validated and processed for
+            embedding generation.
           title: Rtsp Urls
-        description: List of RTSP stream URLs to process. Each URL will be validated
-          and processed for embedding generation.
+        description: List of RTSP stream URLs to process. Each URL will be validated and processed for
+          embedding generation.
       - name: frame_interval
         in: query
         required: false
@@ -360,9 +452,11 @@ paths:
             maximum: 60
             minimum: 1
           - type: 'null'
-          description: 'Extract every Nth frame for processing (default: 15)'
+          description: Extract every Nth frame for processing (defaults to the service's configured frame_interval,
+            15 unless overridden)
           title: Frame Interval
-        description: 'Extract every Nth frame for processing (default: 15)'
+        description: Extract every Nth frame for processing (defaults to the service's configured frame_interval,
+          15 unless overridden)
       - name: enable_object_detection
         in: query
         required: false
@@ -370,9 +464,11 @@ paths:
           anyOf:
           - type: boolean
           - type: 'null'
-          description: 'Enable object detection and crop extraction (default: True)'
+          description: Enable object detection and crop extraction (defaults to the service's configured
+            setting, enabled unless overridden)
           title: Enable Object Detection
-        description: 'Enable object detection and crop extraction (default: True)'
+        description: Enable object detection and crop extraction (defaults to the service's configured
+          setting, enabled unless overridden)
       - name: detection_confidence
         in: query
         required: false
@@ -382,9 +478,11 @@ paths:
             maximum: 1.0
             minimum: 0.1
           - type: 'null'
-          description: 'Confidence threshold for object detection (default: 0.85)'
+          description: Confidence threshold for object detection (defaults to the service's configured
+            threshold, 0.85 unless overridden)
           title: Detection Confidence
-        description: 'Confidence threshold for object detection (default: 0.85)'
+        description: Confidence threshold for object detection (defaults to the service's configured threshold,
+          0.85 unless overridden)
       - name: tags
         in: query
         required: false
@@ -394,14 +492,32 @@ paths:
             items:
               type: string
           - type: 'null'
-          description: List of tags to be associated with the videos. Useful for filtering
-            the search.
+          description: List of tags to be associated with the videos. Useful for filtering the search.
           title: Tags
-        description: List of tags to be associated with the videos. Useful for filtering
-          the search.
+        description: List of tags to be associated with the videos. Useful for filtering the search.
       responses:
         '200':
           description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
           content:
             application/json:
               schema:
@@ -416,10 +532,9 @@ paths:
     post:
       tags:
       - Batch Ingestion APIs
-      summary: Upload and process multiple media files (videos and/or images) as an
-        async batch job.
-      description: Accept multiple media uploads (videos and/or images), stash them
-        to storage, and submit one async job.
+      summary: Upload and process multiple media files (videos and/or images) as an async batch job.
+      description: Accept multiple media uploads (videos and/or images), stash them to storage, and submit
+        one async job.
       operationId: uploadAndProcessMediaBatch
       parameters:
       - name: bucket_name
@@ -441,9 +556,11 @@ paths:
             maximum: 60
             minimum: 1
           - type: 'null'
-          description: 'Extract every Nth frame (default: 15).'
+          description: Extract every Nth frame (defaults to the service's configured frame_interval, 15
+            unless overridden).
           title: Frame Interval
-        description: 'Extract every Nth frame (default: 15).'
+        description: Extract every Nth frame (defaults to the service's configured frame_interval, 15
+          unless overridden).
       - name: enable_object_detection
         in: query
         required: false
@@ -491,6 +608,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchSubmitResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '409':
+          description: The upload duplicates media that is already stored. Returned only when duplicate
+            uploads are disabled (``ALLOW_DUPLICATE_UPLOADS=false``); the message carries the existing
+            ``video_id``.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
@@ -501,8 +652,7 @@ paths:
     post:
       tags:
       - Batch Ingestion APIs
-      summary: Batch-process media (videos/images) already present in storage (async
-        batch job).
+      summary: Batch-process media (videos/images) already present in storage (async batch job).
       description: 'Submit an async job over videos that already exist in storage.
 
 
@@ -524,6 +674,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchSubmitResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
@@ -534,10 +710,9 @@ paths:
     post:
       tags:
       - Batch Ingestion APIs
-      summary: Ingest all supported media (videos and images) from a mounted directory
-        (async batch job).
-      description: Walk a mounted directory, stash each supported media file into
-        storage, and submit one async job.
+      summary: Ingest all supported media (videos and images) from a mounted directory (async batch job).
+      description: Walk a mounted directory, stash each supported media file into storage, and submit
+        one async job.
       operationId: ingestDirectory
       requestBody:
         content:
@@ -553,6 +728,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchSubmitResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
@@ -564,8 +765,7 @@ paths:
       tags:
       - Batch Ingestion APIs
       summary: Get the status and per-item results of a batch job.
-      description: Return the current state and per-item results of a batch job (404
-        if unknown).
+      description: Return the current state and per-item results of a batch job (404 if unknown).
       operationId: getBatchJobStatus
       parameters:
       - name: job_id
@@ -581,6 +781,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchJobStatus'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
@@ -607,6 +826,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchJobStatus'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
@@ -618,12 +856,10 @@ paths:
       tags:
       - Media Ingestion APIs
       summary: Ingest a single image from a JSON source (base64 or URL).
-      description: 'Decode/download a single image, store it, and generate embeddings
-        synchronously.
+      description: 'Decode/download a single image, store it, and generate embeddings synchronously.
 
 
-        The image bytes (from base64 or a downloaded URL) are the trust boundary:
-        the
+        The image bytes (from base64 or a downloaded URL) are the trust boundary: the
 
         real format is sniffed to derive the stored extension, then the image is
 
@@ -647,6 +883,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DataPrepResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '409':
+          description: The upload duplicates media that is already stored. Returned only when duplicate
+            uploads are disabled (``ALLOW_DUPLICATE_UPLOADS=false``); the message carries the existing
+            ``video_id``.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
@@ -657,10 +927,8 @@ paths:
     post:
       tags:
       - Media Ingestion APIs
-      summary: Ingest multiple images from JSON sources (base64/URL) as an async batch
-        job.
-      description: 'Decode/download and stash each image, then submit one async job
-        over them.
+      summary: Ingest multiple images from JSON sources (base64/URL) as an async batch job.
+      description: 'Decode/download and stash each image, then submit one async job over them.
 
 
         Each image is validated + persisted before the 202 (the base64/URL bytes are
@@ -683,6 +951,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchSubmitResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '409':
+          description: The upload duplicates media that is already stored. Returned only when duplicate
+            uploads are disabled (``ALLOW_DUPLICATE_UPLOADS=false``); the message carries the existing
+            ``video_id``.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
@@ -692,7 +994,7 @@ paths:
   /telemetry:
     get:
       tags:
-      - Telemetry
+      - Telemetry APIs
       summary: Get recent telemetry records
       description: Return the most recent telemetry entries (newest first).
       operationId: listTelemetryRecords
@@ -715,6 +1017,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TelemetryResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
@@ -726,36 +1034,32 @@ paths:
       tags:
       - Media Management APIs
       summary: List stored media (videos and images) in a bucket.
-      description: '### Get list of videos from Minio storage.
+      description: '### Get list of stored media from the configured storage backend.
 
 
-        This endpoint retrieves a list of all media known to the service and returns
-        their
+        This endpoint retrieves a list of all media known to the service and returns their
 
-        information. Media ingested by reference (``store_copy=false``) is included
-        and
+        information. Media ingested by reference (``store_copy=false``) is included and
 
         flagged with ``stored=false``, carrying its host-visible ``source_path``.
 
 
         #### Query Params:
 
-        - **bucket_name (str, optional) :** The bucket name where videos are stored.
-        If not provided, default bucket will be used.
+        - **bucket_name (str, optional) :** The bucket name where videos are stored. If not provided,
+        default bucket will be used.
 
 
         #### Raises:
 
-        - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
+        - **502 Bad Gateway :** When the configured storage backend cannot be reached.
 
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep
-        API server.
+        - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
 
 
         Returns:
 
-        - **response (json) :** A response JSON containing list of videos with their
-        information.'
+        - **response (json) :** A response JSON containing list of videos with their information.'
       operationId: listMedia
       parameters:
       - name: bucket_name
@@ -765,11 +1069,11 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: The bucket name where videos are stored. If not provided, default
-            bucket will be used.
+          description: The bucket (object storage) or top-level directory (local storage) holding the
+            media. Defaults to the service's configured bucket when omitted.
           title: Bucket Name
-        description: The bucket name where videos are stored. If not provided, default
-          bucket will be used.
+        description: The bucket (object storage) or top-level directory (local storage) holding the media.
+          Defaults to the service's configured bucket when omitted.
       responses:
         '200':
           description: Successful Response
@@ -777,6 +1081,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BucketVideoListResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
@@ -791,7 +1108,7 @@ paths:
       description: '### Download or stream a video from storage.
 
 
-        Streams a video from the active storage backend (MinIO or local filesystem).
+        Streams stored media from the active storage backend (object storage or local filesystem).
 
         The endpoint advertises ``Accept-Ranges: bytes`` and honours the HTTP
 
@@ -814,14 +1131,13 @@ paths:
 
         #### Query Params:
 
-        - **video_id (str, required) :** The video ID (directory) containing the video
-        to download.
+        - **video_id (str, required) :** The video ID (directory) containing the video to download.
 
-        - **bucket_name (str, optional) :** The bucket where the video is stored.
-        Defaults to the configured bucket.
+        - **bucket_name (str, optional) :** The bucket where the video is stored. Defaults to the configured
+        bucket.
 
-        - **download (bool, optional) :** Set to true to force a file download (``attachment``)
-        instead of inline streaming.
+        - **download (bool, optional) :** Set to true to force a file download (``attachment``) instead
+        of inline streaming.
 
 
         #### Raises:
@@ -830,8 +1146,7 @@ paths:
 
         - **404 Not Found :** If the specified video cannot be found.
 
-        - **416 Range Not Satisfiable :** If the requested byte range is invalid for
-        the object.
+        - **416 Range Not Satisfiable :** If the requested byte range is invalid for the object.
 
         - **500 Internal Server Error :** On an internal error.
 
@@ -856,11 +1171,11 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: The bucket name where the video is stored. If not provided,
-            default bucket will be used.
+          description: The bucket (object storage) or top-level directory (local storage) holding the
+            media. Defaults to the service's configured bucket when omitted.
           title: Bucket Name
-        description: The bucket name where the video is stored. If not provided, default
-          bucket will be used.
+        description: The bucket (object storage) or top-level directory (local storage) holding the media.
+          Defaults to the service's configured bucket when omitted.
       - name: download
         in: query
         required: false
@@ -872,21 +1187,45 @@ paths:
         description: Set to true to download the file instead of streaming it
       responses:
         '200':
-          description: Full video stream response
+          description: Full media stream. The Content-Type reflects the stored media (for example video/mp4
+            or image/jpeg).
           content:
-            video/mp4:
+            application/octet-stream:
               schema:
                 type: string
                 format: binary
         '206':
-          description: Partial video stream response (byte range).
+          description: Partial media stream (byte range).
           content:
-            video/mp4:
+            application/octet-stream:
               schema:
                 type: string
                 format: binary
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '416':
-          description: The requested byte range cannot be satisfied.
+          description: The requested byte range lies outside the stored object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
@@ -897,21 +1236,18 @@ paths:
     delete:
       tags:
       - Media Management APIs
-      summary: Delete every media item in a bucket from storage and all its embeddings
-        from the vector DB.
+      summary: Delete every media item in a bucket from storage and all its embeddings from the vector
+        DB.
       description: '### Clear a bucket: delete all stored media and all of its embeddings.
 
 
-        The bucket-wide counterpart of ``DELETE /media/{bucket_name}/{video_id}``,
-        for
+        The bucket-wide counterpart of ``DELETE /media/{bucket_name}/{video_id}``, for
 
-        resetting an ingested collection in one call. Embeddings are removed first,
-        so
+        resetting an ingested collection in one call. Embeddings are removed first, so
 
         a failure never leaves orphaned vectors behind. Vectors are deleted by
 
-        ``bucket_name``, which also clears embeddings of media that was referenced
-        in
+        ``bucket_name``, which also clears embeddings of media that was referenced in
 
         place (``store_copy=false``) and therefore has no stored objects.
 
@@ -925,11 +1261,9 @@ paths:
 
         - **400 Bad Request :** If the bucket name is missing or invalid.
 
-        - **502 Bad Gateway :** When something unpleasant happens at the storage backend
-        or vector DB.
+        - **502 Bad Gateway :** When something unpleasant happens at the storage backend or vector DB.
 
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep
-        API server.
+        - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
 
 
         Returns:
@@ -942,12 +1276,34 @@ paths:
         required: true
         schema:
           type: string
-          description: The bucket name whose media and embeddings are to be deleted
+          description: The bucket (object storage) or top-level directory (local storage) whose media
+            and embeddings are to be deleted.
           title: Bucket Name
-        description: The bucket name whose media and embeddings are to be deleted
+        description: The bucket (object storage) or top-level directory (local storage) whose media and
+          embeddings are to be deleted.
       responses:
         '200':
           description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
           content:
             application/json:
               schema:
@@ -962,10 +1318,8 @@ paths:
     delete:
       tags:
       - Media Management APIs
-      summary: Delete a media item (video or image) from storage and its embeddings
-        from the vector DB.
-      description: '### Delete a video from storage and its embeddings from the vector
-        DB.
+      summary: Delete a media item (video or image) from storage and its embeddings from the vector DB.
+      description: '### Delete a video from storage and its embeddings from the vector DB.
 
 
         This endpoint deletes a video (the single file under a ``video_id`` directory)
@@ -981,8 +1335,7 @@ paths:
 
         - **bucket_name (str, required) :** The bucket name where the video is stored
 
-        - **video_id (str, required) :** The video ID (directory) containing the video
-        to delete
+        - **video_id (str, required) :** The video ID (directory) containing the video to delete
 
 
         #### Raises:
@@ -991,11 +1344,9 @@ paths:
 
         - **404 Not Found :** If no video exists in the specified directory.
 
-        - **502 Bad Gateway :** When something unpleasant happens at the storage backend
-        or vector DB.
+        - **502 Bad Gateway :** When something unpleasant happens at the storage backend or vector DB.
 
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep
-        API server.
+        - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
 
 
         Returns:
@@ -1008,9 +1359,10 @@ paths:
         required: true
         schema:
           type: string
-          description: The bucket name where the video is stored
+          description: The bucket (object storage) or top-level directory (local storage) holding the
+            media.
           title: Bucket Name
-        description: The bucket name where the video is stored
+        description: The bucket (object storage) or top-level directory (local storage) holding the media.
       - name: video_id
         in: path
         required: true
@@ -1022,6 +1374,32 @@ paths:
       responses:
         '200':
           description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
           content:
             application/json:
               schema:
@@ -1171,7 +1549,8 @@ components:
             minimum: 1.0
           - type: 'null'
           title: Frame Interval
-          description: 'Extract every Nth frame (default: 15).'
+          description: Extract every Nth frame (defaults to the service's configured frame_interval, 15
+            unless overridden).
         enable_object_detection:
           anyOf:
           - type: boolean
@@ -1196,8 +1575,7 @@ components:
           description: Tags associated with every video in the batch.
       type: object
       title: BatchProcessExistingRequest
-      description: 'Request model for batch-processing videos that already exist in
-        storage.
+      description: 'Request model for batch-processing videos that already exist in storage.
 
 
         Either provide an explicit list of ``items`` (per-video overrides), or a
@@ -1206,8 +1584,7 @@ components:
 
         video found in that bucket. Selector-level ``frame_interval`` /
 
-        ``enable_object_detection`` / ``detection_confidence`` / ``tags`` apply to
-        all
+        ``enable_object_detection`` / ``detection_confidence`` / ``tags`` apply to all
 
         videos matched by the selector.'
     BatchSubmitResponse:
@@ -1300,8 +1677,7 @@ components:
         dir_path:
           type: string
           title: Dir Path
-          description: Directory to ingest, relative to the configured ingest data
-            root.
+          description: Directory to ingest, relative to the configured ingest data root.
         bucket_name:
           anyOf:
           - type: string
@@ -1320,7 +1696,8 @@ components:
             minimum: 1.0
           - type: 'null'
           title: Frame Interval
-          description: 'Extract every Nth frame (default: 15).'
+          description: Extract every Nth frame (defaults to the service's configured frame_interval, 15
+            unless overridden).
         enable_object_detection:
           anyOf:
           - type: boolean
@@ -1346,10 +1723,9 @@ components:
         store_copy:
           type: boolean
           title: Store Copy
-          description: Copy each file into the storage backend. Set to false to reference
-            files in place on the mounted ingest root (no on-disk duplication); referenced
-            media is still duplicate-checked, listed by GET /media and streamable
-            via GET /media/download.
+          description: Copy each file into the storage backend. Set to false to reference files in place
+            on the mounted ingest root (no on-disk duplication); referenced media is still duplicate-checked,
+            listed by GET /media and streamable via GET /media/download.
           default: true
         metadata:
           anyOf:
@@ -1357,10 +1733,9 @@ components:
             type: object
           - type: 'null'
           title: Metadata
-          description: Caller-supplied metadata applied to every ingested file and
-            persisted as filterable fields. A meta/<basename>.json sidecar may supply
-            per-file metadata, which takes precedence on key collisions. Keys colliding
-            with the canonical metadata contract are rejected with 400.
+          description: Caller-supplied metadata applied to every ingested file and persisted as filterable
+            fields. A meta/<basename>.json sidecar may supply per-file metadata, which takes precedence
+            on key collisions. Keys colliding with the canonical metadata contract are rejected with 400.
       type: object
       required:
       - dir_path
@@ -1372,7 +1747,7 @@ components:
 
         submits every supported media file as a batch job. Mirrors the EOL
 
-        milvus-dataprep host-directory ingest contract.'
+        host-directory ingest contract of the retired dataprep service.'
     HTTPValidationError:
       properties:
         detail:
@@ -1492,8 +1867,7 @@ components:
       required:
       - images
       title: ImageBatchIngestRequest
-      description: 'Batch JSON ingestion request: many typed image sources -> one
-        async job.'
+      description: 'Batch JSON ingestion request: many typed image sources -> one async job.'
     ImageIngestItem:
       properties:
         type:
@@ -1516,8 +1890,7 @@ components:
           - type: string
           - type: 'null'
           title: Filename
-          description: Optional filename hint; extension is derived from the real
-            bytes.
+          description: Optional filename hint; extension is derived from the real bytes.
         tags:
           anyOf:
           - items:
@@ -1562,8 +1935,7 @@ components:
           - type: string
           - type: 'null'
           title: Filename
-          description: Optional filename hint; extension is derived from the real
-            bytes.
+          description: Optional filename hint; extension is derived from the real bytes.
         tags:
           anyOf:
           - items:
@@ -1583,7 +1955,8 @@ components:
           - type: boolean
           - type: 'null'
           title: Enable Object Detection
-          description: 'Enable object detection and crop extraction (default: True).'
+          description: Enable object detection and crop extraction (defaults to the service's configured
+            setting, enabled unless overridden).
         detection_confidence:
           anyOf:
           - type: number
@@ -1591,13 +1964,13 @@ components:
             minimum: 0.1
           - type: 'null'
           title: Detection Confidence
-          description: 'Object detection confidence threshold (default: 0.85).'
+          description: Object detection confidence threshold (defaults to the service's configured threshold,
+            0.85 unless overridden).
       type: object
       required:
       - type
       title: ImageIngestRequest
-      description: Single-image JSON ingestion request (one typed source + storage
-        params).
+      description: Single-image JSON ingestion request (one typed source + storage params).
     ImageSourceTypeEnum:
       type: string
       enum:
@@ -1894,8 +2267,8 @@ components:
         stored:
           type: boolean
           title: Stored
-          description: False when the media was ingested by reference (store_copy=false)
-            and is read from the ingest mount instead of the storage backend.
+          description: False when the media was ingested by reference (store_copy=false) and is read from
+            the ingest mount instead of the storage backend.
           default: true
         source_path:
           anyOf:
@@ -1918,7 +2291,8 @@ components:
           - type: string
           - type: 'null'
           title: Bucket Name
-          description: The bucket name where the video is stored
+          description: The bucket (object storage) or top-level directory (local storage) holding the
+            media. Defaults to the configured bucket when omitted.
         video_id:
           anyOf:
           - type: string
@@ -1930,8 +2304,8 @@ components:
           - type: string
           - type: 'null'
           title: Video Name
-          description: Original media name to persist as searchable metadata. Falls
-            back to the stored filename when omitted.
+          description: Original media name to persist as searchable metadata. Falls back to the stored
+            filename when omitted.
         frame_interval:
           anyOf:
           - type: integer
@@ -1939,14 +2313,16 @@ components:
             minimum: 1.0
           - type: 'null'
           title: Frame Interval
-          description: 'Extract every Nth frame for processing (default: 15)'
+          description: Extract every Nth frame for processing (defaults to the service's configured frame_interval,
+            15 unless overridden)
           example: 15
         enable_object_detection:
           anyOf:
           - type: boolean
           - type: 'null'
           title: Enable Object Detection
-          description: 'Enable object detection and crop extraction (default: True)'
+          description: Enable object detection and crop extraction (defaults to the service's configured
+            setting, enabled unless overridden)
           example: true
         detection_confidence:
           anyOf:
@@ -1955,7 +2331,8 @@ components:
             minimum: 0.1
           - type: 'null'
           title: Detection Confidence
-          description: 'Confidence threshold for object detection (default: 0.85)'
+          description: Confidence threshold for object detection (defaults to the service's configured
+            threshold, 0.85 unless overridden)
           example: 0.85
         tags:
           anyOf:
@@ -1964,17 +2341,17 @@ components:
             type: array
           - type: 'null'
           title: Tags
-          description: List of tags to be associated with the video. Useful for filtering
-            the search.
+          description: List of tags to be associated with the video. Useful for filtering the search.
       type: object
       title: VideoRequest
-      description: Request model for video processing from Minio storage
+      description: Request model for processing media already held in the configured storage backend.
     VideoSummaryRequest:
       properties:
         bucket_name:
           type: string
           title: Bucket Name
-          description: The Minio bucket name where the referenced video is stored
+          description: The bucket (object storage) or top-level directory (local storage) holding the
+            referenced video.
         video_id:
           type: string
           title: Video Id
@@ -1998,8 +2375,7 @@ components:
             type: array
           - type: 'null'
           title: Tags
-          description: List of tags to be associated with the video. Useful for filtering
-            the search.
+          description: List of tags to be associated with the video. Useful for filtering the search.
       type: object
       required:
       - bucket_name
@@ -2008,5 +2384,22 @@ components:
       - video_start_time
       - video_end_time
       title: VideoSummaryRequest
-      description: Request model for text summary processing with video timestamp
-        references
+      description: Request model for text summary processing with video timestamp references
+tags:
+- name: Media Ingestion APIs
+  description: Upload media and ingest it in a single call. These operations store the media in the configured
+    storage backend and write the resulting embeddings to the configured vector database.
+- name: Media Processing APIs
+  description: Process media that is already present in the configured storage backend, or attach to a
+    live stream, and write the resulting embeddings to the configured vector database.
+- name: Batch Ingestion APIs
+  description: Submit multiple media items in one request and track the resulting asynchronous job.
+- name: Document Processing APIs
+  description: Embed free-form text (for example, a summary) and associate it with previously ingested
+    media.
+- name: Media Management APIs
+  description: List, download, and delete stored media together with their embeddings.
+- name: Status APIs
+  description: Service health and readiness.
+- name: Telemetry APIs
+  description: Runtime metrics and telemetry exposed by the service.

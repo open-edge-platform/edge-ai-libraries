@@ -9,6 +9,7 @@ from fastapi import APIRouter, Body, HTTPException
 from tzlocal import get_localzone
 
 from src.common import DataPrepException, Strings, logger
+from src.common.api_responses import error_responses
 from src.common.schema import DataPrepResponse, VideoSummaryRequest
 from src.core.embedding import generate_text_embedding
 from src.core.utils.common_utils import get_minio_client
@@ -71,6 +72,12 @@ def verify_params_and_get_video_name(
     status_code=HTTPStatus.CREATED,
     response_model=DataPrepResponse,
     response_model_exclude_none=True,
+    responses=error_responses(
+        HTTPStatus.BAD_REQUEST,
+        HTTPStatus.NOT_FOUND,
+        HTTPStatus.BAD_GATEWAY,
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+    ),
 )
 async def process_video_summary(
     summary_request: Annotated[
@@ -81,7 +88,7 @@ async def process_video_summary(
     ### Process summary text for a video with video timestamp references for embedding generation.
 
     This endpoint takes a summary text and video timestamp references, validates that the video exists,
-    and stores the text embedding in the VDMS vector database with the associated video metadata.
+    and stores the text embedding in the configured vector database with the associated video metadata.
 
     #### Body Params:
        - **bucket_name (str) :** The bucket name where the referenced video is stored
@@ -93,8 +100,8 @@ async def process_video_summary(
        
     #### Raises:
     - **400 Bad Request :** If required parameters are missing or invalid.
-    - **404 Not Found :** If the specified video cannot be found in Minio.
-    - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
+    - **404 Not Found :** If the specified video cannot be found in the configured storage backend.
+    - **502 Bad Gateway :** When the configured storage backend or vector database cannot be reached.
     - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
 
     Returns:

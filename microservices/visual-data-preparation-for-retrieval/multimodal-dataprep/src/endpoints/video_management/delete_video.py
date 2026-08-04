@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Path
 
 from src.common import DataPrepException, Strings, logger, sanitize_for_log
+from src.common.api_responses import error_responses
 from src.common.schema import DataPrepResponse
 from src.core.dedup import DEDUP_PREFIX, remove_dedup_marker
 from src.core.media_ref import referenced_video_ids
@@ -83,12 +84,20 @@ def _delete_bucket_embeddings(bucket_name: str) -> None:
     operation_id="deleteAllMedia",
     response_model=DataPrepResponse,
     response_model_exclude_none=True,
+    responses=error_responses(
+        HTTPStatus.BAD_REQUEST,
+        HTTPStatus.BAD_GATEWAY,
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+    ),
 )
 @validate_params
 async def delete_all_media(
     bucket_name: Annotated[
         str,
-        Path(description="The bucket name whose media and embeddings are to be deleted"),
+        Path(
+            description="The bucket (object storage) or top-level directory (local "
+            "storage) whose media and embeddings are to be deleted."
+        ),
     ],
 ) -> DataPrepResponse:
     """
@@ -164,12 +173,21 @@ async def delete_all_media(
     operation_id="deleteMedia",
     response_model=DataPrepResponse,
     response_model_exclude_none=True,
+    responses=error_responses(
+        HTTPStatus.BAD_REQUEST,
+        HTTPStatus.NOT_FOUND,
+        HTTPStatus.BAD_GATEWAY,
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+    ),
 )
 @validate_params
 async def delete_video(
     bucket_name: Annotated[
         str,
-        Path(description="The bucket name where the video is stored"),
+        Path(
+            description="The bucket (object storage) or top-level directory (local "
+            "storage) holding the media."
+        ),
     ],
     video_id: Annotated[
         str,

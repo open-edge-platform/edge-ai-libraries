@@ -15,6 +15,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 
 from src.common import DataPrepException, Strings, logger, sanitize_for_log, settings
+from src.common.api_responses import INGEST_ERRORS, error_responses
 from src.common.schema import DataPrepResponse
 from src.core.dedup import check_and_register_upload
 from src.core.embedding import (
@@ -37,6 +38,7 @@ router = APIRouter(tags=["Media Processing APIs"])
     status_code=HTTPStatus.CREATED,
     response_model=DataPrepResponse,
     response_model_exclude_none=True,
+    responses=error_responses(*INGEST_ERRORS),
 )
 @validate_params
 async def upload_and_process_video(
@@ -44,20 +46,21 @@ async def upload_and_process_video(
     bucket_name: Annotated[
         Optional[str],
         Query(
-            description="The bucket name to store the video in. If not provided, default bucket will be used."
+            description="The bucket (object storage) or top-level directory (local storage) "
+            "to store the media in. Defaults to the service's configured bucket when omitted."
         ),
     ] = None,
     frame_interval: Annotated[
         Optional[int],
-        Query(ge=1, le=60, description="Extract every Nth frame for processing (default: 15)"),
+        Query(ge=1, le=60, description="Extract every Nth frame for processing (defaults to the service's configured frame_interval, 15 unless overridden)"),
     ] = None,
     enable_object_detection: Annotated[
         Optional[bool],
-        Query(description="Enable object detection and crop extraction (default: True)"),
+        Query(description="Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)"),
     ] = None,
     detection_confidence: Annotated[
         Optional[float],
-        Query(ge=0.1, le=1.0, description="Confidence threshold for object detection (default: 0.85)"),
+        Query(ge=0.1, le=1.0, description="Confidence threshold for object detection (defaults to the service's configured threshold, 0.85 unless overridden)"),
     ] = None,
     tags: Annotated[
         Optional[List[str]],
@@ -90,15 +93,15 @@ async def upload_and_process_video(
 
     #### Query Params:
     - **bucket_name (str, optional) :** The bucket name to store the video in. If not provided, default bucket will be used.
-    - **frame_interval (int, optional) :** Extract every Nth frame for processing (default: 15, range: 1-60)
-    - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (default: True)
-    - **detection_confidence (float, optional) :** Confidence threshold for object detection (default: 0.85, range: 0.1-1.0)
+    - **frame_interval (int, optional) :** Extract every Nth frame for processing (range: 1-60; defaults to the service's configured frame_interval, 15 unless overridden)
+    - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)
+    - **detection_confidence (float, optional) :** Confidence threshold for object detection (range: 0.1-1.0; defaults to the service's configured threshold, 0.85 unless overridden)
     - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
 
     #### Raises:
     - **400 Bad Request :** If the video file is not an MP4 or fails validation.
     - **413 Request Entity Too Large :** If the uploaded file exceeds the 500MB limit.
-    - **502 Bad Gateway :** When something unpleasant happens at Minio storage.
+    - **502 Bad Gateway :** When the configured storage backend or vector database cannot be reached.
     - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
 
     Returns:
@@ -257,6 +260,11 @@ async def upload_and_process_video(
     status_code=HTTPStatus.OK,
     response_model=DataPrepResponse,
     response_model_exclude_none=True,
+    responses=error_responses(
+        HTTPStatus.BAD_REQUEST,
+        HTTPStatus.BAD_GATEWAY,
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+    ),
 )
 @validate_params
 async def process_rtsp_streams(
@@ -269,15 +277,15 @@ async def process_rtsp_streams(
     ],
     frame_interval: Annotated[
         Optional[int],
-        Query(ge=1, le=60, description="Extract every Nth frame for processing (default: 15)"),
+        Query(ge=1, le=60, description="Extract every Nth frame for processing (defaults to the service's configured frame_interval, 15 unless overridden)"),
     ] = None,
     enable_object_detection: Annotated[
         Optional[bool],
-        Query(description="Enable object detection and crop extraction (default: True)"),
+        Query(description="Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)"),
     ] = None,
     detection_confidence: Annotated[
         Optional[float],
-        Query(ge=0.1, le=1.0, description="Confidence threshold for object detection (default: 0.85)"),
+        Query(ge=0.1, le=1.0, description="Confidence threshold for object detection (defaults to the service's configured threshold, 0.85 unless overridden)"),
     ] = None,
     tags: Annotated[
         Optional[List[str]],
@@ -298,14 +306,14 @@ async def process_rtsp_streams(
 
     #### Query Params:
     - **rtsp_urls (list(str), required) :** List of RTSP stream URLs to process. Each URL will be validated and processed for embedding generation.
-    - **frame_interval (int, optional) :** Extract every Nth frame for processing (default: 15, range: 1-60)
-    - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (default: True)
-    - **detection_confidence (float, optional) :** Confidence threshold for object detection (default: 0.85, range: 0.1-1.0)
+    - **frame_interval (int, optional) :** Extract every Nth frame for processing (range: 1-60; defaults to the service's configured frame_interval, 15 unless overridden)
+    - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)
+    - **detection_confidence (float, optional) :** Confidence threshold for object detection (range: 0.1-1.0; defaults to the service's configured threshold, 0.85 unless overridden)
     - **tags (list(str), optional) :** A list of tags to be associated with the videos. Useful for filtering the search.
 
     #### Raises:
     - **400 Bad Request :** If any of the RTSP URLs are invalid or fail validation.
-    - **502 Bad Gateway :** When something unpleasant happens at Minio storage or during stream access.
+    - **502 Bad Gateway :** When the configured storage backend cannot be reached, or during stream access.
     - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
 
     Returns:

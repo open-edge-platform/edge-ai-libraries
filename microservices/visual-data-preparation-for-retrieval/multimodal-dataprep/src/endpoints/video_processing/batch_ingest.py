@@ -27,6 +27,12 @@ from typing import Annotated, Any, Dict, List, Optional
 from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile
 
 from src.common import DataPrepException, Strings, logger, sanitize_for_log, settings
+from src.common.api_responses import (
+    INGEST_ERRORS,
+    INGEST_ERRORS_NO_CONFLICT,
+    READ_ERRORS,
+    error_responses,
+)
 from src.common.schema import (
     BatchItemResult,
     BatchJobStatus,
@@ -175,12 +181,13 @@ def _job_to_status(job: BatchJob) -> BatchJobStatus:
     status_code=HTTPStatus.ACCEPTED,
     response_model=BatchSubmitResponse,
     response_model_exclude_none=True,
+    responses=error_responses(*INGEST_ERRORS),
 )
 async def upload_and_process_video_batch(
     files: Annotated[List[UploadFile], File(description="Media files to upload (MP4 videos or images)")],
     bucket_name: Annotated[Optional[str], Query(description="Target bucket (default if unset).")] = None,
     frame_interval: Annotated[
-        Optional[int], Query(ge=1, le=60, description="Extract every Nth frame (default: 15).")
+        Optional[int], Query(ge=1, le=60, description="Extract every Nth frame (defaults to the service's configured frame_interval, 15 unless overridden).")
     ] = None,
     enable_object_detection: Annotated[
         Optional[bool], Query(description="Enable object detection and crop extraction.")
@@ -235,6 +242,7 @@ async def upload_and_process_video_batch(
     status_code=HTTPStatus.ACCEPTED,
     response_model=BatchSubmitResponse,
     response_model_exclude_none=True,
+    responses=error_responses(*INGEST_ERRORS_NO_CONFLICT),
 )
 async def process_video_batch_existing(
     request: Annotated[BatchProcessExistingRequest, Body(description="Batch selection + params")],
@@ -389,6 +397,7 @@ def _sanitize_custom_metadata(
     status_code=HTTPStatus.ACCEPTED,
     response_model=BatchSubmitResponse,
     response_model_exclude_none=True,
+    responses=error_responses(*INGEST_ERRORS_NO_CONFLICT),
 )
 async def ingest_directory(
     request: Annotated[DirectoryIngestRequest, Body(description="Directory ingest parameters")],
@@ -481,6 +490,7 @@ async def ingest_directory(
     operation_id="getBatchJobStatus",
     response_model=BatchJobStatus,
     response_model_exclude_none=True,
+    responses=error_responses(*READ_ERRORS),
 )
 async def get_batch_job_status(job_id: str) -> BatchJobStatus:
     """Return the current state and per-item results of a batch job (404 if unknown)."""
@@ -496,6 +506,7 @@ async def get_batch_job_status(job_id: str) -> BatchJobStatus:
     operation_id="cancelBatchJob",
     response_model=BatchJobStatus,
     response_model_exclude_none=True,
+    responses=error_responses(*READ_ERRORS),
 )
 async def cancel_batch_job(job_id: str) -> BatchJobStatus:
     """Request cooperative cancellation of a batch job (404 if unknown)."""

@@ -26,6 +26,7 @@ from typing import Annotated, List
 from fastapi import APIRouter, Body, HTTPException
 
 from src.common import DataPrepException, Strings, logger, sanitize_for_log, settings
+from src.common.api_responses import INGEST_ERRORS, error_responses
 from src.common.schema import (
     BatchSubmitResponse,
     DataPrepResponse,
@@ -94,6 +95,7 @@ def _stash_image_bytes(bucket_name: str, video_id: str, filename: str, content: 
     status_code=HTTPStatus.CREATED,
     response_model=DataPrepResponse,
     response_model_exclude_none=True,
+    responses=error_responses(*INGEST_ERRORS),
 )
 async def ingest_image(
     request: Annotated[ImageIngestRequest, Body(description="Typed image source + ingestion params")],
@@ -156,6 +158,7 @@ async def ingest_image(
     status_code=HTTPStatus.ACCEPTED,
     response_model=BatchSubmitResponse,
     response_model_exclude_none=True,
+    responses=error_responses(*INGEST_ERRORS),
 )
 async def ingest_image_batch(
     request: Annotated[ImageBatchIngestRequest, Body(description="Typed image sources + params")],

@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 
 from src.common import DataPrepException, Strings, logger, settings
+from src.common.api_responses import error_responses
 from src.core.media import content_type_for_filename
 from src.core.utils.video_utils import resolve_media_source
 from src.core.validation import validate_params
@@ -92,16 +93,22 @@ def _parse_byte_range(range_header: str, file_size: int) -> Optional[Tuple[int, 
     response_class=StreamingResponse,
     responses={
         HTTPStatus.OK: {
-            "description": "Full video stream response",
-            "content": {"video/mp4": {"schema": {"type": "string", "format": "binary"}}},
+            "description": (
+                "Full media stream. The Content-Type reflects the stored media "
+                "(for example video/mp4 or image/jpeg)."
+            ),
+            "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}},
         },
         HTTPStatus.PARTIAL_CONTENT: {
-            "description": "Partial video stream response (byte range).",
-            "content": {"video/mp4": {"schema": {"type": "string", "format": "binary"}}},
+            "description": "Partial media stream (byte range).",
+            "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}},
         },
-        HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE: {
-            "description": "The requested byte range cannot be satisfied.",
-        },
+        **error_responses(
+            HTTPStatus.BAD_REQUEST,
+            HTTPStatus.NOT_FOUND,
+            HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE,
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+        ),
     },
     response_model_exclude_none=True,
 )
@@ -115,7 +122,7 @@ async def download_video(
     bucket_name: Annotated[
         Optional[str],
         Query(
-            description="The bucket name where the video is stored. If not provided, default bucket will be used."
+            description="The bucket (object storage) or top-level directory (local storage) holding the media. Defaults to the service's configured bucket when omitted."
         ),
     ] = None,
     download: Annotated[
@@ -126,7 +133,7 @@ async def download_video(
     """
     ### Download or stream a video from storage.
 
-    Streams a video from the active storage backend (MinIO or local filesystem).
+    Streams stored media from the active storage backend (object storage or local filesystem).
     The endpoint advertises ``Accept-Ranges: bytes`` and honours the HTTP
     ``Range`` request header, so media players can **seek** without downloading
     the whole file:

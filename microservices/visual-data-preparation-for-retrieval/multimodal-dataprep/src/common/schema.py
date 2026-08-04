@@ -86,10 +86,14 @@ class HealthResponse(BaseModel):
 
 
 class VideoRequest(BaseModel):
-    """Request model for video processing from Minio storage"""
+    """Request model for processing media already held in the configured storage backend."""
 
     bucket_name: Annotated[
-        Optional[str], Field(description="The bucket name where the video is stored")
+        Optional[str],
+        Field(
+            description="The bucket (object storage) or top-level directory (local "
+            "storage) holding the media. Defaults to the configured bucket when omitted."
+        ),
     ] = None
     video_id: Annotated[
         Optional[str], Field(description="The video ID (directory) containing the video")
@@ -106,14 +110,14 @@ class VideoRequest(BaseModel):
         Field(
             ge=1,
             le=60,
-            description="Extract every Nth frame for processing (default: 15)",
+            description="Extract every Nth frame for processing (defaults to the service's configured frame_interval, 15 unless overridden)",
             json_schema_extra={"example": 15},
         ),
     ] = None
     enable_object_detection: Annotated[
         Optional[bool],
         Field(
-            description="Enable object detection and crop extraction (default: True)",
+            description="Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)",
             json_schema_extra={"example": True},
         ),
     ] = None
@@ -122,7 +126,7 @@ class VideoRequest(BaseModel):
         Field(
             ge=0.1,
             le=1.0,
-            description="Confidence threshold for object detection (default: 0.85)",
+            description="Confidence threshold for object detection (defaults to the service's configured threshold, 0.85 unless overridden)",
             json_schema_extra={"example": 0.85},
         ),
     ] = None
@@ -191,11 +195,11 @@ class ImageIngestRequest(ImageIngestItem):
     ] = None
     enable_object_detection: Annotated[
         Optional[bool],
-        Field(default=None, description="Enable object detection and crop extraction (default: True)."),
+        Field(default=None, description="Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)."),
     ] = None
     detection_confidence: Annotated[
         Optional[float],
-        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold (default: 0.85)."),
+        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold (defaults to the service's configured threshold, 0.85 unless overridden)."),
     ] = None
 
 
@@ -269,7 +273,7 @@ class BatchProcessExistingRequest(BaseModel):
     ] = None
     frame_interval: Annotated[
         Optional[int],
-        Field(default=None, ge=1, le=60, description="Extract every Nth frame (default: 15)."),
+        Field(default=None, ge=1, le=60, description="Extract every Nth frame (defaults to the service's configured frame_interval, 15 unless overridden)."),
     ] = None
     enable_object_detection: Annotated[
         Optional[bool],
@@ -290,7 +294,7 @@ class DirectoryIngestRequest(BaseModel):
 
     Walks ``dir_path`` (resolved against the configured ingest data root) and
     submits every supported media file as a batch job. Mirrors the EOL
-    milvus-dataprep host-directory ingest contract.
+    host-directory ingest contract of the retired dataprep service.
     """
 
     dir_path: Annotated[
@@ -307,7 +311,7 @@ class DirectoryIngestRequest(BaseModel):
     ] = False
     frame_interval: Annotated[
         Optional[int],
-        Field(default=None, ge=1, le=60, description="Extract every Nth frame (default: 15)."),
+        Field(default=None, ge=1, le=60, description="Extract every Nth frame (defaults to the service's configured frame_interval, 15 unless overridden)."),
     ] = None
     enable_object_detection: Annotated[
         Optional[bool],
@@ -425,7 +429,11 @@ class VideoSummaryRequest(BaseModel):
     """Request model for text summary processing with video timestamp references"""
 
     bucket_name: Annotated[
-        str, Field(description="The Minio bucket name where the referenced video is stored")
+        str,
+        Field(
+            description="The bucket (object storage) or top-level directory (local "
+            "storage) holding the referenced video."
+        ),
     ]
     video_id: Annotated[
         str, Field(description="The video ID (directory) containing the referenced video")
