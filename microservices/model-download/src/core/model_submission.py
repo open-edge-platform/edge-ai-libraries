@@ -3,6 +3,7 @@
 
 import asyncio
 import os
+import re
 from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
@@ -191,11 +192,16 @@ async def submit_models(
                 )
                 config["precision"] = "int4"
 
+            # Create a unique output directory for the converted model.
+            # HETERO devices contain ':' and ',' which are hostile in paths,
+            # so the device is slugified for the directory (HETERO:GPU,CPU ->
+            # hetero_gpu_cpu) while the raw value is still passed to conversion.
+            device_slug = re.sub(r"[^A-Za-z0-9._-]+", "_", config["device"])
             convert_output_dir = _resolve_destination(
                 models_dir,
                 download_path,
                 "openvino_models",
-                config["device"].lower(),
+                device_slug.lower(),
                 config["precision"].lower(),
             )
 

@@ -427,11 +427,107 @@ class TestAPIMain:
         }
 
         response = client.post("/models/download?download_path=converted_models", json=request_data)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "Started processing 1 model(s)" in data["message"]
         assert data["job_ids"] == ["job-conversion"]
+
+    @pytest.mark.parametrize("hetero_device", [
+        "HETERO:GPU,CPU",
+        "HETERO:NPU,GPU.1,CPU",
+        "hetero:gpu,cpu",  # accepted case-insensitively, normalized to uppercase
+    ])
+    @patch('src.api.main.model_manager')
+    @patch('src.api.main.plugin_registry')
+    @patch('os.getenv')
+    def test_download_with_hetero_device(self, mock_getenv, mock_registry, mock_manager, client, hetero_device):
+        """Test conversion request with HETERO device values"""
+        mock_getenv.side_effect = lambda key, default=None: {
+            "HF_TOKEN": "test_hf_token",
+            "MODELS_DIR": "/opt/models"
+        }.get(key, default)
+
+        mock_registry.plugins = {
+            "downloader": {"huggingface": MagicMock()},
+            "converter": {"openvino": MagicMock()}
+        }
+        mock_registry.get_plugin_names.return_value = ["huggingface", "openvino"]
+        mock_registry.hub_is_available.return_value = (True, None)
+        mock_manager.register_job.return_value = "job-hetero"
+        mock_manager.process_conversion = AsyncMock()
+
+        request_data = {
+            "models": [
+                {
+                    "name": "Intel/neural-chat-7b-v3-3",
+                    "hub": "huggingface",
+                    "type": "llm",
+                    "is_ovms": True,
+                    "config": {
+                        "precision": "int8",
+                        "device": hetero_device
+                    }
+                }
+            ]
+        }
+
+        response = client.post("/models/download?download_path=test", json=request_data)
+
+        assert response.status_code == 200
+        assert "Started processing 1 model(s)" in response.json()["message"]
+
+    @patch('src.api.main.model_manager')
+    @patch('src.api.main.plugin_registry')
+    @patch('os.getenv')
+    def test_hetero_device_output_dir_slug(self, mock_getenv, mock_registry, mock_manager, client):
+        """HETERO device is slugified in the output path but passed raw to conversion"""
+        mock_getenv.side_effect = lambda key, default=None: {
+            "HF_TOKEN": "test_hf_token",
+            "MODELS_DIR": "/opt/models"
+        }.get(key, default)
+
+        mock_registry.plugins = {
+            "downloader": {"huggingface": MagicMock()},
+            "converter": {"openvino": MagicMock()}
+        }
+        mock_registry.get_plugin_names.return_value = ["huggingface", "openvino"]
+        mock_registry.hub_is_available.return_value = (True, None)
+        mock_manager.register_job.return_value = "job-hetero-slug"
+        mock_manager.process_conversion = AsyncMock()
+
+        request_data = {
+            "models": [
+                {
+                    "name": "Intel/neural-chat-7b-v3-3",
+                    "hub": "huggingface",
+                    "type": "llm",
+                    "is_ovms": True,
+                    "config": {
+                        "precision": "int8",
+                        "device": "HETERO:GPU,CPU"
+                    }
+                }
+            ]
+        }
+
+        response = client.post("/models/download?download_path=test", json=request_data)
+
+        assert response.status_code == 200
+
+        convert_calls = [
+            call for call in mock_manager.register_job.call_args_list
+            if call.kwargs.get("operation_type") == "convert"
+        ]
+        assert len(convert_calls) == 1
+        output_dir = convert_calls[0].kwargs["output_dir"]
+        assert "hetero_gpu_cpu" in output_dir
+        assert ":" not in output_dir and "," not in output_dir
+
+        conversion_kwargs = mock_manager.process_conversion.call_args.kwargs
+        assert conversion_kwargs["device"] == "HETERO:GPU,CPU"
+        # HETERO combos do not trigger the NPU int4 override
+        assert conversion_kwargs["precision"] == "int8"
 
     @patch('src.api.main.model_manager')
     @patch('src.api.main.plugin_registry')
@@ -549,7 +645,7 @@ class TestAPIMain:
     ):
         mock_registry.plugins = {"downloader": {"huggingface": MagicMock()}}
         mock_registry.get_plugin_names.return_value = ["huggingface"]
-        mock_registry.check_plugin_dependencies.return_value = (True, None)
+        mock_registry.hub_is_available.return_value = (True, None)
 
         response = client.post(
             "/models/download?download_path=../outside",
@@ -1118,6 +1214,10 @@ class TestAPIErrorHandling:
     @pytest.mark.parametrize("invalid_config", [
         {"precision": "invalid_precision", "device": "CPU"},
         {"precision": "int8", "device": "INVALID_DEVICE"},
+        {"precision": "int8", "device": "HETERO"},          # Bare HETERO lacks a fallback list
+        {"precision": "int8", "device": "HETERO:"},         # Empty fallback list
+        {"precision": "int8", "device": "HETERO:TPU"},      # Unknown device in list
+        {"precision": "int8", "device": "HETERO:GPU,XPU"},  # Unknown device in list
         {"precision": "int8", "device": "CPU", "cache_size": -1},  # Negative cache size
         {"precision": "int8", "device": "CPU", "cache_size": 0},   # Zero cache size
     ])

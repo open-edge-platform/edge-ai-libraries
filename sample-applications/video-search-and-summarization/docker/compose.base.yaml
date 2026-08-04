@@ -4,7 +4,7 @@ services:
   nginx:
     image: nginx:1.27.5
     ports:
-      - "${APP_HOST_PORT}:80"
+      - "${APP_HOST_PORT:-12345}:80"
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
@@ -34,26 +34,26 @@ services:
       dockerfile: Dockerfile
     image: ${REGISTRY:-}pipeline-manager:${TAG:-latest}
     ports:
-      - "${PM_HOST_PORT}:3000"
+      - "${PM_HOST_PORT:-3001}:3000"
     ipc: host
     depends_on:
       minio-service:
         condition: service_started
     environment:
-      no_proxy: ${no_proxy},${EVAM_HOST},${VLM_HOST},${AUDIO_HOST},${RABBITMQ_HOST},${MINIO_HOST},${POSTGRES_HOST},${OVMS_HOST},${VDMS_DATAPREP_HOST},${VS_HOST},localhost
+      no_proxy: ${no_proxy},video-ingestion,audio-analyzer,rabbitmq-service,minio-service,postgres-service,ovms-service,vdms-dataprep,video-search,vllm-cpu-service,vllm-xpu-service,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       MINIO_PROTOCOL: "http:"
-      MINIO_HOST: ${MINIO_HOST}
-      MINIO_PORT: 80
-      MINIO_BUCKET: ${PM_MINIO_BUCKET}
+      MINIO_HOST: ${MINIO_HOST:-minio-service}
+      MINIO_PORT: ${MINIO_PORT:-80}
+      MINIO_BUCKET: ${PM_MINIO_BUCKET:-video-summary}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      DB_HOST: ${POSTGRES_HOST}
-      DB_PORT: ${POSTGRES_HOST_PORT}
+      DB_HOST: ${POSTGRES_HOST:-postgres-service}
+      DB_PORT: ${POSTGRES_HOST_PORT:-5432}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
-      DB_NAME: ${POSTGRES_DB}
+      DB_NAME: ${POSTGRES_DB:-video_summary_db}
       SUMMARY_FEATURE: "FEATURE_OFF"
       SEARCH_FEATURE: "FEATURE_OFF"
       TICK_INTERVAL_MS: ${TICK_INTERVAL_MS:-5000} # EVAM uses TICK
@@ -79,14 +79,14 @@ services:
   postgres-service:
     image: postgres:17.4
     ports:
-      - "${POSTGRES_HOST_PORT}:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_DB: ${POSTGRES_DB:-video_summary_db}
       PGDATA: /var/lib/postgresql/data/pgdata
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-video_summary_db}"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -99,8 +99,8 @@ services:
   minio-service:
     image: chainguard/minio@sha256:cb84dfa704c648c4b14858aa288576bb1cf756a9b326112a0934db00e87d0bb8
     ports:
-      - "${MINIO_API_HOST_PORT}:80"
-      - "${MINIO_CONSOLE_HOST_PORT}:81"
+      - "${MINIO_API_HOST_PORT:-4001}:80"
+      - "${MINIO_CONSOLE_HOST_PORT:-4002}:81"
     environment:
       no_proxy: ${no_proxy},localhost
       http_proxy: ${http_proxy}
