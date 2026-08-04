@@ -155,6 +155,24 @@ spec:
       labels:
         app: {{ include "nginx.fullname" . }}
     spec:
+      initContainers:
+      # nginx proxies /manager/ and /ws/ to pipeline-manager. Without this gate
+      # the NodePort serves the UI as soon as nginx starts, so users reach a
+      # page whose API calls fail until pipeline-manager finishes booting.
+      # pipeline-manager now carries a readinessProbe, so its Service only
+      # publishes an endpoint once GET /health succeeds.
+      - name: wait-for-pipeline-manager
+        image: curlimages/curl:latest
+        command:
+          - sh
+          - -c
+          - |
+            echo "Waiting for Pipeline Manager to be ready..."
+            until curl -s -f http://{{ .Values.pipelinemanager.name }}:{{ .Values.pipelinemanager.service.port }}/health; do
+              echo "Pipeline Manager is not ready yet, waiting..."
+              sleep 10
+            done
+            echo "Pipeline Manager is ready!"
       containers:
       - image: nginx:1.27.5
         imagePullPolicy: {{ .Values.pipelinemanager.image.pullPolicy }}

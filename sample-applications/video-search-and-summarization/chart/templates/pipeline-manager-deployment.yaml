@@ -98,6 +98,14 @@ spec:
           ports:
             - containerPort: 3000
               name: {{ .Values.pipelinemanager.containerPortName }}
+          {{- with .Values.pipelinemanager.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.pipelinemanager.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.pipelinemanager.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
