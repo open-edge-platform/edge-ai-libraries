@@ -1,8 +1,15 @@
 # Release Notes: Chat Q&A Core Sample Application
 
-<!--## Version 2026.2.0-->
+## Version 2026.2.0-rc1
 
-<!--date TBD-->
+**Aug 4, 2026**
+
+**New**
+
+- Updated the Ollama runtime to version `0.30.10`.
+- Upgraded OpenVINO packages to version `2026.2.1`.
+- Transitioned dependency management from `Poetry` to `uv`.
+- Updated backend and frontend dependency packages to remediate reported security vulnerabilities and improve overall platform security.
 
 ## Version 2026.1.0
 
