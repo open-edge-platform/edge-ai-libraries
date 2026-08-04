@@ -39,7 +39,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_DETECTION_DEVICE` | Optional | `CPU` | Device override for object detection execution (`CPU`, `GPU`, or `NPU`). |
 | `MM_DATAPREP_EMBEDDING_BATCH_SIZE` | Optional | `32` | Number of items sent per embedding batch. |
 | `MM_DATAPREP_MAX_PARALLEL_WORKERS` | Optional | _(auto)_ | Hard cap for parallel workers when auto-scaling is too aggressive for the host. |
-| `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` | Optional | `true` | When `false`, an upload whose byte content is identical to an already-ingested video is rejected with `409 Conflict`. Detection is content-based (SHA-256) and applies to `/media/upload`, `/media/upload/batch`, and `/media/ingest-dir`. |
+| `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` | Optional | `true` | When `false`, an upload whose byte content is identical to an already-ingested video is rejected with `409 Conflict`. Detection is content-based (SHA-256) and applies to `/media/upload`, `/media/upload/batch`, `/media/ingest-dir`, `/media/process`, and `/media/process/batch` (per item, reported in the job status). |
 | `MM_DATAPREP_FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
 | `MM_DATAPREP_ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles YOLOX-based crop extraction. |
 | `MM_DATAPREP_DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |

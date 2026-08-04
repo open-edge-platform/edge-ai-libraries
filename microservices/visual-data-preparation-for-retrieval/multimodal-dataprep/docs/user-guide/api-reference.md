@@ -389,7 +389,9 @@ storage backends.
 When `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` is `false`, `POST /media/upload/batch`
 and `POST /media/ingest-dir` reject the request with **`409 Conflict`** if any
 file's content is identical to an already-ingested video (content-based SHA-256
-detection).
+detection). `POST /media/process/batch` accepts the request and enforces the same
+policy per item: each duplicate is reported as a failed item in the job status
+while the non-duplicate items complete normally.
 
 ### `POST /media/upload/batch`
 
@@ -427,6 +429,13 @@ curl -X POST http://localhost:8000/v1/dataprep/media/process/batch \
   -H "Content-Type: application/json" \
   -d '{"bucket_name":"video-summary","prefix":"dp_","frame_interval":15}'
 ```
+
+Because this endpoint embeds media the caller stored itself, it is where the
+duplicate-upload policy is applied for that media. With
+`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false`, an item whose content is already
+owned by a different `video_id` fails with the duplicate message in
+`GET /media/jobs/{job_id}`; re-processing the same `video_id` is still allowed,
+so the `bucket_name` selector can safely re-index a bucket.
 
 ### `POST /media/ingest-dir`
 

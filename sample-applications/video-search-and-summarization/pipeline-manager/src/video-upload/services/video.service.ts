@@ -24,6 +24,11 @@ import {
 
 @Injectable()
 export class VideoService {
+  // Matches the data-prep duplicate-content rejection message
+  // (Strings.duplicate_upload: "A video with identical content already exists").
+  private static readonly DUPLICATE_CONTENT_PATTERN =
+    /identical content|duplicate/i;
+
   private videoMap: Map<string, Video> = new Map();
 
   constructor(
@@ -153,7 +158,38 @@ export class VideoService {
     const response = await lastValueFrom(
       this.$dataprep.getBatchJobStatus(jobId),
     );
-    return response.data;
+    const status = response.data;
+
+    // The batch job answers 202 up-front, so a duplicate-content rejection can
+    // only surface here as a per-item failure. Mirror what the single-video path
+    // does on a synchronous 409: drop the row/object we optimistically created,
+    // otherwise the rejected video lingers as an orphan the UI can never play.
+    // cleanupFailedDuplicateVideo is idempotent, so repeated polling is safe.
+    await this.cleanupDuplicateBatchFailures(status);
+
+    return status;
+  }
+
+  // Best-effort cleanup of items a batch job rejected as duplicate content.
+  // Never throws: polling must keep working even if cleanup fails.
+  private async cleanupDuplicateBatchFailures(
+    status: DataPrepBatchJobStatusRO,
+  ): Promise<void> {
+    for (const item of status?.items ?? []) {
+      if (item.status !== 'error' || !item.video_id) {
+        continue;
+      }
+      if (!VideoService.DUPLICATE_CONTENT_PATTERN.test(item.message ?? '')) {
+        continue;
+      }
+      try {
+        await this.cleanupFailedDuplicateVideo(item.video_id);
+      } catch (error) {
+        Logger.warn(
+          `Best-effort cleanup failed for duplicate batch item ${item.video_id}: ${String(error)}`,
+        );
+      }
+    }
   }
 
   async uploadVideo(

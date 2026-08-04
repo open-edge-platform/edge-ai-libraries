@@ -132,6 +132,7 @@ describe('VideoService', () => {
 
     const dataPrepShimServiceMock = {
       createEmbeddings: jest.fn(),
+      getBatchJobStatus: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -311,6 +312,90 @@ describe('VideoService', () => {
         video_name: 'original - Copy.mp4',
         tags: videoWithDifferentDisplayName.tags,
       } as DataPrepMinioDTO);
+    });
+  });
+
+  describe('getSearchEmbeddingsJobStatus', () => {
+    const jobStatus = (items: any[]) => ({
+      data: {
+        job_id: 'job-1',
+        state: 'completed',
+        total: items.length,
+        completed: 0,
+        failed: 0,
+        items,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    }) as any;
+
+    it('cleans up videos a batch item rejected as duplicate content', async () => {
+      dataPrepShimService.getBatchJobStatus.mockReturnValue(
+        of(
+          jobStatus([
+            {
+              identifier: 'dup.mp4',
+              video_id: 'test-video-id',
+              status: 'error',
+              message:
+                "A video with identical content already exists (existing video_id: 'other-id').",
+            },
+          ]),
+        ),
+      );
+      videoDbService.read.mockResolvedValue(mockVideo);
+      videoDbService.remove.mockResolvedValue(mockVideo as any);
+
+      const result = await service.getSearchEmbeddingsJobStatus('job-1');
+
+      expect(datastoreService.deleteObject).toHaveBeenCalledWith(
+        mockVideo.dataStore!.objectName,
+      );
+      expect(videoDbService.remove).toHaveBeenCalledWith('test-video-id');
+      expect(result.job_id).toBe('job-1');
+    });
+
+    it('leaves successful and non-duplicate failed items untouched', async () => {
+      dataPrepShimService.getBatchJobStatus.mockReturnValue(
+        of(
+          jobStatus([
+            { identifier: 'ok.mp4', video_id: 'vid-ok', status: 'success' },
+            {
+              identifier: 'boom.mp4',
+              video_id: 'vid-boom',
+              status: 'error',
+              message: 'Embedding backend unavailable',
+            },
+          ]),
+        ),
+      );
+
+      await service.getSearchEmbeddingsJobStatus('job-1');
+
+      expect(datastoreService.deleteObject).not.toHaveBeenCalled();
+      expect(videoDbService.remove).not.toHaveBeenCalled();
+    });
+
+    it('still returns the job status when cleanup fails', async () => {
+      dataPrepShimService.getBatchJobStatus.mockReturnValue(
+        of(
+          jobStatus([
+            {
+              identifier: 'dup.mp4',
+              video_id: 'test-video-id',
+              status: 'error',
+              message: 'A video with identical content already exists',
+            },
+          ]),
+        ),
+      );
+      videoDbService.read.mockRejectedValue(new Error('db down'));
+
+      const result = await service.getSearchEmbeddingsJobStatus('job-1');
+
+      expect(result.job_id).toBe('job-1');
     });
   });
 
