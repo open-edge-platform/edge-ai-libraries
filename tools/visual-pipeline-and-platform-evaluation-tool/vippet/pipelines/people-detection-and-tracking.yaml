@@ -1,7 +1,7 @@
 name: People Detection and Tracking
 definition: >
-  People detection and tracking pipeline with object detection, proximity trigger, VLM analysis, and dual outputs
-  (annotated video + JSON metadata and JPEG snapshots).
+  People detection and tracking pipeline using YOLO object detection, person re-identification,
+  and Deep SORT tracking, with watermarking, FPS counting, and JSON-lines metadata publishing.
 tags:
   - Safety and Security 
   - GenAi
