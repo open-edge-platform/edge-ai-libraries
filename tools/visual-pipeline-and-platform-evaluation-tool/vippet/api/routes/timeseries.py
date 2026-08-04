@@ -100,12 +100,18 @@ def _fetch_kapacitor_analytics() -> list[dict]:
         if m:
             current_pt = int(m.group(1))
 
-        if current_inf is not None and current_e2e is not None and current_pt is not None:
-            records.append({
-                "inference_time_ms": current_inf,
-                "end_to_end_time_ms": current_e2e,
-                "processing_point_time": current_pt,
-            })
+        if (
+            current_inf is not None
+            and current_e2e is not None
+            and current_pt is not None
+        ):
+            records.append(
+                {
+                    "inference_time_ms": current_inf,
+                    "end_to_end_time_ms": current_e2e,
+                    "processing_point_time": current_pt,
+                }
+            )
             current_inf = None
             current_e2e = None
             current_pt = None
@@ -135,7 +141,7 @@ async def _tail_ingestion():
         waited += 3
 
     if not os.path.exists(INGESTION_FILE):
-        yield "data: {\"error\": \"No ingestion data yet\"}\n\n"
+        yield 'data: {"error": "No ingestion data yet"}\n\n'
         return
 
     with open(INGESTION_FILE, "r") as f:
