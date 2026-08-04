@@ -1,14 +1,14 @@
 # Release Notes: Alert Agent Service
 
-## Version 0.1.0
+## Version 1.0.0
 
 **TBD**
 
 **New**
 
 - Initial release of the Alert Agent Service.
-- Generic multimodal alert action dispatcher supporting text, image, audio, video, and binary payloads.
-- ADK-powered dispatch mode using Google Agent Development Kit (ADK) backed by OpenVINO Model Server (OVMS) with the `Phi-4-mini-instruct-int4-ov` model.
+- Generic multimodal alert action dispatcher supporting text, image, video, and binary payloads.
+- ADK-powered dispatch mode using Google Agent Development Kit (ADK) backed by OpenVINO Model Server (OVMS) with pre-converted models from huggingface.
 - Rule-based dispatch mode (`AGENT_MODE=false`) for deterministic tool invocation without LLM overhead.
 - Four built-in action tools: `log_alert`, `trigger_webhook`, `capture_snapshot`, `publish_mqtt`.
 - YAML-based subscription configuration for per-alert-name default tool routing, deduplication rules, and escalation policies.
@@ -20,7 +20,6 @@
 - Subscription management endpoint (`GET /api/v1/subscriptions`) to inspect loaded routing rules.
 - Liveness probe (`GET /api/v1/health`).
 - Docker Compose deployment with OVMS LLM sidecar container.
-- Helm chart support for Kubernetes deployment.
 
 **Known Issues**
 

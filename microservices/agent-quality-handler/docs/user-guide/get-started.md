@@ -6,13 +6,35 @@ The Agent Quality Handler is a standalone, configuration-driven agent service. I
 
 - Docker 24.0 or later with Docker Compose 2.20 or later
 
-## Start in Fallback Mode
+## Start
 
-From `microservices/agent-quality-handler`:
+### 1. Clone the repository
 
 ```bash
-export STORAGE_SERVICE_URL=http://host.docker.internal:5001
-docker compose -f docker/compose.yaml up --build -d
+# Clone the latest on the mainline
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Alternatively, clone a specific release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+```
+
+### 2. Navigate to the directory
+
+```bash
+cd edge-ai-libraries/microservices/agent-quality-handler
+```
+
+### 3. Configure the environment variables
+
+```bash
+export REGISTRY="intel/"
+export TAG=latest  
+export STORAGE_SERVICE_URL=<storage-wrapper-service-url>    #Check mock service url below for validation
+```
+
+## Start in Fallback Mode
+
+```bash
+docker compose -f docker/compose.yaml up -d
 ```
 
 Fallback mode is the default. It starts:
@@ -36,9 +58,8 @@ docker compose -f docker/compose.yaml ps
 LLM mode must set both the environment mode and the Compose profile:
 
 ```bash
-export STORAGE_SERVICE_URL=http://host.docker.internal:5001
 export LLM_MODE=llm
-docker compose -f docker/compose.yaml --profile llm up --build -d
+docker compose -f docker/compose.yaml --profile llm up -d
 ```
 
 The `llm` profile additionally starts `aqh-ovms` and `model-download`. Starting the profile without `LLM_MODE=llm` leaves the agent in fallback mode; setting `LLM_MODE=llm` without the profile does not start the bundled OVMS dependency.
