@@ -69,11 +69,17 @@ Minimum required values for most modes:
 global:
   usePvc: true
   keepPvc: true
-  sharedPvcName: vss-shared-pvc
+  sharedPvcName: vss-shared-pvc  # collector signals only
   huggingfaceToken: "hf_..."   # needed for gated/private Hugging Face models
   vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"
   llmName: ""                  # optional OVMS split-model summarization model
   embeddingModelName: ""       # set per mode below
+  modelDownload:
+    image:
+      repository: intel/model-download
+      tag: "2026.2.0-ww30"
+      pullPolicy: IfNotPresent
+    ovmsReleaseTag: "v2026.1"
   proxy:
     http_proxy: ""
     https_proxy: ""
@@ -87,10 +93,21 @@ global:
 ```
 
 Why these matter:
-- `global.usePvc` and `global.sharedPvcName` control shared model/cache storage for `vdmsdataprep`, `multimodalembeddingms`, pipeline-manager collector signals, and OVMS model storage paths.
-- `global.keepPvc: true` avoids re-downloading/re-converting models after uninstall, but stale PVCs can also preserve incompatible old state.
+- `global.usePvc` enables the chart's service-specific PVCs. OVMS,
+  video-ingestion, DataPrep, and multimodal embedding each use their own model
+  PVC settings.
+- `global.sharedPvcName` and `sharedClaimSize` apply only to collector signal
+  exchange between pipeline-manager and `vss-collector`.
+- `global.keepPvc: true` retains service PVCs whose templates honor that global
+  setting, avoiding model re-downloads but potentially preserving incompatible
+  old state. The vLLM subchart's `vllm-model-cache` PVC does not currently honor
+  `global.keepPvc` and is deleted with the release.
 - `global.vlmName` is required for summary/unified modes and is used by OVMS or by vLLM.
 - `global.embeddingModelName` is required when search components are enabled.
+- `global.modelDownload` controls the image used by the OVMS and video-ingestion
+  init containers. Each init container starts its local REST service, submits a
+  download job, waits for completion, and exits before the application
+  container starts.
 
 ## 2. Choose the mode using the real override files
 
@@ -207,11 +224,18 @@ global:
       device: GPU
       key: "gpu.intel.com/i915"
     vdmsDataprep:
-      device: GPU
-      key: "gpu.intel.com/i915"
+      embedding:
+        device: GPU
+        key: "gpu.intel.com/i915"
+      detection:
+        device: CPU
+        key: ""
 ```
 
-Why: the chart validates `global.devices.multimodalEmbedding.device` equals `global.devices.vdmsDataprep.device` when both subcharts are enabled, because they share storage and must schedule compatibly. Each GPU setting also requires its `key`.
+Use `global.devices.vdmsDataprep.embedding` for SDK-mode embedding,
+`global.devices.multimodalEmbedding` for API-mode embedding, and
+`global.devices.vdmsDataprep.detection` for DataPrep detection. These settings
+are independent; every GPU/NPU setting requires its own resource `key`.
 
 vLLM tuning keys from the actual `vllm` subchart:
 ```yaml
@@ -293,6 +317,16 @@ kubectl logs -n "$NAMESPACE" deploy/vss-nginx
 kubectl get events -n "$NAMESPACE" --sort-by=.lastTimestamp
 ```
 
+When OVMS or video ingestion is stuck in `Init`, inspect the pod's
+model-download init container:
+
+```bash
+kubectl describe pod -n "$NAMESPACE" <pod-name>
+kubectl logs -n "$NAMESPACE" <ovms-pod> -c download-vlm
+kubectl logs -n "$NAMESPACE" <ovms-pod> -c download-llm   # split-model mode only
+kubectl logs -n "$NAMESPACE" <video-ingestion-pod> -c od-model-downloader
+```
+
 OVMS metrics, when `ovms.enabled=true`:
 ```bash
 kubectl port-forward svc/vss-nginx 8081:80 -n "$NAMESPACE"
@@ -303,10 +337,22 @@ curl http://localhost:8081/ovms/metrics
 
 - Helm fails with missing credentials: fill `global.env.POSTGRES_USER`, `global.env.POSTGRES_PASSWORD`, `global.env.MINIO_ROOT_USER`, `global.env.MINIO_ROOT_PASSWORD`, `global.env.RABBITMQ_DEFAULT_USER`, `global.env.RABBITMQ_DEFAULT_PASS`.
 - Helm fails with GPU key errors: set `global.devices.*.key` for every non-CPU device.
-- Helm fails with embedding/dataprep pairing: set both `global.devices.multimodalEmbedding.device` and `global.devices.vdmsDataprep.device` to the same value.
+- Model download init container fails: inspect the specific init-container log,
+  verify `global.modelDownload.image`, proxy/token values, model id, device
+  support, and available model storage before debugging the main container.
 - Search returns bad/no results: confirm `global.embeddingModelName` matches the mode and `global.vdmsIndexName` came from the right override file.
-- Reinstall still broken with `global.keepPvc: true`: stale PVC contents may be incompatible. Delete the relevant PVC only if the user accepts losing cached models/data:
+- Reinstall still broken with `global.keepPvc: true`: inspect PVCs and delete
+  only the service-specific PVC containing incompatible data, after the user
+  accepts the loss. For release `vss`, the OVMS cache PVC is
+  `vss-ovms-pvc`; `vss-shared-pvc` is only collector signals:
   ```bash
-  kubectl delete pvc vss-shared-pvc -n "$NAMESPACE"
+  helm uninstall vss -n "$NAMESPACE"
+  kubectl get pvc -n "$NAMESPACE"
+  kubectl delete pvc vss-ovms-pvc -n "$NAMESPACE"
   ```
-- Need larger storage: set `sharedClaimSize`, `minioserver.claimSize`, `postgresql.claimSize`, `ovms.claimSize`, `vdmsvectordb.claimSize`, or `vllm.pvc.size` as needed.
+- Need larger storage: set `ovms.claimSize` for converted VLM/LLM models,
+  `videoingestion.claimSize` for OD models,
+  `vdmsdataprep.modelPvc.size`/`multimodalembeddingms.modelPvc.size` for search
+  model caches, or the relevant data setting such as `minioserver.claimSize`,
+  `postgresql.claimSize`, `vdmsvectordb.claimSize`, or `vllm.pvc.size`.
+  `sharedClaimSize` only sizes collector-signal storage.

@@ -1,0 +1,38 @@
+[
+  {
+    "name": "log_alert",
+    "module": "src.tools.log_tool",
+    "function": "log_alert",
+    "enabled": true,
+    "description": "Log the alert event to application logs. Always invoke.",
+    "requires_env": [],
+    "parameters": {"type": "object", "properties": {}}
+  },
+  {
+    "name": "trigger_webhook",
+    "module": "src.tools.webhook_tool",
+    "function": "trigger_webhook",
+    "enabled": true,
+    "description": "Send an HTTP POST webhook notification about the alert.",
+    "requires_env": ["WEBHOOK_URL"],
+    "parameters": {"type": "object", "properties": {}}
+  },
+  {
+    "name": "capture_snapshot",
+    "module": "src.tools.snapshot_tool",
+    "function": "capture_snapshot",
+    "enabled": true,
+    "description": "Save the image payload from the request to disk as a snapshot file.",
+    "requires_env": [],
+    "parameters": {"type": "object", "properties": {}}
+  },
+  {
+    "name": "publish_mqtt",
+    "module": "src.tools.mqtt_tool",
+    "function": "publish_mqtt",
+    "enabled": true,
+    "description": "Publish the alert event to an MQTT broker.",
+    "requires_env": ["MQTT_BROKER"],
+    "parameters": {"type": "object", "properties": {}}
+  }
+]

@@ -3,9 +3,18 @@
 This page tracks releases of the Text To Speech microservice. The most
 recent release is listed first; older entries are preserved for history.
 
-<!--## Version 2026.2.0-->
+## v1.1.0
 
-<!--date TBD-->
+**Release Date:** August 2026
+
+**New:**
+
+- Named voices selectable via the `voice` parameter, replacing raw
+  speaker index selection with human-readable identifiers.
+
+**Improved:**
+
+- Faster synthesis with more natural prosody across supported voices.
 
 ## v1.0.0
 
@@ -46,7 +55,8 @@ and selectable models, built for edge deployment on Intel® hardware.
   with HTTP `400`.
 - The `model` request field is accepted for OpenAI API compatibility but
   is ignored; the service always uses the model defined in `config.yaml`.
-- For SpeechT5, the `voice` and `language` fields are accepted but
-  ignored; the model uses a single fixed speaker embedding.
+- For SpeechT5, `language` is accepted but ignored (English only). The `voice`
+  field selects one of the seven bundled speaker embeddings; an unknown name
+  returns HTTP `400`.
 - Compatibility with the Video Search and Summarization sample
   application will be added in a subsequent release.

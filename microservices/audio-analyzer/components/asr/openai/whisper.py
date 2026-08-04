@@ -50,6 +50,9 @@ class Whisper(BaseASR):
         # null/None disables it.
         _hst = getattr(config.models.asr, "hallucination_silence_threshold", None)
         self.HALLUCINATION_SILENCE_THRESHOLD = float(_hst) if _hst is not None else None
+        # Word-level timestamps. Required by diarization to split a whisper
+        # segment that spans two speakers at the acoustic turn boundary.
+        self.WORD_TIMESTAMPS = bool(getattr(config.models.asr, "word_timestamps", False))
 
     def _is_silent_segment(self, seg: Dict[str, Any]) -> bool:
         """
@@ -104,6 +107,17 @@ class Whisper(BaseASR):
                 i += 1
         return " ".join(result)
 
+    def clean_text(self, text: str) -> str:
+        """Public hook so diarization-split sub-segments get repetition filtering.
+
+        Args:
+            text: text rebuilt from word-level timings.
+
+        Returns:
+            Text with consecutive repeated word sequences removed.
+        """
+        return self._remove_repeated_phrases(text)
+
     def _deduplicate_segments(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Drop segments whose text is identical to the immediately preceding
@@ -150,6 +164,9 @@ class Whisper(BaseASR):
             # Skip generation over silent regions (mic noise fix)
             hallucination_silence_threshold=self.HALLUCINATION_SILENCE_THRESHOLD,
 
+            # Per-word timings (used by diarization to split mixed-speaker segments)
+            word_timestamps=self.WORD_TIMESTAMPS,
+
             verbose=False,
         )
 
@@ -168,6 +185,14 @@ class Whisper(BaseASR):
                 "avg_logprob": seg.get("avg_logprob"),
                 "compression_ratio": seg.get("compression_ratio"),
                 "no_speech_prob": seg.get("no_speech_prob"),
+                "words": [
+                    {
+                        "word": w.get("word", ""),
+                        "start": float(w.get("start", seg["start"])),
+                        "end": float(w.get("end", seg["end"])),
+                    }
+                    for w in (seg.get("words") or [])
+                ],
             })
 
         # Post-processing repetition removal (repetition_penalty > 1.0)
