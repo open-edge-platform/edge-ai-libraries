@@ -26,7 +26,7 @@ Before starting the Edge Node deployment, ensure you meet the following prerequi
 
    <!--hide_directive
    <details>
-   <summary><code><b>hide_directive-->BIOS Settings
+   <summary><code><b>hide_directive-->Click to expand — BIOS Settings
    <!--hide_directive</b></code></summary>hide_directive-->
 
    <!--hide_directive ::::{tab-set} hide_directive-->
@@ -126,7 +126,7 @@ Before starting the Edge Node deployment, ensure you meet the following prerequi
 
 <!--hide_directive
 <details>
-<summary><code>hide_directive-->User Input
+<summary><code>hide_directive-->Click to expand — User Input
 <!--hide_directive</code><code><b>hide_directive-->VA Enablement Node
 <!--hide_directive</b></code></summary>hide_directive-->
 
@@ -145,7 +145,7 @@ After the installer script finishes executing, follow these steps to deploy Time
 
 <!--hide_directive
 <details>
-<summary><code><b>hide_directive-->Time of Day (TOD) Provisioning
+<summary><code><b>hide_directive-->Click to expand — Time of Day (TOD) Provisioning
 <!--hide_directive</b></code></summary>hide_directive-->
 
 TOD enables power management provisioning to save power at a specific time of day, delivering power
