@@ -144,15 +144,21 @@ logLevel: "INFO"
 metricsManager:
   url: "http://metrics-manager:9090"
   timeoutSeconds: 2
-uploadPolicy:
-  allowDuplicateUploads: true
+# Per-release override for duplicate-upload handling. Deliberately left empty so
+# the key is absent by default: the configmap only uses uploadPolicy when the key
+# is explicitly set, otherwise it falls back to
+# global.env.MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS and finally to "true". Setting a
+# default here would make the global override unreachable.
+uploadPolicy: {}
 cors:
   allowOrigins: "*"
   allowMethods: "*"
   allowHeaders: "*"
 embedding:
   processingMode: "sdk"
-  sdkUseOpenVino: true
+  # Left unset by default so global.env.SDK_USE_OPENVINO stays reachable in the
+  # configmap; a default here would shadow it. Falls back to "true".
+  sdkUseOpenVino: null
   device: "CPU"
   embeddingDevice: ""
   ovModelsDir: "/app/ov_models"
