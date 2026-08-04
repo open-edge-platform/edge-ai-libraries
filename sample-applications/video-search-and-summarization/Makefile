@@ -62,6 +62,10 @@ TAG ?= $(VERSION)
 #   2. Set REGISTRY_URL + PROJECT_NAME separately (trailing slashes are stripped):
 #        REGISTRY_URL=myregistry.io  PROJECT_NAME=myproject
 # If none are set, images are tagged without a registry prefix (local builds).
+# Note: .env supplies REGISTRY_URL/PROJECT_NAME defaults (see above), so setting
+# REGISTRY directly takes precedence over whatever .env contains. REGISTRY is the
+# single effective prefix: every image built, pushed or listed by this Makefile,
+# including those delegated to upstream build.sh scripts, is named $(REGISTRY)<image>:$(TAG).
 REGISTRY_URL ?=
 PROJECT_NAME ?=
 _REG_URL  := $(if $(REGISTRY_URL),$(patsubst %/,%,$(REGISTRY_URL))/)
@@ -180,7 +184,7 @@ build-deps: check-docker check-poetry
 	@echo "  → Building multimodal-dataprep via upstream build.sh..."
 	@if [ -x "$(USERVICES_DIR)/visual-data-preparation-for-retrieval/multimodal-dataprep/build.sh" ]; then \
 	  cd "$(USERVICES_DIR)/visual-data-preparation-for-retrieval/multimodal-dataprep" && \
-	  REGISTRY_URL="$(REGISTRY_URL)" PROJECT_NAME="$(PROJECT_NAME)" TAG="$(TAG)" ./build.sh; \
+	  REGISTRY_URL="$(REGISTRY)" PROJECT_NAME="" TAG="$(TAG)" ./build.sh; \
 	else \
 	  echo "multimodal-dataprep build.sh not found or not executable: $(USERVICES_DIR)/visual-data-preparation-for-retrieval/multimodal-dataprep/build.sh"; \
 	  exit 1; \
@@ -198,7 +202,7 @@ build-deps: check-docker check-poetry
 	@echo "  → Building vector-retriever ($(VECTOR_RETRIEVER_BACKENDS)) via upstream build.sh..."
 	@if [ -x "$(VECTOR_RETRIEVER_DIR)/build.sh" ]; then \
 	  cd "$(VECTOR_RETRIEVER_DIR)" && \
-	  REGISTRY_URL="$(REGISTRY_URL)" PROJECT_NAME="$(PROJECT_NAME)" TAG="$(TAG)" \
+	  REGISTRY_URL="$(REGISTRY)" PROJECT_NAME="" TAG="$(TAG)" \
 	    ./build.sh $(VECTOR_RETRIEVER_BUILD_ARGS); \
 	else \
 	  echo "vector-retriever build.sh not found or not executable: $(VECTOR_RETRIEVER_DIR)/build.sh"; \
