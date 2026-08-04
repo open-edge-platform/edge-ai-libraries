@@ -5,5 +5,5 @@ apiVersion: v2
 name: metrics-manager
 description: Unified system and application metrics service for Intel edge platforms
 type: application
-version: 2.0.0
+version: 2026.2.0-helm
 appVersion: "v1.0"
