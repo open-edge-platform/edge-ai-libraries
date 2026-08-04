@@ -51,7 +51,7 @@ cd edge-ai-libraries/microservices/vector-retriever/vector-retriever
 
 - Set up environment values:
 
-Follow all instructions in the [Get Started](./get-started.md#set-environment-values) guide to configure required environment variables.
+Follow all instructions in the [Get Started](../get-started.md#set-environment-values) guide to configure required environment variables.
 
 Example required values:
 
@@ -131,11 +131,11 @@ curl --location --request GET 'http://localhost:6008/ready'
 
 ## Supporting Resources
 
-- [Overview](Overview.md)
-- [Overview and Architecture](overview-architecture.md)
-- [Get Started](get-started.md)
-- [API Reference](api-reference.md)
-- [OpenAPI Specification](api-docs/openapi.yaml)
-- [System Requirements](system-requirements.md)
-- [Add New Retriever Backend](add-new-retriever-backend.md)
-- [Release Notes](release-notes.md)
+- [Overview](../index.md)
+- [System Requirements](./system-requirements.md)
+- [Get Started](../get-started.md)
+- [How It Works](../how-it-works.md)
+- [How To Add New Retriever Backend](../add-new-retriever-backend.md)
+- [API Reference](../api-reference.md)
+- [Download OpenAPI Specification](../api-docs/openapi.yaml)
+- [Release Notes](../release-notes.md)

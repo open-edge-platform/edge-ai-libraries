@@ -13,6 +13,40 @@ The retriever service translates user queries into vector similarity searches an
 - Backend implementation (`src/retriever/backends/<name>/backend.py`): creates backend vector store client
 - Backend filter translation (`src/retriever/backends/<name>/filters.py`): translates query filters into backend-native syntax
 
+```mermaid
+flowchart TB
+    Client(["Client"])
+
+    subgraph API["API layer — src/main.py"]
+        Endpoints["/health · /ready · /query · /capabilities/filters"]
+    end
+
+    subgraph Orchestration["Batch orchestration — src/retriever/batch_executor.py"]
+        Batch["execute_batch()\nbounded concurrency, error isolation"]
+    end
+
+    subgraph Execution["Query execution — src/retriever/service.py"]
+        Service["execute_single_query()\nfilter normalization, pushdown build,\nfetch_k sizing, fallback filtering"]
+    end
+
+    subgraph Registry["Backend registry — src/retriever/backends/registry.py"]
+        Reg["resolves backend + filter modules\nby RETRIEVER_BACKEND setting"]
+    end
+
+    subgraph Backend["Backend implementation — backends/&lt;name&gt;/"]
+        Impl["backend.py: vector store client"]
+        Filt["filters.py: native filter translation"]
+    end
+
+    Embedding["Embedding client\nsrc/retriever/embedding_client.py"]
+    Store[("Vector store\nVDMS · Milvus · PGVector · FAISS")]
+
+    Client --> API --> Orchestration --> Execution
+    Execution --> Registry --> Backend
+    Execution -.image query.-> Embedding
+    Backend --> Store
+```
+
 ### Request flow
 
 1. Client sends `POST /query` with a list of query blocks.
@@ -24,6 +58,41 @@ The retriever service translates user queries into vector similarity searches an
 7. For text queries, the selected vector store executes similarity search with score. For image queries, the service computes the image embedding via the embedding API and performs vector search by embedding.
 8. Service applies fallback filtering against returned metadata for consistency across backends.
 9. Results are sorted and returned as `BatchQueryResponse` with partial errors when needed.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant API as API layer<br/>(main.py)
+    participant Batch as Batch executor
+    participant Service as Query service
+    participant Embed as Embedding client
+    participant Backend as Vector backend
+
+    Client->>API: POST /query (query blocks)
+    API->>API: Validate schema & filter operators
+    API->>Batch: execute_batch(requests)
+    Batch->>Service: execute_single_query(request) [per block, bounded concurrency]
+    Service->>Service: Detect modality (text vs image)
+    Service->>Service: Normalize where + aliases (tags, time_filter, filters)
+    Service->>Service: Build pushdown filter (backend-native)
+    Service->>Service: Compute fetch_k (+ over-fetch if pushdown partial)
+
+    alt text query
+        Service->>Backend: similarity_search_with_score(query, fetch_k, filter)
+    else image query
+        Service->>Embed: compute image embedding
+        Embed-->>Service: embedding vector
+        Service->>Backend: similarity_search_with_score_by_vector(embedding, fetch_k, filter)
+    end
+
+    Backend-->>Service: candidate results + scores
+    Service->>Service: Apply fallback filtering on metadata
+    Service->>Service: Sort & trim to top_k
+    Service-->>Batch: QueryResultBlock (or QueryError)
+    Batch-->>API: results + partial errors
+    API-->>Client: BatchQueryResponse
+```
 
 ### Pushdown and fallback model
 
