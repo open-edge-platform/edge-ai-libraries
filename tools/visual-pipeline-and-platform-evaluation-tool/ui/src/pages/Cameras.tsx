@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table.tsx";
 import { CameraAuthDialog } from "@/features/cameras/CameraAuthDialog.tsx";
+import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 const getUsbDetails = (camera: Camera): UsbCameraDetails | null =>
   camera.device_type === "USB" ? (camera.details as UsbCameraDetails) : null;
@@ -77,7 +78,7 @@ export const Cameras = () => {
 
   if (resolvedIsSuccess && resolvedCameras.length > 0) {
     return (
-      <div className="container pl-16 mx-auto py-10">
+      <div className={CONTENT_CONTAINER_CLASS}>
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Cameras</h1>
           <p className="text-muted-foreground mt-2">
@@ -149,7 +150,7 @@ export const Cameras = () => {
   if (resolvedIsLoading) {
     return (
       <div className="h-full overflow-auto">
-        <div className="container mx-auto py-10 pl-16">Loading cameras...</div>
+        <div className={CONTENT_CONTAINER_CLASS}>Loading cameras...</div>
       </div>
     );
   }
@@ -157,7 +158,7 @@ export const Cameras = () => {
   if (resolvedIsError) {
     return (
       <div className="h-full overflow-auto">
-        <div className="container mx-auto py-10 pl-16 text-destructive">
+        <div className={`${CONTENT_CONTAINER_CLASS} text-destructive`}>
           Failed to load cameras.
         </div>
       </div>
@@ -166,7 +167,7 @@ export const Cameras = () => {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="container mx-auto py-10 pl-16">
+      <div className={CONTENT_CONTAINER_CLASS}>
         <h1 className="text-3xl font-bold">Cameras</h1>
         <p className="text-muted-foreground mt-2">No cameras discovered.</p>
       </div>

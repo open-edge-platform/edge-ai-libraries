@@ -1,134 +1,167 @@
 # Build from Source
 
+This guide explains how to build the Behavioral Analysis image and run it with the latest deployment behavior.
+
 ## Prerequisites
 
 - Git
-- Docker Engine 24.0+ (for container build)
-- Python 3.12+ (for standalone build)
+- Docker Engine 24.0+
+- Docker Compose v2.x (recommended for runtime verification)
+- Python 3.10+ for local source-based execution (`pyproject.toml` requires `>=3.10`)
 - Access to `docker.io/intel/dlstreamer:2026.1.0-ubuntu24` (base image)
+
+Model prerequisites:
+
+- YOLO-Pose OpenVINO IR model files (`.xml` and `.bin`) under `./models/yolo_models/yolo26n-pose/`
+- If VLM is enabled, VLM model files under `./models/vlm_models/` (including OVMS model config)
 
 ---
 
 ## Repository Structure
 
-```
+```text
 behavioral-analysis/
-├── Dockerfile                  # Root Dockerfile (used for standalone builds)
+├── Dockerfile
 ├── docker/
-│   └── Dockerfile              # Docker Compose build target
-├── pyproject.toml              # Project metadata (version 1.0.0, Python >=3.10)
-├── requirements.txt            # Python dependencies
+│   └── Dockerfile
+├── docker-compose.yml
+├── pyproject.toml
+├── requirements.txt
+├── .env
 ├── config/
-│   └── patterns.yaml           # Pattern and VLM configuration
-└── src/                        # Application source code
+│   └── patterns.yaml
+├── src/
+└── tests/
 ```
+
+---
+
+## Deployment Modes (Build-Time Awareness)
+
+Runtime behavior is controlled by `DEPLOYMENT_MODE`:
+
+- `standalone+api` (default in `.env`): direct REST API mode (`POST /api/v1/analyze/batch`)
+- `seaweedfs+mqtt`: storage-backed asynchronous processing mode
+
+In Docker Compose, `ovms-vlm` is started by default and `behavioral-analysis` depends on it being healthy.
 
 ---
 
 ## Build the Docker Image
 
-The Docker Compose configuration builds from `docker/Dockerfile`. To build the image directly:
+Build using the compose-target Dockerfile:
 
 ```bash
-# From the behavioral-analysis/ directory
 docker build -f docker/Dockerfile -t intel/behavioral-analysis:latest .
 ```
 
-To build with a specific release tag:
+Build with a specific tag:
 
 ```bash
 docker build -f docker/Dockerfile -t intel/behavioral-analysis:1.0.0 .
 ```
 
-To build using the root Dockerfile:
+Optional: build from root Dockerfile:
 
 ```bash
 docker build -f Dockerfile -t intel/behavioral-analysis:latest .
 ```
 
-### What the Build Does
-
-1. Starts from `intel/dlstreamer:2026.1.0-ubuntu24` (provides Python 3.12, OpenVINO, GStreamer).
-2. Copies `requirements.txt` and installs Python dependencies (layer-cached if unchanged).
-3. Removes `__pycache__`, test directories, and strips `.so` files to reduce layer size.
-4. Copies `src/` and `config/` into `/app/`.
-5. Sets `PYTHONPATH` to include `/app/src`.
-6. Exposes port `8080`.
-7. Sets the default command to: `python3 -m uvicorn main:app --host 0.0.0.0 --port 8080`.
-
 ---
 
-## Standalone Local Setup
+## Verify in Docker Compose (Recommended)
 
-For standalone local setup, follow [Run Standalone](./run-standalone.md).
-
----
-
-## Run Tests
-
-Tests use `pytest` with `pytest-asyncio`:
+1. Prepare env values (default mode is already `standalone+api`):
 
 ```bash
-# From the behavioral-analysis/ directory
-source .venv/bin/activate
-PYTHONPATH=src pytest tests/
+cp .env .env.local
 ```
 
-To run with verbose output:
+2. Ensure model paths are populated:
+
+- `${DOWNLOADED_MODEL_PATH}/yolo_models/yolo26n-pose/` exists
+- `${DOWNLOADED_MODEL_PATH}/vlm_models/` exists if `VLM_ENABLED=true`
+
+3. Build and start:
 
 ```bash
-PYTHONPATH=src pytest tests/ -v
+docker compose --env-file .env.local build behavioral-analysis
+docker compose --env-file .env.local up -d
 ```
 
-The test suite is located in `tests/test_pose_analyzer.py` and covers `PoseAnalyzer`, `Pose` keypoint properties, midpoint calculations, and pattern detection logic.
-
----
-
-## Build Verification
-
-After building the Docker image, verify it starts correctly:
-
-```bash
-docker run --rm -p 8085:8080 \
-  -e SEAWEEDFS_ENDPOINT=http://host.docker.internal:8333 \
-  -e MQTT_HOST=host.docker.internal \
-  intel/behavioral-analysis:latest
-```
-
-Then check the health endpoint:
+4. Verify health:
 
 ```bash
 curl http://localhost:8085/health
 ```
 
+5. Verify batch endpoint is reachable (standalone+api mode):
+
+```bash
+curl -X POST "http://localhost:8085/api/v1/analyze/batch" \
+  -F "entity_id=build_check_001" \
+  -F "pattern_id=shelf_to_waist" \
+  -F "frames=@tests/test_frames/frame_000_0.0s.jpg"
+```
+
 ---
 
-## Common Build Issues
+## Local Source Execution (Host)
 
-### `pip install` fails on `git+https://` dependency
+For host execution without Docker, use the standalone instructions:
 
-**Cause:** Git is not installed or network access to GitHub is blocked.
+- [Run Standalone](./run-standalone.md)
 
-**Resolution:**
+---
+
+## Run Tests
+
+```bash
+source .venv/bin/activate
+PYTHONPATH=src pytest tests/ -v
+```
+
+Useful subsets:
+
+```bash
+PYTHONPATH=src pytest tests/test_pose_analyzer.py -v
+PYTHONPATH=src pytest tests/test_api_v1_direct.py -v
+```
+
+---
+
+## Common Build and Startup Issues
+
+### pip install fails on git+https dependency
+
+Cause: Git is missing or GitHub is unreachable.
+
+Resolution:
+
 ```bash
 apt-get install -y git
-# or set http_proxy/https_proxy if behind a corporate proxy
 ```
+
+If you are behind a proxy, configure `http_proxy` and `https_proxy`.
 
 ### Base image pull fails
 
-**Cause:** No access to `docker.io/intel/dlstreamer:2026.1.0-ubuntu24`.
+Cause: Cannot pull `intel/dlstreamer:2026.1.0-ubuntu24`.
 
-**Resolution:** Configure Docker to use your organization's registry mirror, or set `HTTP_PROXY`/`HTTPS_PROXY` for Docker daemon.
+Resolution: Configure Docker registry access or mirror/proxy.
 
-### `openvino` import error at runtime
+### OVMS fails to become healthy
 
-**Cause:** Running outside the base image without OpenVINO installed.
+Cause: VLM model files/config are missing under `${DOWNLOADED_MODEL_PATH}/vlm_models`.
 
-**Resolution:** OpenVINO is provided by `intel/dlstreamer:2026.1.0-ubuntu24`. For standalone use, install OpenVINO Runtime separately or use the container.
+Resolution: Download the VLM model artifacts first, verify mount path, then restart compose.
 
-### `ModuleNotFoundError` for `gstgva`
+### Health endpoint is up but analysis fails
 
-**Cause:** `gstgva` is part of the DL Streamer base image and is not available in standalone Python environments.
+Cause: Missing model files or mismatched runtime config.
 
-**Resolution:** This module is only used indirectly via the GStreamer pipeline. For standalone use without GStreamer hardware acceleration, the `YOLOPoseOV` OpenVINO wrapper is used directly and does not require `gstgva`.
+Resolution: Verify:
+
+- YOLO model path exists (`/models/yolo_models/yolo26n-pose/...`)
+- VLM endpoint and model config are valid when VLM is enabled
+- `DEPLOYMENT_MODE` matches intended flow (`standalone+api` or `seaweedfs+mqtt`)

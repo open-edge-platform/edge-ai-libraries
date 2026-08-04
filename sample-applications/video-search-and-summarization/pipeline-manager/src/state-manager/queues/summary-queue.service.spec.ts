@@ -1,5 +1,9 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
+jest.mock('uuid', () => ({
+  v4: jest.fn(() => 'mock-uuid'),
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { SummaryQueueService } from './summary-queue.service';
 import { StateService } from '../services/state.service';
@@ -387,6 +391,46 @@ describe('SummaryQueueService', () => {
   });
 
   describe('processQueue', () => {
+    it('should process the visual summary when transcription finds no audio', () => {
+      stateService.fetch.mockReturnValue({
+        ...mockState,
+        systemConfig: {
+          ...mockState.systemConfig,
+          audioModel: 'whisper-large-v3',
+          audioUseFullTranscriptSummary: true,
+        },
+        audio: {
+          status: StateActionStatus.COMPLETE,
+          transcript: [],
+          transcriptSummary: '',
+          transcriptSummaryStatus: StateActionStatus.NA,
+        },
+        status: {
+          summarizing: StateActionStatus.READY,
+        },
+      } as any);
+
+      service.streamTrigger({ stateId: mockStateId });
+      service.audioSummaryTrigger({ stateId: mockStateId });
+
+      const startVideoSummarySpy = jest
+        .spyOn(service, 'startVideoSummary')
+        .mockImplementation();
+      const startAudioSummarySpy = jest.spyOn(
+        service,
+        'startAudioTranscriptSummary',
+      );
+
+      service.processQueue();
+
+      expect(startVideoSummarySpy).toHaveBeenCalledWith({
+        stateId: mockStateId,
+        taskType: 'videoSummary',
+      });
+      expect(startAudioSummarySpy).not.toHaveBeenCalled();
+      expect(service.waiting).toHaveLength(0);
+    });
+
     it('should not process anything when processing queue is at capacity', () => {
       // Arrange
       service.waiting = [{ stateId: 'state-1', taskType: 'videoSummary' }, { stateId: 'state-2', taskType: 'videoSummary' }];

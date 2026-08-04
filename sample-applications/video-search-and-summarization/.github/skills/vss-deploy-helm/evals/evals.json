@@ -10,9 +10,10 @@
       "expectations": [
         "Uses the real chart location or chart name `video-search-and-summarization` and gives the summary install command `helm install vss . -f summary_override.yaml -f user_values_override.yaml -n \"$NAMESPACE\"` from the chart directory.",
         "Identifies `summary_override.yaml` as the mode selector and references real summary-mode toggles such as `rabbitmq.enabled=true`, `ovms.enabled=true`, `videoingestion.enabled=true`, `audioanalyzer.enabled=true`, `summaryui.enabled=true`, or `pipelinemanager.env.SUMMARY_FEATURE=FEATURE_ON`.",
-        "Lists required shared-storage/model values from `user_values_override.yaml`, including `global.usePvc`, `global.keepPvc`, `global.sharedPvcName`, and `global.vlmName`.",
+        "Lists required storage/model values from `user_values_override.yaml`, including `global.usePvc`, `global.keepPvc`, and `global.vlmName`, and does not misrepresent `global.sharedPvcName` as OVMS model storage.",
         "Calls out the required credentials under `global.env`, including `POSTGRES_USER`, `POSTGRES_PASSWORD`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `RABBITMQ_DEFAULT_USER`, and `RABBITMQ_DEFAULT_PASS`.",
-        "Includes the namespace creation step (`kubectl create namespace \"$NAMESPACE\"`) or otherwise makes it clear the Helm install should target a namespace such as `vss-deployment`."
+        "Includes the namespace creation step (`kubectl create namespace \"$NAMESPACE\"`) or otherwise makes it clear the Helm install should target a namespace such as `vss-deployment`.",
+        "Explains that OVMS and video-ingestion use `global.modelDownload.image` through API-driven init containers before the main containers start; the chart defaults may be retained unless a registry override is needed."
       ]
     },
     {
@@ -40,7 +41,8 @@
         "Sets `global.vlmName` to `OpenVINO/Phi-3.5-vision-instruct-int8-ov` and `global.llmName` to `OpenVINO/Qwen3-8B-int4-cw-ov` for split-model OVMS summary mode.",
         "Sets `global.devices.ovms.vlm.device: GPU` with a real GPU key such as `gpu.intel.com/i915` or `gpu.intel.com/xe`.",
         "Sets `global.devices.ovms.llm.device: NPU` with a real NPU key such as `npu.intel.com/accel`.",
-        "Warns that every non-CPU device setting requires the matching `.key`, and may mention `ovms.env.VLM_WEIGHT_FORMAT` / `ovms.env.LLM_WEIGHT_FORMAT` for overriding auto weight format."
+        "Warns that every non-CPU device setting requires the matching `.key`, and may mention `ovms.env.VLM_WEIGHT_FORMAT` / `ovms.env.LLM_WEIGHT_FORMAT` for overriding auto weight format.",
+        "Notes that model conversion occurs in the `download-vlm` and optional `download-llm` init containers and points to their logs if startup remains in Init."
       ]
     },
     {
@@ -61,12 +63,12 @@
       "id": 5,
       "prompt_file": "example-prompts/05-storage-troubleshoot-pvc.md",
       "prompt": "I uninstalled and reinstalled the `vss` Helm release in namespace `vss-deployment` (summary mode) to pick up a new `global.vlmName`, but pods are crashing on startup and it looks like it's reusing old model data because I have `global.keepPvc: true`. Also I suspect `sharedClaimSize: 7Gi` is too small for the new model. How do I clean this up safely and size storage correctly?",
-      "expected_output": "Provides a safe recovery path for a VSS Helm reinstall that is reusing incompatible PVC state, including warning about data loss, deleting the shared PVC only when accepted, increasing storage sizes, reinstalling, and verifying pods/logs/events.",
+      "expected_output": "Provides a safe recovery path for a VSS Helm reinstall that is reusing incompatible PVC state, including warning about data loss, identifying and deleting only the OVMS service PVC when accepted, sizing `ovms.claimSize`, reinstalling, and verifying pods/init-container logs/events. It corrects the misconception that `sharedClaimSize` stores models.",
       "files": [],
       "expectations": [
         "Explains that `global.keepPvc: true` avoids re-downloading or re-converting models but can preserve incompatible stale PVC state after model changes.",
-        "Warns that deleting the PVC loses cached models/data and shows the targeted cleanup command `kubectl delete pvc vss-shared-pvc -n vss-deployment` or equivalent using `$NAMESPACE`.",
-        "Recommends increasing `sharedClaimSize` and names other real storage keys as applicable, such as `minioserver.claimSize`, `postgresql.claimSize`, `ovms.claimSize`, `vdmsvectordb.claimSize`, or `vllm.pvc.size`.",
+        "Warns that deleting a PVC loses cached models/data, uninstalls the active release before cleanup, lists retained PVCs, and targets the OVMS PVC such as `kubectl delete pvc vss-ovms-pvc -n vss-deployment` rather than the collector-signal PVC.",
+        "Explains that `sharedClaimSize` is only for collector signals and recommends increasing `ovms.claimSize` for converted VLM/LLM storage; it may name other service-specific storage keys as applicable.",
         "Uses the real summary reinstall stack `helm install vss . -f summary_override.yaml -f user_values_override.yaml -n vss-deployment` or the same command with `$NAMESPACE`.",
         "Includes verification with `kubectl get pods -n vss-deployment -w`, `kubectl logs -n vss-deployment deploy/vss-pipelinemanager`, and `kubectl get events -n vss-deployment --sort-by=.lastTimestamp` or equivalent namespace variables."
       ]

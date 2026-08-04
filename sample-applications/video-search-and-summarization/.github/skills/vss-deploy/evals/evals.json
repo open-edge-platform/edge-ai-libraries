@@ -12,7 +12,7 @@
         "The answer generates or reuses vss.secrets.env with .github/skills/vss-deploy/scripts/gen-secrets.sh and sources both vss.config.env and vss.secrets.env.",
         "The answer runs source setup.sh --stop before source setup.sh --summary so stale or wrong-mode containers cannot collide.",
         "The answer sources setup.sh rather than executing ./setup.sh directly.",
-        "The answer waits for health with scripts/wait-health.sh and reports the summary UI URL as http://<host-ip>:12345/ or using APP_HOST_PORT."
+        "The answer allows for setup.sh to run the transient model-download REST service before Compose when OD/VLM artifacts are missing, then waits for health with scripts/wait-health.sh and reports the summary UI URL as http://<host-ip>:12345/ or using APP_HOST_PORT."
       ]
     },
     {
@@ -53,7 +53,7 @@
         "The answer includes `source setup.sh --stop` and/or its alias `source setup.sh --down` as the command to stop and remove containers.",
         "The answer includes `source setup.sh --clean-data` as the full reset command.",
         "The answer states that `--stop`, `--clean-data`, or config-only inspection skip the normal required-environment validation.",
-        "The answer lists at least three exact cleanup targets from `docker_minio_data`, `docker_pg_data`, `docker_vdms-db`, `docker_audio_analyzer_data`, `docker_data-prep`, `docker_collector_signals`, or `.ov_venv`.",
+        "The answer lists at least three exact cleanup targets from `docker_minio_data`, `docker_pg_data`, `docker_vdms-db`, `docker_audio_analyzer_data`, `docker_data-prep`, or `docker_collector_signals`, and does not claim that `--clean-data` removes the host-backed `ov_models/` cache.",
         "The answer distinguishes that `--stop` removes containers across VSS overlays/profiles, while `--clean-data` additionally removes persisted volumes/data."
       ]
     },

@@ -5,6 +5,7 @@ definition: >
 tags:
   - Retail
 thumbnail: images/goods-detection.png
+type: vision
 variants:
   - name: CPU
     pipeline_description: >-

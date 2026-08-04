@@ -4,6 +4,7 @@ definition: >
 tags:
   - GenAi
 thumbnail: images/video-summary.png
+type: vision
 variants:
   - name: CPU
     pipeline_description: >-

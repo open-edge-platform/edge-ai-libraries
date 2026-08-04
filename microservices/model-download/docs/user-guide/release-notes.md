@@ -10,6 +10,7 @@
 
 **New:**
 
+- Added HETERO device support for OpenVINO conversion: `config.device` now accepts `HETERO:<dev>[,<dev>...]` (e.g. `HETERO:GPU,CPU`) in addition to `CPU`, `GPU`, and `NPU`. Converted models are stored under a filesystem-safe device directory (e.g. `openvino_models/hetero_gpu_cpu/`). The NPU int4 override applies only to the exact `NPU` device, not to HETERO combinations.
 - Added a new Pipeline Zoo Models plugin for downloading models from the `dlstreamer/pipeline-zoo-models` repository.
 - Added external source hubs for OpenVINO™ Model Zoo (`omz`) and allowlisted runtime archive downloads (`remote-url`).
 - Isolated Python virtual environments per plugin to prevent dependency conflicts.

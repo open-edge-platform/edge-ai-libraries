@@ -3,7 +3,7 @@
 
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.utils import HfHubHTTPError, GatedRepoError, RepositoryNotFoundError
-from src.core.interfaces import ListingAuthError, ModelDownloadPlugin, DownloadTask
+from src.core.interfaces import ListingAuthError, ModelDownloadPlugin, DownloadTask, PluginConfigKey
 from src.utils.logging import logger
 import os
 
@@ -19,6 +19,18 @@ class HuggingFacePlugin(ModelDownloadPlugin):
     def plugin_type(self) -> str:
         return "downloader"
 
+    def hub_config_keys(self, hub: str = "huggingface") -> list:
+        return [
+            PluginConfigKey(
+                name="HF_TOKEN",
+                description=(
+                    "HuggingFace access token. Required only for gated or private "
+                    "models; public models work without authentication."
+                ),
+                sensitive=True,
+            ),
+        ]
+
     @property
     def supports_listing(self) -> bool:
         return True
@@ -31,7 +43,10 @@ class HuggingFacePlugin(ModelDownloadPlugin):
         """List models for an author (user, owner, or organization) on the HuggingFace Hub."""
         filters = filters or {}
         self._validate_listing_filters(filters)
-        token = os.getenv("HF_TOKEN")
+        # Per-request override wins; env HF_TOKEN is the fallback (already applied
+        # by resolve_config when a resolved_config is supplied).
+        resolved_config = kwargs.get("resolved_config") or {}
+        token = resolved_config.get("HF_TOKEN") or os.getenv("HF_TOKEN")
 
         # HuggingFace exposes the repo namespace (a user, owner, or organization) as `author`.
         author = filters.get("author")
@@ -140,10 +155,12 @@ class HuggingFacePlugin(ModelDownloadPlugin):
 
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         return hub.lower() == "huggingface"
-    
 
     def download(self, model_name: str, output_dir: str, **kwargs) -> dict:
-        hf_token = kwargs.get("hf_token")
+        # Per-request override wins; env HF_TOKEN is the fallback (applied by
+        # resolve_config). Fall back to the legacy hf_token kwarg for compatibility.
+        resolved_config = kwargs.get("resolved_config") or {}
+        hf_token = resolved_config.get("HF_TOKEN") or kwargs.get("hf_token")
         revision = kwargs.get("revision")
         
         # Create hub-specific directory under the output directory
