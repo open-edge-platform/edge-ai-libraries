@@ -1,4 +1,4 @@
-# How to Build from Source
+# Build from Source
 
 Build the **Vector Retriever microservice** from source to customize, debug, or extend its functionality. In this guide, you will:
 

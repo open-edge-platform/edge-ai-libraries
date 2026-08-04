@@ -1,4 +1,4 @@
-# Overview and Architecture
+# How It Works
 
 The retriever service translates user queries into vector similarity searches and returns ranked metadata-rich results. It separates backend-independent orchestration from backend-specific vector store implementations.
 
@@ -33,7 +33,7 @@ The retriever service translates user queries into vector similarity searches an
 Fallback evaluation is authoritative for final inclusion. Over-fetch is used to increase the
 candidate pool before fallback when the service detects that backend pushdown may be incomplete.
 
-## Why registry + backend folders
+## Why registry with backend folders
 
 The backend registry lets the service support multiple vector stores without backend conditionals spread across business logic. Each backend owns:
 
@@ -45,18 +45,18 @@ This keeps onboarding of new backends localized and predictable.
 
 ## Supported backend filter styles
 
-- VDMS: list-based filter expressions
-- Milvus: SQL-like `expr` string
-- PGVector: Mongo-style filter document
-- FAISS: dict-style metadata filters (Mongo-like operators)
+- **VDMS**: list-based filter expressions
+- **Milvus**: SQL-like `expr` string
+- **PGVector**: Mongo-style filter document
+- **FAISS**: dict-style metadata filters (Mongo-like operators)
 
 ## Supporting Resources
 
-- [Overview](Overview.md)
-- [System Requirements](system-requirements.md)
-- [Get Started](get-started.md)
-- [API Reference](api-reference.md)
-- [OpenAPI Specification](api-docs/openapi.yaml)
-- [How to Build from Source](how-to-build-from-source.md)
-- [Add New Retriever Backend](add-new-retriever-backend.md)
-- [Release Notes](release-notes.md)
+- [Overview](./index.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [Get Started](./get-started.md)
+- [How to Build from Source](./get-started/build-from-source.md)
+- [How To Add New Retriever Backend](./add-new-retriever-backend.md)
+- [API Reference](./api-reference.md)
+- [Download OpenAPI Specification](./api-docs/openapi.yaml)
+- [Release Notes](./release-notes.md)

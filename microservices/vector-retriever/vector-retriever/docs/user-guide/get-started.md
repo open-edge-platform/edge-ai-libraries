@@ -6,9 +6,9 @@ This guide provides step-by-step instructions to quickly deploy and test the **V
 
 Before you begin, confirm the following:
 
-- **System Requirements**: Your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Docker Installed**: Install Docker if needed. See [Get Docker](https://docs.docker.com/get-docker/).
-- **Embedding Service Plan**: Use the local multimodal-embedding-serving (MME) overlay started by `setup.sh`, or provide an external `EMBEDDINGS_ENDPOINT`.
+- **Embedding Service Plan**: Use the local Multimodal Embedding Serving (MME) overlay started by `setup.sh`, or provide an external `EMBEDDINGS_ENDPOINT`.
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
 
@@ -75,7 +75,8 @@ MME embedding backend (used by all overlays):
 
 ## Set Environment Values
 
-Set the required environment variables before launching the service.
+Set the required environment variables before launching the service. <!--You can use the correct
+tab below to set the backend for your use case.-->
 
 ```bash
 # Choose one backend: vdms | milvus | pgvector | faiss
@@ -85,9 +86,9 @@ export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
 # export EMBEDDINGS_ENDPOINT=http://<embedding-service-host>:<port>/embeddings
 ```
 
-> **_NOTE:_** For valid `EMBEDDING_MODEL_NAME` values, see the MME supported models list: [Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md).
+> **Note:** For valid `EMBEDDING_MODEL_NAME` values, see the Multi Modal Embedding (MME) supported models list: [Supported Models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html).
 
-Supported backend values for `RETRIEVER_BACKEND` are `vdms`, `milvus`, `pgvector`, and `faiss`.
+`RETRIEVER_BACKEND` supports the following values: `vdms`, `milvus`, `pgvector`, and `faiss`.
 `setup.sh` defaults `EMBEDDINGS_ENDPOINT` to the local MME overlay unless you override it.
 
 ### Configure the registry
@@ -139,11 +140,11 @@ Set the environment with default values by running the command below. Run this a
 source setup.sh --nosetup
 ```
 
-## Start the Service (Recommended: `source setup.sh`)
+## Start the Service
 
-Use `setup.sh` as the default startup path. It validates required environment variables, renders `.env`, selects the backend compose overlay, and starts the stack.
+Use `setup.sh` as the recommended default startup path. It validates required environment variables, renders `.env`, selects the backend compose overlay, and starts the stack.
 
-You can [build the Docker image](./how-to-build-from-source.md#steps-to-build) or pull a prebuilt image from the configured registry and tag.
+You can [build the Docker image](./get-started/build-from-source.md#steps-to-build) or pull a prebuilt image from the configured registry and tag.
 
 ### Start using `RETRIEVER_BACKEND`
 
@@ -399,7 +400,7 @@ Run one backend only (example: PGVector):
 RUN_FUNCTIONAL_BACKEND_TESTS=1 PYTHONPATH=. poetry run pytest -q tests/functional/test_pgvector_filters.py
 ```
 
-> **_NOTE:_** Functional tests are intentionally heavier than unit tests and require Docker.
+> **Note:** Functional tests are intentionally heavier than unit tests and require Docker.
 
 ## Troubleshooting
 
@@ -425,12 +426,21 @@ RUN_FUNCTIONAL_BACKEND_TESTS=1 PYTHONPATH=. poetry run pytest -q tests/functiona
 
 ## Supporting Resources
 
-- [Overview](Overview.md)
-- [Overview and Architecture](overview-architecture.md)
-- [API Reference](api-reference.md)
-- [Filter Grammar](filter-grammar.md)
-- [OpenAPI Specification](api-docs/openapi.yaml)
-- [System Requirements](system-requirements.md)
-- [How to Build from Source](how-to-build-from-source.md)
-- [Add New Retriever Backend](add-new-retriever-backend.md)
-- [Release Notes](release-notes.md)
+- [Overview](./index.md)
+- [How It Works](./how-it-works.md)
+- [How to Build from Source](./get-started/build-from-source.md)
+- [How To Add New Retriever Backend](./add-new-retriever-backend.md)
+- [API Reference](./api-reference.md)
+- [Filter Grammar](./filter-grammar.md)
+- [Download OpenAPI Specification](./api-docs/openapi.yaml)
+- [Release Notes](./release-notes.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+System Requirements <./get-started/system-requirements.md>
+Build from Source <./get-started/build-from-source.md>
+
+:::
+hide_directive-->
