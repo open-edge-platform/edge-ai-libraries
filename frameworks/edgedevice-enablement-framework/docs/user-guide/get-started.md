@@ -136,7 +136,8 @@ Before starting the Edge Node deployment, ensure you meet the following prerequi
 | DL Streamer  | Do you want to install DL Streamer? (y/n) <br> (Comes up only for the DevKit command-line argument)   |
 | XPU-SMI      | Do you want to install Intel XPU-SMI? (y/n) <br> (Comes up only for the DevKit command-line argument) |
 
-</details>
+<!--hide_directive
+</details>hide_directive-->
 
 ## Step 4: Enable Time of Day (TOD) Provisioning
 
