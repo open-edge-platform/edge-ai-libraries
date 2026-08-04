@@ -18,7 +18,7 @@ DELETE_CHUNK_AFTER_USE = getattr(config.pipeline, "delete_chunks_after_use", Tru
 SESSION_STATE_FILENAME = "session_state.json"
 
 class Pipeline:
-    def __init__(self, session_id=None, temperature=None, append_to_session: bool = False):
+    def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None):
         logger.info("pipeline initialized")
         self.session_id = session_id or generate_session_id()
         self.append_to_session = append_to_session
@@ -29,6 +29,7 @@ class Pipeline:
             model_name=config.models.asr.name,
             device=config.models.asr.device,
             temperature=self.temperature,
+            speaker_scope_id=speaker_scope_id,
         )
         self.sentiment_component = None
         if SENTIMENT_ENABLED:
@@ -167,6 +168,11 @@ class Pipeline:
         }
         if include_speaker and "speaker" in segment:
             verbose_segment["speaker"] = segment["speaker"]
+            # Cross-conversation primary-speaker verdict. Resolved here against
+            # the enrolled reference voice, so downstream consumers do not have
+            # to re-derive it from per-request speaker labels.
+            if "is_primary" in segment:
+                verbose_segment["is_primary"] = bool(segment["is_primary"])
         return verbose_segment
 
     def _resolve_output_language(
