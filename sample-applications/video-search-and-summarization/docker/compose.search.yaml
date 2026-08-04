@@ -281,14 +281,14 @@ services:
         ports:
             - '${VECTOR_RETRIEVER_HOST_PORT:-6008}:8000'
         environment:
-            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_VDB_HOST},milvus-standalone,localhost
-            NO_PROXY: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_VDB_HOST},milvus-standalone,localhost
+            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},${VDMS_VDB_HOST:-vdms-vector-db},milvus-standalone,localhost
+            NO_PROXY: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},${VDMS_VDB_HOST:-vdms-vector-db},milvus-standalone,localhost
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             RETRIEVER_BACKEND: ${RETRIEVER_BACKEND:-vdms}
             LOG_LEVEL: ${VECTOR_RETRIEVER_LOG_LEVEL:-INFO}
             INDEX_NAME: ${VS_INDEX_NAME}
-            EMBEDDINGS_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT}
+            EMBEDDINGS_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT:-http://${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving}:8000/embeddings}
             EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
             DEFAULT_TOP_K: ${AGGREGATION_INITIAL_K:-20}
             MAX_TOP_K: ${VECTOR_RETRIEVER_MAX_TOP_K:-1000}

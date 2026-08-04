@@ -295,6 +295,12 @@ export OVMS_ALLOWED_MEDIA_DOMAINS=${OVMS_ALLOWED_MEDIA_DOMAINS:-${MINIO_HOST},lo
 export VDMS_VDB_HOST_PORT=55555
 export VDMS_VDB_HOST=vdms-vector-db
 
+# env for multimodal-embedding-serving
+# Consumed by video-search and vector-retriever; both reach the service over the
+# compose network, so the defaults must be exported and not left to interpolation.
+export MULTIMODAL_EMBEDDING_HOST=${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving}
+export MULTIMODAL_EMBEDDING_ENDPOINT=${MULTIMODAL_EMBEDDING_ENDPOINT:-http://${MULTIMODAL_EMBEDDING_HOST}:8000/embeddings}
+
 # ---------------------------------------------------------------------------
 # Vector database backend selection (search path)
 #   VECTORDB_BACKEND=vdms   (default) — multimodal-dataprep writes to VDMS and

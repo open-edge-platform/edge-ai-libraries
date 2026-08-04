@@ -428,6 +428,9 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             "segments_created": 0,
             "segments_after_filtering": 0,
             "final_results": 0,
+            "raw_score_min": None,
+            "raw_score_max": None,
+            "global_max_frame_score": None,
             "processing_time_ms": 0.0,
             "segmentation_time_ms": 0.0,
             "scoring_time_ms": 0.0,
@@ -568,17 +571,25 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
     logger.debug(f"Scored {len(scored_segments)} segments")
     
     # Step 2.5: Normalize scores to [0, 1] range
+    raw_score_min: Optional[float] = None
+    raw_score_max: Optional[float] = None
     if scored_segments:
         raw_scores = [seg["final_score"] for seg in scored_segments]
         min_score = min(raw_scores)
         max_score = max(raw_scores)
         score_range = max_score - min_score
-        
+        raw_score_min = min_score
+        raw_score_max = max_score
+
+        # The raw range is query-local: it is what makes an individual raw score
+        # interpretable in the UI, so it is attached to every breakdown.
         if score_range > 0:
             for seg in scored_segments:
                 raw_score = seg["final_score"]
                 normalized_score = (raw_score - min_score) / score_range
                 seg["score_breakdown"]["raw_score"] = raw_score
+                seg["score_breakdown"]["raw_score_min"] = min_score
+                seg["score_breakdown"]["raw_score_max"] = max_score
                 seg["score_breakdown"]["score"] = normalized_score
                 seg["final_score"] = normalized_score
             logger.debug(f"Normalized scores: range [{min_score:.4f}, {max_score:.4f}] → [0.0, 1.0]")
@@ -586,6 +597,8 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             # All scores identical, set to 1.0
             for seg in scored_segments:
                 seg["score_breakdown"]["raw_score"] = seg["final_score"]
+                seg["score_breakdown"]["raw_score_min"] = min_score
+                seg["score_breakdown"]["raw_score_max"] = max_score
                 seg["score_breakdown"]["score"] = 1.0
                 seg["final_score"] = 1.0
             logger.debug(f"All scores identical ({max_score:.4f}), normalized to 1.0")
@@ -703,6 +716,9 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
         "segments_created": len(segments),
         "segments_after_filtering": len(filtered_segments),
         "final_results": len(final_results),
+        "raw_score_min": raw_score_min,
+        "raw_score_max": raw_score_max,
+        "global_max_frame_score": global_max_score,
         "processing_time_ms": processing_time,
         "segmentation_time_ms": segmentation_time_ms,
         "scoring_time_ms": scoring_time_ms,
