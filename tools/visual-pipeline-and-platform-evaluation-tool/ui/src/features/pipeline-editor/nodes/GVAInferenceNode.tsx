@@ -30,7 +30,7 @@ const GVAInferenceNode = ({ data }: GVAInferenceNodeProps) => {
             <>
               {data.device && <span className="text-node-separator">•</span>}
               <span
-                className="truncate max-w-[10.75rem]"
+                className="truncate max-w-[7.5rem]"
                 title={data.model.split("/").pop() ?? data.model}
               >
                 {data.model.split("/").pop() ?? data.model}
