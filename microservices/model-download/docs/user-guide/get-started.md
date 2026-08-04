@@ -10,7 +10,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
 - Lists available models from supported hubs before download
 - Converts Hugging Face models to OpenVINO model server format
 - Supports multiple model precisions (INT4, INT8, FP16, and FP32)
-- Supports various device targets (CPU, GPU, and NPU)
+- Supports various device targets (CPU, GPU, and NPU), including heterogeneous execution via `HETERO:<dev>[,<dev>...]` (e.g. `HETERO:GPU,CPU`)
 - OpenVINO plugin supports NPU model conversion exclusively in INT4 precision.
 - Models supported for health AI suites(AI-ECG, rPPG and 3D Pose) with HLS plugin.
 - Supports parallel download

@@ -124,6 +124,15 @@ export class StateService {
     }
   }
 
+  audioError(stateId: string) {
+    if (this.states.has(stateId) && this.states.get(stateId)!.audio) {
+      this.states.get(stateId)!.audio!.status = StateActionStatus.NA;
+      this.states.get(stateId)!.audio!.transcriptSummaryStatus =
+        StateActionStatus.NA;
+      this.syncSocket(stateId);
+    }
+  }
+
   audioTranscriptSummaryProcessing(stateId: string) {
     if (this.states.has(stateId) && this.states.get(stateId)!.audio) {
       this.states.get(stateId)!.audio!.transcriptSummaryStatus =

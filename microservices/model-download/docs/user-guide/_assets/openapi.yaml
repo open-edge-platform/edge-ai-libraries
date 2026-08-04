@@ -76,11 +76,10 @@ components:
 
     DeviceType:
       type: string
-      enum:
-        - CPU
-        - GPU
-        - NPU
-      description: The target device type for model deployment
+      pattern: '^(CPU|GPU|NPU|HETERO:(CPU|GPU|NPU)(\.\d+)?(,(CPU|GPU|NPU)(\.\d+)?)*)$'
+      description: >-
+        The target device for model deployment: CPU, GPU, NPU, or HETERO with a
+        fallback list of devices (e.g. HETERO:GPU,CPU)
 
     Config:
       type: object
