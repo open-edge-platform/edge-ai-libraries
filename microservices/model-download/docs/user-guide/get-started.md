@@ -10,11 +10,12 @@ The Model Download is a microservice that downloads models from multiple hubs as
 - Lists available models from supported hubs before download
 - Converts Hugging Face models to OpenVINO model server format
 - Supports multiple model precisions (INT4, INT8, FP16, and FP32)
-- Supports various device targets (CPU, GPU, and NPU)
+- Supports various device targets (CPU, GPU, and NPU), including heterogeneous execution via `HETERO:<dev>[,<dev>...]` (e.g. `HETERO:GPU,CPU`)
 - OpenVINO plugin supports NPU model conversion exclusively in INT4 precision.
 - Models supported for health AI suites(AI-ECG, rPPG and 3D Pose) with HLS plugin.
 - Supports parallel download
 - Supports configurable model caching
+- Optionally schedules configured model downloads when the service starts
 - Supports custom model upload through `POST /models/upload`
 - Exposes a REST API with OpenAPI documentation
 
@@ -117,6 +118,13 @@ down                   Stop the services
 
 - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the
   Swagger documentation for the available APIs.
+
+## Download Models at Startup
+
+The service can schedule model downloads and conversions automatically from a configuration file
+
+See [Download Models at Startup](./get-started/startup-models.md) for the full configuration
+schema.
 
 ## Verification
 
@@ -487,6 +495,105 @@ curl -X GET "http://<host-ip>:8200/api/v1/jobs/<job_id>"
 }
 ```
 
+**Download with Override Credentials:**
+
+When using `override_credentials`, the service relies on Base64 encoding to
+obfuscate credential values in the request body and on log redaction to prevent
+credentials from appearing in service logs. Credentials are request-scoped
+(in-memory only) and never persisted. For deployments where the API is exposed
+beyond the local device or Docker network, place the service behind a
+TLS-terminating reverse proxy to encrypt credentials in transit.
+
+The `override_credentials` field lets you pass per-request credentials without
+changing environment variables. All values must be Base64-encoded, regardless of
+whether the key is marked as sensitive. The `sensitive` flag only controls
+whether the value is redacted in service logs — Base64 encoding is required for
+every key. Use `GET /api/v1/plugins` to discover the keys each plugin accepts.
+
+**Encode credentials:**
+
+```bash
+echo -n 'my-secret-token' | base64
+# Output: bXktc2VjcmV0LXRva2Vu
+```
+
+**Download a gated Hugging Face model with per-request token override (`HF_TOKEN`):**
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=hf_gated" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "meta-llama/Llama-3.1-8B-Instruct",
+        "hub": "huggingface",
+        "type": "llm",
+        "override_credentials": {
+          "HF_TOKEN": "<base64_HF_token>"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+**Download a Geti™ model with per-request credentials override (`GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID`):**
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_override" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "yolox-tiny",
+        "hub": "geti",
+        "revision": "1",
+        "override_credentials": {
+          "GETI_HOST": "<base64_GETI_HOST>",
+          "GETI_TOKEN": "<base64_GETI_TOKEN>",
+          "GETI_WORKSPACE_ID": "<base64_GETI_WORKSPACE_ID>"
+        },
+        "config": {
+          "precision": "fp16"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+> **Note:** When overriding a grouped set of keys (for example the `geti` group), all required keys in that group must be provided together. Use `GET /api/v1/plugins` to see which keys belong to each group.
+
+**Download a remote-url model with per-request allowlist override (`EXTERNAL_SOURCES_URL_ALLOWLIST`):**
+
+```bash
+# Base64-encode the full comma-separated allowlist as a single value
+echo -n 'github.com/open-edge-platform/edge-ai-resources/raw/main,example.com/models' | base64
+# Output: Z2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1yZXNvdXJjZXMvcmF3L21haW4sZXhhbXBsZS5jb20vbW9kZWxz
+```
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=remote_override" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "wind-turbine-anomaly-detection",
+        "hub": "remote-url",
+        "override_credentials": {
+          "EXTERNAL_SOURCES_URL_ALLOWLIST": "<base64_comma_separated_prefixes>"
+        },
+        "config": {
+          "url": "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{name}.tar"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+> **Note:** The response format for downloads with `override_credentials` is the same as shown in the response section above for the corresponding hub plugin.
+
 **Upload a custom model ZIP:**
 
 Use this endpoint when user (or another client app) needs to upload a local model directly to model-download.
@@ -598,6 +705,7 @@ See [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md) for detail
 
 For alternative ways to set up the sample application, see:
 
+- [Download Models at Startup](./get-started/startup-models.md)
 - [Quick start](./get-started/quickstart.md)
 - [How to Build from Source](./get-started/build-from-source.md)
 
@@ -607,6 +715,7 @@ For alternative ways to set up the sample application, see:
 
 Migrate from Model Registry <./get-started/migration.md>
 ./get-started/system-requirements
+Startup<./get-started/startup-models.md>
 Ephemeral Container <./get-started/quickstart.md>
 ./get-started/build-from-source
 ./get-started/deploy-with-helm-chart
