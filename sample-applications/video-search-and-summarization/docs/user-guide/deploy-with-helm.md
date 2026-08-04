@@ -354,6 +354,16 @@ To deploy the same search stack on the Milvus backend (equivalent to `VECTORDB_B
 helm install vss . -f search_override.yaml -f search_milvus_override.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
+> **Important — clear persisted data when switching backends:** embeddings live only in the vector database, but uploaded videos and their metadata live in MinIO and the Pipeline Manager's PostgreSQL database, which are backed by PVCs shared across backends. Switching `global.vectordbBackend` without clearing them leaves the previously ingested videos visible in the UI while the new backend holds no embeddings for them, so search returns nothing for those videos. Uninstall the chart, delete the PVCs, then reinstall:
+>
+> ```bash
+> helm uninstall vss -n $my_namespace
+> kubectl delete pvc --all -n $my_namespace
+> helm install vss . -f search_override.yaml -f search_milvus_override.yaml -f user_values_override.yaml -n $my_namespace
+> ```
+>
+> `kubectl delete pvc --all` also removes the model-cache PVCs, so the first start after this re-downloads and re-converts the models. To keep those, delete only the data PVCs (MinIO, PostgreSQL, dataprep and the vector database) instead — list them with `kubectl get pvc -n $my_namespace`. Alternatively, re-ingest every video after the switch instead of clearing the PVCs.
+
 #### **Use Case 4: Unified Video Search and Summarization**
 
 To deploy the combined video search and summarization functionality with a single unified UI:
@@ -516,6 +526,9 @@ If not set while installing the chart, all services will claim a default amount 
     # If modelPvc.enabled=false, delete the fallback data PVCs instead:
     # kubectl delete pvc <release-name>-multimodalembeddingms-data-pvc -n $my_namespace
     # kubectl delete pvc <release-name>-multimodaldataprep-data-pvc -n $my_namespace
+    # On the Milvus backend, delete both Milvus claims together — the segment
+    # data and the etcd metadata that indexes it must be reset as a pair:
+    # kubectl delete pvc <release-name>-milvus-data <release-name>-milvus-etcd-data -n $my_namespace
     ```
 
   If you are using custom PVC names via existing claims, delete those claim names instead.

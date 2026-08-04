@@ -50,6 +50,8 @@ sample-applications/video-search-and-summarization/
 │   ├── compose.ui.yaml
 │   ├── compose.summary.yaml
 │   ├── compose.search.yaml
+│   ├── compose.search.vdms.yaml   # VDMS vector-DB backend overlay (default)
+│   ├── compose.search.milvus.yaml # Milvus vector-DB backend overlay
 │   ├── compose.vllm.yaml          # vLLM CPU backend
 │   ├── compose.vllm.xpu.yaml      # vLLM Intel Arc Pro B-series GPU/XPU backend (experimental)
 │   ├── compose.gpu_ovms.yaml
@@ -460,8 +462,18 @@ source setup.sh --search
 > **Note:**
 >
 > - For **both** backends, `video-search` delegates the raw vector search to the always-on `vector-retriever` microservice and never talks to a vector database directly. `VECTORDB_BACKEND` selects the backend-baked `vector-retriever` image (`vector-retriever-${VECTORDB_BACKEND}`, via the `RETRIEVER_BACKEND` build arg). The frame-to-video aggregation still runs in `video-search`, so search results are identical in shape across backends.
-> - When `VECTORDB_BACKEND=milvus`, `setup.sh` adds the `docker/compose.search.milvus.yaml` overlay, which starts a Milvus standalone stack (`milvus-etcd` + `milvus-standalone`). `multimodal-dataprep` writes embeddings to Milvus and `vector-retriever-milvus` reads them back.
+> - `setup.sh` applies exactly one vector-DB overlay, so only the selected backend's containers start. `VECTORDB_BACKEND=vdms` (default) adds `docker/compose.search.vdms.yaml`, which starts `vdms-vector-db`; `VECTORDB_BACKEND=milvus` adds `docker/compose.search.milvus.yaml`, which starts a Milvus standalone stack (`milvus-etcd` + `milvus-standalone`) and no VDMS container. `multimodal-dataprep` writes embeddings to the selected backend and the matching `vector-retriever` image reads them back.
 > - The similarity metric/index (`VDB_METRIC_TYPE=IP`, `VDB_INDEX_TYPE=FLAT`) is shared between `multimodal-dataprep` and `vector-retriever` and must match on both — the defaults already align.
+
+> **Important — clean the data when switching backends:** embeddings live only in the vector database, but uploaded videos and their metadata live in MinIO and the Pipeline Manager's PostgreSQL database, which are shared across backends. Switching `VECTORDB_BACKEND` without clearing them leaves the previously ingested videos visible in the UI while the new backend holds no embeddings for them, so search returns nothing for those videos. Always wipe the user data first:
+>
+> ```bash
+> source setup.sh --clean-data
+> export VECTORDB_BACKEND=milvus   # or vdms
+> source setup.sh --search
+> ```
+>
+> `--clean-data` stops the stack and removes the MinIO, PostgreSQL, dataprep, VDMS and Milvus data volumes. Model-cache volumes are preserved, so no models are re-downloaded. Alternatively, re-ingest every video after the switch instead of cleaning.
 
 ## Using Edge Microvisor Toolkit
 
