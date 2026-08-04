@@ -21,6 +21,7 @@ This release introduces **configurable external model sources**, **request-scope
 **Fixed**
 
 - **Uploaded Model Name Validation**: preserves letter case, converts spaces to underscores, and rejects unsafe or malformed names with clearer errors.
+- **Updated the default container UID/GID to 1000**: to align with host user permissions and simplify volume access
 
 ---
 
