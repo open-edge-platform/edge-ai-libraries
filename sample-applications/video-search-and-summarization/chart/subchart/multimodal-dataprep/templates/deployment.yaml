@@ -31,10 +31,15 @@ spec:
       {{- include "multimodal-dataprep.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        # The pod consumes its configuration through envFrom, and env vars are
+        # only injected at container start. Hashing the rendered ConfigMap into
+        # the pod template makes a config-only change alter the Deployment spec
+        # so Kubernetes rolls the pod instead of leaving it on stale values.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       labels:
         {{- include "multimodal-dataprep.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
