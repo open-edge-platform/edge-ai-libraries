@@ -44,7 +44,7 @@ For config-only inspection, `up -d` becomes `config`.
 | `audio-analyzer` | `compose.summary.yaml` | `AUDIO_HOST_PORT=8999` -> `8000` | Whisper audio analysis. |
 | `rabbitmq-service` | `compose.summary.yaml` | `5672`, `15672`, `1883` | AMQP, management UI, MQTT. |
 | `video-search` | `compose.search.yaml` | `VS_HOST_PORT=7890` -> `8000` | Search API/microservice. |
-| `vdms-vector-db` | `compose.search.yaml` | `VDMS_VDB_HOST_PORT=55555` -> `55555` | VDMS vector DB. |
+| `vdms-vector-db` | `compose.search.vdms.yaml` | `VDMS_VDB_HOST_PORT=55555` -> `55555` | VDMS vector DB. Started only when `VECTORDB_BACKEND=vdms` (the default). |
 | `multimodal-dataprep` | `compose.search.yaml` | `MM_DATAPREP_HOST_PORT=6016` -> `8000` | Frame extraction, object detection, embedding prep. |
 | `vector-retriever` | `compose.search.yaml` | `VECTOR_RETRIEVER_HOST_PORT=6008` -> `8000` | Vector similarity search; `video-search` delegates all queries here. |
 | `multimodal-embedding-serving` | `compose.search.yaml` | `EMBEDDING_SERVER_PORT=9777` -> `8000` | Embedding service; API endpoint `http://multimodal-embedding-serving:8000/embeddings`. |

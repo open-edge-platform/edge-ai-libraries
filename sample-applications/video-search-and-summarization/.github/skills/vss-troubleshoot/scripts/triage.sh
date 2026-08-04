@@ -44,6 +44,8 @@ compose_args=(
     -f docker/compose.vllm.xpu.yaml
     -f docker/compose.gpu_ovms.yaml
     -f docker/compose.search.yaml
+    -f docker/compose.search.vdms.yaml
+    -f docker/compose.search.milvus.yaml
     -f docker/compose.ui.yaml
     -f docker/compose.metrics-manager.yaml
     --profile ovms

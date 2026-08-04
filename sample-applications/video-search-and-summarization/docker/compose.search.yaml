@@ -5,8 +5,6 @@
 services:
     pipeline-manager:
         depends_on:
-            vdms-vector-db:
-                condition: service_started
             multimodal-dataprep:
                 condition: service_healthy
             multimodal-embedding-serving:
@@ -66,22 +64,6 @@ services:
         restart: unless-stopped
         volumes:
             - '${VS_WATCHER_DIR:-/dev/null}:/tmp/watcher-dir'
-        networks:
-            - vs_network
-
-    vdms-vector-db:
-        image: intellabs/vdms:v2.12.0
-        ipc: host
-        environment:
-            - OVERRIDE_db_root_path=/db
-            - OVERRIDE_images_path=/db/images
-            - OVERRIDE_descriptors_path=/db/descriptors
-            - OVERRIDE_blobs_path=/db/blobs
-            - OVERRIDE_pmgd_path=/db/graph
-        ports:
-            - '${VDMS_VDB_HOST_PORT:-55555}:55555'
-        volumes:
-            - vdms-db:/db
         networks:
             - vs_network
 
@@ -178,8 +160,6 @@ services:
         ports:
             - '${MM_DATAPREP_HOST_PORT:-6016}:8000'
         depends_on:
-            vdms-vector-db:
-                condition: service_started
             minio-service:
                 condition: service_healthy
         healthcheck:
@@ -306,8 +286,6 @@ services:
         depends_on:
             multimodal-embedding-serving:
                 condition: service_healthy
-            vdms-vector-db:
-                condition: service_started
         healthcheck:
             test:
                 [
@@ -323,8 +301,6 @@ services:
             - vs_network
 
 volumes:
-    vdms-db:
-        driver: local
     ov-models:
         driver: local
     data-prep:

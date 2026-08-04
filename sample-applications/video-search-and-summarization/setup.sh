@@ -57,6 +57,7 @@ stop_containers() {
         -f docker/compose.vllm.yaml \
         -f docker/compose.vllm.xpu.yaml \
         -f docker/compose.search.yaml \
+        -f docker/compose.search.vdms.yaml \
         -f docker/compose.search.milvus.yaml \
         -f docker/compose.ui.yaml \
         -f docker/compose.metrics-manager.yaml \
@@ -1160,16 +1161,18 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
 
     APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.ui.yaml"
 
-    # Milvus vector-DB backend overlay — applied only when the search path is
-    # active (adds the Milvus stack + vector-retriever). Default VDMS path is
-    # untouched.
-    if [ "$VECTORDB_BACKEND" = "milvus" ]; then
-        case "$APP_COMPOSE_FILE" in
-            *docker/compose.search.yaml*)
+    # Vector-DB backend overlay — applied only when the search path is active.
+    # VDMS and Milvus each own their vector-DB container in a dedicated overlay
+    # so that exactly one backend starts for a given VECTORDB_BACKEND.
+    case "$APP_COMPOSE_FILE" in
+        *docker/compose.search.yaml*)
+            if [ "$VECTORDB_BACKEND" = "milvus" ]; then
                 APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.search.milvus.yaml"
-                ;;
-        esac
-    fi
+            else
+                APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.search.vdms.yaml"
+            fi
+            ;;
+    esac
 
     mkdir -p ${VS_WATCHER_DIR}
 
