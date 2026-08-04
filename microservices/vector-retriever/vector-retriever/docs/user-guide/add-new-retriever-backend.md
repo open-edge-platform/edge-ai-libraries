@@ -110,17 +110,17 @@ The runtime calls `similarity_search_with_score(query, k, fetch_k=..., filter=..
 
 ## Implementation checklist
 
-[ ] backend folder created
-[ ] `backend.py` implemented
-[ ] `filters.py` implemented
-[ ] registry updated
-[ ] settings updated
-[ ] dependency group updated
-[ ] compose overlay added (`docker/compose.<backend_name>.yaml`)
-[ ] setup and Docker backend allowlists updated
-[ ] OpenAPI schema updated (`docs/user-guide/api-docs/openapi.yaml`)
-[ ] tests added/updated
-[ ] docs updated
+- [ ] backend folder created
+- [ ] `backend.py` implemented
+- [ ] `filters.py` implemented
+- [ ] registry updated
+- [ ] settings updated
+- [ ] dependency group updated
+- [ ] compose overlay added (`docker/compose.<backend_name>.yaml`)
+- [ ] setup and Docker backend allowlists updated
+- [ ] OpenAPI schema updated (`docs/user-guide/api-docs/openapi.yaml`)
+- [ ] tests added/updated
+- [ ] docs updated
 
 ## Common pitfalls
 
