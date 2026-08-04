@@ -33,7 +33,7 @@ logger = logging.getLogger("api.routes.pipelines")
 def _is_timeseries_service_available() -> bool:
     """
     Check if the timeseries-analytics-microservice is available.
-    
+
     Returns True if the service is running and healthy, False otherwise.
     Attempts a connection to the health endpoint on the service.
     """
@@ -42,7 +42,7 @@ def _is_timeseries_service_available() -> bool:
         # The service runs on port 9092 and exposes /kapacitor/v1/ping
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)  # 2 second timeout
-        result = sock.connect_ex(('ia-time-series-analytics-microservice', 9092))
+        result = sock.connect_ex(("ia-time-series-analytics-microservice", 9092))
         sock.close()
         is_available = result == 0
         if is_available:
@@ -374,17 +374,18 @@ def get_pipelines():
     ```
     """
     internal_pipelines = PipelineManager().get_pipelines()
-    
+
     # If timeseries service is not available, filter to vision pipelines only
     if not _is_timeseries_service_available():
-        logger.debug("Filtering pipelines: returning only vision type (timeseries service unavailable)")
+        logger.debug(
+            "Filtering pipelines: returning only vision type (timeseries service unavailable)"
+        )
         internal_pipelines = [
-            p for p in internal_pipelines 
-            if p.type == InternalPipelineType.VISION
+            p for p in internal_pipelines if p.type == InternalPipelineType.VISION
         ]
     else:
         logger.debug("Returning all pipelines (timeseries service available)")
-    
+
     return [_internal_pipeline_to_api(p) for p in internal_pipelines]
 
 
