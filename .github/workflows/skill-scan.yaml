@@ -97,8 +97,9 @@ jobs:
           fetch-depth: 0
 
       - name: Run skill-validator
-        uses: open-edge-platform/geti-ci/actions/skill-validator@ac8d35f5bb94a135ec778498cf5082bc70babffe # skill-validator/v0.1.0
+        uses: open-edge-platform/geti-ci/actions/skill-validator@c64543e05e9f84c7c4ef212666c3ea5fc869e55a # skill-validator/v0.2.0
         with:
           skills-path: ${{ matrix.skills-path }}
           strict: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
           fail-on-findings: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+          allow-dirs: "evals,example-prompts"
