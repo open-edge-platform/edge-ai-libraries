@@ -36,4 +36,13 @@ spec:
           {{- end }}
       volumes:
         - name: etcd-data
+          {{- if and .Values.persistence.enabled .Values.global.usePvc }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-milvus-etcd-data
+          {{- else if and .Values.persistence.enabled .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}/milvus-etcd
+            type: DirectoryOrCreate
+          {{- else }}
           emptyDir: {}
+          {{- end }}

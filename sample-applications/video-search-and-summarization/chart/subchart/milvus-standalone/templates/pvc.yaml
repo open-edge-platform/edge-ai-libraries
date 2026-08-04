@@ -5,12 +5,38 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ .Release.Name }}-milvus-data
+  {{- if .Values.global.keepPvc }}
+  annotations:
+    helm.sh/resource-policy: keep   # Prevent Helm from deleting PVC on uninstall
+  {{- end }}
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: {{ .Values.persistence.size }}
+  {{- if .Values.persistence.storageClassName }}
+  storageClassName: {{ .Values.persistence.storageClassName | quote }}
+  {{- end }}
+---
+# Milvus keeps its collection and segment metadata in etcd. Without a durable
+# etcd volume the metadata is lost whenever the etcd pod is rescheduled, which
+# leaves the segments in the milvus-data PVC orphaned and unreadable, so this
+# claim must persist alongside it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-milvus-etcd-data
+  {{- if .Values.global.keepPvc }}
+  annotations:
+    helm.sh/resource-policy: keep   # Prevent Helm from deleting PVC on uninstall
+  {{- end }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.etcdSize }}
   {{- if .Values.persistence.storageClassName }}
   storageClassName: {{ .Values.persistence.storageClassName | quote }}
   {{- end }}

@@ -26,6 +26,9 @@ milvus:
 persistence:
   enabled: true
   size: 20Gi
+  # Milvus stores collection/segment metadata in etcd; it must be as durable as
+  # the milvus-data volume or persisted segments become unreadable.
+  etcdSize: 5Gi
   storageClassName: ""
 
 global:
