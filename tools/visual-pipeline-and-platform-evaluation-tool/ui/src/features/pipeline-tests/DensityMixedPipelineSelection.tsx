@@ -150,7 +150,7 @@ export const DensityMixedPipelineSelection = ({
                 />
               ) : (
                 <p className="text-sm text-muted-foreground h-9 flex items-center">
-                  Incremented by the benchmark
+                  To be calculated
                 </p>
               )}
             </div>
