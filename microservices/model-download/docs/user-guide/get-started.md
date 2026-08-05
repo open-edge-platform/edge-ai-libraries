@@ -30,22 +30,17 @@ The Model Download is a microservice that downloads models from multiple hubs as
 
 ## Start with Setup Script
 
-### 1. Clone the repository
+### 1. Clone the Microservice
+Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace main with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/dev/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
 
 ```bash
-# Clone the latest on the mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+git clone --filter=blob:none --sparse --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/
+git sparse-checkout set microservices/model-download/
+cd microservices/model-download/
 ```
 
-### 2. Navigate to the directory
-
-```bash
-cd edge-ai-libraries/microservices/model-download
-```
-
-### 3. Configure the environment variables
+### 2. Configure the environment variables
 
 ```bash
 export REGISTRY="intel/"
@@ -71,7 +66,7 @@ To customize the `remote-url` hub allowlist (optional), set:
 export EXTERNAL_SOURCES_URL_ALLOWLIST=<comma-separated host/path prefixes> # optional; when unset, the default allowlist in src/plugins/external_sources/sources.yaml is used
 ```
 
-### 4. Launch the service and enable the plugins
+### 3. Launch the service and enable the plugins
 
 ```bash
 source scripts/run_service.sh up --plugins all --model-path <host path>
@@ -117,7 +112,7 @@ down                   Stop the services
    - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
    - Display usage information: `source scripts/run_service.sh --help`
 
-### 5. Access the service
+### 4. Access the service
 
 - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the
   Swagger documentation for the available APIs.
