@@ -45,17 +45,14 @@ const allocateProportionally = (weights: number[], total: number): number[] => {
 
 export const rebalanceStreamRates = <T extends StreamRateSelection>(
   selections: T[],
-  pipelineId: string,
+  changedIndex: number,
   newRate: number,
 ): T[] => {
   if (selections.length === 1) {
     return [{ ...selections[0], stream_rate: 100 }];
   }
 
-  const changedIndex = selections.findIndex(
-    (selection) => selection.pipelineId === pipelineId,
-  );
-  if (changedIndex === -1) return selections;
+  if (changedIndex < 0 || changedIndex >= selections.length) return selections;
 
   let lockedSum = 0;
   if (changedIndex === selections.length - 1) {
@@ -110,8 +107,8 @@ export const useStreamRateChange = <T extends StreamRateSelection>(
   setSelections: Dispatch<SetStateAction<T[]>>,
 ) => {
   return useCallback(
-    (pipelineId: string, newRate: number) => {
-      setSelections((prev) => rebalanceStreamRates(prev, pipelineId, newRate));
+    (changedIndex: number, newRate: number) => {
+      setSelections((prev) => rebalanceStreamRates(prev, changedIndex, newRate));
     },
     [setSelections],
   );
