@@ -4,6 +4,7 @@ import { gvaMetaConvertConfig } from "./nodes/GVAMetaConvertNode.config.ts";
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
+import { gvaInferenceConfig } from "@/features/pipeline-editor/nodes/GVAInferenceNode.config.ts";
 import { gvaGenAIConfig } from "@/features/pipeline-editor/nodes/GVAGenAINode.config.ts";
 import { gvaMotionDetectConfig } from "@/features/pipeline-editor/nodes/GVAMotionDetectNode.config.ts";
 import { sourceNodeConfig } from "./nodes/custom/SourceNode.config.ts";
@@ -251,6 +252,8 @@ const NodeDataPanel = ({
         return gvaTrackConfig;
       case "gvaclassify":
         return gvaClassifyConfig;
+      case "gvainference":
+        return gvaInferenceConfig;
       case "gvadetect":
         return gvaDetectConfig;
       case "gvagenai":

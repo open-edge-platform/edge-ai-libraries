@@ -299,6 +299,33 @@ type VideoUploadPayload = {
   tags?: string;
 };
 
+interface BatchSubmitResponse {
+  job_id: string;
+  accepted: number;
+  status?: string;
+  message?: string;
+}
+
+interface BatchItemResult {
+  identifier: string;
+  video_id?: string;
+  status: string;
+  message?: string;
+  embeddings_count?: number;
+}
+
+interface BatchJobStatus {
+  job_id: string;
+  state: string;
+  total: number;
+  completed: number;
+  failed: number;
+  items: BatchItemResult[];
+}
+
+// How often to poll a batch embeddings job for progress.
+const BATCH_POLL_INTERVAL_MS = 2000;
+
 export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps) {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
@@ -335,7 +362,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [processing, setProcessing] = useState<boolean>(false);
   const [progressText, setProgressText] = useState<string>('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedExistingVideo, setSelectedExistingVideo] = useState<Video | null>(null);
   const [formatError, setFormatError] = useState<string | null>(null);
   const [videoTags, setVideoTags] = useState<string | null>('');
@@ -347,6 +374,9 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoPreviewUrlRef = useRef<string | null>(null);
 
+  // The first selected file drives the single-video preview and name displays.
+  const primaryFile = selectedFiles.length > 0 ? selectedFiles[0] : null;
+
   // Get suggested tags from Redux store
   const { suggestedTags } = useAppSelector(SearchSelector);
 
@@ -355,12 +385,12 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       const name = selectedExistingVideo.dataStore?.fileName || selectedExistingVideo.name || selectedExistingVideo.videoId;
       return name.toLowerCase().endsWith('.mp4') ? name.slice(0, -4) : name;
     }
-    if (!selectedFile) return '';
-    const originalName = selectedFile.name;
+    if (!primaryFile) return '';
+    const originalName = primaryFile.name;
     return originalName.toLowerCase().endsWith('.mp4')
       ? originalName.slice(0, -4)
       : originalName;
-  }, [selectedFile, selectedExistingVideo]);
+  }, [primaryFile, selectedExistingVideo]);
 
   const safeVideoPreviewUrl = useMemo(
     () => getSafePreviewVideoUrl(videoPreviewUrl, ASSETS_ENDPOINT),
@@ -405,7 +435,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       videoPreviewUrlRef.current = null;
     }
     setVideoPreviewUrl(null);
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setSelectedExistingVideo(null);
     setFormatError(null);
     setVideoTags('');
@@ -486,54 +516,75 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
   };
 
   const handleFileSelect = async (files: FileList | null) => {
-    if (files && files.length > 0) {
-      const file = files[0];
-      
-      // Validate file format
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    const incoming = Array.from(files);
+    const validFiles: File[] = [];
+    const invalidFormat: string[] = [];
+    const notStreamable: string[] = [];
+
+    for (const file of incoming) {
       const fileName = file.name.toLowerCase();
       const fileType = file.type;
-      
+
+      // Validate file format
       if (!fileName.endsWith('.mp4') && fileType !== 'video/mp4') {
-        setFormatError(t('invalidVideoFormat'));
-        setSelectedFile(null);
-        setVideoPreviewUrl(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-        return;
+        invalidFormat.push(file.name);
+        continue;
       }
-      
+
       // Check if MP4 is streamable
       try {
         const streamable = await isStreamable(file);
         if (!streamable) {
-          setFormatError(t('OnlyStreamableMp4'));
-          setSelectedFile(null);
-          setVideoPreviewUrl(null);
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
-          return;
+          notStreamable.push(file.name);
+          continue;
         }
       } catch (error) {
         console.error('Error checking streamability:', error);
       }
-      
-      // Clear previous errors
-      setFormatError(null);
-      
-      // Clean up previous preview URL if exists
+
+      validFiles.push(file);
+    }
+
+    // No usable files: preserve the single-file error semantics.
+    if (validFiles.length === 0) {
+      setFormatError(notStreamable.length > 0 ? t('OnlyStreamableMp4') : t('invalidVideoFormat'));
+      setSelectedFiles([]);
       if (videoPreviewUrlRef.current) {
         URL.revokeObjectURL(videoPreviewUrlRef.current);
+        videoPreviewUrlRef.current = null;
       }
-      
-      setSelectedFile(file);
-      // Clear existing video selection when a new file is selected
-      setSelectedExistingVideo(null);
-      const previewUrl = URL.createObjectURL(file);
-      videoPreviewUrlRef.current = previewUrl;
-      setVideoPreviewUrl(previewUrl);
+      setVideoPreviewUrl(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
     }
+
+    // Some files were valid; surface a non-blocking notice for any skipped ones.
+    const skipped = [...invalidFormat, ...notStreamable];
+    if (skipped.length > 0) {
+      setFormatError(`${t('skippedFiles')}: ${skipped.join(', ')}`);
+    } else {
+      setFormatError(null);
+    }
+
+    // Clean up previous preview URL if exists
+    if (videoPreviewUrlRef.current) {
+      URL.revokeObjectURL(videoPreviewUrlRef.current);
+      videoPreviewUrlRef.current = null;
+    }
+
+    setSelectedFiles(validFiles);
+    // Clear existing video selection when new files are selected
+    setSelectedExistingVideo(null);
+    // Preview the first selected file.
+    const previewUrl = URL.createObjectURL(validFiles[0]);
+    videoPreviewUrlRef.current = previewUrl;
+    setVideoPreviewUrl(previewUrl);
   };
 
   // Handler for selecting an existing video
@@ -542,7 +593,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       URL.revokeObjectURL(videoPreviewUrlRef.current);
       videoPreviewUrlRef.current = null;
     }
-    setSelectedFile(null);
+    setSelectedFiles([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -559,12 +610,10 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
     }
   };
 
-  const uploadVideo = async (videoData: VideoUploadPayload) => {
+  const uploadVideo = async (file: File, videoData: VideoUploadPayload) => {
     const formData = new FormData();
 
-    if (selectedFile) {
-      formData.append('video', selectedFile);
-    }
+    formData.append('video', file);
 
     if (videoData.tags) {
       formData.append('tags', videoData.tags);
@@ -611,54 +660,112 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
     }
   };
 
-  const triggerCreateEmbedding = async () => {
+  const resolveErrorMessage = (error: unknown): string => {
+    if (axios.isAxiosError(error)) {
+      const responseMessage = error.response?.data?.message;
+      const status = error.response?.status;
+      const timeoutHit =
+        error.code === 'ECONNABORTED' ||
+        status === 408 ||
+        status === 504 ||
+        /timeout/i.test(responseMessage || error.message || '');
+
+      if (timeoutHit) {
+        return t('timeoutError');
+      }
+      if (responseMessage) {
+        return responseMessage;
+      }
+      if (error.message) {
+        return error.message;
+      }
+    } else if (error instanceof Error) {
+      return error.message;
+    }
+    return t('videoUploadError');
+  };
+
+  // Submit one batch embeddings job for several already-uploaded videos.
+  const submitBatchEmbeddings = async (
+    videoIds: string[],
+    tags?: string,
+  ): Promise<BatchSubmitResponse> => {
+    const api = [videoUploadAPi, 'search-embeddings-batch'].join('/');
+    const body: { videoIds: string[]; tags?: string } = { videoIds };
+    if (tags && tags.trim().length > 0) {
+      body.tags = tags;
+    }
     try {
-      let videoIdToUse: string | undefined;
+      const res = await axios.post<BatchSubmitResponse>(api, body);
+      return res.data;
+    } catch (error) {
+      throw new Error(resolveErrorMessage(error));
+    }
+  };
 
-      const videoData: VideoUploadPayload = {};
-      const tags: string[] = [];
+  // Poll a batch job until it reaches a terminal state, surfacing progress.
+  const pollBatchJob = async (jobId: string): Promise<BatchJobStatus> => {
+    const api = [videoUploadAPi, 'search-embeddings-jobs', jobId].join('/');
+    const terminalStates = [
+      'completed',
+      'completed_with_errors',
+      'failed',
+      'cancelled',
+    ];
 
-      if (videoTags) {
-        tags.push(...videoTags.split(',').map((tag) => tag.trim()));
+    for (;;) {
+      let status: BatchJobStatus;
+      try {
+        const res = await axios.get<BatchJobStatus>(api);
+        status = res.data;
+      } catch (error) {
+        throw new Error(resolveErrorMessage(error));
       }
 
-      if (selectedTags && selectedTags.length > 0) {
-        tags.push(...selectedTags.map((tag) => tag.trim()));
+      const total = status.total || 0;
+      const done = (status.completed || 0) + (status.failed || 0);
+      setProgressText(`${t('CreatingEmbeddings')} (${done}/${total})`);
+
+      if (terminalStates.includes(status.state)) {
+        return status;
       }
 
-      if (tags.length > 0) {
-        videoData.tags = tags.join(',');
-      }
+      await new Promise((resolve) => setTimeout(resolve, BATCH_POLL_INTERVAL_MS));
+    }
+  };
 
-      // Check if using existing video or uploading new one
-      if (selectedExistingVideo) {
-        // Use existing video - skip upload
-        setProcessing(true);
-        setProgressText(t('CreatingEmbeddings'));
-        videoIdToUse = selectedExistingVideo.videoId;
-      } else {
-        // Upload new video
-        setUploading(true);
-        setProgressText(t('uploadingVideo'));
+  const buildVideoData = (): VideoUploadPayload => {
+    const videoData: VideoUploadPayload = {};
+    const tags: string[] = [];
 
-        const videoRes = await uploadVideo(videoData);
-        dispatch(videosLoad());
-        setUploading(false);
-        setProcessing(true);
+    if (videoTags) {
+      tags.push(...videoTags.split(',').map((tag) => tag.trim()));
+    }
 
-        if (videoRes.data.videoId) {
-          videoIdToUse = videoRes.data.videoId;
-        } else {
-          throw new Error(t('serverError'));
-        }
-      }
+    if (selectedTags && selectedTags.length > 0) {
+      tags.push(...selectedTags.map((tag) => tag.trim()));
+    }
 
+    if (tags.length > 0) {
+      videoData.tags = tags.join(',');
+    }
+
+    return videoData;
+  };
+
+  const createEmbeddingForExistingVideo = async (videoData: VideoUploadPayload) => {
+    try {
+      setProcessing(true);
       setProgressText(t('CreatingEmbeddings'));
-      const embeddingRes = await triggerEmbeddings(videoIdToUse, videoData.tags);
+
+      const embeddingRes = await triggerEmbeddings(
+        selectedExistingVideo!.videoId,
+        videoData.tags,
+      );
 
       if (embeddingRes.status === 'success') {
         setProgressText(t('allDone'));
-        setUploading(false);
+        setProcessing(false);
         dispatch(videosLoad());
         dispatch(LoadTags());
         resetForm();
@@ -671,35 +778,178 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       }
     } catch (error: unknown) {
       console.error('Video upload/processing error:', error);
-      setUploading(false);
       setProcessing(false);
-
-      let errorMessage = t('videoUploadError');
-
-      if (axios.isAxiosError(error)) {
-        const responseMessage = error.response?.data?.message;
-        const status = error.response?.status;
-        const timeoutHit =
-          error.code === 'ECONNABORTED' ||
-          status === 408 ||
-          status === 504 ||
-          /timeout/i.test(responseMessage || error.message || '');
-
-        if (timeoutHit) {
-          errorMessage = t('timeoutError');
-        } else if (responseMessage) {
-          errorMessage = responseMessage;
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-
+      const errorMessage = resolveErrorMessage(error);
       setUploadErrorMessage(errorMessage);
       notify(errorMessage, NotificationSeverity.ERROR);
       setProgressText('');
     }
+  };
+
+  // Single file: keep the synchronous upload + embed path for immediate feedback.
+  // Multiple files: upload every file, then submit ONE batch embeddings job and
+  // poll it to completion (true batch, not sequential per-file embedding).
+  const createEmbeddingsForFiles = async (videoData: VideoUploadPayload) => {
+    const files = [...selectedFiles];
+
+    if (files.length === 1) {
+      await createEmbeddingForSingleFile(files[0], videoData);
+      return;
+    }
+
+    await createEmbeddingsForFilesBatch(files, videoData);
+  };
+
+  const createEmbeddingForSingleFile = async (
+    file: File,
+    videoData: VideoUploadPayload,
+  ) => {
+    setUploadErrorMessage(null);
+    try {
+      setUploadProgress(0);
+      setProcessing(false);
+      setUploading(true);
+      setProgressText(t('uploadingVideo'));
+
+      const videoRes = await uploadVideo(file, videoData);
+      dispatch(videosLoad());
+
+      if (!videoRes.data.videoId) {
+        throw new Error(t('serverError'));
+      }
+
+      setUploading(false);
+      setProcessing(true);
+      setProgressText(t('CreatingEmbeddings'));
+
+      const embeddingRes = await triggerEmbeddings(videoRes.data.videoId, videoData.tags);
+      if (embeddingRes.status !== 'success') {
+        throw new Error(embeddingRes.message || t('unknownError'));
+      }
+
+      setUploading(false);
+      setProcessing(false);
+      setProgressText('');
+      dispatch(videosLoad());
+      dispatch(LoadTags());
+      resetForm();
+      notify(t('CreatingEmbeddings') + ' ' + t('success'), NotificationSeverity.SUCCESS);
+      if (onClose) {
+        onClose();
+      }
+    } catch (error: unknown) {
+      console.error('Video upload/processing error:', error);
+      setUploading(false);
+      setProcessing(false);
+      setProgressText('');
+      const errorMessage = resolveErrorMessage(error);
+      setUploadErrorMessage(errorMessage);
+      notify(errorMessage, NotificationSeverity.ERROR);
+    }
+  };
+
+  // Upload every selected file (isolating per-file upload failures), then embed
+  // all successfully-uploaded videos through a single async batch job.
+  const createEmbeddingsForFilesBatch = async (
+    files: File[],
+    videoData: VideoUploadPayload,
+  ) => {
+    const total = files.length;
+    const uploadFailures: string[] = [];
+    const uploadedVideoIds: string[] = [];
+
+    setUploadErrorMessage(null);
+    setUploading(true);
+    setProcessing(false);
+
+    // Phase 1: upload all files.
+    for (let index = 0; index < total; index += 1) {
+      const file = files[index];
+      try {
+        setUploadProgress(0);
+        setProgressText(`${t('uploadingVideo')} (${index + 1}/${total})`);
+        const videoRes = await uploadVideo(file, videoData);
+        if (!videoRes.data.videoId) {
+          throw new Error(t('serverError'));
+        }
+        uploadedVideoIds.push(videoRes.data.videoId);
+      } catch (error: unknown) {
+        console.error('Video upload error:', error);
+        uploadFailures.push(`${file.name}: ${resolveErrorMessage(error)}`);
+      }
+    }
+
+    dispatch(videosLoad());
+    setUploading(false);
+
+    if (uploadedVideoIds.length === 0) {
+      setProgressText('');
+      const errorMessage = `${t('videoUploadError')}: ${uploadFailures.join('; ')}`;
+      setUploadErrorMessage(errorMessage);
+      notify(errorMessage, NotificationSeverity.ERROR);
+      return;
+    }
+
+    // Phase 2: one batch embeddings job for all uploaded videos.
+    setProcessing(true);
+    setProgressText(t('CreatingEmbeddings'));
+
+    let jobStatus: BatchJobStatus;
+    try {
+      const submit = await submitBatchEmbeddings(uploadedVideoIds, videoData.tags);
+      jobStatus = await pollBatchJob(submit.job_id);
+    } catch (error: unknown) {
+      console.error('Batch embeddings error:', error);
+      setProcessing(false);
+      setProgressText('');
+      dispatch(videosLoad());
+      const errorMessage = resolveErrorMessage(error);
+      setUploadErrorMessage(errorMessage);
+      notify(errorMessage, NotificationSeverity.ERROR);
+      return;
+    }
+
+    setProcessing(false);
+    setProgressText('');
+    dispatch(videosLoad());
+    dispatch(LoadTags());
+
+    const embedFailed = jobStatus.failed || 0;
+    const embedSucceeded = jobStatus.completed || 0;
+    const allSucceeded = uploadFailures.length === 0 && embedFailed === 0;
+
+    if (allSucceeded) {
+      resetForm();
+      notify(t('CreatingEmbeddings') + ' ' + t('success'), NotificationSeverity.SUCCESS);
+      if (onClose) {
+        onClose();
+      }
+      return;
+    }
+
+    const problems: string[] = [...uploadFailures];
+    jobStatus.items
+      .filter((item) => item.status === 'error')
+      .forEach((item) => {
+        problems.push(`${item.identifier}: ${item.message || t('unknownError')}`);
+      });
+
+    const errorMessage = `${embedSucceeded}/${total} ${t('success')}. ${t(
+      'videoUploadError',
+    )}: ${problems.join('; ')}`;
+    setUploadErrorMessage(errorMessage);
+    notify(errorMessage, NotificationSeverity.ERROR);
+  };
+
+  const triggerCreateEmbedding = async () => {
+    const videoData = buildVideoData();
+
+    if (selectedExistingVideo) {
+      await createEmbeddingForExistingVideo(videoData);
+      return;
+    }
+
+    await createEmbeddingsForFiles(videoData);
   };
 
   return (
@@ -727,7 +977,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
           {step === 0 && (
             <>
               {/* Show selected existing video if one is selected */}
-              {selectedExistingVideo && !selectedFile && (
+              {selectedExistingVideo && selectedFiles.length === 0 && (
                 <div style={{
                   background: '#e5f6ff',
                   border: '2px solid #0072c3',
@@ -771,11 +1021,46 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                     handleFileSelect(e.dataTransfer.files);
                   }}
                 >
-                  {selectedFile ? (
+                  {selectedFiles.length > 0 ? (
                     <>
-                      <h3 style={{ fontWeight: 600, fontSize: '1.2rem', marginBottom: '0.5rem' }}>
-                        {selectedFile.name}
-                      </h3>
+                      {selectedFiles.length === 1 ? (
+                        <h3 style={{ fontWeight: 600, fontSize: '1.2rem', marginBottom: '0.5rem' }}>
+                          {selectedFiles[0].name}
+                        </h3>
+                      ) : (
+                        <div style={{ marginBottom: '0.5rem' }}>
+                          <h3 style={{ fontWeight: 600, fontSize: '1.2rem', marginBottom: '0.5rem' }}>
+                            {selectedFiles.length} {t('videosSelected')}
+                          </h3>
+                          <ul
+                            style={{
+                              listStyle: 'none',
+                              padding: 0,
+                              margin: '0 auto',
+                              maxHeight: '9rem',
+                              overflowY: 'auto',
+                              textAlign: 'left',
+                              maxWidth: '420px',
+                            }}
+                          >
+                            {selectedFiles.map((f, i) => (
+                              <li
+                                key={`${f.name}-${i}`}
+                                title={f.name}
+                                style={{
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  fontSize: '0.95rem',
+                                  padding: '0.15rem 0',
+                                }}
+                              >
+                                {i + 1}. {f.name}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       <MainButton 
                         kind="tertiary" 
                         style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto' }}
@@ -786,7 +1071,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                             videoPreviewUrlRef.current = null;
                           }
                           setVideoPreviewUrl(null);
-                          setSelectedFile(null);
+                          setSelectedFiles([]);
                           if (fileInputRef.current) {
                             fileInputRef.current.value = '';
                             // Open file picker after clearing
@@ -796,20 +1081,21 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                           }
                         }}
                       >
-                        {t('changeVideo')}
+                        {selectedFiles.length > 1 ? t('changeVideos') : t('changeVideo')}
                       </MainButton>
                     </>
                   ) : (
                     <>
                       <div style={{ fontWeight: 500 }}>{t('uploadNew') || 'Upload New Video'}</div>
                       <div style={{ fontSize: '0.95rem', color: '#666', marginTop: '0.5rem' }}>
-                        or drag and drop here
+                        {t('dragAndDropMultiple')}
                       </div>
                     </>
                   )}
                   <input
                     type="file"
                     accept=".mp4"
+                    multiple
                     style={{ display: 'none' }}
                     ref={fileInputRef}
                     onChange={e => handleFileSelect(e.target.files)}
@@ -818,7 +1104,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
               )}
 
               {/* Recent videos selector - only show when no file is selected and there are recent videos */}
-              {!selectedFile && recentVideos.length > 0 && (
+              {selectedFiles.length === 0 && recentVideos.length > 0 && (
                 <VideoSelectorContainer>
                   <VideoSelectorDivider>{t('orSelectExisting')}</VideoSelectorDivider>
                   <RecentVideosList>
@@ -943,9 +1229,41 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                 )}
                 
                 <div style={{ marginTop: encodedSafeVideoPreviewUrl ? '1rem' : '0' }}>
-                  <div>
-                    <strong>{t('videoNameLabel')}:</strong> {displayFileName || '-'}
-                  </div>
+                  {selectedFiles.length > 1 ? (
+                    <div>
+                      <strong>{t('videoNameLabel')}:</strong> {selectedFiles.length}{' '}
+                      {t('videosSelected')}
+                      <ul
+                        style={{
+                          listStyle: 'none',
+                          padding: 0,
+                          margin: '0.5rem 0 0',
+                          maxHeight: '9rem',
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {selectedFiles.map((f, i) => (
+                          <li
+                            key={`review-${f.name}-${i}`}
+                            title={f.name}
+                            style={{
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              fontSize: '0.95rem',
+                              padding: '0.15rem 0',
+                            }}
+                          >
+                            {i + 1}. {f.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div>
+                      <strong>{t('videoNameLabel')}:</strong> {displayFileName || '-'}
+                    </div>
+                  )}
                   {selectedExistingVideo && (
                     <div>
                       <strong>{t('uploadedOn')}:</strong> {new Date(selectedExistingVideo.createdAt).toLocaleString()}
@@ -995,7 +1313,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
             </Button>
             <Button
               kind="primary"
-              disabled={!selectedFile && !selectedExistingVideo}
+              disabled={selectedFiles.length === 0 && !selectedExistingVideo}
               onClick={() => setStep(1)}
             >
               Next
@@ -1011,7 +1329,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
             </Button>
             <Button
               kind="primary"
-              disabled={uploading || (!selectedFile && !selectedExistingVideo)}
+              disabled={uploading || (selectedFiles.length === 0 && !selectedExistingVideo)}
               onClick={() => {
                 clearErrorState();
                 setStep(2);
@@ -1030,7 +1348,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
             </Button>
             <Button
               kind="primary"
-              disabled={uploading || (!selectedFile && !selectedExistingVideo)}
+              disabled={uploading || (selectedFiles.length === 0 && !selectedExistingVideo)}
               onClick={triggerCreateEmbedding}
             >
               {uploading ? t('uploadingVideoState') : t('CreateVideoEmbedding')}

@@ -376,6 +376,18 @@ class ModelRequest(BaseModel):
             "understands."
         ),
     )
+    validate_credentials: bool = Field(
+        default=False,
+        description=(
+            "When true, performs a lightweight credential pre-check against the "
+            "target hub before starting the operation. If override_credentials "
+            "is present the overridden values are validated; otherwise the "
+            "service's environment credentials are checked. Plugins that have "
+            "no authentication credentials return immediately. Most useful for "
+            "is_ovms conversion flows where a bad token would otherwise surface "
+            "only after minutes of work."
+        ),
+    )
 
     @field_validator("hub", mode="before")
     @classmethod

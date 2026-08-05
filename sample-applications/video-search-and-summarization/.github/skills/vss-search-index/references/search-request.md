@@ -43,8 +43,8 @@ fixed window. Omit entirely for no time constraint.
           "page_content": "Video segment from 24s to 32s, seeking to 30.0s",  // locator, not a caption
           "metadata": {
             "video_id": "f079427b-…",
-            "video_url": "http://vdms-dataprep:8000/v1/dataprep/videos/download?video_id=…",
-            "video_rel_url": "/v1/dataprep/videos/download?video_id=…",
+            "video_url": "http://multimodal-dataprep:8000/v1/dataprep/media/download?video_id=…&bucket_name=…",
+            "video_rel_url": "/v1/dataprep/media/download?video_id=…&bucket_name=…",
             "relevance_score": 1,        // 0..1; top hit can be exactly 1
             "rank": 1,
             "segment_start": 24,         // clip window, seconds

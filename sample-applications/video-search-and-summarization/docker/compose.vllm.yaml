@@ -65,9 +65,9 @@ services:
       vllm-cpu-service:
         condition: service_healthy
     environment:
-      no_proxy: ${no_proxy},video-ingestion,audio-analyzer,rabbitmq-service,minio-service,postgres-service,ovms-service,vdms-dataprep,video-search,vllm-cpu-service,localhost
-      LLM_SUMMARIZATION_API: http://vllm-cpu-service:8000/v1
-      VLM_CAPTIONING_API: http://vllm-cpu-service:8000/v1
+      no_proxy: ${no_proxy},${EVAM_HOST:-video-ingestion},${VLM_HOST:-ovms-service},${AUDIO_HOST:-audio-analyzer},${RABBITMQ_HOST:-rabbitmq-service},${MINIO_HOST:-minio-service},${POSTGRES_HOST:-postgres-service},${OVMS_HOST:-ovms-service},${MM_DATAPREP_HOST:-multimodal-dataprep},${VS_HOST:-video-search},${VLLM_HOST:-vllm-cpu-service},localhost
+      LLM_SUMMARIZATION_API: ${VLLM_ENDPOINT:-http://vllm-cpu-service:8000/v1}
+      VLM_CAPTIONING_API: ${VLLM_ENDPOINT:-http://vllm-cpu-service:8000/v1}
       USE_VLLM: "CONFIG_ON"
 
 volumes:

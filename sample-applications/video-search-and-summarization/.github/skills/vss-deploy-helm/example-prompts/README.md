@@ -13,5 +13,6 @@ Each file is a ready-to-use prompt that can be passed via `@file`.
 | [02-search-mode-embedding-model.md](02-search-mode-embedding-model.md) | Search Mode Embedding Model |
 | [03-gpu-npu-split-model-ovms.md](03-gpu-npu-split-model-ovms.md) | Gpu Npu Split Model Ovms |
 | [04-dual-ui-upgrade-existing.md](04-dual-ui-upgrade-existing.md) | Dual Ui Upgrade Existing |
-| [05-storage-troubleshoot-pvc.md](05-storage-troubleshoot-pvc.md) | Storage Troubleshoot Pvc |
+| [05-storage-troubleshoot-pvc.md](05-storage-troubleshoot-pvc.md) | Summary Storage Troubleshooting |
 | [06-bootstrap-fresh-machine.md](06-bootstrap-fresh-machine.md) | Bootstrap Fresh Machine |
+| [07-search-storage-troubleshoot-pvc.md](07-search-storage-troubleshoot-pvc.md) | Search Storage Troubleshooting |
