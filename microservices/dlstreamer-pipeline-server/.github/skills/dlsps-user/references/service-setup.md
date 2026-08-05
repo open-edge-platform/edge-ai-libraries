@@ -16,9 +16,11 @@ source, and configuring environment variables.
 ## Quick Start (Pre-built Image)
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
-cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
+# 1. Sparse checkout only the pipeline server component
+git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries
+git sparse-checkout set microservices/dlstreamer-pipeline-server
+cd microservices/dlstreamer-pipeline-server/docker
 
 # 2. (GPU/NPU only) Set render group ID
 export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)
@@ -42,19 +44,15 @@ curl http://localhost:8080/pipelines
 
 ---
 
-## Build from Source
+## Pull Image from Docker Hub
+
+The pre-built image is available on Docker Hub:
 
 ```bash
-cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
-
-# Update BUILD_TARGET in .env:
-#   dlstreamer-pipeline-server          → optimized (lean image)
-#   dlstreamer-pipeline-server-extended → includes Geti SDK, OpenVINO API, ROS2
-
-source .env
-docker compose build
-docker compose up
+docker pull intel/dlstreamer-pipeline-server:latest
 ```
+
+See all available tags at: https://hub.docker.com/r/intel/dlstreamer-pipeline-server/tags
 
 ---
 

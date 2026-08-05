@@ -1,17 +1,18 @@
 ---
 name: dlsps-user
 description: >
-  Deploy and operate the DL Streamer Pipeline Server microservice for real-time
-  video analytics. Use this skill whenever a user wants to: start or stop a
-  video analytics pipeline; run object detection, classification, or tracking
-  on a video stream; configure GPU or NPU hardware acceleration for inference;
-  stream processed video via RTSP or WebRTC; publish inference metadata over
-  MQTT, OPC UA, InfluxDB, S3, or ROS2; deploy DL Streamer Pipeline Server via
-  Docker Compose or Helm; write a custom GStreamer pipeline config; use the
-  REST API to manage pipeline instances; troubleshoot pipeline errors or GPU
-  access issues. Also trigger on phrases like "video analytics pipeline",
-  "GStreamer inference", "DL Streamer", "DLSPS", "object detection on video",
-  "RTSP streaming", "pipeline server".
+  Deploy and operate DL Streamer Pipeline Server — a microservice that wraps
+  DL Streamer pipelines behind a REST API for containerized, no-code operation.
+  Use this skill whenever a user wants to: deploy the pipeline server via
+  Docker Compose or Helm; start, stop, or monitor pipeline instances through
+  the REST API; configure pipeline definitions in config.json; publish inference
+  metadata over MQTT, OPC UA, InfluxDB, S3, or ROS2; set up GPU/NPU device
+  access for the container; troubleshoot service-level issues (container startup,
+  REST errors, port conflicts). This skill is NOT for writing new DL Streamer
+  applications or custom GStreamer code — use the dlstreamer-coding-agent skill
+  for that. Trigger on phrases like "pipeline server", "DLSPS", "start pipeline
+  via REST", "deploy video analytics microservice", "config.json pipeline
+  definition".
 ---
 
 # DL Streamer Pipeline Server Agent
@@ -24,15 +25,16 @@ the REST API.
 
 ## When to Use
 
-- User wants to run object detection or other inference on video streams
-- User needs to start/stop/monitor video analytics pipelines via REST API
-- User wants to configure GPU or NPU hardware acceleration
-- User needs RTSP or WebRTC frame streaming output
-- User wants to publish inference metadata to MQTT, OPC UA, S3, InfluxDB, or ROS2
-- User is deploying DL Streamer Pipeline Server via Docker Compose or Helm
-- User wants to write or modify a GStreamer pipeline config (config.json)
-- User needs to run UDF (User Defined Function) pipelines
-- User is troubleshooting pipeline failures, GPU access, or RTSP issues
+- User wants to deploy the pipeline server container (Docker Compose or Helm)
+- User needs to start/stop/monitor pipeline instances via the REST API
+- User wants to configure pipeline definitions in `config.json`
+- User needs to set up GPU/NPU device access for the container (`RENDER_GID`, device plugins)
+- User wants to configure metadata publishing destinations (MQTT, OPC UA, S3, InfluxDB, ROS2)
+- User is troubleshooting service-level issues (container startup, REST errors, port conflicts)
+
+> **Not this skill:** If the user wants to *write new* DL Streamer applications,
+> create custom GStreamer pipelines from scratch, or develop Python/C++ video analytics
+> code, use the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/main/.github/skills/dlstreamer-coding-agent) skill instead.
 
 ## Architecture at a Glance
 
@@ -145,20 +147,15 @@ Pipeline definitions live in a `config.json` mounted into the container:
 }
 ```
 
-### Key GStreamer Elements
+### Key Pipeline Server Elements
 
 | Element | Purpose |
 |---------|---------|
-| `{auto_source}` | Auto-detect source (file, RTSP, camera) |
-| `decodebin3` | System available decoder (CPU/GPU) |
-| `vah264dec` | GPU VA-API H.264 decode |
-| `vapostproc` | GPU VA-API post-processing |
-| `gvadetect` | Object detection inference |
-| `gvaclassify` | Classification inference |
-| `gvametaconvert` | Convert inference results to metadata |
-| `gvametapublish` | Publish metadata to destination |
+| `{auto_source}` | Auto-detect source based on REST request |
 | `udfloader` | Load Python User Defined Functions |
-| `appsink` | Application sink (required) |
+| `appsink` | Application sink (required, `name=appsink`) |
+
+For DL Streamer inference, decode and metadata conversion and publishing elements see the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/main/.github/skills/dlstreamer-coding-agent) skill.
 
 ## Common Mistakes to Avoid
 
@@ -202,8 +199,7 @@ Read the matching example file — it contains the exact compact response format
 4. Show RTSP URL, status-check command, and stop command
 
 **GPU/NPU rules:**
-- GPU: `vah264dec`, `vapostproc`, `device=GPU`, `pre-process-backend=va-surface-sharing`
-- NPU: `device=NPU`
+For GPU/NPU inference or decodeing devices see the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/main/.github/skills/dlstreamer-coding-agent) skill.
 - RTSP/MQTT with GPU: add `vapostproc ! video/x-raw` before `appsink`
 
 Read reference files only when needed for advanced configuration details:
