@@ -1,6 +1,6 @@
 # VSS environment variables
 
-Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-started.md`, `docs/user-guide/get-started/system-requirements.md`, and `docs/user-guide/build-from-source.md`. Deployment reads shell environment; no top-level `.env` or `.env.example` is present. The checked-in env files are `ui/react/.env` for Vite placeholder names and `mcp/.env.example` for the separate MCP server.
+Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-started.md`, `docs/user-guide/get-started/system-requirements.md`, and `docs/user-guide/build-from-source.md`. Deployment reads the shell environment. The checked-in `.env.example` is a general application template, but this skill uses `vss.config.env` plus generated `vss.secrets.env` because those files track the current per-component device variables and keep credentials separate. If using a copied `.env` manually, source it before exporting secrets because its empty secret assignments overwrite existing values.
 
 ## Required before starting containers
 
@@ -8,7 +8,7 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 
 | Variable | Required when | What it controls |
 |---|---|---|
-| `MINIO_ROOT_USER` | all deployment modes | MinIO username; passed to `minio-service`, `pipeline-manager`, `video-ingestion`, `audio-analyzer`, `vdms-dataprep`. |
+| `MINIO_ROOT_USER` | all deployment modes | MinIO username; passed to `minio-service`, `pipeline-manager`, `video-ingestion`, `audio-analyzer`, `multimodal-dataprep`. |
 | `MINIO_ROOT_PASSWORD` | all deployment modes | MinIO password/secret key. |
 | `POSTGRES_USER` | all deployment modes | PostgreSQL user for `postgres-service` and `pipeline-manager`. |
 | `POSTGRES_PASSWORD` | all deployment modes | PostgreSQL password. |
@@ -16,20 +16,43 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `RABBITMQ_PASSWORD` | all deployment modes | RabbitMQ password. |
 | `VLM_MODEL_NAME` | Summary, Dual UI, Unified UI | VLM model source for captioning/summarization. In vLLM mode it is also the final-summary model. |
 | `ENABLED_WHISPER_MODELS` | Summary, Dual UI, Unified UI | Comma-separated Whisper models for `audio-analyzer` via `ENABLED_WHISPER_MODELS`. |
-| `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | YOLO object detection model converted by `video-ingestion/resources/scripts/converter.py` into `ov_models/yoloworld/v2`. |
+| `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | Generic YOLO id accepted by the model-download Ultralytics plugin. Setup stores it under `ov_models/object-detection/ultralytics/public/<model>/FP32`. YOLO-World names fall back to `yolov8l`. |
 | `MULTIMODAL_EMBEDDING_MODEL` | Search, Dual UI | Model for video frame embeddings; assigned to `EMBEDDING_MODEL_NAME`. |
 | `TEXT_EMBEDDING_MODEL` | Unified UI | Text embedding model for summary-text search; assigned to `EMBEDDING_MODEL_NAME`. |
-| `OVMS_LLM_MODEL_NAME` | only if `ENABLE_OVMS_LLM_SUMMARY=true` or `ENABLE_OVMS_LLM_SUMMARY_GPU=true` for modes with summary | Dedicated OVMS final-summary LLM model. Otherwise OVMS falls back to `VLM_MODEL_NAME`. |
+| `OVMS_LLM_MODEL_NAME` | optional for modes with summary | Dedicated OVMS final-summary LLM model. Split mode is selected when the effective LLM model, target device, or compression differs from the VLM; otherwise OVMS reuses the VLM. |
 
 ## Proxy and image registry
 
 | Variable | Default / behavior | What it controls |
 |---|---|---|
-| `http_proxy`, `https_proxy`, `no_proxy` | no default | Passed into nearly every service. Compose appends internal names such as `pipeline-manager`, `minio-service`, `ovms-service`, `vdms-dataprep`, `multimodal-embedding-serving`, and `localhost` to `no_proxy`. |
+| `http_proxy`, `https_proxy`, `no_proxy` | no default | Passed into nearly every service. Compose appends internal names such as `pipeline-manager`, `minio-service`, `ovms-service`, `multimodal-dataprep`, `vector-retriever`, `multimodal-embedding-serving`, and `localhost` to `no_proxy`. |
 | `REGISTRY_URL` | empty | `setup.sh` trims/adds a trailing slash, combines with `PROJECT_NAME`, and exports `REGISTRY`. |
 | `PROJECT_NAME` | empty | Also normalized with trailing slash before composing `${REGISTRY_URL}${PROJECT_NAME}`. |
 | `REGISTRY` | derived | Prefix for images such as `${REGISTRY:-}pipeline-manager:${TAG:-latest}`. |
 | `TAG` | `latest` in `setup.sh`; docs example `2026.1.0-rc1` | Image tag for app images. |
+
+## Model download service
+
+For a summary-capable deployment, `setup.sh` checks the host-backed
+`ov_models/` tree before starting Compose. If an OD artifact or an OVMS
+VLM/LLM artifact is missing, it starts a transient model-download REST service,
+submits the required jobs, persists failed logs, and removes the service
+container.
+
+| Variable | Default | What it controls |
+|---|---|---|
+| `MODEL_DOWNLOAD_IMAGE` | `intel/model-download:${MODEL_DOWNLOAD_TAG:-latest}` | Full image reference for the transient model-download service. |
+| `MODEL_DOWNLOAD_TAG` | `latest` | Fallback tag when `MODEL_DOWNLOAD_IMAGE` is unset. |
+| `MODEL_DOWNLOAD_OVMS_TAG` | `v2026.1` | OVMS release used by the OpenVINO export plugin. |
+| `MODEL_DOWNLOAD_HOST_PORT` | `8640` | Loopback-only REST port while setup downloads models. |
+| `MODEL_DOWNLOAD_JOB_TIMEOUT` | `5400` | Per-job timeout in seconds; `0` disables the wall-clock limit. |
+| `OVMS_MS_DOWNLOAD_PATH` | `ovms` | Subdirectory under `ov_models/` containing `config.json` and `openvino_models/`. |
+| `HUGGINGFACE_TOKEN`, `HUGGINGFACEHUB_API_TOKEN` | unset | Optional token forwarded as `HF_TOKEN`; the first non-empty value is used. |
+
+OVMS exports are stored under
+`ov_models/ovms/openvino_models/<device>/<precision>/<source-model>` and
+registered in `ov_models/ovms/config.json`. Failed model-download logs are
+written to `ov_models/model-download-*.log`.
 
 ## Common ports and hosts set by `setup.sh`
 
@@ -46,7 +69,8 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `POSTGRES_HOST_PORT`, `POSTGRES_DB`, `POSTGRES_HOST` | `5432`, `video_summary_db`, `postgres-service` | PostgreSQL. |
 | `MINIO_API_HOST_PORT`, `MINIO_CONSOLE_HOST_PORT`, `MINIO_HOST` | `4001`, `4002`, `minio-service` | MinIO API/console. |
 | `VDMS_VDB_HOST_PORT`, `VDMS_VDB_HOST` | `55555`, `vdms-vector-db` | VDMS vector DB. |
-| `VDMS_DATAPREP_HOST_PORT`, `VDMS_DATAPREP_HOST`, `VDMS_DATAPREP_ENDPOINT` | `6016`, `vdms-dataprep`, `http://vdms-dataprep:8000` | Search data preparation service. |
+| `MM_DATAPREP_HOST_PORT`, `MM_DATAPREP_HOST`, `MM_DATAPREP_ENDPOINT` | `6016`, `multimodal-dataprep`, `http://multimodal-dataprep:8000` | Search data preparation service (`multimodal-dataprep`). |
+| `VECTOR_RETRIEVER_HOST_PORT` | `6008` | Vector Retriever service; `video-search` delegates all similarity search to it at `http://vector-retriever:8000/query`. Backend flavor (`vector-retriever-vdms`/`vector-retriever-milvus`) is baked at build time from `VECTORDB_BACKEND`. |
 | `VS_HOST_PORT`, `VS_HOST`, `VS_ENDPOINT` | `7890`, `video-search`, `http://video-search:8000` | Video Search service. |
 | `EMBEDDING_SERVER_PORT`, `MULTIMODAL_EMBEDDING_HOST`, `MULTIMODAL_EMBEDDING_ENDPOINT` | `9777`, `multimodal-embedding-serving`, `http://multimodal-embedding-serving:8000/embeddings` | Embedding service. |
 
@@ -70,7 +94,7 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `PM_MULTI_FRAME_COUNT` | `12`, may reduce to `6` for non-CPU OVMS VLM | Multi-frame captioning count. |
 | `PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | `true` in compose | Enables full-transcript summary injection by default. |
 | `PM_PRODUCE_FINAL_SUMMARY` | `true` | Whether Pipeline Manager produces final summary. |
-| `GATED_MODEL`, `HUGGINGFACE_TOKEN` | unset | If `GATED_MODEL=true`, setup logs into Hugging Face during OVMS export; vLLM passes `HUGGING_FACE_HUB_TOKEN=${HUGGINGFACE_TOKEN:-}`. |
+| `HUGGINGFACE_TOKEN`, `HUGGINGFACEHUB_API_TOKEN` | unset | Optional token for gated model download. The model-download service accepts either; vLLM uses `HUGGINGFACE_TOKEN`. |
 
 ## vLLM-specific controls
 
@@ -102,11 +126,14 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `VS_INITIAL_DUMP` | `false` | Initial watcher dump. |
 | `VS_WATCH_DIRECTORY_RECURSIVE` | `false` | Recursive directory watch. |
 | `VS_DEBOUNCE_TIME` | `10` | Watch debounce time. |
-| `EMBEDDING_PROCESSING_MODE` | `sdk` | `sdk` keeps embeddings in `vdms-dataprep`; `api` routes through `multimodal-embedding-serving`. Setup validates only `sdk` or `api`. |
-| `ENABLE_EMBEDDING_GPU` | unset/false | If `true`, setup sets `VDMS_DATAPREP_DEVICE=GPU`. |
-| `VDMS_DATAPREP_DEVICE` | `CPU` | Device for data prep, video decoding, YOLOX detection, and embedding execution. |
-| `SDK_USE_OPENVINO` | `true` | SDK-mode OpenVINO use; forced true by GPU configuration. |
-| `EMBEDDING_DEVICE` | `$VDMS_DATAPREP_DEVICE` | Device passed to `multimodal-embedding-serving`. |
+| `VECTORDB_BACKEND` | `vdms` | Selects the vector DB backend (`vdms` or `milvus`) for both `multimodal-dataprep` writes and the `vector-retriever` flavor used at query time. |
+| `VDB_METRIC_TYPE`, `VDB_INDEX_TYPE` | `IP`, `FLAT` | Distance metric and index type; must match between `multimodal-dataprep` and `vector-retriever`. |
+| `ENABLE_EMBEDDING_GPU` | unset/false | If `true`, setup sets `DATAPREP_EMBEDDING_DEVICE=GPU`. |
+| `DATAPREP_EMBEDDING_DEVICE` | `CPU` | Device for in-process embedding in `multimodal-dataprep`. |
+| `DATAPREP_DETECTION_DEVICE` | `CPU` | Device for YOLOX object detection in `multimodal-dataprep`. |
+| `MME_EMBEDDING_DEVICE` | `CPU` | Device for `multimodal-embedding-serving` (used by `vector-retriever` to embed queries). |
+| `SDK_USE_OPENVINO` | `true` | OpenVINO use for in-process `multimodal-dataprep` embedding; forced true by GPU/NPU configuration. |
+| `EMBEDDING_DEVICE` | `$MME_EMBEDDING_DEVICE` | Device passed to `multimodal-embedding-serving`. |
 | `EMBEDDING_USE_OV` | `$SDK_USE_OPENVINO` | OpenVINO use for embedding server. |
 | `OV_MODELS_DIR`, `EMBEDDING_OV_MODELS_DIR` | `/app/ov_models` | OpenVINO model cache mount paths. |
 | `OV_PERFORMANCE_MODE` | `THROUGHPUT` | OpenVINO performance mode. |
@@ -117,7 +144,7 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `ROI_CONSOLIDATION_IOU_THRESHOLD` | `0.2` | ROI grouping threshold. |
 | `ROI_CONSOLIDATION_CLASS_AWARE` | `false` | Merge only same class when true. |
 | `ROI_CONSOLIDATION_CONTEXT_SCALE` | `0.2` | Expand merged ROI. |
-| `VDMS_DATAPREP_LOG_LEVEL` | `INFO` | Data prep log level. |
+| `MM_DATAPREP_LOG_LEVEL` | `INFO` | Data prep log level. |
 | `EMBEDDING_BATCH_SIZE` | `32` | Embedding batch size. |
 | `MAX_PARALLEL_WORKERS` | empty | Optional data prep worker limit. |
 | `AGGREGATION_ENABLED` | `true` | Frame-to-video aggregation. |
@@ -138,7 +165,8 @@ Sources: `setup.sh`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-
 | `APP_FEATURE_MUX` | set by mode | `ATOMIC` for singleton summary/search; `SUMMARY_SEARCH` for Unified. |
 | `APP_SUMMARY_FEATURE` | set by mode | UI summary feature flag. |
 | `APP_SEARCH_FEATURE` | set by mode | UI search feature flag. |
-| `ENABLE_VSS_COLLECTOR` | `false` | Adds `compose.telemetry.yaml` when `true`. |
+| `ENABLE_METRICS_MANAGER` | `false` | Adds `compose.metrics-manager.yaml` in search-enabled modes when `true`. |
+| `METRICS_MANAGER_HOST_PORT` | `9090` | Metrics Manager REST/SSE API host port. |
+| `METRICS_MANAGER_PROMETHEUS_HOST_PORT` | `9273` | Metrics Manager Prometheus host port. |
+| `MM_DATAPREP_METRICS_MANAGER_TIMEOUT_SECONDS` | `2` | Timeout for DataPrep metrics publishing. |
 | `OTLP_TRACE_URL` | empty | Pipeline Manager telemetry trace URL. |
-| `DATAPREP_TELEMETRY_URL` | `http://vdms-dataprep:8000/v1/dataprep/telemetry?limit=1` | Pipeline Manager data prep telemetry URL. |
-| `TELEMETRY_SIGNAL_DIR` | `/app/.collector-signals` | Shared collector signal directory. |

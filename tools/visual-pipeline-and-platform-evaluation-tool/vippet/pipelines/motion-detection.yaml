@@ -5,6 +5,7 @@ definition: >
 tags:
   - "Smart Cities"
 thumbnail: images/motion-detection.png
+type: vision
 variants:
   - name: CPU
     pipeline_description: >-

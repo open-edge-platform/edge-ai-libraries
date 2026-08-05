@@ -152,22 +152,44 @@ class PoseAnalyzer:
         Returns:
             PatternResult indicating if pattern was detected
         """
+        logger.debug(f"detect_pattern called: pattern_id={pattern_id}, poses={len(pose_sequence)}")
+        
         # Check if pattern is enabled in config
         pattern_cfg = self.pattern_config.get(pattern_id, {})
-        if pattern_cfg and not pattern_cfg.get("enabled", True):
+        if not pattern_cfg:
+            logger.debug(f"Pattern '{pattern_id}' not found in config")
+            return PatternResult(
+                matched=False,
+                confidence=0.0,
+                pattern_id=pattern_id,
+                description=f"Pattern '{pattern_id}' not found in config",
+            )
+        
+        if not pattern_cfg.get("enabled", True):
+            logger.debug(f"Pattern '{pattern_id}' is disabled in config")
             return PatternResult(
                 matched=False,
                 confidence=0.0,
                 pattern_id=pattern_id,
                 description=f"Pattern '{pattern_id}' is disabled",
             )
+        
+        logger.debug(f"Pattern '{pattern_id}' enabled, evaluating rules...")
 
         # Generic declarative rule engine
+        # Respect pattern-level min_frames from config, fall back to global setting
         pose_cfg = pattern_cfg.get("pose", {})
         if "phases" in pose_cfg:
+            logger.debug(f"Pattern '{pattern_id}' has {len(pose_cfg['phases'])} phases")
+            for phase_idx, phase in enumerate(pose_cfg["phases"]):
+                phase_min_frames = phase.get("min_frames", self.min_frames)
+                logger.debug(f"  Phase {phase_idx}: {phase.get('name', 'unnamed')}, min_frames={phase_min_frames}, conditions={len(phase.get('conditions', []))}")
+            
+            # Pass global min_frames as fallback for phases that don't specify it
             engine_result = self.rule_engine.evaluate(
                 pose_sequence, pattern_cfg, min_frames=self.min_frames
             )
+            logger.debug(f"Rule engine result for '{pattern_id}': matched={engine_result.matched}, confidence={engine_result.confidence:.3f}")
             return PatternResult(
                 matched=engine_result.matched,
                 confidence=engine_result.confidence,

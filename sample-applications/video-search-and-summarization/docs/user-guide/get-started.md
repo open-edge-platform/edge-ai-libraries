@@ -50,10 +50,12 @@ sample-applications/video-search-and-summarization/
 │   ├── compose.ui.yaml
 │   ├── compose.summary.yaml
 │   ├── compose.search.yaml
+│   ├── compose.search.vdms.yaml   # VDMS vector-DB backend overlay (default)
+│   ├── compose.search.milvus.yaml # Milvus vector-DB backend overlay
 │   ├── compose.vllm.yaml          # vLLM CPU backend
 │   ├── compose.vllm.xpu.yaml      # vLLM Intel Arc Pro B-series GPU/XPU backend (experimental)
 │   ├── compose.gpu_ovms.yaml
-│   └── compose.telemetry.yaml
+│   └── compose.metrics-manager.yaml
 ├── docs/
 │   └── user-guide/                # User guides and tutorials
 ├── pipeline-manager/              # Orchestrates summarization and search pipelines
@@ -112,7 +114,7 @@ Before running the application, you need to set several environment variables:
       | `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | YOLO model for object detection during video ingestion. |
       | `MULTIMODAL_EMBEDDING_MODEL` | Search, Dual UI | Multimodal model for generating video frame embeddings. |
       | `TEXT_EMBEDDING_MODEL` | Unified UI | Text embedding model for generating summary text embeddings. |
-      | `OVMS_LLM_MODEL_NAME` | _(Optional)_ Any of Summary, Dual UI or Unified UI mode with `ENABLE_OVMS_LLM_SUMMARY=true` | LLM for OVMS-based final summary generation. |
+      | `OVMS_LLM_MODEL_NAME` | _(Optional)_ Summary, Dual UI, or Unified UI | LLM for OVMS-based final summary generation. When set and different from `VLM_MODEL_NAME`, enables split-model mode (separate VLM for captioning, LLM for summarization). |
       | `PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | _(Optional)_ Summary, Dual UI | Enables condensed transcript summary injection in the prompt to generate video summary. |
 
      **Common to all modes except `--search`:**
@@ -138,8 +140,10 @@ Before running the application, you need to set several environment variables:
       # You can provide just one or comma-separated list of models.
       export ENABLED_WHISPER_MODELS="tiny.en,small.en,medium.en"
 
-      # Object detection model used for Video Ingestion Service. Only Yolo models are supported.
-      export OD_MODEL_NAME="yolov8l-worldv2"
+      # Object detection model used for Video Ingestion Service. Only generic
+      # YOLO models supported by the model-download ultralytics hub are
+      # supported (e.g. yolov8l, yolov8s).
+      export OD_MODEL_NAME="yolov8l"
       ```
 
      **Required in `--search` and `--summary --search` mode:**
@@ -168,7 +172,7 @@ Before running the application, you need to set several environment variables:
       ```
 
       > **Audio Transcript Summarization (`PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY`)**:
-      > When enabled (the default), the pipeline runs a separate LLM-based map-reduce summarization pass over the complete audio transcript *before* generating the final video summary. The condensed transcript summary is then injected into the video summary prompt via the `%audio_summary%` placeholder, giving the LLM a coherent, high-quality representation of spoken content rather than raw subtitle fragments. This significantly improves accuracy for dialogue-heavy or narration-heavy videos. When disabled, audio transcripts are only used at the chunk captioning level — each chunk's VLM prompt includes its time-matched portion of the transcript — but no audio content is included in the final map-reduce video summary.
+      > When enabled (the default), the pipeline runs a separate LLM-based map-reduce summarization pass over the complete audio transcript *before* generating the final video summary. The condensed transcript summary is then injected into the video summary prompt via the `%audio_summary%` placeholder, giving the LLM a coherent, high-quality representation of spoken content rather than raw subtitle fragments. This significantly improves accuracy for dialogue-heavy or narration-heavy videos. When disabled, audio transcripts are only used at the chunk captioning level, each chunk's VLM prompt includes its time-matched portion of the transcript but no audio content is included in the final map-reduce video summary.
       >
       > This environment variable sets the **default** value. Users can override it per-video using the **"Use Audio in Summary"** checkbox in the Audio Settings section of the video upload modal.
 
@@ -194,7 +198,19 @@ Before running the application, you need to set several environment variables:
 
    In the example above, DataPrep processes every fifteenth frame: each selected frame (optionally after object detection) is converted into embeddings and stored in the vector database. Lower values improve recall at the cost of higher compute and storage usage, while higher values reduce processing load but may skip important frames. If you do not set this variable, the service falls back to its configured default.
 
-7. **Enable ROI consolidation (Search and Dual UI mode)**:
+7. **Control duplicate-upload behavior in DataPrep (Search and Dual UI mode)**:
+
+   This setting controls whether DataPrep accepts repeated uploads of the same video content:
+
+   ```bash
+   # Default true: allow content-identical re-uploads (historical behavior)
+   # Set false to reject duplicate-content uploads with HTTP 409.
+   export MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=true
+   ```
+
+   Duplicate detection is **content-based** (SHA-256 of uploaded bytes), not filename-based. A renamed copy of the same video is still detected as duplicate content, while two different videos that share the same filename are treated as different uploads.
+
+8. **Enable ROI consolidation (Search and Dual UI mode)**:
 
    ROI consolidation groups overlapping object detections into merged regions of interest (ROIs) before cropping for embeddings. Enable this feature and tune it with the following environment variables:
 
@@ -220,19 +236,27 @@ Before running the application, you need to set several environment variables:
 
    > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
 
-8. **(Optional) Telemetry collection (Search and Dual UI mode)**:
+9. **(Optional) Metrics Manager (Search, Dual UI, and Unified UI modes)**:
 
-   The deployment can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI. Telemetry is only applicable in `--search` and `--summary --search` modes.
+   Metrics Manager collects CPU, RAM, Intel® GPU, and Intel® NPU metrics and
+   serves them to the UI over server-sent events. Multimodal DataPrep publishes
+   each completed embedding pipeline's embeddings-per-second value directly to
+   Metrics Manager; Pipeline Manager is not part of this path.
 
    ```bash
    # Disabled by default
-   export ENABLE_VSS_COLLECTOR=false
+   export ENABLE_METRICS_MANAGER=false
 
-   # Enable the collector if you want telemetry
-   export ENABLE_VSS_COLLECTOR=true
+   # Enable live metrics
+   export ENABLE_METRICS_MANAGER=true
    ```
 
-9. **Tune Inference Concurrency (Summary and Dual UI mode)**:
+   This integration requires the coordinated `multimodal-dataprep` image that
+   supports `MM_DATAPREP_METRICS_MANAGER_URL`. Metrics publishing is
+   non-blocking: video ingestion continues if Metrics Manager is unavailable.
+   GPU and NPU panels remain empty on hosts without those devices.
+
+10. **Tune Inference Concurrency (Summary and Dual UI mode)**:
 
    Control how many concurrent inference requests the pipeline manager sends to OVMS or vLLM. These values affect throughput and resource utilization:
 
@@ -246,7 +270,7 @@ Before running the application, you need to set several environment variables:
 
    > **Note**: For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
 
-10. **Override OVMS Model Weight Compression Format (Summary and Dual UI mode)**:
+11. **Override OVMS Model Weight Compression Format (Summary and Dual UI mode)**:
 
     When using OVMS for inference, the setup script auto-selects the model weight compression format based on the target device (`int8` for CPU, `int4` for GPU/NPU). You can override this auto-detection by setting these variables before running the setup script:
 
@@ -260,41 +284,38 @@ Before running the application, you need to set several environment variables:
 
     > **Note**: Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
 
-11. **Configure Embedding Processing Mode (Search and Dual UI mode)**:
+12. **Configure Embedding Execution (Search and Dual UI mode)**:
 
-    Control how the embedding model is loaded and invoked during video search indexing:
+    The `multimodal-dataprep` service loads the embedding model in-process and generates
+    embeddings during video search indexing. Enable OpenVINO optimization for the
+    in-process embedding path:
 
     ```bash
-    # Embedding processing mode: "sdk" (default) or "api"
-    #   - "sdk": Loads the embedding model directly within the vdms-dataprep container (optimized, lower memory overhead)
-    #   - "api": Routes embedding requests via HTTP to the multimodal-embedding-serving container
-    export EMBEDDING_PROCESSING_MODE=sdk
-
-    # Enable OpenVINO optimization for SDK-mode embedding (default: true)
-    # Automatically set to true when using GPU mode
+    # Enable OpenVINO optimization for in-process embedding (default: true)
+    # Automatically set to true when using GPU/NPU mode
     export SDK_USE_OPENVINO=true
     ```
 
-    > **Note**: SDK mode is recommended for most deployments as it avoids inter-container HTTP overhead. Set `EMBEDDING_PROCESSING_MODE=api` if you need the embedding model served as a standalone microservice.
+    > **Note**: `multimodal-dataprep` embeds in-process (no separate embedding service is required for indexing). The standalone `multimodal-embedding-serving` service is used by `vector-retriever` to embed queries at search time.
 
-12. **Select devices per processing component (Search and Unified UI mode)**:
+13. **Select devices per processing component (Search and Unified UI mode)**:
 
     Each processing component picks its device independently. All default to `CPU`; set any to `GPU` or `NPU` as needed.
 
     ```bash
-    # Embedding in vdms-dataprep (EMBEDDING_PROCESSING_MODE=sdk)
+    # Embedding in multimodal-dataprep (in-process)
     export DATAPREP_EMBEDDING_DEVICE=GPU
-    # YOLOX object detection in vdms-dataprep
+    # YOLOX object detection in multimodal-dataprep
     export DATAPREP_DETECTION_DEVICE=CPU
-    # Embedding in multimodal-embedding-serving (EMBEDDING_PROCESSING_MODE=api)
+    # Embedding in multimodal-embedding-serving (used by vector-retriever at query time)
     export MME_EMBEDDING_DEVICE=GPU
     ```
 
-    There is no "baseline" device — each component is configured directly, matching the Helm chart's per-component model.
+    There is no "baseline" device, each component is configured directly, matching the Helm chart's per-component model.
 
-    > **Mode note:** `DATAPREP_EMBEDDING_DEVICE` controls embedding execution when `EMBEDDING_PROCESSING_MODE=sdk` (in-process DataPrep embedding). `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving` when `EMBEDDING_PROCESSING_MODE=api`. `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut: in `sdk` mode it sets `DATAPREP_EMBEDDING_DEVICE=GPU`; in `api` mode it sets `MME_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
+    > **Device note:** `DATAPREP_EMBEDDING_DEVICE` controls in-process embedding execution in `multimodal-dataprep`. `DATAPREP_DETECTION_DEVICE` controls YOLOX object detection in `multimodal-dataprep`. `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving`, which `vector-retriever` uses to embed queries at search time. `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
 
-13. **🧪 EXPERIMENTAL: Configure vLLM Intel Arc Pro B-series GPU/XPU Backend**:
+14. **🧪 EXPERIMENTAL: Configure vLLM Intel Arc Pro B-series GPU/XPU Backend**:
 
     > **⚠️ Experimental Feature:** Intel Arc Pro B-series GPU (XPU) support with vLLM is in early development stages and may have stability issues. Not recommended for production use.
 
@@ -403,29 +424,60 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 
 | **Deployment Option** | **Embedding Pipeline Configuration** | **Detection Configuration** | **Environment Variables to Set** | **Recommended Models** | **Recommended Usage Model** |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
-| SDK shared CPU | In-process embedding in `vdms-dataprep` on CPU | Detection on CPU | `EMBEDDING_PROCESSING_MODE=sdk` (default) | Search/Dual: `CLIP/clip-vit-b-32`<br>Unified: `QwenText/qwen3-embedding-0.6b` | Default CPU-only search flow. |
-| SDK shared GPU | In-process embedding in `vdms-dataprep` on GPU | Detection on GPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=GPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Run both detection and embedding execution on GPU. |
-| SDK shared NPU | In-process embedding in `vdms-dataprep` on NPU | Detection on NPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: NPU-supported multimodal model | Run both detection and embedding execution on NPU. |
-| SDK split CPU/NPU | In-process embedding in `vdms-dataprep` on NPU | Detection on CPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: NPU-supported multimodal model | Keep detection on CPU while offloading embedding to NPU. |
-| SDK split CPU/GPU | In-process embedding in `vdms-dataprep` on CPU | Detection on GPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection only while keeping embedding on CPU. |
-| SDK split CPU/NPU (Detection) | In-process embedding in `vdms-dataprep` on CPU | Detection on NPU | `EMBEDDING_PROCESSING_MODE=sdk` + `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection to NPU while keeping embedding on CPU. |
-| API embedding CPU | Embedding served by `multimodal-embedding-serving` on CPU | Detection on CPU (DataPrep) | `EMBEDDING_PROCESSING_MODE=api` + `MME_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: `CLIP/clip-vit-b-32`<br>Unified: `QwenText/qwen3-embedding-0.6b` | Separate embedding service endpoint with CPU-only execution. |
-| API embedding GPU | Embedding served by `multimodal-embedding-serving` on GPU | Detection on CPU (DataPrep) | `EMBEDDING_PROCESSING_MODE=api` + `MME_EMBEDDING_DEVICE=GPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: `CLIP/clip-vit-b-32` | Keep DataPrep on CPU and offload API embedding to GPU. |
-| API embedding NPU | Embedding served by `multimodal-embedding-serving` on NPU | Detection on CPU (DataPrep) | `EMBEDDING_PROCESSING_MODE=api` + `MME_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: NPU-supported multimodal model | Keep DataPrep on CPU and offload API embedding to NPU. |
+| Shared CPU | In-process embedding in `multimodal-dataprep` on CPU | Detection on CPU | (defaults — no device overrides) | Search/Dual: `CLIP/clip-vit-b-32`<br>Unified: `QwenText/qwen3-embedding-0.6b` | Default CPU-only search flow. |
+| Shared GPU | In-process embedding in `multimodal-dataprep` on GPU | Detection on GPU | `DATAPREP_EMBEDDING_DEVICE=GPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Run both detection and embedding execution on GPU. |
+| Shared NPU | In-process embedding in `multimodal-dataprep` on NPU | Detection on NPU | `DATAPREP_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: NPU-supported multimodal model | Run both detection and embedding execution on NPU. |
+| Split CPU/NPU | In-process embedding in `multimodal-dataprep` on NPU | Detection on CPU | `DATAPREP_EMBEDDING_DEVICE=NPU` + `DATAPREP_DETECTION_DEVICE=CPU` | Search/Dual: NPU-supported multimodal model | Keep detection on CPU while offloading embedding to NPU. |
+| Split CPU/GPU | In-process embedding in `multimodal-dataprep` on CPU | Detection on GPU | `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection only while keeping embedding on CPU. |
+| Split CPU/NPU (Detection) | In-process embedding in `multimodal-dataprep` on CPU | Detection on NPU | `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection to NPU while keeping embedding on CPU. |
 
 > **Note:**
 >
 > 1) These options apply to modes where search is enabled: `--search`, `--summary --search`, and `--summary-and-search`.
 > 2) Each component device defaults to `CPU` and is set independently — there is no "baseline" device.
-> 3) In `EMBEDDING_PROCESSING_MODE=sdk`, embedding execution runs in `vdms-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`.
-> 4) In `EMBEDDING_PROCESSING_MODE=api`, embedding execution runs in `multimodal-embedding-serving` and follows `MME_EMBEDDING_DEVICE`.
+> 3) Embedding for indexing runs **in-process** in `multimodal-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`; object detection follows `DATAPREP_DETECTION_DEVICE`.
+> 4) `MME_EMBEDDING_DEVICE` controls `multimodal-embedding-serving`, which `video-search` uses to embed **queries at search time** — set it independently of the indexing devices above.
 > 5) **NPU Support:** Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU`.
-> 6) `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut for embedding: `sdk` mode sets `DATAPREP_EMBEDDING_DEVICE=GPU`, `api` mode sets `MME_EMBEDDING_DEVICE=GPU`. For NPU, use explicit device variables.
-> 7) **4K/8K videos:** In `sdk` embedding mode the default shared-memory block size is sized for 1080p frames, so ingesting 4K/8K video can stall the DataPrep worker. Before ingesting high-resolution content, raise `SDK_VIDEO_SHM_BLOCK_SIZE` as described in [Troubleshooting](./troubleshooting.md#4k8k-video-ingestion-stalls-with-a-worker-timeout).
+> 6) `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`. For NPU, use explicit device variables.
+> 7) **4K/8K videos:** By default the shared-memory block size is sized for 1080p frames, so ingesting 4K/8K video can stall the DataPrep worker. Before ingesting high-resolution content, raise `SDK_VIDEO_SHM_BLOCK_SIZE` as described in [Troubleshooting](./troubleshooting.md#4k8k-video-ingestion-stalls-with-a-worker-timeout).
+
+#### Vector Database Backend (VDMS or Milvus)
+
+The search path is vector-database agnostic. All vector similarity search is delegated to the standalone `vector-retriever` microservice — which is part of the search stack for every backend — while `video-search` keeps only query orchestration and frame-to-video aggregation. Select the backend with the `VECTORDB_BACKEND` environment variable before running `setup.sh` (object storage stays on MinIO for both):
+
+| `VECTORDB_BACKEND` | Vector database | Query path |
+|--------------------|-----------------|------------|
+| `vdms` (default)   | VDMS            | `video-search` delegates similarity search to the `vector-retriever-vdms` image, which reads the VDMS collection. |
+| `milvus`           | Milvus (standalone) | `video-search` delegates similarity search to the `vector-retriever-milvus` image, which reads the same Milvus collection. |
+
+```bash
+# Default — VDMS backend (no variable needed)
+source setup.sh --search
+
+# Milvus backend
+export VECTORDB_BACKEND=milvus
+source setup.sh --search
+```
+
+> **Note:**
+>
+> - For **both** backends, `video-search` delegates the raw vector search to the always-on `vector-retriever` microservice and never talks to a vector database directly. `VECTORDB_BACKEND` selects the backend-baked `vector-retriever` image (`vector-retriever-${VECTORDB_BACKEND}`, via the `RETRIEVER_BACKEND` build arg). The frame-to-video aggregation still runs in `video-search`, so search results are identical in shape across backends.
+> - `setup.sh` applies exactly one vector-DB overlay, so only the selected backend's containers start. `VECTORDB_BACKEND=vdms` (default) adds `docker/compose.search.vdms.yaml`, which starts `vdms-vector-db`; `VECTORDB_BACKEND=milvus` adds `docker/compose.search.milvus.yaml`, which starts a Milvus standalone stack (`milvus-etcd` + `milvus-standalone`) and no VDMS container. `multimodal-dataprep` writes embeddings to the selected backend and the matching `vector-retriever` image reads them back.
+> - The similarity metric/index (`VDB_METRIC_TYPE=IP`, `VDB_INDEX_TYPE=FLAT`) is shared between `multimodal-dataprep` and `vector-retriever` and must match on both — the defaults already align.
+
+> **Important — clean the data when switching backends:** embeddings live only in the vector database, but uploaded videos and their metadata live in MinIO and the Pipeline Manager's PostgreSQL database, which are shared across backends. Switching `VECTORDB_BACKEND` without clearing them leaves the previously ingested videos visible in the UI while the new backend holds no embeddings for them, so search returns nothing for those videos. Always wipe the user data first:
+>
+> ```bash
+> source setup.sh --clean-data
+> export VECTORDB_BACKEND=milvus   # or vdms
+> source setup.sh --search
+> ```
+>
+> `--clean-data` stops the stack and removes the MinIO, PostgreSQL, dataprep, VDMS and Milvus data volumes. Model-cache volumes are preserved, so no models are re-downloaded. Alternatively, re-ingest every video after the switch instead of cleaning.
 
 ## Using Edge Microvisor Toolkit
 
-If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit (EMT)** — an Azure Linux-based build pipeline for Intel® platforms — the deployment approach depends on the EMT flavor. Refer to the detailed documentation for [EMT-D](https://github.com/open-edge-platform/edge-microvisor-toolkit/blob/3.0/docs/developer-guide/emt-architecture-overview.md#developer-node-mutable-iso-image) and [EMT-S](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node) for full details.
+If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit (EMT)**, an Azure Linux-based build pipeline for Intel® platforms, the deployment approach depends on the EMT flavor. Refer to the detailed documentation for [EMT-D](https://github.com/open-edge-platform/edge-microvisor-toolkit/blob/3.0/docs/developer-guide/emt-architecture-overview.md#developer-node-mutable-iso-image) and [EMT-S](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node) for full details.
 
 ### EMT-D (Mutable)
 
@@ -443,7 +495,7 @@ Install additional tools such as `git` and `wget` using the same package manager
 
 ### EMT-S (Immutable)
 
-EMT-S is an **immutable** OS image — standard package managers such as `apt` are not available, and the VSS `setup.sh` script **cannot be run directly on the EMT-S node** (doing so will fail with `sudo: apt: command not found`). Use one of the following approaches:
+EMT-S is an **immutable** OS image, standard package managers such as `apt` are not available, and the VSS `setup.sh` script **cannot be run directly on the EMT-S node** (doing so will fail with `sudo: apt: command not found`). Use one of the following approaches:
 
 - **Option 1 (USB provisioning):** While preparing the USB drive, copy the required Docker images under `/opt/user-apps` on the image, then flash and deploy the Edge node.
 - **Option 2 (Remote copy):** On a Ubuntu development system, pull/build all required Docker images and prepare the project directory. Copy the entire directory to the EMT-S node without modifications and deploy from there. This approach has been verified to successfully bring up all VSS containers.
@@ -514,12 +566,14 @@ Follow these steps to run the application:
      source setup.sh --summary-and-search    # or, `source setup.sh --search-and-summary`
      ```
 
-      > **Telemetry** (applicable to `--search` and `--summary --search` modes only): The telemetry collector is disabled by default. Enable it with:
+      > **Live metrics:** Metrics Manager is disabled by default. Enable it with:
       >
       > ```bash
-      > ENABLE_VSS_COLLECTOR=true source setup.sh --search
+      > ENABLE_METRICS_MANAGER=true source setup.sh --search
       > # or
-      > ENABLE_VSS_COLLECTOR=true source setup.sh --summary --search
+      > ENABLE_METRICS_MANAGER=true source setup.sh --summary --search
+      > # or
+      > ENABLE_METRICS_MANAGER=true source setup.sh --summary-and-search
       > ```
 
       > **📁 Directory Watcher**: For automated video ingestion into the Search pipeline, see the [Directory Watcher Service Guide](./directory-watcher-guide.md).
@@ -662,7 +716,7 @@ Follow these steps to run the application:
    LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Intel/neural-chat-7b-v3-3 source setup.sh --summary-and-search
    ```
 
-> **Note:** In `EMBEDDING_PROCESSING_MODE=sdk`, embedding execution follows `DATAPREP_EMBEDDING_DEVICE` in DataPrep. In `EMBEDDING_PROCESSING_MODE=api`, embedding execution is handled by the embedding microservice and follows `MME_EMBEDDING_DEVICE`. `ENABLE_EMBEDDING_GPU=true` is a mode-aware GPU shortcut for embedding (`sdk`→DataPrep, `api`→MME).
+> **Note:** Search-indexing embedding runs in-process in `multimodal-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`. `MME_EMBEDDING_DEVICE` controls `multimodal-embedding-serving`, which `video-search` uses for query-time embeddings. `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`.
 
 To offload only specific DataPrep components during search (for example, keep embedding on CPU and move detection to GPU):
 
@@ -685,7 +739,7 @@ To verify the configuration and resolved environment variables without running t
    LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary-and-search
    ```
 
-#### Use GPU acceleration for the multimodal embedding service used by search:
+#### Use GPU acceleration for search-indexing embedding:
 
    ```bash
    # for Search mode
@@ -696,8 +750,8 @@ To verify the configuration and resolved environment variables without running t
    ```
 
    ```bash
-   # for NPU (API embedding service execution)
-   EMBEDDING_PROCESSING_MODE=api MME_EMBEDDING_DEVICE=NPU source setup.sh --search
+   # to run the in-process embedding on NPU instead
+   DATAPREP_EMBEDDING_DEVICE=NPU source setup.sh --search
    ```
 
 #### Verify the configuration and resolved environment variables:
@@ -719,12 +773,12 @@ To verify the configuration and resolved environment variables without running t
    ```
 
    ```bash
-   # For embedding service on GPU
+   # For search-indexing embedding on GPU
    ENABLE_EMBEDDING_GPU=true source setup.sh config --search                  # for Search mode
    ENABLE_EMBEDDING_GPU=true source setup.sh config --search --summary        # for Dual UI mode
 
-   # For embedding service on NPU
-   EMBEDDING_PROCESSING_MODE=api MME_EMBEDDING_DEVICE=NPU source setup.sh config --search
+   # For search-indexing embedding on NPU
+   DATAPREP_EMBEDDING_DEVICE=NPU source setup.sh config --search
    ```
 
    ```bash

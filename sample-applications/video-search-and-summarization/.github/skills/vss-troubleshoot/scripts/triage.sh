@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (C) 2026 Intel Corporation
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 set -u
@@ -12,7 +12,18 @@ GRAY='\033[0;90m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+if [ -f "${PWD}/setup.sh" ] && [ -d "${PWD}/docker" ]; then
+    APP_ROOT="${PWD}"
+elif [ -n "${VSS_APP_ROOT:-}" ] && [ -f "${VSS_APP_ROOT}/setup.sh" ] && [ -d "${VSS_APP_ROOT}/docker" ]; then
+    APP_ROOT="$(cd "${VSS_APP_ROOT}" && pwd)"
+else
+    APP_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+fi
+
+if [ ! -f "${APP_ROOT}/setup.sh" ] || [ ! -d "${APP_ROOT}/docker" ]; then
+    echo "ERROR: Could not resolve the VSS application root. Run this script from APP_ROOT or set VSS_APP_ROOT." >&2
+    exit 1
+fi
 cd "${APP_ROOT}" || exit 1
 
 section() {
@@ -30,12 +41,17 @@ compose_args=(
     -f docker/compose.base.yaml
     -f docker/compose.summary.yaml
     -f docker/compose.vllm.yaml
+    -f docker/compose.vllm.xpu.yaml
+    -f docker/compose.gpu_ovms.yaml
     -f docker/compose.search.yaml
+    -f docker/compose.search.vdms.yaml
+    -f docker/compose.search.milvus.yaml
     -f docker/compose.ui.yaml
-    -f docker/compose.telemetry.yaml
+    -f docker/compose.metrics-manager.yaml
     --profile ovms
     --profile vlm-ov
     --profile vllm
+    --profile vllm-xpu
     --profile dual_ui
     --profile singleton_unified_ui
     --profile singleton_summary_ui
@@ -49,14 +65,16 @@ services=(
     minio-service
     ovms-service
     vllm-cpu-service
+    vllm-xpu-service
     video-ingestion
     audio-analyzer
     rabbitmq-service
     video-search
     vdms-vector-db
-    vdms-dataprep
+    multimodal-dataprep
+    vector-retriever
     multimodal-embedding-serving
-    vss-collector
+    metrics-manager
 )
 
 find_container_ids() {
@@ -106,7 +124,8 @@ declare -a health_checks=(
     "vllm-cpu-service|http://localhost:${VLLM_HOST_PORT:-8200}/health"
     "video-ingestion|http://localhost:${EVAM_PIPELINE_HOST_PORT:-8090}/pipelines"
     "audio-analyzer|http://localhost:${AUDIO_HOST_PORT:-8999}/api/v1/health"
-    "vdms-dataprep|http://localhost:${VDMS_DATAPREP_HOST_PORT:-6016}/v1/dataprep/health"
+    "multimodal-dataprep|http://localhost:${MM_DATAPREP_HOST_PORT:-6016}/v1/dataprep/health"
+    "vector-retriever|http://localhost:${VECTOR_RETRIEVER_HOST_PORT:-6008}/ready"
     "multimodal-embedding-serving|http://localhost:${EMBEDDING_SERVER_PORT:-9777}/health"
 )
 
@@ -134,9 +153,11 @@ declare -a ports=(
     "4002|MinIO console"
     "5432|Postgres"
     "55555|VDMS vector DB"
-    "6016|vdms-dataprep"
+    "6016|multimodal-dataprep"
+    "6008|vector-retriever"
     "9777|multimodal-embedding-serving"
     "9273|vss-collector telemetry"
+    "8640|model-download REST (transient)"
 )
 
 if command -v ss >/dev/null 2>&1; then
@@ -171,10 +192,19 @@ echo -e "\n${GREEN}/dev/accel/accel0:${NC}"
 ls -l /dev/accel/accel0 2>&1 || true
 
 section "OVMS model config"
-if [ -f config/ovms_config/models/config.json ]; then
-    sed -n '1,160p' config/ovms_config/models/config.json
+if [ -f ov_models/ovms/config.json ]; then
+    sed -n '1,160p' ov_models/ovms/config.json
 else
-    echo "config/ovms_config/models/config.json not found."
+    echo "ov_models/ovms/config.json not found."
+fi
+
+section "Recent model-download failure log"
+model_download_log="$(ls -1t ov_models/model-download-*.log 2>/dev/null | head -n 1 || true)"
+if [ -n "$model_download_log" ]; then
+    echo "$model_download_log"
+    tail -n 80 "$model_download_log"
+else
+    echo "No persisted model-download failure log found."
 fi
 
 section "Setup environment variables commonly required"
@@ -182,9 +212,13 @@ for var in \
     MINIO_ROOT_USER MINIO_ROOT_PASSWORD POSTGRES_USER POSTGRES_PASSWORD \
     RABBITMQ_USER RABBITMQ_PASSWORD VLM_MODEL_NAME OVMS_LLM_MODEL_NAME \
     ENABLED_WHISPER_MODELS OD_MODEL_NAME MULTIMODAL_EMBEDDING_MODEL \
-    TEXT_EMBEDDING_MODEL ENABLE_VLLM VLM_TARGET_DEVICE LLM_TARGET_DEVICE \
+    TEXT_EMBEDDING_MODEL ENABLE_VLLM ENABLE_VLLM_GPU \
+    VLM_TARGET_DEVICE LLM_TARGET_DEVICE \
     PM_SUMMARIZATION_MAX_COMPLETION_TOKENS OVMS_CACHE_SIZE_GB \
-    EMBEDDING_PROCESSING_MODE VDMS_DATAPREP_DEVICE; do
+    VECTORDB_BACKEND DATAPREP_EMBEDDING_DEVICE \
+    DATAPREP_DETECTION_DEVICE MME_EMBEDDING_DEVICE \
+    MODEL_DOWNLOAD_IMAGE MODEL_DOWNLOAD_OVMS_TAG \
+    MODEL_DOWNLOAD_HOST_PORT MODEL_DOWNLOAD_JOB_TIMEOUT; do
     if [ -n "${!var+x}" ]; then
         if [[ "$var" == *PASSWORD* || "$var" == *TOKEN* ]]; then
             echo "${var}=<set>"

@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from src.core.interfaces import DownloadTask, ListingNotSupportedError, ModelDownloadPlugin
+from src.core.interfaces import DownloadTask, ListingNotSupportedError, ModelDownloadPlugin, PluginConfigKey
 from src.utils.logging import logger
 
 
@@ -78,8 +78,6 @@ def _load_omz_rules() -> Dict[str, Dict[str, Any]]:
     return rules
 
 
-
-
 class ExternalSourcesPlugin(ModelDownloadPlugin):
     """Combined downloader for external hubs (tarball + OMZ)."""
 
@@ -92,6 +90,42 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
     @property
     def plugin_type(self) -> str:
         return "downloader"
+
+    def hub_config_keys(self, hub: str) -> List[PluginConfigKey]:
+        """Return config keys applicable to a specific hub.
+        Each hub has its own private method so keys can evolve independently.
+        """
+        normalized = (hub or "").lower().replace("_", "-")
+        if normalized == "remote-url":
+            return self._remote_url_config_keys()
+        if normalized == "omz":
+            return self._omz_config_keys()
+        if normalized == "pipeline-zoo-models":
+            return self._pipeline_zoo_config_keys()
+        return []
+
+    @staticmethod
+    def _remote_url_config_keys() -> List[PluginConfigKey]:
+        return [
+            PluginConfigKey(
+                name="EXTERNAL_SOURCES_URL_ALLOWLIST",
+                description=(
+                    "Comma-separated host/path prefixes for the remote-url hub "
+                    "allowlist. Overrides the default allowlist in sources.yaml."
+                ),
+                sensitive=False,
+            ),
+        ]
+
+    @staticmethod
+    def _omz_config_keys() -> List[PluginConfigKey]:
+        # No keys today; add OMZ-specific keys here when needed.
+        return []
+
+    @staticmethod
+    def _pipeline_zoo_config_keys() -> List[PluginConfigKey]:
+        # No keys today; add OMZ-specific keys here when needed.
+        return []
 
     def plugin_supported_hubs(self) -> List[str]:
         """Return all hub names this plugin serves."""
@@ -214,6 +248,8 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             hub == "omz" and "," in model_name
         )
         target_dir = os.path.join(output_dir, hub) if is_multi else os.path.join(output_dir, hub, model_name)
+        # Register the exact dir so cancellation cleans up only this model.
+        kwargs.get("_model_download_dir", []).append(target_dir)
 
         # The 'remote-url' hub takes the archive URL from the request and validates
         # it against the allowlist before download.
@@ -224,11 +260,12 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             if not raw_url or not str(raw_url).strip():
                 raise ValueError("hub 'remote-url' requires 'url' in the request config")
             runtime_url = str(raw_url).strip().replace("{name}", model_name)
-            self._validate_runtime_url(runtime_url, self._resolve_allowlist(profile))
+            resolved_config = kwargs.get("resolved_config") or {}
+            self._validate_runtime_url(runtime_url, self._resolve_allowlist(profile, resolved_config))
 
         try:
             if kind == "omz":
-                self._fetch_omz(hub, model_name, target_dir)
+                self._fetch_omz(hub, model_name, target_dir, active_processes=kwargs.get("_active_processes"))
             elif kind == "tarball":
                 self._fetch_tarball(hub, model_name, profile, target_dir, runtime_url=runtime_url)
             else:
@@ -368,17 +405,25 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         return names
 
     @staticmethod
-    def _resolve_allowlist(profile: Dict[str, Any]) -> List[str]:
+    def _resolve_allowlist(profile: Dict[str, Any], resolved_config: Optional[Dict[str, Any]] = None) -> List[str]:
         """Resolve the runtime-URL allowlist of ``host + path`` prefixes.
 
-        ``EXTERNAL_SOURCES_URL_ALLOWLIST`` (comma-separated), env when non-empty,
-        overrides the profile's ``allowed_prefixes``; otherwise the profile
-        default is used.
+        Resolution order (first non-empty wins):
+        1. Per-request ``resolved_config["EXTERNAL_SOURCES_URL_ALLOWLIST"]``
+        2. ``EXTERNAL_SOURCES_URL_ALLOWLIST`` environment variable
+        3. Profile's ``allowed_prefixes`` from sources.yaml
         """
+        # 1. Per-request override via override_credentials
+        override_value = (resolved_config or {}).get("EXTERNAL_SOURCES_URL_ALLOWLIST")
+        if override_value is not None and str(override_value).strip():
+            return [p.strip() for p in str(override_value).split(",") if p.strip()]
+
+        # 2. Environment variable
         env_value = os.environ.get("EXTERNAL_SOURCES_URL_ALLOWLIST")
         if env_value is not None and env_value.strip():
-            # A non-empty env value overrides the profile default.
             return [p.strip() for p in env_value.split(",") if p.strip()]
+
+        # 3. Profile default from sources.yaml
         return [
             str(p).strip()
             for p in (profile.get("allowed_prefixes") or [])
@@ -475,11 +520,11 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
                 raise RuntimeError(msg)
 
 
-    def _fetch_omz(self, hub: str, model_name: str, target_dir: str) -> None:
+    def _fetch_omz(self, hub: str, model_name: str, target_dir: str, active_processes=None) -> None:
         """Download and convert an OMZ model using omz_downloader/omz_converter."""
         if "," in model_name:
             for name in self._parse_comma_names(model_name):
-                self._fetch_omz(hub, name, os.path.join(target_dir, name))
+                self._fetch_omz(hub, name, os.path.join(target_dir, name), active_processes=active_processes)
             return
 
         omz_downloader = _OMZ_VENV_BIN / "omz_downloader"
@@ -507,7 +552,7 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
                 "--output_dir",
                 tmp_dir,
             ]
-            self._run_omz_tool(download_cmd)
+            self._run_omz_tool(download_cmd, active_processes=active_processes)
 
             # Convert
             logger.info("external_sources_omz_converting", hub=hub, model_name=model_name)
@@ -525,7 +570,7 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             if mo_executable:
                 convert_cmd.extend(["--mo", mo_executable])
 
-            self._run_omz_tool(convert_cmd)
+            self._run_omz_tool(convert_cmd, active_processes=active_processes)
 
             # Move converted artefacts: omz_converter produces intel/ or public/ subdirs
             self._materialize_omz_artefacts(model_name, tmp_dir, target_dir)
@@ -676,7 +721,7 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         )
 
     @staticmethod
-    def _run_omz_tool(command: List[str]) -> None:
+    def _run_omz_tool(command: List[str], active_processes=None) -> None:
         """Run an OMZ CLI tool and raise on failure."""
         try:
             env = os.environ.copy()
@@ -684,25 +729,29 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             if os.path.isdir(omz_bin_dir):
                 env["PATH"] = omz_bin_dir + os.pathsep + env.get("PATH", "")
 
-            result = subprocess.run(
+            proc = subprocess.Popen(
                 command,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                check=False,
                 env=env,
             )
-            if result.returncode != 0:
-                stdout = result.stdout.strip() if result.stdout else "<empty>"
-                stderr = result.stderr.strip() if result.stderr else "<empty>"
-                details = f"stderr: {stderr}"
-                if stdout and stdout != "<empty>":
-                    details += f"\nstdout: {stdout}"
+            # Register for cancellation support
+            if active_processes is not None:
+                active_processes.append(proc)
+            stdout, stderr = proc.communicate()
+            if proc.returncode != 0:
+                stdout_str = stdout.strip() if stdout else "<empty>"
+                stderr_str = stderr.strip() if stderr else "<empty>"
+                details = f"stderr: {stderr_str}"
+                if stdout_str and stdout_str != "<empty>":
+                    details += f"\nstdout: {stdout_str}"
                 raise RuntimeError(
-                    f"OMZ tool failed (rc={result.returncode}): {' '.join(command)}\n"
+                    f"OMZ tool failed (rc={proc.returncode}): {' '.join(command)}\n"
                     f"{details}"
                 )
-            if result.stdout:
-                logger.debug("omz_tool_output", output=result.stdout.strip())
+            if stdout:
+                logger.debug("omz_tool_output", output=stdout.strip())
         except FileNotFoundError as e:
             raise RuntimeError(f"OMZ tool not found: {command[0]}") from e
 
@@ -755,4 +804,3 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             model_name=model_name,
             target=target_dir,
         )
-

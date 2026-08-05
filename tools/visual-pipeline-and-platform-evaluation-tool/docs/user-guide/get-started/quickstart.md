@@ -13,6 +13,8 @@ Choose a quickstart scenario below to match your workload and hardware goals:
 - [GenAI Use Case](./quickstart-guide/genai-use-case.md): Video summarization with a vision-language model (VLM).
 - [Motion Detection Use Case](./quickstart-guide/motion-detection-use-case.md): Motion-driven
   object detection for mostly static camera scenes.
+- [Time Series Analytics Use Case](./quickstart-guide/deploy-time-series-analytics-microservice.md): Deploy the
+  Time Series Analytics Microservice alongside ViPPET for anomaly detection workloads.
 
 <!--hide_directive
 :::{toctree}
@@ -21,6 +23,7 @@ Choose a quickstart scenario below to match your workload and hardware goals:
 ./quickstart-guide/vision-use-case
 ./quickstart-guide/genai-use-case
 ./quickstart-guide/motion-detection-use-case
+./quickstart-guide/deploy-time-series-analytics-microservice.md
 
 :::
 hide_directive-->

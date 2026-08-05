@@ -13,6 +13,7 @@ import {
   SummaryStreamChunk,
 } from 'src/events/Pipeline.events';
 import { ChunkQueue } from 'src/evam/models/message-broker.model';
+import { EVAMPipelines } from 'src/evam/models/evam.model';
 import { EvamService } from 'src/evam/services/evam.service';
 import { lastValueFrom } from 'rxjs';
 import { ChunkingService } from 'src/state-manager/queues/chunking.service';
@@ -133,10 +134,17 @@ export class PipelineService {
           ),
         );
 
-        this.$state.addEVAMInferenceConfig(
-          stateId,
-          this.$evam.getInferenceConfig(),
-        );
+        // Only the object detection pipeline runs a detection model. Simple
+        // ingestion does not, so leaving objectDetection unset keeps the UI
+        // from advertising a model that was never used.
+        if (
+          state.systemConfig.evamPipeline === EVAMPipelines.OBJECT_DETECTION
+        ) {
+          this.$state.addEVAMInferenceConfig(
+            stateId,
+            this.$evam.getInferenceConfig(),
+          );
+        }
 
         // Pre-populate VLM and LLM inference configs so UI shows model info upfront
         if (this.$vlm.serviceReady) {
