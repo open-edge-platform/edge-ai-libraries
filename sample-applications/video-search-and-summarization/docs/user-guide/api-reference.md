@@ -42,7 +42,6 @@ The Pipeline Manager is the primary API for interacting with the application. It
 | **Health** | `GET /health` | Service health status |
 | **App** | `GET /app/config`, `GET /app/features` | System configuration and feature flags |
 | **Pipeline** | `GET /pipeline/frames`, `GET /pipeline/evam` | Frame and EVAM pipeline status |
-| **Metrics** | `GET /metrics/status` | Telemetry collector connection status |
 | **Audio** | `GET /audio/models` | Available audio transcription models |
 | **Tags** | `GET /tags`, `DELETE /tags/{tagId}` | Tag management |
 | **Video** | `POST /videos`, `GET /videos`, `GET /videos/{videoId}`, `POST /videos/search-embeddings/{videoId}` | Video upload, listing, and embedding creation |

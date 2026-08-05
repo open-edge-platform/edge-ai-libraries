@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Accordion, AccordionItem, Tag } from '@carbon/react';
 import Chart from 'chart.js/auto';
-import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import styled from 'styled-components';
-import { APP_URL } from '../../config';
 
 const PanelWrapper = styled.div`
   width: 100%;
@@ -34,11 +33,6 @@ const MetricValue = styled.div`
   font-size: 2rem;
   font-weight: 700;
   color: #161616;
-`;
-
-const MetricSubtext = styled.div`
-  font-size: 0.85rem;
-  color: #4c4c4c;
 `;
 
 const MetricChartGrid = styled.div`
@@ -77,16 +71,28 @@ const DetailLine = styled.div`
 `;
 
 const MAX_POINTS = 60;
+const METRICS_HEALTH_URL = '/metrics-manager/health';
+const METRICS_STREAM_URL = '/metrics-manager/metrics/stream';
+const STALE_AFTER_MS = 15_000;
+const GPU_COLORS = ['#ff832b', '#8a3ffc', '#007d79', '#d12771', '#198038', '#002d9c'];
 
-type MetricState = {
+const getGpuColor = (gpuId: string): string => {
+  const numericId = Number.parseInt(gpuId, 10);
+  if (Number.isFinite(numericId)) {
+    return GPU_COLORS[Math.abs(numericId) % GPU_COLORS.length];
+  }
+
+  const hash = Array.from(gpuId).reduce((total, character) => total + character.charCodeAt(0), 0);
+  return GPU_COLORS[hash % GPU_COLORS.length];
+};
+
+export type MetricState = {
   cpu: number | null;
   ram: number | null;
   gpu: number | null;
+  npu: number | null;
   embeddingsPerSecond?: number | null;
-  gpuFreq?: number | null;
-  gpuPower?: number | null;
-  pkgPower?: number | null;
-  gpuEngines?: Record<string, number>;
+  gpus?: Record<string, number>;
 };
 
 const formatNumber = (value: number | null | undefined): string => {
@@ -107,69 +113,117 @@ const sanitizeMetricKey = (value: unknown): string | null => {
   return normalized;
 };
 
-const normalizeApiBase = (): string | null => {
-  const configured = APP_URL?.trim();
-  if (!configured) return null;
+const sanitizeGpuId = (value: unknown): string => {
+  if (typeof value !== 'string') return '0';
+  const normalized = value.trim();
+  return /^[A-Za-z0-9_.-]{1,32}$/.test(normalized) ? normalized : '0';
+};
 
-  if (configured.startsWith('http')) {
-    return configured.replace(/\/$/, '');
+type StreamMetric = {
+  name?: unknown;
+  labels?: unknown;
+  value?: unknown;
+};
+
+export const extractMetricState = (payload: unknown): Partial<MetricState> => {
+  const metricsArray = Array.isArray(payload) ? payload : (payload as { metrics?: unknown } | null)?.metrics;
+  if (!Array.isArray(metricsArray)) return {};
+
+  const next: Partial<MetricState> = {};
+  const gpuEngineUsage: Record<string, Record<string, number>> = Object.create(null) as Record<
+    string,
+    Record<string, number>
+  >;
+
+  metricsArray.forEach((rawMetric: StreamMetric) => {
+    if (!rawMetric || typeof rawMetric !== 'object') return;
+    const name = typeof rawMetric.name === 'string' ? rawMetric.name : '';
+    const labels =
+      rawMetric.labels && typeof rawMetric.labels === 'object' ? (rawMetric.labels as Record<string, unknown>) : {};
+    const value = rawMetric.value;
+    if (typeof value !== 'number' || !Number.isFinite(value)) return;
+
+    switch (name) {
+      case 'cpu_usage_user':
+        next.cpu = value;
+        break;
+      case 'mem_used_percent':
+        next.ram = value;
+        break;
+      case 'gpu_engine_usage_usage': {
+        const safeEngineKey = sanitizeMetricKey(labels.engine);
+        if (safeEngineKey) {
+          const gpuId = sanitizeGpuId(labels.gpu_id);
+          const engines = gpuEngineUsage[gpuId] ?? (Object.create(null) as Record<string, number>);
+          engines[safeEngineKey] = value;
+          gpuEngineUsage[gpuId] = engines;
+        }
+        break;
+      }
+      case 'npu_utilization':
+        next.npu = value;
+        break;
+      case 'dataprep_embeddings_per_second':
+      case 'dataprep_embeddings_per_second_value':
+        next.embeddingsPerSecond = value;
+        break;
+      default:
+        break;
+    }
+  });
+
+  const gpuUsage = Object.fromEntries(
+    Object.entries(gpuEngineUsage).map(([gpuId, engines]) => [gpuId, Math.max(...Object.values(engines))]),
+  );
+  if (Object.keys(gpuUsage).length > 0) {
+    next.gpu = Math.max(...Object.values(gpuUsage));
+    next.gpus = gpuUsage;
   }
 
-  const origin = window.location.origin.replace(/\/$/, '');
-  const path = configured.startsWith('/') ? configured : `/${configured}`;
-  return `${origin}${path.replace(/\/$/, '')}`;
+  return next;
 };
 
 const TelemetryAccordion = (): JSX.Element | null => {
   const [isOpen, setIsOpen] = useState(false);
-  const [collectorConnected, setCollectorConnected] = useState(false);
+  const [streamConnected, setStreamConnected] = useState(false);
   const [telemetryAvailable, setTelemetryAvailable] = useState(false);
   const [statusChecked, setStatusChecked] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [metrics, setMetrics] = useState<MetricState>({ cpu: null, ram: null, gpu: null });
+  const [isStale, setIsStale] = useState(false);
+  const [metrics, setMetrics] = useState<MetricState>({
+    cpu: null,
+    ram: null,
+    gpu: null,
+    npu: null,
+  });
 
   const cpuCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const ramCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const gpuCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const npuCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const epsCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const chartsRef = useRef<{ cpu?: Chart; ram?: Chart; gpu?: Chart; embeddings?: Chart }>({});
-
-  const apiBase = useMemo(() => normalizeApiBase(), []);
-
-  const websocketUrl = useMemo(() => {
-    if (!apiBase) return null;
-    try {
-      const url = new URL(apiBase);
-      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      url.pathname = `${url.pathname.replace(/\/$/, '')}/metrics/ws/clients`;
-      return url.toString();
-    } catch (err) {
-      console.error('Telemetry websocket URL construction failed', err);
-      return null;
-    }
-  }, [apiBase]);
-
-  const statusUrl = useMemo(() => (apiBase ? `${apiBase}/metrics/status` : null), [apiBase]);
+  const chartsRef = useRef<{
+    cpu?: Chart;
+    ram?: Chart;
+    gpu?: Chart;
+    npu?: Chart;
+    embeddings?: Chart;
+  }>({});
 
   useEffect(() => {
-    if (!statusUrl) return undefined;
-
     let cancelled = false;
 
     const checkStatus = async () => {
       try {
-        const res = await fetch(statusUrl);
+        const res = await fetch(METRICS_HEALTH_URL);
         if (!res.ok) throw new Error(`Status request failed with ${res.status}`);
-        const data = await res.json();
         if (cancelled) return;
-        const connected = Boolean((data as { collectorConnected?: unknown }).collectorConnected);
-        setTelemetryAvailable(connected);
-        setCollectorConnected(connected);
+        setTelemetryAvailable(true);
       } catch (err) {
         if (!cancelled) {
-          console.warn('Telemetry status check failed', err);
+          console.warn('Metrics Manager health check failed', err);
           setTelemetryAvailable(false);
-          setCollectorConnected(false);
+          setStreamConnected(false);
         }
       } finally {
         if (!cancelled) {
@@ -185,7 +239,14 @@ const TelemetryAccordion = (): JSX.Element | null => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [statusUrl]);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setIsStale(lastUpdated !== null && Date.now() - lastUpdated.getTime() > STALE_AFTER_MS);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [lastUpdated]);
 
   useEffect(() => {
     if (!isOpen || !telemetryAvailable) {
@@ -201,14 +262,33 @@ const TelemetryAccordion = (): JSX.Element | null => {
       gradient.addColorStop(1, `${color}0f`);
       return new Chart(ctx, {
         type: 'line',
-        data: { labels: [], datasets: [{ label, data: [], borderColor: color, backgroundColor: gradient, tension: 0.35, fill: true, pointRadius: 0, borderWidth: 2 }] },
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label,
+              data: [],
+              borderColor: color,
+              backgroundColor: gradient,
+              tension: 0.35,
+              fill: true,
+              pointRadius: 0,
+              borderWidth: 2,
+            },
+          ],
+        },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           animation: false,
           scales: {
             x: { display: false },
-            y: { suggestedMin: 0, suggestedMax: maxValue, grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#4c4c4c' } },
+            y: {
+              suggestedMin: 0,
+              suggestedMax: maxValue,
+              grid: { color: 'rgba(0,0,0,0.08)' },
+              ticks: { color: '#4c4c4c' },
+            },
           },
           plugins: { legend: { display: false } },
         },
@@ -218,24 +298,27 @@ const TelemetryAccordion = (): JSX.Element | null => {
     chartsRef.current.cpu = createChart(cpuCanvasRef.current, 'CPU %', '#0f62fe');
     chartsRef.current.ram = createChart(ramCanvasRef.current, 'RAM %', '#8ca0c2');
     chartsRef.current.gpu = createChart(gpuCanvasRef.current, 'GPU %', '#ff832b');
+    if (chartsRef.current.gpu) {
+      chartsRef.current.gpu.data.datasets = [];
+      if (chartsRef.current.gpu.options.plugins?.legend) {
+        chartsRef.current.gpu.options.plugins.legend.display = true;
+      }
+    }
+    chartsRef.current.npu = createChart(npuCanvasRef.current, 'NPU %', '#a56eff');
     chartsRef.current.embeddings = createChart(epsCanvasRef.current, 'Embeddings/sec', '#3ddbd9', 50);
 
     return () => {
       chartsRef.current.cpu?.destroy();
       chartsRef.current.ram?.destroy();
       chartsRef.current.gpu?.destroy();
+      chartsRef.current.npu?.destroy();
       chartsRef.current.embeddings?.destroy();
       chartsRef.current = {};
     };
   }, [isOpen, telemetryAvailable]);
 
   useEffect(() => {
-    if (!isOpen || !telemetryAvailable || !websocketUrl) return undefined;
-
-    let ws: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let reconnectAttempts = 0;
-    const maxReconnectAttempts = 10;
+    if (!isOpen || !telemetryAvailable) return undefined;
 
     const pushSample = (chart: Chart | undefined, value: number | null | undefined) => {
       if (!chart || value === null || value === undefined || Number.isNaN(value)) return;
@@ -251,123 +334,82 @@ const TelemetryAccordion = (): JSX.Element | null => {
       chart.update('none');
     };
 
-    const processMetrics = (payload: unknown) => {
-      const metricsArray = Array.isArray(payload) ? payload : (payload as { metrics?: unknown }).metrics;
-      if (!Array.isArray(metricsArray)) return;
+    const pushGpuSamples = (chart: Chart | undefined, gpuValues: Record<string, number> | undefined) => {
+      if (!chart || !gpuValues || Object.keys(gpuValues).length === 0) return;
 
-      const next: Partial<MetricState> = {};
-      const engineUsage: Record<string, number> = Object.create(null) as Record<string, number>;
-      let gpuPower: number | null = null;
-      let pkgPower: number | null = null;
+      const labels = chart.data.labels ?? [];
+      labels.push(new Date().toLocaleTimeString());
 
-      metricsArray.forEach((metric: any) => {
-        const { name, fields = {}, tags = {} } = metric || {};
-        switch (name) {
-          case 'cpu':
-            if (typeof fields.usage_user === 'number') {
-              next.cpu = fields.usage_user;
-              pushSample(chartsRef.current.cpu, next.cpu);
-            }
-            break;
-          case 'mem':
-            if (typeof fields.used_percent === 'number') {
-              next.ram = fields.used_percent;
-              pushSample(chartsRef.current.ram, next.ram);
-            }
-            break;
-          case 'gpu_engine_usage':
-            if (typeof fields.usage === 'number') {
-              const safeEngineKey = sanitizeMetricKey(tags.engine);
-              if (safeEngineKey) {
-                engineUsage[safeEngineKey] = fields.usage;
-              }
-            }
-            break;
-          case 'gpu_frequency':
-            if (typeof fields.value === 'number' && tags.type === 'cur_freq') {
-              next.gpuFreq = fields.value;
-            }
-            break;
-          case 'gpu_power':
-            if (typeof fields.value === 'number') {
-              if (tags.type === 'gpu_cur_power') {
-                gpuPower = fields.value;
-              } else if (tags.type === 'pkg_cur_power') {
-                pkgPower = fields.value;
-              }
-            }
-            break;
-          case 'dataprep_embeddings_per_second':
-            if (typeof fields.value === 'number') {
-              next.embeddingsPerSecond = fields.value;
-              pushSample(chartsRef.current.embeddings, next.embeddingsPerSecond);
-            }
-            break;
-          default:
-            break;
-        }
+      chart.data.datasets.forEach((dataset) => {
+        dataset.data.push(null);
       });
 
-      const engineNames = Object.keys(engineUsage);
-      if (engineNames.length > 0) {
-        const maxGpuUsage = Math.max(...Object.values(engineUsage));
-        next.gpu = maxGpuUsage;
-        next.gpuEngines = engineUsage;
-        pushSample(chartsRef.current.gpu, maxGpuUsage);
+      Object.entries(gpuValues)
+        .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
+        .forEach(([gpuId, value]) => {
+          const label = `GPU ${gpuId}`;
+          let dataset = chart.data.datasets.find((candidate) => candidate.label === label);
+          if (!dataset) {
+            const color = getGpuColor(gpuId);
+            dataset = {
+              label,
+              data: Array(labels.length).fill(null),
+              borderColor: color,
+              backgroundColor: color,
+              tension: 0.35,
+              fill: false,
+              pointRadius: 0,
+              borderWidth: 2,
+            };
+            chart.data.datasets.push(dataset);
+          }
+          dataset.data[dataset.data.length - 1] = value;
+        });
+
+      if (labels.length > MAX_POINTS) {
+        labels.shift();
+        chart.data.datasets.forEach((dataset) => dataset.data.shift());
       }
+      chart.update('none');
+    };
 
-      if (gpuPower !== null) next.gpuPower = gpuPower;
-      if (pkgPower !== null) next.pkgPower = pkgPower;
-
+    const processMetrics = (payload: unknown) => {
+      const next = extractMetricState(payload);
+      pushSample(chartsRef.current.cpu, next.cpu);
+      pushSample(chartsRef.current.ram, next.ram);
+      pushGpuSamples(chartsRef.current.gpu, next.gpus);
+      pushSample(chartsRef.current.npu, next.npu);
+      pushSample(chartsRef.current.embeddings, next.embeddingsPerSecond);
       setMetrics((prev) => ({ ...prev, ...next }));
       setLastUpdated(new Date());
+      setIsStale(false);
     };
 
-    const connect = () => {
-      ws = new WebSocket(websocketUrl);
-
-      ws.onopen = () => {
-        reconnectAttempts = 0;
-        setCollectorConnected(true);
-        setTelemetryAvailable(true);
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          processMetrics(data.metrics ?? data);
-        } catch (err) {
-          console.error('Telemetry metrics parse error', err);
-        }
-      };
-
-      ws.onerror = () => {
-        setCollectorConnected(false);
-      };
-
-      ws.onclose = () => {
-        setCollectorConnected(false);
-        setTelemetryAvailable(false);
-        if (reconnectAttempts < maxReconnectAttempts) {
-          reconnectAttempts += 1;
-          reconnectTimer = setTimeout(connect, 3000);
-        }
-      };
+    const source = new EventSource(METRICS_STREAM_URL);
+    source.onopen = () => {
+      setStreamConnected(true);
+      setTelemetryAvailable(true);
     };
-
-    connect();
+    source.onmessage = (event) => {
+      try {
+        const data: unknown = JSON.parse(event.data);
+        if (data && typeof data === 'object' && 'error' in data) {
+          setStreamConnected(false);
+          return;
+        }
+        processMetrics(data);
+      } catch (err) {
+        console.error('Metrics Manager SSE parse error', err);
+      }
+    };
+    source.onerror = () => {
+      setStreamConnected(false);
+    };
 
     return () => {
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      ws?.close();
+      source.close();
     };
-  }, [isOpen, telemetryAvailable, websocketUrl]);
-
-  const engineLine = metrics.gpuEngines
-    ? Object.entries(metrics.gpuEngines)
-        .map(([engine, value]) => `${engine}: ${value.toFixed(1)}%`)
-        .join(' | ')
-    : null;
+  }, [isOpen, telemetryAvailable]);
 
   if (!statusChecked || !telemetryAvailable) {
     return null;
@@ -375,16 +417,19 @@ const TelemetryAccordion = (): JSX.Element | null => {
 
   return (
     <PanelWrapper>
-      <Accordion align='start' size='sm'>{/* Default collapsed */}
-        <AccordionItem
-          title='System telemetry'
-          open={isOpen}
-          onHeadingClick={() => setIsOpen((prev) => !prev)}
-        >
+      <Accordion align='start' size='sm'>
+        {/* Default collapsed */}
+        <AccordionItem title='System telemetry' open={isOpen} onHeadingClick={() => setIsOpen((prev) => !prev)}>
           <ScrollBody>
             <StatusRow>
-              <StatusDot $active={collectorConnected} />
-              <div>{collectorConnected ? 'Collector connected' : 'Collector disconnected'}</div>
+              <StatusDot $active={streamConnected && !isStale} />
+              <div>
+                {streamConnected
+                  ? isStale
+                    ? 'Metrics stream stale'
+                    : 'Metrics Manager connected'
+                  : 'Metrics Manager reconnecting'}
+              </div>
               {lastUpdated && (
                 <Tag size='sm' type='cool-gray'>
                   Updated {lastUpdated.toLocaleTimeString()}
@@ -424,24 +469,21 @@ const TelemetryAccordion = (): JSX.Element | null => {
               <MetricChartCard>
                 <MetricLabel>GPU Usage</MetricLabel>
                 <MetricValue>{formatNumber(metrics.gpu)}</MetricValue>
-                {metrics.gpuFreq !== undefined && metrics.gpuFreq !== null && (
-                  <MetricSubtext>Freq: {metrics.gpuFreq.toFixed(0)} MHz</MetricSubtext>
-                )}
-                {metrics.gpuPower !== undefined && metrics.gpuPower !== null && (
-                  <MetricSubtext>
-                    Power: {metrics.gpuPower.toFixed(1)}W{metrics.pkgPower ? ` (Pkg: ${metrics.pkgPower.toFixed(1)}W)` : ''}
-                  </MetricSubtext>
-                )}
-                {engineLine && <MetricSubtext>{engineLine}</MetricSubtext>}
                 <div style={{ height: '180px' }}>
                   <canvas ref={gpuCanvasRef} aria-label='gpu-chart'></canvas>
                 </div>
               </MetricChartCard>
+
+              <MetricChartCard>
+                <MetricLabel>NPU Usage</MetricLabel>
+                <MetricValue>{formatNumber(metrics.npu)}</MetricValue>
+                <div style={{ height: '180px' }}>
+                  <canvas ref={npuCanvasRef} aria-label='npu-chart'></canvas>
+                </div>
+              </MetricChartCard>
             </MetricChartGrid>
 
-            <DetailLine style={{ marginTop: '0.75rem' }}>
-              Metrics sourced from vippet collector via telemetry gateway.
-            </DetailLine>
+            <DetailLine style={{ marginTop: '0.75rem' }}>Metrics sourced directly from Metrics Manager.</DetailLine>
           </ScrollBody>
         </AccordionItem>
       </Accordion>

@@ -5,6 +5,9 @@ import FileSinkNode from "./FileSinkNode.tsx";
 import FileSrcNode, { FileSrcNodeWidth } from "./FileSrcNode.tsx";
 import GVAClassifyNode, { GVAClassifyNodeWidth } from "./GVAClassifyNode.tsx";
 import GVADetectNode, { GVADetectNodeWidth } from "./GVADetectNode.tsx";
+import GVAInferenceNode, {
+  GVAInferenceNodeWidth,
+} from "./GVAInferenceNode.tsx";
 import GVAFpsCounterNode, {
   GVAFpsCounterNodeWidth,
 } from "./GVAFpsCounterNode.tsx";
@@ -56,6 +59,7 @@ export const nodeTypes = {
   avdec_h264: AvDecH264Node,
   gvafpscounter: GVAFpsCounterNode,
   gvadetect: GVADetectNode,
+  gvainference: GVAInferenceNode,
   queue2: Queue2Node,
   gvatrack: GVATrackNode,
   gvawatermark: GVAWatermarkNode,
@@ -93,6 +97,7 @@ export const nodeWidths: Record<string, number> = {
   "tsam-output": TsamOutputNodeWidth,
   filesrc: FileSrcNodeWidth,
   gvadetect: GVADetectNodeWidth,
+  gvainference: GVAInferenceNodeWidth,
   gvaclassify: GVAClassifyNodeWidth,
   gvametaconvert: GVAMetaConvertNodeWidth,
   gvametapublish: GVAMetaPublishNodeWidth,

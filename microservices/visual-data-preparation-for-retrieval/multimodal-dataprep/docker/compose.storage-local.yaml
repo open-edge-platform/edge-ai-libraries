@@ -1,0 +1,10 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+# Test-only override: flip the dataprep media/artifact storage backend to the
+# local filesystem implementation. Compose it AFTER the base stack file, e.g.:
+#   docker compose -f docker/compose.yaml -f docker/compose.storage-local.yaml up -d
+services:
+    multimodal-dataprep:
+        environment:
+            - MM_DATAPREP_STORAGE_BACKEND=local
+            - MM_DATAPREP_LOCAL_STORAGE_PATH=/tmp/dataprep/storage

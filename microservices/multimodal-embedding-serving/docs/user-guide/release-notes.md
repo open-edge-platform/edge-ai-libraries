@@ -2,21 +2,27 @@
 
 This microservice supports features based on the requirements of Video Search and Summarization sample application, which uses this microservice. Refer to Video Search and Summarization [release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/release-notes.html) for release details of this microservice.
 
-## Version 2026.2.0-rc1
+## Version 2026.2.0
 
-**Release Date:** June 12, 2026
+**Release Date:** August 4, 2026
 
 **New:**
 
 - Added explicit NPU execution path for embeddings (`EMBEDDING_DEVICE=NPU`) with OpenVINO™ enablement through setup and compose orchestration.
 - Added compatibility updates for newer NPU runtime stacks (including updated NPU driver tooling and dependency alignment).
+- Added dev and user agent skills for AI coding assistants.
 
 **Improved:**
 
 - Hardened NPU driver installation in Docker images (retry-based package fetch and stricter install validation to avoid partial installs).
 - Improved OpenVINO™ static-shape batching behavior across image/text handlers (CLIP, SigLIP, MobileCLIP, CN-CLIP, BLIP2) to better support accelerator targets.
+- Model conversion now stages output in a temporary directory and surfaces conversion errors instead of leaving a partially written model on disk.
+- Refactored `CLIPHandler` error handling during OpenVINO™ conversion.
+- Bumped Intel® compute-runtime GPU driver to `26.18.38308` and NPU driver to `1.35.0`; advanced the `optimum-intel` pin and `av` (17→18).
+- Refreshed dependency version constraints and lock files.
 - Updated API docs and reference material for current endpoints and payloads, including optional request-field behavior clarifications.
 - Improved outbound media/proxy handling compatibility for newer `httpx` versions.
+- Documentation formatting fixes; 2025 release notes split into a separate document.
 
 ## Version 2026.1.0
 

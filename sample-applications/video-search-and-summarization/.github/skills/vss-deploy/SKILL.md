@@ -212,8 +212,8 @@ It does not remove the host-backed `ov_models/` model cache.
 
 1. `ERROR: <VAR> is not set` → missing shell env var; re-source `vss.config.env`
    + `vss.secrets.env` (step 2).
-2. `Invalid EMBEDDING_PROCESSING_MODE` → set `EMBEDDING_PROCESSING_MODE` to `api`
-   or `sdk`.
+2. `Invalid VECTORDB_BACKEND` → set `VECTORDB_BACKEND` to `vdms`
+   or `milvus`.
 3. Health never goes green → `docker compose ps` for crashed containers, then
    `docker compose logs <service>`. The heavy ones are model servers (`ovms`,
    `vlm-ov`/`vllm`, embedding).

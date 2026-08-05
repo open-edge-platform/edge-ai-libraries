@@ -55,15 +55,17 @@ class SpeechRequest(BaseModel):
             self._validate_for_qwen(model_variant)
 
     def _validate_for_speecht5(self) -> None:
+        from components.tts import speecht5_voices
+
         default_language = config.models.tts.default_language.strip()
-        default_speaker = config.models.tts.default_speaker.strip()
 
         if self.language and self.language.lower() != default_language.lower():
             raise ValueError(f"Only {default_language} is currently supported for speech synthesis.")
 
-        if self.voice and self.voice.lower() != default_speaker.lower():
+        if self.voice and not speecht5_voices.is_supported(self.voice):
             raise ValueError(
-                f"SpeechT5 currently supports only the configured voice '{default_speaker}'."
+                f"Unsupported voice '{self.voice}'. "
+                f"Supported voices: {', '.join(speecht5_voices.supported_speakers())}."
             )
 
         if self.instructions:

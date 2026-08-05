@@ -51,7 +51,7 @@ spec:
             - name: MODEL_PATH
               value: /opt/models
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,multimodal-dataprep,vdms-vectordb,vector-retriever,videosearch,.svc.cluster.local"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
@@ -93,7 +93,7 @@ spec:
             - name: MINIO_ROOT_PASSWORD
               value: "{{ .Values.global.env.MINIO_ROOT_PASSWORD }}"
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,multimodal-dataprep,vdms-vectordb,vector-retriever,videosearch,.svc.cluster.local"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy

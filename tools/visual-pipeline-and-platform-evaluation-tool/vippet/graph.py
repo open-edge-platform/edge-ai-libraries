@@ -3615,6 +3615,15 @@ def _parse_caps_segment(segment: str) -> tuple[str, dict[str, str]] | None:
     if "," not in text:
         return None
 
+    # Fast path: GStreamer caps strings never contain quoted values (double or
+    # single quotes).  A segment like
+    #   gvatrack ... deepsort-trck-cfg="a=1,b=2"
+    # contains commas *inside* a quoted property value.  Treating it as caps
+    # would produce a garbage node type.  Bail out early so the segment is
+    # handled by the regular element tokenizer instead.
+    if '"' in text or "'" in text:
+        return None
+
     parts = [p.strip() for p in text.split(",")]
     # parts is guaranteed to be non-empty for a non-empty string, but we still
     # validate that the first part (caps base) is not empty.

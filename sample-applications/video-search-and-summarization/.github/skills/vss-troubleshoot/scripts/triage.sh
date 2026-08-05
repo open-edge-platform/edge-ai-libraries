@@ -44,8 +44,10 @@ compose_args=(
     -f docker/compose.vllm.xpu.yaml
     -f docker/compose.gpu_ovms.yaml
     -f docker/compose.search.yaml
+    -f docker/compose.search.vdms.yaml
+    -f docker/compose.search.milvus.yaml
     -f docker/compose.ui.yaml
-    -f docker/compose.telemetry.yaml
+    -f docker/compose.metrics-manager.yaml
     --profile ovms
     --profile vlm-ov
     --profile vllm
@@ -69,9 +71,10 @@ services=(
     rabbitmq-service
     video-search
     vdms-vector-db
-    vdms-dataprep
+    multimodal-dataprep
+    vector-retriever
     multimodal-embedding-serving
-    vss-collector
+    metrics-manager
 )
 
 find_container_ids() {
@@ -121,7 +124,8 @@ declare -a health_checks=(
     "vllm-cpu-service|http://localhost:${VLLM_HOST_PORT:-8200}/health"
     "video-ingestion|http://localhost:${EVAM_PIPELINE_HOST_PORT:-8090}/pipelines"
     "audio-analyzer|http://localhost:${AUDIO_HOST_PORT:-8999}/api/v1/health"
-    "vdms-dataprep|http://localhost:${VDMS_DATAPREP_HOST_PORT:-6016}/v1/dataprep/health"
+    "multimodal-dataprep|http://localhost:${MM_DATAPREP_HOST_PORT:-6016}/v1/dataprep/health"
+    "vector-retriever|http://localhost:${VECTOR_RETRIEVER_HOST_PORT:-6008}/ready"
     "multimodal-embedding-serving|http://localhost:${EMBEDDING_SERVER_PORT:-9777}/health"
 )
 
@@ -149,7 +153,8 @@ declare -a ports=(
     "4002|MinIO console"
     "5432|Postgres"
     "55555|VDMS vector DB"
-    "6016|vdms-dataprep"
+    "6016|multimodal-dataprep"
+    "6008|vector-retriever"
     "9777|multimodal-embedding-serving"
     "9273|vss-collector telemetry"
     "8640|model-download REST (transient)"
@@ -210,7 +215,7 @@ for var in \
     TEXT_EMBEDDING_MODEL ENABLE_VLLM ENABLE_VLLM_GPU \
     VLM_TARGET_DEVICE LLM_TARGET_DEVICE \
     PM_SUMMARIZATION_MAX_COMPLETION_TOKENS OVMS_CACHE_SIZE_GB \
-    EMBEDDING_PROCESSING_MODE DATAPREP_EMBEDDING_DEVICE \
+    VECTORDB_BACKEND DATAPREP_EMBEDDING_DEVICE \
     DATAPREP_DETECTION_DEVICE MME_EMBEDDING_DEVICE \
     MODEL_DOWNLOAD_IMAGE MODEL_DOWNLOAD_OVMS_TAG \
     MODEL_DOWNLOAD_HOST_PORT MODEL_DOWNLOAD_JOB_TIMEOUT; do
