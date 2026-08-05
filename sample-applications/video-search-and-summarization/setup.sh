@@ -288,9 +288,9 @@ export POSTGRES_USER=${POSTGRES_USER}  # Set this in your shell before running t
 export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}  # Set this in your shell before running the script
 
 # env for minio-service
+export MINIO_HOST=${MINIO_HOST:-minio-service}
 export MINIO_ROOT_USER=${MINIO_ROOT_USER} # Set this in your shell before running the script
 export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} # Set this in your shell before running the script
-export OVMS_ALLOWED_MEDIA_DOMAINS=${OVMS_ALLOWED_MEDIA_DOMAINS:-${MINIO_HOST},localhost}
 
 # env for vdms-vector-db
 export VDMS_VDB_HOST_PORT=55555
