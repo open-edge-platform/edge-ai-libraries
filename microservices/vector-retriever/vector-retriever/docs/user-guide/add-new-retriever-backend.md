@@ -111,16 +111,71 @@ The runtime calls `similarity_search_with_score(query, k, fetch_k=..., filter=..
 ## Implementation checklist
 
 - [ ] backend folder created
+  <!--hide_directive
+  <details>
+  <summary><code>hide_directive-->Click to mark
+  <!--hide_directive</code><code><b>hide_directive-->Check!
+  <!--hide_directive</b></code></summary>hide_directive-->
 - [ ] `backend.py` implemented
+  <!--hide_directive
+  <details>
+  <summary><code>hide_directive-->Click to mark
+  <!--hide_directive</code><code><b>hide_directive-->Check!
+  <!--hide_directive</b></code></summary>hide_directive-->
 - [ ] `filters.py` implemented
+  <!--hide_directive
+  <details>
+  <summary><code>hide_directive-->Click to mark
+  <!--hide_directive</code><code><b>hide_directive-->Check!
+  <!--hide_directive</b></code></summary>hide_directive-->
 - [ ] registry updated
+  <!--hide_directive
+  <details>
+  <summary><code>hide_directive-->Click to mark
+  <!--hide_directive</code><code><b>hide_directive-->Check!
+  <!--hide_directive</b></code></summary>hide_directive-->
 - [ ] settings updated
+  <!--hide_directive
+  <details>
+  <summary><code>hide_directive-->Click to mark
+  <!--hide_directive</code><code><b>hide_directive-->Check!
+  <!--hide_directive</b></code></summary>hide_directive-->
 - [ ] dependency group updated
+  <!--hide_directive
+  <details>
+  <summary><code>hide_directive-->Click to mark
+  <!--hide_directive</code><code><b>hide_directive-->Check!
+  <!--hide_directive</b></code></summary>hide_directive-->
 - [ ] compose overlay added (`docker/compose.<backend_name>.yaml`)
+  <!--hide_directive
+  <details>
+  <summary><code>hide_directive-->Click to mark
+  <!--hide_directive</code><code><b>hide_directive-->Check!
+  <!--hide_directive</b></code></summary>hide_directive-->
 - [ ] setup and Docker backend allowlists updated
+  <!--hide_directive
+  <details>
+  <summary><code>hide_directive-->Click to mark
+  <!--hide_directive</code><code><b>hide_directive-->Check!
+  <!--hide_directive</b></code></summary>hide_directive-->
 - [ ] OpenAPI schema updated (`docs/user-guide/api-docs/openapi.yaml`)
+  <!--hide_directive
+  <details>
+  <summary><code>hide_directive-->Click to mark
+  <!--hide_directive</code><code><b>hide_directive-->Check!
+  <!--hide_directive</b></code></summary>hide_directive-->
 - [ ] tests added/updated
+  <!--hide_directive
+  <details>
+  <summary><code>hide_directive-->Click to mark
+  <!--hide_directive</code><code><b>hide_directive-->Check!
+  <!--hide_directive</b></code></summary>hide_directive-->
 - [ ] docs updated
+  <!--hide_directive
+  <details>
+  <summary><code>hide_directive-->Click to mark
+  <!--hide_directive</code><code><b>hide_directive-->Check!
+  <!--hide_directive</b></code></summary>hide_directive-->
 
 ## Common pitfalls
 

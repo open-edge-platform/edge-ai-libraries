@@ -44,6 +44,8 @@ flowchart TB
     Client --> API --> Orchestration --> Execution
     Execution --> Registry --> Backend
     Execution -.image query.-> Embedding
+    Embedding --> Store
+    Embedding --> Registry
     Backend --> Store
 ```
 
