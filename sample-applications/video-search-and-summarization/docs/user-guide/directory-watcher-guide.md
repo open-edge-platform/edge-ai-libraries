@@ -24,9 +24,10 @@ The Directory Watcher service provides the following functionality:
 ### Automatic Upload and Indexing
 
 - **Two-step process**:
-  1. Uploads video files to the data preparation service
-  2. Generates search embeddings for the uploaded videos
+  1. Uploads video files through Pipeline Manager so its video registry and object-store metadata remain authoritative
+  2. Submits the returned video IDs as an asynchronous Multimodal DataPrep batch and polls the job to completion
 - **Retry mechanism**: Implements exponential backoff retry logic (up to 3 attempts) for failed uploads
+- **Per-file results**: Marks and optionally deletes only files reported as successful by the batch job
 - **Status tracking**: Maintains upload status with total, completed, and pending file counts
 
 ### Initial Directory Processing
@@ -64,6 +65,15 @@ export DELETE_PROCESSED_FILES=true
 # Enable recursive monitoring of subdirectories
 # Default: false
 export VS_WATCH_DIRECTORY_RECURSIVE=true
+
+# Maximum files submitted in each asynchronous DataPrep batch (1-100)
+# Default: 10
+export VS_WATCH_BATCH_SIZE=10
+
+# Batch-job polling interval and maximum wait, in seconds
+# Defaults: 2 and 3600
+export VS_BATCH_JOB_POLL_INTERVAL_SECONDS=0.5
+export VS_BATCH_JOB_TIMEOUT_SECONDS=3600
 ```
 
 > **Note**: You only need to export these variables if you want to change the default behavior. The service works with default values when only `WATCH_DIRECTORY_HOST_PATH` is set.
@@ -94,6 +104,7 @@ export VS_WATCH_DIRECTORY_RECURSIVE=true
    export DELETE_PROCESSED_FILES=true       # Remove files after processing
    export DEBOUNCE_TIME=15                  # Wait 15 seconds instead of default 10
    export VS_WATCH_DIRECTORY_RECURSIVE=true    # Monitor subdirectories recursively
+   export VS_WATCH_BATCH_SIZE=10            # Files per asynchronous DataPrep job
    ```
 
 4. **Start the application** with directory watching enabled:

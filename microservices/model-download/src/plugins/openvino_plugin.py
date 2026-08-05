@@ -14,7 +14,7 @@ from src.utils.logging import logger
 
 # Default OVMS release tag for export_model.py script
 OVMS_RELEASE_TAG = os.getenv("OVMS_RELEASE_TAG", "v2026.0")
-INTERNAL_CONFIG_PARAMS = frozenset({"resolved_config"})
+INTERNAL_CONFIG_PARAMS = frozenset({"resolved_config", "_active_processes", "_model_download_dir"})
 
 # Graph templates for OVMS serving configuration (aligned with export_model.py)
 TEXT_GENERATION_GRAPH_TEMPLATE = """# OVMS_GRAPH_QUEUE_MAX_SIZE: AUTO
@@ -176,6 +176,17 @@ class OpenVINOConverter(ModelDownloadPlugin):
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         # Check if the hub is openvino or if is_ovms is True
         return hub.lower() == "openvino" or kwargs.get("is_ovms", False)
+
+    def validate_credentials(
+        self, resolved_config: Dict[str, Any], timeout: int = 5
+    ) -> Dict[str, Any]:
+        """Validate the HF_TOKEN used for pulling pre-converted models or source downloads.
+
+        Delegates to HuggingFacePlugin since OpenVINO conversion relies on
+        HuggingFace for model access.
+        """
+        from src.plugins.huggingface_plugin import HuggingFacePlugin
+        return HuggingFacePlugin().validate_credentials(resolved_config, timeout)
     
     def _get_param(self, param_name: str, config: Dict[str, Any], kwargs: Dict[str, Any], default_value: Any = None) -> Any:
         """
@@ -608,6 +619,10 @@ class OpenVINOConverter(ModelDownloadPlugin):
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         version = kwargs.get("version", "")
 
+        # Register the exact model dir so cancellation removes only this model's
+        # folder within the precision tree, never sibling models/precisions.
+        kwargs.get("_model_download_dir", []).append(os.path.join(output_dir, model_name))
+
         # --- Pull Mode: Try to find and download a pre-converted model first ---
         logger.info(f"Attempting pull mode for model: {model_name}, precision: {weight_format}, device: {target_device}")
         pull_result = self._try_pull_preconverted(
@@ -687,7 +702,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 target_device=target_device,
                 model_directory=output_dir,
                 version=version,
-                config_dict=config_for_export
+                config_dict=config_for_export,
+                active_processes=kwargs.get("_active_processes"),
             )
 
             host_path = output_dir
@@ -741,6 +757,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         model_directory: str,
         version: str = "",
         config_dict: Optional[Dict[str, Any]] = None,
+        active_processes=None,
     ):
         """
         Convert a downloaded model to OpenVINO Model Server (OVMS) format using export_model.py.
@@ -834,6 +851,9 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 text=True,
                 env=export_env,
             )
+            # Register for cancellation support
+            if active_processes is not None:
+                active_processes.append(result)
             stderr_logs = deque(maxlen=3)
             stdout_logs = deque(maxlen=3)
             # Stream output in real-time
@@ -872,6 +892,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
                         text=True,
                         env=export_env,
                     )
+                    if active_processes is not None:
+                        active_processes.append(result)
 
                     # Stream output in real-time
                     while True:

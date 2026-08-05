@@ -1,7 +1,9 @@
 openapi: 3.1.0
 info:
   title: Vector Retriever Microservice
-  version: 1.0.0
+  description: Semantic retrieval service over pluggable vector backends with batch
+    query support
+  version: 0.1.0
 paths:
   /health:
     get:
@@ -77,14 +79,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/BatchQueryResponse'
         '400':
-          description: Empty payload — the request body must contain at least one query object. Send `[]` to trigger.
+          description: Empty payload — the request body must contain at least one
+            query object. Send `[]` to trigger.
           content:
             application/json:
               example:
                 detail: Request body must contain at least one query
         '422':
-          description: 'Request validation failed. Common causes: missing both query and image, providing both at once, empty
-            query string, invalid where clause.'
+          description: 'Request validation failed. Common causes: missing both query
+            and image, providing both at once, empty query string, invalid where clause.'
           content:
             application/json:
               examples:
@@ -107,11 +110,13 @@ paths:
                     - loc:
                       - body
                       - 0
-                      msg: Value error, query and image are mutually exclusive; provide exactly one
+                      msg: Value error, query and image are mutually exclusive; provide
+                        exactly one
                       type: value_error
                 invalidWhereClause:
                   summary: Where clause missing op
-                  description: Send [{"query_id":"q1","query":"test","where":{"field":"tags"}}] to trigger.
+                  description: Send [{"query_id":"q1","query":"test","where":{"field":"tags"}}]
+                    to trigger.
                   value:
                     detail:
                     - loc:
@@ -205,7 +210,8 @@ components:
 
         - `compiled_backend_filter`: backend-native payload when explain is enabled.
 
-        - `dropped_or_rewritten_clauses`: transparency for rewritten or fallback-only clauses.'
+        - `dropped_or_rewritten_clauses`: transparency for rewritten or fallback-only
+        clauses.'
     BackendFilterCapabilities:
       properties:
         backend:

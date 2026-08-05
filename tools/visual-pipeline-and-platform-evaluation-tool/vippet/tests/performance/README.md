@@ -33,13 +33,13 @@ python -m pytest -m perf --junitxml=results/perf.xml vippet/tests/performance/
 
 Test parameters are controlled via YAML config files in `config/` and environment variables:
 
-| Env var | Default | Description |
-|---------|---------|-------------|
-| `VIPPET_BASE_URL` | `http://localhost/api/v1` | VIPPET API endpoint |
-| `VIPPET_METRICS_URL` | `http://localhost/metrics/stream` | Metrics endpoint (via nginx proxy) |
-| `PERF_CONFIG` | `default` | Config preset (`default`, `quick`, `full`) |
-| `PERF_RESULTS_DIR` | `./results` | Output directory for reports |
-| `PERF_METRICS_INTERVAL` | `2.0` | HW sampling interval (seconds) |
+| Env var                 | Default                          | Description                               |
+| ----------------------- | -------------------------------- | ----------------------------------------- |
+| `VIPPET_BASE_URL`       | `http://localhost/api/v1`        | VIPPET API endpoint                       |
+| `VIPPET_METRICS_URL`    | `http://localhost/metrics/stream` | Metrics endpoint (via nginx proxy)        |
+| `PERF_CONFIG`           | `default`                        | Config preset (`default`, `quick`, `full`) |
+| `PERF_RESULTS_DIR`      | `./results`                      | Output directory for reports              |
+| `PERF_METRICS_INTERVAL` | `2.0`                            | HW sampling interval (seconds)            |
 
 ## Layout
 

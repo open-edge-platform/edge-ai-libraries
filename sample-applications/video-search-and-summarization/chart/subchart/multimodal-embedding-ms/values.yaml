@@ -8,9 +8,6 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # sharedPvcName is the chart-level shared PVC used outside this subchart (collector signals).
-  sharedPvcName: ""
-
   # Common release tags to be used for several dependencies
   commonTag: ""
   embeddingModelName: ""
@@ -74,26 +71,32 @@ modelPvc:
   size: "10Gi"
 
 livenessProbe:
-  httpGet:
-    path: /health
-    port: mm-embed-port
+  exec:
+    command:
+      - python
+      - -c
+      - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)"
   initialDelaySeconds: 10
   periodSeconds: 20
   failureThreshold: 3
 
 readinessProbe:
-  httpGet:
-    path: /health
-    port: mm-embed-port
+  exec:
+    command:
+      - python
+      - -c
+      - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)"
   initialDelaySeconds: 5
   periodSeconds: 10
   failureThreshold: 6
 
 # Wait for startup till max ~ 30Mins
 startupProbe:
-  httpGet:
-    path: /health
-    port: mm-embed-port
+  exec:
+    command:
+      - python
+      - -c
+      - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)"
   initialDelaySeconds: 10
   periodSeconds: 10
   failureThreshold: 180
