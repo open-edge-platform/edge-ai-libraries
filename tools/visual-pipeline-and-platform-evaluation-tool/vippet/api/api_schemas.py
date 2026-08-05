@@ -26,6 +26,24 @@ class PipelineSource(str, Enum):
     TEMPLATE = "TEMPLATE"
 
 
+class PipelineType(str, Enum):
+    """
+    **Type of a pipeline definition.**
+
+    ## Values
+    - `vision` - Pipeline processes video/image data using GStreamer and DLStreamer
+    - `time_series` - Pipeline processes time-series data using the Time Series Analytics Microservice
+
+    ### Example
+    ```json
+    "vision"
+    ```
+    """
+
+    VISION = "vision"
+    TIME_SERIES = "time_series"
+
+
 class AppStatus(str, Enum):
     """
     **Application status enum for tracking initialization progress.**
@@ -66,6 +84,17 @@ class TestJobState(str, Enum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+
+
+class BenchmarkTestCaseRunStatus(str, Enum):
+    """Status of a benchmark test-case run."""
+
+    CREATED = "created"
+    RUNNING = "running"
+    PASSED = "passed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    SKIPPED = "skipped"
 
 
 class OptimizationJobState(str, Enum):
@@ -1067,6 +1096,10 @@ class Pipeline(BaseModel):
     name: str
     description: str
     source: PipelineSource
+    type: PipelineType = Field(
+        default=PipelineType.VISION,
+        description="Pipeline type: 'vision' for video/image pipelines, 'time_series' for time-series analytics pipelines.",
+    )
     tags: List[str] = Field(
         default=[],
         description="List of tags for categorizing the pipeline.",
@@ -1126,6 +1159,10 @@ class PipelineDefinition(BaseModel):
         description="Non-empty human-readable text describing what the pipeline does.",
     )
     source: PipelineSource = PipelineSource.USER_CREATED
+    type: PipelineType = Field(
+        default=PipelineType.VISION,
+        description="Pipeline type: 'vision' for video/image pipelines, 'time_series' for time-series analytics pipelines.",
+    )
     tags: List[str] = Field(
         default=[],
         description="List of tags for categorizing the pipeline.",
@@ -1305,8 +1342,8 @@ class ExecutionConfig(BaseModel):
     """
     **Configuration for pipeline execution behavior.**
 
-    This configuration controls output generation, runtime limits, and
-    metadata publishing for test pipelines.
+    This configuration controls output generation, runtime limits,
+    and metadata publishing for test pipelines.
 
     ## Attributes
     - `output_mode` - Mode for pipeline output generation:
@@ -1353,6 +1390,7 @@ class ExecutionConfig(BaseModel):
       "metadata_mode": "file"
     }
     ```
+
     """
 
     output_mode: OutputMode = Field(
@@ -1581,6 +1619,159 @@ class TestJobResponse(BaseModel):
         description="Identifier of the created test job.",
         examples=["job123"],
     )
+
+
+class BenchmarkJobResponse(BaseModel):
+    """Simple envelope with a new benchmark job identifier."""
+
+    job_id: str = Field(
+        ...,
+        description="Identifier of the created benchmark job.",
+        examples=["benchmark-job-123"],
+    )
+
+
+class BenchmarkJobStatus(BaseModel):
+    """Status of a benchmark-suite orchestration job."""
+
+    id: str
+    suite_slug: str
+    suite_run_id: int
+    start_time: int
+    elapsed_time: int
+    state: TestJobState
+    details: list[str]
+    total_test_cases: int
+    completed_test_cases: int
+    current_test_case_run_id: int | None
+    current_performance_job_id: str | None
+
+
+class BenchmarkJobSummary(BaseModel):
+    """Short summary for a benchmark-suite orchestration job."""
+
+    id: str
+    suite_slug: str
+    suite_run_id: int
+
+
+class BenchmarkTestCase(BaseModel):
+    """Concrete stream-count test case belonging to a workload."""
+
+    id: int
+    variant_id: str
+    streams: int
+
+
+class BenchmarkWorkload(BaseModel):
+    """Pipeline workload definition belonging to a benchmark suite."""
+
+    id: int
+    pipeline_id: str
+    variants: str
+    test_cases: list[BenchmarkTestCase]
+
+
+class BenchmarkSuite(BaseModel):
+    """Benchmark suite with nested workloads and test cases."""
+
+    id: int
+    slug: str
+    name: str
+    description: str
+    created_at: datetime
+    last_run_at: datetime
+    workloads: list[BenchmarkWorkload]
+
+
+class BenchmarkTestCaseRun(BaseModel):
+    """Historical run record for one benchmark test case."""
+
+    id: int
+    test_case_id: int
+    variant_id: str
+    streams: int
+    workload_run_id: int
+    start_time: int | None
+    execution_time: int | None
+    total_fps: float | None
+    per_stream_fps: float | None
+    cpu_usage: float | None
+    gpu_usage: float | None
+    npu_usage: float | None
+    media_usage: float | None
+    memory_usage: float | None
+    power_usage: float | None
+    score_total: float | None
+    score_performance: float | None
+    score_efficiency: float | None
+    metrics: str | None
+    job_id: str
+    status: BenchmarkTestCaseRunStatus
+
+
+class BenchmarkWorkloadRun(BaseModel):
+    """Historical run record for one workload within a suite run."""
+
+    id: int
+    workload_id: int
+    pipeline_id: str
+    suite_run_id: int
+    status: BenchmarkTestCaseRunStatus
+    score_total: float | None
+    score_performance: float | None
+    score_efficiency: float | None
+    start_time: int | None
+    execution_time: int | None
+    test_case_runs: list[BenchmarkTestCaseRun]
+    total_test_cases: int
+    passed_test_cases: int
+    failed_test_cases: int
+    pass_rate: float
+
+
+class BenchmarkSuiteRun(BaseModel):
+    """Historical run record for one benchmark suite execution."""
+
+    id: int
+    suite_id: int
+    suite_slug: str
+    suite_name: str
+    suite_description: str
+    status: BenchmarkTestCaseRunStatus
+    score_total: float | None
+    score_performance: float | None
+    score_efficiency: float | None
+    start_time: int
+    execution_time: int | None
+    job_id: str
+    total_test_cases: int
+    passed_test_cases: int
+
+
+class BenchmarkSuiteRunDetails(BenchmarkSuiteRun):
+    """Detailed benchmark suite run with nested workload and test-case runs."""
+
+    workload_runs: list[BenchmarkWorkloadRun]
+
+
+class BenchmarkSuiteRef(BaseModel):
+    """Compact benchmark suite reference for nested responses."""
+
+    id: int
+    slug: str
+    name: str
+    description: str
+
+
+class BenchmarkTestCaseRunDetails(BenchmarkTestCaseRun):
+    """Detailed benchmark test-case run with resolved foreign-key metadata."""
+
+    suite_run_id: int
+    workload_id: int
+    pipeline_id: str
+    test_case: BenchmarkTestCase
+    suite: BenchmarkSuiteRef
 
 
 class LatencyMetrics(BaseModel):

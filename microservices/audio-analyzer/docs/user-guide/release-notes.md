@@ -3,6 +3,24 @@
 This page tracks releases of the Audio Analyzer microservice. The most
 recent release is listed first; older entries are preserved for history.
 
+## Version 1.5.0
+
+**Release Date:** August 2026
+
+**New:**
+
+- OpenAI-compatible streaming transcription over Server-Sent Events, in
+  addition to the existing NDJSON `/stream` variant.
+- Realtime transcription support over a WebSocket endpoint for
+  low-latency, bidirectional audio streaming.
+- Video Summarization Service (VSS) compatibility for the transcription
+  API response shape.
+
+**Improved:**
+
+- Speaker diarization now splits merged segments by voice and persists
+  enrolment data across restarts.
+
 ## Version 1.4.0
 
 First release of the Audio Analyzer as a self-contained,

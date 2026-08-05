@@ -1,0 +1,8 @@
+global:
+  vectordbBackend: "milvus"
+
+vdmsvectordb:
+  enabled: false
+
+milvusstandalone:
+  enabled: true

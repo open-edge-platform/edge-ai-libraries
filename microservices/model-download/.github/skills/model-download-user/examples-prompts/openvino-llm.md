@@ -10,3 +10,5 @@ Download `meta-llama/Llama-3.2-1B` and convert it into an OVMS-ready OpenVINO mo
 - Verify the converted model path can be mounted into OVMS
 
 Also describe the required precision when the target device is an NPU.
+
+Also describe how the output directory name is derived when the target device is a HETERO combination (e.g. `HETERO:GPU,CPU`), since `:` and `,` are not filesystem-safe and get slugified (e.g. `hetero_gpu_cpu`).

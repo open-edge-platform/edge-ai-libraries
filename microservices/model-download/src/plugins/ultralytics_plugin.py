@@ -88,10 +88,12 @@ class UltralyticsDownloader(ModelDownloadPlugin):
         
         # Create hub-specific directory under the output directory
         hub_dir = os.path.join(output_dir, "ultralytics")
+        kwargs.get("_model_download_dir", []).append(hub_dir)
         
         # Call the download script
+        active_processes = kwargs.get("_active_processes")
         with self._script_lock:
-            return_code = self._call_bash_script(model=model_name, quantize=quantize, models_path=hub_dir)
+            return_code = self._call_bash_script(model=model_name, quantize=quantize, models_path=hub_dir, active_processes=active_processes)
 
         if int8_requested and return_code == 0:
             int8_artifacts = self._find_int8_artifacts(hub_dir, model_name)
@@ -211,7 +213,7 @@ class UltralyticsDownloader(ModelDownloadPlugin):
         
         return datasets
     
-    def _call_bash_script(self, model: str = "all", quantize: str = "", models_path: str = "") -> int:
+    def _call_bash_script(self, model: str = "all", quantize: str = "", models_path: str = "", active_processes=None) -> int:
         """Call the download_public_models.sh bash script with arguments"""
         # Find script path relative to this file
         script_path = str(Path(__file__).parent.parent.parent / "scripts" / "download_public_models.sh")
@@ -240,6 +242,9 @@ class UltralyticsDownloader(ModelDownloadPlugin):
             text=True,
             env=env
         )
+        # Register for cancellation support
+        if active_processes is not None:
+            active_processes.append(process)
         
         # Stream output in real-time
         while True:

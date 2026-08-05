@@ -23,7 +23,8 @@ models:
     #   Qwen:     custom_voice | voice_design
     model_variant: custom_voice
     # Default speaker/voice. Permitted values:
-    #   SpeechT5: default
+    #   SpeechT5: Ryan | Miles | Aaron | Nora | Elena | Kabir | Angus
+    #             (CMU Arctic ids bdl/jmk/rms/clb/slt/ksp/awb are accepted as aliases)
     #   Qwen custom_voice example: Ryan
     #   Qwen voice_design: speaker can be omitted
     default_speaker: Ryan

@@ -1,8 +1,29 @@
 # Release Notes: Model Download
 
-<!--## Version 2026.2.0-->
+## Version 2026.2.0
 
-<!--date TBD-->
+**TBD**
+
+This release introduces **configurable external model sources**, **request-scoped credential overrides and startup model preloading**, **OpenVINO HETERO device conversion**, and **job cancellation**, along with validation, AI skill, and documentation improvements.
+
+**New**
+
+- **External Model Sources**: introduces a YAML-driven plugin for Pipeline Zoo models, time-series UDF tarballs, OpenVINO Model Zoo models, and allowlisted remote URLs.
+- **Credential Overrides and Startup Preloading**: adds validated per-request credential overrides and YAML-based startup model downloads, including parallel multi-model processing and OpenVINO conversion settings.
+- **HETERO Device Conversion**: adds OpenVINO conversion for ordered HETERO device combinations such as `HETERO:GPU,CPU`.
+- **Job Cancellation**: adds an endpoint to cancel queued or running jobs, stop active work where supported, and clean up only the affected model artifacts.
+
+**Improved**
+
+- **Model Download AI Skills**: expands developer and user skill guidance, examples, evaluations, integration patterns, and current API workflows.
+- **Model Storage Documentation**: documents deterministic, hub-specific model storage paths returned by completed jobs.
+
+**Fixed**
+
+- **Uploaded Model Name Validation**: preserves letter case, converts spaces to underscores, and rejects unsafe or malformed names with clearer errors.
+- **Updated the default container UID/GID to 1000**: to align with host user permissions and simplify volume access
+
+---
 
 ## Version 2026.1.0
 
@@ -10,6 +31,7 @@
 
 **New:**
 
+- Added HETERO device support for OpenVINO conversion: `config.device` now accepts `HETERO:<dev>[,<dev>...]` (e.g. `HETERO:GPU,CPU`) in addition to `CPU`, `GPU`, and `NPU`. Converted models are stored under a filesystem-safe device directory (e.g. `openvino_models/hetero_gpu_cpu/`). The NPU int4 override applies only to the exact `NPU` device, not to HETERO combinations.
 - Added a new Pipeline Zoo Models plugin for downloading models from the `dlstreamer/pipeline-zoo-models` repository.
 - Added external source hubs for OpenVINO™ Model Zoo (`omz`) and allowlisted runtime archive downloads (`remote-url`).
 - Isolated Python virtual environments per plugin to prevent dependency conflicts.

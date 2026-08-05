@@ -18,13 +18,13 @@
       "id": 2,
       "prompt_file": "example-prompts/02-ovms-crash-loop.md",
       "prompt": "I brought up summary mode with `source setup.sh --summary`, but `ovms-service` keeps restarting with exit code 1 and `pipeline-manager` never becomes healthy. `docker ps -a` shows `ovms-service` crash-looping, and `curl http://localhost:8300/v2/health/ready` just refuses the connection. What should I check first and what fixes are realistic here?",
-      "expected_output": "A correct triage response starts with `skills/vss-troubleshoot/scripts/triage.sh`, treats `ovms-service` as the first unhealthy dependency blocking `pipeline-manager`, points to OVMS logs and `config/ovms_config/models/config.json`, and recommends documented fixes such as clearing bad OVMS model volumes, reducing token/context pressure, adjusting cache sizing, or switching to a supported target device.",
+      "expected_output": "A correct triage response starts with the bundled `vss-troubleshoot/scripts/triage.sh`, treats `ovms-service` as the first unhealthy dependency blocking `pipeline-manager`, points to OVMS logs and `ov_models/ovms/config.json`, and recommends documented fixes such as recreating only the affected cached model, reducing token/context pressure, adjusting cache sizing, or switching to a supported target device.",
       "files": [],
       "expectations": [
         "Mentions running `skills/vss-troubleshoot/scripts/triage.sh` from the app root to collect compose status, recent logs, health checks, port listeners, and device visibility.",
         "Identifies `ovms-service` as the dependency to debug before `pipeline-manager`, and references the OVMS ready endpoint `http://localhost:8300/v2/health/ready`.",
-        "Tells the user to inspect `docker logs` for `ovms-service` and the model config at `config/ovms_config/models/config.json`.",
-        "Includes at least one documented OVMS fix such as removing `ov-models`/`docker_ov-models`, lowering `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS`, tuning `OVMS_CACHE_SIZE_GB`, or setting `VLM_TARGET_DEVICE=CPU`."
+        "Tells the user to inspect `docker logs` for `ovms-service`, the model config at `ov_models/ovms/config.json`, and the matching model under `ov_models/ovms/openvino_models/`.",
+        "Includes at least one documented OVMS fix such as removing only the affected host-cached model with approval, lowering `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS`, tuning `OVMS_CACHE_SIZE_GB`, or setting `VLM_TARGET_DEVICE=CPU`."
       ]
     },
     {
@@ -44,13 +44,13 @@
     {
       "id": 4,
       "prompt_file": "example-prompts/04-search-returns-nothing.md",
-      "prompt": "Search mode boots, but every query says no videos found. `video-search` is running, while `vdms-dataprep` keeps logging \"connection refused\" to `vdms-vector-db:55555`, and `curl http://localhost:6016/v1/dataprep/health` fails. Can you triage this service-to-service connectivity problem and tell me what to verify before I wipe any data?",
-      "expected_output": "A correct triage response starts with `skills/vss-troubleshoot/scripts/triage.sh`, focuses on the search dependency chain (`video-search`, `vdms-dataprep`, `vdms-vector-db`, and `multimodal-embedding-serving` when API embedding mode is enabled), checks the documented health endpoints and logs for the failing services, and reserves re-ingest or `source setup.sh --clean-data` for cases where embedding dimensions or persisted state are actually the issue.",
+      "prompt": "Search mode boots, but every query says no videos found. `video-search` is running, while `multimodal-dataprep` keeps logging \"connection refused\" to `vdms-vector-db:55555`, and `curl http://localhost:6016/v1/dataprep/health` fails. Can you triage this service-to-service connectivity problem and tell me what to verify before I wipe any data?",
+      "expected_output": "A correct triage response starts with `skills/vss-troubleshoot/scripts/triage.sh`, focuses on the search dependency chain (`video-search`, `multimodal-dataprep`, `vector-retriever`, `vdms-vector-db`, and `multimodal-embedding-serving`), checks the documented health endpoints and logs for the failing services, and reserves re-ingest or `source setup.sh --clean-data` for cases where embedding dimensions or persisted state are actually the issue.",
       "files": [],
       "expectations": [
         "Mentions running `skills/vss-troubleshoot/scripts/triage.sh` and checking the search health endpoints `http://localhost:7890/health` and `http://localhost:6016/v1/dataprep/health`.",
-        "Identifies `vdms-vector-db` on port `55555` as a key dependency and tells the user to inspect `docker logs` for both `vdms-dataprep` and `vdms-vector-db`.",
-        "References `multimodal-embedding-serving` at `http://localhost:9777/health` when `EMBEDDING_PROCESSING_MODE=api`, and notes that `sdk` mode keeps embeddings inside `vdms-dataprep`.",
+        "Identifies `vdms-vector-db` on port `55555` as a key dependency and tells the user to inspect `docker logs` for both `multimodal-dataprep` and `vdms-vector-db`.",
+        "Notes that `video-search` delegates similarity search to `vector-retriever` (`/ready` on port `6008`), which embeds queries via `multimodal-embedding-serving` at `http://localhost:9777/health`.",
         "Warns against jumping straight to `source setup.sh --clean-data` before fixing the connectivity issue, while still mentioning re-ingest or clean-data as the remedy for embedding-model dimension mismatches."
       ]
     },
@@ -77,7 +77,7 @@
         "Mentions running `skills/vss-troubleshoot/scripts/triage.sh` to collect Compose status, logs, port listeners, and environment-variable presence before changing configuration.",
         "Checks `video-ingestion` at `http://localhost:8090/pipelines` and then inspects `rabbitmq-service`, `minio-service`, and `postgres-service` health/logs as documented summary dependencies.",
         "References RabbitMQ ports `5672`, `15672`, and MQTT `1883`, MinIO ports `4001` and `4002`, and verifies `RABBITMQ_USER`/`RABBITMQ_PASSWORD` and `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`.",
-        "Mentions `OD_MODEL_NAME` and object detection models under `ov_models/yoloworld/v2` as ingestion-stall checks, and reserves `source setup.sh --clean-data` for confirmed corrupt persisted state."
+        "Mentions `OD_MODEL_NAME` and object detection models under `ov_models/object-detection/ultralytics/public/<model>/FP32` as ingestion-stall checks, and reserves `source setup.sh --clean-data` for confirmed corrupt persisted state."
       ]
     },
     {
