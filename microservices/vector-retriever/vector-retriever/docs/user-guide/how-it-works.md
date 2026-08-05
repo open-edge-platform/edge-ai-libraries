@@ -15,8 +15,7 @@ The retriever service translates user queries into vector similarity searches an
 
 ```mermaid
 ---
-config:
-    theme: 'dark'
+config: {"theme": "dark"}
 ---
 flowchart TB
     Client(["Client"])
@@ -67,8 +66,7 @@ flowchart TB
 
 ```mermaid
 ---
-config:
-    theme: 'dark'
+config: {"theme": "dark"}
 ---
 sequenceDiagram
     autonumber
