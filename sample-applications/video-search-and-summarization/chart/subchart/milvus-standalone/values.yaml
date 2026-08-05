@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+replicaCount: 1
+
+etcd:
+  image:
+    repository: quay.io/coreos/etcd
+    tag: v3.5.18
+    pullPolicy: IfNotPresent
+  service:
+    name: milvus-etcd
+    port: 2379
+  resources: {}
+
+milvus:
+  image:
+    repository: milvusdb/milvus
+    tag: v2.6.14
+    pullPolicy: IfNotPresent
+  service:
+    name: milvus-standalone
+    port: 19530
+    metricsPort: 9091
+  resources: {}
+
+persistence:
+  enabled: true
+  size: 20Gi
+  # Milvus stores collection/segment metadata in etcd; it must be as durable as
+  # the milvus-data volume or persisted segments become unreadable.
+  etcdSize: 5Gi
+  storageClassName: ""
+
+global:
+  usePvc: false
+  volumeHostPath: "/mnt/vss-data"

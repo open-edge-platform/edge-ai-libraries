@@ -193,6 +193,54 @@ class GetiPlugin(ModelDownloadPlugin):
     def supports_listing(self) -> bool:
         return True
 
+    def validate_credentials(
+        self, resolved_config: Dict[str, Any], timeout: int = 5
+    ) -> Dict[str, Any]:
+        """Validate Geti credentials by connecting and listing projects.
+
+        Checks GETI_HOST reachability and GETI_TOKEN validity in a single
+        lightweight call. Never fetches full project data.
+        """
+        session = self._build_session(resolved_config)
+
+        if not session.server_url or not session.api_token:
+            return {
+                "name": "geti_config",
+                "ok": False,
+                "message": (
+                    "GETI_HOST and GETI_TOKEN are required. Provide them via "
+                    "environment variables or override_credentials."
+                ),
+            }
+
+        try:
+            self._initialize_geti_sdk(session)
+            project_client = ProjectClient(
+                session=session.geti.session,
+                workspace_id=session.geti.workspace_id,
+            )
+            projects = project_client.list_projects()
+            return {
+                "name": "geti_auth",
+                "ok": True,
+                "message": (
+                    f"Connected to {session.server_url}, "
+                    f"{len(projects)} project(s) accessible"
+                ),
+            }
+        except GetiRequestException as exc:
+            return {
+                "name": "geti_auth",
+                "ok": False,
+                "message": f"Geti API error: {exc}",
+            }
+        except Exception as exc:
+            return {
+                "name": "geti_connectivity",
+                "ok": False,
+                "message": f"Cannot connect to Geti at {session.server_url}: {exc}",
+            }
+
     @property
     def listing_filter_fields(self) -> List[str]:
         return GETI_LISTING_FILTER_FIELDS
@@ -721,6 +769,8 @@ class GetiPlugin(ModelDownloadPlugin):
                 model_dir = os.path.join(output_dir, "geti", model_name_lower, precision_lower)
             
             os.makedirs(model_dir, exist_ok=True)
+            # Register the exact precision dir so cancellation removes only this variant.
+            kwargs.get("_model_download_dir", []).append(model_dir)
             await asyncio.to_thread(model_client._download_model, model_to_download, model_dir)
             await self.extract_model_files(model_dir)
             return model_dir, None, ignored_fields
@@ -898,7 +948,8 @@ class GetiPlugin(ModelDownloadPlugin):
                 optimized_model_id=config.get("optimized_model_id"),
                 precision=precision,
                 model_format=model_format,
-                extra_filters=extra_filters
+                extra_filters=extra_filters,
+                _model_download_dir=kwargs.get("_model_download_dir"),
             )
             
             if not model_path:

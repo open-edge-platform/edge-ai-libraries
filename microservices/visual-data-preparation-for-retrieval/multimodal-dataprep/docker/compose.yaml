@@ -1,0 +1,161 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+services:
+    minio-server:
+        image: coollabsio/minio:RELEASE.2025-10-15T17-29-55Z
+        environment:
+            - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+            - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+        ports:
+            - '${MINIO_API_HOST_PORT:-6010}:9000'
+            - '${MINIO_CONSOLE_HOST_PORT:-6011}:9001'
+        volumes:
+            - '${MINIO_MOUNT_PATH:-/mnt/miniodata}:/data'
+        command: |
+            server /data 
+            --address ":9000" 
+            --console-address ":9001"
+
+    vdms-vector-db:
+        image: intellabs/vdms:v2.12.0
+        environment:
+            - OVERRIDE_db_root_path=/db
+            - OVERRIDE_images_path=/db/images
+            - OVERRIDE_descriptors_path=/db/descriptors
+            - OVERRIDE_blobs_path=/db/blobs
+            - OVERRIDE_pmgd_path=/db/graph
+        ports:
+            - '${VDMS_VDB_HOST_PORT:-6020}:55555'
+        depends_on:
+            - minio-server
+
+    multimodal-dataprep:
+        hostname: multimodal-dataprep
+        build:
+            context: ../../..
+            dockerfile: visual-data-preparation-for-retrieval/multimodal-dataprep/docker/Dockerfile
+            target: prod
+        image: ${REGISTRY}multimodal-dataprep:${TAG:-latest}
+        environment:
+            - no_proxy=${no_proxy},${VDMS_VDB_HOST},${MINIO_HOST},localhost
+            - http_proxy=${http_proxy}
+            - https_proxy=${https_proxy}
+            # Basic app settings
+            - MM_DATAPREP_APP_HOST=multimodal-dataprep # Same as service name. Helps store a URL for video download in metadata.
+
+            # VDMS Vector Database settings
+            - MM_DATAPREP_VDMS_VDB_HOST=${VDMS_VDB_HOST}
+            - MM_DATAPREP_VDMS_VDB_PORT=55555
+
+            # MinIO settings
+            - MM_DATAPREP_MINIO_ENDPOINT=${MINIO_HOST}:9000
+            - MM_DATAPREP_MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+            - MM_DATAPREP_MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+            - MM_DATAPREP_MINIO_SECURE=false
+            - MM_DATAPREP_DEFAULT_BUCKET_NAME=${DEFAULT_BUCKET_NAME}
+
+            # Database settings
+            - MM_DATAPREP_DB_COLLECTION=${INDEX_NAME}
+
+            # Embedding model selection (in-process SDK)
+            - MM_DATAPREP_EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME:-}
+            - MM_DATAPREP_OV_PERFORMANCE_MODE=${MM_DATAPREP_OV_PERFORMANCE_MODE:-THROUGHPUT}
+
+            # Embedding pipeline settings
+            - MM_DATAPREP_USE_OPENVINO=${MM_DATAPREP_USE_OPENVINO:-true}
+            - MM_DATAPREP_EMBEDDING_DEVICE=${MM_DATAPREP_EMBEDDING_DEVICE:-CPU}
+            - MM_DATAPREP_OV_MODELS_DIR=${OV_MODELS_DIR:-/app/ov_models}
+            - MM_DATAPREP_EMBEDDING_BATCH_SIZE=${MM_DATAPREP_EMBEDDING_BATCH_SIZE:-32}
+            - MM_DATAPREP_MAX_PARALLEL_WORKERS=${MM_DATAPREP_MAX_PARALLEL_WORKERS:-}
+            - MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS=${MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS:-512}
+            - MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE=${MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE:-6220800}
+            - MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE=${MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE:-256}
+            - MM_DATAPREP_PIPELINE_QUEUE_MAXSIZE=${MM_DATAPREP_PIPELINE_QUEUE_MAXSIZE:-16}
+            - MM_DATAPREP_PIPELINE_COMPLETION_QUEUE_MAXSIZE=${MM_DATAPREP_PIPELINE_COMPLETION_QUEUE_MAXSIZE:-1}
+            - MM_DATAPREP_DETECTION_WORKER_THREADS=${MM_DATAPREP_DETECTION_WORKER_THREADS:-2}
+            - MM_DATAPREP_EMBED_WORKER_THREADS=${MM_DATAPREP_EMBED_WORKER_THREADS:-2}
+            - MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S=${MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
+            - MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS=${MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS:-false}
+            - MM_DATAPREP_ENABLE_TRACING=${MM_DATAPREP_ENABLE_TRACING:-false}
+            - MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS=${MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS:-2}
+            - MM_DATAPREP_VIDEO_FRAME_LOG_LEVEL=${MM_DATAPREP_VIDEO_FRAME_LOG_LEVEL:-INFO}
+
+            # Frame processing settings
+            - MM_DATAPREP_FRAME_INTERVAL=${MM_DATAPREP_FRAME_INTERVAL:-15}
+            - MM_DATAPREP_ENABLE_OBJECT_DETECTION=${MM_DATAPREP_ENABLE_OBJECT_DETECTION:-true}
+            - MM_DATAPREP_DETECTION_CONFIDENCE=${MM_DATAPREP_DETECTION_CONFIDENCE:-0.85}
+            - MM_DATAPREP_FRAMES_TEMP_DIR=${MM_DATAPREP_FRAMES_TEMP_DIR:-/tmp/dataprep}
+
+            # Object detection model directory
+            - MM_DATAPREP_DETECTION_MODEL_DIR=${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
+            - MM_DATAPREP_DETECTION_DEVICE=${MM_DATAPREP_DETECTION_DEVICE:-CPU}
+
+            # ROI consolidation settings
+            - MM_DATAPREP_ROI_CONSOLIDATION_ENABLED=${MM_DATAPREP_ROI_CONSOLIDATION_ENABLED:-false}
+            - MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD=${MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD:-0.2}
+            - MM_DATAPREP_ROI_CONSOLIDATION_CLASS_AWARE=${MM_DATAPREP_ROI_CONSOLIDATION_CLASS_AWARE:-false}
+            - MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE=${MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
+
+            # Application configuration
+            - MM_DATAPREP_LOG_LEVEL=${MM_DATAPREP_LOG_LEVEL:-INFO}
+
+            # Batch ingestion settings
+            - MM_DATAPREP_INGEST_DATA_ROOT=${MM_DATAPREP_INGEST_DATA_ROOT:-/tmp/dataprep/ingest}
+            - MM_DATAPREP_BATCH_MAX_ITEMS=${MM_DATAPREP_BATCH_MAX_ITEMS:-100}
+            - MM_DATAPREP_BATCH_JOB_RETENTION=${MM_DATAPREP_BATCH_JOB_RETENTION:-200}
+
+            # Duplicate-upload policy: set false to reject content-identical re-uploads (409)
+            - MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=${MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS:-true}
+
+            # CORS settings
+            - MM_DATAPREP_ALLOW_ORIGINS=${ALLOW_ORIGINS:-*}
+            - MM_DATAPREP_ALLOW_METHODS=${ALLOW_METHODS:-*}
+            - MM_DATAPREP_ALLOW_HEADERS=${ALLOW_HEADERS:-*}
+        ports:
+            - "${MM_DATAPREP_HOST_PORT}:8000"
+        healthcheck:
+            test:
+                [
+                "CMD",
+                "python",
+                "-c",
+                "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/v1/dataprep/health').getcode()==200 else 1)",
+                ]
+            interval: 10s
+            timeout: 10s
+            retries: 40
+            start_period: 5s
+        volumes:
+            - '${YOLOX_MODELS_VOLUME_NAME:-dataprep-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
+            - data-prep:/tmp/dataprep
+            # Optional bind mount for POST /media/ingest-dir (directory ingest).
+            # Point MM_DATAPREP_INGEST_DATA_ROOT_HOST at a host directory of videos.
+            - '${MM_DATAPREP_INGEST_DATA_ROOT_HOST:-./ingest-data}:${MM_DATAPREP_INGEST_DATA_ROOT:-/tmp/dataprep/ingest}'
+            - ov-models:/home/appuser/.cache/huggingface # Share embedding models cache
+            - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory
+        devices:
+            - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri # Intel GPU device access for OpenVINO GPU acceleration
+            - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
+        ulimits:
+            nofile:
+                soft: 32768
+                hard: 65535
+        ipc: host
+        group_add:
+            - ${USER_GROUP_ID:-1000}
+            - ${VIDEO_GROUP_ID:-44}
+            - ${RENDER_GROUP_ID:-1002}
+        depends_on:
+            - minio-server
+
+networks:
+    default:
+        driver: bridge
+
+volumes:
+    dataprep-yolox-models:
+        driver: local
+    ov-models:
+        driver: local
+    data-prep:
+        driver: local

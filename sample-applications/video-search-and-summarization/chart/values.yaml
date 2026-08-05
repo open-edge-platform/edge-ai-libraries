@@ -1,6 +1,6 @@
 global:
   # Single source of override for image registry and tag across VSS service images
-  # (pipeline-manager, video-ingestion, video-search, vss-ui, vdms-dataprep,
+  # (pipeline-manager, video-ingestion, video-search, vss-ui, multimodal-dataprep,
   # multimodal-embedding-serving). Leave empty to keep each subchart's own defaults.
   #   registry: when set, images are pulled from this registry using their bare image name.
   #   tag: when set, overrides the image tag for the VSS service images above.
@@ -29,14 +29,17 @@ global:
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
-  # sharedPvcName is the PVC used for collector signal exchange (pipeline-manager <-> vss-collector).
-  sharedPvcName: "vss-shared-pvc"
+  metricsManager:
+    enabled: false
 
   # huggingfaceToken should be set during installation if gated models need to be accessed.
   huggingfaceToken: ""
 
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: ""
+  # Active vector database backend for search path.
+  # Supported: vdms (default), milvus.
+  vectordbBackend: "vdms"
 
   # vlmName is the OVMS or vLLM Vision-Language Model used for captioning.
   vlmName: ""
@@ -66,8 +69,8 @@ global:
       device: CPU # CPU | GPU | NPU
       key: "" # K8s resource key (e.g., 'gpu.intel.com/xe', 'npu.intel.com/accel')
 
-    # VDMS Dataprep
-    vdmsDataprep:
+    # Multimodal Dataprep
+    multimodalDataprep:
       embedding:
         device: CPU # CPU | GPU | NPU
         key: "" # K8s resource key when using GPU/NPU
@@ -100,16 +103,12 @@ global:
     OTLP_ENDPOINT_TRACE: ""
     DEFAULT_BUCKET_NAME: "video-summary"
     MULTIMODAL_EMBEDDING_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
-    EMBEDDING_PROCESSING_MODE: "sdk"
     SDK_USE_OPENVINO: true
     OV_MODELS_DIR: "/app/ov_models"
     OV_PERFORMANCE_MODE: "THROUGHPUT"
-    VDMS_DATAPREP_LOG_LEVEL: "INFO"
+    MM_DATAPREP_LOG_LEVEL: "INFO"
+    MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS: true
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart
-
-# sharedClaimSize is the storage size for the shared collector-signals PVC
-# consumed by pipeline-manager and vss-collector.
-sharedClaimSize: "7Gi"
 
 rabbitmq:
   enabled: false
@@ -139,6 +138,32 @@ pipelinemanager:
     tag: "latest"
     pullPolicy: IfNotPresent
   containerPortName: videosumm-port # Optional name to refer containerPort
+  # Readiness gating mirrors the Compose healthcheck for pipeline-manager
+  # (curl -f http://localhost:3000/health, 10s timeout, 3 retries). GET /health
+  # also pings PostgreSQL, so the pod only reports Ready once NestJS is
+  # listening and its database is reachable.
+  #
+  # startupProbe absorbs the initial NestJS bootstrap and migration window
+  # without the tighter readiness thresholds failing during it.
+  #
+  # No livenessProbe is defined on purpose: /health depends on PostgreSQL, so a
+  # liveness probe against it would restart a perfectly healthy pipeline-manager
+  # whenever the database blipped.
+  startupProbe:
+    httpGet:
+      path: /health
+      port: videosumm-port
+    periodSeconds: 10
+    timeoutSeconds: 10
+    failureThreshold: 30
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: videosumm-port
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 10
+    failureThreshold: 3
   service:
     type: ClusterIP
     port: 80 # Port on which service listens for incoming connection, if exposed externally
@@ -169,6 +194,9 @@ pipelinemanager:
     SUMMARY_FEATURE: "FEATURE_OFF"
     SEARCH_FEATURE: "FEATURE_OFF"
     SEARCH_DATAPREP_TIMEOUT_MS: "600000"
+    SEARCH_DATAPREP_POLL_MAX_RETRIES: "3"
+    SEARCH_DATAPREP_POLL_TIMEOUT_MS: "10000"
+    SEARCH_DATAPREP_POLL_RETRY_DELAY_MS: "500"
   nodeSelector: {}
   affinity: {}
   tolerations: []
@@ -247,16 +275,34 @@ multimodalembeddingms:
     enabled: true
     size: "10Gi"
 
-# Placeholder for vdms-dataprep subchart
-vdmsdataprep:
+# Placeholder for multimodal-dataprep subchart
+multimodaldataprep:
   enabled: false
-  name: vdms-dataprep
+  name: multimodal-dataprep
   service:
     type: ClusterIP
     port: 8000
   modelPvc:
     enabled: true
     size: "10Gi"
+
+# Placeholder for vector-retriever subchart
+vectorretriever:
+  enabled: false
+  name: vector-retriever
+  service:
+    type: ClusterIP
+    port: 8000
+
+milvusstandalone:
+  enabled: false
+  name: milvus-standalone
+  etcd:
+    name: milvus-etcd
+  service:
+    type: ClusterIP
+    port: 19530
+    metricsPort: 9091
 
 # Placeholder for vdms-vectordb subchart
 vdmsvectordb:
@@ -275,24 +321,13 @@ videosearch:
     type: ClusterIP
     port: 8000
 
-vsscollector:
-  enabled: false
-  name: vss-collector
+metricsmanager:
+  fullnameOverride: metrics-manager
+  coLocateWithDataPrep: true
   image:
-    repository: docker.io/intel/vippet-collector
-    tag: "2025.2.0"
+    repository: intel/metrics-manager
+    tag: "2026.2.0-20260715-weekly"
     pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 9273
-  websocketPath: "/metrics/ws/collector"
-  websocketUrl: ""
-  signalVolume:
-    subPath: collector-signals
-  resources: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
 
 # VSS UI subchart alias conditions. Detailed defaults come from subchart/vss-ui/values.yaml.
 summaryui:

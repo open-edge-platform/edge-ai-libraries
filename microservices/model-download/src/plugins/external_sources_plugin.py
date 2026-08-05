@@ -121,6 +121,7 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
     def _omz_config_keys() -> List[PluginConfigKey]:
         # No keys today; add OMZ-specific keys here when needed.
         return []
+
     @staticmethod
     def _pipeline_zoo_config_keys() -> List[PluginConfigKey]:
         # No keys today; add OMZ-specific keys here when needed.
@@ -247,6 +248,8 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             hub == "omz" and "," in model_name
         )
         target_dir = os.path.join(output_dir, hub) if is_multi else os.path.join(output_dir, hub, model_name)
+        # Register the exact dir so cancellation cleans up only this model.
+        kwargs.get("_model_download_dir", []).append(target_dir)
 
         # The 'remote-url' hub takes the archive URL from the request and validates
         # it against the allowlist before download.
@@ -262,7 +265,7 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
 
         try:
             if kind == "omz":
-                self._fetch_omz(hub, model_name, target_dir)
+                self._fetch_omz(hub, model_name, target_dir, active_processes=kwargs.get("_active_processes"))
             elif kind == "tarball":
                 self._fetch_tarball(hub, model_name, profile, target_dir, runtime_url=runtime_url)
             else:
@@ -517,11 +520,11 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
                 raise RuntimeError(msg)
 
 
-    def _fetch_omz(self, hub: str, model_name: str, target_dir: str) -> None:
+    def _fetch_omz(self, hub: str, model_name: str, target_dir: str, active_processes=None) -> None:
         """Download and convert an OMZ model using omz_downloader/omz_converter."""
         if "," in model_name:
             for name in self._parse_comma_names(model_name):
-                self._fetch_omz(hub, name, os.path.join(target_dir, name))
+                self._fetch_omz(hub, name, os.path.join(target_dir, name), active_processes=active_processes)
             return
 
         omz_downloader = _OMZ_VENV_BIN / "omz_downloader"
@@ -549,7 +552,7 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
                 "--output_dir",
                 tmp_dir,
             ]
-            self._run_omz_tool(download_cmd)
+            self._run_omz_tool(download_cmd, active_processes=active_processes)
 
             # Convert
             logger.info("external_sources_omz_converting", hub=hub, model_name=model_name)
@@ -567,7 +570,7 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             if mo_executable:
                 convert_cmd.extend(["--mo", mo_executable])
 
-            self._run_omz_tool(convert_cmd)
+            self._run_omz_tool(convert_cmd, active_processes=active_processes)
 
             # Move converted artefacts: omz_converter produces intel/ or public/ subdirs
             self._materialize_omz_artefacts(model_name, tmp_dir, target_dir)
@@ -718,7 +721,7 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
         )
 
     @staticmethod
-    def _run_omz_tool(command: List[str]) -> None:
+    def _run_omz_tool(command: List[str], active_processes=None) -> None:
         """Run an OMZ CLI tool and raise on failure."""
         try:
             env = os.environ.copy()
@@ -726,25 +729,29 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             if os.path.isdir(omz_bin_dir):
                 env["PATH"] = omz_bin_dir + os.pathsep + env.get("PATH", "")
 
-            result = subprocess.run(
+            proc = subprocess.Popen(
                 command,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                check=False,
                 env=env,
             )
-            if result.returncode != 0:
-                stdout = result.stdout.strip() if result.stdout else "<empty>"
-                stderr = result.stderr.strip() if result.stderr else "<empty>"
-                details = f"stderr: {stderr}"
-                if stdout and stdout != "<empty>":
-                    details += f"\nstdout: {stdout}"
+            # Register for cancellation support
+            if active_processes is not None:
+                active_processes.append(proc)
+            stdout, stderr = proc.communicate()
+            if proc.returncode != 0:
+                stdout_str = stdout.strip() if stdout else "<empty>"
+                stderr_str = stderr.strip() if stderr else "<empty>"
+                details = f"stderr: {stderr_str}"
+                if stdout_str and stdout_str != "<empty>":
+                    details += f"\nstdout: {stdout_str}"
                 raise RuntimeError(
-                    f"OMZ tool failed (rc={result.returncode}): {' '.join(command)}\n"
+                    f"OMZ tool failed (rc={proc.returncode}): {' '.join(command)}\n"
                     f"{details}"
                 )
-            if result.stdout:
-                logger.debug("omz_tool_output", output=result.stdout.strip())
+            if stdout:
+                logger.debug("omz_tool_output", output=stdout.strip())
         except FileNotFoundError as e:
             raise RuntimeError(f"OMZ tool not found: {command[0]}") from e
 
@@ -797,4 +804,3 @@ class ExternalSourcesPlugin(ModelDownloadPlugin):
             model_name=model_name,
             target=target_dir,
         )
-

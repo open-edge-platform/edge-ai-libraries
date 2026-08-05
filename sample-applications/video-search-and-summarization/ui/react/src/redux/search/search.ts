@@ -31,6 +31,24 @@ export interface SearchResultBody {
   results: SearchResult[];
 }
 
+export interface ScoreBreakdown {
+  score: number;
+  raw_score?: number;
+  raw_score_min?: number;
+  raw_score_max?: number;
+  max_frame_score?: number;
+  top_n_avg_score?: number;
+  top_n_frame_count?: number;
+  avg_frame_score?: number;
+  quality_score?: number;
+  frame_count?: number;
+  contextual_weight?: number;
+  contextual_boost_factor?: number;
+  contextual_sigma_seconds?: number;
+  segment_best_timestamp?: number | null;
+  global_peak_timestamp?: number | null;
+}
+
 export interface SearchResult {
   id: string | null;
   metadata: {
@@ -59,6 +77,7 @@ export interface SearchResult {
     video_url: string;
     year: number;
     relevance_score: number;
+    score_breakdown?: ScoreBreakdown;
   };
   page_content: string;
   type: string;
