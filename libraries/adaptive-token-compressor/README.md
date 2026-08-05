@@ -27,30 +27,16 @@ Both services must be deployed before using the compression features.
 
 ## Installation
 
-### Recommended Installation
-
-```bash
-pip install "adaptive-token-compressor[claw-compactor]"
-```
-
-Then deploy Lingua Server & Tool Prediction using Docker (see [Deploy Lingua Server](#deploy-lingua-server) and [Deploy LLM for Tool Prediction](#deploy-llm-for-tool-prediction) below).
-
-
-
-### Minimal Installation (without Claw Compactor)
-
-If you do not need Claw Compactor locally:
-
 ```bash
 pip install adaptive-token-compressor
 ```
+After install  adaptive-token-compressor, please deploy Lingua Server & Tool Prediction using Docker (see [Deploy Lingua Server](#deploy-lingua-server) and [Deploy LLM for Tool Prediction](#deploy-llm-for-tool-prediction) below).
 
-**Without Claw Compactor**, HarnessCompressor will use basic Lingua compression only.
 
 ### Development Installation
 
 ```bash
-pip install "adaptive-token-compressor[claw-compactor,dev]"
+pip install "adaptive-token-compressor[dev]"
 ```
 
 ## Deploy Lingua Server

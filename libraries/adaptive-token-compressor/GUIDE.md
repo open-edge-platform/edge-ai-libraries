@@ -99,8 +99,7 @@ compressor = HarnessCompressor(
     lingua_url="http://localhost:8001/compress",
     compress_rate=0.5,
     compress_min_chars=500,
-    timeout=60.0,
-    enable_quantum_lock=True  # Requires claw-compactor
+    timeout=60.0
 )
 ```
 

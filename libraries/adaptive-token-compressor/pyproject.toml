@@ -5,8 +5,9 @@
 # for the upstream FastAPI / vLLM services.
 #
 # Notes for installers:
-#   - The default install only pulls `requests`, which is enough for SDK
-#     callers that hit an externally-deployed lingua / tool-predictor server.
+#   - The default install pulls the SDK client deps plus `claw-compactor`,
+#     which HarnessCompressor uses for content-type-aware compression.
+#     `claw-compactor` resolves from PyPI like any other dep.
 #   - The `lingua-server` extras require Intel XPU wheels; pip needs explicit
 #     `--extra-index-url` flags (pyproject cannot encode index URLs).
 [build-system]
@@ -23,7 +24,8 @@ license = { text = "Apache-2.0" }
 dependencies = [
     "requests>=2.31",
     "tiktoken>=0.7",
-    "cachetools>=5.3",   # CompressionManager-owned per-compressor LRUCache (see core/cache.py)
+    "cachetools>=5.3",
+    "claw-compactor>=7,<8",
 ]
 
 [project.optional-dependencies]
@@ -65,11 +67,6 @@ lingua-server-cpu = [
     "uvicorn[standard]>=0.27",
     "huggingface-hub>=0.20",
 ]
-# claw-compactor for content-type-aware compression in `harness/`.
-# Cortex detects content_type (text / json / code / diff / log / search);
-# code/diff/log/search route to a safe FusionEngine (Nexus + Abbrev disabled).
-# Without this extra, HarnessCompressor falls back to lingua plain.
-claw-compactor = ["claw-compactor>=0.1"]
 dev = ["pytest>=8", "responses>=0.25", "httpx>=0.27", "ruff", "mypy"]
 
 # Ship LICENSE in the wheel's .dist-info so `pip install` users receive it
