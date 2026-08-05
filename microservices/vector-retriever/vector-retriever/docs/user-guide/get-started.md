@@ -18,73 +18,129 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 
 Core variables:
 
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `RETRIEVER_BACKEND` | No | `vdms` | Backend flavor: `vdms`, `milvus`, `pgvector`, `faiss`. |
-| `MULTIMODAL_EMBEDDING_ENDPOINT` | No | `http://multimodal-embedding-serving:8000/embeddings` | VSS-style embedding endpoint name used by `setup.sh` and compose overlays. |
-| `EMBEDDINGS_ENDPOINT` | No | value of `MULTIMODAL_EMBEDDING_ENDPOINT` | Runtime embedding API endpoint consumed by the retriever service. |
-| `EMBEDDING_MODEL_NAME` | Yes | _(empty)_ | Embedding model name sent to embedding API. |
-| `INDEX_NAME` | No | `video_frame_embeddings` | Vector collection/index name. |
-| `DEFAULT_TOP_K` | No | `20` | Default `top_k` when omitted in query. |
-| `MAX_TOP_K` | No | `1000` | Maximum allowed `top_k`. |
-| `VECTOR_RETRIEVER_HOST_PORT` | No | `6008` | Host port published by Docker Compose. |
-| `VECTOR_RETRIEVER_LOG_LEVEL` | No | `INFO` | Log level passed into the container as `LOG_LEVEL`. |
+| Variable                        | Required | Default                                               | Description                                                                |
+| ------------------------------- | -------- | ----------------------------------------------------- | -------------------------------------------------------------------------- |
+| `RETRIEVER_BACKEND`             | No       | `vdms`                                                | Backend flavor: `vdms`, `milvus`, `pgvector`, `faiss`.                     |
+| `MULTIMODAL_EMBEDDING_ENDPOINT` | No       | `http://multimodal-embedding-serving:8000/embeddings` | VSS-style embedding endpoint name used by `setup.sh` and compose overlays. |
+| `EMBEDDINGS_ENDPOINT`           | No       | value of `MULTIMODAL_EMBEDDING_ENDPOINT`              | Runtime embedding API endpoint consumed by the retriever service.          |
+| `EMBEDDING_MODEL_NAME`          | Yes      | _(empty)_                                             | Embedding model name sent to embedding API.                                |
+| `INDEX_NAME`                    | No       | `video_frame_embeddings`                              | Vector collection/index name.                                              |
+| `DEFAULT_TOP_K`                 | No       | `20`                                                  | Default `top_k` when omitted in query.                                     |
+| `MAX_TOP_K`                     | No       | `1000`                                                | Maximum allowed `top_k`.                                                   |
+| `VECTOR_RETRIEVER_HOST_PORT`    | No       | `6008`                                                | Host port published by Docker Compose.                                     |
+| `VECTOR_RETRIEVER_LOG_LEVEL`    | No       | `INFO`                                                | Log level passed into the container as `LOG_LEVEL`.                        |
 
-VDMS backend:
+Available backend-specific variables (you only need to set the ones for your chosen backend):
 
-| Variable | Required | Default |
-| --- | --- | --- |
-| `VDMS_VDB_HOST` | Yes for `vdms` | `vdms-vector-db` |
-| `VDMS_VDB_PORT` | Yes for `vdms` | `55555` |
-| `SEARCH_ENGINE` | No | `FaissFlat` |
-| `DISTANCE_STRATEGY` | No | `IP` |
+<!--hide_directive ::::{tab-set} hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **VDMS**
+<!--hide_directive :sync: vdms hide_directive-->
 
-Milvus backend:
+| Variable            | Required       | Default          |
+| ------------------- | -------------- | ---------------- |
+| `VDMS_VDB_HOST`     | Yes for `vdms` | `vdms-vector-db` |
+| `VDMS_VDB_PORT`     | Yes for `vdms` | `55555`          |
+| `SEARCH_ENGINE`     | No             | `FaissFlat`      |
+| `DISTANCE_STRATEGY` | No             | `IP`             |
 
-| Variable | Required | Default |
-| --- | --- | --- |
-| `MILVUS_URI` | Yes for `milvus` | `http://milvus-server:19530` |
-| `MILVUS_TOKEN` | No | _(empty)_ |
-| `MILVUS_DB_NAME` | No | _(empty)_ |
-| `MILVUS_INDEX_TYPE` | No | `FLAT` |
-| `MILVUS_METRIC_TYPE` | No | `L2` |
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **Milvus**
+<!--hide_directive :sync: milvus hide_directive-->
 
-PGVector backend:
+| Variable             | Required         | Default                      |
+| -------------------- | ---------------- | ---------------------------- |
+| `MILVUS_URI`         | Yes for `milvus` | `http://milvus-server:19530` |
+| `MILVUS_TOKEN`       | No               | _(empty)_                    |
+| `MILVUS_DB_NAME`     | No               | _(empty)_                    |
+| `MILVUS_INDEX_TYPE`  | No               | `FLAT`                       |
+| `MILVUS_METRIC_TYPE` | No               | `L2`                         |
 
-| Variable | Required | Default |
-| --- | --- | --- |
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **PGVector**
+<!--hide_directive :sync: pgvector hide_directive-->
+
+| Variable                     | Required           | Default                                                            |
+| ---------------------------- | ------------------ | ------------------------------------------------------------------ |
 | `PGVECTOR_CONNECTION_STRING` | Yes for `pgvector` | `postgresql+psycopg://postgres:postgres@pgvector-db:5432/postgres` |
 
-FAISS backend:
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **FAISS**
+<!--hide_directive :sync: faiss hide_directive-->
 
-| Variable | Required | Default |
-| --- | --- | --- |
-| `FAISS_INDEX_PATH` | No | _(empty)_ |
+| Variable           | Required | Default   |
+| ------------------ | -------- | --------- |
+| `FAISS_INDEX_PATH` | No       | _(empty)_ |
+
+<!--hide_directive
+:::
+::::
+hide_directive-->
 
 MME embedding backend (used by all overlays):
 
-| Variable | Required | Default |
-| --- | --- | --- |
-| `EMBEDDING_MODEL_NAME` | Yes | _(empty)_ |
-| `EMBEDDING_DEVICE` | No | `CPU` |
-| `EMBEDDING_USE_OV` | No | `true` |
-| `EMBEDDING_SERVER_PORT` | No | `9777` |
-| `MULTIMODAL_EMBEDDING_HOST` | No | `multimodal-embedding-serving` |
-| `MULTIMODAL_EMBEDDING_PORT` | No | `8000` |
-| `MULTIMODAL_EMBEDDING_ENDPOINT` | No | `http://multimodal-embedding-serving:8000/embeddings` |
+| Variable                        | Required | Default                                               |
+| ------------------------------- | -------- | ----------------------------------------------------- |
+| `EMBEDDING_MODEL_NAME`          | Yes      | _(empty)_                                             |
+| `EMBEDDING_DEVICE`              | No       | `CPU`                                                 |
+| `EMBEDDING_USE_OV`              | No       | `true`                                                |
+| `EMBEDDING_SERVER_PORT`         | No       | `9777`                                                |
+| `MULTIMODAL_EMBEDDING_HOST`     | No       | `multimodal-embedding-serving`                        |
+| `MULTIMODAL_EMBEDDING_PORT`     | No       | `8000`                                                |
+| `MULTIMODAL_EMBEDDING_ENDPOINT` | No       | `http://multimodal-embedding-serving:8000/embeddings` |
 
 ## Set Environment Values
 
 Set the required environment variables before launching the service. <!--You can use the correct
 tab below to set the backend for your use case.-->
 
+<!--hide_directive ::::{tab-set} hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **VDMS**
+<!--hide_directive :sync: vdms hide_directive-->
+
 ```bash
-# Choose one backend: vdms | milvus | pgvector | faiss
 export RETRIEVER_BACKEND=vdms
 export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
 # Optional when using an external embedding service instead of the local MME overlay:
 # export EMBEDDINGS_ENDPOINT=http://<embedding-service-host>:<port>/embeddings
 ```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **Milvus**
+<!--hide_directive :sync: milvus hide_directive-->
+
+```bash
+export RETRIEVER_BACKEND=milvus
+export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+# Optional when using an external embedding service instead of the local MME overlay:
+# export EMBEDDINGS_ENDPOINT=http://<embedding-service-host>:<port>/embeddings
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **PGVector**
+<!--hide_directive :sync: pgvector hide_directive-->
+
+```bash
+export RETRIEVER_BACKEND=pgvector
+export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+# Optional when using an external embedding service instead of the local MME overlay:
+# export EMBEDDINGS_ENDPOINT=http://<embedding-service-host>:<port>/embeddings
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **FAISS**
+<!--hide_directive :sync: faiss hide_directive-->
+
+```bash
+export RETRIEVER_BACKEND=faiss
+export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+# Optional when using an external embedding service instead of the local MME overlay:
+# export EMBEDDINGS_ENDPOINT=http://<embedding-service-host>:<port>/embeddings
+```
+
+<!--hide_directive
+:::
+::::
+hide_directive-->
 
 > **Note:** For valid `EMBEDDING_MODEL_NAME` values, see the Multi Modal Embedding (MME) supported models list: [Supported Models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html).
 
@@ -104,24 +160,51 @@ The microservice supports additional optional variables to tune filters, limits,
 
 **Quick Configuration Examples**:
 
+<!--hide_directive ::::{tab-set} hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **VDMS**
+<!--hide_directive :sync: vdms hide_directive-->
+
 ```bash
 # Default VDMS backend
 export RETRIEVER_BACKEND=vdms
 export VDMS_VDB_HOST=vdms-vector-db
 export VDMS_VDB_PORT=55555
+```
 
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **Milvus**
+<!--hide_directive :sync: milvus hide_directive-->
+
+```bash
 # Milvus backend
 export RETRIEVER_BACKEND=milvus
 export MILVUS_URI=http://milvus-server:19530
+```
 
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **PGVector**
+<!--hide_directive :sync: pgvector hide_directive-->
+
+```bash
 # PGVector backend
 export RETRIEVER_BACKEND=pgvector
 export PGVECTOR_CONNECTION_STRING=postgresql+psycopg://user:pass@host:5432/db
+```
 
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **FAISS**
+<!--hide_directive :sync: faiss hide_directive-->
+
+```bash
 # FAISS backend (optional persisted local index)
 export RETRIEVER_BACKEND=faiss
 export FAISS_INDEX_PATH=./data/faiss_index
 ```
+
+<!--hide_directive
+:::
+::::
+hide_directive-->
 
 **Key Environment Variables**:
 
@@ -148,21 +231,87 @@ You can [build the Docker image](./get-started/build-from-source.md#steps-to-bui
 
 ### Start using `RETRIEVER_BACKEND`
 
+<!--hide_directive ::::{tab-set} hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **VDMS**
+<!--hide_directive :sync: vdms hide_directive-->
+
 ```bash
 export RETRIEVER_BACKEND=vdms
 source setup.sh
 ```
 
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **Milvus**
+<!--hide_directive :sync: milvus hide_directive-->
+
+```bash
+export RETRIEVER_BACKEND=milvus
+source setup.sh
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **PGVector**
+<!--hide_directive :sync: pgvector hide_directive-->
+
+```bash
+export RETRIEVER_BACKEND=pgvector
+source setup.sh
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **FAISS**
+<!--hide_directive :sync: faiss hide_directive-->
+
+```bash
+export RETRIEVER_BACKEND=faiss
+source setup.sh
+```
+
+<!--hide_directive
+:::
+::::
+hide_directive-->
+
 ### Start with one-shot backend flags
 
 Each one-shot flag automatically sets `RETRIEVER_BACKEND` to the matching backend for the current shell before startup.
 
+<!--hide_directive ::::{tab-set} hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **VDMS**
+<!--hide_directive :sync: vdms hide_directive-->
+
 ```bash
 source setup.sh --up-with-vdms
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **Milvus**
+<!--hide_directive :sync: milvus hide_directive-->
+
+```bash
 source setup.sh --up-with-milvus
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **PGVector**
+<!--hide_directive :sync: pgvector hide_directive-->
+
+```bash
 source setup.sh --up-with-pgvector
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **FAISS**
+<!--hide_directive :sync: faiss hide_directive-->
+
+```bash
 source setup.sh --up-with-faiss
 ```
+
+<!--hide_directive
+:::
+::::
+hide_directive-->
 
 When you use the backend overlay flow above, Docker starts:
 
@@ -222,7 +371,7 @@ Use the commands below based on how much cleanup you need.
 source setup.sh --down
 ```
 
-This stops vector-retriever and overlay services across all backend compose files.
+This stops `vector-retriever` and overlay services across all backend compose files.
 
 ### Stop services and remove stack data (`--clean-data`)
 
@@ -256,9 +405,42 @@ curl --location --request GET 'http://localhost:6008/capabilities/filters'
 
 ### Filter Capabilities (Single Backend)
 
+<!--hide_directive ::::{tab-set} hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **VDMS**
+<!--hide_directive :sync: vdms hide_directive-->
+
+```bash
+curl --location --request GET 'http://localhost:6008/capabilities/filters?backend=vdms'
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **Milvus**
+<!--hide_directive :sync: milvus hide_directive-->
+
 ```bash
 curl --location --request GET 'http://localhost:6008/capabilities/filters?backend=milvus'
 ```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **PGVector**
+<!--hide_directive :sync: pgvector hide_directive-->
+
+```bash
+curl --location --request GET 'http://localhost:6008/capabilities/filters?backend=pgvector'
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **FAISS**
+<!--hide_directive :sync: faiss hide_directive-->
+
+```bash
+curl --location --request GET 'http://localhost:6008/capabilities/filters?backend=faiss'
+```
+
+<!--hide_directive
+:::
+::::
+hide_directive-->
 
 ### Query with `where` and Top-K
 
@@ -316,7 +498,7 @@ curl --location 'http://localhost:6008/query' \
 ]'
 ```
 
-> **_NOTE:_** `query` and `image` are mutually exclusive. Providing both returns `422`.
+> **Note:** `query` and `image` are mutually exclusive. Providing both returns `422`.
 
 ### Query with Time Filter
 
@@ -358,12 +540,48 @@ Run tests from this service root directory.
 
 ### Install test dependencies
 
-Pick the backend dependency group you want to validate (`vdms`, `milvus`, `pgvector`, or `faiss`) and install with dev dependencies:
+Pick the backend dependency group you want to validate and install with dev dependencies:
+
+<!--hide_directive ::::{tab-set} hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **VDMS**
+<!--hide_directive :sync: vdms hide_directive-->
 
 ```bash
 export RETRIEVER_BACKEND=vdms
 poetry install --only "main,backend-${RETRIEVER_BACKEND},dev" --no-root
 ```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **Milvus**
+<!--hide_directive :sync: milvus hide_directive-->
+
+```bash
+export RETRIEVER_BACKEND=milvus
+poetry install --only "main,backend-${RETRIEVER_BACKEND},dev" --no-root
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **PGVector**
+<!--hide_directive :sync: pgvector hide_directive-->
+
+```bash
+export RETRIEVER_BACKEND=pgvector
+poetry install --only "main,backend-${RETRIEVER_BACKEND},dev" --no-root
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **FAISS**
+<!--hide_directive :sync: faiss hide_directive-->
+
+```bash
+export RETRIEVER_BACKEND=faiss
+poetry install --only "main,backend-${RETRIEVER_BACKEND},dev" --no-root
+```
+
+<!--hide_directive
+:::
+::::
+hide_directive-->
 
 ### Run unit tests
 
@@ -394,33 +612,62 @@ Run all backend functional tests:
 RUN_FUNCTIONAL_BACKEND_TESTS=1 PYTHONPATH=. poetry run pytest -q tests/functional
 ```
 
-Run one backend only (example: PGVector):
+Run one backend only:
+
+<!--hide_directive ::::{tab-set} hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **VDMS**
+<!--hide_directive :sync: vdms hide_directive-->
+
+```bash
+RUN_FUNCTIONAL_BACKEND_TESTS=1 PYTHONPATH=. poetry run pytest -q tests/functional/test_vdms_filters.py
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **Milvus**
+<!--hide_directive :sync: milvus hide_directive-->
+
+```bash
+RUN_FUNCTIONAL_BACKEND_TESTS=1 PYTHONPATH=. poetry run pytest -q tests/functional/test_milvus_filters.py
+```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **PGVector**
+<!--hide_directive :sync: pgvector hide_directive-->
 
 ```bash
 RUN_FUNCTIONAL_BACKEND_TESTS=1 PYTHONPATH=. poetry run pytest -q tests/functional/test_pgvector_filters.py
 ```
+
+<!--hide_directive ::: hide_directive-->
+<!--hide_directive :::{tab-item} hide_directive--> **FAISS**
+<!--hide_directive :sync: faiss hide_directive-->
+
+```bash
+RUN_FUNCTIONAL_BACKEND_TESTS=1 PYTHONPATH=. poetry run pytest -q tests/functional/test_faiss_filters.py
+```
+
+<!--hide_directive
+:::
+::::
+hide_directive-->
 
 > **Note:** Functional tests are intentionally heavier than unit tests and require Docker.
 
 ## Troubleshooting
 
 - **Container fails to start**
-
   - Run `docker logs vector-retriever` (or the compose service container name) to inspect startup failures.
   - Ensure required ports (default `6008`) are available.
 
 - **Readiness check fails**
-
   - Confirm the embedding endpoint configured by `EMBEDDINGS_ENDPOINT` is reachable from the container.
   - Confirm backend-specific connectivity (VDMS/Milvus/PGVector) is valid.
 
 - **No results returned**
-
   - Verify index/collection name (`INDEX_NAME`) matches where embeddings were stored.
   - Reduce filters temporarily to isolate backend filter translation issues.
 
 - **Configuration changes not applied**
-
   - Re-run `source setup.sh` after changing environment variables.
   - Use `source setup.sh --conf` to inspect rendered compose configuration.
 
