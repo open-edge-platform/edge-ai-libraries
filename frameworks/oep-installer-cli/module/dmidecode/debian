@@ -1,0 +1,10 @@
+
+debian_05_install_dmidecode () {
+  if dpkg-query -L dmidecode > /dev/null 2>&1; then
+    echo "Dmidecode is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y dmidecode
+  fi
+}
+

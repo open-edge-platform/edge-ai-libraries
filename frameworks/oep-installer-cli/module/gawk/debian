@@ -1,5 +1,5 @@
 
-debian_10_install_gawk () {
+debian_05_install_gawk () {
   if dpkg-query -L gawk > /dev/null 2>&1; then
     echo "Gawk is already installed. Skipping..."
   else

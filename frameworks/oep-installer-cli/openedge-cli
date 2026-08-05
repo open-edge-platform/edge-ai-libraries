@@ -129,7 +129,7 @@ act_helpper () {
           $handler $(act_extract_args $act_name $name $*)
         ) > >(logecho $name) 2> >(logecho $name)
         local rc1=$?
-        reports+=("$name:rc=$rc1:$(( SECONDS - start_c )) seconds")
+        reports+=("$name|rc=$rc1|$(( SECONDS - start_c )) seconds")
         if [ $rc1 -ne 0 ]; then
           rc=$rc1
           [[ " $* " = *" --continue "* ]] || break
@@ -144,12 +144,12 @@ act_helpper () {
       echo
       echo "======== ${act_name^^} REPORT ========"
       for line in "${reports[@]}"; do
-        if [[ "$line" = *":rc=0:"* ]]; then
+        if [[ "$line" = *"|rc=0|"* ]]; then
           echo "$line"
         else
           echo -e "\033[31m$line\033[0m"
         fi
-      done | column -s: -t
+      done | ensure_columns
       echo "Total duration: $(( end_t - start_t )) seconds"
     fi
     return $rc
@@ -193,8 +193,8 @@ subcommand_list () {
         local profile_modules=($($profiler $cmd))
         [ ${#profile_modules[@]} -eq 0 ] || profile_cmds+=($cmd)
       done
-      echo ",$profile_name,[${profile_cmds[*]}]"
-    done | column -s, -t
+      echo "|$profile_name|[${profile_cmds[*]}]"
+    done | ensure_columns
     echo
   fi
 
@@ -206,8 +206,8 @@ subcommand_list () {
       for cmd in ${all_cmds[*]/list/}; do
         declare -F | grep -q -E " ${ID_LIKE}_[0-9]+_${cmd}_${module_name}$" && module_cmds+=($cmd)
       done
-      echo ",$module_name,[${module_cmds[*]}]"
-    done | column -s, -t
+      echo "|$module_name|[${module_cmds[*]}]"
+    done | ensure_columns
     echo
   fi
 }

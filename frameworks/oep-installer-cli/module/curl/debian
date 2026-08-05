@@ -1,5 +1,5 @@
 
-debian_10_install_curl () {
+debian_05_install_curl () {
   if dpkg-query -L curl > /dev/null 2>&1; then
     echo "Curl is already installed. Skipping..."
   else
