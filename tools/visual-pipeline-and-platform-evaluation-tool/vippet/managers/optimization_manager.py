@@ -140,9 +140,12 @@ class OptimizationRunner:
             f"allowed_devices={allowed_devices}"
         )
 
-        optimized_pipeline, total_fps = opt.optimize_for_fps(
+        optimized_pipeline, metrics = opt.optimize_for_fps(
             pipeline_description, search_duration=search_duration
         )
+
+        # DLStreamer optimizer may return a metrics dict or a bare float.
+        total_fps = metrics["fps"] if isinstance(metrics, dict) else metrics
 
         return PipelineOptimizationResult(
             optimized_pipeline_description=optimized_pipeline, total_fps=total_fps

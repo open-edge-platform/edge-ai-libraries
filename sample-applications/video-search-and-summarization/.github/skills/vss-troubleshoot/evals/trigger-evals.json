@@ -16,7 +16,7 @@
   {"query": "Can I run the VSS pipeline on a Kubernetes cluster instead of Docker Compose?", "should_trigger": false},
   {"query": "How do I build the VSS Docker images from source using build.sh?", "should_trigger": false},
   {"query": "I want to change the nginx port from 12345 to 8080 in setup.sh - which variable controls that?", "should_trigger": false},
-  {"query": "What does the vss-dataprep service do and how does EMBEDDING_PROCESSING_MODE affect indexing performance?", "should_trigger": false},
+  {"query": "What does the multimodal-dataprep service do and how does FRAME_INTERVAL affect indexing performance?", "should_trigger": false},
   {"query": "How do I submit a video for summarization through the pipeline-manager REST API?", "should_trigger": false},
   {"query": "What React components make up the VSS unified UI and how are they structured?", "should_trigger": false}
 ]

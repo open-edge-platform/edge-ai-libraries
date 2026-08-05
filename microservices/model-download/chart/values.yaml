@@ -11,7 +11,7 @@ modeldownload:
   name: model-download
   image:
     registry: "intel/"
-    tag: 2026.2.0-ww31
+    tag: latest
     pullPolicy: IfNotPresent
 
   startupConfig:

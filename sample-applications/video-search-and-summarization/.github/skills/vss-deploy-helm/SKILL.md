@@ -5,7 +5,7 @@ description: Use this skill whenever a developer needs to deploy VSS to Kubernet
 
 # VSS Helm deploy
 
-Use this workflow for the VSS sample app Helm chart at `sample-applications/video-search-and-summarization/chart`. The chart’s real dependencies are `ovms`, `minioserver`, `audioanalyzer`, `postgresql`, `rabbitmq`, `videoingestion`, `videosearch`, `vdmsvectordb`, `vdmsdataprep`, `multimodalembeddingms`, `vllm` (alias of `vllm-server`), `summaryui`, and `searchui` (aliases of `vssui`).
+Use this workflow for the VSS sample app Helm chart at `sample-applications/video-search-and-summarization/chart`. The chart’s real dependencies are `ovms`, `minioserver`, `audioanalyzer`, `postgresql`, `rabbitmq`, `videoingestion`, `videosearch`, `vdmsvectordb`, `multimodaldataprep`, `multimodalembeddingms`, `vectorretriever`, `vllm` (alias of `vllm-server`), `summaryui`, and `searchui` (aliases of `vssui`).
 
 If the user asks to map Compose or `setup.sh` settings to Helm values, read `references/helm-values-map.md`.
 
@@ -69,7 +69,6 @@ Minimum required values for most modes:
 global:
   usePvc: true
   keepPvc: true
-  sharedPvcName: vss-shared-pvc  # collector signals only
   huggingfaceToken: "hf_..."   # needed for gated/private Hugging Face models
   vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"
   llmName: ""                  # optional OVMS split-model summarization model
@@ -90,18 +89,29 @@ global:
     MINIO_ROOT_PASSWORD: "change-me-8chars"
     RABBITMQ_DEFAULT_USER: "guest"
     RABBITMQ_DEFAULT_PASS: "change-me"
+
+# Summary/OVMS model workspace:
+ovms:
+  claimSize: "20Gi"
+
+# Search model caches (needed only when search is enabled):
+multimodaldataprep:
+  modelPvc:
+    enabled: true
+    size: "10Gi"
+multimodalembeddingms:
+  modelPvc:
+    enabled: true
+    size: "10Gi"
 ```
 
 Why these matter:
-- `global.usePvc` enables the chart's service-specific PVCs. OVMS,
-  video-ingestion, DataPrep, and multimodal embedding each use their own model
-  PVC settings.
-- `global.sharedPvcName` and `sharedClaimSize` apply only to collector signal
-  exchange between pipeline-manager and `vss-collector`.
-- `global.keepPvc: true` retains service PVCs whose templates honor that global
-  setting, avoiding model re-downloads but potentially preserving incompatible
-  old state. The vLLM subchart's `vllm-model-cache` PVC does not currently honor
-  `global.keepPvc` and is deleted with the release.
+- `global.usePvc` enables the service-specific claims; OVMS, video-ingestion, Multimodal DataPrep, and the embedding service no longer share one PVC.
+- `global.keepPvc: true` avoids re-downloading/re-converting models after uninstall, but stale PVCs can also preserve incompatible old state. The vLLM
+  subchart's `vllm-model-cache` PVC does not currently honor `global.keepPvc`
+  and is deleted with the release.
+- `ovms.claimSize` sizes the summary-mode OVMS model workspace.
+- `multimodaldataprep.modelPvc` and `multimodalembeddingms.modelPvc` independently configure search model caches.
 - `global.vlmName` is required for summary/unified modes and is used by OVMS or by vLLM.
 - `global.embeddingModelName` is required when search components are enabled.
 - `global.modelDownload` controls the image used by the OVMS and video-ingestion
@@ -117,7 +127,8 @@ Use exactly these chart override files:
 |---|---|---|
 | `source setup.sh --summary` | `-f summary_override.yaml -f user_values_override.yaml` | `rabbitmq`, `ovms`, `videoingestion`, `audioanalyzer`, `summaryui`; `pipelinemanager.env.SUMMARY_FEATURE=FEATURE_ON` |
 | `--summary` with `ENABLE_VLLM=true` | `-f summary_override.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml` | summary mode plus `vllm.enabled=true`, `ovms.enabled=false`, `pipelinemanager.env.USE_VLLM=CONFIG_ON` |
-| `source setup.sh --search` | `-f search_override.yaml -f user_values_override.yaml` | `multimodalembeddingms`, `vdmsdataprep`, `vdmsvectordb`, `videosearch`, `searchui`; `global.vdmsIndexName=video_frame_embeddings` |
+| `source setup.sh --search` | `-f search_override.yaml -f user_values_override.yaml` | `multimodalembeddingms`, `multimodaldataprep`, `vdmsvectordb`, `vectorretriever`, `videosearch`, `searchui`; `global.vdmsIndexName=video_frame_embeddings` |
+| `VECTORDB_BACKEND=milvus` + `source setup.sh --search` | `-f search_override.yaml -f search_milvus_override.yaml -f user_values_override.yaml` | switches search backend to Milvus (`global.vectordbBackend=milvus`), enables `milvusstandalone`, disables `vdmsvectordb`, keeps `multimodaldataprep` + `vectorretriever` + `videosearch` |
 | `--summary-and-search` / `--all` / `--unified` | `-f unified_summary_search.yaml -f user_values_override.yaml` | combined search+summary in one `summaryui` named `unified-ui`; `global.vdmsIndexName=video_summary_embeddings` |
 | unified with vLLM | `-f unified_summary_search.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml` | unified mode plus vLLM backend |
 | dual separate UIs | `-f summary_override.yaml -f search_override.yaml -f user_values_override.yaml` | both `summaryui` and `searchui`; nginx routes `/summary/` and `/search/` |
@@ -223,7 +234,7 @@ global:
     multimodalEmbedding:
       device: GPU
       key: "gpu.intel.com/i915"
-    vdmsDataprep:
+    multimodalDataprep:
       embedding:
         device: GPU
         key: "gpu.intel.com/i915"
@@ -232,10 +243,11 @@ global:
         key: ""
 ```
 
-Use `global.devices.vdmsDataprep.embedding` for SDK-mode embedding,
-`global.devices.multimodalEmbedding` for API-mode embedding, and
-`global.devices.vdmsDataprep.detection` for DataPrep detection. These settings
-are independent; every GPU/NPU setting requires its own resource `key`.
+Use `global.devices.multimodalDataprep.embedding` for in-process DataPrep
+embedding, `global.devices.multimodalEmbedding` for the query-side embedding
+service, and `global.devices.multimodalDataprep.detection` for DataPrep object
+detection. These settings are independent; every GPU/NPU setting requires its
+own resource `key`.
 
 vLLM tuning keys from the actual `vllm` subchart:
 ```yaml
@@ -337,22 +349,24 @@ curl http://localhost:8081/ovms/metrics
 
 - Helm fails with missing credentials: fill `global.env.POSTGRES_USER`, `global.env.POSTGRES_PASSWORD`, `global.env.MINIO_ROOT_USER`, `global.env.MINIO_ROOT_PASSWORD`, `global.env.RABBITMQ_DEFAULT_USER`, `global.env.RABBITMQ_DEFAULT_PASS`.
 - Helm fails with GPU key errors: set `global.devices.*.key` for every non-CPU device.
-- Model download init container fails: inspect the specific init-container log,
-  verify `global.modelDownload.image`, proxy/token values, model id, device
+- Model download job/init container fails: inspect the specific model-download
+  log, verify `global.modelDownload.image`, proxy/token values, model id, device
   support, and available model storage before debugging the main container.
+- Helm fails with a missing device key: set the matching `key` for any
+  `global.devices.*` entry set to `GPU` or `NPU`.
 - Search returns bad/no results: confirm `global.embeddingModelName` matches the mode and `global.vdmsIndexName` came from the right override file.
-- Reinstall still broken with `global.keepPvc: true`: inspect PVCs and delete
-  only the service-specific PVC containing incompatible data, after the user
-  accepts the loss. For release `vss`, the OVMS cache PVC is
-  `vss-ovms-pvc`; `vss-shared-pvc` is only collector signals:
+- Reinstall still broken with `global.keepPvc: true`: stale PVC contents may be incompatible. Identify the affected mode and delete only its PVCs after the user accepts losing cached models/data.:
   ```bash
-  helm uninstall vss -n "$NAMESPACE"
-  kubectl get pvc -n "$NAMESPACE"
+  # Summary with OVMS:
   kubectl delete pvc vss-ovms-pvc -n "$NAMESPACE"
+
+  # Search model caches:
+  kubectl delete pvc vss-multimodaldataprep-models-pvc \
+    vss-multimodalembeddingms-models-pvc -n "$NAMESPACE"
   ```
 - Need larger storage: set `ovms.claimSize` for converted VLM/LLM models,
   `videoingestion.claimSize` for OD models,
-  `vdmsdataprep.modelPvc.size`/`multimodalembeddingms.modelPvc.size` for search
-  model caches, or the relevant data setting such as `minioserver.claimSize`,
-  `postgresql.claimSize`, `vdmsvectordb.claimSize`, or `vllm.pvc.size`.
-  `sharedClaimSize` only sizes collector-signal storage.
+  `multimodaldataprep.modelPvc.size`/`multimodalembeddingms.modelPvc.size` for
+  search model caches, or the relevant data setting such as
+  `minioserver.claimSize`, `postgresql.claimSize`, `vdmsvectordb.claimSize`, or
+  `vllm.pvc.size`.

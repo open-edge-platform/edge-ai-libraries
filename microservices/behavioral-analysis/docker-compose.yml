@@ -5,8 +5,8 @@ services:
   # ---------- Behavioral Analysis (YOLO Pose + VLM) ----------
   behavioral-analysis:
     build:
-      context: docker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/Dockerfile
     image: intel/behavioral-analysis:${RELEASE_TAG}
     ports:
       - "${BA_SERVICE_PORT:-8085}:8080"
