@@ -89,7 +89,7 @@ A successful response returns the message: `Configuration updated successfully.`
 
 ---
 
-## Step 4. Verify the Time Series Analytics Microservice logs
+### Step 4. Verify the Time Series Analytics Microservice logs
 
 Check that processing is running correctly:
 

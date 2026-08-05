@@ -213,6 +213,11 @@ class PipelineManager:
         with self._pipelines_lock:
             return [deepcopy(p) for p in self.pipelines]
 
+    def get_pipeline_names_by_id(self) -> dict[str, str]:
+        """Return a lightweight mapping of pipeline id to pipeline name."""
+        with self._pipelines_lock:
+            return {pipeline.id: pipeline.name for pipeline in self.pipelines}
+
     def get_model_display_names_used_by_pipelines(self) -> dict[str, list[str]]:
         """
         Return a mapping from model display name to the list of pipeline

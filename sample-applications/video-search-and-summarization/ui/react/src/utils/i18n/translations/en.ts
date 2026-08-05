@@ -108,6 +108,7 @@ export const enTranslations = {
   sampleRate: 'Sample Rate: {{frames}} frames every {{interval}} seconds',
   aiModel: 'Model: {{model}}',
   runningOn: 'Running on: {{device}}',
+  objectDetectionDisabled: 'Object Detection: Disabled',
   frameOverlap: 'Frame Overlap: {{overlap}}',
   multiFrame: 'Multi Frames: {{multiFrame}}',
   noticeMessage: 'Development in progress',

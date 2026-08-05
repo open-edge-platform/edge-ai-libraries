@@ -8,6 +8,9 @@
   <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/scene-understanding-service/README.md">
      Readme
   </a>
+  <a class="icon_document" href="../../scenescape/index.html">
+     Scenescape
+  </a>
 </div>
 hide_directive-->
 
