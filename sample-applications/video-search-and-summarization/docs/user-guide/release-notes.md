@@ -56,7 +56,7 @@
 
 - Updated setup script and nginx configuration files to allow flexible UI routing for each existing mode of deployment (summary mode, search mode, Unified UI Mode) and the new Dual UI mode.
 - Refactored Helm chart to use a reusable `vssui` subchart with multi-mode nginx and consolidated embedding model config under `global.embeddingModelName`.
-- Updated DLStreamer base image to `2026.1.0-ubuntu24-rc1` for Video Ingestion Microservice.
+- Updated DL Streamer base image to `2026.1.0-ubuntu24-rc1` for Video Ingestion Microservice.
 - **Setup Script:** Updated the environment variable to setup embedding models. New `MULTIMODAL_EMBEDDING_MODEL` and the existing `TEXT_EMBEDDING_MODEL` are used to provide embedding models in relevant modes.
 - **Docker Compose:** Replaced `curl` with Python `urllib` package in the container `healthcheck` command for a lighter runtime footprint for Audio Analyzer.
 - **Docker Compose:** Replaced environment variables with hard-coded mount paths. This helps in stopping containers without looking for preset variables.
