@@ -124,7 +124,6 @@ services:
     volumes:
       - ./shared/images/:/images
       - ./shared/videos/:/videos
-      - ./shared/assets/:/assets
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
     image: docker.io/intel/model-download:2026.2.0-20260728-weekly
@@ -273,4 +272,3 @@ services:
       no_proxy: ${no_proxy}
 
 volumes: {}
-
