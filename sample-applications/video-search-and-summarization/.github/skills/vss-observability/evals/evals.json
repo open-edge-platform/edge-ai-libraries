@@ -5,13 +5,13 @@
       "id": 1,
       "prompt_file": "example-prompts/01-enable-telemetry-overlay.md",
       "prompt": "I want to see live CPU, memory, and GPU metrics in the VSS UI while it processes videos. I'm about to deploy in search mode locally. How do I turn on the telemetry stack, and what container(s) will actually get added to my Compose deployment?",
-      "expected_output": "Explains how to enable the optional VSS telemetry overlay, names the compose overlay and added collector service, and distinguishes live UI metrics from Pipeline Manager tracing.",
+      "expected_output": "Explains how to enable the optional VSS metrics overlay, names the Compose overlay and Metrics Manager service, and distinguishes live UI metrics from Pipeline Manager tracing.",
       "files": [],
       "expectations": [
-        "Mentions setting ENABLE_VSS_COLLECTOR=true before sourcing setup.sh, with a supported mode such as source setup.sh --search or source setup.sh --summary --search.",
-        "Names the optional compose overlay file docker/compose.telemetry.yaml.",
-        "Identifies the added service/container as vss-collector and notes it uses the docker.io/intel/vippet-collector:2026.0.0 image.",
-        "References the collector outputs on port 9273 (/metrics) and/or its websocket relay to ws://pipeline-manager:3000/metrics/ws/collector.",
+        "Mentions setting ENABLE_METRICS_MANAGER=true before sourcing setup.sh, with a supported mode such as source setup.sh --search or source setup.sh --summary --search.",
+        "Names the optional compose overlay file docker/compose.metrics-manager.yaml.",
+        "Identifies the added service/container as metrics-manager and notes it uses docker.io/intel/metrics-manager:2026.2.0-20260715-weekly.",
+        "References the health and SSE routes through nginx and/or Prometheus output on port 9273.",
         "Explains that traces come from Pipeline Manager via OTLP_TRACE_URL with service name videoSummary, and that the overlay does not deploy an in-repo OTel collector or trace UI/backend."
       ]
     },
@@ -54,21 +54,21 @@
         "Points to long outbound OpenAI-compatible spans from VlmService.imageInference as VLM captioning bottlenecks and long LLM summarization spans from LlmService.summarizeMapReduce/getChatCompletions as final summary bottlenecks.",
         "Points to long dataprep spans and/or low dataprep_embeddings_per_second as embedding or indexing bottlenecks.",
         "Tells the reader to cross-check trace timing with Pipeline Manager state such as status.videoChunking, status.chunking, frameSummaries IN_PROGRESS, status.summarizing, or embeddingsCreated.",
-        "Mentions comparing against collector signals like /metrics/status and port 9273 metrics, and accurately notes current instrumentation limits such as search-ms lacking app-level OTel traces."
+        "Mentions comparing against Metrics Manager SSE or port 9273 metrics, and accurately notes current instrumentation limits such as search-ms lacking app-level OTel traces."
       ]
     },
     {
       "id": 5,
       "prompt_file": "example-prompts/05-check-collector-health-and-metrics.md",
-      "prompt": "The metrics panel in the VSS UI looks empty \u2014 no CPU or GPU readings are showing up even though I deployed with `ENABLE_VSS_COLLECTOR=true`. How do I check whether the collector is actually connected, and where do the raw numbers come from if I want to look at them directly?",
-      "expected_output": "Explains how to verify the optional vss-collector connection, where to inspect raw metrics, and how to distinguish collector/UI metrics problems from OpenTelemetry tracing problems.",
+      "prompt": "The metrics panel in the VSS UI looks empty \u2014 no CPU or GPU readings are showing up even though I deployed with `ENABLE_METRICS_MANAGER=true`. How do I check Metrics Manager health and its SSE stream, and where can I inspect raw Prometheus numbers?",
+      "expected_output": "Explains how to verify Metrics Manager health and SSE delivery, where to inspect raw metrics, and how to distinguish UI metrics problems from OpenTelemetry tracing problems.",
       "files": [],
       "expectations": [
-        "Uses GET /metrics/status on Pipeline Manager, such as curl http://localhost:3001/metrics/status or the nginx route http://localhost:12345/manager/metrics/status.",
-        "Explains that the status response includes collectorConnected, clientsConnected, and a message such as Collector connected or Collector unavailable; telemetry disabled.",
-        "Suggests checking vss-collector logs and the websocket relay ws://pipeline-manager:3000/metrics/ws/collector if the collector is disconnected.",
+        "Uses GET /metrics-manager/health through nginx or GET /health directly on Metrics Manager.",
+        "Shows how to inspect the /metrics-manager/metrics/stream SSE route with curl -N.",
+        "Suggests checking metrics-manager, multimodal-dataprep, and nginx logs when the stream is empty.",
         "Shows reading raw Prometheus-compatible metrics from curl http://localhost:9273/metrics | head.",
-        "Lists grounded metric signals such as CPU usage_user, memory used_percent, CPU frequency, coretemp_package_id_* temperature, QMassa/GPU readings, and dataprep_embeddings_per_second when dataprep throughput exists."
+        "Lists grounded metric signals such as CPU, RAM, GPU, NPU, and dataprep_embeddings_per_second when dataprep throughput exists."
       ]
     },
     {
@@ -79,8 +79,8 @@
       "files": [],
       "expectations": [
         "States that VSS Compose does not ship Jaeger, Tempo, a Prometheus server, an OpenTelemetry Collector, or a trace UI/backend.",
-        "Describes the optional vss-collector from docker/compose.telemetry.yaml, gated by ENABLE_VSS_COLLECTOR=true, with image docker.io/intel/vippet-collector:2026.0.0.",
-        "Explains that vss-collector exposes a Prometheus-compatible endpoint on port 9273 and relays JSON metrics to Pipeline Manager websocket paths for the UI.",
+        "Describes optional Metrics Manager from docker/compose.metrics-manager.yaml, gated by ENABLE_METRICS_MANAGER=true, with the configured Intel Metrics Manager image.",
+        "Explains that Metrics Manager exposes Prometheus-compatible output on port 9273 and an SSE stream consumed directly by the UI through nginx.",
         "Explains that Pipeline Manager traces use service name videoSummary and export to OTLP_TRACE_URL when set, otherwise ConsoleSpanExporter logs are used.",
         "Notes that a trace viewer/backend must be provided externally and that search-ms currently has no app-level OTel instrumentation."
       ]

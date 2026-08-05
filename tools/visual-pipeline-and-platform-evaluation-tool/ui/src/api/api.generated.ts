@@ -1,6 +1,7 @@
 import { apiSlice as api } from "./apiSlice";
 export const addTagTypes = [
   "health",
+  "benchmarks",
   "convert",
   "devices",
   "jobs",
@@ -25,6 +26,72 @@ const injectedRtkApi = api
       getStatus: build.query<GetStatusApiResponse, GetStatusApiArg>({
         query: () => ({ url: `/status` }),
         providesTags: ["health"],
+      }),
+      getBenchmarks: build.query<GetBenchmarksApiResponse, GetBenchmarksApiArg>(
+        {
+          query: () => ({ url: `/benchmarks` }),
+          providesTags: ["benchmarks"],
+        },
+      ),
+      getAllBenchmarkRuns: build.query<
+        GetAllBenchmarkRunsApiResponse,
+        GetAllBenchmarkRunsApiArg
+      >({
+        query: () => ({ url: `/benchmarks/runs` }),
+        providesTags: ["benchmarks"],
+      }),
+      getBenchmarkSuiteBySlug: build.query<
+        GetBenchmarkSuiteBySlugApiResponse,
+        GetBenchmarkSuiteBySlugApiArg
+      >({
+        query: (queryArg) => ({ url: `/benchmarks/${queryArg.suiteSlug}` }),
+        providesTags: ["benchmarks"],
+      }),
+      runBenchmarkSuite: build.mutation<
+        RunBenchmarkSuiteApiResponse,
+        RunBenchmarkSuiteApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/run`,
+          method: "POST",
+        }),
+        invalidatesTags: ["benchmarks"],
+      }),
+      getBenchmarkSuiteRuns: build.query<
+        GetBenchmarkSuiteRunsApiResponse,
+        GetBenchmarkSuiteRunsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/runs`,
+        }),
+        providesTags: ["benchmarks"],
+      }),
+      exportBenchmarkSuiteRunCsv: build.query<
+        ExportBenchmarkSuiteRunCsvApiResponse,
+        ExportBenchmarkSuiteRunCsvApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/run/${queryArg.runId}/csv`,
+        }),
+        providesTags: ["benchmarks"],
+      }),
+      getBenchmarkSuiteRunById: build.query<
+        GetBenchmarkSuiteRunByIdApiResponse,
+        GetBenchmarkSuiteRunByIdApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/run/${queryArg.runId}`,
+        }),
+        providesTags: ["benchmarks"],
+      }),
+      getBenchmarkTestRunById: build.query<
+        GetBenchmarkTestRunByIdApiResponse,
+        GetBenchmarkTestRunByIdApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/run/${queryArg.runId}/test/${queryArg.testRunId}`,
+        }),
+        providesTags: ["benchmarks"],
       }),
       toGraph: build.mutation<ToGraphApiResponse, ToGraphApiArg>({
         query: (queryArg) => ({
@@ -134,6 +201,41 @@ const injectedRtkApi = api
       >({
         query: (queryArg) => ({
           url: `/jobs/tests/density/${queryArg.jobId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["jobs"],
+      }),
+      getBenchmarkStatuses: build.query<
+        GetBenchmarkStatusesApiResponse,
+        GetBenchmarkStatusesApiArg
+      >({
+        query: () => ({ url: `/jobs/tests/benchmark/status` }),
+        providesTags: ["jobs"],
+      }),
+      getBenchmarkJobStatus: build.query<
+        GetBenchmarkJobStatusApiResponse,
+        GetBenchmarkJobStatusApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/jobs/tests/benchmark/${queryArg.jobId}/status`,
+        }),
+        providesTags: ["jobs"],
+      }),
+      getBenchmarkJobSummary: build.query<
+        GetBenchmarkJobSummaryApiResponse,
+        GetBenchmarkJobSummaryApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/jobs/tests/benchmark/${queryArg.jobId}`,
+        }),
+        providesTags: ["jobs"],
+      }),
+      stopBenchmarkJob: build.mutation<
+        StopBenchmarkJobApiResponse,
+        StopBenchmarkJobApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/jobs/tests/benchmark/${queryArg.jobId}`,
           method: "DELETE",
         }),
         invalidatesTags: ["jobs"],
@@ -480,6 +582,46 @@ export type GetHealthApiArg = void;
 export type GetStatusApiResponse =
   /** status 200 Successful Response */ StatusResponse;
 export type GetStatusApiArg = void;
+export type GetBenchmarksApiResponse =
+  /** status 200 List of benchmark suites with workloads and test cases */ BenchmarkSuite[];
+export type GetBenchmarksApiArg = void;
+export type GetAllBenchmarkRunsApiResponse =
+  /** status 200 List of all suite runs */ BenchmarkSuiteRun[];
+export type GetAllBenchmarkRunsApiArg = void;
+export type GetBenchmarkSuiteBySlugApiResponse =
+  /** status 200 Benchmark suite with workloads and test cases */ BenchmarkSuite;
+export type GetBenchmarkSuiteBySlugApiArg = {
+  suiteSlug: string;
+};
+export type RunBenchmarkSuiteApiResponse =
+  /** status 202 Benchmark suite job created */ BenchmarkJobResponse;
+export type RunBenchmarkSuiteApiArg = {
+  suiteSlug: string;
+};
+export type GetBenchmarkSuiteRunsApiResponse =
+  /** status 200 List of suite runs with nested workload and test case runs */ BenchmarkSuiteRun[];
+export type GetBenchmarkSuiteRunsApiArg = {
+  suiteSlug: string;
+};
+export type ExportBenchmarkSuiteRunCsvApiResponse =
+  /** status 200 CSV file containing workload and test case data */ any;
+export type ExportBenchmarkSuiteRunCsvApiArg = {
+  suiteSlug: string;
+  runId: number;
+};
+export type GetBenchmarkSuiteRunByIdApiResponse =
+  /** status 200 Detailed suite run with nested workload and test case runs */ BenchmarkSuiteRunDetails;
+export type GetBenchmarkSuiteRunByIdApiArg = {
+  suiteSlug: string;
+  runId: number;
+};
+export type GetBenchmarkTestRunByIdApiResponse =
+  /** status 200 Detailed test-case run with test case and suite metadata */ BenchmarkTestCaseRunDetails;
+export type GetBenchmarkTestRunByIdApiArg = {
+  suiteSlug: string;
+  runId: number;
+  testRunId: number;
+};
 export type ToGraphApiResponse =
   /** status 200 Conversion successful */ PipelineGraphResponse;
 export type ToGraphApiArg = {
@@ -542,6 +684,24 @@ export type GetDensityJobSummaryApiArg = {
 export type StopDensityTestJobApiResponse =
   /** status 200 Successful Response */ MessageResponse;
 export type StopDensityTestJobApiArg = {
+  jobId: string;
+};
+export type GetBenchmarkStatusesApiResponse =
+  /** status 200 Successful Response */ BenchmarkJobStatus[];
+export type GetBenchmarkStatusesApiArg = void;
+export type GetBenchmarkJobStatusApiResponse =
+  /** status 200 Successful Response */ BenchmarkJobStatus;
+export type GetBenchmarkJobStatusApiArg = {
+  jobId: string;
+};
+export type GetBenchmarkJobSummaryApiResponse =
+  /** status 200 Successful Response */ BenchmarkJobSummary;
+export type GetBenchmarkJobSummaryApiArg = {
+  jobId: string;
+};
+export type StopBenchmarkJobApiResponse =
+  /** status 200 Job stopped */ MessageResponse;
+export type StopBenchmarkJobApiArg = {
   jobId: string;
 };
 export type GetOptimizationStatusesApiResponse =
@@ -749,6 +909,157 @@ export type StatusResponse = {
   message: string | null;
   ready: boolean;
 };
+export type BenchmarkTestCase = {
+  id: number;
+  variant_id: string;
+  streams: number;
+};
+export type BenchmarkWorkload = {
+  id: number;
+  pipeline_id: string;
+  variants: string;
+  test_cases: BenchmarkTestCase[];
+};
+export type BenchmarkSuite = {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  created_at: string;
+  last_run_at: string;
+  workloads: BenchmarkWorkload[];
+};
+export type MessageResponse = {
+  /** Human-readable error or status message. */
+  message: string;
+};
+export type BenchmarkTestCaseRunStatus =
+  | "created"
+  | "running"
+  | "passed"
+  | "failed"
+  | "cancelled";
+export type BenchmarkSuiteRun = {
+  id: number;
+  suite_id: number;
+  suite_slug: string;
+  suite_name: string;
+  suite_description: string;
+  status: BenchmarkTestCaseRunStatus;
+  score_total: number | null;
+  score_performance: number | null;
+  score_efficiency: number | null;
+  start_time: number;
+  execution_time: number | null;
+  job_id: string;
+  total_test_cases: number;
+  passed_test_cases: number;
+};
+export type ValidationError = {
+  loc: (string | number)[];
+  msg: string;
+  type: string;
+  input?: any;
+  ctx?: object;
+};
+export type HttpValidationError = {
+  detail?: ValidationError[];
+};
+export type BenchmarkJobResponse = {
+  /** Identifier of the created benchmark job. */
+  job_id: string;
+};
+export type BenchmarkTestCaseRun = {
+  id: number;
+  test_case_id: number;
+  variant_id: string;
+  streams: number;
+  workload_run_id: number;
+  start_time: number | null;
+  execution_time: number | null;
+  total_fps: number | null;
+  per_stream_fps: number | null;
+  cpu_usage: number | null;
+  gpu_usage: number | null;
+  npu_usage: number | null;
+  media_usage: number | null;
+  memory_usage: number | null;
+  power_usage: number | null;
+  score_total: number | null;
+  score_performance: number | null;
+  score_efficiency: number | null;
+  metrics: string | null;
+  job_id: string;
+  status: BenchmarkTestCaseRunStatus;
+};
+export type BenchmarkWorkloadRun = {
+  id: number;
+  workload_id: number;
+  pipeline_id: string;
+  suite_run_id: number;
+  status: BenchmarkTestCaseRunStatus;
+  score_total: number | null;
+  score_performance: number | null;
+  score_efficiency: number | null;
+  start_time: number | null;
+  execution_time: number | null;
+  test_case_runs: BenchmarkTestCaseRun[];
+  total_test_cases: number;
+  passed_test_cases: number;
+  failed_test_cases: number;
+  pass_rate: number;
+};
+export type BenchmarkSuiteRunDetails = {
+  id: number;
+  suite_id: number;
+  suite_slug: string;
+  suite_name: string;
+  suite_description: string;
+  status: BenchmarkTestCaseRunStatus;
+  score_total: number | null;
+  score_performance: number | null;
+  score_efficiency: number | null;
+  start_time: number;
+  execution_time: number | null;
+  job_id: string;
+  total_test_cases: number;
+  passed_test_cases: number;
+  workload_runs: BenchmarkWorkloadRun[];
+};
+export type BenchmarkSuiteRef = {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+};
+export type BenchmarkTestCaseRunDetails = {
+  id: number;
+  test_case_id: number;
+  variant_id: string;
+  streams: number;
+  workload_run_id: number;
+  start_time: number | null;
+  execution_time: number | null;
+  total_fps: number | null;
+  per_stream_fps: number | null;
+  cpu_usage: number | null;
+  gpu_usage: number | null;
+  npu_usage: number | null;
+  media_usage: number | null;
+  memory_usage: number | null;
+  power_usage: number | null;
+  score_total: number | null;
+  score_performance: number | null;
+  score_efficiency: number | null;
+  metrics: string | null;
+  job_id: string;
+  status: BenchmarkTestCaseRunStatus;
+  suite_run_id: number;
+  workload_id: number;
+  pipeline_id: string;
+  test_case: BenchmarkTestCase;
+  suite: BenchmarkSuiteRef;
+};
 export type Node = {
   id: string;
   type: string;
@@ -772,20 +1083,6 @@ export type PipelineGraphResponse = {
   pipeline_graph: PipelineGraph;
   /** Simplified graph view showing only sources, inference nodes, and sinks. */
   pipeline_graph_simple: PipelineGraph;
-};
-export type MessageResponse = {
-  /** Human-readable error or status message. */
-  message: string;
-};
-export type ValidationError = {
-  loc: (string | number)[];
-  msg: string;
-  type: string;
-  input?: any;
-  ctx?: object;
-};
-export type HttpValidationError = {
-  detail?: ValidationError[];
 };
 export type PipelineDescription = {
   /** GStreamer pipeline string with elements separated by '!'. */
@@ -874,6 +1171,24 @@ export type DensityJobSummary = {
   request: {
     [key: string]: any;
   };
+};
+export type BenchmarkJobStatus = {
+  id: string;
+  suite_slug: string;
+  suite_run_id: number;
+  start_time: number;
+  elapsed_time: number;
+  state: TestJobState;
+  details: string[];
+  total_test_cases: number;
+  completed_test_cases: number;
+  current_test_case_run_id: number | null;
+  current_performance_job_id: string | null;
+};
+export type BenchmarkJobSummary = {
+  id: string;
+  suite_slug: string;
+  suite_run_id: number;
 };
 export type OptimizationType = "preprocess" | "optimize";
 export type OptimizationJobState = "RUNNING" | "COMPLETED" | "FAILED";
@@ -1330,6 +1645,21 @@ export const {
   useLazyGetHealthQuery,
   useGetStatusQuery,
   useLazyGetStatusQuery,
+  useGetBenchmarksQuery,
+  useLazyGetBenchmarksQuery,
+  useGetAllBenchmarkRunsQuery,
+  useLazyGetAllBenchmarkRunsQuery,
+  useGetBenchmarkSuiteBySlugQuery,
+  useLazyGetBenchmarkSuiteBySlugQuery,
+  useRunBenchmarkSuiteMutation,
+  useGetBenchmarkSuiteRunsQuery,
+  useLazyGetBenchmarkSuiteRunsQuery,
+  useExportBenchmarkSuiteRunCsvQuery,
+  useLazyExportBenchmarkSuiteRunCsvQuery,
+  useGetBenchmarkSuiteRunByIdQuery,
+  useLazyGetBenchmarkSuiteRunByIdQuery,
+  useGetBenchmarkTestRunByIdQuery,
+  useLazyGetBenchmarkTestRunByIdQuery,
   useToGraphMutation,
   useToDescriptionMutation,
   useGetDevicesQuery,
@@ -1352,6 +1682,13 @@ export const {
   useGetDensityJobSummaryQuery,
   useLazyGetDensityJobSummaryQuery,
   useStopDensityTestJobMutation,
+  useGetBenchmarkStatusesQuery,
+  useLazyGetBenchmarkStatusesQuery,
+  useGetBenchmarkJobStatusQuery,
+  useLazyGetBenchmarkJobStatusQuery,
+  useGetBenchmarkJobSummaryQuery,
+  useLazyGetBenchmarkJobSummaryQuery,
+  useStopBenchmarkJobMutation,
   useGetOptimizationStatusesQuery,
   useLazyGetOptimizationStatusesQuery,
   useGetOptimizationJobSummaryQuery,

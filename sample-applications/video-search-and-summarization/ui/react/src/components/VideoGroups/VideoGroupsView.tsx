@@ -5,11 +5,12 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { useAppSelector } from '../../redux/store';
 import { Video } from '../../redux/video/video';
-import { SearchResult } from '../../redux/search/search';
+import { ScoreBreakdown, SearchResult } from '../../redux/search/search';
 import { videosSelector } from '../../redux/video/videoSlice';
 import { SearchSelector } from '../../redux/search/searchSlice';
 import { ASSETS_ENDPOINT } from '../../config';
-import { resolveVideoUrl } from '../../redux/video/videoUrl';
+import { resolveSearchResultVideoUrl, resolveVideoUrl } from '../../redux/video/videoUrl';
+import { ScoreDisplay } from '../Search/ScoreDisplay';
 
 const VideoGroupsContainer = styled.div`
   padding: 1rem;
@@ -150,16 +151,6 @@ interface TagGroup {
   color: string;
 }
 
-const toPlayableMetadataUrl = (value: unknown): string => {
-  if (typeof value !== 'string') return '';
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  if (trimmed.includes('/videos/download?video_id=')) return '';
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (trimmed.startsWith('/')) return `${ASSETS_ENDPOINT}${trimmed}`;
-  return `${ASSETS_ENDPOINT}/${trimmed}`;
-};
-
 export const VideoGroupsView: FC = () => {
   const { t } = useTranslation();
   const { getVideoUrl } = useAppSelector(videosSelector);
@@ -172,6 +163,18 @@ export const VideoGroupsView: FC = () => {
       const vid = result.metadata?.video_id;
       const score = result.metadata?.relevance_score;
       if (vid && typeof score === 'number') map.set(vid, score);
+    });
+    return map;
+  }, [selectedResults]);
+
+  // Keep the full score breakdown so raw scores can be shown alongside the
+  // normalized relevance score.
+  const videoScoreBreakdownMap = useMemo(() => {
+    const map = new Map<string, ScoreBreakdown>();
+    selectedResults?.forEach((result: SearchResult) => {
+      const vid = result.metadata?.video_id;
+      const breakdown = result.metadata?.score_breakdown;
+      if (vid && breakdown && !map.has(vid)) map.set(vid, breakdown);
     });
     return map;
   }, [selectedResults]);
@@ -208,10 +211,11 @@ export const VideoGroupsView: FC = () => {
         return {
           videoId: vid,
           name: meta.name ?? meta.title ?? vid,
+          // Fall back to the object store directly. The dataprep download URLs in
+          // metadata are not browser-addressable and do not support ranges.
           url:
             resolveVideoUrl(result.video, ASSETS_ENDPOINT) ||
-            toPlayableMetadataUrl(meta.video_rel_url) ||
-            toPlayableMetadataUrl(meta.video_url) ||
+            resolveSearchResultVideoUrl(meta, ASSETS_ENDPOINT) ||
             '',
           tags: tagsArr,
           createdAt: (meta.date_time as string) ?? (meta.date as string) ?? '',
@@ -304,6 +308,7 @@ export const VideoGroupsView: FC = () => {
               const reduxVideoUrl = getVideoUrl ? getVideoUrl(video.videoId) : null;
               const videoUrl = reduxVideoUrl || video.url;
               const relevanceScore = videoRelevanceMap.get(video.videoId) ?? 0;
+              const scoreBreakdown = videoScoreBreakdownMap.get(video.videoId);
 
               return (
                 <VideoCard key={`${group.tag}-${video.videoId}`}>
@@ -319,7 +324,9 @@ export const VideoGroupsView: FC = () => {
                   </VideoCardWrapper>
 
                   <BottomInfo>
-                    <RelevanceScore>Relevance Score: {relevanceScore.toFixed(3)}</RelevanceScore>
+                    <RelevanceScore>
+                      <ScoreDisplay relevanceScore={relevanceScore} scoreBreakdown={scoreBreakdown} />
+                    </RelevanceScore>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
                       {Array.isArray(video.tags) && video.tags.map((rawTag, idx) => {
                         const tAny: any = rawTag;

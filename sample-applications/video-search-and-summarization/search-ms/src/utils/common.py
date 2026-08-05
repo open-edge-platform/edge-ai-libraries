@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     SEARCH_ENGINE: str = Field(default="FaissFlat", env="SEARCH_ENGINE")
     DISTANCE_STRATEGY: str = Field(default="IP", env="DISTANCE_STRATEGY")
     INDEX_NAME: str = Field(default="videoqna", env="INDEX_NAME")
+    # Endpoint of the standalone vector-retriever microservice. The /query
+    # endpoint delegates ALL vector similarity search here for every backend
+    # (VDMS, Milvus, ...); search-ms keeps no vector DB client of its own. It is
+    # always set in the compose stack; an empty value fails /query fast.
+    RETRIEVER_ENDPOINT: str = Field(default="", env="RETRIEVER_ENDPOINT")
+    RETRIEVER_TIMEOUT_SECONDS: float = Field(
+        default=30.0, env="RETRIEVER_TIMEOUT_SECONDS"
+    )
     no_proxy_env: str = Field(default="", env="no_proxy_env")
     http_proxy: str = Field(default="", env="http_proxy")
     https_proxy: str = Field(default="", env="https_proxy")
@@ -57,6 +65,13 @@ class Settings(BaseSettings):
     )
     DEBOUNCE_TIME: int = Field(default=5, env="DEBOUNCE_TIME")
     VIDEO_UPLOAD_ENDPOINT: str = Field(default="", env="VIDEO_UPLOAD_ENDPOINT")
+    WATCH_BATCH_SIZE: int = Field(default=10, ge=1, le=100, env="WATCH_BATCH_SIZE")
+    BATCH_JOB_POLL_INTERVAL_SECONDS: float = Field(
+        default=0.5, gt=0, env="BATCH_JOB_POLL_INTERVAL_SECONDS"
+    )
+    BATCH_JOB_TIMEOUT_SECONDS: float = Field(
+        default=3600.0, gt=0, env="BATCH_JOB_TIMEOUT_SECONDS"
+    )
     VS_INITIAL_DUMP: bool = Field(default=False, env="VS_INITIAL_DUMP")
     DELETE_PROCESSED_FILES: bool = Field(default=False, env="DELETE_PROCESSED_FILES")
     WATCH_DIRECTORY_RECURSIVE: bool = Field(default=False, env="WATCH_DIRECTORY_RECURSIVE")
@@ -70,6 +85,16 @@ class Settings(BaseSettings):
     AGGREGATION_ENABLED: bool = Field(default=True, env="AGGREGATION_ENABLED")
     AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: float = Field(
         default=0.0, env="AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS"
+    )
+    # When enabled, the per-segment seek/thumbnail anchor prefers a FULL frame over a
+    # (higher-scoring) YOLOX object crop, provided a full frame exists whose relevance is
+    # within AGGREGATION_FULL_FRAME_SEEK_BAND (fraction of the segment peak). This only
+    # changes which frame the UI seeks to / shows; segment ranking and scores are untouched.
+    AGGREGATION_PREFER_FULL_FRAME_SEEK: bool = Field(
+        default=True, env="AGGREGATION_PREFER_FULL_FRAME_SEEK"
+    )
+    AGGREGATION_FULL_FRAME_SEEK_BAND: float = Field(
+        default=0.06, env="AGGREGATION_FULL_FRAME_SEEK_BAND"
     )
     AGGREGATION_QUAL_MAX_WEIGHT: float = Field(
         default=0.65, env="AGGREGATION_QUAL_MAX_WEIGHT"
