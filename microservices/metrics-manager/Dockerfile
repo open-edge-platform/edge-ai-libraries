@@ -287,6 +287,9 @@ ENV LOG_LEVEL=INFO
 ENV CORS_ORIGINS="*"
 ENV CUSTOM_METRICS_DIR=/app/custom-metrics
 ENV TELEGRAF_CONFIG_PATH=/etc/telegraf/telegraf.conf
+ENV ENABLE_OV_RUNTIME_INSTALL=false
+ENV OV_PIP_SPEC=openvino==2026.1.0
+ENV OV_INSTALL_STRICT=false
 
 # Expose ports
 # 9090 - Metrics Manager API and SSE (/metrics/stream)
