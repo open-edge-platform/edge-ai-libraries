@@ -24,25 +24,25 @@ flowchart TB
         Endpoints["/health · /ready · /query · /capabilities/filters"]
     end
 
-    subgraph Orchestration["Batch orchestration — src/retriever/batch_executor.py"]
-        Batch["execute_batch()\nbounded concurrency, error isolation"]
+    subgraph Orchestration["Batch orchestration"]
+        Batch["execute_batch()<br/>bounded concurrency, error isolation"]
     end
 
-    subgraph Execution["Query execution — src/retriever/service.py"]
-        Service["execute_single_query()\nfilter normalization, pushdown build,\nfetch_k sizing, fallback filtering"]
+    subgraph Execution["Query execution"]
+        Service["execute_single_query()<br/>filter normalization, pushdown build,<br/>fetch_k sizing, fallback filtering"]
     end
 
-    subgraph Registry["Backend registry — src/retriever/backends/registry.py"]
-        Reg["resolves backend + filter modules\nby RETRIEVER_BACKEND setting"]
+    subgraph Registry["Backend registry"]
+        Reg["resolves backend + filter modules<br/>by RETRIEVER_BACKEND setting"]
     end
 
-    subgraph Backend["Backend implementation — backends/&lt;name&gt;/"]
+    subgraph Backend["Backend implementation"]
         Impl["backend.py: vector store client"]
         Filt["filters.py: native filter translation"]
     end
 
-    Embedding["Embedding client\nsrc/retriever/embedding_client.py"]
-    Store[("Vector store\nVDMS · Milvus · PGVector · FAISS")]
+    Embedding["Embedding client<br/>src/retriever/embedding_client.py"]
+    Store[("Vector store<br/>VDMS · Milvus · PGVector · FAISS")]
 
     Client --> API --> Orchestration --> Execution
     Execution --> Registry --> Backend
