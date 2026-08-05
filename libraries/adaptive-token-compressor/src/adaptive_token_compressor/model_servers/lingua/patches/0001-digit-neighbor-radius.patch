@@ -1,0 +1,46 @@
+Subject: Protect words near digits in LLMLingua-2 _main_compressor
+
+When force_reserve_digit=True and the PromptCompressor instance has a
+non-zero `_digit_neighbor_radius` attribute, also force-keep the N words
+to the left and right of every digit-containing word. Mirrors the legacy
+patch from cuddly-prism plan §"LLMLingua-2 源码修改".
+
+Apply with:
+    cd $(python -c "import llmlingua, os; print(os.path.dirname(llmlingua.__file__))")
+    patch -p1 < /path/to/0001-digit-neighbor-radius.patch
+
+Idempotent guard: re-applying is detected by apply_patch.py via marker
+"_digit_neighbor_radius" in prompt_compressor.py.
+---
+--- a/prompt_compressor.py
++++ b/prompt_compressor.py
+@@ -2404,13 +2404,27 @@
+                         new_token_probs, int(100 * reduce_rate + 1)
+                     )
+
++                    if force_reserve_digit:
++                        digit_neighbor_radius = getattr(self, '_digit_neighbor_radius', 0)
++                        if digit_neighbor_radius > 0:
++                            _protected = set()
++                            for _i, _w in enumerate(words):
++                                if bool(re.search(r'\d', _w)):
++                                    for _off in range(-digit_neighbor_radius, digit_neighbor_radius + 1):
++                                        if 0 <= _i + _off < len(words):
++                                            _protected.add(_i + _off)
++                        else:
++                            _protected = set()
++                    else:
++                        _protected = set()
++
+                     keep_words = []
+                     word_labels = []
+                     assert len(words) == len(word_probs)
+-                    for word, word_prob in zip(words, word_probs):
++                    for _idx, (word, word_prob) in enumerate(zip(words, word_probs)):
+                         if word_prob > threshold or (
+                             threshold == 1.0 and word_prob == threshold
+-                        ):
++                        ) or _idx in _protected:
+                             if (
+                                 drop_consecutive
+                                 and word in force_tokens

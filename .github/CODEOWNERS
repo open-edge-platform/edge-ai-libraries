@@ -54,6 +54,8 @@ README.md           @xwu2intel
 /libraries/video-chunking-utils/                       @Johere @zhangcong2019 @llin60 @xwu2intel
 /libraries/video-chunking-utils/docs/                  @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /libraries/video-chunking-utils/README.md              @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/adaptive-token-compressor/                  @mnoiy @myqi @xwu2intel
+/libraries/adaptive-token-compressor/README.md         @mnoiy @myqi @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 # ============================================================================
 # microservices

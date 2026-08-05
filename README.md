@@ -91,6 +91,17 @@ and high-performance inference on edge devices.
 
   Create, tailor, and implement custom AI models directly on edge platforms.
 
+### LLM Inference Optimization
+
+These libraries reduce the compute, memory, and token cost of running large
+language model and agent workloads on the edge, improving inference efficiency
+without changing model behavior.
+
+- [Adaptive Token Compressor](./libraries/adaptive-token-compressor)
+
+  Pluggable token compression for LLM agent systems — compresses system
+  prompts, context, and tool schemas to cut input token usage.
+
 ### Streaming and Multimedia AI
 
 Handling large-scale media analytics workloads, these components support

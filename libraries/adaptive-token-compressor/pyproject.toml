@@ -1,0 +1,93 @@
+# Build / metadata for the `adaptive-token-compressor` package.
+#
+# v0.1 layout: a thin core (`core/`) plus two independent subpackages
+# (`harness/`, `tool/`) and an optional `model_servers/` tree
+# for the upstream FastAPI / vLLM services.
+#
+# Notes for installers:
+#   - The default install only pulls `requests`, which is enough for SDK
+#     callers that hit an externally-deployed lingua / tool-predictor server.
+#   - The `lingua-server` extras require Intel XPU wheels; pip needs explicit
+#     `--extra-index-url` flags (pyproject cannot encode index URLs).
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adaptive-token-compressor"
+version = "0.1.0"
+description = "Adaptive token compression library: harness / tool compressors with shared metrics + manager."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "requests>=2.31",
+    "tiktoken>=0.7",
+    "cachetools>=5.3",   # CompressionManager-owned per-compressor LRUCache (see core/cache.py)
+]
+
+[project.optional-dependencies]
+# Lingua server extras (XPU default).
+#
+# Two extra-index-urls are required because the wheels live on different
+# servers and pyproject cannot encode index URLs:
+#   * https://download.pytorch.org/whl/xpu                  -> torch / torchvision / torchaudio (XPU builds)
+#   * https://pytorch-extension.intel.com/release-whl/...   -> intel-extension-for-pytorch, oneccl_bind_pt
+#
+# Versions are pinned to match the proven combination from
+# scripts/setup_lingua.sh in the agentic-sdk repo (torch 2.8.0 + IPEX 2.8.10+xpu).
+# The torch / torchvision / torchaudio versions must move together — bumping one
+# without the others breaks the IPEX ABI.
+#
+# Install:
+#   pip install --extra-index-url https://download.pytorch.org/whl/xpu \
+#               --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ \
+#               "adaptive-token-compressor[lingua-server]"
+lingua-server = [
+    "torch==2.8.0",
+    "torchvision==0.23.0",
+    "torchaudio==2.8.0",
+    "intel-extension-for-pytorch==2.8.10+xpu",
+    "oneccl_bind_pt==2.8.0+xpu",
+    "llmlingua>=0.2",
+    "openvino>=2024.0",
+    "optimum[openvino]>=1.24.0",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "huggingface-hub>=0.20",
+]
+# CPU-only fallback (no IPEX, no XPU wheels needed; default PyPI index works).
+# Pass `--device cpu` on launch.
+lingua-server-cpu = [
+    "torch>=2.0",
+    "llmlingua>=0.2",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "huggingface-hub>=0.20",
+]
+# claw-compactor for content-type-aware compression in `harness/`.
+# Cortex detects content_type (text / json / code / diff / log / search);
+# code/diff/log/search route to a safe FusionEngine (Nexus + Abbrev disabled).
+# Without this extra, HarnessCompressor falls back to lingua plain.
+claw-compactor = ["claw-compactor>=0.1"]
+dev = ["pytest>=8", "responses>=0.25", "httpx>=0.27", "ruff", "mypy"]
+
+# Ship LICENSE in the wheel's .dist-info so `pip install` users receive it
+# (MANIFEST.in covers the sdist).
+[tool.setuptools]
+license-files = ["LICENSE"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Bundle the lingua server's docs + LLMLingua-2 source patches into the wheel.
+# The patch file is the single source of truth shared by the bare-metal path
+# (`python -m ...lingua.apply_patch`) and the Docker build (which COPYs the
+# same file from `src/.../patches/`).
+#
+# Docker / vLLM deployment artifacts (Dockerfile, docker-compose.yaml,
+# qwen35-4b.yaml) live in the repo-root `deployment/` directory and are
+# intentionally NOT bundled in the wheel — they are reference recipes
+# consumed via `git clone`, not import.
+[tool.setuptools.package-data]
+"adaptive_token_compressor.model_servers.lingua" = ["README.md", "patches/*.patch"]
