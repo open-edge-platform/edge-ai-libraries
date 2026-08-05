@@ -289,7 +289,7 @@ export const Pipelines = () => {
 
     const variantData = data.variants.find((v) => v.id === variant);
     const requiredModels = extractModelsFromSimpleGraph(
-      variantData?.pipeline_graph_simple.nodes,
+      variantData?.pipeline_graph.nodes,
     );
 
     if (requiredModels.length === 0) {
