@@ -53,15 +53,22 @@ components:
       type: string
       enum:
         - llm
-        - embeddings
-        - reranker
         - vlm
+        - embeddings
+        - rerank
+        - image_generation
+        - text2speech
+        - speech2text
         - vision
+        - 3d-pose
+        - rppg
+        - ai-ecg
       description: The type of model (determines conversion behavior)
 
     ModelPrecision:
       type: string
       enum:
+        - int4
         - int8
         - fp16
         - fp32
@@ -69,11 +76,10 @@ components:
 
     DeviceType:
       type: string
-      enum:
-        - CPU
-        - GPU
-        - NPU
-      description: The target device type for model deployment
+      pattern: '^(CPU|GPU|NPU|HETERO:(CPU|GPU|NPU)(\.\d+)?(,(CPU|GPU|NPU)(\.\d+)?)*)$'
+      description: >-
+        The target device for model deployment: CPU, GPU, NPU, or HETERO with a
+        fallback list of devices (e.g. HETERO:GPU,CPU)
 
     Config:
       type: object
@@ -93,6 +99,10 @@ components:
           nullable: true
           description: Ultralytics quantization dataset used to enable INT8 export
           example: coco128
+        overwrite_models:
+          type: boolean
+          nullable: true
+          description: OpenVINO option to overwrite an existing exported model
         post_processing:
           type: object
           additionalProperties: true
@@ -125,6 +135,21 @@ components:
         config:
           $ref: "#/components/schemas/Config"
           description: Configuration for OpenVINO conversion (required if is_ovms is true)
+        override_credentials:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: >
+            Per-request credential overrides (e.g. HF_TOKEN, GETI_HOST).
+            Takes precedence over environment variables for this request only.
+        validate_credentials:
+          type: boolean
+          default: false
+          description: >
+            When true, performs a lightweight credential check before starting
+            the download/conversion. Validates override_credentials if present,
+            otherwise validates environment credentials. Fails fast with 400 if invalid.
 
     ModelDownloadRequest:
       type: object
@@ -140,26 +165,61 @@ components:
         parallel_downloads:
           type: boolean
           default: false
-          description: Whether to download models in parallel (currently not implemented)
+          description: Whether to download model files in parallel where the plugin supports it
 
     JobStatus:
       type: string
       enum:
-        - pending
-        - processing
+        - queued
+        - downloading
+        - converting
         - completed
         - failed
+        - canceled
       description: Status of a job
+
+    CancelJobResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Human-readable confirmation message
+          example: "Job download_abc123 has been cancelled"
+        job_id:
+          type: string
+          description: The cancelled job's identifier
+          example: download_abc123
+        status:
+          type: string
+          enum: [canceled]
+          description: The resulting job status
+        warning:
+          type: string
+          nullable: true
+          description: |
+            Present only for hubs that do not support immediate interruption
+            (huggingface, geti, openvino). The transfer may continue briefly;
+            partial files are cleaned up automatically.
+          example: "Hub 'huggingface' does not support immediate interruption. The transfer may continue briefly; partial files are cleaned up automatically."
 
     Job:
       type: object
+      required:
+        - id
+        - operation_type
+        - model_name
+        - hub
+        - status
+        - output_dir
+        - start_time
       properties:
-        job_id:
+        id:
           type: string
           description: Unique identifier for the job
+          example: 5f0d4eba-c79c-4d02-97a6-43c3d0168ca0
         operation_type:
           type: string
-          enum: [download, convert]
+          enum: [download, convert, upload]
           description: Type of operation
         model_name:
           type: string
@@ -172,7 +232,18 @@ components:
         output_dir:
           type: string
           description: Output directory for the operation
-        creation_time:
+        plugin_name:
+          type: string
+          description: Plugin handling the operation
+        model_type:
+          type: string
+          nullable: true
+          description: Requested model type, when supplied
+        plugin:
+          type: string
+          nullable: true
+          description: Plugin selected while processing the job
+        start_time:
           type: string
           format: date-time
           description: When the job was created
@@ -185,6 +256,11 @@ components:
           type: string
           nullable: true
           description: Error message if job failed
+        result:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Plugin-specific result, available when the operation returns one
 
     ModelResult:
       type: object
@@ -429,6 +505,15 @@ components:
           default: 0
           minimum: 0
           description: Number of items to skip for pagination
+        override_credentials:
+          type: object
+          additionalProperties:
+            type: string
+            format: byte
+          description: >
+            Optional Base64-encoded connection overrides for this request.
+            Values take precedence over the selected plugin's environment
+            configuration and are not retained after the request.
 
     ModelListResponse:
       type: object
@@ -456,7 +541,7 @@ paths:
   /health:
     get:
       summary: Health check endpoint
-      description: Verify the service is running
+      description: Verify the API is ready. Startup-configured model work can still be running.
       operationId: healthCheck
       tags:
         - Health
@@ -589,7 +674,7 @@ paths:
         **Job Processing:**
         - Each model download creates a separate job
         - If conversion is requested, an additional conversion job is created
-        - Use the returned job IDs to track progress via `/jobs/{job_id}` endpoint
+        - Use the returned job IDs to track status via `/jobs/{job_id}` endpoint
       operationId: downloadModels
       parameters:
         - in: query
@@ -745,7 +830,7 @@ paths:
   /jobs/{job_id}:
     get:
       summary: Get job status
-      description: Retrieve the status and details of a specific job by its ID
+      description: Retrieve the status and details of a specific in-memory job by its ID
       operationId: getJobStatus
       tags:
         - Jobs
@@ -764,6 +849,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Job"
+              example:
+                id: 5f0d4eba-c79c-4d02-97a6-43c3d0168ca0
+                operation_type: download
+                model_name: BAAI/bge-small-en-v1.5
+                hub: huggingface
+                output_dir: /opt/models/preloaded
+                status: downloading
+                start_time: "2026-07-16T08:30:00.000000"
+                plugin_name: huggingface
+                model_type: embeddings
         "404":
           description: Job not found
           content:
@@ -775,10 +870,63 @@ paths:
                     type: string
                     example: "Job download_abc123 not found"
 
+  /jobs/{job_id}/cancel:
+    post:
+      summary: Cancel a running or queued job
+      description: |
+        Cancel a job that is in a cancellable state (queued, downloading, or converting).
+        On success the job moves to status `canceled`, any active worker threads or
+        subprocesses are stopped, and partially downloaded files are cleaned up.
+
+        Returns 404 if the job does not exist and 409 if the job is already in a
+        terminal state (completed, failed, or canceled).
+      operationId: cancelJob
+      tags:
+        - Jobs
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema:
+            type: string
+          description: The unique job identifier to cancel
+          example: download_abc123
+      responses:
+        "200":
+          description: Job cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancelJobResponse"
+              example:
+                message: "Job download_abc123 has been cancelled"
+                job_id: download_abc123
+                status: canceled
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                    example: "Job download_abc123 not found"
+        "409":
+          description: Job is already in a terminal state and cannot be cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                    example: "Job download_abc123 is already in terminal state 'completed' and cannot be cancelled"
+
   /jobs:
     get:
       summary: List all jobs
-      description: Retrieve a list of all jobs (downloads and conversions)
+      description: Retrieve all in-memory jobs
       operationId: listJobs
       tags:
         - Jobs
@@ -789,6 +937,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/JobListResponse"
+              example:
+                jobs:
+                  - id: 5f0d4eba-c79c-4d02-97a6-43c3d0168ca0
+                    operation_type: download
+                    model_name: BAAI/bge-small-en-v1.5
+                    hub: huggingface
+                    output_dir: /opt/models/preloaded
+                    status: completed
+                    start_time: "2026-07-16T08:30:00.000000"
+                    completion_time: "2026-07-16T08:31:10.000000"
+                    plugin_name: huggingface
+                    model_type: embeddings
 
   /models/jobs:
     get:

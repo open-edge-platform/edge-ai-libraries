@@ -18,14 +18,14 @@
     {
       "id": 2,
       "prompt_file": "example-prompts/02-first-time-with-dependencies.md",
-      "prompt": "This is my first time building VSS from source on this machine. I want all the images built, including the dependency services like vdms-dataprep and the multimodal embedding service, not just the app ones. What do I need installed and what commands do I run?",
+      "prompt": "This is my first time building VSS from source on this machine. I want all the images built, including the dependency services like multimodal-dataprep, the vector-retriever, and the multimodal embedding service, not just the app ones. What do I need installed and what commands do I run?",
       "expected_output": "Explains prerequisites, especially Docker for all builds and poetry for ./build.sh --dependencies, resolves and enters the app root, runs ./build.sh --dependencies before ./build.sh, and verifies both dependency and application images.",
       "files": [],
       "expectations": [
         "The answer runs scripts/vss-bootstrap.sh and cd \"$APP_ROOT\" before invoking build.sh.",
         "The answer states Docker is required for any build and poetry is required for --dependencies because it builds the multimodal-embedding wheel.",
         "The answer runs ./build.sh --dependencies before the plain ./build.sh command.",
-        "The answer identifies --dependencies as building vdms-dataprep and multimodal-embedding-serving.",
+        "The answer identifies --dependencies as building multimodal-dataprep, vector-retriever, and multimodal-embedding-serving.",
         "The answer verifies the result with docker images | grep -E 'pipeline-manager|search|video-ingestion|vss|embedding|dataprep'."
       ]
     },

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: "multimodal-dataprep"
+  labels:
+    {{ include "multimodal-dataprep.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.containerPortName }}
+      protocol: TCP
+      name: {{ .Values.service.portName }}
+  
+  selector:
+    {{- include "multimodal-dataprep.selectorLabels" . | nindent 4 }}

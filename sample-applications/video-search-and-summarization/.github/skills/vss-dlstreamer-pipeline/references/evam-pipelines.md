@@ -64,7 +64,7 @@ and sends JSON with `Content-Type: application/json`:
   },
   "parameters": {
     "detection-properties": {
-      "model": "/home/pipeline-server/models/yoloworld/v2/FP32/yolov8l-worldv2.xml",
+      "model": "/home/pipeline-server/models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml",
       "device": "CPU"
     },
     "publish": {
@@ -221,22 +221,44 @@ Why this works: the pipeline template already uses `framerate={parameters[frame]
 
 ## Worked modification: add a new detection model for ingestion
 
-The current default model path is hardcoded in `pipeline-manager/src/config/configuration.ts`:
+The current default is environment-driven in
+`pipeline-manager/src/config/configuration.ts`:
 
 ```ts
-modelPath: '/home/pipeline-server/models/yoloworld/v2/FP32/yolov8l-worldv2.xml'
+model: process.env.EVAM_DETECTION_MODEL ?? 'yolov8l'
+modelPath:
+  process.env.EVAM_DETECTION_MODEL_PATH ??
+  '/home/pipeline-server/models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml'
 ```
 
 The container sees models under `/home/pipeline-server/models` because compose mounts `../ov_models` there.
 
-To add or switch a detection model:
+For a generic YOLO model supported by the model-download Ultralytics plugin:
 
-1. Put the OpenVINO IR model under `ov_models/...` so it is available inside the container as `/home/pipeline-server/models/...`.
-2. If converting a YOLO model, inspect `video-ingestion/resources/scripts/converter.py`; it exports Ultralytics YOLO to OpenVINO and writes FP16/FP32 folders.
-3. Update `pipeline-manager/src/config/configuration.ts` to point `evam.modelPath` at the new in-container XML path, or refactor it to read from an environment variable.
-4. Ensure the request's `detection-properties.model` and `device` reach the `gvadetect name=detection` element. This only applies to `object_detection` unless a new pipeline includes a detection element named `detection`.
-5. Rebuild/restart `pipeline-manager` and `video-ingestion` as needed.
-6. Validate with a real POST to `/pipelines/user_defined_pipelines/object_detection` and confirm object metadata under `frames[].metadata.objects`.
+1. Set `OD_MODEL_NAME` to the generic model id. YOLO-World ids are not
+   supported and `setup.sh` falls back to `yolov8l`.
+2. Source the desired summary-capable setup mode. Before Compose starts,
+   `setup.sh` uses the model-download REST API and writes the IR under
+   `ov_models/object-detection/ultralytics/public/<model>/FP32/`.
+3. Setup derives `EVAM_DETECTION_MODEL` and
+   `EVAM_DETECTION_MODEL_PATH=/home/pipeline-server/models/object-detection/ultralytics/public/<model>/FP32/<model>.xml`.
+
+For an already converted custom OpenVINO IR:
+
+1. Choose a local `<custom-id>` and place the `.xml` and `.bin` at
+   `ov_models/object-detection/ultralytics/public/<custom-id>/FP32/<custom-id>.xml`
+   and `.bin`.
+2. Set `OD_MODEL_NAME=<custom-id>` before deployment. Because both expected
+   files already exist, `setup.sh` skips model-download and derives the matching
+   `EVAM_DETECTION_MODEL` and in-container path. Directly exporting those EVAM
+   variables does not work because setup currently recomputes them.
+
+For either path, ensure the request's `detection-properties.model` and `device`
+reach the `gvadetect name=detection` element. This only applies to
+`object_detection` unless a new pipeline includes a detection element named
+`detection`. Restart the affected deployment and validate with a real POST to
+`/pipelines/user_defined_pipelines/object_detection`, then confirm object
+metadata under `frames[].metadata.objects`.
 
 ## Adding a new pipeline name
 
@@ -285,7 +307,7 @@ curl http://${host_ip}:${EVAM_HOST_PORT}/pipelines/user_defined_pipelines/object
       "chunk_duration": 10,
       "frame_width": 480,
       "detection-properties": {
-        "model": "/home/pipeline-server/models/yoloworld/v2/FP32/yolov8l-worldv2.xml",
+        "model": "/home/pipeline-server/models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml",
         "device": "CPU"
       },
       "publish": {

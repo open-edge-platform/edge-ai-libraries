@@ -1,0 +1,44 @@
+# Example subscription config for alert-agent-service.
+# Request-level fields override these defaults.
+
+subscriptions:
+  - alert_name: CONCEALMENT
+    tools:
+      - log_alert
+      - trigger_webhook
+      - capture_snapshot
+    tool_arguments:
+      trigger_webhook:
+        url: "${WEBHOOK_URL}"
+    dedup:
+      enabled: true
+      strategy: field_hash
+      fields:
+        - source_id
+      window_seconds: 30
+      on_missing: skip
+    escalation:
+      threshold_consecutive: 3
+      additional_tools:
+        - publish_mqtt
+
+  - alert_name: LOITERING
+    tools:
+      - log_alert
+    dedup:
+      enabled: true
+      strategy: field_hash
+      fields:
+        - source_id
+      window_seconds: 120
+      on_missing: skip
+
+  - alert_name: INTRUSION
+    tools:
+      - log_alert
+      - trigger_webhook
+    tool_arguments:
+      trigger_webhook:
+        url: "${WEBHOOK_URL}"
+    dedup:
+      enabled: false

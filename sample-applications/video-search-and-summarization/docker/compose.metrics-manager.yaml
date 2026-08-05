@@ -1,0 +1,57 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  metrics-manager:
+    image: intel/metrics-manager:2026.2.0-20260715-weekly
+    container_name: metrics-manager
+    ports:
+      - "${METRICS_MANAGER_HOST_PORT:-9090}:9090"
+      - "${METRICS_MANAGER_PROMETHEUS_HOST_PORT:-9273}:9273"
+    privileged: true
+    pid: host
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - /dev:/dev
+      - /sys:/sys:ro
+      - /run:/run:ro
+    restart: on-failure:5
+    environment:
+      no_proxy: localhost,127.0.0.1,metrics-manager,multimodal-dataprep,nginx,${no_proxy}
+      NO_PROXY: localhost,127.0.0.1,metrics-manager,multimodal-dataprep,nginx,${NO_PROXY:-}
+      http_proxy: ${http_proxy}
+      HTTP_PROXY: ${HTTP_PROXY:-${http_proxy}}
+      https_proxy: ${https_proxy}
+      HTTPS_PROXY: ${HTTPS_PROXY:-${https_proxy}}
+      METRICS_PORT: "9090"
+      LOG_LEVEL: ${METRICS_MANAGER_LOG_LEVEL:-INFO}
+      CORS_ORIGINS: ${METRICS_MANAGER_CORS_ORIGINS:-*}
+      PROMETHEUS_POLLER_INTERVAL_MS: ${METRICS_MANAGER_POLL_INTERVAL_MS:-1000}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:9090/health', timeout=8)",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - vs_network
+
+  multimodal-dataprep:
+    environment:
+      MM_DATAPREP_METRICS_MANAGER_URL: http://metrics-manager:9090
+      MM_DATAPREP_METRICS_MANAGER_TIMEOUT_SECONDS: ${MM_DATAPREP_METRICS_MANAGER_TIMEOUT_SECONDS:-2}
+    depends_on:
+      metrics-manager:
+        condition: service_healthy
+
+  nginx:
+    depends_on:
+      metrics-manager:
+        condition: service_healthy

@@ -1,0 +1,89 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Milvus vector-DB backend overlay for the Video Search Application.
+#
+# Applied on top of docker/compose.search.yaml when VECTORDB_BACKEND=milvus.
+# The base compose already defines an always-on vector-retriever whose image
+# and backend env are driven by RETRIEVER_BACKEND (set to "milvus" by setup.sh),
+# so this overlay only ADDS the Milvus standalone stack (etcd + milvus) and the
+# extra depends_on edges to it. multimodal-dataprep writes embeddings into
+# Milvus and vector-retriever reads them back;
+services:
+    milvus-etcd:
+        image: quay.io/coreos/etcd:v3.5.18
+        environment:
+            ETCD_AUTO_COMPACTION_MODE: revision
+            ETCD_AUTO_COMPACTION_RETENTION: '1000'
+            ETCD_QUOTA_BACKEND_BYTES: '4294967296'
+            ETCD_SNAPSHOT_COUNT: '50000'
+            http_proxy: ''
+            https_proxy: ''
+            no_proxy: ''
+            HTTP_PROXY: ''
+            HTTPS_PROXY: ''
+            NO_PROXY: ''
+        command: >
+            etcd
+            -advertise-client-urls=http://127.0.0.1:2379
+            -listen-client-urls http://0.0.0.0:2379
+            --data-dir /etcd
+        volumes:
+            - milvus-etcd:/etcd
+        healthcheck:
+            test: ['CMD', 'etcdctl', 'endpoint', 'health']
+            interval: 30s
+            timeout: 20s
+            retries: 3
+        networks:
+            - vs_network
+
+    milvus-standalone:
+        image: ${MILVUS_IMAGE:-milvusdb/milvus:v2.6.14}
+        hostname: milvus-standalone
+        command: ['milvus', 'run', 'standalone']
+        security_opt:
+            - seccomp:unconfined
+        environment:
+            ETCD_ENDPOINTS: milvus-etcd:2379
+            COMMON_STORAGETYPE: 'local'
+            http_proxy: ''
+            https_proxy: ''
+            no_proxy: ''
+            HTTP_PROXY: ''
+            HTTPS_PROXY: ''
+            NO_PROXY: ''
+        ports:
+            - '${MILVUS_HOST_PORT:-19530}:19530'
+            - '${MILVUS_METRICS_HOST_PORT:-9091}:9091'
+        volumes:
+            - milvus-db:/var/lib/milvus
+        depends_on:
+            milvus-etcd:
+                condition: service_healthy
+        healthcheck:
+            test: ['CMD-SHELL', 'curl -f http://localhost:9091/healthz']
+            interval: 30s
+            timeout: 20s
+            retries: 10
+            start_period: 90s
+        networks:
+            - vs_network
+
+    # Add the Milvus dependency edge; image/env come from the base definition
+    # (RETRIEVER_BACKEND=milvus selects the vector-retriever-milvus image).
+    vector-retriever:
+        depends_on:
+            milvus-standalone:
+                condition: service_healthy
+
+    multimodal-dataprep:
+        depends_on:
+            milvus-standalone:
+                condition: service_healthy
+
+volumes:
+    milvus-etcd:
+        driver: local
+    milvus-db:
+        driver: local

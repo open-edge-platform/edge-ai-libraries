@@ -45,5 +45,5 @@ data:
   OV_CACHE_DIR: {{ .Values.ovCacheDir | default "/app/ov_models/ov_cache" | quote }}
   http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
   https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
-  no_proxy: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch"
+  no_proxy: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,multimodal-dataprep,vdms-vectordb,vector-retriever,videosearch"
   no_proxy_env: {{ .Values.global.proxy.no_proxy | quote }}
