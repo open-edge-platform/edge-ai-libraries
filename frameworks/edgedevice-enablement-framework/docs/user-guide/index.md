@@ -94,7 +94,7 @@ you deploy the Edge Node. To install the feature, follow the steps in
 
 Get Started <./get-started.md>
 Release Notes <./release-notes.md>
-Acronyms <./eff-acronyms.md>
+Acronyms <./eef-acronyms.md>
 
 :::
 hide_directive-->
