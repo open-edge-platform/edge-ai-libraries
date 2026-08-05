@@ -89,7 +89,7 @@ export const DensityClassicPipelineSelection = ({
         return {
           ...sel,
           pipelineId: newPipelineId,
-          variantId: newPipeline?.variants[0]?.id || sel.variantId,
+          variantId: newPipeline?.variants[0]?.id ?? sel.variantId,
         };
       }),
     );

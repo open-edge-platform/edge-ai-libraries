@@ -17,7 +17,6 @@ export interface MixedPipelineSelection {
 
 export const DEFAULT_MIXED_STREAMS = 1;
 
-/** Spreads 100% evenly across the selections, giving the remainder to the first one. */
 export const distributeStreamRates = <T extends { stream_rate: number }>(
   selections: T[],
 ): T[] => {
@@ -101,11 +100,6 @@ export const buildClassicDensitySpecs = (
     stream_rate: selection.stream_rate,
   }));
 
-/**
- * Only the first spec carries `streams`, which switches the backend into
- * mixed-density mode: the first pipeline is pinned to that number of streams
- * while the second one is incremented by the benchmark algorithm.
- */
 export const buildMixedDensitySpecs = (
   selections: MixedPipelineSelection[],
   streams: number,
