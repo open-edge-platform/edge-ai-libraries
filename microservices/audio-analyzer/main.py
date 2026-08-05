@@ -4,9 +4,10 @@ setup_logger()
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from api.custom_endpoints import router as custom_router
+from api.custom_endpoints import router as custom_router, vss_router
 from api.error_responses import build_openai_error, openai_error_response
 from api.openai_endpoints import router as openai_router
+from api.realtime_endpoints import router as realtime_router
 from utils.config_loader import config
 from utils.ensure_model import ensure_model
 from utils.openvino_runtime_validation import validate_openvino_npu_runtime
@@ -18,6 +19,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 
 logger = logging.getLogger(__name__)
+
+# Path prefix expected by VSS's pipeline-manager (see api/custom_endpoints.py).
+VSS_API_PREFIX = "/api/v1"
 
 app = FastAPI()
 
@@ -55,7 +59,16 @@ def startup_event():
 
 
 app.include_router(openai_router)
+app.include_router(realtime_router)
 app.include_router(custom_router)
+
+# VSS's pipeline-manager calls /api/v1/models and /api/v1/transcriptions (it
+# joins AUDIO_HOST + 'api/v1' + endpoint), matching the previous Edge AI
+# Libraries release which mounted its router with prefix="/api/v1". The same
+# routes stay available unprefixed for backwards compatibility with existing
+# local usage and documentation.
+app.include_router(vss_router)
+app.include_router(vss_router, prefix=VSS_API_PREFIX)
 
 
 @app.exception_handler(RequestValidationError)

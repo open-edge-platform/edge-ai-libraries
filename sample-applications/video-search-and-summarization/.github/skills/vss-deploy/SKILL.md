@@ -1,6 +1,6 @@
 ---
 name: vss-deploy
-description: Deploy, dry-run, switch, inspect, stop, or clean the Video Search & Summarization (VSS) sample app using its real setup.sh modes, Docker Compose overlays, profiles, services, ports, and environment variables. Generates runtime credentials, deploys the chosen mode (summary / search / dual / unified), waits for health, and prints UI/API URLs. Use when users say "deploy vss", "spin up VSS", "run summary mode", "switch to search", "use GPU/vLLM", "which compose files do I need", "stop vss", "clean vss data", or ask deployment questions for sample-applications/video-search-and-summarization.
+description: Deploys and manages VSS through setup.sh and its Docker Compose overlays. Use this skill for local lifecycle tasks such as configuration, startup, mode changes, inspection, shutdown, data cleanup, and health checks. It supports summary, search, dual, and unified modes with GPU and vLLM variants.
 license: Apache-2.0
 metadata:
   version: "2.0.0"
@@ -67,9 +67,10 @@ If the user is ambiguous, ask which mode; do **not** default silently.
    ```
 
 2. **Provide config + credentials.** `setup.sh` reads everything from the shell
-   env directly (there is no top-level deployment `.env`) and aborts on the first
-   missing required var. Config and secrets are split per repo policy (no
-   credentials in committed files):
+   environment and aborts on the first missing required var. The repository now
+   provides `.env.example` as a general application template, but this skill
+   keeps config and generated secrets split so credentials never enter a
+   committed file:
    - **Non-secret config** - models, ports, tuning - lives in committed
      [`vss.config.env`](./vss.config.env).
    - **Credentials** are generated at runtime into the **gitignored**
@@ -118,8 +119,12 @@ If the user is ambiguous, ask which mode; do **not** default silently.
    ```
 
    **Run this in the background** (`run_in_background: true`) or with a long
-   timeout - the first deploy pulls large model-server images and `up -d` blocks
-   until those pulls finish, which can exceed the Bash tool's default timeout.
+   timeout. Before Compose starts, `setup.sh` launches a transient
+   `vss-model-download` container on loopback port `8640` when the selected OD
+   artifact or an OVMS VLM/split LLM artifact is missing. It submits REST jobs, waits up to
+   `MODEL_DOWNLOAD_JOB_TIMEOUT` per job (default `5400` seconds), writes failed
+   service logs to `ov_models/model-download-*.log`, removes the transient
+   container, and only then runs `docker compose up -d`.
 
    > **Only exception:** `--setenv` exists solely to leave env vars in the user's
    > *interactive* shell for later manual use - a subshell can't do that, so for
@@ -157,14 +162,23 @@ source setup.sh --summary                                                # OVMS 
 VLM_TARGET_DEVICE=GPU source setup.sh --summary                          # OVMS GPU for VLM
 LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=<llm> source setup.sh --summary # OVMS GPU for LLM
 ENABLE_VLLM=true source setup.sh --summary                               # vLLM CPU backend
+ENABLE_VLLM_GPU=true source setup.sh --summary                           # experimental vLLM XPU/GPU backend
 ENABLE_EMBEDDING_GPU=true source setup.sh --search                       # GPU for search embeddings
 ```
 
 For vLLM, `setup.sh` adds `docker/compose.vllm.yaml`, starts `vllm-cpu-service`
 (profile `vllm`) on host port `8200`, and uses `VLM_MODEL_NAME` for both
-captioning and final summary. For OVMS GPU, `setup.sh` adds
+captioning and final summary. Experimental `ENABLE_VLLM_GPU=true` instead adds
+`docker/compose.vllm.xpu.yaml`, selects profile `vllm-xpu`, and disables OVMS.
+For OVMS GPU, `setup.sh` adds
 `docker/compose.gpu_ovms.yaml` and switches `ovms-service` to
 `openvino/model_server:2026.1-gpu`.
+
+The skill's fresh `bash -c` deployment flow prevents derived OVMS storage names
+from leaking between runs. If switching from OVMS to vLLM manually in the same
+interactive shell, first run
+`unset VLM_STORAGE_MODEL_NAME LLM_STORAGE_MODEL_NAME`; otherwise Compose can
+reuse an OVMS storage alias that vLLM does not serve.
 
 ## Lifecycle: bring down or reset
 
@@ -174,12 +188,13 @@ Run these yourself via `bash -c 'source setup.sh …'`. `--stop`/`--down`/
 ```bash
 source setup.sh --stop       # stop/remove containers across all VSS overlays/profiles
 source setup.sh --down       # alias for --stop
-source setup.sh --clean-data # also removes Docker volumes and .ov_venv
+source setup.sh --clean-data # also removes the VSS application data volumes
 source setup.sh --help       # full help
 ```
 
 `--clean-data` removes `docker_minio_data`, `docker_pg_data`, `docker_vdms-db`,
 `docker_audio_analyzer_data`, `docker_data-prep`, and `docker_collector_signals`.
+It does not remove the host-backed `ov_models/` model cache.
 
 ## Default ports & URLs
 
@@ -197,18 +212,21 @@ source setup.sh --help       # full help
 
 1. `ERROR: <VAR> is not set` → missing shell env var; re-source `vss.config.env`
    + `vss.secrets.env` (step 2).
-2. `Invalid EMBEDDING_PROCESSING_MODE` → set `EMBEDDING_PROCESSING_MODE` to `api`
-   or `sdk`.
+2. `Invalid VECTORDB_BACKEND` → set `VECTORDB_BACKEND` to `vdms`
+   or `milvus`.
 3. Health never goes green → `docker compose ps` for crashed containers, then
    `docker compose logs <service>`. The heavy ones are model servers (`ovms`,
    `vlm-ov`/`vllm`, embedding).
 4. Wrong/partial stack already running → `source setup.sh --stop` then redeploy.
+5. Setup fails before Compose starts → inspect the reported
+   `ov_models/model-download-*.log`; if loopback port `8640` is occupied, set
+   `MODEL_DOWNLOAD_HOST_PORT` to a free port and rerun.
 
 For anything past these basics - model-server crashes, OVMS token/cache/GPU
-errors, `ov-models` volume permission failures, search returning no results,
-NPU/OpenGL issues - hand off to the
-[`vss-troubleshoot`](../vss-troubleshoot/SKILL.md) skill and the canonical guide
-[`docs/user-guide/troubleshooting.md`](../../../docs/user-guide/troubleshooting.md).
+errors, host model-cache or model-download permission failures, search returning no results,
+NPU/OpenGL issues - hand off to the `vss-troubleshoot` skill at
+`.github/skills/vss-troubleshoot/SKILL.md` and the canonical guide at
+`docs/user-guide/troubleshooting.md`.
 
 ## References
 

@@ -52,7 +52,7 @@ x-vippet: &vippet
     UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
     METADATA_DIR: /metadata
     SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
-    SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
+    SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark,gvainference"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
     RTSPSRC_DEFAULT_LATENCY_MS: ${RTSPSRC_DEFAULT_LATENCY_MS:-100}
@@ -75,6 +75,9 @@ x-vippet: &vippet
     # venv so the legacy 2024.x ``openvino`` package never collides
     # with the OpenVINO 2026.x runtime used for inference.
     OMZ_VIRTUAL_ENV: ${OMZ_VIRTUAL_ENV:-/home/dlstreamer/.omz-venv}
+    # Database configuration (SQLite)
+    DATABASE_URL: "sqlite+aiosqlite:////db/app.db"
+    DB_ECHO: "false"
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download"
@@ -82,14 +85,18 @@ x-vippet: &vippet
     # Broad access to USB devices is required to support a wide range of USB cameras.
     - 'c 189:* rmw'
     - 'a 189:* rwm'
+  group_add:
+    - "${DOCKER_GID:-984}"
   volumes:
     - "/dev:/dev"
+    - /var/run/docker.sock:/var/run/docker.sock:ro
     - ./shared/images/:/images
     - ./shared/models/:/models
     - ./shared/videos/:/videos
     - ./shared/scripts/:/scripts
     - ./shared/onvif/:/onvif
     - ./shared/metadata/:/metadata
+    - ./shared/db:/db
 
 services:
   vippet-ui:
@@ -117,6 +124,7 @@ services:
     volumes:
       - ./shared/images/:/images
       - ./shared/videos/:/videos
+      - ./shared/assets/:/assets
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
     image: docker.io/intel/model-download:2026.2.0-20260728-weekly
@@ -263,3 +271,6 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
+
+volumes: {}
+

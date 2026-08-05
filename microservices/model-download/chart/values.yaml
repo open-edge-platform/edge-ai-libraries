@@ -14,6 +14,24 @@ modeldownload:
     tag: latest
     pullPolicy: IfNotPresent
 
+  startupConfig:
+    enabled: false
+    config:
+      download_path: models
+      parallel_downloads: false
+      models:
+        - name: <Model-name>
+          hub: huggingface
+          type: embeddings
+        - name: <Model-name>
+          hub: openvino
+          type: llm
+          is_ovms: true
+          config:
+            precision: int8
+            device: CPU
+            cache_size: 10
+
   readinessProbe:
       httpGet:
         path: /health
@@ -30,7 +48,7 @@ modeldownload:
     GETI_TOKEN: ""
     GETI_SERVER_API_VERSION: "v1"
     GETI_SERVER_SSL_VERIFY: "False"
-    ENABLED_PLUGINS: "all"   #Comma separated list of plugins to enable, or "all"
+    ENABLED_PLUGINS: "huggingface"   #Comma separated list of plugins to enable, or "all"
     OVMS_RELEASE_TAG: "v2025.4.1"
     #HLS pre-configured parameters
     HLS_3D_POSE_CHECKPOINT_URL: "https://storage.openvinotoolkit.org/repositories/open_model_zoo/public/2022.1/human-pose-estimation-3d-0001/human-pose-estimation-3d.tar.gz"

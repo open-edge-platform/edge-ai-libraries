@@ -143,7 +143,7 @@ The key components of Video Search and Summarization mode are as follows:
 
    **Data-handling microservices**
 
-    - [VDMS-based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/vdms/README.md) - Handles vector database storage and retrieval.
+    - [Multimodal data preparation](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/README.md) - Handles vector database storage and retrieval.
 
     - [Vector Retriever](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/vector-retriever/index.html) - Enables semantic search across the video collection.
 

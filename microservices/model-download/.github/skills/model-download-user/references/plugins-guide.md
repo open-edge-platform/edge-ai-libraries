@@ -103,7 +103,7 @@ Use `hub: "openvino"` (pure conversion flow):**
 | `type` | string | Yes | Model type — see table below |
 | `is_ovms` | bool | Yes for conversion | Set to `true` to trigger OpenVINO conversion |
 | `config.precision` | string | No | `int4`, `int8`, `fp16`, `fp32` (default: `int8`) |
-| `config.device` | string | No | `CPU`, `GPU`, `NPU` (default: `CPU`) |
+| `config.device` | string | No | `CPU`, `GPU`, `NPU`, or `HETERO:<dev>[,<dev>...]` e.g. `HETERO:GPU,CPU` (default: `CPU`) |
 | `config.cache_size` | int | No | KV cache size in GB (LLM/VLM only) |
 | `config.kv_cache_precision` | string | No | `u8` or model default |
 | `config.enable_prefix_caching` | bool | No | Enable prefix caching for prompts |
@@ -123,11 +123,13 @@ Use `hub: "openvino"` (pure conversion flow):**
 | `speech2text` | `speech2text` | Whisper |
 | `image_generation` | `image_generation` | Stable Diffusion, Dreamlike |
 
-**NPU constraint:** NPU device forces `int4` precision regardless of config.
+**NPU constraint:** NPU device forces `int4` precision regardless of config. This applies only to the exact `NPU` device — HETERO combinations (e.g. `HETERO:NPU,CPU`) keep the requested precision.
 
 ### Output Path
 
 `<model-path>/openvino_models/<DEVICE>/<precision>/`
+
+The device segment is a lowercase filesystem-safe slug: `HETERO:GPU,CPU` becomes `hetero_gpu_cpu`.
 
 ### Curl Example — LLM INT4 for CPU
 
