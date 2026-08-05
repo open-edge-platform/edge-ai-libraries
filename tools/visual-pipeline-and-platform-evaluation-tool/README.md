@@ -69,10 +69,10 @@ The following resources provide comprehensive guidance on installation, usage, a
 Pipeline and Platform Evaluation Tool:
 
 - [System Requirements](./docs/user-guide/get-started/installation/system-requirements.md)
-- [Get Started](./docs/user-guide/get-started.md)
+- [Installation](./docs/user-guide/get-started/installation.md)
 - [Quickstart Guide](./docs/user-guide/get-started/quickstart.md)
-- [User Guide](./docs/user-guide/user-guide.md)
-- [Developer Guide](./docs/user-guide/developer-guide.md)
+- [Input Management](./docs/user-guide/user-guide/input-management.md)
+- [Architecture](./docs/user-guide/developer-guide/architecture.md)
 - [Troubleshooting](./docs/user-guide/troubleshooting.md)
 - [Release Notes](./docs/user-guide/release-notes.md)
 
