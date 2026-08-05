@@ -16,6 +16,8 @@ variants:
         device=CPU
         model=/models/output/public/yolov8n/INT8/yolov8n.xml
         pre-process-backend=opencv
+        batch-size=4
+        nireq=6
         inference-region=roi-list
         model-instance-id=detect-cpu !
       gvametaconvert add-empty-results=true format=json !
@@ -69,6 +71,8 @@ variants:
         device=NPU
         model=/models/output/public/yolov8n/INT8/yolov8n.xml
         pre-process-backend=opencv
+        batch-size=1
+        nireq=4
         inference-region=roi-list
         model-instance-id=detect-npu !
       gvametaconvert add-empty-results=true format=json !
