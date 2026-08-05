@@ -10,8 +10,6 @@ detection UDF.
 - `make` available on the host
 - `wget` installed (required to download UDF packages)
 
-
-
 ## Configure Environment Variables - Build, Start, and Stop
 
 ### Build
@@ -45,7 +43,7 @@ make clean-experimental
 
 Once the services are running, follow the steps below to deploy the Wind Turbine anomaly detection UDF into the TSAM.
 
-The TSAM Swagger UI is available at **http://localhost:5000/docs**.
+The TSAM Swagger UI is available at **[http://localhost:5000/docs](http://localhost:5000/docs)**.
 
 ### Step 1. Download the UDF package
 
@@ -57,7 +55,7 @@ wget https://raw.githubusercontent.com/open-edge-platform/edge-ai-resources/main
 
 ### Step 2. Upload the UDF package
 
-1. Open **http://localhost:5000/docs** in a browser.
+1. Open **[http://localhost:5000/docs](http://localhost:5000/docs)** in a browser.
 2. Navigate to **POST /udfs/package**.
 3. Click **Try it out**.
 4. Under **Choose File**, select the downloaded `wind-turbine-anomaly-detection.tar` file.
@@ -68,7 +66,7 @@ A successful response returns the message: `UDF deployment package 'wind-turbine
 
 ### Step 3. Apply the configuration
 
-1. Open **http://localhost:5000/docs** in a browser.
+1. Open **[http://localhost:5000/docs](http://localhost:5000/docs)** in a browser.
 2. Navigate to **POST /config**.
 3. Click **Try it out**.
 4. In the **Request Body** field, paste the following configuration:
@@ -82,9 +80,10 @@ A successful response returns the message: `UDF deployment package 'wind-turbine
     }
 }
 ```
+
   ![UDF configuration Diagram](../../_assets/config_udf.png)
 
-5. Click **Execute**.
+1. Click **Execute**.
 
 A successful response returns the message: `Configuration updated successfully.`
 
@@ -100,24 +99,11 @@ docker logs -f ia-time-series-analytics-microservice
 
 You should see output similar to the following:
 
+```text
+2026-05-26 04:43:45,599 - classifier_startup - INFO - Connected to Kapacitor on port 9092
+2026-05-26 04:43:45,621 - classifier_startup - INFO - Kapacitor initialized successfully
+2026-05-26 04:43:46,201 - classifier_startup - INFO - HTTP service listening on [::]:9092
+2026-05-26 04:43:46,201 - classifier_startup - INFO - Started task windturbine_anomaly_detector
+INFO: 172.18.0.7:52784 - "POST /input HTTP/1.1" 200 OK
+INFO: 172.18.0.7:52786 - "POST /input HTTP/1.1" 200 OK
 ```
-2026-05-26 04:43:45,599 - classifier_startup - INFO - Successful in connecting to Kapacitor onport 9092
-2026-05-26 04:43:45,599 - classifier_startup - INFO - Kapacitor Port is Open for Communication....
-2026-05-26 04:43:45,621 - classifier_startup - INFO - Kapacitor Tasks Enabled Successfully
-2026-05-26 04:43:45,621 - classifier_startup - INFO - Kapacitor Initialized Successfully. Ready to Receive the Data....
-2026-05-26 04:43:46,201 - classifier_startup - INFO - b'ts=2026-05-26T04:43:41.770Z lvl=info msg="backup file created" service=alert bytes=32768\n'
-2026-05-26 04:43:46,201 - classifier_startup - INFO - b'ts=2026-05-26T04:43:41.770Z lvl=info msg="Topic Store updated" service=alert version=2\n'
-2026-05-26 04:43:46,201 - classifier_startup - INFO - b'ts=2026-05-26T04:43:41.770Z lvl=info msg="starting HTTP service" service=http\n'
-2026-05-26 04:43:46,201 - classifier_startup - INFO - b'ts=2026-05-26T04:43:41.770Z lvl=info msg=authentication service=http enabled=false\n'
-2026-05-26 04:43:46,201 - classifier_startup - INFO - b'ts=2026-05-26T04:43:41.770Z lvl=info msg="listening on" service=http addr=[::]:9092 protocol=http\n'
-2026-05-26 04:43:46,201 - classifier_startup - INFO - b'ts=2026-05-26T04:43:41.770Z lvl=info msg="listening for signals" service=run\n'
-2026-05-26 04:43:46,201 - classifier_startup - INFO - b'ts=2026-05-26T04:43:45.619Z lvl=info msg="started task" service=kapacitor task_master=main task=windturbine_anomaly_detector\n'
-2026-05-26 04:43:47,203 - classifier_startup - INFO - b'ts=2026-05-26T04:43:46.698Z lvl=info msg="UDF log" service=kapacitor task_master=main task=windturbine_anomaly_detector node=windturbine_anomaly_detector2 text="Extension for Scikit-learn* enabled (https://github.com/uxlfoundation/scikit-learn-intelex)"\n'
-INFO:     172.18.0.7:52784 - "POST /input HTTP/1.1" 200 OK
-2026-05-26 04:43:51,208 - classifier_startup - INFO - b'ts=2026-05-26T04:43:50.495Z lvl=info msg="UDF log" service=kapacitor task_master=main task=windturbine_anomaly_detector node=windturbine_anomaly_detector2 text="INFO:sklearnex: sklearn.ensemble.RandomForestRegressor.predict: running accelerated version on CPU"\n'
-INFO:     172.18.0.7:52786 - "POST /input HTTP/1.1" 200 OK
-2026-05-26 04:43:56,215 - classifier_startup - INFO - b'ts=2026-05-26T04:43:50.495Z lvl=info msg="UDF log" service=kapacitor task_master=main task=windturbine_anomaly_detector node=windturbine_anomaly_detector2 text="2026-05-26 04:43:50,495 - sklearnex - INFO - sklearn.ensemble.RandomForestRegressor.predict: running accelerated version on CPU"\n'
-2026-05-26 04:43:56,216 - classifier_startup - INFO - b'ts=2026-05-26T04:43:55.510Z lvl=info msg="UDF log" service=kapacitor task_master=main task=windturbine_anomaly_detector node=windturbine_anomaly_detector2 text="INFO:sklearnex: sklearn.ensemble.RandomForestRegressor.predict: running accelerated version on CPU"\n'
-
-```
-

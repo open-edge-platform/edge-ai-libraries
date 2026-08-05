@@ -74,13 +74,6 @@ Define the name for videoingestion Chart.
 {{- end }}
 
 {{/*
-Define the name for vss-collector.
-*/}}
-{{- define "vsscollector.fullname" -}}
-{{ .Release.Name | trunc 57 | trimSuffix "-" }}-{{ .Values.vsscollector.name }}
-{{- end }}
-
-{{/*
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.

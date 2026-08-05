@@ -49,7 +49,7 @@ from a fork/branch or reuse a specific checkout dir, override `VSS_REPO_URL`,
 | Command | Builds |
 |---|---|
 | `./build.sh` | Application services: `video-ingestion`, `pipeline-manager`, `search-ms`, UI |
-| `./build.sh --dependencies` | Dependency services: `vdms-dataprep`, `multimodal-embedding-serving` (needs **poetry** for the embedding wheel) |
+| `./build.sh --dependencies` | Dependency services: `multimodal-dataprep`, `vector-retriever`, `multimodal-embedding-serving` (needs **poetry** for the embedding wheel) |
 | `./build.sh --push` | Push all built images to the configured registry |
 | `./build.sh --help` | Usage |
 
