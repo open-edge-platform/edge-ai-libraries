@@ -1,6 +1,6 @@
 # Release Notes: Model Download
 
-## Version 2026.2
+## Version 2026.2.0
 
 **TBD**
 

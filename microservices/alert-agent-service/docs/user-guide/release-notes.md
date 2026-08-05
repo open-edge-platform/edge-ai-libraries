@@ -1,6 +1,6 @@
 # Release Notes: Alert Agent Service
 
-## Version 1.0.0
+## Version 2026.2.0
 
 **TBD**
 

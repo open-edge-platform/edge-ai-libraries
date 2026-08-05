@@ -1,6 +1,10 @@
 # Release Notes
 
-## Version 1.0.0
+## Version 2026.2.0
+
+**TBD**
+
+**New**
 
 - Standalone Agent Quality Handler with Policy, Analysis, Evidence, and Ticketing graph stages.
 - Direct REST API metrics on port `5002`.

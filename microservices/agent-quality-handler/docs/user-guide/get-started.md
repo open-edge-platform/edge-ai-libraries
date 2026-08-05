@@ -8,22 +8,17 @@ The Agent Quality Handler is a standalone, configuration-driven agent service. I
 
 ## Start
 
-### 1. Clone the repository
+### 1. Clone the Microservice
+Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace main with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/dev/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
 
 ```bash
-# Clone the latest on the mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+git clone --filter=blob:none --sparse --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/
+git sparse-checkout set microservices/agent-quality-handler/
+cd microservices/agent-quality-handler/
 ```
 
-### 2. Navigate to the directory
-
-```bash
-cd edge-ai-libraries/microservices/agent-quality-handler
-```
-
-### 3. Configure the environment variables
+### 2. Configure the environment variables
 
 ```bash
 export REGISTRY="intel/"
