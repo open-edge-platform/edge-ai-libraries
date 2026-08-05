@@ -1130,6 +1130,7 @@ export const Pipelines = () => {
                   >
                     <NodeDataPanel
                       selectedNode={selectedNode}
+                      pipelineId={data?.id}
                       onNodeDataUpdate={handleNodeDataUpdate}
                     />
                   </div>
