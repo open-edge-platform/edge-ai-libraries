@@ -149,15 +149,9 @@ const extractModelsFromSimpleGraph = (
 
     // Models nodes may include trailing suffixes like "(FP16)" or
     // "[model-proc: ...]". Api expects display name without details.
-    let normalizedModel = rawModel;
-    let previousValue = "";
-    while (normalizedModel !== previousValue) {
-      previousValue = normalizedModel;
-      normalizedModel = normalizedModel
-        .replace(/\s*\([^)]*\)\s*$/i, "")
-        .replace(/\s*\[model-proc:[^\n]*$/i, "")
-        .trim();
-    }
+    const normalizedModel = rawModel
+      .replace(/(?:\s*(?:\([^)]*\)|\[model-proc:[^[\]\n]*]?))+\s*$/i, "")
+      .trim();
     if (normalizedModel) {
       uniqueModels.add(normalizedModel);
     }
