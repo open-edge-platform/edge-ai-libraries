@@ -65,10 +65,13 @@ Before starting the Edge Node deployment, ensure you meet the following prerequi
   chmod +x va_enablement_node_profile.sh
   ```
 
-- Use one of the following commands based on your use case:
+- Use one of the following commands based on your use case. The available use cases are: Intel®
+  Edge System Qualification (Intel® ESQ) and Metro, Transportation Fusion Compute Controller
+  (TFCC) and Intel® Video Processing Platform Reference Implementation (VPP), Intel vPro® Platform,
+  Edge Workloads and Benchmarks, and DevKit Component Set. See the details below:
 
   <!--hide_directive ::::{tab-set} hide_directive-->
-  <!--hide_directive :::{tab-item} hide_directive--> **Intel® Edge System Qualification and Metro**
+  <!--hide_directive :::{tab-item} hide_directive--> **Intel® ESQ and Metro**
   <!--hide_directive :sync: esq-metro hide_directive-->
 
   ```bash

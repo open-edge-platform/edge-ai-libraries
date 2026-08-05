@@ -20,9 +20,10 @@ runtime.
 
 This release of the Edge Device Enablement Framework currently contains the Video Analytics (VA)
 Enablement Node profile, with components curated mainly for the needs of VA workloads.
-Command-line options support the Metro, Intel® Video Processing Platform, TFCC, Intel vPro®
-Platform, and Edge Workloads and Benchmarks enablement needs on the edge nodes, and a new
-'DevKit' option with a very minimal set of components and GPU or NPU driver installation.
+Command-line options support the Metro, Intel® Video Processing Platform, Transportation Fusion
+Compute Controller (TFCC), Intel vPro® Platform, and Edge Workloads and Benchmarks enablement
+needs on the edge nodes, and a new 'DevKit' option with a very minimal set of components and
+GPU or NPU driver installation.
 
 ## Main Supported Features
 
