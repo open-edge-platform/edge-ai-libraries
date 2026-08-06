@@ -121,7 +121,7 @@ act_helpper () {
   if [ ${#handles[@]} -gt 0 ]; then
     local rc=0
     {
-      local start_t=$SECONDS reports=() rc=0
+      local rc=0
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
         name=$(echo $handler | cut -f4- -d_)
         if [[ " $* " = *" --dry-run "* ]]; then
@@ -129,7 +129,6 @@ act_helpper () {
           echo "Invoke $handler with $(act_extract_args $act_name $name $*)" 
           echo "@@OK $name"
         else
-          local start_c=$SECONDS
           echo "@@COMP $name"
           (
             set -e
@@ -140,25 +139,14 @@ act_helpper () {
             echo "@@OK $name"
           else
             echo "@@FAIL $name"
-          fi
-          reports+=("$name|rc=$rc1|$(( SECONDS - start_c )) seconds")
-          if [ $rc1 -ne 0 ]; then
             rc=$rc1
             [[ " $* " = *" --continue "* ]] || break
           fi
         fi
       done
-      local end_t=$SECONDS
-      if [ ${#reports[@]} -gt 0 ]; then
-        echo "@@REPORT SUMMARY"
-        for line in "${reports[@]}"; do
-          if [[ "$line" = *"|rc=0|"* ]]; then
-            echo "$line"
-          else
-            echo -e "${red}$line${reset}"
-          fi
-        done | ensure_columns
-        echo "Total duration: $(( end_t - start_t )) seconds"
+      if [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
+        echo "@@REPORT SYSTEM SUMMARY"
+        ${ID_LIKE}_10_${act_name}_pre_system_scan
       fi
     } > >(ensure_panelled_logs) 2>&1
     # wait for background processes
