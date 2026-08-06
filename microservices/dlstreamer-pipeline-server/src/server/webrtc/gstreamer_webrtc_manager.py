@@ -28,6 +28,21 @@ class GStreamerWebRTCManager:
         " ! whipclientsink signaller::whip-endpoint="
     )
 
+    # VP9 software encoder variants. Preferred on CPU when vp9enc is available,
+    # otherwise the openh264enc variants above are used as fallback.
+    _WebRTCVideoPipeline_vp9 = (
+        " ! videoconvert ! video/x-raw,format=I420 {gvawatermark} "
+        " ! vp9enc name=vp9enc cpu-used=4 lag-in-frames=0 "
+        " ! video/x-vp9 "
+        " ! whipclientsink signaller::whip-endpoint="
+    )
+    _WebRTCVideoPipeline_jpeg_vp9 = (
+        " ! jpegdec ! videoconvert ! video/x-raw,format=I420 {gvawatermark} "
+        " ! vp9enc name=vp9enc cpu-used=4 lag-in-frames=0 "
+        " ! video/x-vp9 "
+        " ! whipclientsink signaller::whip-endpoint="
+    )
+
     # GPU pipeline variants for hardware-accelerated buffers
     _WebRTCVideoPipeline_VAMemory = (
         " ! videoconvert {gvawatermark} "
@@ -113,6 +128,15 @@ class GStreamerWebRTCManager:
         ]
         return "! gvawatermark" if not properties else "! gvawatermark displ-cfg={}".format(",".join(properties))
 
+    def _select_webrtcvideo_pipeline_cpu(self, vp9enc_present, jpeg=False):
+        # Prefer vp9enc on CPU, fall back to openh264enc when it is not present.
+        if vp9enc_present:
+            return self._WebRTCVideoPipeline_jpeg_vp9 if jpeg else self._WebRTCVideoPipeline_vp9
+        self._logger.warning(
+            "vp9enc not found, falling back to openh264enc for encoding."
+        )
+        return self._WebRTCVideoPipeline_jpeg if jpeg else self._WebRTCVideoPipeline
+
     def _get_launch_string(self, stream_caps, peer_id, overlay, overlay_properties=None):
         # pylint: disable=consider-using-f-string, too-many-branches
         s_src = '{} caps="{}"'.format(self._source_mediamtx, ",".join(stream_caps))
@@ -127,6 +151,10 @@ class GStreamerWebRTCManager:
         # encoder to ensure that the pipeline can still function without it.
         vah264enc_present = Gst.ElementFactory.find("vah264enc")
         vah264lpenc_present = Gst.ElementFactory.find("vah264lpenc")
+
+        # On CPU we prefer the vp9enc software encoder when available and fall
+        # back to openh264enc when it is not present.
+        vp9enc_present = Gst.ElementFactory.find("vp9enc")
 
         if "image/jpeg" in stream_caps:
             # GPU buffers with jpeg input
@@ -146,10 +174,10 @@ class GStreamerWebRTCManager:
                         "vah264enc and vah264lpenc not found, "
                         + "using software encoding"
                     )
-                    video_pipeline = self._WebRTCVideoPipeline_jpeg
+                    video_pipeline = self._select_webrtcvideo_pipeline_cpu(vp9enc_present, jpeg=True)
             # CPU buffers with jpeg input
             else:
-                video_pipeline = self._WebRTCVideoPipeline_jpeg
+                video_pipeline = self._select_webrtcvideo_pipeline_cpu(vp9enc_present, jpeg=True)
         else:
             # GPU buffers with raw video input
             if is_gpu and buffer_type == "VAMemory":
@@ -168,10 +196,10 @@ class GStreamerWebRTCManager:
                         "vah264enc and vah264lpenc not found, "
                         + "using software encoding"
                     )
-                    video_pipeline = self._WebRTCVideoPipeline
+                    video_pipeline = self._select_webrtcvideo_pipeline_cpu(vp9enc_present)
             # CPU buffers with raw video input
             else:
-                video_pipeline = self._WebRTCVideoPipeline
+                video_pipeline = self._select_webrtcvideo_pipeline_cpu(vp9enc_present)
         video_pipeline = video_pipeline.format(gvawatermark=watermark_stage)
         pipeline_launch = " {} {} ".format(s_src, video_pipeline)
         pipeline_launch = (
