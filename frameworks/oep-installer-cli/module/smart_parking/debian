@@ -15,15 +15,13 @@ debian_90_profile_smart_parking () {
 
 debian_90_install_smart_parking () {
   configure_smart_parking
-  if verify_smart_parking; then
+  if verify_smart_parking && [[ "$*" != *"--reset-smart_parking"* ]]; then
     echo "Smart parking is already installed. Skipping..."
     return 0
   fi
 
-  [[ "$*" = *"--reset-smart_parking"* ]] || return 0
-  ensure_disk_space 300
-
   # clone the repository
+  ensure_disk_space 300
   ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
 
   # setup

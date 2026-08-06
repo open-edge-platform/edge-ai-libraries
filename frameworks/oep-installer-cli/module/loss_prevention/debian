@@ -15,15 +15,13 @@ debian_90_profile_loss_prevention () {
 
 debian_90_install_loss_prevention () {
   configure_loss_prevention
-  if verify_loss_prevention; then
+  if verify_loss_prevention && [[ "$*" != *"--reset-loss_prevention"* ]]; then
     echo "Loss prevention is already installed. Skipping"
     return
   fi
 
-  [[ "$*" = *"--reset-loss_prevention"* ]] || return 0
-  ensure_disk_space 300
-
   # clone the repository
+  ensure_disk_space 300
   ensure_git_clone "$workspace" $version $repository
 
   # setup
