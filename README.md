@@ -236,18 +236,13 @@ advanced robotic workloads at the edge.
 
   Unified interface library bridging motion control commands
   between AI modules and industrial/robotic devices; simplifies
-  real-time control integration and system interoperability in mixed
+  real-time control integration and system interoperability in mixed 
   hardware environments.
 
 ### Sample Applications and Reference Implementations
 
 Ready-to-use example applications demonstrating real-world AI use cases
 to help users get started quickly and understand integration patterns: 
-
-- [Chat Question and Answer](./sample-applications/chat-question-and-answer) 
-
-  Conversational AI application integrating retrieval-augmented generation for
-  question answering. 
 
 - [Chat Question and Answer Core](./sample-applications/chat-question-and-answer-core) 
 
