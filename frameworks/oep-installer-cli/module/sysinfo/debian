@@ -57,7 +57,7 @@ debian_10_install_sysinfo () {
 }
 
 sysinfo_check_membank () {
-  local dmi_out=$(ensure_sudo dmidecode -t memory 2>/dev/null)
+  local dmi_out="$(ensure_sudo dmidecode -t memory 2>/dev/null)"
   local installed_modules=()
   mapfile -t installed_modules < <(echo "$dmi_out" | awk -v in_dev=0 '
     /^Memory Device$/ {
@@ -67,12 +67,10 @@ sysinfo_check_membank () {
       in_dev=1;size="";loc="N/A";bank="N/A"
     }
     /^\s*Size:/ {
-      size=$0;
-      sub(/^\s*Size:\s*/,"",size)
+      size=gensub(/^\s*Size:\s*/,"",1)
     }
     /^\s*Locator:/ {
-      loc = $0;
-      sub(/^\s*Locator:\s*/, "", loc)
+      loc=gensub(/^\s*Locator:\s*/,"",1)
     }
     /^\s*Bank Locator:/ {
       bank=gensub(/^\s*Bank Locator:\s*/,"",1)
@@ -94,10 +92,12 @@ sysinfo_check_membank () {
   local channels=() mod
   for mod in "${installed_modules[@]}"; do
     local channel_id=""
-    if [[ "$mod" =~ Locator:[[:space:]]*[A-Za-z0-9_-]*([A-Za-z])[0-9] ]]; then
-      channel_id="Channel_${BASH_REMATCH[1]}"
-    elif [[ "$mod" =~ Bank:[[:space:]]*.*[Cc][Hh][Aa][Nn][Nn]?[Ee]?[Ll]?[[:space:]_]*([A-Za-z0-9]+) ]]; then
-      channel_id="Channel_${BASH_REMATCH[1]}"
+    if [[ "$mod" =~ ([Cc]ontroller[0-9]+|[Mm][Cc][0-9]+|[Nn]ode[0-9]+|[Pp][0-9]+)[_-]?([Cc][Hh][Aa][Nn][Nn]?[Ee]?[Ll]?[_-]?[[:space:]]*[A-Za-z0-9]+) ]]; then
+        channel_id="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
+    elif [[ "$mod" =~ [Cc][Hh][Aa][Nn][Nn]?[Ee]?[Ll]?[_-]?[[:space:]]*([A-Za-z0-9]+) ]]; then
+        channel_id="Channel_${BASH_REMATCH[1]}"
+    elif [[ "$mod" =~ Locator:[[:space:]]*[A-Za-z0-9_-]*([A-Za-z])[0-9] ]]; then
+        channel_id="Channel_${BASH_REMATCH[1]}"
     fi
     [ -z "$channel_id" ] || channels+=("$channel_id")
   done
