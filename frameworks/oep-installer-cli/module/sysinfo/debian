@@ -42,18 +42,29 @@ debian_10_install_sysinfo () {
     [[ "$cpuinst_info" != *Missing* ]] || pass="${nok} Check CPU"
     echo "CPU|$cpuinst_info|$pass"
 
-    gpu_accels=("8086:b08f")
+    gpu_accels=("8086:b08f" "8086:7d51" "8086:fd80")
     for accel in ${gpu_accels[@]}; do
       pass=$ok
-      accel_info="$(sysinfo_check_gpu_accel $accel)"
+      accel_info="$(sysinfo_check_pci_device $accel "Intel Integrated Graphics")"
       if [ -n "$accel_info" ]; then
         [[ "$accel_info" = *driver* ]] || pass="${nok} Missing Driver"
         echo "GPU|$accel_info|$pass"
       fi
     done
 
+    npu_accels=("8086:b03e" "8086:7d1d" "8086:fd3e")
+    for accel in ${npu_accels[@]}; do
+      pass=$ok
+      accel_info="$(sysinfo_check_pci_device $accel "Intel AI Boost")"
+      if [ -n "$accel_info" ]; then
+        [[ "$accel_info" = *driver* ]] || pass="${nok} Missing Driver"
+        echo "NPU|$accel_info|$pass"
+      fi
+    done
+
     [ "$net_pass" = "$ok" ]
   ) | ensure_columns
+  echo "------------------------------------------------------------------------"
 }
 
 sysinfo_check_membank () {
@@ -167,15 +178,20 @@ sysinfo_check_cpu_instructions () {
   fi
 }
 
-sysinfo_check_gpu_accel () {
-  local name="$(lspci -v -n 2> /dev/null | grep -A10 -F $1 | grep -m1 DeviceName: | cut -f2- -d: || true)"
-  if [ -n "$name" ]; then
-    local driver="$(lscpi -v -n | grep -A10 -F $1 | awk '/Kernel driver in use:/{print$NF}' || true)"
+sysinfo_check_pci_device () {
+  local deviceid=$1
+  local default_name="$2"
+  local lspci_out="$(lspci -v -n 2> /dev/null | grep -A10 -F $deviceid)"
+  local subsystem="$(echo "$lspci_out" | grep -m1 Subsystem: | cut -f2- -d: | sed 's|^ ||g' || true)"
+  if [ -n "$subsystem" ]; then
+    local name="$(echo "$lspci_out" | grep -m1 DeviceName: | cut -f2- -d: | sed 's|^ ||g' || true)"
+    local driver="$(echo "$lspci_out" | awk '/Kernel driver in use:/{print$NF}' || true)"
+    local driver_str=""
     if [ -n "$driver" ]; then
-      echo "$name driver $(modinfo $driver 2>/dev/null | awk '/vermagic:/{print$2}' || true)"
-    else
-      echo "$name"
+      driver_str=$(modinfo $driver 2>/dev/null | awk '/vermagic:/{print$2}' || true)
+      [ -z "$driver_str" ] || driver_str=" · driver $driver $driver_str"
     fi
+    echo "${name:-$default_name}$driver_str"
   fi
 }
 
