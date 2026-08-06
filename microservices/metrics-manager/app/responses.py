@@ -94,6 +94,10 @@ class PlatformInfoResponse(BaseModel):
     os: str = Field(..., description="Operating system name")
     kernel: str = Field(..., description="Kernel release")
     architecture: str = Field(..., description="CPU architecture")
+    interface_channel: str = Field(
+        default="rest",
+        description="Channel clients use to reach the service (currently always 'rest')",
+    )
     system: dict[str, Any] = Field(
         default_factory=dict,
         description="System identity details (hostname/vendor/product)",

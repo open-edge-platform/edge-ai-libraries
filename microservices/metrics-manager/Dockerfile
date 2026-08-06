@@ -184,6 +184,7 @@ COPY pyproject.toml ./
 COPY VERSION ./
 COPY .env.example ./
 COPY telegraf.conf ./
+COPY telegraf.d/ ./telegraf.d/
 COPY compose.yaml ./
 COPY supervisord.conf ./
 COPY entrypoint.sh ./

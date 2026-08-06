@@ -306,7 +306,7 @@
     },
     {
       "title": "NPU (Neural Processing Unit) Power / Temperature",
-      "description": "Intel NPU via PMT = Platform Monitoring Technology (npu_reader.py).",
+      "description": "Intel NPU via PMT = Platform Monitoring Technology (npu_reader.py). power_state: PCI runtime-PM state, 0=D0 active .. 4=D3cold (\u22121=unknown).",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -318,7 +318,7 @@
         "x": 8,
         "y": 9
       },
-      "id": 14,
+      "id": 15,
       "targets": [
         {
           "datasource": {
@@ -337,6 +337,15 @@
           "expr": "npu_temperature{host=~\"$host\"}",
           "legendFormat": "temp (\u00b0C)",
           "refId": "N"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "npu_power_state{host=~\"$host\"}",
+          "legendFormat": "power state (0=D0..4=D3cold)",
+          "refId": "O"
         }
       ],
       "fieldConfig": {
@@ -384,7 +393,7 @@
         "x": 16,
         "y": 9
       },
-      "id": 16,
+      "id": 17,
       "targets": [
         {
           "datasource": {
@@ -393,7 +402,7 @@
           },
           "expr": "powerstat_package_uncore_frequency_mhz_cur{host=~\"$host\"}",
           "legendFormat": "uncore {{package_id}}",
-          "refId": "P"
+          "refId": "Q"
         }
       ],
       "fieldConfig": {
@@ -437,7 +446,7 @@
         "x": 0,
         "y": 17
       },
-      "id": 17,
+      "id": 18,
       "panels": []
     },
     {
@@ -454,7 +463,7 @@
         "x": 0,
         "y": 18
       },
-      "id": 18,
+      "id": 19,
       "targets": [
         {
           "datasource": {
@@ -463,7 +472,7 @@
           },
           "expr": "100 - cpu_usage_idle{host=~\"$host\"}",
           "legendFormat": "",
-          "refId": "T"
+          "refId": "U"
         }
       ],
       "fieldConfig": {
@@ -517,7 +526,7 @@
         "x": 6,
         "y": 18
       },
-      "id": 20,
+      "id": 21,
       "targets": [
         {
           "datasource": {
@@ -526,7 +535,7 @@
           },
           "expr": "max by (host) (gpu_engine_usage_usage{host=~\"$host\"})",
           "legendFormat": "",
-          "refId": "V"
+          "refId": "W"
         }
       ],
       "fieldConfig": {
@@ -580,7 +589,7 @@
         "x": 12,
         "y": 18
       },
-      "id": 22,
+      "id": 23,
       "targets": [
         {
           "datasource": {
@@ -589,7 +598,7 @@
           },
           "expr": "npu_utilization{host=~\"$host\"}",
           "legendFormat": "",
-          "refId": "X"
+          "refId": "Y"
         }
       ],
       "fieldConfig": {
@@ -643,7 +652,7 @@
         "x": 18,
         "y": 18
       },
-      "id": 24,
+      "id": 25,
       "targets": [
         {
           "datasource": {
@@ -652,7 +661,7 @@
           },
           "expr": "mem_used_percent{host=~\"$host\"}",
           "legendFormat": "",
-          "refId": "Z"
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -706,7 +715,7 @@
         "x": 0,
         "y": 25
       },
-      "id": 29,
+      "id": 30,
       "targets": [
         {
           "datasource": {
@@ -715,7 +724,7 @@
           },
           "expr": "100 - cpu_usage_idle{host=~\"$host\"}",
           "legendFormat": "CPU",
-          "refId": "A"
+          "refId": "B"
         },
         {
           "datasource": {
@@ -724,7 +733,7 @@
           },
           "expr": "max by (host) (gpu_engine_usage_usage{host=~\"$host\"})",
           "legendFormat": "GPU",
-          "refId": "B"
+          "refId": "C"
         },
         {
           "datasource": {
@@ -733,7 +742,7 @@
           },
           "expr": "npu_utilization{host=~\"$host\"}",
           "legendFormat": "NPU",
-          "refId": "C"
+          "refId": "D"
         }
       ],
       "fieldConfig": {
@@ -781,7 +790,7 @@
         "x": 12,
         "y": 25
       },
-      "id": 31,
+      "id": 32,
       "targets": [
         {
           "datasource": {
@@ -790,7 +799,7 @@
           },
           "expr": "powerstat_core_cpu_frequency_mhz{host=~\"$host\"}",
           "legendFormat": "core {{core_id}}/cpu {{cpu_id}}",
-          "refId": "E"
+          "refId": "F"
         }
       ],
       "fieldConfig": {
@@ -825,8 +834,8 @@
       }
     },
     {
-      "title": "GPU Frequency (current vs actual)",
-      "description": "Requested vs actual GPU frequency (throttle indicator).",
+      "title": "GPU Frequency (requested vs actual)",
+      "description": "Driver-requested (cur_freq) vs achieved (act_freq) GPU frequency per GT, via gpu_throttle_reader.py. A gap = the GPU couldn't hold the requested clock.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -838,25 +847,25 @@
         "x": 0,
         "y": 33
       },
-      "id": 34,
+      "id": 35,
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "gpu_frequency{type=\"cur_freq\",host=~\"$host\"}",
-          "legendFormat": "requested",
-          "refId": "G"
+          "expr": "gpu_throttle_driver_freq_mhz{host=~\"$host\"}",
+          "legendFormat": "requested {{card}}/{{gt}}",
+          "refId": "H"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "gpu_frequency{type=\"act_freq\",host=~\"$host\"}",
-          "legendFormat": "actual",
-          "refId": "H"
+          "expr": "gpu_throttle_act_freq_mhz{host=~\"$host\"}",
+          "legendFormat": "actual {{card}}/{{gt}}",
+          "refId": "I"
         }
       ],
       "fieldConfig": {
@@ -904,7 +913,7 @@
         "x": 12,
         "y": 33
       },
-      "id": 36,
+      "id": 37,
       "targets": [
         {
           "datasource": {
@@ -913,12 +922,105 @@
           },
           "expr": "gpu_engine_usage_usage{host=~\"$host\"}",
           "legendFormat": "{{engine}}",
-          "refId": "J"
+          "refId": "K"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "GPU Throttle Reasons (per GT)",
+      "description": "xe DRM throttle flags (1 = actively throttling). 'any' = OR of all reasons; thermal is the headline for the T envelope. Via gpu_throttle_reader.py.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "id": 43,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "gpu_throttle_throttled{host=~\"$host\"}",
+          "legendFormat": "any {{card}}/{{gt}}",
+          "refId": "M"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "gpu_throttle_throttle_thermal{host=~\"$host\"}",
+          "legendFormat": "thermal {{card}}/{{gt}}",
+          "refId": "N"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "gpu_throttle_throttle_pl1{host=~\"$host\"}",
+          "legendFormat": "PL1 {{card}}/{{gt}}",
+          "refId": "O"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "gpu_throttle_throttle_pl2{host=~\"$host\"}",
+          "legendFormat": "PL2 {{card}}/{{gt}}",
+          "refId": "P"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "gpu_throttle_throttle_prochot{host=~\"$host\"}",
+          "legendFormat": "PROCHOT {{card}}/{{gt}}",
+          "refId": "Q"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
           "custom": {
             "drawStyle": "line",
             "lineWidth": 1,
@@ -957,7 +1059,7 @@
         "x": 0,
         "y": 41
       },
-      "id": 37,
+      "id": 44,
       "panels": []
     },
     {
@@ -974,7 +1076,7 @@
         "x": 0,
         "y": 42
       },
-      "id": 41,
+      "id": 48,
       "targets": [
         {
           "datasource": {
@@ -983,7 +1085,7 @@
           },
           "expr": "dram_bw_read_gbps{host=~\"$host\"}",
           "legendFormat": "read",
-          "refId": "M"
+          "refId": "T"
         },
         {
           "datasource": {
@@ -992,7 +1094,7 @@
           },
           "expr": "dram_bw_write_gbps{host=~\"$host\"}",
           "legendFormat": "write",
-          "refId": "N"
+          "refId": "U"
         },
         {
           "datasource": {
@@ -1001,7 +1103,7 @@
           },
           "expr": "dram_bw_total_gbps{host=~\"$host\"}",
           "legendFormat": "total",
-          "refId": "O"
+          "refId": "V"
         }
       ],
       "fieldConfig": {
@@ -1049,7 +1151,7 @@
         "x": 12,
         "y": 42
       },
-      "id": 44,
+      "id": 51,
       "targets": [
         {
           "datasource": {
@@ -1058,7 +1160,7 @@
           },
           "expr": "mem_used{host=~\"$host\"}",
           "legendFormat": "used",
-          "refId": "Q"
+          "refId": "X"
         },
         {
           "datasource": {
@@ -1067,7 +1169,7 @@
           },
           "expr": "mem_total{host=~\"$host\"} - mem_used{host=~\"$host\"}",
           "legendFormat": "available",
-          "refId": "R"
+          "refId": "Y"
         }
       ],
       "fieldConfig": {
@@ -1115,7 +1217,7 @@
         "x": 20,
         "y": 42
       },
-      "id": 48,
+      "id": 55,
       "targets": [
         {
           "datasource": {
@@ -1124,7 +1226,7 @@
           },
           "expr": "mem_total{host=~\"$host\"}",
           "legendFormat": "total",
-          "refId": "T"
+          "refId": "A"
         },
         {
           "datasource": {
@@ -1133,7 +1235,7 @@
           },
           "expr": "mem_used{host=~\"$host\"}",
           "legendFormat": "used",
-          "refId": "U"
+          "refId": "B"
         },
         {
           "datasource": {
@@ -1142,7 +1244,7 @@
           },
           "expr": "mem_used_percent{host=~\"$host\"}",
           "legendFormat": "used %",
-          "refId": "V"
+          "refId": "C"
         }
       ],
       "fieldConfig": {
@@ -1186,7 +1288,7 @@
         "x": 0,
         "y": 48
       },
-      "id": 49,
+      "id": 56,
       "panels": []
     },
     {
@@ -1203,7 +1305,7 @@
         "x": 0,
         "y": 49
       },
-      "id": 51,
+      "id": 58,
       "targets": [
         {
           "datasource": {
@@ -1212,7 +1314,7 @@
           },
           "expr": "rate(diskio_io_time{name!~\"loop.*|ram.*|dm-.*|sr.*\",host=~\"$host\"}[1m])/10",
           "legendFormat": "{{name}}",
-          "refId": "Y"
+          "refId": "F"
         }
       ],
       "fieldConfig": {
@@ -1260,7 +1362,7 @@
         "x": 8,
         "y": 49
       },
-      "id": 54,
+      "id": 61,
       "targets": [
         {
           "datasource": {
@@ -1269,7 +1371,7 @@
           },
           "expr": "rate(diskio_read_bytes{name!~\"loop.*|ram.*|dm-.*|sr.*\",host=~\"$host\"}[1m])",
           "legendFormat": "read {{name}}",
-          "refId": "A"
+          "refId": "H"
         },
         {
           "datasource": {
@@ -1278,7 +1380,7 @@
           },
           "expr": "rate(diskio_write_bytes{name!~\"loop.*|ram.*|dm-.*|sr.*\",host=~\"$host\"}[1m])",
           "legendFormat": "write {{name}}",
-          "refId": "B"
+          "refId": "I"
         }
       ],
       "fieldConfig": {
@@ -1326,7 +1428,7 @@
         "x": 16,
         "y": 49
       },
-      "id": 56,
+      "id": 63,
       "targets": [
         {
           "datasource": {
@@ -1335,7 +1437,7 @@
           },
           "expr": "topk(8, sum by (device) (rate(interrupts_total{host=~\"$host\"}[1m])))",
           "legendFormat": "{{device}}",
-          "refId": "D"
+          "refId": "K"
         }
       ],
       "fieldConfig": {
@@ -1383,7 +1485,7 @@
         "x": 0,
         "y": 57
       },
-      "id": 58,
+      "id": 65,
       "targets": [
         {
           "datasource": {
@@ -1392,7 +1494,7 @@
           },
           "expr": "rate(net_bytes_recv{host=~\"$host\"}[1m])",
           "legendFormat": "rx {{interface}}",
-          "refId": "F"
+          "refId": "M"
         }
       ],
       "fieldConfig": {
@@ -1440,7 +1542,7 @@
         "x": 12,
         "y": 57
       },
-      "id": 60,
+      "id": 67,
       "targets": [
         {
           "datasource": {
@@ -1449,7 +1551,7 @@
           },
           "expr": "rate(net_bytes_sent{host=~\"$host\"}[1m])",
           "legendFormat": "tx {{interface}}",
-          "refId": "H"
+          "refId": "O"
         }
       ],
       "fieldConfig": {
@@ -1493,7 +1595,7 @@
         "x": 0,
         "y": 65
       },
-      "id": 61,
+      "id": 68,
       "panels": []
     },
     {
@@ -1505,7 +1607,7 @@
         "x": 0,
         "y": 66
       },
-      "id": 62,
+      "id": 69,
       "options": {
         "mode": "markdown",
         "content": "**R = Real-Time Determinism.** The C0-state residency panel below is always live (from `intel_powerstat`). Every other panel in this row comes from the opt-in **turbostat** plugin and populates only when `ENABLE_TURBOSTAT=true` (needs the kernel-matched `linux-tools` package) \u2014 otherwise they read *No data*, which is expected. Acronyms are spelled out in each panel title. **SMI** (System Management Interrupts) are the #1 hidden cause of RT latency spikes."
@@ -1525,7 +1627,7 @@
         "x": 0,
         "y": 70
       },
-      "id": 64,
+      "id": 71,
       "targets": [
         {
           "datasource": {
@@ -1534,7 +1636,7 @@
           },
           "expr": "powerstat_core_cpu_c0_state_residency_percent{host=~\"$host\"}",
           "legendFormat": "core {{core_id}}",
-          "refId": "L"
+          "refId": "S"
         }
       ],
       "fieldConfig": {
@@ -1582,7 +1684,7 @@
         "x": 12,
         "y": 70
       },
-      "id": 66,
+      "id": 73,
       "targets": [
         {
           "datasource": {
@@ -1591,7 +1693,7 @@
           },
           "expr": "turbostat_ipc{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "core {{core}}",
-          "refId": "N"
+          "refId": "U"
         }
       ],
       "fieldConfig": {
@@ -1639,7 +1741,7 @@
         "x": 18,
         "y": 70
       },
-      "id": 68,
+      "id": 75,
       "targets": [
         {
           "datasource": {
@@ -1648,7 +1750,7 @@
           },
           "expr": "turbostat_smi{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "core {{core}}",
-          "refId": "P"
+          "refId": "W"
         }
       ],
       "fieldConfig": {
@@ -1696,7 +1798,7 @@
         "x": 0,
         "y": 78
       },
-      "id": 70,
+      "id": 77,
       "targets": [
         {
           "datasource": {
@@ -1705,7 +1807,7 @@
           },
           "expr": "turbostat_irq{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "core {{core}}",
-          "refId": "R"
+          "refId": "Y"
         }
       ],
       "fieldConfig": {
@@ -1753,7 +1855,7 @@
         "x": 8,
         "y": 78
       },
-      "id": 72,
+      "id": 79,
       "targets": [
         {
           "datasource": {
@@ -1762,7 +1864,7 @@
           },
           "expr": "turbostat_nmi{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "core {{core}}",
-          "refId": "T"
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -1810,7 +1912,7 @@
         "x": 16,
         "y": 78
       },
-      "id": 74,
+      "id": 81,
       "targets": [
         {
           "datasource": {
@@ -1819,7 +1921,7 @@
           },
           "expr": "turbostat_core_temperature_celsius{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "core {{core}}",
-          "refId": "V"
+          "refId": "C"
         }
       ],
       "fieldConfig": {
@@ -1867,7 +1969,7 @@
         "x": 0,
         "y": 86
       },
-      "id": 76,
+      "id": 83,
       "targets": [
         {
           "datasource": {
@@ -1876,7 +1978,7 @@
           },
           "expr": "turbostat_busy_percent{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "core {{core}}",
-          "refId": "X"
+          "refId": "E"
         }
       ],
       "fieldConfig": {
@@ -1924,7 +2026,7 @@
         "x": 8,
         "y": 86
       },
-      "id": 79,
+      "id": 86,
       "targets": [
         {
           "datasource": {
@@ -1933,7 +2035,7 @@
           },
           "expr": "turbostat_average_frequency_mhz{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "avg core {{core}}",
-          "refId": "Z"
+          "refId": "G"
         },
         {
           "datasource": {
@@ -1942,7 +2044,7 @@
           },
           "expr": "turbostat_busy_frequency_mhz{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "busy core {{core}}",
-          "refId": "A"
+          "refId": "H"
         }
       ],
       "fieldConfig": {
@@ -1990,7 +2092,7 @@
         "x": 16,
         "y": 86
       },
-      "id": 81,
+      "id": 88,
       "targets": [
         {
           "datasource": {
@@ -1999,7 +2101,7 @@
           },
           "expr": "turbostat_core_throttle{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "core {{core}}",
-          "refId": "C"
+          "refId": "J"
         }
       ],
       "fieldConfig": {
@@ -2047,7 +2149,7 @@
         "x": 0,
         "y": 94
       },
-      "id": 85,
+      "id": 92,
       "targets": [
         {
           "datasource": {
@@ -2056,7 +2158,7 @@
           },
           "expr": "turbostat_cpu_percent_c1{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "C1 core {{core}}",
-          "refId": "E"
+          "refId": "L"
         },
         {
           "datasource": {
@@ -2065,7 +2167,7 @@
           },
           "expr": "turbostat_cpu_percent_c6{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "C6 core {{core}}",
-          "refId": "F"
+          "refId": "M"
         },
         {
           "datasource": {
@@ -2074,7 +2176,7 @@
           },
           "expr": "turbostat_cpu_percent_c7{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "C7 core {{core}}",
-          "refId": "G"
+          "refId": "N"
         }
       ],
       "fieldConfig": {
@@ -2122,7 +2224,7 @@
         "x": 12,
         "y": 94
       },
-      "id": 89,
+      "id": 96,
       "targets": [
         {
           "datasource": {
@@ -2131,7 +2233,7 @@
           },
           "expr": "turbostat_c1acpi_percent{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "C1 core {{core}}",
-          "refId": "I"
+          "refId": "P"
         },
         {
           "datasource": {
@@ -2140,7 +2242,7 @@
           },
           "expr": "turbostat_c2acpi_percent{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "C2 core {{core}}",
-          "refId": "J"
+          "refId": "Q"
         },
         {
           "datasource": {
@@ -2149,7 +2251,7 @@
           },
           "expr": "turbostat_c3acpi_percent{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "C3 core {{core}}",
-          "refId": "K"
+          "refId": "R"
         }
       ],
       "fieldConfig": {
@@ -2197,7 +2299,7 @@
         "x": 0,
         "y": 102
       },
-      "id": 95,
+      "id": 102,
       "targets": [
         {
           "datasource": {
@@ -2206,7 +2308,7 @@
           },
           "expr": "turbostat_package_power_watt{core=\"-\",host=~\"$host\"}",
           "legendFormat": "package",
-          "refId": "M"
+          "refId": "T"
         },
         {
           "datasource": {
@@ -2215,7 +2317,7 @@
           },
           "expr": "turbostat_core_power_watt{core=\"-\",host=~\"$host\"}",
           "legendFormat": "core",
-          "refId": "N"
+          "refId": "U"
         },
         {
           "datasource": {
@@ -2224,7 +2326,7 @@
           },
           "expr": "turbostat_gfx_power_watt{core=\"-\",host=~\"$host\"}",
           "legendFormat": "GPU (graphics)",
-          "refId": "O"
+          "refId": "V"
         },
         {
           "datasource": {
@@ -2233,7 +2335,7 @@
           },
           "expr": "turbostat_ram_power_watt{core=\"-\",host=~\"$host\"}",
           "legendFormat": "RAM",
-          "refId": "P"
+          "refId": "W"
         },
         {
           "datasource": {
@@ -2242,7 +2344,7 @@
           },
           "expr": "turbostat_system_power_watt{core=\"-\",host=~\"$host\"}",
           "legendFormat": "system (whole platform)",
-          "refId": "Q"
+          "refId": "X"
         }
       ],
       "fieldConfig": {
@@ -2290,7 +2392,7 @@
         "x": 12,
         "y": 102
       },
-      "id": 99,
+      "id": 106,
       "targets": [
         {
           "datasource": {
@@ -2299,7 +2401,7 @@
           },
           "expr": "turbostat_package_percent_pc2{core=\"-\",host=~\"$host\"}",
           "legendFormat": "PC2",
-          "refId": "S"
+          "refId": "Z"
         },
         {
           "datasource": {
@@ -2308,7 +2410,7 @@
           },
           "expr": "turbostat_package_percent_pc6{core=\"-\",host=~\"$host\"}",
           "legendFormat": "PC6",
-          "refId": "T"
+          "refId": "A"
         },
         {
           "datasource": {
@@ -2317,7 +2419,7 @@
           },
           "expr": "turbostat_pk_percent_pc10{core=\"-\",host=~\"$host\"}",
           "legendFormat": "PC10",
-          "refId": "U"
+          "refId": "B"
         }
       ],
       "fieldConfig": {
@@ -2365,7 +2467,7 @@
         "x": 0,
         "y": 110
       },
-      "id": 103,
+      "id": 110,
       "targets": [
         {
           "datasource": {
@@ -2374,7 +2476,7 @@
           },
           "expr": "turbostat_totl_percent_c0{core=\"-\",host=~\"$host\"}",
           "legendFormat": "total C0",
-          "refId": "W"
+          "refId": "D"
         },
         {
           "datasource": {
@@ -2383,7 +2485,7 @@
           },
           "expr": "turbostat_any_percent_c0{core=\"-\",host=~\"$host\"}",
           "legendFormat": "any-core C0",
-          "refId": "X"
+          "refId": "E"
         },
         {
           "datasource": {
@@ -2392,7 +2494,7 @@
           },
           "expr": "turbostat_gfx_percent_c0{core=\"-\",host=~\"$host\"}",
           "legendFormat": "GPU C0",
-          "refId": "Y"
+          "refId": "F"
         }
       ],
       "fieldConfig": {
@@ -2440,7 +2542,7 @@
         "x": 12,
         "y": 110
       },
-      "id": 106,
+      "id": 113,
       "targets": [
         {
           "datasource": {
@@ -2449,7 +2551,7 @@
           },
           "expr": "turbostat_cpu_percent_lpi{core=\"-\",host=~\"$host\"}",
           "legendFormat": "CPU LPI",
-          "refId": "A"
+          "refId": "H"
         },
         {
           "datasource": {
@@ -2458,7 +2560,7 @@
           },
           "expr": "turbostat_system_percent_lpi{core=\"-\",host=~\"$host\"}",
           "legendFormat": "System LPI",
-          "refId": "B"
+          "refId": "I"
         }
       ],
       "fieldConfig": {
@@ -2506,7 +2608,7 @@
         "x": 0,
         "y": 118
       },
-      "id": 109,
+      "id": 116,
       "targets": [
         {
           "datasource": {
@@ -2515,7 +2617,7 @@
           },
           "expr": "turbostat_uncore_frequency_mhz{core=\"-\",host=~\"$host\"}",
           "legendFormat": "uncore",
-          "refId": "D"
+          "refId": "K"
         },
         {
           "datasource": {
@@ -2524,7 +2626,7 @@
           },
           "expr": "turbostat_tsc_frequency_mhz{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "TSC core {{core}}",
-          "refId": "E"
+          "refId": "L"
         }
       ],
       "fieldConfig": {
@@ -2572,7 +2674,7 @@
         "x": 12,
         "y": 118
       },
-      "id": 111,
+      "id": 118,
       "targets": [
         {
           "datasource": {
@@ -2581,7 +2683,7 @@
           },
           "expr": "turbostat_package_temperature_celsius{core=\"-\",host=~\"$host\"}",
           "legendFormat": "package",
-          "refId": "G"
+          "refId": "N"
         }
       ],
       "fieldConfig": {
@@ -2629,7 +2731,7 @@
         "x": 0,
         "y": 126
       },
-      "id": 115,
+      "id": 122,
       "targets": [
         {
           "datasource": {
@@ -2638,7 +2740,7 @@
           },
           "expr": "turbostat_poll_percent{core!=\"-\",host=~\"$host\"}",
           "legendFormat": "POLL core {{core}}",
-          "refId": "I"
+          "refId": "P"
         },
         {
           "datasource": {
@@ -2647,7 +2749,7 @@
           },
           "expr": "turbostat_cpu_gfx_percent{core=\"-\",host=~\"$host\"}",
           "legendFormat": "CPU+GFX C0",
-          "refId": "J"
+          "refId": "Q"
         },
         {
           "datasource": {
@@ -2656,7 +2758,7 @@
           },
           "expr": "turbostat_ram_percent{core=\"-\",host=~\"$host\"}",
           "legendFormat": "RAM throttle %",
-          "refId": "K"
+          "refId": "R"
         }
       ],
       "fieldConfig": {

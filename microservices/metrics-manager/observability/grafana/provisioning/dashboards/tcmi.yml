@@ -1,0 +1,19 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tells Grafana to load any dashboard JSON found under /var/lib/grafana/dashboards
+# (the compose file bind-mounts ../dashboards there read-only). The TCMI
+# dashboard (uid tcmi-mm-unified-v1) shows up automatically on startup.
+
+apiVersion: 1
+
+providers:
+  - name: tcmi-dashboards
+    orgId: 1
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

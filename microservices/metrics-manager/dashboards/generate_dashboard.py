@@ -194,8 +194,11 @@ def build(uid):
     panels.append(timeseries(
         "NPU (Neural Processing Unit) Power / Temperature", uid,
         [target(uid, f'npu_power{H}', "power (W)"),
-         target(uid, f'npu_temperature{H}', "temp (°C)")],
-        unit="short", x=8, w=8, desc="Intel NPU via PMT = Platform Monitoring Technology (npu_reader.py)."))
+         target(uid, f'npu_temperature{H}', "temp (°C)"),
+         target(uid, f'npu_power_state{H}', "power state (0=D0..4=D3cold)")],
+        unit="short", x=8, w=8,
+        desc="Intel NPU via PMT = Platform Monitoring Technology (npu_reader.py). "
+             "power_state: PCI runtime-PM state, 0=D0 active .. 4=D3cold (−1=unknown)."))
     panels.append(timeseries(
         "Uncore Frequency", uid,
         [target(uid, f'powerstat_package_uncore_frequency_mhz_cur{H}', "uncore {{package_id}}")],
@@ -223,14 +226,26 @@ def build(uid):
         [target(uid, f'powerstat_core_cpu_frequency_mhz{H}', "core {{core_id}}/cpu {{cpu_id}}")],
         unit="megahertz", x=12, w=12, desc="Per-core frequency via intel_powerstat."))
     panels.append(timeseries(
-        "GPU Frequency (current vs actual)", uid,
-        [target(uid, f'gpu_frequency{{type="cur_freq",host=~"$host"}}', "requested"),
-         target(uid, f'gpu_frequency{{type="act_freq",host=~"$host"}}', "actual")],
-        unit="megahertz", x=0, w=12, desc="Requested vs actual GPU frequency (throttle indicator)."))
+        "GPU Frequency (requested vs actual)", uid,
+        [target(uid, f'gpu_throttle_driver_freq_mhz{H}', "requested {{card}}/{{gt}}"),
+         target(uid, f'gpu_throttle_act_freq_mhz{H}', "actual {{card}}/{{gt}}")],
+        unit="megahertz", x=0, w=12,
+        desc="Driver-requested (cur_freq) vs achieved (act_freq) GPU frequency per GT, "
+             "via gpu_throttle_reader.py. A gap = the GPU couldn't hold the requested clock."))
     panels.append(timeseries(
         "GPU Engine Utilisation (per engine)", uid,
         [target(uid, f'gpu_engine_usage_usage{H}', "{{engine}}")],
         unit="percent", x=12, w=12, desc="Per-engine GPU busy % — MM's per-engine breakdown."))
+    panels.append(timeseries(
+        "GPU Throttle Reasons (per GT)", uid,
+        [target(uid, f'gpu_throttle_throttled{H}', "any {{card}}/{{gt}}"),
+         target(uid, f'gpu_throttle_throttle_thermal{H}', "thermal {{card}}/{{gt}}"),
+         target(uid, f'gpu_throttle_throttle_pl1{H}', "PL1 {{card}}/{{gt}}"),
+         target(uid, f'gpu_throttle_throttle_pl2{H}', "PL2 {{card}}/{{gt}}"),
+         target(uid, f'gpu_throttle_throttle_prochot{H}', "PROCHOT {{card}}/{{gt}}")],
+        unit="short", x=0, w=12,
+        desc="xe DRM throttle flags (1 = actively throttling). 'any' = OR of all reasons; "
+             "thermal is the headline for the T envelope. Via gpu_throttle_reader.py."))
 
     # ── M — Memory ────────────────────────────────────────────────────────
     panels.append(row("M — Memory", uid))

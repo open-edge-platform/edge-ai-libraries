@@ -10,6 +10,17 @@ VERSION := $(shell cat VERSION 2>/dev/null | tr -d '[:space:]')
 TAG     ?= $(VERSION)
 REGISTRY ?=
 
+# turbostat is kernel-coupled: the binary must match the RUNNING kernel or it
+# exits with "turbostat not found for kernel ...". We resolve it dynamically so
+# it keeps working across `apt upgrade`s of the kernel — never pin a version.
+# Precedence matters: the kernel-matched binary FIRST, then $PATH as a fallback.
+# (A bare `command -v turbostat` would find the distro's generic
+# /usr/bin/turbostat, which refuses to run against a mismatched kernel.)
+# Exported so it overrides any stale TURBOSTAT_BIN in .env when you `make up`.
+KERNEL := $(shell uname -r)
+TURBOSTAT_BIN ?= $(shell [ -x /usr/lib/linux-tools/$(KERNEL)/turbostat ] && echo /usr/lib/linux-tools/$(KERNEL)/turbostat || command -v turbostat 2>/dev/null)
+export TURBOSTAT_BIN
+
 # Helm packaging configuration. Charts are pushed to the same OCI path as
 # the container image; the chart version carries a `-helm` suffix so the
 # two artefacts coexist under intel/metrics-manager:<X.Y.Z> (image) and

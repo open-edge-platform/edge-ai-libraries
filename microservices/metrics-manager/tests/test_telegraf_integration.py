@@ -198,12 +198,12 @@ class TestTcmiCollectorWiring:
             assert not (self.TELEGRAF_D / f"{base}.conf").is_file()
 
     def test_execd_reader_scripts_present(self):
-        for script in ("rapl_reader.py", "dram_bw_reader.py"):
+        for script in ("rapl_reader.py", "dram_bw_reader.py", "gpu_throttle_reader.py"):
             assert (self.SCRIPTS / script).is_file(), f"missing scripts/{script}"
 
     def test_execd_readers_honor_hostname_and_idle(self):
         # Same contract as npu_reader.py: stable host tag + graceful idle.
-        for script in ("rapl_reader.py", "dram_bw_reader.py"):
+        for script in ("rapl_reader.py", "dram_bw_reader.py", "gpu_throttle_reader.py"):
             text = (self.SCRIPTS / script).read_text(encoding="utf-8")
             assert 'os.environ.get("METRICS_MANAGER_HOSTNAME")' in text
             assert "or os.uname()[1]" in text
