@@ -97,7 +97,8 @@ act_find_deps () {
 }
 
 act_helpper () {
-  local act_name=$1
+  local act_name=${1% *}
+  local act_text="${1#* }"
   local sort_options="$2"
   shift
   shift
@@ -119,44 +120,38 @@ act_helpper () {
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
-    logecho () {
-      awk -v n=$1 '{print strftime("%s"),n,$0;fflush()}'
-    }
-    local start_t=$SECONDS reports=() rc=0
-    for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
-      name=$(echo $handler | cut -f4- -d_)
-      if [[ " $* " = *" --dry-run "* ]]; then
-        echo "Invoke $handler with $(act_extract_args $act_name $name $*)" > >(logecho $name)
-      else
-        local start_c=$SECONDS
-        (
-          set -e
-          $handler $(act_extract_args $act_name $name $*)
-        ) > >(logecho $name) 2>&1
-        local rc1=$?
-        reports+=("$name|rc=$rc1|$(( SECONDS - start_c )) seconds")
-        if [ $rc1 -ne 0 ]; then
-          rc=$rc1
-          [[ " $* " = *" --continue "* ]] || break
+    local rc=0
+    {
+      local rc=0
+      for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
+        name=$(echo $handler | cut -f4- -d_)
+        if [[ " $* " = *" --dry-run "* ]]; then
+          echo "@@COMP $name"
+          echo "Invoke $handler with $(act_extract_args $act_name $name $*)" 
+          echo "@@OK $name"
+        else
+          echo "@@COMP $name"
+          (
+            set -e
+            $handler $(act_extract_args $act_name $name $*)
+          )
+          local rc1=$?
+          if [ $rc1 -eq 0 ]; then
+            echo "@@OK $name"
+          else
+            echo "@@FAIL $name"
+            rc=$rc1
+            [[ " $* " = *" --continue "* ]] || break
+          fi
         fi
+      done
+      if [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
+        echo "@@REPORT SYSTEM SUMMARY"
+        ${ID_LIKE}_10_${act_name}_pre_system_scan
       fi
-    done
+    } > >(ensure_panelled_logs $act_text) 2>&1
     # wait for background processes
     wait
-    local end_t=$SECONDS
-
-    if [ ${#reports[@]} -gt 0 ]; then
-      echo
-      echo "======== ${act_name^^} REPORT ========"
-      for line in "${reports[@]}"; do
-        if [[ "$line" = *"|rc=0|"* ]]; then
-          echo "$line"
-        else
-          echo -e "${red}$line${reset}"
-        fi
-      done | ensure_columns
-      echo "Total duration: $(( end_t - start_t )) seconds"
-    fi
     return $rc
   else
     echo "Component not found" 1>&2
@@ -165,19 +160,19 @@ act_helpper () {
 }
 
 subcommand_install () {
-  act_helpper install "" "$@"
+  act_helpper "install Installation Installing Installed" "" "$@"
 }
 
 subcommand_remove () {
-  act_helpper remove "-r" "$@"
+  act_helpper "remove Removal Removing Removed" "-r" "$@"
 }
 
 subcommand_start () {
-  act_helpper start "" "$@"
+  act_helpper "start Start Starting Started" "" "$@"
 }
 
 subcommand_stop () {
-  act_helpper stop "-r" "$@"
+  act_helpper "stop Stop Stopping Stopped" "-r" "$@"
 }
 
 subcommand_list () {
@@ -270,9 +265,9 @@ subcommand_bootstrap () {
           ;;
         esac
       done
-      cat "$mydir"/common/os-agnostic >> "$rendered"
-      if [ -r "$mydir"/common/${ID_LIKE} ]; then
-        cat "$mydir"/common/${ID_LIKE} >> "$rendered"
+      cat "$mydir"/common/os-agnostic/* >> "$rendered"
+      if [ -d "$mydir"/common/${ID_LIKE} ]; then
+        cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
       fi
     fi
     for script in "${!scripts[@]}"; do
