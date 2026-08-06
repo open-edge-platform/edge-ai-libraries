@@ -73,7 +73,7 @@ README.md           @xwu2intel
 /microservices/document-ingestion/pgvector/docs/       @bharagha @krish918 @madhuri-rai07 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
 /microservices//document-ingestion/pgvector/README.md  @bharagha @krish918 @madhuri-rai07 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/inferencee-router/                      @llin60 @myqi @mnoiy @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/microservices/inference-router/                      @llin60 @myqi @mnoiy @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/metrics-manager/                        @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli
 /microservices/metrics-manager/docs/                   @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli  @open-edge-platform/open-edge-platform-docs-write
