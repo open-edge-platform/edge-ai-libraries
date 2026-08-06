@@ -5,50 +5,50 @@ debian_10_profile_pre_scan () {
 
 debian_10_install_pre_scan () {
   echo "Quick System Scan"
-  echo "------------------------------------------------------------------------"
   set -o pipefail
   (
-    ok="✓  PASS"
-    nok="⚠ "
+    echo "------------------------------------------------------------------------"
+
+    ok="\033[32m✓  PASS\033[0m"
+    nok="\033[31m⚠  MSG\033[0m"
 
     system_summary="$(sysinfo_get_system_summary)"
     echo "System|$system_summary"
 
     pass=$ok
     membank_info="$(sysinfo_check_membank)"
-    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok} Check Configuration"
-    echo "RAM|$membank_info|$pass"
+    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Configuration}"
+    echo -e "RAM|$membank_info|$pass"
 
     pass=$ok
-    [[ $PRETTY_NAME = *"24.04"* ]] || pass="${nok} Not supported"
-    echo "OS|$PRETTY_NAME|$pass"
+    [[ $PRETTY_NAME = *"24.04"* ]] || pass="${nok/MSG/Not supported}"
+    echo -e "OS|$PRETTY_NAME|$pass"
 
     pass=$ok
     docker_ver="$(sysinfo_check_docker)"
-    [[ "$docker_ver" = *Compose* ]] || pass="${nok} Missing Docker Compose"
+    [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}"
     [ -n "$docker_ver" ] || pass="${nok} Missing Docker"
-    echo "Docker|$docker_ver|$pass"
+    echo -e "Docker|$docker_ver|$pass"
 
     net_pass=$ok
     net_access="$(sysinfo_check_network_access)"
-    [[ "$net_access" = *reachable* ]] || net_pass="${nok} Check Proxies"
-    echo "Network|$net_access|$net_pass"
+    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}"
+    echo -e "Network|$net_access|$net_pass"
 
-    echo ""
-    echo "Accelerators"
+    echo "Accelerators:"
 
     pass=$ok
     cpuinst_info="$(sysinfo_check_cpu_instructions)"
-    [[ "$cpuinst_info" != *Missing* ]] || pass="${nok} Check CPU"
-    echo "CPU|$cpuinst_info|$pass"
+    [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}"
+    echo -e "CPU|$cpuinst_info|$pass"
 
     gpu_accels=("8086:b08f" "8086:7d51" "8086:fd80")
     for accel in ${gpu_accels[@]}; do
       pass=$ok
       accel_info="$(sysinfo_check_pci_device $accel "Intel Integrated Graphics")"
       if [ -n "$accel_info" ]; then
-        [[ "$accel_info" = *driver* ]] || pass="${nok} Missing Driver"
-        echo "GPU|$accel_info|$pass"
+        [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
+        echo -e "GPU|$accel_info|$pass"
       fi
     done
 
@@ -57,14 +57,14 @@ debian_10_install_pre_scan () {
       pass=$ok
       accel_info="$(sysinfo_check_pci_device $accel "Intel AI Boost")"
       if [ -n "$accel_info" ]; then
-        [[ "$accel_info" = *driver* ]] || pass="${nok} Missing Driver"
-        echo "NPU|$accel_info|$pass"
+        [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
+        echo -e "NPU|$accel_info|$pass"
       fi
     done
 
+    echo "------------------------------------------------------------------------"
     [ "$net_pass" = "$ok" ]
   ) | ensure_columns
-  echo "------------------------------------------------------------------------"
 }
 
 sysinfo_check_membank () {

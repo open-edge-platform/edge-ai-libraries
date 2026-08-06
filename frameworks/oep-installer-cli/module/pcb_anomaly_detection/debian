@@ -15,7 +15,12 @@ debian_90_profile_pcb_anomaly_detection () {
 
 debian_90_install_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  ! verify_pcb_anomaly_detection || [[ "$*" = *"--reset-pcb_anomaly_detection"* ]] || return 0
+  if verify_pcb_anomaly_detection; then
+    echo "PCB anomaly detection is already installed. Skipping"
+    return
+  fi
+
+  [[ "$*" = *"--reset-pcb_anomaly_detection"* ]] || return 0
   ensure_disk_space 60
 
   # clone the repository

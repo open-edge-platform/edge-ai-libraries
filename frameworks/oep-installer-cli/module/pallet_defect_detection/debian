@@ -15,7 +15,12 @@ debian_90_profile_pallet_defect_detection () {
 
 debian_90_install_pallet_defect_detection () {
   configure_pallet_defect_detection
-  ! verify_pallet_defect_detection || [[ "$*" = *"--reset-pallet_defect_detection"* ]] || return 0
+  if verify_pallet_defect_detection; then
+    echo "Pallet defect detection is already installed. Skipping"
+    return
+  fi
+
+  [[ "$*" = *"--reset-pallet_defect_detection"* ]] || return 0
   ensure_disk_space 50
 
   # clone the repository

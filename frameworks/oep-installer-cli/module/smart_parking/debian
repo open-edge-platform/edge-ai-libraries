@@ -15,7 +15,12 @@ debian_90_profile_smart_parking () {
 
 debian_90_install_smart_parking () {
   configure_smart_parking
-  ! verify_smart_parking || [[ "$*" = *"--reset-smart_parking"* ]] || return 0
+  if verify_smart_parking; then
+    echo "Smart parking is already installed. Skipping..."
+    return 0
+  fi
+
+  [[ "$*" = *"--reset-smart_parking"* ]] || return 0
   ensure_disk_space 300
 
   # clone the repository

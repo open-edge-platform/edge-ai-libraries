@@ -15,7 +15,11 @@ debian_90_profile_smart_intersection () {
 
 debian_90_install_smart_intersection () {
   configure_smart_intersection
-  ! verify_smart_intersection || [[ "$*" = *"--reset-smart_intersection"* ]] || return 0
+  if verify_smart_intersection; then
+    echo "Smart intersection is already installed. Skipping"
+    return
+  fi
+  [[ "$*" = *"--reset-smart_intersection"* ]] || return 0
   ensure_disk_space 1500
 
   # clone the repository
