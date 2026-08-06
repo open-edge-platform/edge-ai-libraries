@@ -163,7 +163,12 @@ COPY uv.lock* ./
 RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 ENV UV_PROJECT_ENVIRONMENT="/opt/venv"
-RUN uv sync --no-group test --no-group dev --no-install-project
+ARG INSTALL_OPENVINO=false
+RUN if [ "$INSTALL_OPENVINO" = "true" ]; then \
+        uv sync --extra openvino --no-group test --no-group dev --no-install-project; \
+    else \
+        uv sync --no-group test --no-group dev --no-install-project; \
+    fi
 
 # -----------------------------------------------------------------------------
 # Stage 3: Test image
@@ -195,6 +200,8 @@ CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
 # Stage 4: Final image
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS production
+
+ARG INSTALL_OPENVINO=false
 
 # Proxy settings (passed from docker-compose build args)
 ARG http_proxy
@@ -229,13 +236,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends \
-        dmidecode \
-        pciutils \
-        vainfo \
-        intel-media-va-driver \
-        util-linux \
-        hwinfo && \
+    packages="dmidecode pciutils util-linux hwinfo"; \
+    if [ "$INSTALL_OPENVINO" = "true" ]; then \
+        packages="$packages vainfo intel-media-va-driver"; \
+    fi; \
+    apt-get install --yes --no-install-recommends $packages && \
     pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
     (dpkg -s perl-base >/dev/null 2>&1 && dpkg --purge --force-remove-essential perl-base || true) && \
     apt-get clean && \
@@ -287,9 +292,6 @@ ENV LOG_LEVEL=INFO
 ENV CORS_ORIGINS="*"
 ENV CUSTOM_METRICS_DIR=/app/custom-metrics
 ENV TELEGRAF_CONFIG_PATH=/etc/telegraf/telegraf.conf
-ENV ENABLE_OV_RUNTIME_INSTALL=false
-ENV OV_PIP_SPEC=openvino==2026.1.0
-ENV OV_INSTALL_STRICT=false
 
 # Expose ports
 # 9090 - Metrics Manager API and SSE (/metrics/stream)
