@@ -25,6 +25,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import os
+import tempfile
 
 import open_clip
 import shutil
@@ -323,32 +324,45 @@ class CLIPHandler(BaseEmbeddingModel):
                 text_model = OVModelOpenCLIPText.from_pretrained(
                     hf_hub_id, export=True, trust_remote_code=True, cache_dir=default_cache_dir
                 )
-                
-                # Save the converted models directly to the target directory
-                visual_model.save_pretrained(ov_models_path)
-                text_model.save_pretrained(ov_models_path)
-                
-                # Optimum Intel saves as openvino_model_vision.xml and openvino_model_text.xml
-                # Rename to expected paths
-                optimum_vision_path = ov_models_path / "openvino_model_vision.xml"
-                optimum_text_path = ov_models_path / "openvino_model_text.xml"
-                optimum_vision_bin = ov_models_path / "openvino_model_vision.bin"
-                optimum_text_bin = ov_models_path / "openvino_model_text.bin"
-                
-                if optimum_vision_path.exists() and optimum_text_path.exists():
-                    # Rename files to expected names
-                    shutil.move(str(optimum_vision_path), str(image_encoder_path))
-                    shutil.move(str(optimum_vision_bin), str(image_encoder_path.with_suffix('.bin')))
-                    shutil.move(str(optimum_text_path), str(text_encoder_path))
-                    shutil.move(str(optimum_text_bin), str(text_encoder_path.with_suffix('.bin')))
-                    
-                    logger.info("Successfully converted using Optimum Intel with OpenCLIP native HF mapping")
-                    return str(image_encoder_path), str(text_encoder_path)
-                else:
-                    logger.error(f"Optimum Intel conversion succeeded but models not found at expected paths")
-                    logger.error(f"Expected: {optimum_vision_path}, {optimum_text_path}")
-                    logger.error(f"Directory contents: {list(ov_models_path.glob('*'))}")
-                    raise RuntimeError("Models not saved to expected Optimum Intel paths")
+
+                # Convert in an isolated staging directory, then move results to
+                # canonical model-keyed paths in the shared volume.
+                staging_dir = Path(tempfile.mkdtemp(prefix=f"optimum_{model_key}_", dir=str(ov_models_path)))
+                try:
+                    visual_model.save_pretrained(staging_dir)
+                    text_model.save_pretrained(staging_dir)
+
+                    candidate_image_paths = [
+                        staging_dir / f"{model_key}_image_encoder.xml",
+                        staging_dir / "openvino_model_vision.xml",
+                    ] + sorted(staging_dir.glob("*_image_encoder.xml"))
+                    candidate_text_paths = [
+                        staging_dir / f"{model_key}_text_encoder.xml",
+                        staging_dir / "openvino_model_text.xml",
+                    ] + sorted(staging_dir.glob("*_text_encoder.xml"))
+
+                    src_image_path = next((p for p in candidate_image_paths if p.exists()), None)
+                    src_text_path = next((p for p in candidate_text_paths if p.exists()), None)
+
+                    if src_image_path is None or src_text_path is None:
+                        logger.error("Optimum Intel conversion succeeded but encoder XMLs were not found")
+                        logger.error(f"Staging directory contents: {list(staging_dir.glob('*'))}")
+                        raise RuntimeError("Models not saved to expected Optimum Intel paths")
+
+                    shutil.move(str(src_image_path), str(image_encoder_path))
+                    src_image_bin = src_image_path.with_suffix(".bin")
+                    if src_image_bin.exists():
+                        shutil.move(str(src_image_bin), str(image_encoder_path.with_suffix(".bin")))
+
+                    shutil.move(str(src_text_path), str(text_encoder_path))
+                    src_text_bin = src_text_path.with_suffix(".bin")
+                    if src_text_bin.exists():
+                        shutil.move(str(src_text_bin), str(text_encoder_path.with_suffix(".bin")))
+                finally:
+                    shutil.rmtree(staging_dir, ignore_errors=True)
+
+                logger.info("Successfully converted using Optimum Intel with OpenCLIP native HF mapping")
+                return str(image_encoder_path), str(text_encoder_path)
             else:
                 logger.error(f"No HuggingFace Hub mapping found for {self.model_name}:{self.pretrained}")
                 raise RuntimeError("Model does not have HuggingFace Hub support - OpenVINO conversion requires HF Hub mapping")

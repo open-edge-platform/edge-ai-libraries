@@ -25,22 +25,17 @@ See [System Requirements](./get-started/system-requirements.md) for full details
 
 ## Deploy with Docker Compose
 
-### 1. Clone the Repository
+### 1. Clone the Microservice
+Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace main with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/dev/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
 
 ```bash
-# Clone the latest on the mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+git clone --filter=blob:none --sparse --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/
+git sparse-checkout set microservices/alert-agent-service/
+cd microservices/alert-agent-service/
 ```
 
-### 2. Navigate to the Service Directory
-
-```bash
-cd edge-ai-libraries/microservices/alert-agent-service
-```
-
-### 3. Configure Environment Variables
+### 2. Configure Environment Variables
 
 Export variables with the required configuration:
 
@@ -76,7 +71,7 @@ export no_proxy=localhost,127.0.0.1,ovms-llm
 
 > **Note:** `WEBHOOK_URL` and `MQTT_BROKER` are optional. If not set, the corresponding tools are skipped gracefully when invoked.
 
-### 4. Start the Services
+### 3. Start the Services
 
 For rule-based mode:
 
@@ -107,7 +102,7 @@ docker compose -f docker/docker-compose.yml up -d --build
 # add --profile agent to start ovms-llm as well
 ```
 
-### 5. Verify the Service is Running
+### 4. Verify the Service is Running
 
 ```bash
 docker compose -f docker/docker-compose.yml ps
@@ -131,7 +126,7 @@ Expected response:
 }
 ```
 
-### 6. Access the API Documentation
+### 5. Access the API Documentation
 
 Open the Swagger UI at:
 
@@ -139,7 +134,7 @@ Open the Swagger UI at:
   http://localhost:8000/docs
 ```
 
-### 7. Stop the Services
+### 6. Stop the Services
 
 ```bash
 # rule-based mode

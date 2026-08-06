@@ -11,56 +11,55 @@ import {
 } from "@/api/api.generated.ts";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
+import { DensityClassicPipelineSelection } from "@/features/pipeline-tests/DensityClassicPipelineSelection.tsx";
+import { DensityMixedPipelineSelection } from "@/features/pipeline-tests/DensityMixedPipelineSelection.tsx";
+import {
+  buildClassicDensitySpecs,
+  buildMixedDensitySpecs,
+  createClassicSelections,
+  createMixedSelections,
+  DEFAULT_MIXED_STREAMS,
+  isClassicSelectionValid,
+  isMixedSelectionValid,
+  type ClassicPipelineSelection,
+  type DensityMode,
+  type MixedPipelineSelection,
+} from "@/features/pipeline-tests/densitySelection.ts";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { useActiveJobSync } from "@/hooks/useActiveJobSync";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Square, Plus, X } from "lucide-react";
-import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
+import { Square } from "lucide-react";
 import {
   handleApiError,
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils.ts";
-import {
-  cn,
-  CONTENT_CONTAINER_CLASS,
-  formatErrorMessage,
-} from "@/lib/utils.ts";
-import { useStreamRateChange } from "@/hooks/useStreamRateChange.ts";
+import { CONTENT_CONTAINER_CLASS, formatErrorMessage } from "@/lib/utils.ts";
 import { NavigationGuard } from "@/components/shared/NavigationGuard";
-
-interface PipelineSelection {
-  pipelineId: string;
-  variantId: string;
-  stream_rate: number;
-  isRemoving?: boolean;
-  isNew?: boolean;
-}
 
 export const DensityTests = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 10;
   const pipelines = useAppSelector(selectPipelines);
   const [stopDensityTest, { isLoading: isStopping }] =
     useStopDensityTestJobMutation();
-  const [pipelineSelections, setPipelineSelections] = useState<
-    PipelineSelection[]
+  const [mode, setMode] = useState<DensityMode>("classic");
+  const [classicSelections, setClassicSelections] = useState<
+    ClassicPipelineSelection[]
   >([]);
+  const [mixedSelections, setMixedSelections] = useState<
+    MixedPipelineSelection[]
+  >([]);
+  const [mixedStreams, setMixedStreams] = useState(DEFAULT_MIXED_STREAMS);
   const [fpsFloor, setFpsFloor] = useState<number>(30);
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
@@ -77,7 +76,6 @@ export const DensityTests = () => {
   );
   const [latencyMetricsEnabled, setLatencyMetricsEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
 
@@ -95,112 +93,25 @@ export const DensityTests = () => {
   useActiveJobSync(jobId);
 
   useEffect(() => {
-    if (pipelines.length > 0 && pipelineSelections.length === 0) {
-      const firstPipeline = pipelines[0];
-      const firstVariant = firstPipeline.variants[0];
-      setPipelineSelections([
-        {
-          pipelineId: firstPipeline.id,
-          variantId: firstVariant.id,
-          stream_rate: 100,
-          isNew: false,
-        },
-      ]);
+    if (pipelines.length > 0 && classicSelections.length === 0) {
+      setClassicSelections(createClassicSelections(pipelines));
     }
-  }, [pipelines, pipelineSelections.length]);
+  }, [pipelines, classicSelections.length]);
 
-  const handleAddPipeline = () => {
-    const usedPipelineIds = pipelineSelections.map((sel) => sel.pipelineId);
-    const availablePipeline = pipelines.find(
-      (pipeline) => !usedPipelineIds.includes(pipeline.id),
-    );
-    if (availablePipeline) {
-      const firstVariant = availablePipeline.variants[0];
-      if (!firstVariant) return;
-
-      setPipelineSelections((prev) => {
-        const next = [
-          ...prev,
-          {
-            pipelineId: availablePipeline.id,
-            variantId: firstVariant.id,
-            stream_rate: 0,
-            isNew: true,
-          },
-        ];
-
-        const count = next.length;
-        const baseRate = Math.floor(100 / count);
-        const remainder = 100 - baseRate * count;
-
-        return next.map((selection, index) => ({
-          ...selection,
-          stream_rate: index === 0 ? baseRate + remainder : baseRate,
-        }));
-      });
-      setTimeout(() => {
-        setPipelineSelections((prev) =>
-          prev.map((sel, idx) =>
-            idx === prev.length - 1 ? { ...sel, isNew: false } : sel,
-          ),
-        );
-      }, 300);
+  useEffect(() => {
+    if (pipelines.length > 0 && mixedSelections.length === 0) {
+      setMixedSelections(createMixedSelections(pipelines));
     }
-  };
+  }, [pipelines, mixedSelections.length]);
 
-  const handleRemovePipeline = (pipelineId: string) => {
-    if (pipelineSelections.length > 1) {
-      setPipelineSelections((prev) =>
-        prev.map((sel) =>
-          sel.pipelineId === pipelineId ? { ...sel, isRemoving: true } : sel,
-        ),
-      );
-      setTimeout(() => {
-        setPipelineSelections((prev) => {
-          const filtered = prev.filter((sel) => sel.pipelineId !== pipelineId);
+  const isMixedMode = mode === "mixed";
 
-          if (filtered.length === 0) return filtered;
-
-          const count = filtered.length;
-          const baseRate = Math.floor(100 / count);
-          const remainder = 100 - baseRate * count;
-
-          return filtered.map((selection, index) => ({
-            ...selection,
-            stream_rate: index === 0 ? baseRate + remainder : baseRate,
-          }));
-        });
-      }, 300);
-    }
-  };
-
-  const handlePipelineChange = (index: number, newPipelineId: string) => {
-    setPipelineSelections((prev) =>
-      prev.map((sel, idx) => {
-        if (idx === index) {
-          const newPipeline = pipelines.find((p) => p.id === newPipelineId);
-          const firstVariant = newPipeline?.variants[0];
-          return {
-            ...sel,
-            pipelineId: newPipelineId,
-            variantId: firstVariant?.id || sel.variantId,
-          };
-        }
-        return sel;
-      }),
-    );
-  };
-
-  const handleVariantChange = (index: number, newVariantId: string) => {
-    setPipelineSelections((prev) =>
-      prev.map((sel, idx) =>
-        idx === index ? { ...sel, variantId: newVariantId } : sel,
-      ),
-    );
-  };
+  const canRunTest = isMixedMode
+    ? isMixedSelectionValid(mixedSelections, mixedStreams)
+    : isClassicSelectionValid(classicSelections);
 
   const handleRunTest = async () => {
-    if (pipelineSelections.length === 0) return;
+    if (!canRunTest) return;
 
     setTestResult(null);
     setErrorMessage(null);
@@ -214,14 +125,9 @@ export const DensityTests = () => {
             enable_latency_metrics: latencyMetricsEnabled,
           },
           fps_floor: fpsFloor,
-          pipeline_density_specs: pipelineSelections.map((selection) => ({
-            pipeline: {
-              source: "variant",
-              pipeline_id: selection.pipelineId,
-              variant_id: selection.variantId,
-            },
-            stream_rate: selection.stream_rate,
-          })),
+          pipeline_density_specs: isMixedMode
+            ? buildMixedDensitySpecs(mixedSelections, mixedStreams)
+            : buildClassicDensitySpecs(classicSelections),
         },
       });
 
@@ -285,110 +191,49 @@ export const DensityTests = () => {
         </p>
       </div>
 
-      <div className="space-y-3 mb-6 pr-16">
-        {pipelineSelections.map((selection, index) => {
-          const selectedPipeline = pipelines.find(
-            (p) => p.id === selection.pipelineId,
-          );
-          return (
-            <div
-              key={`${selection.pipelineId}-${index}`}
-              className={cn(
-                "flex items-center gap-3 p-2 border bg-card transition-all duration-300",
-                selection.isRemoving
-                  ? "opacity-0 -translate-y-2"
-                  : selection.isNew
-                    ? "animate-in fade-in slide-in-from-top-2"
-                    : "",
-              )}
-            >
-              <div className="flex-1 flex items-center gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">
-                    Pipeline
-                  </label>
-                  <Select
-                    value={selection.pipelineId}
-                    onValueChange={(value) =>
-                      handlePipelineChange(index, value)
-                    }
-                    disabled={isRunning}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pipelines.map((pipeline) => (
-                        <SelectItem key={pipeline.id} value={pipeline.id}>
-                          {pipeline.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+      <Tabs
+        value={mode}
+        onValueChange={(value) => setMode(value as DensityMode)}
+        className="mb-6"
+      >
+        <TabsList>
+          <TabsTrigger value="classic" disabled={isRunning}>
+            Classic
+          </TabsTrigger>
+          <TabsTrigger value="mixed" disabled={isRunning}>
+            Mixed
+          </TabsTrigger>
+        </TabsList>
 
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">
-                    Variant
-                  </label>
-                  <Select
-                    value={selection.variantId}
-                    onValueChange={(value) => handleVariantChange(index, value)}
-                    disabled={isRunning}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedPipeline?.variants.map((variant) => (
-                        <SelectItem key={variant.id} value={variant.id}>
-                          {variant.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+        <TabsContent value="classic">
+          <p className="text-sm text-muted-foreground mb-3">
+            Streams are distributed across pipelines according to participation
+            rates summing up to 100%.
+          </p>
+          <DensityClassicPipelineSelection
+            pipelines={pipelines}
+            selections={classicSelections}
+            onSelectionsChange={setClassicSelections}
+            disabled={isRunning}
+          />
+        </TabsContent>
 
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">
-                    Participation Rate
-                  </label>
-                  <ParticipationSlider
-                    value={selection.stream_rate}
-                    onChange={(val) =>
-                      handleStreamRateChange(selection.pipelineId, val)
-                    }
-                    min={0}
-                    max={100}
-                    disabled={isRunning}
-                  />
-                </div>
-              </div>
-
-              {pipelineSelections.length > 1 && (
-                <Button
-                  onClick={() => handleRemovePipeline(selection.pipelineId)}
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive"
-                  disabled={isRunning}
-                >
-                  <X className="w-5 h-5" />
-                </Button>
-              )}
-            </div>
-          );
-        })}
-
-        <Button
-          onClick={handleAddPipeline}
-          variant="outline"
-          disabled={pipelineSelections.length >= pipelines.length || isRunning}
-        >
-          <Plus className="w-5 h-5" />
-          <span>Add Pipeline</span>
-        </Button>
-      </div>
+        <TabsContent value="mixed">
+          <p className="text-sm text-muted-foreground mb-3">
+            Exactly two pipelines. The first pipeline runs a fixed number of
+            streams, the second one is incremented by the benchmark algorithm
+            until the target FPS is no longer met.
+          </p>
+          <DensityMixedPipelineSelection
+            pipelines={pipelines}
+            selections={mixedSelections}
+            onSelectionsChange={setMixedSelections}
+            streams={mixedStreams}
+            onStreamsChange={setMixedStreams}
+            disabled={isRunning}
+          />
+        </TabsContent>
+      </Tabs>
 
       <div className="my-4">
         <label className="block text-sm font-medium mb-2">Set target FPS</label>
@@ -508,10 +353,7 @@ export const DensityTests = () => {
             <span>{isStopping ? "Stopping..." : "Stop"}</span>
           </Button>
         ) : (
-          <Button
-            onClick={handleRunTest}
-            disabled={isRunning || pipelineSelections.length === 0}
-          >
+          <Button onClick={handleRunTest} disabled={isRunning || !canRunTest}>
             {isRunning ? "Starting..." : "Run density test"}
           </Button>
         )}

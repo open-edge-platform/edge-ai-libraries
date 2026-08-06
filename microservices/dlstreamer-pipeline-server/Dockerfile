@@ -153,7 +153,7 @@ RUN . /etc/os-release && \
         libopencv-core4.5d \
         libopencv-imgcodecs4.5d \
         libcjson1 \
-        libssl3=3.0.2-0ubuntu1.25 \
+        libssl3=3.0.2-0ubuntu1.26 \
         libxtst6 && \
         ln -sf /usr/lib/x86_64-linux-gnu/libpython3.10.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.10.so; \
     fi && \

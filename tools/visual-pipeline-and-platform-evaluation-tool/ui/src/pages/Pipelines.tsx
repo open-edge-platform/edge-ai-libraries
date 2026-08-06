@@ -147,9 +147,11 @@ const extractModelsFromSimpleGraph = (
       return;
     }
 
-    // Pipeline nodes may include precision suffix, e.g. "Model Name (FP16)".
-    // The status API expects display name without precision.
-    const normalizedModel = rawModel.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    // Models nodes may include trailing suffixes like "(FP16)" or
+    // "[model-proc: ...]". Api expects display name without details.
+    const normalizedModel = rawModel
+      .replace(/(?:\s*(?:\([^)]*\)|\[model-proc:[^[\]\n]*]?))+\s*$/i, "")
+      .trim();
     if (normalizedModel) {
       uniqueModels.add(normalizedModel);
     }
@@ -387,7 +389,10 @@ export const Pipelines = () => {
   };
 
   const handleNodeSelect = (node: ReactFlowNode | null) => {
-    if (jobStatus?.state === "RUNNING" && !data?.tags?.includes("Time Series")) {
+    if (
+      jobStatus?.state === "RUNNING" &&
+      !data?.tags?.includes("Time Series")
+    ) {
       return;
     }
 
@@ -578,15 +583,16 @@ export const Pipelines = () => {
 
   if (isSuccess && data) {
     const isTimeSeriesPipeline = data.tags?.includes("Time Series") ?? false;
-    const detailsPanelType: "node" | "run" | "timeseries" | null = showDetailsPanel
-      ? selectedNode
-        ? "node"
-        : isTimeSeriesPipeline && timeseriesStarted
-          ? "timeseries"
-          : isTimeSeriesPipeline
-            ? null
-            : "run"
-      : null;
+    const detailsPanelType: "node" | "run" | "timeseries" | null =
+      showDetailsPanel
+        ? selectedNode
+          ? "node"
+          : isTimeSeriesPipeline && timeseriesStarted
+            ? "timeseries"
+            : isTimeSeriesPipeline
+              ? null
+              : "run"
+        : null;
     const activePanelSize =
       detailsPanelType === "node"
         ? nodeDetailsPanelSizeRef.current
@@ -627,7 +633,9 @@ export const Pipelines = () => {
             shouldFitView={shouldFitView}
             isSimpleGraph={isSimpleMode}
             showDetailsPanel={showDetailsPanel}
-            detailsPanelType={detailsPanelType === "timeseries" ? "run" : detailsPanelType}
+            detailsPanelType={
+              detailsPanelType === "timeseries" ? "run" : detailsPanelType
+            }
           />
         </div>
       </div>
@@ -1130,6 +1138,7 @@ export const Pipelines = () => {
                   >
                     <NodeDataPanel
                       selectedNode={selectedNode}
+                      pipelineId={data?.id}
                       onNodeDataUpdate={handleNodeDataUpdate}
                     />
                   </div>
