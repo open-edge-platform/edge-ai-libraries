@@ -143,26 +143,6 @@ def test_models_endpoint_returns_models(http_client: requests.Session) -> None:
                 ), f"Variant has unsupported precision: {variant.get('precision')}"
 
 
-@pytest.mark.smoke
-def test_default_models_present_in_api(
-    http_client: requests.Session,
-    supported_models_config: list[ModelDict],
-) -> None:
-    """Every model marked as default=true in supported_models.yaml must be
-    returned by the API with the correct display_name, precision and category."""
-    api_models = fetch_models(http_client)
-
-    default_models = _expand_model_precisions(
-        [m for m in supported_models_config if m.get("default") is True]
-    )
-    assert default_models, "No default models found in supported_models.yaml"
-    logger.info(
-        "Verifying %d default model variant(s) from config", len(default_models)
-    )
-
-    _assert_models_present_in_api(api_models, default_models)
-
-
 @pytest.mark.full
 def test_all_models_present_in_api(
     http_client: requests.Session,
