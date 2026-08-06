@@ -156,10 +156,10 @@ Accepted "on" values are case-insensitive: `true` / `1` / `yes` / `on` / `auto`.
 
 ## 3. Setup and Installation (from a clean environment)
 
-### Step 0 — Get the code and enter the service directory
+### Step 0 — Clone the Repo
 
 ```bash
-git clone <url> edge-ai-libraries
+git clone https://github.com/mutra-vamsi/edge-ai-libraries.git
 cd edge-ai-libraries/microservices/metrics-manager
 git checkout vamsi-tcmi-hw-telemetry
 ```
