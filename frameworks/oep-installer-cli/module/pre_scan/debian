@@ -9,8 +9,8 @@ debian_10_install_pre_scan () {
   (
     echo "------------------------------------------------------------------------"
 
-    ok="\033[32m✓  PASS\033[0m"
-    nok="\033[31m⚠  MSG\033[0m"
+    ok="${green}✓  PASS${reset}"
+    nok="${red}⚠  MSG${reset}"
 
     system_summary="$(sysinfo_get_system_summary)"
     echo "System|$system_summary"

@@ -2,6 +2,9 @@
 
 # common variable: ID_LIKE
 . /etc/os-release
+red="\033[31m"
+green="\033[32m"
+reset="\033[0m"
 trap "main $*" EXIT
 
 main () {
@@ -147,7 +150,7 @@ act_helpper () {
         if [[ "$line" = *"|rc=0|"* ]]; then
           echo "$line"
         else
-          echo -e "\033[31m$line\033[0m"
+          echo -e "${red}$line${reset}"
         fi
       done | ensure_columns
       echo "Total duration: $(( end_t - start_t )) seconds"
