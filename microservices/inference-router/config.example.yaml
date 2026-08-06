@@ -23,26 +23,63 @@ providers:
         complexity: 0.75
     settings:
       endpoint: "http://localhost:5000/v1"
-      timeout: 300.0
-      max_retries: 3
-      retry_delay: 1.0
-      max_input_len: 12000
+      timeout: 300.0              # per-request timeout (connect + first byte); default 600
       auth:
         scheme: "none"
         api_key: null
         custom_headers: {}
 
+  # Pass-through service providers. Their `type` names the service (one of:
+  # transcription, tts, embeddings, rerank, ocr) which exposes the matching
+  # OpenAI/Cohere-compatible /v1 endpoint and forwards the request body verbatim
+  # to `settings.endpoint`. Requests count against max_concurrency (shared with
+  # /v1/chat/completions). Manage them at runtime via the /v1/providers API.
+  # Uncomment and point `endpoint` at a running backend to enable.
+  #
+  # - name: "ocr-backend"          # -> POST /v1/ocr
+  #   type: "ocr"
+  #   model: "ocr"
+  #   settings:
+  #     endpoint: "http://localhost:8002"
+  #     timeout: 600               # OCR cold-start + multi-page docs can be slow
+
 # Request Plugins Configuration
 # Plugins can run before routing, after routing, or after provider response.
+# `name` is a unique instance label (and the metrics source key).
 plugins:
-  prerouting: []
-  postrouting: []
+  prerouting:
+    - name: "compressor_tool"
+      node: "compressor"
+      enabled: true
+      settings:
+        type: "tool"
+        predictor_url: "http://localhost:8088/v1/chat/completions"
+        predictor_model: "Qwen/Qwen3.6-35B-A3B"
+        score_threshold: 2.0
+        timeout: 120
+        prompt_mode: "dynamic"
+        tool_descriptions_mode: "dynamic"
+        placement: "schema"
+
+  postrouting:
+    - name: "compressor_harness"
+      node: "compressor"
+      enabled: true
+      settings:
+        type: "harness"
+        profile: "openclaw"
+        lingua_url: "http://localhost:8001/compress"
+        compress_rate: 0.5
+        compress_min_chars: 200
+        timeout: 60.0
+        enable_quantum_lock: false
+
   postresponse: []
 
 
 # Routing Configuration
 routing:
-  policy: "Balanced"  # Must exist in src/rsd/policy.yaml
+  policy: "Balanced"  # Must exist in /workspace/policy.yaml
 
 # Telemetry Configuration
 telemetry:

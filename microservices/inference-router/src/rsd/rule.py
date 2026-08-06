@@ -12,11 +12,18 @@ Three output types are supported:
 
 from __future__ import annotations
 
+import logging
+import os
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Generic, List, Optional, Tuple, TypeVar
+from pathlib import Path
+from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar
 
+from src.exceptions import ConfigurationError
 from src.models import ChatCompletionRequest, ChatCompletionRole
+from src.rsd.tools.config import build_classifier, default_classifier_config
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -49,6 +56,11 @@ class Rule(ABC, Generic[T]):
 
     Type parameter ``T`` is the return type of :meth:`evaluate`.
     """
+
+    # When True, :meth:`evaluate` does blocking work (e.g. a model forward pass)
+    # and the StrategyExecutor offloads just this rule to a worker thread so it
+    # does not stall the event loop. Cheap rules leave this False and run inline.
+    blocking_eval: bool = False
 
     @abstractmethod
     def evaluate(self, request: ChatCompletionRequest) -> T:
@@ -148,7 +160,6 @@ class ZoneRule(Rule[int]):
         """Return the zone index for this request, or ``-1`` if none match."""
 
 
-
 # ---------------------------------------------------------------------------
 # RuleEngine: evaluation and aggregation of rule collections
 # ---------------------------------------------------------------------------
@@ -190,6 +201,11 @@ class RuleEngine:
     def _last_user_word_count(request: ChatCompletionRequest) -> int:
         """Return the word count of the last user message, or 0 if none.
 
+        Handles both space-delimited and CJK scripts: whitespace-delimited runs
+        are counted by splitting, while each CJK ideograph counts as a single
+        word (CJK text is not whitespace-delimited). Mixed text is summed, e.g.
+        ``"deploy 部署 the app"`` -> 3 latin words + 2 CJK chars = 5.
+
         Args:
             request: The chat completion request.
 
@@ -198,7 +214,18 @@ class RuleEngine:
         """
         for msg in reversed(request.messages):
             if msg.role == ChatCompletionRole.USER and msg.content:
-                return len(_content_text(msg.content).split())
+                text = _content_text(msg.content)
+                # CJK ideographs (Han): main block, Extension A, compatibility
+                # ideographs, and Extension B+. re caches the compiled pattern.
+                cjk = re.compile(
+                    r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\U00020000-\U0002ffff]"
+                )
+                # Each CJK char counts as one word (CJK is not space-delimited);
+                # blank them out so they don't merge adjacent Latin tokens, then
+                # add the remaining whitespace-delimited word count.
+                cjk_count = len(cjk.findall(text))
+                latin_count = len(cjk.sub(" ", text).split())
+                return cjk_count + latin_count
         return 0
 
     @staticmethod
@@ -266,20 +293,6 @@ class RuleEngine:
 # ---------------------------------------------------------------------------
 # MatchRules
 # ---------------------------------------------------------------------------
-
-class ModelNameRule(MatchRule):
-    """Matches the request's model name against an exact string or regex pattern."""
-
-    def __init__(self, pattern: str, use_regex: bool = False) -> None:
-        self.pattern = pattern
-        self.use_regex = use_regex
-        self._compiled: Optional[re.Pattern] = re.compile(pattern) if use_regex else None
-
-    def evaluate(self, request: ChatCompletionRequest) -> bool:
-        if self.use_regex:
-            return bool(self._compiled.search(request.model))
-        return request.model == self.pattern
-
 
 class MessageContentRule(MatchRule):
     """Matches message content against a keyword or regex pattern.
@@ -417,4 +430,105 @@ class ContextLengthRule(ZoneRule):
         return self._find_zone(context_length)
 
 
+# ---------------------------------------------------------------------------
+# Intelligent-router (model-based) rule
+# ---------------------------------------------------------------------------
 
+class IntelligentRule(Rule[int]):
+    """Model-based routing rule backed by the intelligent-router classifier.
+
+    Args:
+        classifier: Optional pre-built classifier (implementing the
+            ``QueryClassifier`` protocol). When omitted, the default OpenVINO
+            classifier is built and loaded eagerly at construction. Mainly an
+            injection seam for tests/stubs.
+    """
+
+    blocking_eval = True
+
+    _LABEL_ZONES: Dict[str, int] = {"E": 0, "H": 1}
+    _MIN_CONFIDENCE: float = 0.51
+
+    # Classifier cache keyed by resolved model path, shared across instances.
+    _classifier_cache: Dict[str, Any] = {}
+
+    def __init__(
+        self,
+        classifier: Any = None,
+    ) -> None:
+        self.label_zones = dict(self._LABEL_ZONES)
+        if classifier is not None:
+            self.classifier = classifier
+        else:
+            try:
+                self.classifier = self._build_default_classifier()
+            except Exception as exc:  # noqa: BLE001 - degrade gracefully
+                logger.warning(
+                    "IntelligentRule disabled: could not load the OpenVINO "
+                    "classifier (%s). Set IR_OV_MODEL to a valid model directory "
+                    "to enable model-based routing.",
+                    exc,
+                )
+                self.classifier = None
+
+    def evaluate(self, request: ChatCompletionRequest) -> int:
+        if self.classifier is None:
+            return -1
+        text = self._last_user_text(request)
+        # No user text to judge: skip the (wasted) forward pass; defer to fallback.
+        if not text.strip():
+            return -1
+        result = self.classifier.classify(text)
+        if result.confidence < self._MIN_CONFIDENCE:
+            return -1
+        return self.label_zones.get(result.label, -1)
+
+    @staticmethod
+    def _last_user_text(request: ChatCompletionRequest) -> str:
+        """Return the text to classify: the last user message, flattened."""
+        for msg in reversed(request.messages):
+            if msg.role == ChatCompletionRole.USER and msg.content:
+                return _content_text(msg.content)
+        return ""
+
+    @classmethod
+    def preload(cls) -> Any:
+        return cls._build_default_classifier()
+
+    @classmethod
+    def _build_default_classifier(cls) -> Any:
+        """Build (once) the OV E/H classifier from intelligent-router defaults.
+        """
+        model_path = cls._resolve_ov_model_path()
+        cached = cls._classifier_cache.get(model_path)
+        if cached is not None:
+            return cached
+
+        cfg = default_classifier_config(model_path)
+        classifier = build_classifier(cfg)
+        cls._classifier_cache[model_path] = classifier
+        return classifier
+
+    @classmethod
+    def _resolve_ov_model_path(cls) -> str:
+        """Resolve the OpenVINO classifier model directory at startup.
+
+        Raises:
+            ConfigurationError: If ``IR_OV_MODEL`` is unset or points to a
+                directory that does not exist. Caught by the constructor, which
+                logs a warning and leaves the rule inert rather than failing
+                startup.
+        """
+        explicit = os.environ.get("IR_OV_MODEL")
+        if not explicit:
+            raise ConfigurationError(
+                "IR_OV_MODEL is not set. Set IR_OV_MODEL to the OpenVINO "
+                "classifier model directory to enable intelligent routing."
+            )
+        path = Path(explicit).expanduser()
+        if not path.exists():
+            raise ConfigurationError(
+                f"IR_OV_MODEL points to a missing directory: {path}. "
+                "Set IR_OV_MODEL to the OpenVINO classifier model directory."
+            )
+        return str(path)
