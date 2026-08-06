@@ -16,7 +16,7 @@ debian_10_install_sysinfo () {
 
     pass=$ok
     membank_info="$(sysinfo_check_membank)"
-    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok} Check configuration"
+    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok} Check Configuration"
     echo "RAM|$membank_info|$pass"
 
     pass=$ok
@@ -25,45 +25,32 @@ debian_10_install_sysinfo () {
 
     pass=$ok
     docker_ver="$(sysinfo_check_docker)"
-    [[ "$docker_ver" = *Compose* ]] || pass="${nok} Docker compose missing"
-    [ -n "$docker_ver" ] || pass="${nok} Docker missing"
+    [[ "$docker_ver" = *Compose* ]] || pass="${nok} Missing Docker Compose"
+    [ -n "$docker_ver" ] || pass="${nok} Missing Docker"
     echo "Docker|$docker_ver|$pass"
 
     net_pass=$ok
     net_access="$(sysinfo_check_network_access)"
-    [[ "$net_access" = *reachable* ]] || net_pass="${nok} Check proxies"
+    [[ "$net_access" = *reachable* ]] || net_pass="${nok} Check Proxies"
     echo "Network|$net_access|$net_pass"
 
     echo ""
     echo "Accelerators"
+
     pass=$ok
-    cpu_accels=("vnni" "avx2")
-    detected=()
-    for accel in ${cpu_accels[@]}; do
-      if grep -q -F $accel /proc/cpuinfo > /dev/null; then
-        detected+=($accel)
-      else
-        pass="${nok} ${accel^^} missing"
-      fi
-    done
-    echo "CPU|${detected[*]^^}|$pass"
+    cpuinst_info="$(sysinfo_check_cpu_instructions)"
+    [[ "$cpuinst_info" != *Missing* ]] || pass="${nok} Check CPU"
+    echo "CPU|$cpuinst_info|$pass"
 
     gpu_accels=("8086:b08f")
     for accel in ${gpu_accels[@]}; do
-      accel_name="$(lspci -v -n 2> /dev/null | grep -A10 -F $accel | grep -m1 DeviceName: | cut -f2- -d: || true)"
-      if [ -n "$accel_name" ]; then
-        pass=$ok
-        driver_name="$(lscpi -v -n | grep -A10 -F $accel | awk '/Kernel driver in use:/{print$NF}' || true)"
-        if [ -n "$driver_name" ]; then
-          driver_str="driver $(modinfo $driver_name 2>/dev/null | awk '/vermagic:/{print$2}' || true)"
-        else
-          driver_str=""
-          pass="${nok} Driver missing"
-        fi
-        echo "GPU|$name driver $driver_str|$pass"
+      pass=$ok
+      accel_info="$(sysinfo_check_gpu_accel $accel)"
+      if [ -n "$accel_info" ]; then
+        [[ "$accel_info" = *driver* ]] || pass="${nok} Missing Driver"
+        echo "GPU|$accel_info|$pass"
       fi
     done
-
 
     [ "$net_pass" = "$ok" ]
   ) | ensure_columns
@@ -161,5 +148,34 @@ sysinfo_check_docker () {
   local compose_ver=$(docker compose version 2> /dev/null | awk '{print$NF}' || true)
   [ -z "$compose_ver" ] || docker_ver="$docker_ver + Compose $compose_ver"
   echo "$docker_ver"
+}
+
+sysinfo_check_cpu_instructions () {
+  local cpu_accels=("vnni" "avx2")
+  local detected=() missed=()
+  for accel in ${cpu_accels[@]}; do
+    if grep -q -F $accel /proc/cpuinfo > /dev/null; then
+      detected+=($accel)
+    else
+      missed+=($accel)
+    fi
+  done
+  if [ ${#missed[@]} -gt 0 ]; then
+    echo "Missing ${missed[*]^^}"
+  else
+    echo "${detected[*]^^}"
+  fi
+}
+
+sysinfo_check_gpu_accel () {
+  local name="$(lspci -v -n 2> /dev/null | grep -A10 -F $1 | grep -m1 DeviceName: | cut -f2- -d: || true)"
+  if [ -n "$name" ]; then
+    local driver="$(lscpi -v -n | grep -A10 -F $1 | awk '/Kernel driver in use:/{print$NF}' || true)"
+    if [ -n "$driver" ]; then
+      echo "$name driver $(modinfo $driver 2>/dev/null | awk '/vermagic:/{print$2}' || true)"
+    else
+      echo "$name"
+    fi
+  fi
 }
 
