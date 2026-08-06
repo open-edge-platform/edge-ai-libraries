@@ -45,22 +45,23 @@ const allocateProportionally = (weights: number[], total: number): number[] => {
 
 export const rebalanceStreamRates = <T extends StreamRateSelection>(
   selections: T[],
-  changedIndex: number,
+  changedRowIndex: number,
   newRate: number,
 ): T[] => {
   if (selections.length === 1) {
     return [{ ...selections[0], stream_rate: 100 }];
   }
 
-  if (changedIndex < 0 || changedIndex >= selections.length) return selections;
+  if (changedRowIndex < 0 || changedRowIndex >= selections.length)
+    return selections;
 
   let lockedSum = 0;
-  if (changedIndex === selections.length - 1) {
+  if (changedRowIndex === selections.length - 1) {
     for (let index = 1; index < selections.length - 1; index++) {
       lockedSum += selections[index].stream_rate;
     }
   } else {
-    for (let index = 0; index < changedIndex; index++) {
+    for (let index = 0; index < changedRowIndex; index++) {
       lockedSum += selections[index].stream_rate;
     }
   }
@@ -71,9 +72,9 @@ export const rebalanceStreamRates = <T extends StreamRateSelection>(
   const remainingRate = Math.max(0, 100 - lockedSum - clampedRate);
 
   const selectionsToAdjust =
-    changedIndex === selections.length - 1
+    changedRowIndex === selections.length - 1
       ? [selections[0]]
-      : selections.slice(changedIndex + 1);
+      : selections.slice(changedRowIndex + 1);
 
   const allocatedRates = allocateProportionally(
     selectionsToAdjust.map((selection) => selection.stream_rate),
@@ -86,16 +87,16 @@ export const rebalanceStreamRates = <T extends StreamRateSelection>(
   }));
 
   return selections.map((selection, index) => {
-    if (index === changedIndex) {
+    if (index === changedRowIndex) {
       return { ...selection, stream_rate: clampedRate };
     }
 
-    if (changedIndex === selections.length - 1 && index === 0) {
+    if (changedRowIndex === selections.length - 1 && index === 0) {
       return adjusted[0];
     }
 
-    if (changedIndex !== selections.length - 1 && index > changedIndex) {
-      const adjustedIndex = index - changedIndex - 1;
+    if (changedRowIndex !== selections.length - 1 && index > changedRowIndex) {
+      const adjustedIndex = index - changedRowIndex - 1;
       return adjusted[adjustedIndex];
     }
 
@@ -107,8 +108,10 @@ export const useStreamRateChange = <T extends StreamRateSelection>(
   setSelections: Dispatch<SetStateAction<T[]>>,
 ) => {
   return useCallback(
-    (changedIndex: number, newRate: number) => {
-      setSelections((prev) => rebalanceStreamRates(prev, changedIndex, newRate));
+    (changedRowIndex: number, newRate: number) => {
+      setSelections((prev) =>
+        rebalanceStreamRates(prev, changedRowIndex, newRate),
+      );
     },
     [setSelections],
   );
