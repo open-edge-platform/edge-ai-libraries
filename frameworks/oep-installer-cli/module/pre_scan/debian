@@ -1,9 +1,9 @@
 
-debian_10_profile_sysinfo () {
+debian_10_profile_pre_scan () {
   [ "$1" != "install" ] || echo "curl dmidecode"
 }
 
-debian_10_install_sysinfo () {
+debian_10_install_pre_scan () {
   echo "Quick System Scan"
   echo "------------------------------------------------------------------------"
   set -o pipefail

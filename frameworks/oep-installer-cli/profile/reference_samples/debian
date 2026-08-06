@@ -1,6 +1,6 @@
 
 debian_99_profile_reference_samples () {
   # reference samples cannot start at the same time
-  [ "$1" = "start" ] || echo "manufacturing_ai_suites metro_ai_suites retail_ai_suites"
+  [ "$1" = "start" ] || echo "pre_scan manufacturing_ai_suites metro_ai_suites retail_ai_suites"
 }
 
