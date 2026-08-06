@@ -18,12 +18,6 @@ ensure_panelled_logs () {(
 #   anything else           log line attributed to the current component
 #
 # Environment:
-#   TIME_FMT=long|short|clock|off   elapsed format (default short)
-#                           long  -> [installed, elapsed 35 seconds]
-#                           short -> [installed, 35s]  /  [installed, 2m05s]
-#                           clock -> [installed, 00:35]
-#                           off   -> [installed]
-#   LIVE_TIMER=0            do not tick the running component's counter
 #   KEEP_COLOR=0            strip the installer's own SGR colors (default: 1)
 #   WRAP_MODE=clip          truncate long lines instead of wrapping (default wrap)
 #   LEFT_WIDTH=<n>          pin the left column width (default: auto-size)
@@ -38,11 +32,10 @@ ensure_panelled_logs () {(
 #   TICK_SEC=<n>            idle poll interval, seconds (default 0.5)
 #   NARROW_GLYPHS=1         assume all glyphs are 1 cell (disable width table)
 #   FORCE_COLS / FORCE_ROWS override detected geometry
-#   DEBUG_GEOM=1            print detected geometry and exit
-#   DEBUG_PERF=1            report frame count and timing on exit
 #   INSTALL_LOG_FILE=path   also append the raw (uncolored) log to a file
 
 set -o pipefail
+readonly ACT_TEXT=($*) 
 
 # ------------------------------------------------------------------ colors
 readonly C_RESET=$'\033[0m'
@@ -70,8 +63,6 @@ readonly MAX_HL=12
 readonly MAX_RBUF=2000
 readonly MAX_WRAP=3000
 readonly LEFT_MIN=16
-TIME_FMT=${TIME_FMT:-short}
-LIVE_TIMER=${LIVE_TIMER:-1}
 KEEP_COLOR=${KEEP_COLOR:-1}
 WRAP_MODE=${WRAP_MODE:-wrap}
 LEFT_WIDTH=${LEFT_WIDTH:-0}
@@ -268,26 +259,10 @@ _fmt_elapsed() {
   local ms=${1:-0} s m h
   (( ms < 0 )) && ms=0
   s=$(( ms / 1000 ))
-  case $TIME_FMT in
-    off) REPLY=""; return ;;
-    clock)
-      h=$(( s / 3600 )); m=$(( (s % 3600) / 60 ))
-      if (( h > 0 )); then printf -v REPLY '%d:%02d:%02d' "$h" "$m" $(( s % 60 ))
-      else printf -v REPLY '%02d:%02d' "$m" $(( s % 60 )); fi ;;
-    long)
-      if (( s < 60 )); then
-        if (( s == 1 )); then REPLY="elapsed 1 second"
-        else printf -v REPLY 'elapsed %d seconds' "$s"; fi
-      elif (( s < 3600 )); then
-        printf -v REPLY 'elapsed %dm %ds' $(( s / 60 )) $(( s % 60 ))
-      else
-        printf -v REPLY 'elapsed %dh %dm' $(( s / 3600 )) $(( (s % 3600) / 60 ))
-      fi ;;
-    *)
-      if   (( s < 60 ));   then printf -v REPLY '%ds' "$s"
-      elif (( s < 3600 )); then printf -v REPLY '%dm%02ds' $(( s / 60 )) $(( s % 60 ))
-      else printf -v REPLY '%dh%02dm' $(( s / 3600 )) $(( (s % 3600) / 60 )); fi ;;
-  esac
+  if   (( s < 60 ));   then printf -v REPLY '%ds' "$s"
+  elif (( s < 3600 )); then printf -v REPLY '%dm%02ds' $(( s / 60 )) $(( s % 60 ))
+  else printf -v REPLY '%dh%02dm' $(( s / 3600 )) $(( (s % 3600) / 60 )); 
+  fi
 }
 
 _timer_start() {
@@ -486,9 +461,9 @@ _wrap_one() {
 SG_C=""; SG_M=""; SG_L=""
 _sg() {
   case ${1:-} in
-    ok)   SG_C=$C_GREEN;  SG_M=$G_OK;   SG_L="installed" ;;
+    ok)   SG_C=$C_GREEN;  SG_M=$G_OK;   SG_L="${ACT_TEXT[2],,}" ;;
     fail) SG_C=$C_RED;    SG_M=$G_FAIL; SG_L="failed"    ;;
-    *)    SG_C=$C_YELLOW; SG_M=$G_RUN;  SG_L="installing";;
+    *)    SG_C=$C_YELLOW; SG_M=$G_RUN;  SG_L="${ACT_TEXT[1],,}" ;;
   esac
 }
 
@@ -498,7 +473,6 @@ _header_text() {
   HDRTXT=""
   [[ -z $name ]] && return
   _sg "${STATUS[$name]:-}"
-  if [[ $TIME_FMT == off ]]; then HDRTXT="${name} [${SG_L}]"; return; fi
   _elapsed_ms "$name"
   local ms=$REPLY
   if (( ms <= 0 )) && [[ -z ${TDONE[$name]:-} ]]; then
@@ -523,7 +497,7 @@ _touch_comp() {
   [[ -z $name ]] && return
   [[ -n ${STATUS[$name]:-} ]] && return
   ORDER+=("$name")
-  STATUS[$name]="installing"
+  STATUS[$name]="${ACT_TEXT[1],,}"
   L1[$name]=""; L2[$name]=""
   RBUF[$name]=""; RCNT[$name]=0
   HL[$name]="";   HCNT[$name]=0
@@ -629,8 +603,6 @@ _load_rows() {
 }
 
 _timer_tick() {
-  (( LIVE_TIMER )) || return 1
-  [[ $TIME_FMT == off ]] && return 1
   (( ${#TSTART[@]} == 0 )) && return 1
   local c s hit=1
   for c in "${!TSTART[@]}"; do
@@ -788,8 +760,10 @@ _draw() {
   local -a right=()
   local counter=""
   if (( REVIEW )) && (( nfail > 1 )); then
-    if [[ -n $FOCUS ]]; then counter="  (pinned, ${nfail} failed)"
-    elif (( CYCLE_SEC > 0 )); then counter="  ($(( CYCLE_IDX + 1 )) of ${nfail})"
+    if [[ -n $FOCUS ]]; then 
+      counter="  (pinned, ${nfail} failed)"
+    elif (( CYCLE_SEC > 0 )); then 
+      counter="  ($(( CYCLE_IDX + 1 )) of ${nfail})"
     fi
   fi
 
@@ -800,7 +774,7 @@ _draw() {
   else
     local tstr=""
     _sg "${STATUS[$hcomp]:-}"
-    if [[ $TIME_FMT != off && -z ${REPORT[$hcomp]:-} ]]; then
+    if [[ -z ${REPORT[$hcomp]:-} ]]; then
       _elapsed_ms "$hcomp"
       if (( REPLY > 0 )); then _fmt_elapsed "$REPLY"; [[ -n $REPLY ]] && tstr=", ${REPLY}"; fi
     fi
@@ -848,8 +822,8 @@ _draw() {
   local out="" l r rowstr
   if (( FULL_CLEAR )); then out+=$'\033[2J'; PREV=(); FULL_CLEAR=0; fi
 
-  local title=" Installation progress "
-  if [[ $TIME_FMT != off ]] && (( T_FIRST > 0 )); then
+  local title=" ${ACT_TEXT[0]} progress "
+  if (( T_FIRST > 0 )); then
     local endms=$T_LAST
     (( endms == 0 )) && endms=$(_now_ms)
     _fmt_elapsed $(( endms - T_FIRST ))
@@ -903,10 +877,6 @@ _finish() {
   printf '\033[%d;1H\033[K' "$TTY_ROWS"   # last row, cleared, NO newline
   printf '\033[?25h'
   (( TTY_FD >= 0 )) && exec {TTY_FD}>&-
-  if [[ -n ${DEBUG_PERF:-} ]] && (( FRAMES > 0 )); then
-    printf 'frames=%s  total_draw_ms=%s  avg=%sms\n' \
-      "$FRAMES" "$DRAW_MS" $(( DRAW_MS / FRAMES )) >&2
-  fi
 }
 
 # ------------------------------------------------------------------ input
@@ -932,7 +902,7 @@ _handle_line() {
       fi
       CURRENT=$rest
       _touch_comp "$CURRENT"
-      STATUS[$CURRENT]="installing"
+      STATUS[$CURRENT]="${ACT_TEXT[1],,}"
       [[ -n ${TDONE[$CURRENT]:-} ]] && unset "TDONE[$CURRENT]"
       _timer_start "$CURRENT"
       _note_width "$CURRENT"
@@ -991,12 +961,6 @@ _handle_line() {
 
   _open_tty
   _read_geom
-
-  if [[ -n ${DEBUG_GEOM:-} ]]; then
-    printf 'TTY_FD=%s  cols=%s  rows=%s  TERM=%s\n' \
-      "$TTY_FD" "$TTY_COLS" "$TTY_ROWS" "${TERM:-unset}"
-    return 0
-  fi
 
   printf '\033[?25l'
   printf '\033[?7l'
