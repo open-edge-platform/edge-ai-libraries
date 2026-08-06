@@ -1,0 +1,15 @@
+
+# show output in columns, allowing merged last row and ignoring color sequence
+ensure_columns () {
+  local sep=${1:-'|'}
+  python3 -c '
+import sys,re
+ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
+rows=[line.strip().split(sys.argv[1]) for line in sys.stdin if line.strip()]
+cols=max(len(r) for r in rows)
+widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0) for c in range(cols-1)]
+for r in rows:
+  print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
+' "$sep"
+}
+
