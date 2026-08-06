@@ -8,7 +8,7 @@
 #   - The default install pulls the SDK client deps plus `claw-compactor`,
 #     which HarnessCompressor uses for content-type-aware compression.
 #     `claw-compactor` resolves from PyPI like any other dep.
-#   - The `lingua-server` extras require Intel XPU wheels; pip needs explicit
+#   - The `lingua-server-xpu` extra requires Intel XPU wheels; pip needs explicit
 #     `--extra-index-url` flags (pyproject cannot encode index URLs).
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -29,40 +29,49 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Lingua server extras (XPU default).
+# Lingua server extras — three variants:
+#   * lingua-server-xpu  -> PyTorch backend on Intel XPU (IPEX)
+#   * lingua-server-cpu  -> PyTorch backend on CPU
+#   * lingua-server-ov   -> OpenVINO backend (xpu or cpu)
 #
-# Two extra-index-urls are required because the wheels live on different
-# servers and pyproject cannot encode index URLs:
-#   * https://download.pytorch.org/whl/xpu                  -> torch / torchvision / torchaudio (XPU builds)
-#   * https://pytorch-extension.intel.com/release-whl/...   -> intel-extension-for-pytorch, oneccl_bind_pt
-#
-# Versions are pinned to match the proven combination from
-# scripts/setup_lingua.sh in the agentic-sdk repo (torch 2.8.0 + IPEX 2.8.10+xpu).
-# The torch / torchvision / torchaudio versions must move together — bumping one
-# without the others breaks the IPEX ABI.
-#
-# Install:
+# lingua-server-xpu needs two --extra-index-url flags (pyproject can't encode
+# index URLs); torch/torchvision/torchaudio versions must move together (IPEX ABI):
 #   pip install --extra-index-url https://download.pytorch.org/whl/xpu \
 #               --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ \
-#               "adaptive-token-compressor[lingua-server]"
-lingua-server = [
+#               "adaptive-token-compressor[lingua-server-xpu]"
+#
+# PyTorch backend, XPU (torch + IPEX + oneccl). Also runs on CPU (`--device cpu`,
+# IPEX unused), but CPU-only users should prefer the lighter `lingua-server-cpu`.
+# For `--backend ov` use `lingua-server-ov` (combinable: `[lingua-server-xpu,lingua-server-ov]`).
+lingua-server-xpu = [
     "torch==2.8.0",
     "torchvision==0.23.0",
     "torchaudio==2.8.0",
     "intel-extension-for-pytorch==2.8.10+xpu",
     "oneccl_bind_pt==2.8.0+xpu",
     "llmlingua>=0.2",
-    "openvino>=2024.0",
-    "optimum[openvino]>=1.24.0",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "huggingface-hub>=0.20",
 ]
-# CPU-only fallback (no IPEX, no XPU wheels needed; default PyPI index works).
-# Pass `--device cpu` on launch.
+# CPU-only fallback for the PyTorch backend (no IPEX, no XPU wheels needed;
+# default PyPI index works). Pass `--backend pytorch --device cpu` on launch.
 lingua-server-cpu = [
     "torch>=2.0",
     "llmlingua>=0.2",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "huggingface-hub>=0.20",
+]
+# OpenVINO backend (`--backend ov`, device xpu or cpu). OV drives the Intel GPU
+# via its own runtime (not torch), so plain CPU torch is enough — no IPEX/XPU
+# wheels, default PyPI index works.
+#   pip install "adaptive-token-compressor[lingua-server-ov]"
+lingua-server-ov = [
+    "torch==2.8.0",
+    "llmlingua>=0.2",
+    "openvino>=2024.0",
+    "optimum[openvino]>=1.24.0",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "huggingface-hub>=0.20",

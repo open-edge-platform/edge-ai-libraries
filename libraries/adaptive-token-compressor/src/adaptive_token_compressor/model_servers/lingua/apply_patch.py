@@ -29,10 +29,11 @@ def _llmlingua_dir() -> Path:
     except ImportError as e:
         raise SystemExit(
             "llmlingua is not installed. Install one of the lingua extras first:\n"
-            "  pip install adaptive-token-compressor[lingua-server-cpu]   # CPU\n"
+            "  pip install adaptive-token-compressor[lingua-server-cpu]   # CPU (PyTorch)\n"
+            "  pip install adaptive-token-compressor[lingua-server-ov]    # OpenVINO\n"
             "  pip install --extra-index-url https://download.pytorch.org/whl/xpu \\\n"
             "              --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ \\\n"
-            "              adaptive-token-compressor[lingua-server]      # XPU"
+            "              adaptive-token-compressor[lingua-server-xpu]   # XPU (PyTorch)"
         ) from e
     return Path(llmlingua.__file__).parent
 

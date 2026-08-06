@@ -162,7 +162,7 @@ docker compose down -v             # also remove HF model cache volume
 ## See also
 
 - Bare-metal install (without docker): `src/adaptive_token_compressor/model_servers/lingua/README.md`
-  uses `pip install adaptive-token-compressor[lingua-server[-cpu]]` +
+  uses `pip install adaptive-token-compressor[lingua-server-xpu|-cpu|-ov]` +
   `python -m adaptive_token_compressor.model_servers.lingua.apply_patch` +
   `python -m adaptive_token_compressor.model_servers.lingua`
 - Companion vLLM tool predictor: `deployment/tool_predictor/README.md`

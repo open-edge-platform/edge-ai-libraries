@@ -3,25 +3,42 @@
 Wraps Microsoft LLMLingua-2 as a FastAPI HTTP service. Compatible with
 `LinguaHTTPBackend` in `adaptive_token_compressor.core.backends`.
 
-## Install (XPU — default)
+## Install (XPU — PyTorch backend)
 
 ```bash
 pip install --extra-index-url https://download.pytorch.org/whl/xpu \
             --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ \
-            "adaptive-token-compressor[lingua-server]"
+            "adaptive-token-compressor[lingua-server-xpu]"
 ```
 
 This installs `torch==2.8.0` + `torchvision==0.23.0` + `torchaudio==2.8.0` from
 PyTorch XPU index, plus `intel-extension-for-pytorch==2.8.10+xpu` +
 `oneccl_bind_pt==2.8.0+xpu` from Intel index, plus llmlingua + fastapi + uvicorn.
 
-## Install (CPU fallback)
+This install also runs on CPU (`--device cpu`, IPEX unused); if you only need
+CPU, prefer the lighter `lingua-server-cpu` extra below.
+
+## Install (CPU — PyTorch backend)
 
 ```bash
 pip install "adaptive-token-compressor[lingua-server-cpu]"
 ```
 
-No IPEX, no XPU wheels — default PyPI index works. Pass `--device cpu` on launch.
+No IPEX, no XPU wheels — default PyPI index works. Pass `--backend pytorch --device cpu` on launch.
+
+## Install (OpenVINO backend — xpu or cpu)
+
+```bash
+pip install "adaptive-token-compressor[lingua-server-ov]"
+```
+
+OpenVINO reaches the Intel GPU through its own runtime, not torch, so plain CPU
+`torch` is enough — no IPEX / XPU wheels, default PyPI index works. Adds
+`openvino` + `optimum[openvino]`. Run with `--backend ov --device xpu` (or `cpu`).
+
+> To run both the PyTorch-XPU and OpenVINO backends from one environment,
+> combine the extras: `"adaptive-token-compressor[lingua-server-xpu,lingua-server-ov]"`
+> (with the two XPU `--extra-index-url` flags above).
 
 ## Apply LLMLingua-2 source patch (one-time, required)
 
