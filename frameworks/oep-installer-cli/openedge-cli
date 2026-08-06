@@ -127,7 +127,7 @@ act_helpper () {
         (
           set -e
           $handler $(act_extract_args $act_name $name $*)
-        ) > >(logecho $name) 2> >(logecho $name)
+        ) > >(logecho $name) 2>&1
         local rc1=$?
         reports+=("$name|rc=$rc1|$(( SECONDS - start_c )) seconds")
         if [ $rc1 -ne 0 ]; then
