@@ -53,11 +53,11 @@ If you are behind a proxy, configure:
 
 ## Supporting Resources
 
-- [Overview](Overview.md)
-- [Overview and Architecture](overview-architecture.md)
-- [Get Started](get-started.md)
-- [API Reference](api-reference.md)
-- [OpenAPI Specification](api-docs/openapi.yaml)
-- [How to Build from Source](how-to-build-from-source.md)
-- [Add New Retriever Backend](add-new-retriever-backend.md)
-- [Release Notes](release-notes.md)
+- [Overview](../index.md)
+- [Get Started](../get-started.md)
+- [Build from Source](./build-from-source.md)
+- [How It Works](../how-it-works.md)
+- [How To Add New Retriever Backend](../add-new-retriever-backend.md)
+- [API Reference](../api-reference.md)
+- [Download OpenAPI Specification](../api-docs/openapi.yaml)
+- [Release Notes](../release-notes.md)
