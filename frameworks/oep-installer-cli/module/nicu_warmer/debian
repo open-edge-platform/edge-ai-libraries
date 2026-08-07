@@ -39,7 +39,7 @@ debian_90_install_nicu_warmer () {
   fi
 
   # clone the repository
-  ensure_disk_space 1500
+  ensure_disk_space 160
   ensure_git_clone "$workspace" $version $repository health-and-life-sciences-ai-suite/NICU-Warmer
 
   # configure and optimization
