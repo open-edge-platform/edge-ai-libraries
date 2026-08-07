@@ -20,7 +20,9 @@ configure_nicu_warmer () {
 }
 
 verify_nicu_warmer () {
-  [ -e "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/action-recognition-0001-decoder.bin ]
+  for model1 in "${models[@]}"; do
+    [ -e "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/${model1#* } ] || return 1
+  done
   . "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/.env 2> /dev/null
   docker inspect intel/hl-ai-nicu-backend:$TAG > /dev/null 2>&1
 }
@@ -40,12 +42,10 @@ debian_90_install_nicu_warmer () {
   ensure_disk_space 1500
   ensure_git_clone "$workspace" $version $repository health-and-life-sciences-ai-suite/NICU-Warmer
 
-  # setup
-  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
-
   # configure and optimization
+  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
   sed -i 's|decodebin3 ! .*|decodebin3|' configs/res/all-gpu.env
-  sed -i -e 's|- *"8080:8080"||' -e 's|- *"5001:5001"||' -e 's|- *"1883:1883"||' -e 's|3001|8080|' Makefile docker-compose.yaml
+  sed -i -e 's|- *"8080:8080"||' -e 's|- *"5001:5001"||' -e 's|- *"9100:9000"||' -e 's|- *"1883:1883"||' -e 's|3001|8080|' Makefile docker-compose.yaml
   sed -i -z 's| *ports:\n\([ ]*[^ -]\)|\1|g' docker-compose.yaml
   echo "DEVICE_ENV=$device_env" >> .env 
   echo "TAG=$(grep -E ^TAG Makefile | cut -f2 -d= | tr -d ' ')" >> .env 
@@ -70,8 +70,10 @@ debian_90_install_nicu_warmer () {
 
 debian_90_start_nicu_warmer () {
   # check ports
-  for port in 8080 9100; do
-    ensure_sudo lsof -i TCP:$port || continue
+  for port in 8080; do
+    ensure_sudo lsof -i TCP:$port > /dev/null 2>&1 || continue
+    debian_90_stop_nicu_warmer || true
+    ensure_sudo lsof -i TCP:$port > /dev/null 2>&1 || continue
     echo "TCP port $port is occupied" 1>&2
     return 3
   done
