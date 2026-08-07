@@ -94,7 +94,7 @@ Supported backend values for `RETRIEVER_BACKEND` are `vdms`, `milvus`, `pgvector
 
 ```bash
 export REGISTRY_URL=intel
-export TAG=latest
+export TAG=2026.2.0-rc1
 ```
 
 ### Optional Environment Variables

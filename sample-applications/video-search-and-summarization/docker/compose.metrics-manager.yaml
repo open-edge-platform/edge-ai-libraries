@@ -3,7 +3,7 @@
 
 services:
   metrics-manager:
-    image: intel/metrics-manager:2026.2.0-20260715-weekly
+    image: intel/metrics-manager:2026.2.0-20260804-weekly
     container_name: metrics-manager
     ports:
       - "${METRICS_MANAGER_HOST_PORT:-9090}:9090"
