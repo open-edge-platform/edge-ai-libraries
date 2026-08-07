@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 
 import yaml
 
+from src.config.loader import resolve_workspace_dir, validate_name
 from src.exceptions import ConfigurationError
 
 
@@ -27,8 +28,17 @@ class DecisionPolicy:
 
 
 def resolve_policy_file() -> Path:
-    """Return the canonical path to the decision policy YAML file."""
-    return Path(__file__).with_name("policy.yaml").expanduser().resolve()
+    """Return the path to the decision policy YAML file.
+
+    Prefers ``<workspace>/policy.yaml`` when it exists, so operators can
+    override the bundled defaults without editing the source tree; otherwise
+    falls back to the ``policy.yaml`` shipped next to this module under
+    ``src/rsd``. See :func:`src.config.loader.resolve_workspace_dir`.
+    """
+    bundled = Path(__file__).with_name("policy.yaml")
+    override = resolve_workspace_dir() / "policy.yaml"
+    chosen = override if override.is_file() else bundled
+    return chosen.expanduser().resolve()
 
 
 def load_decision_policies(
@@ -67,6 +77,7 @@ def build_decision_policy(policy_data: dict) -> DecisionPolicy:
     name = policy_data.get("name")
     if not name:
         raise ConfigurationError("Policy entry must have a 'name'")
+    validate_name(name, "Policy")
 
     strategies = policy_data.get("strategies")
     if not isinstance(strategies, list) or not strategies:

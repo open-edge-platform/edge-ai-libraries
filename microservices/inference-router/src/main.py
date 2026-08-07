@@ -99,6 +99,18 @@ def build_app() -> FastAPI:
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
+    # Crash recovery: an interrupted config write (see ``_atomic_write_yaml``)
+    # can leave a stale ``<config>.tmp`` sibling. The real config was never
+    # touched — ``os.replace`` is atomic — so it is safe to just remove the
+    # leftover so it can't be mistaken for live state or block a later rename.
+    stale_tmp = config_path.with_name(f"{config_path.name}.tmp")
+    if stale_tmp.exists():
+        try:
+            stale_tmp.unlink()
+            logger.warning("Removed stale config temp file from an interrupted write: %s", stale_tmp)
+        except OSError as exc:
+            logger.warning("Could not remove stale config temp file %s: %s", stale_tmp, exc)
+
     logger.info(f"Loading config from {config_path}")
     config = load_config(str(config_path))
     setup_logging(config)
@@ -117,6 +129,7 @@ def build_app() -> FastAPI:
         router,
         config,
         telemetry,
+        config_path=config_path,
         max_concurrency=max_concurrency,
         verbose=verbose,
         verbose_full=verbose_full,

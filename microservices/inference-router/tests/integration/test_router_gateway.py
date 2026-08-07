@@ -381,7 +381,7 @@ def test_forced_provider_selection(
 	assert pinned_models, "Expected at least one non-auto model in /v1/models"
 
 	for idx, model_id in enumerate(pinned_models):
-		token = f"TOKEN_FORCE_PROVIDER_{idx}"
+		token = f"FORCE_PROVIDER_{idx}"
 		response = _chat(
 			gateway_client,
 			stream=stream,
@@ -618,10 +618,16 @@ def test_large_input_routing_behavior(
 	# Verify response
 	assert response["object"] == "chat.completion"
 
-	# Verify content
+	# Verify content: the gateway must not surface an error, the model must
+	# echo the requested token, and the request must have been routed (counted
+	# in telemetry) — the actual point of this test.
 	choice = response["choices"][0]
 	content = _visible_text(choice["message"].get("content"))
-	assert "TOKEN_LARGE_INPUT" in content or "[ERROR]" not in content
+	assert "[ERROR]" not in content, f"Gateway returned an error for large input: {content!r}"
+	assert "TOKEN_LARGE_INPUT" in content
+
+	stats = gateway_client.get_stats()
+	assert stats["routing_stats"]["total_requests"] >= 1
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non-stream", "stream"])

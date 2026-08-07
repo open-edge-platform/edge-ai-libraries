@@ -1,0 +1,26 @@
+FROM node:22.14.0 AS vue-app
+
+RUN apt-get update -y && apt-get install -y git
+
+WORKDIR /home/user/ui
+
+ENV TMPFILE_PATH=/home/user/ui
+ENV NODE_OPTIONS=--max-old-space-size=4096
+ENV NPM_CONFIG_AUDIT=false
+ENV NPM_CONFIG_FUND=false
+
+COPY ./ui/package*.json ./
+RUN npm install
+
+COPY ./ui ./
+RUN npm run build
+
+FROM nginx:stable-alpine
+
+COPY --from=vue-app /home/user/ui/dist /usr/share/nginx/html
+COPY ./ui/docker/nginx.conf /etc/nginx/templates/default.conf.template
+
+EXPOSE 7000
+
+CMD ["nginx", "-g", "daemon off;"]
+ 
