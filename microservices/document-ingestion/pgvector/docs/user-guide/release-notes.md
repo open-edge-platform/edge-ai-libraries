@@ -1,5 +1,13 @@
 # Release Notes: Document Ingestion
 
+## Version 2026.2.0
+
+**Aug 6, 2026**
+
+**New**
+
+- Bumps dependencies packages version
+
 ## Version 2026.1.0
 
 **Release Date:** June 17, 2026
