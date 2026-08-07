@@ -240,9 +240,19 @@ subcommand_bootstrap () {
     [ -r "$script" ] || script="$mydir"/module/${modules[$i]}/${ID_LIKE}
     if [ -r "$script" ]; then
       scripts["$script"]=1
-      . "$script"
-      local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
-      [ -z "$profiler" ] || modules+=($(for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do $profiler $cmd;done))
+      local script_nos="${script%/*}/os-agnostic"
+      local profiler=$(
+        [ ! -r "$script_nos" ] || . "$script_nos"
+        . "$script"
+        declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' '
+      )
+      [ -z "$profiler" ] || modules+=($(
+        [ ! -r "$script_nos" ] || . "$script_nos"
+        . "$script"
+        for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do 
+          $profiler $cmd
+        done
+      ))
     else
       echo "Unknown component or profile: ${modules[$i]}" 1>&2
       exit 3
@@ -273,7 +283,8 @@ subcommand_bootstrap () {
     fi
     for script in "${!scripts[@]}"; do
       echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
-      [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$rendered"
+      [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$rendered" 2> /dev/null || true
+      [[ "$*" = *"--dry-run"* ]] || cat "${script%/*}/os-agnostic" 2> /dev/null >> "$rendered" || true
     done
     [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]}" >> "$rendered"
     [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]}" >> "$rendered"
