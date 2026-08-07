@@ -356,7 +356,7 @@ class TestPipelineManager(unittest.TestCase):
             name="Name Map Test Pipeline",
             description="Test pipeline for id-name mapping",
             source=InternalPipelineSource.USER_CREATED,
-            type=InternalPipelineType.CUSTOM,
+            type=InternalPipelineType.VISION,
             tags=[],
             variants=[create_variant_create()],
         )
@@ -365,9 +365,7 @@ class TestPipelineManager(unittest.TestCase):
 
         pipeline_names_by_id = manager.get_pipeline_names_by_id()
 
-        self.assertEqual(
-            pipeline_names_by_id[added_pipeline.id], added_pipeline.name
-        )
+        self.assertEqual(pipeline_names_by_id[added_pipeline.id], added_pipeline.name)
 
     def test_build_pipeline_command_single_pipeline_single_stream(self):
         manager = PipelineManager()
