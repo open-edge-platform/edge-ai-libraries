@@ -281,6 +281,27 @@
       device: CPU
       cache_size: 10
 
+- name: gemma4
+  display_name: Gemma 4 E4B
+  source: huggingface
+  hub: huggingface
+  type: genai
+  precisions:
+    - precision: INT4
+      model_path: openvino_models/cpu/int4/google/gemma-4-E4B-it/
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: "NPU"
+  download_request:
+    hub: openvino
+    name: google/gemma-4-E4B-it
+    type: vlm
+    is_ovms: true
+    config:
+      precision: int4
+      device: CPU
+      cache_size: 10
+
 - name: minicpm-v-2_6
   display_name: MiniCPM-V 2.6
   source: huggingface
@@ -295,6 +316,48 @@
   download_request:
     hub: openvino
     name: openbmb/MiniCPM-V-2_6
+    type: vlm
+    is_ovms: true
+    config:
+      precision: int4
+      device: CPU
+      cache_size: 10
+
+- name: minicpm-v4_5
+  display_name: MiniCPM-V 4.5 8B
+  source: huggingface
+  hub: huggingface
+  type: genai
+  precisions:
+    - precision: INT4
+      model_path: openvino_models/cpu/int4/openbmb/MiniCPM-V-4_5/
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: "NPU"
+  download_request:
+    hub: openvino
+    name: openbmb/MiniCPM-V-4_5
+    type: vlm
+    is_ovms: true
+    config:
+      precision: int4
+      device: CPU
+      cache_size: 10
+
+- name: internvl2-2b
+  display_name: InternVL2 2B
+  source: huggingface
+  hub: huggingface
+  type: genai
+  precisions:
+    - precision: INT4
+      model_path: openvino_models/cpu/int4/OpenGVLab/InternVL2-2B/
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: "NPU"
+  download_request:
+    hub: openvino
+    name: OpenGVLab/InternVL2-2B
     type: vlm
     is_ovms: true
     config:
@@ -424,7 +487,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: false
   download_request:
     hub: ultralytics
     name: mars-small128

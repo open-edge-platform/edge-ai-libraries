@@ -13,6 +13,9 @@ torchaudio==2.8.0+cpu
 torchvision==0.23.0+cpu
 transformers==4.53.3
 uvicorn==0.35.0
+# WebSocket transport for uvicorn — required by the realtime transcription
+# endpoint (api/realtime_endpoints.py); uvicorn has no WS support without it.
+websockets==15.0.1
 fsspec>=2023.1.0,<=2025.3.0
 openai-whisper==20250625
 numpy==2.2.6

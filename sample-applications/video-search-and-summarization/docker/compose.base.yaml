@@ -40,7 +40,7 @@ services:
       minio-service:
         condition: service_started
     environment:
-      no_proxy: ${no_proxy},video-ingestion,audio-analyzer,rabbitmq-service,minio-service,postgres-service,ovms-service,vdms-dataprep,video-search,vllm-cpu-service,vllm-xpu-service,localhost
+      no_proxy: ${no_proxy},${EVAM_HOST:-video-ingestion},${VLM_HOST:-ovms-service},${AUDIO_HOST:-audio-analyzer},${RABBITMQ_HOST:-rabbitmq-service},${MINIO_HOST:-minio-service},${POSTGRES_HOST:-postgres-service},${OVMS_HOST:-ovms-service},${MM_DATAPREP_HOST:-multimodal-dataprep},${VS_HOST:-video-search},vllm-cpu-service,vllm-xpu-service,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       MINIO_PROTOCOL: "http:"
@@ -61,11 +61,11 @@ services:
       AUDIO_USE_FULL_TRANSCRIPT_SUMMARY: ${PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY:-true}
       PRODUCE_FINAL_SUMMARY: ${PM_PRODUCE_FINAL_SUMMARY:-true}
       OTLP_TRACE_URL: ${OTLP_TRACE_URL:-}
-      DATAPREP_TELEMETRY_URL: ${DATAPREP_TELEMETRY_URL:-http://vdms-dataprep:8000/v1/dataprep/telemetry?limit=1}
-      TELEMETRY_SIGNAL_DIR: ${TELEMETRY_SIGNAL_DIR:-/app/.collector-signals}
+      OTEL_CONSOLE_EXPORTER: ${OTEL_CONSOLE_EXPORTER:-false}
       SEARCH_DATAPREP_TIMEOUT_MS: ${SEARCH_DATAPREP_TIMEOUT_MS:-600000}
-    volumes:
-      - collector_signals:/app/.collector-signals
+      SEARCH_DATAPREP_POLL_MAX_RETRIES: ${SEARCH_DATAPREP_POLL_MAX_RETRIES:-3}
+      SEARCH_DATAPREP_POLL_TIMEOUT_MS: ${SEARCH_DATAPREP_POLL_TIMEOUT_MS:-10000}
+      SEARCH_DATAPREP_POLL_RETRY_DELAY_MS: ${SEARCH_DATAPREP_POLL_RETRY_DELAY_MS:-500}
     restart: unless-stopped
     user: "0:0"
     healthcheck:
@@ -127,8 +127,6 @@ volumes:
   minio_data:
     driver: local
   pg_data:
-    driver: local
-  collector_signals:
     driver: local
 networks:
   vs_network:

@@ -7,6 +7,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 import api.api_schemas as schemas
 from graph import Graph
 from internal_types import (
+    InternalBenchmarkJobStatus,
+    InternalBenchmarkJobSummary,
     InternalDensityJobStatus,
     InternalDensityJobSummary,
     InternalLatencyMetrics,
@@ -20,6 +22,7 @@ from internal_types import (
     InternalValidationJobStatus,
     InternalValidationJobSummary,
 )
+from managers.benchmark_manager import BenchmarkManager
 from managers.metadata_manager import MetadataManager
 from managers.model_manager import ModelManager
 from managers.optimization_manager import OptimizationManager
@@ -99,6 +102,37 @@ def stop_test_job_handler(job_id: str):
             status_code=409,
         )
     logger.error("Unexpected error while stopping job %s: %s", job_id, message)
+    return JSONResponse(
+        content=response.model_dump(),
+        status_code=500,
+    )
+
+
+def stop_benchmark_job_handler(job_id: str):
+    """Common handler for stopping benchmark suite orchestration jobs."""
+    success, message = BenchmarkManager().stop_job(job_id)
+    response = schemas.MessageResponse(message=message)
+    if success:
+        return response
+    if "not found" in message.lower():
+        logger.warning("Failed to stop benchmark job %s: %s", job_id, message)
+        return JSONResponse(
+            content=response.model_dump(),
+            status_code=404,
+        )
+    if "not running" in message.lower():
+        logger.warning(
+            "Benchmark job %s stop requested but job is not running: %s",
+            job_id,
+            message,
+        )
+        return JSONResponse(
+            content=response.model_dump(),
+            status_code=409,
+        )
+    logger.error(
+        "Unexpected error while stopping benchmark job %s: %s", job_id, message
+    )
     return JSONResponse(
         content=response.model_dump(),
         status_code=500,
@@ -814,6 +848,88 @@ def stop_density_test_job(job_id: str):
 
 
 @router.get(
+    "/tests/benchmark/status",
+    operation_id="get_benchmark_statuses",
+    summary="List all benchmark suite jobs",
+    response_model=list[schemas.BenchmarkJobStatus],
+)
+def get_benchmark_statuses():
+    """List statuses of all benchmark-suite orchestration jobs."""
+    return [
+        _benchmark_job_to_api_status(job)
+        for job in BenchmarkManager().get_job_statuses()
+    ]
+
+
+@router.get(
+    "/tests/benchmark/{job_id}/status",
+    operation_id="get_benchmark_job_status",
+    summary="Get benchmark suite job status",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "model": schemas.BenchmarkJobStatus,
+        },
+        404: {"description": "Job not found", "model": schemas.MessageResponse},
+    },
+)
+def get_benchmark_job_status(job_id: str):
+    """Get detailed status of a single benchmark-suite orchestration job."""
+    internal_status = BenchmarkManager().get_job_status(job_id)
+    if internal_status is None:
+        logger.warning("Benchmark job %s not found", job_id)
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Job {job_id} not found"
+            ).model_dump(),
+            status_code=404,
+        )
+    return _benchmark_job_to_api_status(internal_status)
+
+
+@router.get(
+    "/tests/benchmark/{job_id}",
+    operation_id="get_benchmark_job_summary",
+    summary="Get benchmark suite job summary",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "model": schemas.BenchmarkJobSummary,
+        },
+        404: {"description": "Job not found", "model": schemas.MessageResponse},
+    },
+)
+def get_benchmark_job_summary(job_id: str):
+    """Get a short summary of a benchmark-suite orchestration job."""
+    internal_summary = BenchmarkManager().get_job_summary(job_id)
+    if internal_summary is None:
+        logger.warning("Benchmark job summary requested for unknown job %s", job_id)
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Job {job_id} not found"
+            ).model_dump(),
+            status_code=404,
+        )
+    return _benchmark_summary_to_api(internal_summary)
+
+
+@router.delete(
+    "/tests/benchmark/{job_id}",
+    operation_id="stop_benchmark_job",
+    summary="Stop a running benchmark suite job",
+    responses={
+        200: {"description": "Job stopped", "model": schemas.MessageResponse},
+        404: {"description": "Job not found", "model": schemas.MessageResponse},
+        409: {"description": "Job not running", "model": schemas.MessageResponse},
+        500: {"description": "Unexpected error", "model": schemas.MessageResponse},
+    },
+)
+def stop_benchmark_job(job_id: str):
+    """Stop a running benchmark-suite orchestration job."""
+    return stop_benchmark_job_handler(job_id)
+
+
+@router.get(
     "/optimization/status",
     operation_id="get_optimization_statuses",
     summary="List all optimization jobs",
@@ -1329,6 +1445,40 @@ def _test_summary_to_api(
             id=summary.id,
             request=summary.request,
         )
+
+
+def _benchmark_job_to_api_status(
+    job: InternalBenchmarkJobStatus,
+) -> schemas.BenchmarkJobStatus:
+    """Convert InternalBenchmarkJobStatus to API BenchmarkJobStatus."""
+    current_time = int(time.time() * 1000)
+    elapsed_time = (
+        job.end_time - job.start_time if job.end_time else current_time - job.start_time
+    )
+    return schemas.BenchmarkJobStatus(
+        id=job.id,
+        suite_slug=job.suite_slug,
+        suite_run_id=job.suite_run_id,
+        start_time=job.start_time,
+        elapsed_time=elapsed_time,
+        state=schemas.TestJobState(job.state.value),
+        details=list(job.details),
+        total_test_cases=job.total_test_cases,
+        completed_test_cases=job.completed_test_cases,
+        current_test_case_run_id=job.current_test_case_run_id,
+        current_performance_job_id=job.current_performance_job_id,
+    )
+
+
+def _benchmark_summary_to_api(
+    summary: InternalBenchmarkJobSummary,
+) -> schemas.BenchmarkJobSummary:
+    """Convert InternalBenchmarkJobSummary to API BenchmarkJobSummary."""
+    return schemas.BenchmarkJobSummary(
+        id=summary.id,
+        suite_slug=summary.suite_slug,
+        suite_run_id=summary.suite_run_id,
+    )
 
 
 def _optimization_job_to_api_status(

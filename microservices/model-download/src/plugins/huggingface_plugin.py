@@ -6,6 +6,8 @@ from huggingface_hub.utils import HfHubHTTPError, GatedRepoError, RepositoryNotF
 from src.core.interfaces import ListingAuthError, ModelDownloadPlugin, DownloadTask, PluginConfigKey
 from src.utils.logging import logger
 import os
+import socket
+from typing import Any, Dict
 
 class HuggingFacePlugin(ModelDownloadPlugin):
     """
@@ -34,6 +36,58 @@ class HuggingFacePlugin(ModelDownloadPlugin):
     @property
     def supports_listing(self) -> bool:
         return True
+
+    def validate_credentials(
+        self, resolved_config: Dict[str, Any], timeout: int = 5
+    ) -> Dict[str, Any]:
+        """Validate HuggingFace credentials with a lightweight API call.
+
+        * Token present → ``whoami()`` (verifies the token is valid).
+        * No token → ``list_models(limit=1)`` (verifies HF Hub is reachable).
+        """
+        token = resolved_config.get("HF_TOKEN")
+        old_timeout = socket.getdefaulttimeout()
+        try:
+            socket.setdefaulttimeout(timeout)
+            api = HfApi(token=token)
+            if token:
+                try:
+                    user_info = api.whoami()
+                    username = user_info.get("name", "unknown")
+                    return {
+                        "name": "hf_auth",
+                        "ok": True,
+                        "message": f"Authenticated as '{username}'",
+                    }
+                except HfHubHTTPError as exc:
+                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                    return {
+                        "name": "hf_auth",
+                        "ok": False,
+                        "message": f"HF_TOKEN is invalid or expired (HTTP {status})",
+                    }
+            else:
+                try:
+                    list(api.list_models(limit=1))
+                    return {
+                        "name": "hf_reachable",
+                        "ok": True,
+                        "message": "HuggingFace Hub is reachable (no token provided)",
+                    }
+                except Exception as exc:
+                    return {
+                        "name": "hf_reachable",
+                        "ok": False,
+                        "message": f"Cannot reach HuggingFace Hub: {exc}",
+                    }
+        except Exception as exc:
+            return {
+                "name": "hf_connectivity",
+                "ok": False,
+                "message": f"Connection failed: {exc}",
+            }
+        finally:
+            socket.setdefaulttimeout(old_timeout)
 
     @property
     def listing_filter_fields(self) -> list[str]:
@@ -167,6 +221,8 @@ class HuggingFacePlugin(ModelDownloadPlugin):
         hub_dir = os.path.join(output_dir, "huggingface")
         model_specific_path = os.path.join(hub_dir, model_name.replace("/", "_"))
         os.makedirs(model_specific_path, exist_ok=True)
+        # Register the exact dir so cancellation cleans up only this model.
+        kwargs.get("_model_download_dir", []).append(model_specific_path)
 
         logger.info(f"Downloading HuggingFace model {model_name} to {model_specific_path}")
         # Verify access up-front: a gated/unauthorized repo otherwise surfaces as a

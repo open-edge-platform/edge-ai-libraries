@@ -471,7 +471,13 @@ def execute_single_query(query_request: QueryRequest) -> QueryResultBlock:
 
     fetch_k = resolved_top_k + 1
     if normalized_where is not None and (query_filter is None or warnings):
-        fetch_k = min(settings.MAX_TOP_K, max(fetch_k, resolved_top_k * 5))
+        # Over-fetch so the in-memory fallback filter still has enough candidates
+        # after dropping non-matching rows.  Keep a strict floor of
+        # ``resolved_top_k + 1``: some backends (VDMS) require ``fetch_k > k`` and
+        # raise otherwise, which happens when ``resolved_top_k`` is already at
+        # ``MAX_TOP_K`` and the ``min(MAX_TOP_K, ...)`` clamp collapses fetch_k
+        # down to equal resolved_top_k.
+        fetch_k = max(resolved_top_k + 1, min(settings.MAX_TOP_K, resolved_top_k * 5))
     fallback_filter_active = normalized_where is not None
     overfetch_active = fetch_k > resolved_top_k
 

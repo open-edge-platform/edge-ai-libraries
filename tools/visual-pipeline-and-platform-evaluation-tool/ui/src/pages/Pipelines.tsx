@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   useConvertSimpleToAdvancedMutation,
   useCheckModelsStatusMutation,
@@ -55,8 +55,8 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { BackButton } from "@/components/shared/BackButton";
 import {
-  ArrowLeft,
   Braces,
   Eye,
   Film,
@@ -147,9 +147,11 @@ const extractModelsFromSimpleGraph = (
       return;
     }
 
-    // Pipeline nodes may include precision suffix, e.g. "Model Name (FP16)".
-    // The status API expects display name without precision.
-    const normalizedModel = rawModel.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    // Models nodes may include trailing suffixes like "(FP16)" or
+    // "[model-proc: ...]". Api expects display name without details.
+    const normalizedModel = rawModel
+      .replace(/(?:\s*(?:\([^)]*\)|\[model-proc:[^[\]\n]*]?))+\s*$/i, "")
+      .trim();
     if (normalizedModel) {
       uniqueModels.add(normalizedModel);
     }
@@ -387,7 +389,10 @@ export const Pipelines = () => {
   };
 
   const handleNodeSelect = (node: ReactFlowNode | null) => {
-    if (jobStatus?.state === "RUNNING" && !data?.tags?.includes("Time Series")) {
+    if (
+      jobStatus?.state === "RUNNING" &&
+      !data?.tags?.includes("Time Series")
+    ) {
       return;
     }
 
@@ -578,15 +583,16 @@ export const Pipelines = () => {
 
   if (isSuccess && data) {
     const isTimeSeriesPipeline = data.tags?.includes("Time Series") ?? false;
-    const detailsPanelType: "node" | "run" | "timeseries" | null = showDetailsPanel
-      ? selectedNode
-        ? "node"
-        : isTimeSeriesPipeline && timeseriesStarted
-          ? "timeseries"
-          : isTimeSeriesPipeline
-            ? null
-            : "run"
-      : null;
+    const detailsPanelType: "node" | "run" | "timeseries" | null =
+      showDetailsPanel
+        ? selectedNode
+          ? "node"
+          : isTimeSeriesPipeline && timeseriesStarted
+            ? "timeseries"
+            : isTimeSeriesPipeline
+              ? null
+              : "run"
+        : null;
     const activePanelSize =
       detailsPanelType === "node"
         ? nodeDetailsPanelSizeRef.current
@@ -627,7 +633,9 @@ export const Pipelines = () => {
             shouldFitView={shouldFitView}
             isSimpleGraph={isSimpleMode}
             showDetailsPanel={showDetailsPanel}
-            detailsPanelType={detailsPanelType === "timeseries" ? "run" : detailsPanelType}
+            detailsPanelType={
+              detailsPanelType === "timeseries" ? "run" : detailsPanelType
+            }
           />
         </div>
       </div>
@@ -642,12 +650,7 @@ export const Pipelines = () => {
         />
         <header className="flex h-[3.75rem] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
           <div className="flex flex-wrap items-center gap-2 px-2">
-            <Link
-              to={source === "dashboard" ? "/" : "/pipelines"}
-              className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent/50 transition-colors"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
+            <BackButton to={source === "dashboard" ? "/" : "/pipelines"} />
             {id && <PipelineName pipelineId={id} />}
             {id && variant && (
               <PipelineVariantSelect
@@ -1135,6 +1138,7 @@ export const Pipelines = () => {
                   >
                     <NodeDataPanel
                       selectedNode={selectedNode}
+                      pipelineId={data?.id}
                       onNodeDataUpdate={handleNodeDataUpdate}
                     />
                   </div>

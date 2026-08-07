@@ -103,6 +103,7 @@ generate_openapi: $(VENV_SENTINEL) ## Generate OpenAPI schema file
 # but sentinel-gated so repeated invocations skip the chmod chatter.
 $(ENV_DIRS_SENTINEL): Makefile
 	mkdir -p shared/metadata && chmod o+w shared/metadata
+	mkdir -p shared/db && chmod o+w shared/db
 	mkdir -p shared/models/output && chmod o+w shared/models/output
 	mkdir -p shared/model-download/cache && chmod o+w shared/model-download/cache
 	for v in base huggingface ultralytics pipeline-zoo-models openvino geti hls; do \
@@ -219,7 +220,7 @@ shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop the docker compose services
-	docker compose down model-download metrics-manager videogenerator mediamtx vippet-ui vippet onvif-discovery ia-timeseries-ingestion ia-time-series-analytics-microservice
+	docker compose down
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator

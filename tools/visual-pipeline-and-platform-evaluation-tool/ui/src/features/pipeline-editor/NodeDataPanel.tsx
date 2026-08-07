@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 import { gvaMetaConvertConfig } from "./nodes/GVAMetaConvertNode.config.ts";
-import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
+import {
+  GVA_TRACKING_TYPES,
+  gvaTrackConfig,
+} from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
+import { gvaInferenceConfig } from "@/features/pipeline-editor/nodes/GVAInferenceNode.config.ts";
 import { gvaGenAIConfig } from "@/features/pipeline-editor/nodes/GVAGenAINode.config.ts";
 import { gvaMotionDetectConfig } from "@/features/pipeline-editor/nodes/GVAMotionDetectNode.config.ts";
 import { sourceNodeConfig } from "./nodes/custom/SourceNode.config.ts";
@@ -49,14 +53,18 @@ type SelectOption = {
 
 type NodeDataPanelProps = {
   selectedNode: Node | null;
+  pipelineId?: string;
   onNodeDataUpdate: (
     nodeId: string,
     updatedData: Record<string, unknown>,
   ) => void;
 };
 
+const DEEP_SORT_TRACKING_TYPE = "deep-sort";
+
 const NodeDataPanel = ({
   selectedNode,
+  pipelineId,
   onNodeDataUpdate,
 }: NodeDataPanelProps) => {
   const [editableData, setEditableData] = useState<Record<string, unknown>>({});
@@ -129,6 +137,17 @@ const NodeDataPanel = ({
     [imageSets],
   );
 
+  const trackingOptions = useMemo(
+    () =>
+      (pipelineId ?? "").trim().toLowerCase() ===
+      "people-detection-and-tracking"
+        ? [DEEP_SORT_TRACKING_TYPE]
+        : GVA_TRACKING_TYPES.filter(
+            (trackingType) => trackingType !== DEEP_SORT_TRACKING_TYPE,
+          ),
+    [pipelineId],
+  );
+
   useEffect(() => {
     if (!selectedNode) {
       return;
@@ -151,12 +170,27 @@ const NodeDataPanel = ({
       }
     }
 
+    if (selectedNode.type === "gvatrack") {
+      const currentTrackingType = String(nextData["tracking-type"] ?? "");
+      const normalizedCurrentTrackingType = currentTrackingType
+        .trim()
+        .toLowerCase();
+
+      if (
+        trackingOptions.length > 0 &&
+        !trackingOptions.includes(normalizedCurrentTrackingType)
+      ) {
+        nextData["tracking-type"] = trackingOptions[0];
+        shouldSyncNodeData = true;
+      }
+    }
+
     setEditableData(nextData);
 
     if (shouldSyncNodeData) {
       onNodeDataUpdate(selectedNode.id, nextData);
     }
-  }, [onNodeDataUpdate, selectedNode]);
+  }, [onNodeDataUpdate, selectedNode, trackingOptions]);
 
   const getDefaultSourceValue = (options: SelectOption[]): string => {
     const firstAvailableOption = options.find(
@@ -251,6 +285,8 @@ const NodeDataPanel = ({
         return gvaTrackConfig;
       case "gvaclassify":
         return gvaClassifyConfig;
+      case "gvainference":
+        return gvaInferenceConfig;
       case "gvadetect":
         return gvaDetectConfig;
       case "gvagenai":
@@ -307,6 +343,15 @@ const NodeDataPanel = ({
             const inputType =
               propConfig?.type ||
               (typeof value === "object" ? "textarea" : "text");
+
+            const selectOptions =
+              inputType === "select" && propConfig?.options
+                ? keyStr === "tracking-type"
+                  ? propConfig.options.filter((option) =>
+                      trackingOptions.includes(getOptionValue(option).toLowerCase()),
+                    )
+                  : propConfig.options
+                : undefined;
 
             return (
               <div
@@ -385,7 +430,7 @@ const NodeDataPanel = ({
                       </option>
                     ))}
                   </select>
-                ) : inputType === "select" && propConfig?.options ? (
+                ) : inputType === "select" && selectOptions ? (
                   <select
                     value={
                       keyStr === "kind"
@@ -395,7 +440,7 @@ const NodeDataPanel = ({
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-input px-2 py-1"
                   >
-                    {propConfig?.options?.map((option) => {
+                    {selectOptions.map((option) => {
                       const optionValue = getOptionValue(option);
                       const optionLabel = getOptionLabel(option);
                       return (

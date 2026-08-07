@@ -17,6 +17,9 @@ The Model Download is a microservice that downloads models from multiple hubs as
 - Supports configurable model caching
 - Optionally schedules configured model downloads when the service starts
 - Supports custom model upload through `POST /models/upload`
+- Supports per-request credential overrides via `override_credentials`
+- Supports pre-download credential validation via `validate_credentials`
+- Supports job cancellation for queued, downloading, or converting jobs
 - Exposes a REST API with OpenAPI documentation
 
 ## Prerequisites
@@ -27,22 +30,17 @@ The Model Download is a microservice that downloads models from multiple hubs as
 
 ## Start with Setup Script
 
-### 1. Clone the repository
+### 1. Clone the Microservice
+Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace main with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/dev/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
 
 ```bash
-# Clone the latest on the mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+git clone --filter=blob:none --sparse --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/
+git sparse-checkout set microservices/model-download/
+cd microservices/model-download/
 ```
 
-### 2. Navigate to the directory
-
-```bash
-cd edge-ai-libraries/microservices/model-download
-```
-
-### 3. Configure the environment variables
+### 2. Configure the environment variables
 
 ```bash
 export REGISTRY="intel/"
@@ -68,7 +66,7 @@ To customize the `remote-url` hub allowlist (optional), set:
 export EXTERNAL_SOURCES_URL_ALLOWLIST=<comma-separated host/path prefixes> # optional; when unset, the default allowlist in src/plugins/external_sources/sources.yaml is used
 ```
 
-### 4. Launch the service and enable the plugins
+### 3. Launch the service and enable the plugins
 
 ```bash
 source scripts/run_service.sh up --plugins all --model-path <host path>
@@ -114,7 +112,7 @@ down                   Stop the services
    - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
    - Display usage information: `source scripts/run_service.sh --help`
 
-### 5. Access the service
+### 4. Access the service
 
 - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the
   Swagger documentation for the available APIs.
@@ -594,6 +592,45 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=remote_
 
 > **Note:** The response format for downloads with `override_credentials` is the same as shown in the response section above for the corresponding hub plugin.
 
+**Pre-validate credentials before download:**
+
+Add `"validate_credentials": true` to any model in the request to perform a fast credential check before the download or conversion begins. If `override_credentials` is present, those values are validated; otherwise the service's environment credentials are checked. This is especially useful for `is_ovms` conversions where invalid credentials would otherwise surface only after minutes of processing.
+
+```json
+{
+  "models": [{
+    "name": "meta-llama/Llama-3.1-8B",
+    "hub": "openvino",
+    "is_ovms": true,
+    "validate_credentials": true,
+    "override_credentials": { "HF_TOKEN": "<base64-token>" }
+  }]
+}
+```
+
+If the credentials are invalid, the request returns `400` immediately without starting the job.
+
+
+**Cancel a running or queued job:**
+
+Use `POST /api/v1/jobs/<job_id>/cancel` to cancel a job that is still in a cancellable state (`queued`, `downloading`, or `converting`). If the job is already in a terminal state (`completed`, `failed`, or `canceled`), the endpoint returns `409`.
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/jobs/<job_id>/cancel"
+```
+
+**Sample Response (when the job is cancelled):**
+
+```json
+{
+  "message": "Job 5f0d4eba-c79c-4d02-97a6-43c3d0168ca0 has been cancelled",
+  "job_id": "5f0d4eba-c79c-4d02-97a6-43c3d0168ca0",
+  "status": "canceled"
+}
+```
+
+> **Note:** For hubs that do not support immediate interruption (`huggingface`, `geti`, `openvino`), the response includes an additional `warning` field. The transfer may continue briefly in the background; partial files are cleaned up automatically.
+
 **Upload a custom model ZIP:**
 
 Use this endpoint when user (or another client app) needs to upload a local model directly to model-download.
@@ -688,6 +725,34 @@ To validate changes locally before deploying:
 
 Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metrics. See
 [docs/user-guide/running-tests.md](./running-tests.md) for advanced filtering options and troubleshooting tips.
+
+## Model Storage Path Layout
+
+When a download completes, the `result.download_path` field in the job response contains the absolute host-mapped path to the model directory. The path is deterministic — downloading the same model with the same parameters always produces the same path.
+
+All hubs follow a common base pattern:
+
+```text
+<download_path>/<hub>/<model_name>/[<hub_specific_folder>/]
+```
+
+Where `<download_path>` is the `download_path` query parameter passed to `POST /api/v1/models/download`, resolved relative to the configured model storage root.
+
+Hubs that support multiple precisions append a `<precision>/` subdirectory. Hubs that do not support precision store files directly under `<model_name>/`:
+
+| Hub | Path layout | Example |
+|-----|------------|---------|
+| `huggingface` | `<download_path>/<hub>/<model_name>` | `models/huggingface/microsoft_Phi-3.5-mini-instruct` |
+| `ollama` | `<download_path>/<hub>/<model_name>` | `models/ollama/tinyllama` |
+| `ultralytics` | `<download_path>/<hub>/<model_name>/<precision>/` | `models/ultralytics/yolov8s/FP16/` |
+| `openvino` | `<download_path>/<hub>/<model_name>/<precision>/` | `models/openvino/BAAI-bge-reranker-base/fp32/` |
+| `geti` | `<download_path>/<hub>/<model_name>/<precision>/` | `models/geti/yolox-tiny/FP32/` |
+| `pipeline-zoo-models` | `<download_path>/<hub>/<model_name>/` | `models/pipeline-zoo-models/dbnet/` |
+| `omz` | `<download_path>/<hub>/<model_name>/` | `models/omz/mobilenet-v2-pytorch/` |
+| `remote-url` | `<download_path>/<hub>/<model_name>/` | `models/remote-url/wind-turbine-anomaly-detection/` |
+| `hls` | `<download_path>/<hub>/<model_name>/` | `models/hls/human-pose-estimation-3d-0001/` |
+
+> **Note:** For model names containing `/` (for example, `microsoft/Phi-3.5-mini-instruct`), the slash is replaced with `_` in the directory name.
 
 ## Best Practices
 

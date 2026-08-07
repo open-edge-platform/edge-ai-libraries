@@ -54,6 +54,8 @@ README.md           @xwu2intel
 /libraries/video-chunking-utils/                       @Johere @zhangcong2019 @llin60 @xwu2intel
 /libraries/video-chunking-utils/docs/                  @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /libraries/video-chunking-utils/README.md              @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/adaptive-token-compressor/                  @mnoiy @myqi @xwu2intel
+/libraries/adaptive-token-compressor/README.md         @mnoiy @myqi @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 # ============================================================================
 # microservices
@@ -73,7 +75,7 @@ README.md           @xwu2intel
 /microservices/document-ingestion/pgvector/docs/       @bharagha @krish918 @madhuri-rai07 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
 /microservices//document-ingestion/pgvector/README.md  @bharagha @krish918 @madhuri-rai07 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
 
-# /microservices/inferencee-router/                    owners needed
+/microservices/inference-router/                      @llin60 @myqi @mnoiy @Junyu-B @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/metrics-manager/                        @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli
 /microservices/metrics-manager/docs/                   @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli  @open-edge-platform/open-edge-platform-docs-write

@@ -1,20 +1,45 @@
 # Release Notes: Video Search and Summarization Sample Application
 
-## Upcoming updates (post 2026.1.0)
+## Version 2026.2.0
 
-<!--**Release Date:** TBD-->
+**Release Date:** August 4, 2026
+
+**New:**
+
+- **Backend-agnostic vector search:** Select the vector database with `VECTORDB_BACKEND` (`vdms` default, `milvus`). All vector similarity search is delegated to the standalone `vector-retriever` microservice; `video-search` keeps query orchestration and frame-to-video aggregation, so results are identical in shape across backends.
+- **Multimodal DataPrep:** Replaced the legacy VDMS DataPrep with the `multimodal-dataprep` microservice across Docker Compose, Helm, and documentation.
+- **Metrics Manager integration:** Replaced the legacy telemetry collector; the search UI now shows live multi-GPU telemetry (`ENABLE_METRICS_MANAGER=true`).
+- **Batch video upload and embedding:** Multi-select upload in the UI uploads all files and submits a single asynchronous batch embeddings job, with new `search-embeddings-batch` and `search-embeddings-jobs` Pipeline Manager endpoints and job-status polling. Single-file upload keeps the synchronous path.
+- **Directory watcher batch processing:** The directory watcher service now batches video uploads and embedding creation.
+- **Duplicate-content upload policy:** New `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` setting (Docker Compose and Helm `global.env`) rejects content-identical re-uploads with HTTP `409`. Enforced per item for batch-processed media, so a duplicate fails only its own item.
+- **Model download support:** Models are now fetched by a dedicated model-download step in `setup.sh`, including generic YOLO ids from the ultralytics hub for object detection.
+- **Search score transparency:** Search results show the query-normalized relevance score alongside the underlying raw segment score and peak frame similarity, with a per-stage scoring breakdown popover and a weak-match indicator.
+- **Makefile, functional test suite, and CI security scans** for the Video Search and Summarization sample application.
+- **AI agent skills:** Added VSS agent skills (deploy, build, troubleshoot, summarize, search, and more) for AI coding assistants.
 
 **Improved:**
 
 - **Search orchestration alignment for accelerator usage:** Updated setup and compose behavior for Video Search so NPU device selections are preserved and propagated consistently for DataPrep and multimodal embedding services.
 - **Simplified per-component device model (Compose):** Retired the redundant `VDMS_DATAPREP_DEVICE` baseline knob. Device selection is now purely per-component — `DATAPREP_EMBEDDING_DEVICE`, `DATAPREP_DETECTION_DEVICE`, and `MME_EMBEDDING_DEVICE` (each defaults to `CPU`) — matching the Helm chart model. `ENABLE_EMBEDDING_GPU` is now a mode-aware embedding shortcut (`sdk`→DataPrep embedding GPU, `api`→MME embedding GPU).
-- **Helm accelerator support for search stack:** Updated VSS Helm subcharts for `multimodal-embedding-ms` and `vdms-dataprep` to support NPU as an accelerator path (device-key validation, resource requests/limits, and `/dev/accel` mounts).
+- **Helm accelerator support for search stack:** Updated VSS Helm subcharts for `multimodal-embedding-ms` and `multimodal-dataprep` to support NPU as an accelerator path (device-key validation, resource requests/limits, and `/dev/accel` mounts).
 - **Helm accelerator device permissions:** Added `global.accelGroupIds` so the host gids owning `/dev/dri` (GPU) and `/dev/accel` (NPU) are injected into the pod `supplementalGroups`, letting the non-root container open the accelerator device (mirrors the Compose `group_add` render/video groups). Fixes NPU/GPU device initialization falling back to CPU-only.
-- **Helm OpenVINO™ model cache:** Added a persistent OpenVINO™ cache (`ovCacheDir`, default `/app/ov_models/ov_cache`) for `multimodal-embedding-ms` and `vdms-dataprep`, plus a longer DataPrep `startupProbe` budget, so GPU/NPU model compilation completes once and is reused across pod restarts instead of recompiling (avoids startup crash loops).
-- **Helm single-source image override:** `global.registry`, `global.tag`, and `global.pullPolicy` now apply across all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, vdms-dataprep, multimodal-embedding-serving) from one place, with independent per-service PVCs for model/cache data.
+- **Helm OpenVINO™ model cache:** Added a persistent OpenVINO™ cache (`ovCacheDir`, default `/app/ov_models/ov_cache`) for `multimodal-embedding-ms` and `multimodal-dataprep`, plus a longer DataPrep `startupProbe` budget, so GPU/NPU model compilation completes once and is reused across pod restarts instead of recompiling (avoids startup crash loops).
+- **Helm single-source image override:** `global.registry`, `global.tag`, and `global.pullPolicy` now apply across all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, multimodal-dataprep, multimodal-embedding-serving) from one place, with independent per-service PVCs for model/cache data.
+- **Helm value override precedence:** Subchart defaults no longer shadow `global.env` overrides for `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` and `SDK_USE_OPENVINO`, so `--set global.env.<KEY>` now takes effect.
 - **Clearer embedding error reporting:** The video embedding flow now surfaces the real upstream DataPrep error instead of a misleading "Request timed out" message; only genuine timeouts (`408`/`504`/connection aborts) are reported as timeouts.
+- **Graceful OVMS cache fallback:** `setup.sh` now degrades cleanly when GPU drivers are absent instead of failing model cache setup.
+- **Original filenames in embedding metadata:** The uploaded video name is threaded end-to-end into stored embedding metadata, so search results show the original filename.
+- **Service health and startup dependencies** hardened across the stack, with retries for transient batch job polling failures.
 - **Search deployment documentation refresh:** Added a dedicated **Deployment Options for Video Search** matrix (SDK/API with CPU/GPU/NPU combinations), including explicit `DATAPREP_EMBEDDING_DEVICE`, `MME_EMBEDDING_DEVICE`, and `DATAPREP_DETECTION_DEVICE` examples for accelerator-specific routing.
 - **Helm user-guide clarifications:** Updated Helm guidance to include NPU device/key combinations and matching-device recommendations for shared PVC scheduling.
+- **Documentation:** Aligned user and agent documentation with the multi-backend architecture, refreshed the DataPrep, retriever, and VSS OpenAPI specs, added 4K/8K video ingestion troubleshooting guidance, and split 2025 release notes into a separate document.
+- **Maintenance:** Refreshed dependency version constraints and lock files, pinned Dockerfiles to release versions, aligned the DataPrep bucket with the video summary bucket, updated the VSS health check with a manual CI workflow trigger, and removed the `profile_dataprep` script and the vestigial `EMBEDDING_PROCESSING_MODE` chart value.
+
+**Fixed:**
+
+- Duplicate-upload conflicts no longer leave orphaned video tiles in the UI.
+- Search result tiles no longer render as black thumbnails.
+- Assorted `search-ms` and video embedding flow defects.
 
 ## Version 2026.1.0
 
@@ -31,7 +56,7 @@
 
 - Updated setup script and nginx configuration files to allow flexible UI routing for each existing mode of deployment (summary mode, search mode, Unified UI Mode) and the new Dual UI mode.
 - Refactored Helm chart to use a reusable `vssui` subchart with multi-mode nginx and consolidated embedding model config under `global.embeddingModelName`.
-- Updated DLStreamer base image to `2026.1.0-ubuntu24-rc1` for Video Ingestion Microservice.
+- Updated DL Streamer base image to `2026.1.0-ubuntu24-rc1` for Video Ingestion Microservice.
 - **Setup Script:** Updated the environment variable to setup embedding models. New `MULTIMODAL_EMBEDDING_MODEL` and the existing `TEXT_EMBEDDING_MODEL` are used to provide embedding models in relevant modes.
 - **Docker Compose:** Replaced `curl` with Python `urllib` package in the container `healthcheck` command for a lighter runtime footprint for Audio Analyzer.
 - **Docker Compose:** Replaced environment variables with hard-coded mount paths. This helps in stopping containers without looking for preset variables.
@@ -77,7 +102,7 @@
 - In VSS search mode, users can now filter results by time range via:
 - Query parsing to infer time ranges (e.g., "person seen in last 5 minutes").
 - Direct time range input from the UI.
-- Added live system performance metrics in the search UI (enable with `export ENABLE_VSS_COLLECTOR=true`).
+- Added live system and DataPrep performance metrics in the search UI (enable with `export ENABLE_METRICS_MANAGER=true`).
 - Fixed the build script of the `vdms-dataprep` microservice.
 - Added telemetry collection of the application metrics for VDMS-dataprep microservice and VLM microservice at `/telemetry` endpoint.
 
