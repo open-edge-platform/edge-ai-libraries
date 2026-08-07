@@ -30,7 +30,7 @@ cd microservices/inference-router
 
 ### Step 1: Configure
 
-Copy the example config and edit it to point at your backend. If your provider
+Copy the example config and edit it to point at your backend. Note that the backend service **must be alive beforehand**. If your provider
 needs API keys, also copy `.env.example` to `workspace/.env` and fill in the
 applicable values:
 
@@ -73,8 +73,10 @@ When `workspace/config.yaml` references values such as `${OPENAI_API_KEY}` or
 `${ANTHROPIC_API_KEY}`, Docker Compose forwards them from `workspace/.env`
 into the container.
 
+
+#### Model preparation (Optional, only needed if you intend to use Intelligent Routing)
 Docker Compose deployments require the OpenVINO classifier model path exports
-before starting the router. The currently supported intelligent routing classifier model is
+**before starting the router**. The currently supported intelligent routing classifier model is
 `Qwen3.5-2B-FP16`, exported as an OpenVINO IR directory.
 
 Export the supported Qwen3.5 2B model ID to OpenVINO FP16 format. If your
