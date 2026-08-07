@@ -11,8 +11,8 @@ Use steps aligned with [docs/user-guide/get-started.md](../docs/user-guide/get-s
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install poetry==1.8.3
-poetry lock --no-update
+pip install poetry==2.4.1
+poetry lock
 poetry install
 # Install video-chunking-utils from OEP/EAL source
 pip install ../../libraries/video-chunking-utils/

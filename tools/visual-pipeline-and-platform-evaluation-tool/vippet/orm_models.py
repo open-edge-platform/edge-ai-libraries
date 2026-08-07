@@ -8,6 +8,15 @@ from sqlalchemy.orm import Mapped, mapped_column
 from database import Base
 
 
+class Metadata(Base):
+    """Singleton table; id is always 1."""
+
+    __tablename__ = "metadata"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    db_schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class BenchmarkSuite(Base):
     """Top-level benchmark suite definition."""
 
