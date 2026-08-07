@@ -111,7 +111,7 @@ docker compose up -d
 Or set them once in the deployment `.env` so both services pick up the same
 values:
 
-```dotenv
+```py
 BA_REQUEST_TOPIC=store_001/ba/requests
 BA_RESULT_TOPIC=store_001/ba/results
 ```
