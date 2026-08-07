@@ -11,7 +11,7 @@ ENV PYTHONUNBUFFERED=1 \
     # off value above actually emplies, no cache will be used. Confusing.
     PIP_DISABLE_PIP_VERSION_CHECK=on \
     PIP_DEFAULT_TIMEOUT=100 \
-    POETRY_VERSION=1.8.5 \
+    POETRY_VERSION=2.4.1 \
     # Poetry installation location
     POETRY_HOME="/opt/poetry" \
     # Create the virtual environment dir .venv in the project's root
@@ -44,7 +44,7 @@ RUN apt-get update -y && apt-get install --no-install-recommends --fix-missing -
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install poetry 1.8.3 - based on $POETRY_VERSION env var
+# Install poetry 2.4.1 - based on $POETRY_VERSION env var
 RUN set -o pipefail && curl -sSL https://install.python-poetry.org | python -
 
 WORKDIR $SETUP_PATH
@@ -52,7 +52,10 @@ WORKDIR $SETUP_PATH
 COPY pyproject.toml poetry.lock ./
 
 # Install dependencies without dev dependencies
-RUN poetry lock --no-update && poetry install --no-dev --no-interaction --no-ansi
+RUN poetry lock && poetry install --no-root --no-interaction --no-ansi
+
+# system-wide setuptools upgrade
+RUN pip install --upgrade "setuptools>=83.0.0"
 
 # Install video-chunking-utils from OEP/EAL source
 RUN git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries

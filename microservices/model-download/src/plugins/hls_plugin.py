@@ -132,6 +132,7 @@ class HlsPlugin(ModelDownloadPlugin):
 
         script_path = SUPPORTED_TYPES[model_type]
         models_dir = self._compute_output_dir(output_dir, model_type)
+        kwargs.get("_model_download_dir", []).append(str(models_dir))
         args = self._build_args(model_type, kwargs, models_dir)
         logger.info(
             "hls_plugin_invocation",

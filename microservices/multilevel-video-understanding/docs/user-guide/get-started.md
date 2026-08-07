@@ -207,13 +207,13 @@ http://localhost:8192/docs
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
-   pip install poetry==1.8.3
+   pip install poetry==2.4.1
    ```
 
 3. Install dependencies:
 
    ```bash
-   poetry lock --no-update
+   poetry lock
    poetry install
    ```
 

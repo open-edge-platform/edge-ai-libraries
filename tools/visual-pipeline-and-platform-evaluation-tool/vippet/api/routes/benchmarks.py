@@ -29,9 +29,7 @@ def _build_pipeline_name_by_id_map() -> dict[str, str]:
     """Best-effort map of pipeline id to display name."""
     # TODO: Read pipeline names from the pipelines table once pipelines are persisted in DB.
     try:
-        return {
-            pipeline.id: pipeline.name for pipeline in PipelineManager().get_pipelines()
-        }
+        return PipelineManager().get_pipeline_names_by_id()
     except Exception:
         logger.warning("Failed to resolve pipeline names for CSV export", exc_info=True)
         return {}
