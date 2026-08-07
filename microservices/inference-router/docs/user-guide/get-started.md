@@ -74,21 +74,29 @@ When `workspace/config.yaml` references values such as `${OPENAI_API_KEY}` or
 into the container.
 
 
-#### Model preparation (Optional, only needed if you intend to use Intelligent Routing)
-Docker Compose deployments require the OpenVINO classifier model path exports
+#### Model preparation
+Docker Compose deployments require the OpenVINO model prepared
 **before starting the router**. The currently supported intelligent routing classifier model is
-`Qwen3.5-2B-FP16`, exported as an OpenVINO IR directory.
+`Qwen3.5-2B-FP16`.
 
-Export the supported Qwen3.5 2B model ID to OpenVINO FP16 format. If your
+Download the supported Qwen3.5 2B OpenVINO model. If your
 environment uses an internal model mirror or an approved local checkpoint,
 replace `Qwen/Qwen3.5-2B` with that equivalent source:
 
 ```bash
-optimum-cli export openvino \
-  --model Qwen/Qwen3.5-2B \
-  --weight-format fp16 \
-  /opt/models/Qwen3.5-2B-FP16
+# install huggingface CLI
+pip install -U huggingface_hub
 ```
+
+```bash
+hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen2.5-2B-FP16
+```
+
+> ⚠️ **`/opt` permissions:** the default `/opt/models` is typically root-owned.
+> Grant your user access
+> (`sudo mkdir -p /opt/models && sudo chown "$USER:$USER" /opt/models`)
+
+> For PRC users, you might need to set `export HF_ENDPOINT=https://hf-mirror.com`
 
 For Docker Compose deployments, export the model path on this host with
 `IR_OV_MODEL`; the compose file mounts it into the container automatically.

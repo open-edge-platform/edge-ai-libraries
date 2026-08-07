@@ -157,13 +157,20 @@ artifacts loadable by `optimum-intel`.
 Typical preparation flow:
 
 ```bash
-optimum-cli export openvino \
-  --model /path/to/qwen3.5-intelligent-classifier-checkpoint \
-  --weight-format fp16 \
-  /opt/models/Qwen3.5-2B-FP16
-
-export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
+# install huggingface CLI
+pip install -U huggingface_hub
 ```
+
+```bash
+hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen2.5-2B-FP16
+```
+
+> ⚠️ **`/opt` permissions:** the default `/opt/models` is typically root-owned.
+> Grant your user access
+> (`sudo mkdir -p /opt/models && sudo chown "$USER:$USER" /opt/models`)
+
+> For PRC users, you might need to set `export HF_ENDPOINT=https://hf-mirror.com`
+
 
 Docker Compose uses the same variable: `IR_OV_MODEL` is the model path on the
 host, and the compose file mounts it into the container automatically.

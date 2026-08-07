@@ -35,6 +35,7 @@ def test_root_endpoint_advertises_router_api() -> None:
         "models": "/v1/models",
         "metrics": "/v1/metrics",
         "config": "/v1/config",
+        "routing": "/v1/routing",
         "providers": "/v1/providers",
         "policies": "/v1/policies",
         "strategies": "/v1/strategies",

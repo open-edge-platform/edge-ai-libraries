@@ -22,7 +22,7 @@ providers:
       capability:
         complexity: 0.75
     settings:
-      endpoint: "http://localhost:5000/v1"
+      endpoint: "http://localhost:5000/v1"    # The URL of the provider's /v1 endpoint
       timeout: 300.0              # per-request timeout (connect + first byte); default 600
       auth:
         scheme: "none"
@@ -47,32 +47,9 @@ providers:
 # Plugins can run before routing, after routing, or after provider response.
 # `name` is a unique instance label (and the metrics source key).
 plugins:
-  prerouting:
-    - name: "compressor_tool"
-      node: "compressor"
-      enabled: true
-      settings:
-        type: "tool"
-        predictor_url: "http://localhost:8088/v1/chat/completions"
-        predictor_model: "Qwen/Qwen3.6-35B-A3B"
-        score_threshold: 2.0
-        timeout: 120
-        prompt_mode: "dynamic"
-        tool_descriptions_mode: "dynamic"
-        placement: "schema"
+  prerouting: []
 
-  postrouting:
-    - name: "compressor_harness"
-      node: "compressor"
-      enabled: true
-      settings:
-        type: "harness"
-        profile: "openclaw"
-        lingua_url: "http://localhost:8001/compress"
-        compress_rate: 0.5
-        compress_min_chars: 200
-        timeout: 60.0
-        enable_quantum_lock: false
+  postrouting: []
 
   postresponse: []
 
