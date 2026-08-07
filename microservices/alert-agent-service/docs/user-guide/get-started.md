@@ -129,11 +129,7 @@ Expected response:
 
 ### 5. Access the API Documentation
 
-Open the Swagger UI at:
-
-```json
-  http://localhost:8000/docs
-```
+Open the Swagger UI at `http://localhost:8000/docs`.
 
 ### 6. Stop the Services
 

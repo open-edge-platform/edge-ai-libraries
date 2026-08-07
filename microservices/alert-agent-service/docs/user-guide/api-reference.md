@@ -105,7 +105,7 @@ Submit an alert with optional multimodal payloads. The service dispatches config
 
 ### Request Body
 
-```json
+```
 {
   "event_id": "string (auto-generated UUID if omitted)",
   "source_id": "string (required) — camera ID, sensor ID, device ID",
