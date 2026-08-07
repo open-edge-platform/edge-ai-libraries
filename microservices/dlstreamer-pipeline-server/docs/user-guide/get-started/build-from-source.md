@@ -9,6 +9,8 @@ OpenVINO Model API and ROS2 on top of the optimized image.
 > extended image when you follow the below steps. The mentioned file has the necessary details
 > written as comments.
 
+> **Note:** The Geti™ SDK is deprecated and no longer maintained. It does not support Geti™ software version 3.0 or later. See the [Geti SDK repository](https://github.com/open-edge-platform/geti-sdk) for more information.
+
 ## Steps
 
 ### Prerequisites

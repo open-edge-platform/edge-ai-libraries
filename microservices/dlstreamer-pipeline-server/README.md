@@ -65,7 +65,7 @@ Follow the steps in this section to quickly pull the latest pre-built Deep Learn
 Once the container is up, we will send a pipeline request to Deep Learning Streamer Pipeline Server to run a detection model on a warehouse video. Both the model and video are provided as default sample in the docker image.
 
 We will send the below curl request to run the inference.
-It comprises of a source file path which is `warehouse.avi`, a destination, with metadata directed to a json fine in `/tmp/resuts.jsonl` and frames streamed over RTSP with id `pallet-defect-detection`. Additionally, we will also provide the GETi model path that would be used for detecting defective boxes on the video file.
+It comprises of a source file path which is `warehouse.avi`, a destination, with metadata directed to a json fine in `/tmp/resuts.jsonl` and frames streamed over RTSP with id `pallet-defect-detection`. Additionally, we will also provide the Geti™ model path that would be used for detecting defective boxes on the video file.
 
 Open another terminal and send the following curl request
 ``` sh
@@ -153,9 +153,11 @@ Now you have successfully run the Deep Learning Streamer Pipeline Server contain
 ---
 ## Build from source
 
-You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK, the OpenVINO Model API and ROS2 on top of the optimized image.
+You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti™ SDK, the OpenVINO Model API and ROS2 on top of the optimized image.
 
-Note: Ensure to set the right values in the [.env file](./docker/.env) for building DL Streamer Pipeline Server optimized image and DL Streamer Pipeline Server extended image when you follow the below steps. The mentioned file has the necessary details written as comments.
+> **Note:** Ensure to set the right values in the [.env file](./docker/.env) for building DL Streamer Pipeline Server optimized image and DL Streamer Pipeline Server extended image when you follow the below steps. The mentioned file has the necessary details written as comments.
+
+> **Note:** The Geti™ SDK is deprecated and no longer maintained. It does not support Geti™ software version 3.0 or later. See the [Geti SDK repository](https://github.com/open-edge-platform/geti-sdk) for more information.
 
 ### Prerequisites
 Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
