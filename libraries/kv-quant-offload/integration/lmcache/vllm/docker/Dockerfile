@@ -17,7 +17,7 @@ ENV VIRTUAL_ENV=/opt/buildenv \
     VLLM_TARGET_DEVICE=xpu \
     WHEELS=/wheels
 
-COPY ../libraries.ai.kvweave /src/kvweave
+COPY kv-quant-offload /src/kvweave
 
 SHELL ["bash", "-c"]
 
@@ -245,7 +245,6 @@ exec env \
         --max_num_batched_tokens=1024 \
         --max_model_len "${MAX_MODEL_LEN:-8192}" \
         -tp="${TP:-1}" \
-        --quantization fp8 \
         --served-model-name "${SERVE:-Qwen3.5-9B}" \
         --kv-transfer-config "{\"kv_connector\":\"LMCacheMPConnector\",\"kv_role\":\"kv_both\",\"kv_connector_extra_config\":{\"lmcache.mp.host\":\"${LMCACHE_MP_HOST:-tcp://localhost}\",\"lmcache.mp.port\":${LMCACHE_MP_PORT:-6555}}}"
 EOF

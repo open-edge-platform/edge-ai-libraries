@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 BUILD_CONTEXT="$(cd "${REPO_ROOT}/.." && pwd)"
 DOCKERFILE_PATH="${SCRIPT_DIR}/docker/Dockerfile"
 
-IMAGE_NAME="${IMAGE_NAME:-kvweave-vllm-xpu:latest}"
+IMAGE_NAME="${IMAGE_NAME:-kv-quant-offload-vllm-xpu:latest}"
 CONTAINER_NAME="vllm-kvweave"
 MODEL_PATH="${MODEL_PATH:-/models}"
 MODEL="${MODEL:-Qwen3.5-9B}"
@@ -29,10 +29,10 @@ BUILD_ARGS=()
 usage() {
   cat <<'EOF'
 Usage:
-  bash integration/lmcache/vllm/vllm-start_2.sh
+  bash integration/lmcache/vllm/vllm-start.sh
 
 Optional environment variables:
-  IMAGE_NAME            Built image tag. Default: kvweave-vllm-xpu:latest
+  IMAGE_NAME            Built image tag. Default: kv-quant-offload-vllm-xpu:latest
   MODEL_PATH            Host model directory mounted at /models. Default: /models
   MODEL                 Model path/name under /models and vLLM model arg. Default: Qwen3.5-9B
   SERVE                 Served model name. Default: same as MODEL
@@ -48,8 +48,8 @@ Optional environment variables:
   DOCKER_RUN_OPTS       Extra args appended to docker run
 
 Examples:
-  MODEL_PATH=/data/models MODEL=Qwen3.5-9B bash integration/lmcache/vllm/vllm-start_2.sh
-  IMAGE_NAME=kvweave-vllm:dev HOST_PORT=18000 bash integration/lmcache/vllm/vllm-start_2.sh
+  MODEL_PATH=/data/models MODEL=Qwen3.5-9B bash integration/lmcache/vllm/vllm-start.sh
+  IMAGE_NAME=kv-quant-offload-vllm:dev HOST_PORT=18000 bash integration/lmcache/vllm/vllm-start.sh
 EOF
 }
 
