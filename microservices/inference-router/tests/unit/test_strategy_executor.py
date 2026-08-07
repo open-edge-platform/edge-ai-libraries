@@ -3,6 +3,8 @@
 
 """Unit tests for strategy execution and provider ranking."""
 
+import asyncio
+
 import pytest
 
 from src.models import ChatCompletionMessage, ChatCompletionRequest, ChatCompletionRole
@@ -72,8 +74,7 @@ def test_strategy_loader_requires_rule_type():
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_matches_rule_set_and_sorts_candidates():
+def test_strategy_executor_matches_rule_set_and_sorts_candidates():
     """Executor should gate by rule set and rank providers by metadata."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -133,7 +134,7 @@ async def test_strategy_executor_matches_rule_set_and_sorts_candidates():
         ],
     )
 
-    candidates = await executor.execute(request, providers, definition)
+    candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert [candidate.provider.name for candidate in candidates] == ["too-weak", "cheap-fast", "premium"]
     assert candidates[0].rule_outputs["required_complexity"] is True
@@ -141,8 +142,7 @@ async def test_strategy_executor_matches_rule_set_and_sorts_candidates():
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_ranks_lowest_cost_first():
+def test_strategy_executor_ranks_lowest_cost_first():
     """StrategyExecutor should return ranked candidates by configured sort."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -171,15 +171,17 @@ async def test_strategy_executor_ranks_lowest_cost_first():
             QueryComplexityScoreRule((0.0, 1.0), target=0.5),
         )
     ]
-    candidates = await executor.execute(
-        request=request,
-        providers=providers,
-        definition=StrategyDefinition(
-            name="strategy_name2",
-            provider_selector=ProviderSelector(),
-            rules=rule_set,
-            sort=[SortCriterion("cost")],
-        ),
+    candidates = asyncio.run(
+        executor.execute(
+            request=request,
+            providers=providers,
+            definition=StrategyDefinition(
+                name="strategy_name2",
+                provider_selector=ProviderSelector(),
+                rules=rule_set,
+                sort=[SortCriterion("cost")],
+            ),
+        )
     )
 
     assert [candidate.provider.name for candidate in candidates] == ["p2", "p1"]
@@ -187,8 +189,7 @@ async def test_strategy_executor_ranks_lowest_cost_first():
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_filters_providers_by_label_selector():
+def test_strategy_executor_filters_providers_by_label_selector():
     """StrategyExecutor should only consider providers allowed by label selector."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -223,14 +224,13 @@ async def test_strategy_executor_filters_providers_by_label_selector():
         sort=[SortCriterion("cost")],
     )
 
-    candidates = await executor.execute(request, providers, definition)
+    candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert [candidate.provider.name for candidate in candidates] == ["p1"]
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_filters_providers_by_complexity_selector():
+def test_strategy_executor_filters_providers_by_complexity_selector():
     """StrategyExecutor should only consider providers with enough complexity capability."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -265,14 +265,13 @@ async def test_strategy_executor_filters_providers_by_complexity_selector():
         sort=[SortCriterion("cost")],
     )
 
-    candidates = await executor.execute(request, providers, definition)
+    candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert [candidate.provider.name for candidate in candidates] == ["p1"]
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_matches_context_length_zone_rule():
+def test_strategy_executor_matches_context_length_zone_rule():
     """StrategyExecutor should gate candidates with context length zone rules."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -303,15 +302,14 @@ async def test_strategy_executor_matches_context_length_zone_rule():
         sort=[SortCriterion("cost")],
     )
 
-    candidates = await executor.execute(request, providers, definition)
+    candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert [candidate.provider.name for candidate in candidates] == ["p1"]
     assert candidates[0].rule_outputs["context_length_zone"] == 0
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_uses_zone_complexity_selector():
+def test_strategy_executor_uses_zone_complexity_selector():
     """StrategyExecutor should map a zone output to the required complexity."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -347,14 +345,13 @@ async def test_strategy_executor_uses_zone_complexity_selector():
         sort=[SortCriterion("cost")],
     )
 
-    candidates = await executor.execute(request, providers, definition)
+    candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert [candidate.provider.name for candidate in candidates] == ["zone-capable"]
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_uses_zone_label_selector():
+def test_strategy_executor_uses_zone_label_selector():
     """StrategyExecutor should map a zone output to the required provider label."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -388,14 +385,13 @@ async def test_strategy_executor_uses_zone_label_selector():
         sort=[SortCriterion("cost")],
     )
 
-    candidates = await executor.execute(request, providers, definition)
+    candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert [candidate.provider.name for candidate in candidates] == ["zone-labeled"]
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_filters_providers_by_cost_selector():
+def test_strategy_executor_filters_providers_by_cost_selector():
     """StrategyExecutor should only consider providers below a scalar cost threshold."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -423,14 +419,13 @@ async def test_strategy_executor_filters_providers_by_cost_selector():
         sort=[SortCriterion("cost")],
     )
 
-    candidates = await executor.execute(request, providers, definition)
+    candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert [candidate.provider.name for candidate in candidates] == ["cheap"]
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_filters_providers_by_tool_calling_selector():
+def test_strategy_executor_filters_providers_by_tool_calling_selector():
     """StrategyExecutor should only consider providers with matching tool capability."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -465,7 +460,7 @@ async def test_strategy_executor_filters_providers_by_tool_calling_selector():
         ],
     )
 
-    candidates = await executor.execute(request, providers, definition)
+    candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert [candidate.provider.name for candidate in candidates] == ["tool-capable"]
 
@@ -503,8 +498,7 @@ def test_strategy_loader_rejects_top_level_capability_selector():
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_uses_zone_cost_selector():
+def test_strategy_executor_uses_zone_cost_selector():
     """StrategyExecutor should map a zone output to the allowed provider cost."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -532,14 +526,13 @@ async def test_strategy_executor_uses_zone_cost_selector():
         sort=[SortCriterion("cost")],
     )
 
-    candidates = await executor.execute(request, providers, definition)
+    candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert [candidate.provider.name for candidate in candidates] == ["zone-priced"]
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_rejects_false_boolean_rule_output():
+def test_strategy_executor_rejects_false_boolean_rule_output():
     """StrategyExecutor should reject match/value/score rules that return False."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -563,14 +556,13 @@ async def test_strategy_executor_rejects_false_boolean_rule_output():
         ],
     )
 
-    candidates = await executor.execute(request, providers, definition)
+    candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert candidates == []
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_strategy_executor_rejects_unmatched_zone_rule_output():
+def test_strategy_executor_rejects_unmatched_zone_rule_output():
     """StrategyExecutor should reject zone rules that return -1."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -594,6 +586,6 @@ async def test_strategy_executor_rejects_unmatched_zone_rule_output():
         ],
     )
 
-    candidates = await executor.execute(request, providers, definition)
+    candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert candidates == []

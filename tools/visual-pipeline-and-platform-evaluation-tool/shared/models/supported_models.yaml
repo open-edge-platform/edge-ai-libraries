@@ -292,7 +292,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: "NPU"
-  default: false
   download_request:
     hub: openvino
     name: google/gemma-4-E4B-it
@@ -335,7 +334,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: "NPU"
-  default: false
   download_request:
     hub: openvino
     name: openbmb/MiniCPM-V-4_5
@@ -357,7 +355,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: "NPU"
-  default: false
   download_request:
     hub: openvino
     name: OpenGVLab/InternVL2-2B
@@ -490,7 +487,6 @@
       model_proc: ""
   extra_model_procs: []
   unsupported_devices: ""
-  default: false
   download_request:
     hub: ultralytics
     name: mars-small128

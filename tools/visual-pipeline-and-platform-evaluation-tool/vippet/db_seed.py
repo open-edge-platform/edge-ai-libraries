@@ -21,55 +21,8 @@ async def seed_initial_data(
     Seeding runs on startup after schema creation.
     """
     async with session_maker() as session:
-        default_test_cases = [1, 4, 16, 64]
+        default_test_cases = [1, 4, 8, 12]
         suite_specs = [
-            {
-                "name": "Small Suite",
-                "description": "Small suite.",
-                "workloads": [
-                    {
-                        "pipeline_id": "age-gender-recognition",
-                        "variants": [
-                            {"name": "cpu", "test_cases": [3, 10]},
-                            {"name": "gpu", "test_cases": [3, 10]},
-                        ],
-                    },
-                    {
-                        "pipeline_id": "goods-detection-classification",
-                        "variants": [
-                            {"name": "cpu", "test_cases": [3, 4]},
-                            {"name": "gpu", "test_cases": [5, 6]},
-                        ],
-                    },
-                ],
-            },
-            {
-                "name": "Test Suite",
-                "description": "Test suite.",
-                "workloads": [
-                    {
-                        "pipeline_id": "age-gender-recognition",
-                        "variants": [
-                            {"name": "cpu", "test_cases": [3, 5, 10]},
-                            {"name": "gpu", "test_cases": [3, 5, 10]},
-                        ],
-                    },
-                    {
-                        "pipeline_id": "goods-detection-classification",
-                        "variants": [
-                            {"name": "cpu", "test_cases": [3, 5]},
-                            {"name": "gpu", "test_cases": [3, 5, 8, 9]},
-                        ],
-                    },
-                    {
-                        "pipeline_id": "smart-parking",
-                        "variants": [
-                            {"name": "cpu", "test_cases": [3, 5, 7, 8, 9]},
-                            {"name": "gpu", "test_cases": [3, 5, 8, 9]},
-                        ],
-                    },
-                ],
-            },
             {
                 "name": "Retail Suite",
                 "description": "Retail benchmark suite covering retail analytics pipelines.",

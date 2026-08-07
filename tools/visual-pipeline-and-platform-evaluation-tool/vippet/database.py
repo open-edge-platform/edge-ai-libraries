@@ -20,6 +20,9 @@ from sqlalchemy.pool import NullPool
 
 logger = logging.getLogger(__name__)
 
+# Increment this manually whenever the DB schema changes.
+DB_SCHEMA_VERSION = 1
+
 # Base class for all ORM models
 Base = declarative_base()
 
@@ -96,6 +99,22 @@ def _get_engine_kwargs() -> dict[str, Any]:
     return engine_kwargs
 
 
+async def _upsert_schema_version(
+    session_maker: async_sessionmaker,
+) -> None:
+    from sqlalchemy import select
+    from orm_models import Metadata
+
+    async with session_maker() as session:
+        row = await session.scalar(select(Metadata))
+        if row is None:
+            session.add(Metadata(id=1, db_schema_version=DB_SCHEMA_VERSION))
+            await session.commit()
+            logger.info("DB schema version initialized to %d", DB_SCHEMA_VERSION)
+        else:
+            logger.info("DB schema version is %d", row.db_schema_version)
+
+
 async def init_db() -> None:
     """
     Initialize database engine and session factory.
@@ -129,6 +148,8 @@ async def init_db() -> None:
     # Create tables if they don't exist
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    await _upsert_schema_version(async_session_maker)
 
     # Seed startup data in an idempotent way.
     if os.environ.get("DB_SEED_ON_STARTUP", "true").lower() == "true":

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: Apache-2.0
 import {
   DEVICE_TYPES,
   INFERENCE_REGION_TYPES,

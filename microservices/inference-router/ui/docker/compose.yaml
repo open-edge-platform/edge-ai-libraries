@@ -1,0 +1,13 @@
+services:
+  inference-router-ui:
+    image: ${REGISTRY:-opea}/inference-router-ui:${TAG:-latest}
+    container_name: inference-router-ui
+    environment:
+      no_proxy: ${no_proxy:-}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      UI_PORT: ${UI_PORT:-7010}
+      SERVER_HOST: ${SERVER_HOST:-127.0.0.1}
+      SERVER_PORT: ${SERVER_PORT:-8000}
+    restart: always
+    network_mode: host

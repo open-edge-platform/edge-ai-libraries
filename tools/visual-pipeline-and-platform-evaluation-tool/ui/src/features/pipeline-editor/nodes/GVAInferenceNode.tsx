@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: Apache-2.0
 import type { DeviceType } from "@/features/pipeline-editor/nodes/shared-types.ts";
 import { usePipelineEditorContext } from "../PipelineEditorContext.ts";
 import { PipelineNodeCard, PIPELINE_NODE_ROLE_CLASSES } from "./shared";
