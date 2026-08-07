@@ -169,7 +169,7 @@ install_dependencies() {
             ;;
         ultralytics)
             echo -e "${BLUE}INFO:${NC} Downloading Ultralytics public models script from GitHub"
-            DLSTREAMER_SAMPLES_URL="https://raw.githubusercontent.com/open-edge-platform/dlstreamer/v2026.1.0/samples"
+            DLSTREAMER_SAMPLES_URL="https://raw.githubusercontent.com/open-edge-platform/dlstreamer/v2026.2.0-rc1/samples"
             mkdir -p /opt/scripts/models
             if curl -fsSL -o /opt/scripts/download_public_models.sh "${DLSTREAMER_SAMPLES_URL}/download_public_models.sh"; then
                 chmod +x /opt/scripts/download_public_models.sh
