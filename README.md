@@ -101,7 +101,7 @@ without changing model behavior.
   Pluggable token compression for LLM agent systems — compresses system
   prompts, context, and tool schemas to cut input token usage.
 
-- [KVWeave](./libraries/kvweave)
+- [KVCache Quantization and Offload](./libraries/kv-quant-offload)
 
   Near-lossless 4-bit KV-cache quantization for LMCache/vLLM, reducing
   KV-cache memory and storage overhead for KV offload on Intel edge
