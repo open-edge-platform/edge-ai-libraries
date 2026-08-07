@@ -133,7 +133,8 @@ act_helpper () {
           echo "@@COMP $name"
           (
             set -e
-            $handler $(act_extract_args $act_name $name $*)
+            $handler $(act_extract_args $act_name $name $*) &
+            wait -n
           )
           local rc1=$?
           if [ $rc1 -eq 0 ]; then
