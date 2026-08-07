@@ -1,0 +1,22 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Auto-provisions the Prometheus datasource for the convenience stack.
+#
+# The `uid` is pinned to the value the shipped dashboard
+# (dashboards/tcmi-hardware-telemetry.json) and generate_dashboard.py use by
+# default. Pinning it here means the dashboard loads and resolves with NO
+# regeneration and no manual UID lookup — the two sides already agree.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    # Must match DEFAULT_DS_UID in dashboards/generate_dashboard.py.
+    uid: PBFA97CFB590B2093
+    # The prometheus service name on this compose network.
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

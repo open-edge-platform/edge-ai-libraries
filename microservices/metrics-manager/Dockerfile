@@ -184,6 +184,7 @@ COPY pyproject.toml ./
 COPY VERSION ./
 COPY .env.example ./
 COPY telegraf.conf ./
+COPY telegraf.d/ ./telegraf.d/
 COPY compose.yaml ./
 COPY supervisord.conf ./
 COPY entrypoint.sh ./
@@ -223,10 +224,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install capabilities-required system tools.
 # - dmidecode: memory technology discovery (DDR4/DDR5/etc.)
 # - pciutils: lspci-based PCI/GPU branding discovery
+# - linux-perf: `perf stat` on the IMC free-running counters for DRAM bandwidth
+#   (scripts/dram_bw_reader.py). Model-independent — works on masked-model PTL
+#   silicon where the native intel_pmu named-event path fails. If unavailable
+#   for the base image's arch, the reader idles gracefully (no data, no crash).
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends dmidecode pciutils && \
+    apt-get install --yes --no-install-recommends dmidecode pciutils linux-perf && \
     pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
     (dpkg -s perl-base >/dev/null 2>&1 && dpkg --purge --force-remove-essential perl-base || true) && \
     apt-get clean && \
@@ -259,11 +264,17 @@ COPY app ./app
 COPY scripts ./scripts
 COPY VERSION ./
 COPY telegraf.conf /etc/telegraf/telegraf.conf
+# Drop-in plugin configs (Intel PowerStat, diskio, net, ethtool, interrupts).
+# telegraf is launched with --config-directory /etc/telegraf/telegraf.d, so every
+# *.conf here is merged with the base config. *.conf.example files (platform-gated
+# intel_pmu/intel_rdt DRAM bandwidth, turbostat) are intentionally NOT loaded.
+COPY telegraf.d/ /etc/telegraf/telegraf.d/
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY entrypoint.sh /entrypoint.sh
 
 # Strip CRLF (handles files copied from Windows working directories)
 RUN sed -i 's/\r$//' /entrypoint.sh /etc/telegraf/telegraf.conf /etc/supervisor/supervisord.conf && \
+    find /etc/telegraf/telegraf.d -name "*.conf" -exec sed -i 's/\r$//' {} + && \
     find /app/scripts -name "*.sh" -o -name "*.py" | xargs sed -i 's/\r$//'
 
 # Make scripts executable

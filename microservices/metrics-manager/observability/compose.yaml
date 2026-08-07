@@ -1,0 +1,89 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# =============================================================================
+# Convenience observability stack for Metrics Manager: Prometheus + Grafana.
+# =============================================================================
+# Metrics Manager itself does NOT ship Prometheus or Grafana — it only exposes
+# metrics on :9273. This optional stack stands both up, pre-wired to scrape MM
+# and to show the shipped TCMI dashboard with zero manual configuration.
+#
+# It is a SEPARATE compose project from the main service, so it never interferes
+# with `make up` / the main compose.yaml. Bring MM up first, then this.
+#
+#   Start MM (from the parent dir):   make up
+#   Start this stack:                 docker compose -f observability/compose.yaml up -d
+#   Grafana:                          http://localhost:3000   (admin / admin)
+#   Live dashboard:                   http://localhost:3000/d/tcmi-mm-unified-v1
+#   Prometheus:                       http://localhost:9091/targets
+#   Stop:                             docker compose -f observability/compose.yaml down
+#
+# Reachability: both containers reach MM (running on the host at :9273) via
+# host.docker.internal, mapped to the host gateway by extra_hosts below.
+# =============================================================================
+
+name: metrics-manager-observability
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mm-prometheus
+    restart: unless-stopped
+    extra_hosts:
+      # Lets the container reach Metrics Manager on the host's :9273.
+      - "host.docker.internal:host-gateway"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      # Enables `curl -X POST http://localhost:9091/-/reload` for hot config reloads.
+      - "--web.enable-lifecycle"
+    ports:
+      # Host 9091 -> container 9090 (9090 is taken on the host by MM's API).
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    environment:
+      # Corporate proxy passthrough (harmless when empty). Sourced from the
+      # parent .env if you run compose from the metrics-manager directory, or
+      # from your shell env. no_proxy keeps host.docker.internal direct.
+      - http_proxy=${http_proxy:-}
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - https_proxy=${https_proxy:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - no_proxy=localhost,127.0.0.1,host.docker.internal,${no_proxy:-}
+      - NO_PROXY=localhost,127.0.0.1,host.docker.internal,${NO_PROXY:-}
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mm-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3000:3000"
+    volumes:
+      # Datasource (pinned UID) + dashboard provider configs.
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      # The shipped dashboard JSON — Grafana auto-loads it on startup.
+      - ../dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      # First-run admin credentials. Change GF_SECURITY_ADMIN_PASSWORD for
+      # anything beyond a local sandbox.
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Corporate proxy passthrough (Grafana fetches plugins/avatars over it).
+      - http_proxy=${http_proxy:-}
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - https_proxy=${https_proxy:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - no_proxy=localhost,127.0.0.1,host.docker.internal,prometheus,${no_proxy:-}
+      - NO_PROXY=localhost,127.0.0.1,host.docker.internal,prometheus,${NO_PROXY:-}
+
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local

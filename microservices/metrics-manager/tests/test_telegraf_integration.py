@@ -159,6 +159,71 @@ class TestImageDirectories:
             )
 
 
+class TestTelegrafConfigDirectoryLoaded:
+    """The telegraf.d/ drop-ins are inert unless telegraf is launched with
+    --config-directory. Guard the loader flag that makes them take effect."""
+
+    def test_supervisord_passes_config_directory(self, supervisord_text: str):
+        assert "--config-directory" in supervisord_text
+        assert "/etc/telegraf/telegraf.d" in supervisord_text
+
+    def test_dockerfile_copies_dropins(self):
+        text = DOCKERFILE.read_text(encoding="utf-8")
+        assert "COPY telegraf.d/" in text
+
+
+class TestTcmiCollectorWiring:
+    """TCMI hardware-telemetry drop-ins and their execd readers must be shipped
+    and gated. Each ENABLE_* toggle decides whether entrypoint.sh loads the
+    corresponding telegraf.d/*.conf; the readers idle gracefully when the
+    hardware is absent, so gating never breaks a deploy."""
+
+    TELEGRAF_D = REPO_ROOT / "telegraf.d"
+    SCRIPTS = REPO_ROOT / "scripts"
+
+    # (basename, ships-active-as-.conf) for the native + execd drop-ins.
+    ACTIVE_DROPINS = ["10-power", "20-dram-bw", "30-disk", "40-net",
+                      "50-interrupts", "90-tcmi-execd"]
+    # Opt-in engineering diagnostics ship as .conf.example (not auto-loaded).
+    OPTIN_EXAMPLES = ["60-turbostat"]
+
+    def test_active_dropins_present(self):
+        for base in self.ACTIVE_DROPINS:
+            assert (self.TELEGRAF_D / f"{base}.conf").is_file(), f"missing {base}.conf"
+
+    def test_optin_examples_present_and_not_active(self):
+        for base in self.OPTIN_EXAMPLES:
+            assert (self.TELEGRAF_D / f"{base}.conf.example").is_file()
+            # Must NOT ship as .conf (would be auto-loaded regardless of toggle).
+            assert not (self.TELEGRAF_D / f"{base}.conf").is_file()
+
+    def test_execd_reader_scripts_present(self):
+        for script in ("rapl_reader.py", "dram_bw_reader.py", "gpu_throttle_reader.py"):
+            assert (self.SCRIPTS / script).is_file(), f"missing scripts/{script}"
+
+    def test_execd_readers_honor_hostname_and_idle(self):
+        # Same contract as npu_reader.py: stable host tag + graceful idle.
+        for script in ("rapl_reader.py", "dram_bw_reader.py", "gpu_throttle_reader.py"):
+            text = (self.SCRIPTS / script).read_text(encoding="utf-8")
+            assert 'os.environ.get("METRICS_MANAGER_HOSTNAME")' in text
+            assert "or os.uname()[1]" in text
+            assert "idle_forever" in text, f"{script} lacks graceful-idle guard"
+
+    def test_entrypoint_gates_every_collector(self):
+        text = ENTRYPOINT.read_text(encoding="utf-8")
+        for env in ("ENABLE_RAPL_POWER", "ENABLE_DRAM_BW", "ENABLE_DISK_IO",
+                    "ENABLE_NET_IO", "ENABLE_INTERRUPTS", "ENABLE_PSYS_POWER",
+                    "ENABLE_TURBOSTAT"):
+            assert env in text, f"entrypoint.sh does not gate on {env}"
+
+    def test_settings_expose_collector_toggles(self):
+        text = (REPO_ROOT / "app" / "settings.py").read_text(encoding="utf-8")
+        for field in ("enable_rapl_power", "enable_dram_bw", "enable_disk_io",
+                      "enable_net_io", "enable_interrupts", "enable_psys_power",
+                      "enable_turbostat"):
+            assert field in text, f"settings.py missing {field}"
+
+
 # -----------------------------------------------------------------------------
 # Manual end-to-end test commands (require a running Docker daemon)
 # -----------------------------------------------------------------------------

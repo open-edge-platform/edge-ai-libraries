@@ -79,6 +79,7 @@ class TestReaderImportsAndOutput:
             "tile_config=",
             "utilization=",
             "memory_mb=",
+            "power_state=",
         ):
             assert field in reader_source, f"Missing field '{field}' in reader output"
 

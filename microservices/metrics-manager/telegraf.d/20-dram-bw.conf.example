@@ -1,0 +1,80 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# ============================================================================
+# DRAM BANDWIDTH — PLATFORM-GATED. Disabled by default (.conf.example).
+# ============================================================================
+# Fills TCMI's dram_read_gbps / dram_write_gbps gap WITHOUT the external Intel
+# PCM binary — IF the target SKU exposes the required counters. Validate on the
+# target, then enable ONE of the two options below by copying it to a .conf file:
+#
+#   cp 20-dram-bw.conf.example 20-dram-bw.conf   # then keep only one [[inputs.*]]
+#
+# ---------------------------------------------------------------------------
+# PROBED ON PTL TARGET (Panther-Lake-Client, kernel 6.17.0-35),
+# 2026-07-22 — results baked into the recommendation below:
+#   perf_event_paranoid = -1                          -> PMU access OK, no sysctl needed
+#   uncore_imc_0/1 + uncore_imc_free_running_0/1      -> PRESENT
+#   perf stat data_read/data_write over 1s            -> 116.63 / 7.38 MiB (COUNTS)
+#   /sys/fs/resctrl + pqos                            -> ABSENT  => intel_rdt NOT usable here
+#   /usr/bin/pcm                                      -> present (proven PCM fallback)
+#
+# DECISION for PTL: use the IMC free-running counters (Option A). intel_rdt is
+# ruled out (no resctrl). See the CAVEAT on Option A about the masked CPU model.
+#
+# To adapt on a different SKU, re-run the probe:
+#   cat /proc/sys/kernel/perf_event_paranoid
+#   ls /sys/bus/event_source/devices/ | grep uncore_imc
+#   perf stat -e uncore_imc_free_running/data_read/,uncore_imc_free_running/data_write/ -a sleep 1
+#   ls /sys/fs/resctrl 2>/dev/null && which pqos
+#
+# Enable:  cp 20-dram-bw.conf.example 20-dram-bw.conf   # keep only one [[inputs.*]]
+# The container already runs --privileged with perf_event_paranoid=-1 on the host.
+# ---------------------------------------------------------------------------
+
+# ==== Option A: Intel PMU — IMC free-running counters (RECOMMENDED for PTL) ====
+# PTL exposes free-running IMC bandwidth counters (perf type 27):
+#   data_read  = event=0xff,umask=0x20   (probed)
+#   data_write = event=0xff,umask=0x30
+#   data_total = event=0xff,umask=0x10
+#   scale = 6.103515625e-5 MiB/count  (= 64 bytes/count).  BW = rate(bytes).
+#
+# CAVEAT — masked CPU model: this PTL sample reports model name "Genuine Intel(R)
+# 0000" (family 6, model id masked on ES/QS silicon). Telegraf intel_pmu resolves
+# named events (UNC_M_CAS_COUNT.*) via a perfmon JSON keyed on CPU model, so name
+# lookup can FAIL here. Two robust choices:
+#   (A1) intel_pmu with RAW event codes (no JSON, model-independent) — below.
+#   (A2) a tiny `perf stat` execd wrapper on the free-running events — most robust
+#        on masked-model silicon; scaffold in 90-tcmi-execd.conf.example (P2).
+#
+# --- A1: intel_pmu, raw free-running IMC events (model-independent) ---
+# [[inputs.intel_pmu]]
+#   [[inputs.intel_pmu.uncore_events]]
+#     ## Raw encodings probed on PTL; "cX" is the free-running counter index.
+#     events = [
+#       "event=0xff,umask=0x20",   # data_read
+#       "event=0xff,umask=0x30",   # data_write
+#     ]
+#     units = ["uncore_imc_free_running"]   # empty = all IMC units; explicit is safer
+#     aggregate = true
+#     ## Multiply raw counts by 64 bytes downstream to get bytes, then rate() -> B/s.
+#
+# --- Alt: standard CAS counters on SKUs where perfmon JSON resolves (NOT this one) ---
+# [[inputs.intel_pmu]]
+#   # event_definitions = ["/etc/telegraf/perfmon/uncore.json"]
+#   [[inputs.intel_pmu.uncore_events]]
+#     events = ["UNC_M_CAS_COUNT.RD", "UNC_M_CAS_COUNT.WR"]
+#     units = []
+#     aggregate = true
+
+# ==== Option B: Intel RDT — Memory Bandwidth Monitoring (MBM) ====
+# NOTE: RULED OUT on the probed PTL target — no /sys/fs/resctrl and no pqos.
+# Kept here for other SKUs (e.g. Xeon) that do expose RDT/MBM.
+# Gives mbm_total_bytes / mbm_local_bytes per core group, PLUS the metrics TCMI
+# never had: LLC occupancy and cache pressure (why "CPU 40% but latency high").
+# Requires the `pqos` binary (intel-cmt-cat) on PATH inside the container.
+# [[inputs.intel_rdt]]
+#   pqos_path = "/usr/local/bin/pqos"
+#   ## Monitor all cores; set cores = ["0-3"] to scope to the RT-pinned set.
+#   cores = []
+#   sampling_interval = "1"

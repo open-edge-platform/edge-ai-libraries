@@ -1,0 +1,21 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Minimal Prometheus config for the convenience observability stack
+# (observability/compose.yaml). Scrapes the Metrics Manager's Telegraf
+# Prometheus endpoint on :9273. See docs/TCMI-USER-GUIDE.md §4 Step 5.
+
+global:
+  # 2s matches the RAPL/DRAM readers' ~1s emit cadence without over-scraping.
+  scrape_interval: 2s
+
+scrape_configs:
+  - job_name: metrics-manager
+    metrics_path: /metrics
+    static_configs:
+      # host.docker.internal reaches Metrics Manager running on the host.
+      # Resolves because the prometheus service sets extra_hosts in compose.yaml.
+      # If you run MM on the same docker network instead, use metrics-manager:9273.
+      - targets: ["host.docker.internal:9273"]
+        labels:
+          source: metrics-manager

@@ -1,0 +1,52 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# ============================================================================
+# TURBOSTAT — ADVANCED REAL-TIME DIAGNOSTICS. Disabled by default (.conf.example).
+# ============================================================================
+# intel_powerstat (10-power.conf) is the *production* power/thermal source.
+# Turbostat is the *engineering microscope* — enable it for real-time tuning,
+# platform validation, and certification, where per-core detail matters.
+#
+# It exposes what powerstat cannot:
+#   ipc      — instructions/cycle: distinguishes "busy" from "stalled on memory"
+#   smi      — System Management Interrupts: BIOS/firmware CPU pauses, the #1
+#              hidden cause of latency spikes in real-time ROS2 (determinism / R)
+#   irq/nmi  — per-core hardware interrupt counts
+#   core_temperature — PER-CORE temperature (powerstat is package-level) ->
+#              exposes an RT executor pinned to a hot core
+#   busy_percent / busy_frequency per core, C-state residency
+#
+# This maps to a proposed 5th TCMI dimension: R = Real-Time Determinism.
+#
+# Native plugin: [[inputs.turbostat]] shipped in Telegraf v1.36.0, and this
+# image builds Telegraf 1.38.4 from source (see Dockerfile), so the plugin is
+# already compiled in — no custom reader needed. Fields come out snake_cased
+# (IPC -> ipc, SMI -> smi, Busy% -> busy_percent, CoreTmp -> core_temperature_celsius).
+# Verified on the PTL reference box, the per-row tags are core / cpu / apic /
+# x2apic (NOT die/package — those show up on other SKUs); the system-wide
+# summary row carries a literal "-" for each, so filter it out with core!="-".
+#
+# Enable:  cp 60-turbostat.conf.example 60-turbostat.conf
+# Requires: turbostat binary (apt: linux-tools-$(uname -r)), MSR access
+#           (--privileged + msr module; -v /dev/cpu).
+#
+# NOTE: turbostat is a *service* input — it ignores Telegraf's collection
+# interval. Set the cadence with turbostat's own interval option
+# (TURBOSTAT_INTERVAL, default 5s) to keep MSR-read overhead low and avoid
+# flooding Grafana with redundant per-core series. If turbostat is missing or
+# the MSRs are unreadable the plugin just produces no data, so enabling it can
+# never break a deploy.
+
+# NOTE: unlike the dram-bw "menu" example, this block is ACTIVE (uncommented).
+# entrypoint.sh copies this file verbatim to 60-turbostat.conf when
+# ENABLE_TURBOSTAT=true, so the plugin must be live for it to load.
+[[inputs.turbostat]]
+  ## turbostat binary. The image doesn't ship one (it's kernel-coupled), so
+  ## compose bind-mounts the host's kernel-matched binary here via TURBOSTAT_BIN
+  ## (see compose.yaml / .env.example). Verified live on PTL at this path.
+  path = "/usr/local/bin/turbostat"
+  ## sampling cadence — set HERE, not via the agent interval (service input)
+  interval = "5s"
+  ## MSR reads need privilege; the container already runs --privileged
+  # use_sudo = false

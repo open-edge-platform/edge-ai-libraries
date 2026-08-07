@@ -99,6 +99,21 @@ def main():
     mem_util_supported = (pu.cpu_gen is not None) and (pu.cpu_gen >= CpuGen.PTL)
     mem_util_path = os.path.join(dev_path, "npu_memory_utilization")
 
+    # PCI power state (D0 active .. D3cold deepest sleep) — the standard Linux
+    # runtime-PM proxy for "is the NPU actually powered up right now". Exposed
+    # as the string "D0"/"D3hot"/"D3cold" in the device's `power_state` sysfs
+    # attr. We map it to a small integer so it graphs cleanly in Grafana:
+    #   D0=0  D1=1  D2=2  D3hot=3  D3cold=4  (unknown/missing=-1)
+    power_state_path = os.path.join(dev_path, "power_state")
+    _POWER_STATE_CODES = {"D0": 0, "D1": 1, "D2": 2, "D3hot": 3, "D3cold": 4}
+
+    def read_power_state():
+        try:
+            with open(power_state_path, 'r', encoding='utf-8') as f:
+                return _POWER_STATE_CODES.get(f.read().strip(), -1)
+        except OSError:
+            return -1
+
     def read_busy_us():
         if not npu_busy_supported:
             return None
@@ -177,7 +192,8 @@ def main():
             f"bandwidth={bandwidth_mbs:.3f},"
             f"tile_config={tile_config}i,"
             f"utilization={utilization}i,"
-            f"memory_mb={mem_util_mb:.2f}"
+            f"memory_mb={mem_util_mb:.2f},"
+            f"power_state={read_power_state()}i"
             f" {ts_ns}",
             flush=True,
         )

@@ -736,6 +736,10 @@ def _expanded_capabilities_snapshot() -> dict[str, Any]:
             "os": platform.system(),
             "kernel": platform.release(),
             "architecture": platform.machine(),
+            # How clients talk to this service. Metrics Manager exposes its
+            # capability/telemetry API over REST (plus an SSE stream on the same
+            # channel), so this is fixed to "rest" today.
+            "interface_channel": "rest",
             "system": system_identity,
             "system_memory": {
                 "installed_bytes": system_memory_bytes,
@@ -832,6 +836,7 @@ def _minimal_from_expanded(expanded: dict[str, Any]) -> dict[str, Any]:
             "os": platform.get("os"),
             "kernel": platform.get("kernel"),
             "architecture": platform.get("architecture"),
+            "interface_channel": platform.get("interface_channel"),
             "system": platform.get("system"),
             "system_memory": platform.get("system_memory"),
             "system_storage": platform.get("system_storage"),
