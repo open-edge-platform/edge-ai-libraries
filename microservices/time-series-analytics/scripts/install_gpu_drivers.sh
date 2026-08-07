@@ -92,6 +92,17 @@ case $INSTALL_DRIVER_VERSION in \
         curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/libze-intel-gpu1_26.14.37833.4-0_amd64.deb && \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
+"26.27.39122") \
+	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps && \
+        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.38.2/intel-igc-core-2_2.38.2+22051_amd64.deb  && \
+        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.38.2/intel-igc-opencl-2_2.38.2+22051_amd64.deb  && \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/intel-ocloc-dbgsym_26.27.39122.11-0_amd64.ddeb && \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/intel-ocloc_26.27.39122.11-0_amd64.deb  && \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/intel-opencl-icd_26.27.39122.11-0_amd64.deb  && \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/libigdgmm12_22.10.0_amd64.deb  && \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/libze-intel-gpu1_26.27.39122.11-0_amd64.deb  && \
+        dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
+;; \
 *) \
         dpkg -P intel-gmmlib intel-igc-core intel-igc-opencl intel-level-zero-gpu intel-ocloc intel-opencl intel-opencl-icd && \
         apt-get update && apt-get -y --no-install-recommends install dpkg-dev && rm -rf /var/lib/apt/lists/* && \
