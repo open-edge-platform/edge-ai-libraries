@@ -102,7 +102,6 @@ The service can be integrated into applications through:
 - REST API calls
 - Docker container deployment
 - Docker Compose orchestration
-- Helm chart deployment on Kubernetes
 
 ## Limitations
 

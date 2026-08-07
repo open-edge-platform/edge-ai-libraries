@@ -22,14 +22,6 @@
 | Python         | 3.12 or later | Required only for running tests locally                   |
 | `uv`           | Latest        | Required only for local development; `pip install uv`     |
 
-## Kubernetes Requirements (Helm Deployment)
-
-| Tool       | Version       | Notes                                                                      |
-| ---------- | ------------- | -------------------------------------------------------------------------- |
-| Kubernetes | 1.27 or later | Cluster must support dynamic Persistent Volume provisioning                |
-| kubectl    | Latest        | [Install kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) |
-| Helm       | 3.x           | [Install Helm](https://helm.sh/docs/intro/install/)                        |
-
 ## Network Requirements
 
 The following network ports are used by default:

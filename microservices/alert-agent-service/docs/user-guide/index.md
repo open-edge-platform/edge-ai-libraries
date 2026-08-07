@@ -5,6 +5,9 @@
   <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/alert-services/alert-agent-service">
      GitHub
   </a>
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/alert-services/alert-agent-service/README.md">
+     Readme
+  </a>
 </div>
 hide_directive-->
 

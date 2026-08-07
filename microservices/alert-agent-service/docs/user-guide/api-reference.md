@@ -310,9 +310,3 @@ Lists all subscription entries loaded from the subscription config file.
   "count": 1
 }
 ```
-
-<!--hide_directive
-```{eval-rst}
-.. swagger-plugin:: ./_assets/openapi.yaml
-```
-hide_directive-->
