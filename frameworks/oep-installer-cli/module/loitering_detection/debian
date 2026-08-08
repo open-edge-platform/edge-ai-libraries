@@ -43,7 +43,7 @@ debian_90_start_loitering_detection () {
 debian_90_stop_loitering_detection () {
   configure_loitering_detection
   cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
-  ./sample_stop.sh
+  ./sample_stop.sh || true
   docker compose -f compose-without-scenescape.yml down -v --remove-orphans
 }
 

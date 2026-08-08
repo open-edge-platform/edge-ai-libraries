@@ -25,7 +25,7 @@ debian_90_install_pcb_anomaly_detection () {
   ensure_git_clone "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
 
   # setup
-  pushd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision" > /dev/null
+  cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
   cat > .env <<EOF
 $(cat .env_pcb-anomaly-detection)
 HOST_IP=$(ensure_ip)
@@ -42,22 +42,23 @@ EOF
 
 debian_90_start_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  pushd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision > /dev/null
-  docker compose up -d
-  ./sample_start.sh -p pcb_anomaly_detection_gpu
-  echo "UI entrypoint: $(ensure_ip)"
-  popd > /dev/null
+  ensure_open_ports "80 443" debian_90_stop_pcb_anomaly_detection
+
+  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  docker compose up -d --wait
+
+  ./sample_start.sh -p pcb_anomaly_detection$(ensure_select_device $* | sed -e 's|^|_|' -e 's|_cpu||')
+  echo "@@HIGHTLIGHT URL: http://$(ensure_ip)"
 }
 
 debian_90_stop_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  pushd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision > /dev/null
-  ./sample_stop.sh
-  docker compose down -v
-  popd > /dev/null
+  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  ./sample_stop.sh || true
+  docker compose down -v --remove-orphans
 }
 
 debian_90_remove_pcb_anomaly_detection () {
-  configure_pcb_anomaly_detection
+  debian_90_stop_pcb_anomaly_detection || true
   ensure_rmdir "$workspace"
 }

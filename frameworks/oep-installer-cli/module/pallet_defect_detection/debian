@@ -25,7 +25,7 @@ debian_90_install_pallet_defect_detection () {
   ensure_git_clone "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
 
   # setup
-  pushd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision" > /dev/null
+  cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
   cat > .env <<EOF
 $(cat .env_pallet-defect-detection)
 HOST_IP=$(ensure_ip)
@@ -37,27 +37,27 @@ MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(ca
 EOF
   ./setup.sh
   verify_pallet_defect_detection
-  popd > /dev/null
 }
 
 debian_90_start_pallet_defect_detection () {
+  ensure_open_ports "80 443" debian_90_stop_pallet_defect_detection
+
   configure_pallet_defect_detection
-  pushd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision > /dev/null
-  docker compose up -d
-  ./sample_start.sh -p pallet_defect_detection_gpu
-  echo "UI entrypoint: $(ensure_ip)"
-  popd > /dev/null
+  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  docker compose up -d --wait
+
+  ./sample_start.sh -p pallet_defect_detection$(ensure_select_device | sed -e 's|^|_|' -e 's|_cpu||')
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
 }
 
 debian_90_stop_pallet_defect_detection () {
   configure_pallet_defect_detection
-  pushd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision > /dev/null
-  ./sample_stop.sh
+  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  ./sample_stop.sh || true
   docker compose down -v
-  popd > /dev/null
 }
 
 debian_90_remove_pallet_defect_detection () {
-  configure_pallet_defect_detection
+  debian_90_stop_pallet_defect_detection || true
   ensure_rmdir "$workspace"
 }
