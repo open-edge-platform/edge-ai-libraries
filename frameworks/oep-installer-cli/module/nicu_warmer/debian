@@ -73,7 +73,7 @@ debian_90_start_nicu_warmer () {
   configure_nicu_warmer $*
   cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
   make run DEVICE_ENV=$device_env
-  echo "@@HIGHLIGHT UI entrypoint: http://$(ensure_ip):8080"
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):8080"
 }
 
 debian_90_stop_nicu_warmer () {
