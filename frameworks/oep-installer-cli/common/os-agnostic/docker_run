@@ -2,7 +2,7 @@
 # idempotently pull an image and (re)create a detached named container.
 # generic helper for docker-image based ISV applications.
 # $1: container name  $2: image reference  ${@:3}: extra "docker run" args
-ensure_docker_container () {
+ensure_docker_run () {
   local name="$1"
   local image="$2"
 
@@ -14,6 +14,6 @@ ensure_docker_container () {
 
   echo "Pulling image $image (this may take several minutes for large images)..."
   docker pull "$image"
-  docker run -dt --name "$name" "${@:3}" "$image"
+  docker run --name "$name" "${@:3}" "$image"
 }
 

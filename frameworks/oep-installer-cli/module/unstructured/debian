@@ -24,7 +24,7 @@ debian_95_install_unstructured () {
   [[ "$*" != *"--reset-unstructured"* ]] || docker rm -f "$container_name" 2> /dev/null || true
 
   mkdir -p "$workspace"
-  ensure_docker_container "$container_name" "$image" -v "$workspace":/data
+  ensure_docker_run "$container_name" "$image" -d -t -v "$workspace":/data
 }
 
 debian_95_start_unstructured () {
