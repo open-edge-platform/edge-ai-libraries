@@ -60,8 +60,7 @@ debian_90_start_smart_intersection () {
 debian_90_stop_smart_intersection () {
   configure_smart_intersection
   cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
-  ./sample_stop.sh
-  docker compose -f compose-scenescape.yml down -v
+  docker compose -f compose-scenescape.yml down -v --remove-orphans
 }
 
 debian_90_remove_smart_intersection () {
