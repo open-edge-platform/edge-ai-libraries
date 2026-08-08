@@ -3,7 +3,7 @@ configure_nicu_warmer () {
   workspace="$(ensure_project_path)/nicu-warmer"
   version=50e02996223da20a7375aaf7919faf3f1d50ed5c
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
-  device_env="configs/res/all-$([[ " $* " = *" --npu "* ]] && echo npu || echo gpu).env"
+  device_env="configs/res/all-$(ensure_select_device $*).env"
   models=(
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin"
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml"
